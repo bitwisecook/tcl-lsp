@@ -3399,3 +3399,115 @@ fn case_selects_its_glob_arm() {
         }
     }
 }
+
+/// A write an arm of a `switch` the flow graph keeps as one statement makes
+/// is never folded away: tclsh 8.4 to 9.1 print `b` and `0` for each of these
+/// programs, before and after the optimiser, where taking the earlier `go` as
+/// the value after the switch printed `a` and `1`. `-nocase` is from 8.5.
+#[test]
+fn a_write_an_opaque_switch_arm_makes_is_never_folded_away() {
+    for (arm, first) in [
+        ("-glob -- $s { q* { set go 0 } }", "8.4"),
+        ("-nocase -- $s { Q1 { set go 0 } }", "8.5"),
+        ("-regexp -- $s { {^q} { set go 0 } }", "8.4"),
+        ("-glob -- $s { x - q* { set go 0 } }", "8.4"),
+        (
+            "-glob -- $s { z* { set other 1 } default { set go 0 } }",
+            "8.4",
+        ),
+    ] {
+        let source = format!(
+            "set go 1\nset s [string tolower Q1]\nswitch {arm}\nif {{$go}} {{puts a}} else {{puts b}}\nputs $go\n"
+        );
+        prints_under_releases_from(&source, "b\n0\n", first);
+        let in_proc = format!(
+            "proc p {{}} {{\n set go 1\n set s [string tolower Q1]\n switch {arm}\n if {{$go}} {{puts a}} else {{puts b}}\n puts $go\n}}\np\n"
+        );
+        prints_under_releases_from(&in_proc, "b\n0\n", first);
+    }
+}
+
+/// What a command an arm of such a `switch` runs does to the frame is never
+/// folded away either: a callee that writes the caller's `go` through `upvar`,
+/// `namespace eval` at the global level and `dict with` (8.5 on) each leave
+/// `b` and `0` at the top level, where the earlier `go` printed `a` and `1`;
+/// in a procedure `namespace eval ::` writes the global, and the local keeps
+/// its value before and after the optimiser.
+#[test]
+fn a_write_a_command_an_opaque_switch_arm_runs_is_never_folded_away() {
+    for (arm, first, in_proc) in [
+        ("zero go", "8.4", "b\n0\n"),
+        ("namespace eval :: {set go 0}", "8.4", "a\n1\n"),
+        ("set d {}; dict with d {set go 0}", "8.5", "b\n0\n"),
+    ] {
+        let source = format!(
+            "proc zero {{v}} {{upvar 1 $v x; set x 0}}\nset go 1\nset s [string tolower Q1]\n\
+             switch -glob -- $s {{ q* {{ {arm} }} }}\nif {{$go}} {{puts a}} else {{puts b}}\nputs $go\n"
+        );
+        prints_under_releases_from(&source, "b\n0\n", first);
+        let in_proc_source = format!(
+            "proc zero {{v}} {{upvar 1 $v x; set x 0}}\nproc p {{}} {{\n set go 1\n set s [string tolower Q1]\n \
+             switch -glob -- $s {{ q* {{ {arm} }} }}\n if {{$go}} {{puts a}} else {{puts b}}\n puts $go\n}}\np\n"
+        );
+        prints_under_releases_from(&in_proc_source, in_proc, first);
+    }
+}
+
+/// A write a callback script makes — an `after` handler, a variable trace's
+/// callback, a procedure named as a callback — is never folded away either:
+/// each program prints the callback's value, `1` and `b`, under every
+/// release, before and after the optimiser.
+#[test]
+fn a_write_a_callback_script_makes_is_never_folded_away() {
+    for source in [
+        "set done 0\nafter 10 { set done 1 }\nafter 50\nupdate\nputs $done\n",
+        "proc tick {} { set ::done 1 }\nset done 0\nafter 10 tick\nafter 50\nupdate\nputs $done\n",
+        "set done 0\nafter 10 { set ::done 1 }\nafter 50\nupdate\nif {$done} {puts 1} else {puts 0}\n",
+        "set done 0\nafter 10 \"set ::done 1\"\nafter 50\nupdate\nputs $done\n",
+        "set done 0\nafter 10 [list set ::done 1]\nafter 50\nupdate\nputs $done\n",
+        "proc tick {n} { set ::done $n }\nset done 0\nafter 10 [list tick 1]\nafter 50\nupdate\nputs $done\n",
+    ] {
+        prints_under_every_release(source, "1\n");
+    }
+    prints_under_every_release(
+        "set go 1\ntrace add variable x write { set ::go 0 ;# }\nset x 1\nif {$go} {puts a} else {puts b}\n",
+        "b\n",
+    );
+}
+
+/// A command the module cannot see may write a plain top-level name as it
+/// writes `::g`, so the name is never folded across the call: `foo` here is
+/// defined at run time, from a file the program writes and sources, and sets
+/// the global — tclsh 8.4 to 9.1 print `six` and `6`, where taking `5` across
+/// the call printed `other` and `5`.
+#[test]
+fn a_write_a_command_the_module_cannot_see_makes_is_never_folded_away() {
+    let define = "set f [file join [file dirname [info script]] vt-unseen-[pid].tcl]\n\
+                  set fh [open $f w]\nputs $fh {proc foo {} {set ::g 6}}\nclose $fh\n\
+                  source $f\nfile delete $f\n";
+    for tail in [
+        "set g 5\nfoo\nif {$g == 6} {puts six} else {puts other}\nputs $g\n",
+        "set ::g 5\nfoo\nif {$::g == 6} {puts six} else {puts other}\nputs $::g\n",
+        "set g 5\nwhile {$g != 6} { foo }\nputs six\nputs $g\n",
+    ] {
+        prints_under_every_release(&format!("{define}{tail}"), "six\n6\n");
+    }
+}
+
+/// A sourced file runs in the frame of the call, so it writes a procedure's
+/// local as well as a global: the file here sets `g` to 6, and tclsh 8.4 to 9.1
+/// print `six` and `6` at the top level and in a procedure, where taking `5`
+/// across the `source` printed `other` and `5`.
+#[test]
+fn a_write_a_sourced_file_makes_is_never_folded_away() {
+    let write_file = "set f [file join [file dirname [info script]] vt-sourced-[pid].tcl]\n\
+                      set fh [open $f w]\nputs $fh {set g 6}\nclose $fh\n";
+    let top = format!(
+        "{write_file}set g 5\nsource $f\nfile delete $f\nif {{$g == 6}} {{puts six}} else {{puts other}}\nputs $g\n"
+    );
+    prints_under_every_release(&top, "six\n6\n");
+    let in_proc = format!(
+        "proc p {{f}} {{\n set g 5\n source $f\n if {{$g == 6}} {{puts six}} else {{puts other}}\n puts $g\n}}\n{write_file}p $f\nfile delete $f\n"
+    );
+    prints_under_every_release(&in_proc, "six\n6\n");
+}

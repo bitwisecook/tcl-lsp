@@ -50,14 +50,42 @@ the trace and alias facts before proposing one. The membership test is
 function's escaping set, or any dynamic variable trace); the escaping set
 comes from `var_observability::analyse_var_observability` extended with
 `var_observability::scan_module_global_names` for the top-level body and
-with the whole-module `Module::traced_variables` carried by
-`sccp::TraceInputs`. SCCP applies that test to every def it evaluates, so a
-constant branch or a folded value never involves a traced or aliased name
-in the first place; `propagation::run_load_forwarding` (O102) applies it
-independently because its def-use walk never consults `fu.sccp`; and
+with the whole-module `Module::traced_variables` and
+`Module::deferred_writes` carried by `sccp::TraceInputs`. The second is the
+names the module's callback scripts write, destroy or bind — the words the
+registry states as scripts stored to run later (`CommandRegistry::
+callback_script_indices`: `after`, `fileevent`, `bind`, a variable trace's
+callback, never a definition's body, which runs in a frame of its own) and
+what a procedure named as a callback writes in the global frame
+(`deferred_writes.rs`); a callback that writes a computed name makes every
+name externally mutable, as a trace on one does. SCCP applies that test to
+every def it evaluates, so a constant branch or a folded value never
+involves a traced, aliased or callback-written name in the first place;
+`propagation::run_load_forwarding` (O102) applies it independently because
+its def-use walk never consults `fu.sccp`; and
 `propagation::run_store_to_load_forwarding` (O127) adds the memory-SSA
 half through `memory_ssa::compute_aliases` when the unit carries no
 `MemorySsa`. There is no separate bytecode-level shortcut to guard.
+
+A plain name in the top-level script is the global `::name`, so a call there
+to a command the module cannot see — one neither the registry ships for the
+dialect nor the module binds
+(`ModuleCommandBindings::may_dispatch_unresolved`) — may write, unset or read
+it with nothing in the script to show it. So may a call that sources a file
+(`Traits::SOURCES_FILE`), which runs the file in the frame of the call, a
+procedure's frame included. The CFG builder puts a
+`SyntheticMarker::UnseenCall` statement where such a call runs: after the
+call's own head, ahead of a statement whose `[…]` substitution runs one, in
+front of a condition's branch, and after an opaque `switch` whose arm does.
+It defines and reads nothing; the SSA records the version each name holds
+there (`SsaFunction::is_observed_by_unseen_call`). Each recorded version —
+a definition or a φ — is `Overdefined` whatever flows into it, and the
+existence rung treats the marker as a clobber of every place, so
+`[info exists]` after it decides nothing. O102 skips a chain whose version is
+recorded and O109 keeps a store it holds, as each already did for a
+`::`-qualified spelling. A definition made after the call is decided again,
+and a procedure's locals are not recorded for a callee the module cannot see,
+because no callee can reach them; a sourced file in a procedure records them.
 
 ### Command values: the registry's routes
 

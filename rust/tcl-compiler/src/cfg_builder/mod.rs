@@ -158,6 +158,8 @@ struct ConditionEffects {
     reads: Vec<String>,
     /// An embedded callee runs an unreadable script at the global frame.
     opaque_global: bool,
+    /// An embedded command is one the module cannot see.
+    unseen: bool,
 }
 
 /// The caller-frame effects a statement's `[…]` substitutions contribute.
@@ -170,6 +172,8 @@ struct EmbeddedSubstExtras {
     read_before_write: Vec<String>,
     /// An embedded callee runs an unreadable script at the global frame.
     opaque_global: bool,
+    /// An embedded command is one the module cannot see.
+    unseen: bool,
 }
 
 /// Whether a call-shaped IR statement has one statically literal command
@@ -644,6 +648,196 @@ impl<'a> CfgBuilder<'a> {
             .extend(self.upvar_effects_from_commands(&embedded.commands).defs);
     }
 
+    /// Whether the call statement `stmt` itself runs code the module cannot
+    /// see: its head is a literal spelling that is neither a command the
+    /// registry ships for the dialect nor one the module binds
+    /// ([`ModuleCommandBindings::may_dispatch_unresolved`]), or it sources a
+    /// file ([`Traits::SOURCES_FILE`]).
+    ///
+    /// A plain name in the top-level script is the global `::name`, and the
+    /// code such a call reaches can write, unset or read it with nothing in
+    /// this function's text to show it; the CFG marks the call
+    /// ([`Self::unseen_call_marker`]). A procedure body's plain names are
+    /// locals no callee reaches, so a callee it cannot see marks nothing; a
+    /// sourced file runs in the frame of the call, and marks there too. A
+    /// computed head is left to the dynamic-command handling it already has.
+    fn call_is_unseen(&self, stmt: &Statement) -> bool {
+        if !statement_has_literal_head(stmt) {
+            return false;
+        }
+        let Statement::Call {
+            command,
+            canonical_command,
+            args,
+            ..
+        } = stmt
+        else {
+            return false;
+        };
+        let head = canonical_command.as_deref().unwrap_or(command.as_str());
+        let spellings: Vec<&str> = args.iter().map(String::as_str).collect();
+        self.runs_unseen_code(head, &spellings)
+    }
+
+    /// Whether a command with literal head `head` runs code the module cannot
+    /// see in a frame this function holds.
+    fn runs_unseen_code(&self, head: &str, args: &[&str]) -> bool {
+        self.registry
+            .invocation_traits(head, args, self.registry.own_surface_query())
+            .contains(Traits::SOURCES_FILE)
+            || (!self.is_proc_body && self.head_is_unseen(head))
+    }
+
+    /// Whether any command in `commands` — those a statement's `[…]`
+    /// substitutions run — has a literal head that runs code the module
+    /// cannot see ([`Self::runs_unseen_code`]).
+    fn substitutions_reach_unseen(
+        &self,
+        embedded: &crate::ir_helpers::EvaluatedCommandSubstitutions,
+    ) -> bool {
+        embedded.all_commands().any(|words| {
+            let Some(head) = words
+                .first()
+                .and_then(crate::ir_helpers::CommandWord::literal)
+            else {
+                return false;
+            };
+            let spellings: Vec<&str> = words
+                .iter()
+                .skip(1)
+                .map(|word| word.literal().unwrap_or_default())
+                .collect();
+            self.runs_unseen_code(head, &spellings)
+        })
+    }
+
+    /// What the commands the arms of the opaque `switch` `stmt` run do to this
+    /// frame, beyond the writes the SSA reads off the statement itself
+    /// ([`crate::ssa::switch_may_defs`]), as the statements that follow it.
+    ///
+    /// The arms stay inside the statement, so the scans of the statements the
+    /// graph lowers never reach a command in one. Each is asked what the graph
+    /// would have put beside it had it lowered the arm
+    /// ([`Self::apply_upvar_invalidation`], whose function-level facts this
+    /// records too): the names a callee writes into this frame, which become
+    /// the statement's may-definitions ([`crate::ir::SyntheticMarker::ArmWrites`]);
+    /// a barrier for a command that may write any name (`namespace eval`,
+    /// `dict with`, `eval $script`, a callee that aliases a computed name); and
+    /// a marker where code the module cannot see runs.
+    fn opaque_arm_effects(&mut self, stmt: &Statement) -> Vec<Statement> {
+        let Statement::Switch {
+            arms, default_body, ..
+        } = stmt
+        else {
+            return Vec::new();
+        };
+        let mut names: BTreeSet<String> = BTreeSet::new();
+        let (mut barrier, mut unseen) = (false, false);
+        for body in arms
+            .iter()
+            .filter_map(|arm| arm.body.as_ref())
+            .chain(default_body.as_ref())
+        {
+            crate::ir::for_each_statement(body, &mut |inner| {
+                let own: &[String] = match inner {
+                    Statement::Call { defs, .. } => defs,
+                    _ => &[],
+                };
+                // A command that leaves the procedure (`exit`, `error`) writes
+                // nothing the code after the `switch` can read.
+                let exits = flow_facts_stmt_with_classes(inner, &self.command_classes).1
+                    == Completion::ProcExit;
+                for produced in self.apply_upvar_invalidation(inner.clone()) {
+                    match &produced {
+                        _ if crate::ssa::is_unseen_call_marker(&produced) => unseen = true,
+                        Statement::Barrier { .. } | Statement::UpFrame { .. } => {
+                            barrier |= !exits;
+                        }
+                        Statement::Call { defs, .. } => {
+                            names.extend(defs.iter().filter(|name| !own.contains(name)).cloned());
+                        }
+                        _ => {}
+                    }
+                }
+            });
+        }
+        let span = stmt.span();
+        let mut effects = Vec::new();
+        if !names.is_empty() {
+            effects.push(Statement::Call {
+                span,
+                command: "<arm-writes>".to_owned(),
+                canonical_command: None,
+                args: Vec::new(),
+                defs: names.into_iter().collect(),
+                reads: Vec::new(),
+                reads_own_defs: false,
+                safe_on_uninit: false,
+                tokens: Some(crate::ir::CommandTokens::marker(
+                    crate::ir::SyntheticMarker::ArmWrites,
+                )),
+                foreach_groups: None,
+            });
+        }
+        if barrier {
+            effects.push(Self::caller_frame_opaque(
+                span,
+                "a command an arm of the switch runs may write any name".to_owned(),
+            ));
+        }
+        if unseen {
+            effects.push(Self::unseen_call_marker(span));
+        }
+        effects
+    }
+
+    /// A widening *effect*, not a command to run: every tracked value is
+    /// widened where it stands ([`crate::ir::SyntheticMarker::CallerFrameOpaque`]).
+    fn caller_frame_opaque(span: Span, reason: String) -> Statement {
+        Statement::Barrier {
+            span,
+            reason,
+            command: "<caller-frame-opaque>".to_owned(),
+            canonical_command: None,
+            args: Vec::new(),
+            tokens: Some(crate::ir::CommandTokens::marker(
+                crate::ir::SyntheticMarker::CallerFrameOpaque,
+            )),
+        }
+    }
+
+    /// The statement standing where code the module cannot see runs: it
+    /// defines and reads nothing, and tells the SSA which version each name
+    /// holds there ([`crate::ir::SyntheticMarker::UnseenCall`]).
+    fn unseen_call_marker(span: Span) -> Statement {
+        Statement::Call {
+            span,
+            command: "<unseen-call>".to_owned(),
+            canonical_command: None,
+            args: Vec::new(),
+            defs: Vec::new(),
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: Some(crate::ir::CommandTokens::marker(
+                crate::ir::SyntheticMarker::UnseenCall,
+            )),
+            foreach_groups: None,
+        }
+    }
+
+    /// Whether `head`, run in this function's namespace, may reach no
+    /// command the module can name. A head whose namespace the builder does
+    /// not know is taken to.
+    fn head_is_unseen(&self, head: &str) -> bool {
+        self.invocation_namespace
+            .for_head(head)
+            .is_none_or(|namespace| {
+                self.command_bindings
+                    .may_dispatch_unresolved(head, namespace)
+            })
+    }
+
     /// The outer-scope names the procedure a direct call statement reaches
     /// writes ([`GlobalWriteInfo::names`]).
     fn direct_global_writes(&self, stmt: &Statement) -> Vec<String> {
@@ -699,7 +893,26 @@ impl<'a> CfgBuilder<'a> {
     /// no side effect on the function-level barrier — so a speculative query
     /// ([`Self::init_written_names`]) can ask what a statement writes without
     /// recording the statement twice.
-    fn upvar_invalidated(&self, mut stmt: Statement) -> Vec<Statement> {
+    fn upvar_invalidated(&self, stmt: Statement) -> Vec<Statement> {
+        let call_unseen = self.call_is_unseen(&stmt);
+        let span = stmt.span();
+        let (mut out, substitution_unseen) = self.upvar_effect_statements(stmt);
+        // An embedded command runs while the host's words are still being
+        // evaluated, so its marker goes ahead of the host's own reads; the
+        // call's own head runs after its words are, so its marker follows.
+        if substitution_unseen {
+            out.insert(0, Self::unseen_call_marker(span));
+        }
+        if call_unseen {
+            out.push(Self::unseen_call_marker(span));
+        }
+        out
+    }
+
+    /// The statements [`Self::upvar_invalidated`] puts for `stmt` before its
+    /// call is marked, and whether a command a `[…]` substitution of it runs is
+    /// one the module cannot see.
+    fn upvar_effect_statements(&self, mut stmt: Statement) -> (Vec<Statement>, bool) {
         // 1. Direct-call extras: command is a known upvar proc / a proc
         //    that writes outer-scope names.
         let direct_extras = self.direct_call_extras(&stmt);
@@ -719,6 +932,7 @@ impl<'a> CfgBuilder<'a> {
             defs: embedded_extras,
             read_before_write: embedded_reads,
             opaque_global: embedded_opaque_global,
+            unseen: substitution_unseen,
         } = self.embedded_subst_extras(&stmt);
 
         if direct_extras.is_empty()
@@ -726,10 +940,11 @@ impl<'a> CfgBuilder<'a> {
             && embedded_reads.is_empty()
             && !embedded_opaque_global
         {
-            return match direct_opaque_barrier {
+            let out = match direct_opaque_barrier {
                 Some(barrier) => vec![stmt, barrier],
                 None => vec![stmt],
             };
+            return (out, substitution_unseen);
         }
 
         // 2b. An embedded call to a proc that runs an unreadable script at
@@ -778,7 +993,7 @@ impl<'a> CfgBuilder<'a> {
             if let Some(barrier) = direct_opaque_barrier {
                 out.push(barrier);
             }
-            return out;
+            return (out, substitution_unseen);
         }
 
         // 4. Non-Call host (e.g. AssignValue) with embedded extras —
@@ -809,7 +1024,7 @@ impl<'a> CfgBuilder<'a> {
         if let Some(barrier) = direct_opaque_barrier {
             out.push(barrier);
         }
-        out
+        (out, substitution_unseen)
     }
 
     /// The opaque widening barrier for a direct call whose callee's
@@ -856,27 +1071,15 @@ impl<'a> CfgBuilder<'a> {
         } else {
             format!("{command} writes a source-opaque variable name")
         };
-        Some(Statement::Barrier {
-            span: *span,
-            // A widening *effect*, not a command to run: the call itself is
-            // already in the statement stream immediately beside this barrier,
-            // so naming the callee here would make codegen invoke it a second
-            // time: `proc p {} { upvar 1 {a b} v ; puts "u=$v" }; p` would print
-            // `u=…` twice on the VM where tclsh 8.6.14 / 9.0.4 print it
-            // once; `proc setter {body} { uplevel #0 $body }; setter {set q 1}`
-            // failed with `wrong # args` from the re-invoke). The typed
-            // `SyntheticMarker` on the tokens is what stops codegen
-            // dispatching it; the `command` spelling below is a label for the
-            // disassembly and the explorer, and `reason` keeps the callee's
-            // name.
-            reason,
-            command: "<caller-frame-opaque>".to_owned(),
-            canonical_command: None,
-            args: Vec::new(),
-            tokens: Some(crate::ir::CommandTokens::marker(
-                crate::ir::SyntheticMarker::CallerFrameOpaque,
-            )),
-        })
+        // Not a command to run: the call itself is already in the statement
+        // stream immediately beside this barrier, so naming the callee here
+        // would make codegen invoke it a second time: `proc p {} { upvar 1 {a
+        // b} v ; puts "u=$v" }; p` would print `u=…` twice on the VM where
+        // tclsh 8.6.14 / 9.0.4 print it once; `proc setter {body} { uplevel #0
+        // $body }; setter {set q 1}` failed with `wrong # args` from the
+        // re-invoke. The typed `SyntheticMarker` on the tokens is what stops
+        // codegen dispatching it, and `reason` keeps the callee's name.
+        Some(Self::caller_frame_opaque(*span, reason))
     }
 
     /// The direct-call half of [`Self::upvar_invalidated`]: the caller-side
@@ -1013,6 +1216,7 @@ impl<'a> CfgBuilder<'a> {
             defs: embedded_extras,
             read_before_write: reads,
             opaque_global: embedded_opaque_global,
+            unseen: self.substitutions_reach_unseen(&embedded),
         }
     }
 
@@ -1179,6 +1383,7 @@ impl<'a> CfgBuilder<'a> {
             defs: out,
             reads,
             opaque_global: opaque,
+            unseen: self.substitutions_reach_unseen(&embedded),
         }
     }
 
@@ -1191,7 +1396,13 @@ impl<'a> CfgBuilder<'a> {
             defs,
             reads,
             opaque_global: opaque,
+            unseen,
         } = self.condition_out_vars(condition);
+        if unseen {
+            self.block_mut(block)
+                .statements
+                .push(Self::unseen_call_marker(span));
+        }
         if !defs.is_empty() || !reads.is_empty() {
             self.block_mut(block).statements.push(Statement::Call {
                 span,
@@ -1611,7 +1822,13 @@ impl<'a> CfgBuilder<'a> {
             defs: extras,
             read_before_write: extra_reads,
             opaque_global: opaque,
+            unseen,
         } = self.embedded_subst_extras(stmt);
+        if unseen {
+            self.block_mut(current)
+                .statements
+                .push(Self::unseen_call_marker(stmt.span()));
+        }
         if opaque {
             self.block_mut(current).statements.push(Statement::Barrier {
                 span: stmt.span(),

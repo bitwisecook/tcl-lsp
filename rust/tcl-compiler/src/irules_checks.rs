@@ -1527,6 +1527,40 @@ where
 // semantics after the first request. Array elements and namespace/static
 // variables likewise need a different destination and are excluded.
 
+/// Add to `counts` one write for each name `stmt` writes.
+///
+/// The arms of a `switch` the flow graph keeps as one statement stay inside
+/// it, so what they write counts here.
+fn count_statement_writes(stmt: &Statement, counts: &mut HashMap<String, usize>) {
+    match stmt {
+        Statement::AssignConst { name, .. }
+        | Statement::AssignExpr { name, .. }
+        | Statement::AssignValue { name, .. }
+        | Statement::Incr { name, .. } => {
+            *counts.entry(name.clone()).or_default() += 1;
+        }
+        Statement::Call { defs, .. } => {
+            for name in defs {
+                *counts.entry(name.clone()).or_default() += 1;
+            }
+        }
+        Statement::Switch {
+            arms, default_body, ..
+        } => {
+            let bodies = arms
+                .iter()
+                .filter_map(|arm| arm.body.as_ref())
+                .chain(default_body.as_ref());
+            for body in bodies {
+                for name in crate::ir_helpers::defs_from_ir_script(body) {
+                    *counts.entry(name).or_default() += 1;
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
 /// Hoistable-set warnings for IRULE4004.
 #[must_use]
 pub fn find_hoistable_set_warnings(
@@ -1552,20 +1586,7 @@ pub fn find_hoistable_set_warnings(
                 continue;
             }
             for stmt in &block.statements {
-                match stmt {
-                    Statement::AssignConst { name, .. }
-                    | Statement::AssignExpr { name, .. }
-                    | Statement::AssignValue { name, .. }
-                    | Statement::Incr { name, .. } => {
-                        *write_counts.entry(name.clone()).or_default() += 1;
-                    }
-                    Statement::Call { defs, .. } => {
-                        for name in defs {
-                            *write_counts.entry(name.clone()).or_default() += 1;
-                        }
-                    }
-                    _ => {}
-                }
+                count_statement_writes(stmt, &mut write_counts);
             }
         }
     }
@@ -3180,6 +3201,76 @@ mod tests {
         assert!(
             ws.iter().all(|w| w.code != DiagCode::Irule4002),
             "empty pattern list should disable IRULE4002, got {ws:?}",
+        );
+    }
+
+    /// A flag a `switch` arm sets is no constant: the `HTTP::respond` under
+    /// `if {$is_api}` is reachable, so the header insert after it may follow a
+    /// committed response. The same handler with no arm writing the flag
+    /// leaves the respond unreachable and reports nothing.
+    #[test]
+    fn irule1201_reads_a_flag_a_switch_arm_sets() {
+        let written = concat!(
+            "when HTTP_REQUEST { set is_api 0; switch -glob [HTTP::uri] { \"/api*\" { set is_api 1 } }; ",
+            "if {$is_api} { HTTP::respond 403 }; HTTP::header insert X-Seen 1 }"
+        );
+        let ws = http_warnings(written);
+        assert!(
+            ws.iter().any(|w| w.code == DiagCode::Irule1201),
+            "expected IRULE1201, got {ws:?}",
+        );
+        let untouched = concat!(
+            "when HTTP_REQUEST { set is_api 0; switch -glob [HTTP::uri] { \"/api*\" { set other 1 } }; ",
+            "if {$is_api} { HTTP::respond 403 }; HTTP::header insert X-Seen 1 }"
+        );
+        let ws = http_warnings(untouched);
+        assert!(
+            !ws.iter().any(|w| w.code == DiagCode::Irule1201),
+            "the respond is unreachable, got {ws:?}",
+        );
+    }
+
+    /// The same for a drop under a flag a `switch` arm sets.
+    #[test]
+    fn irule5002_reads_a_flag_a_switch_arm_sets() {
+        let written = concat!(
+            "when CLIENT_ACCEPTED { set bad 0; switch -glob [IP::client_addr] { 10.* { set bad 1 } }; ",
+            "if {$bad} { drop } }"
+        );
+        assert!(
+            drop_codes(written).contains(&"IRULE5002".to_owned()),
+            "{:?}",
+            drop_codes(written),
+        );
+        let untouched = concat!(
+            "when CLIENT_ACCEPTED { set bad 0; switch -glob [IP::client_addr] { 10.* { set other 1 } }; ",
+            "if {$bad} { drop } }"
+        );
+        assert!(
+            drop_codes(untouched).is_empty(),
+            "{:?}",
+            drop_codes(untouched)
+        );
+    }
+
+    /// A write in an arm of a `switch` the flow graph keeps as one statement
+    /// counts: the `set svc foo` is one of two writes, so hoisting it to a
+    /// once-per-connection event would change what a later request sees.
+    #[test]
+    fn irule4004_counts_the_writes_a_switch_arm_makes() {
+        let ws = hoist_warnings(
+            "when HTTP_REQUEST { set svc foo; switch -glob [HTTP::uri] { /a* { set svc bar } }; pool $svc }",
+        );
+        assert!(
+            !ws.iter().any(|w| w.code == DiagCode::Irule4004),
+            "no IRULE4004 expected — an arm writes svc too, got {ws:?}",
+        );
+        let ws = hoist_warnings(
+            "when HTTP_REQUEST { set svc foo; switch -glob [HTTP::uri] { /a* { set other bar } }; pool $svc }",
+        );
+        assert!(
+            ws.iter().any(|w| w.code == DiagCode::Irule4004),
+            "expected IRULE4004 when no arm writes svc, got {ws:?}",
         );
     }
 }

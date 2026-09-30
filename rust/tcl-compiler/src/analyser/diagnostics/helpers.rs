@@ -324,6 +324,7 @@ pub(super) struct PhiUndefCtx<'a> {
     pub phi_def: &'a PhiDefMap,
     pub phi_block: &'a PhiBlockMap,
     pub killed: &'a FxHashSet<(String, crate::ssa::Version)>,
+    pub may_defs: &'a MayDefMap,
     pub considered: &'a HashSet<BlockId>,
     pub executable_edges: &'a HashSet<(BlockId, BlockId)>,
     pub exists_guards: &'a [(String, BlockId)],
@@ -494,11 +495,7 @@ impl PhiUndefIndex {
             killed.insert((symbol, *version), !name_facts.rematerialises_after_unset);
         }
 
-        let mut undef: FxHashSet<VersionKey> = FxHashSet::default();
-        let mut worklist: Vec<VersionKey> = Vec::new();
-        // Reverse operand edges: an undef version makes every phi that takes
-        // it as an incoming undef too.
-        let mut users: FxHashMap<VersionKey, Vec<crate::ssa::Version>> = FxHashMap::default();
+        let mut walk = UndefWalk::default();
         for (key, phi) in ctx.phi_def {
             let (name, version) = (&key.0, key.1);
             let symbol = phi.name;
@@ -543,48 +540,108 @@ impl PhiUndefIndex {
                 }
                 // A definition a route preserved is its prior version.
                 let incoming = through_preserved(ctx.preserved, symbol, incoming);
-                let operand = (symbol, incoming);
-                let origin = if let Some(&answer) = killed.get(&operand) {
-                    answer
-                } else if incoming == 0 {
-                    // A version-zero incoming normally is the undef origin.
-                    // The default Tcl host, however, binds a
-                    // registry-declared subset before user code, and a
-                    // conditional write would otherwise make a merge with the
-                    // startup version look undefined. Procedure-local frames
-                    // never set `initial_global`.
-                    !name_facts.readable_at_startup
-                } else {
-                    // Another phi (or a concrete definition, which is never
-                    // undef and so never enters `undef`).
-                    if undef.contains(&operand) {
-                        true
-                    } else {
-                        users.entry(operand).or_default().push(version);
-                        continue;
-                    }
-                };
-                if origin && undef.insert(node) {
-                    worklist.push(node);
-                }
+                walk.take(
+                    node,
+                    (symbol, incoming),
+                    &killed,
+                    name_facts.readable_at_startup,
+                );
             }
         }
-        while let Some(node) = worklist.pop() {
-            let Some(users) = users.get(&node) else {
+        // A name an opaque `switch`'s arm may write is a phi with one
+        // operand: the version the statement read, which it holds when no arm
+        // runs.
+        for (key, &(block, prior)) in ctx.may_defs {
+            let Some(symbol) = ctx.ssa.var_symbol(&key.0) else {
                 continue;
             };
-            for &user in users {
-                let up = (node.0, user);
-                if undef.insert(up) {
-                    worklist.push(up);
-                }
+            let node = (symbol, key.1);
+            if killed.contains_key(&node)
+                || ctx
+                    .exists_guards
+                    .iter()
+                    .any(|(gv, gblk)| *gv == key.0 && block_dominated_by(ctx.ssa, block, *gblk))
+            {
+                continue;
             }
+            let name_facts = *facts
+                .entry(symbol)
+                .or_insert_with(|| StartupFacts::for_name(&key.0, ctx));
+            let prior = through_preserved(ctx.preserved, symbol, prior);
+            walk.take(
+                node,
+                (symbol, prior),
+                &killed,
+                name_facts.readable_at_startup,
+            );
         }
+        let undef = walk.finish();
         Self {
             undef,
             killed,
             facts,
         }
+    }
+}
+
+/// The reachability walk behind [`PhiUndefIndex::build`]: which versions can
+/// reach an undef origin, over the operand edges of the phis and of the
+/// opaque `switch` may-definitions.
+#[derive(Default)]
+struct UndefWalk {
+    undef: FxHashSet<VersionKey>,
+    worklist: Vec<VersionKey>,
+    /// Reverse operand edges: an undef version makes every version that takes
+    /// it as an operand undef too.
+    users: FxHashMap<VersionKey, Vec<crate::ssa::Version>>,
+}
+
+impl UndefWalk {
+    /// `node` takes `operand`: undef when the operand is an undef origin or
+    /// already known undef, and recorded as a user of it otherwise.
+    fn take(
+        &mut self,
+        node: VersionKey,
+        operand: VersionKey,
+        killed: &FxHashMap<VersionKey, bool>,
+        readable_at_startup: bool,
+    ) {
+        let origin = if let Some(&answer) = killed.get(&operand) {
+            answer
+        } else if operand.1 == 0 {
+            // A version-zero incoming normally is the undef origin. The
+            // default Tcl host, however, binds a registry-declared subset
+            // before user code, and a conditional write would otherwise make
+            // a merge with the startup version look undefined.
+            // Procedure-local frames never set `initial_global`.
+            !readable_at_startup
+        } else if self.undef.contains(&operand) {
+            true
+        } else {
+            // Another phi (or a concrete definition, which is never undef
+            // and so never enters `undef`).
+            self.users.entry(operand).or_default().push(node.1);
+            return;
+        };
+        if origin && self.undef.insert(node) {
+            self.worklist.push(node);
+        }
+    }
+
+    /// Follow every undef version to the versions that take it.
+    fn finish(mut self) -> FxHashSet<VersionKey> {
+        while let Some(node) = self.worklist.pop() {
+            let Some(users) = self.users.get(&node) else {
+                continue;
+            };
+            for &user in users {
+                let up = (node.0, user);
+                if self.undef.insert(up) {
+                    self.worklist.push(up);
+                }
+            }
+        }
+        self.undef
     }
 }
 
@@ -637,6 +694,23 @@ pub(super) type PhiDefMap = FxHashMap<(String, crate::ssa::Version), crate::ssa:
 /// each incoming `(pred, phi_block)` edge against the SCCP-executable edge set.
 pub(super) type PhiBlockMap = FxHashMap<(String, crate::ssa::Version), BlockId>;
 
+/// The versions an opaque `switch` may define — a name one of its arms
+/// writes — each with the version the statement read and the block it sits
+/// in. Such a version holds its prior one when no arm runs, so it is
+/// undefined exactly when that one can be: a phi with one operand.
+pub(super) type MayDefMap =
+    FxHashMap<(String, crate::ssa::Version), (BlockId, crate::ssa::Version)>;
+
+/// The indices [`phi_can_undef`] answers from: phi operands, the block each
+/// phi sits in, the `unset`-killed versions, and the may-definitions of the
+/// opaque `switch` statements.
+pub(super) struct UndefIndexMaps {
+    pub phi_def: PhiDefMap,
+    pub phi_block: PhiBlockMap,
+    pub killed: FxHashSet<(String, crate::ssa::Version)>,
+    pub may_defs: MayDefMap,
+}
+
 /// Build the `(name, version) → Phi` index, the `(name, version) → block`
 /// index, and the set of `unset`-killed versions for [`phi_can_undef`],
 /// restricted to `considered` (executable) blocks.
@@ -644,15 +718,12 @@ pub(super) fn build_phi_undef_index(
     ssa: &crate::ssa::SsaFunction,
     considered: &HashSet<BlockId>,
     registry: Option<&tcl_registry::CommandRegistry>,
-) -> (
-    PhiDefMap,
-    PhiBlockMap,
-    FxHashSet<(String, crate::ssa::Version)>,
-) {
+) -> UndefIndexMaps {
     use crate::ir::Statement;
     let mut phi_def: PhiDefMap = FxHashMap::default();
     let mut phi_block: PhiBlockMap = FxHashMap::default();
     let mut killed: FxHashSet<(String, crate::ssa::Version)> = FxHashSet::default();
+    let mut may_defs: MayDefMap = FxHashMap::default();
     for &bn in considered {
         let Some(sblock) = ssa.blocks.get(&bn) else {
             continue;
@@ -663,6 +734,14 @@ pub(super) fn build_phi_undef_index(
             phi_block.insert((phi_name, phi.version), bn);
         }
         for s in &sblock.statements {
+            if crate::ssa::has_arm_may_defs(&s.statement) {
+                for symbol in &s.may_defs {
+                    if let (Some(&version), Some(&prior)) = (s.defs.get(symbol), s.uses.get(symbol))
+                    {
+                        may_defs.insert((ssa.var_name(*symbol).to_owned(), version), (bn, prior));
+                    }
+                }
+            }
             let Statement::Call {
                 command,
                 canonical_command,
@@ -695,7 +774,12 @@ pub(super) fn build_phi_undef_index(
             }
         }
     }
-    (phi_def, phi_block, killed)
+    UndefIndexMaps {
+        phi_def,
+        phi_block,
+        killed,
+        may_defs,
+    }
 }
 
 /// Name-level suppression context for the `return`-value phi-from-undef W210
@@ -1123,7 +1207,12 @@ pub(super) fn build_undef_suppression(
         lexer_config,
     } = semantics;
     let commands = registry.unwrap_or_else(|| tcl_registry::default_registry());
-    let (phi_def, phi_block, killed) = build_phi_undef_index(&fu.ssa, considered, registry);
+    let UndefIndexMaps {
+        phi_def,
+        phi_block,
+        killed,
+        may_defs,
+    } = build_phi_undef_index(&fu.ssa, considered, registry);
     // Phi versions that can reach an undef origin on some executable path —
     // a statement read of one is read-before-set. The per-use existence
     // guard + suppression set still apply in the emitter loop.
@@ -1133,6 +1222,7 @@ pub(super) fn build_undef_suppression(
         phi_def: &phi_def,
         phi_block: &phi_block,
         killed: &killed,
+        may_defs: &may_defs,
         considered,
         executable_edges: &fu.sccp.executable_edges,
         exists_guards: &exists_guards,
@@ -1148,7 +1238,7 @@ pub(super) fn build_undef_suppression(
     // every other query (issue #2021 — without it the sweep re-walks every
     // path through the phi graph).
     let mut memo = PhiUndefMemo::default();
-    for key in phi_def.keys() {
+    for key in phi_def.keys().chain(may_defs.keys()) {
         if phi_can_undef(&key.0, key.1, &undef_ctx, &mut memo) {
             can_undef.insert(key.clone());
         }

@@ -455,6 +455,7 @@ pub fn push_taint_and_module_checks(
     let module_traces = crate::compilation_unit::ModuleTraceFacts {
         traced_variables: &cu.ir_module.traced_variables,
         has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+        deferred_writes: &cu.ir_module.deferred_writes,
     };
     // `analysable_body_function_units` (not `analysable_functions`) so a sink
     // inside a TclOO method body — or an `apply` lambda / `namespace eval`

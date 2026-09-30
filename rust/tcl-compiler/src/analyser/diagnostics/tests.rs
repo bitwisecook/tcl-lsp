@@ -5048,6 +5048,7 @@ fn memoized_compilation_unit_diagnostics_match_whole_file() {
                     let trace_facts = crate::compilation_unit::ModuleTraceFacts {
                         traced_variables: &traced_variables,
                         has_dynamic_variable_trace: req.has_dynamic_variable_trace,
+                        deferred_writes: &req.analysis_context.deferred_writes,
                     };
                     let fu = FunctionUnit::build_with_param_constants_and_classes(
                         req.qname,
@@ -15373,4 +15374,149 @@ fn a_guard_under_and_narrows_the_read() {
     );
     assert_eq!(past.len(), 1, "{past:?}");
     assert_eq!(past[0].0, DiagCode::W210);
+}
+
+/// The I230 messages `src` draws on the whole-file path and on the per-item
+/// path, in emission order.
+fn i230_on_both_paths(src: &str) -> (Vec<String>, Vec<String>) {
+    let messages = |per_item: bool| -> Vec<String> {
+        let mut a = Analyser::new();
+        let result = if per_item {
+            a.analyse_per_item(src, "tcl8.6")
+        } else {
+            a.analyse(src, "tcl8.6")
+        };
+        result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::I230)
+            .map(|d| d.message.clone())
+            .collect()
+    };
+    (messages(false), messages(true))
+}
+
+/// No I230 for any of `sources`, on either path.
+fn assert_no_i230(sources: &[&str]) {
+    for src in sources {
+        let (whole, per_item) = i230_on_both_paths(src);
+        assert!(whole.is_empty(), "whole file: {src}\n{whole:?}");
+        assert_eq!(per_item, whole, "per item: {src}");
+    }
+}
+
+/// A `switch` the flow graph keeps as one statement writes what its arms
+/// write, so the condition after it is no constant: tclsh 8.4 to 9.1 print `b`
+/// for `set go 1; switch -glob -- abc { a* { set go 0 } }; if {$go} {puts a}
+/// else {puts b}`, not the `a` the earlier value gave. A name no arm writes
+/// stays decided.
+#[test]
+fn i230_never_reports_a_condition_over_a_name_a_switch_arm_may_write() {
+    assert_no_i230(&[
+        "set go 1\nswitch -glob -- [gets stdin] { q* { set go 0 } }\nif {$go} {puts a} else {puts b}\n",
+        "set go 1\nswitch -nocase -- [gets stdin] { q { set go 0 } }\nif {$go} {puts a} else {puts b}\n",
+        "set go 1\nswitch -regexp -- [gets stdin] { {^q} { set go 0 } }\nif {$go} {puts a} else {puts b}\n",
+        "set go 1\nswitch -glob -- [gets stdin] { x - q* { set go 0 } }\nif {$go} {puts a} else {puts b}\n",
+        "set go 1\ncase [gets stdin] in { q* { set go 0 } }\nif {$go} {puts a} else {puts b}\n",
+        "proc p {} {\n set go 1\n switch -glob -- [gets stdin] { q* { set go 0 } }\n if {$go} {puts a} else {puts b}\n}\n",
+        "proc p {s} {\n set go 1\n switch -glob -- $s { q* { incr go -1 } default { set other 1 } }\n if {$go} {puts a} else {puts b}\n}\n",
+        // A command an arm runs that may write any name, and a callee that
+        // writes the caller's name through `upvar`.
+        "set go 1\nswitch -glob -- [gets stdin] { q* { namespace eval :: {set go 0} } }\nif {$go} {puts a} else {puts b}\n",
+        "proc p {s} {\n set go 1\n switch -glob -- $s { q* { dict with d { set go 0 } } }\n if {$go} {puts a} else {puts b}\n}\n",
+        "proc zero {v} {upvar 1 $v x; set x 0}\nproc p {s} {\n set go 1\n switch -glob -- $s { q* { zero go } }\n if {$go} {puts a} else {puts b}\n}\n",
+        "proc zero {v} {upvar 1 $v x; set x 0}\nset go 1\nswitch -glob -- [gets stdin] { q* { zero go } }\nif {$go} {puts a} else {puts b}\n",
+    ]);
+    let (whole, per_item) = i230_on_both_paths(
+        "proc hit {} {global hits; incr hits}\nproc p {s} {\n set n 5\n switch -glob -- $s { q* { hit } }\n if {$n} {puts a} else {puts b}\n}\n",
+    );
+    assert_eq!(
+        whole.len(),
+        1,
+        "a global writer leaves a local alone: {whole:?}"
+    );
+    assert_eq!(per_item, whole);
+    let (whole, per_item) = i230_on_both_paths(
+        "set go 1\nswitch -glob -- [gets stdin] { q* { set other 0 } }\nif {$go} {puts a} else {puts b}\n",
+    );
+    assert_eq!(whole.len(), 1, "{whole:?}");
+    assert!(whole[0].contains("always true"), "{whole:?}");
+    assert_eq!(per_item, whole);
+}
+
+/// A callback script the module stores writes the name after the registering
+/// code has run: tclsh prints `b` for the variable-trace program, whose write
+/// happens inside `set x 1`.
+#[test]
+fn i230_never_reports_a_condition_over_a_name_a_callback_writes() {
+    assert_no_i230(&[
+        "set go 1\ntrace add variable x write { set ::go 0 ;# }\nset x 1\nif {$go} {puts a} else {puts b}\n",
+        "set go 1\nafter idle {set ::go 0}\nupdate\nif {$go} {puts a} else {puts b}\n",
+        "set done 0\nafter 100 { set done 1 }\nvwait done\nif {$done} {puts a} else {puts b}\n",
+        "proc tick {} { set ::go 0 }\nset go 1\nafter 100 tick\nupdate\nif {$go} {puts a} else {puts b}\n",
+    ]);
+}
+
+/// A plain top-level name is the global name a command the module cannot see
+/// may write, as it may `::g`; a procedure's local is out of every callee's
+/// reach, and a procedure the module defines that writes no global changes
+/// nothing.
+#[test]
+fn i230_never_reports_a_top_level_condition_across_a_call_the_module_cannot_see() {
+    assert_no_i230(&[
+        "set g 5\nfoo\nif {$g} {puts a} else {puts b}\n",
+        "set ::g 5\nfoo\nif {$::g} {puts a} else {puts b}\n",
+        "set g 5\nputs [foo]\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nwhile {[foo]} { puts x }\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nswitch -glob -- [gets stdin] { q* { foo } }\nif {$g} {puts a} else {puts b}\n",
+    ]);
+    for src in [
+        "proc p {} {\n set g 5\n foo\n if {$g} {puts a} else {puts b}\n}\n",
+        "proc foo {} { puts hi }\nset g 5\nfoo\nif {$g} {puts a} else {puts b}\n",
+    ] {
+        let (whole, per_item) = i230_on_both_paths(src);
+        assert_eq!(whole.len(), 1, "{src}: {whole:?}");
+        assert!(whole[0].contains("always true"), "{src}: {whole:?}");
+        assert_eq!(per_item, whole, "{src}");
+    }
+}
+
+/// A sourced file runs in the frame of the call, so it may write the name the
+/// condition reads: a top-level name, and a procedure's local too.
+#[test]
+fn i230_never_reports_a_condition_across_a_sourced_file() {
+    assert_no_i230(&[
+        "set g 5\nsource other.tcl\nif {$g} {puts a} else {puts b}\n",
+        "proc p {} {\n set g 5\n source other.tcl\n if {$g} {puts a} else {puts b}\n}\n",
+        "proc p {s} {\n set g 5\n switch -glob -- $s { q* { source other.tcl } }\n if {$g} {puts a} else {puts b}\n}\n",
+    ]);
+}
+
+/// A name only an arm of a `switch` the flow graph keeps as one statement
+/// sets may be unset after it, so the read draws W210 — as it does after a
+/// plain `if` — whatever the option: tclsh raises `can't read "x"` when no
+/// arm matches. A name set before the switch draws none.
+#[test]
+fn a_read_after_an_opaque_switch_only_an_arm_sets_draws_w210() {
+    for arm in [
+        "-glob -- $s { a* { set x 1 } }",
+        "-nocase -- $s { a { set x 1 } }",
+        "-regexp -- $s { {^a} { set x 1 } }",
+        "-glob -- $s { a* - b* { set x 1 } }",
+    ] {
+        let src = format!("proc p {{s}} {{\n switch {arm}\n puts $x\n}}\n");
+        let found = lifecycle_findings(&src);
+        assert_eq!(found.len(), 1, "{src}: {found:?}");
+        assert_eq!(found[0].0, DiagCode::W210, "{src}");
+    }
+    let found = lifecycle_findings(
+        "proc p {s} {\n set x 0\n switch -glob -- $s { a* { set x 1 } }\n puts $x\n}\n",
+    );
+    assert!(found.is_empty(), "{found:?}");
+    // The name only a callee an arm calls writes (through `upvar`) is unset
+    // when no arm runs, too.
+    let src = "proc zero {v} {upvar 1 $v x; set x 0}\nproc p {s} {\n switch -glob -- $s { a* { zero y } }\n puts $y\n}\n";
+    let found = lifecycle_findings(src);
+    assert_eq!(found.len(), 1, "{src}: {found:?}");
+    assert_eq!(found[0].0, DiagCode::W210, "{src}");
 }

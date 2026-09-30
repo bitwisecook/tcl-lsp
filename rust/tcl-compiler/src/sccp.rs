@@ -570,6 +570,11 @@ pub struct TraceInputs<'a> {
     /// such subcommand targets a non-literal (dynamic) name, in which case
     /// *every* variable is potentially traced.
     pub has_dynamic_variable_trace: bool,
+    /// [`crate::ir::Module::deferred_writes`] — the names the callback
+    /// scripts of the module write. Each is externally mutable in every
+    /// function, as a traced name is, and a callback that writes a computed
+    /// name makes every variable so.
+    pub deferred_writes: &'a crate::ir::DeferredWrites,
     /// The analysis context's memo identity for this run — the registry
     /// and overlay generations, the module's command-binding evidence, the
     /// tier, and the evaluator revision — when the caller carries one; a
@@ -579,6 +584,30 @@ pub struct TraceInputs<'a> {
     /// the caller asks for it; `None` computes no existence, and every
     /// existence read of the run is unavailable.
     pub existence: Option<ExistenceEntry<'a>>,
+}
+
+impl TraceInputs<'_> {
+    /// Add the names the module makes externally mutable in every function:
+    /// those a variable trace targets and those a callback script writes.
+    pub(crate) fn extend_module_escaping(&self, escaping: &mut HashSet<String>) {
+        escaping.extend(self.traced_variables.iter().cloned());
+        escaping.extend(self.deferred_writes.names.iter().cloned());
+    }
+
+    /// Whether any variable may change at any time: the module traces a
+    /// computed name, or a callback script writes one.
+    pub(crate) fn writes_any_variable(&self) -> bool {
+        self.has_dynamic_variable_trace || self.deferred_writes.any
+    }
+
+    /// `self` with a callback that writes a computed name read as a trace on
+    /// one, which is how it can change any variable.
+    fn with_callback_writes_as_traces(self) -> Self {
+        Self {
+            has_dynamic_variable_trace: self.writes_any_variable(),
+            ..self
+        }
+    }
 }
 
 /// What a function's frame binds on entry, for the existence rung
@@ -647,6 +676,16 @@ pub fn sccp_with_extra_escaping(
     )
 }
 
+/// The blocks executable before the sweep starts: the entry, when the
+/// function has one.
+fn entry_block_set(cfg: &CfgFunction) -> HashSet<BlockId> {
+    cfg.blocks
+        .contains_key(&cfg.entry)
+        .then_some(cfg.entry)
+        .into_iter()
+        .collect()
+}
+
 /// Like [`sccp_with_extra_escaping`] but with the whole-module command-trust
 /// fact in hand, so a resolved command answers at all — its declared value
 /// transfer always, and the registry `const_fold` engine when
@@ -664,6 +703,7 @@ pub fn sccp_with_builtin_folds(
     trace: TraceInputs<'_>,
     folds: Option<BuiltinFoldInputs<'_>>,
 ) -> SccpResult {
+    let trace = trace.with_callback_writes_as_traces();
     let preds = compute_predecessors(cfg);
     let mut values = seeded_values(ssa, param_constants);
 
@@ -688,12 +728,7 @@ pub fn sccp_with_builtin_folds(
         driver.existence_external(run.external.clone());
     }
 
-    let executable_blocks: HashSet<BlockId> = cfg
-        .blocks
-        .contains_key(&cfg.entry)
-        .then_some(cfg.entry)
-        .into_iter()
-        .collect();
+    let executable_blocks = entry_block_set(cfg);
     let order = cfg_order(cfg);
     let sweep = SweepContext {
         cfg,
@@ -797,9 +832,11 @@ pub fn sccp_with_builtin_folds(
 /// never propagates a constant through one; the read is still tracked for
 /// liveness. The set is the whole-function (flow-insensitive) view of the
 /// `var_observability` alias/trace lattice, widened by any whole-module fact
-/// the caller supplies (`extra_escaping`) and by the whole-module
-/// `traced_variables` fact — the latter also catches a trace installed by a
-/// *called* proc, which the single-`CfgFunction` view cannot see.
+/// the caller supplies (`extra_escaping`), by the whole-module
+/// `traced_variables` fact — which also catches a trace installed by a
+/// *called* proc, which the single-`CfgFunction` view cannot see — and by the
+/// names a callback script of the module writes (`deferred_writes`), whose
+/// write no statement of this function shows.
 fn escaping_names(
     cfg: &CfgFunction,
     trace: &TraceInputs<'_>,
@@ -808,7 +845,7 @@ fn escaping_names(
     let mut escaping = crate::var_observability::analyse_var_observability(cfg, trace.registry)
         .escaping_var_names();
     escaping.extend(extra_escaping.iter().cloned());
-    escaping.extend(trace.traced_variables.iter().cloned());
+    trace.extend_module_escaping(&mut escaping);
     escaping
 }
 
@@ -857,8 +894,14 @@ impl SweepContext<'_> {
         // Phi nodes (not at entry, only when some predecessor is
         // executable).
         if bn != self.cfg.entry {
-            changed |= sccp_process_phis(&mut state.values, ssa_block, &incoming_exec);
-            record_phi_folded_types(&state.values, ssa_block, &incoming_exec, self.driver);
+            changed |= sccp_process_phis(&mut state.values, self.ssa, ssa_block, &incoming_exec);
+            record_phi_folded_types(
+                &state.values,
+                self.ssa,
+                ssa_block,
+                &incoming_exec,
+                self.driver,
+            );
         }
 
         // The existence rung enters the block with the join of its
@@ -1748,7 +1791,8 @@ fn statement_clobber(
     if matches!(
         statement,
         Statement::Barrier { .. } | Statement::UpFrame { .. }
-    ) {
+    ) || crate::ssa::is_unseen_call_marker(statement)
+    {
         clobber.all = true;
         return clobber;
     }
@@ -2152,6 +2196,7 @@ pub(crate) fn is_externally_mutable(
 /// `true` if any lattice value changed. Extracted from [`sccp`].
 fn sccp_process_phis(
     values: &mut HashMap<ValueKey, LatticeValue>,
+    ssa: &SsaFunction,
     ssa_block: &crate::ssa::SsaBlock,
     incoming_exec: &[BlockId],
 ) -> bool {
@@ -2182,6 +2227,11 @@ fn sccp_process_phis(
             });
             phi_val = join(&phi_val, &candidate);
         }
+        // A version a call to a command the module cannot see may have
+        // rewritten states no value, whatever flows into it.
+        if ssa.is_observed_by_unseen_call(phi.name, phi.version) {
+            phi_val = LatticeValue::Overdefined;
+        }
         if set_value(values, (phi.name, phi.version), &phi_val) {
             changed = true;
         }
@@ -2195,6 +2245,7 @@ fn sccp_process_phis(
 /// has not reached is skipped, as the value join skips it.
 fn record_phi_folded_types(
     values: &HashMap<ValueKey, LatticeValue>,
+    ssa: &SsaFunction,
     ssa_block: &crate::ssa::SsaBlock,
     incoming_exec: &[BlockId],
     driver: &LatticeDriver<'_>,
@@ -2203,6 +2254,10 @@ fn record_phi_folded_types(
         return;
     }
     for phi in &ssa_block.phis {
+        if ssa.is_observed_by_unseen_call(phi.name, phi.version) {
+            driver.record_folded((phi.name, phi.version), None);
+            continue;
+        }
         let members = incoming_exec.iter().filter_map(|pred| {
             let version = phi.incoming.get(pred).copied().unwrap_or(0);
             if version == 0 {
@@ -2325,6 +2380,7 @@ fn sccp_process_statements(
             let (val, folded) =
                 if is_externally_mutable(ssa.var_name(var), escaping, has_dynamic_variable_trace)
                     || element_write_base == Some(var)
+                    || ssa.is_observed_by_unseen_call(var, ver)
                 {
                     (LatticeValue::Overdefined, None)
                 } else if stmt_ssa.may_defs.contains(&var) {
@@ -3364,6 +3420,7 @@ mod tests {
                 registry: &registry(),
                 traced_variables: &BTreeSet::new(),
                 has_dynamic_variable_trace: false,
+                deferred_writes: &crate::ir::NO_DEFERRED_WRITES,
                 analysis_context: None,
                 existence: None,
             },
@@ -3386,6 +3443,7 @@ mod tests {
                 registry: &registry,
                 traced_variables: &BTreeSet::new(),
                 has_dynamic_variable_trace: false,
+                deferred_writes: &crate::ir::NO_DEFERRED_WRITES,
                 analysis_context: None,
                 existence: None,
             },
@@ -3977,6 +4035,7 @@ mod tests {
         values.insert((x, 1), LatticeValue::Const(ConstValue::Int(5)));
         assert!(sccp_process_phis(
             &mut values,
+            &ssa,
             &block,
             &[BlockId(1), BlockId(2)]
         ));
@@ -4044,10 +4103,68 @@ mod tests {
         values.insert((x, 1), LatticeValue::Const(ConstValue::Int(5)));
         assert!(sccp_process_phis(
             &mut values,
+            &ssa,
             &block,
             &[BlockId(1), BlockId(2)]
         ));
         assert_eq!(values.get(&(x, 2)), Some(&LatticeValue::Overdefined));
+    }
+
+    /// A call to a command the module cannot see may create or destroy a plain
+    /// top-level name as it may a `::` one, so `[info exists]` after it decides
+    /// nothing; a procedure's local, which no callee can reach, is decided
+    /// as before.
+    #[test]
+    fn an_unseen_call_leaves_no_top_level_name_with_a_settled_existence() {
+        let registry = CommandRegistry::build_default();
+        for source in [
+            "set x 1\nfoo\nif {[info exists x]} { puts a } else { puts b }\n",
+            "foo\nif {[info exists never_set]} { puts a } else { puts b }\n",
+        ] {
+            let cu = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false);
+            let f = cu.function("::top").expect("top level analysed");
+            assert!(f.sccp.constant_branches.is_empty(), "{source}");
+        }
+        let cu = crate::compilation_unit::CompilationUnit::build_for(
+            "proc p {} { set x 1; foo; if {[info exists x]} { puts a } else { puts b } }\n",
+            &registry,
+            false,
+        );
+        let f = cu.function("::p").expect("procedure analysed");
+        let decided = f
+            .sccp
+            .constant_branches
+            .iter()
+            .find(|branch| branch.condition == "[info exists x]")
+            .expect("the local's existence is decided");
+        assert!(decided.value);
+    }
+
+    /// A φ over two constants is no constant when a call to a command the
+    /// module cannot see holds it: whatever flows in, the call may have
+    /// rewritten the version since.
+    #[test]
+    fn a_phi_an_unseen_call_holds_is_overdefined() {
+        let mut ssa = bare_ssa();
+        let x = ssa.intern_var("x");
+        let mut block = empty_ssa_block("merge");
+        block.phis.push(crate::ssa::Phi {
+            name: x,
+            version: 3,
+            incoming: HashMap::from([(BlockId(1), 1), (BlockId(2), 2)]),
+        });
+        let mut values: HashMap<ValueKey, LatticeValue> = HashMap::new();
+        values.insert((x, 1), LatticeValue::Const(ConstValue::Int(5)));
+        values.insert((x, 2), LatticeValue::Const(ConstValue::Int(5)));
+        let incoming = [BlockId(1), BlockId(2)];
+        assert!(sccp_process_phis(&mut values, &ssa, &block, &incoming));
+        assert_eq!(
+            values.get(&(x, 3)),
+            Some(&LatticeValue::Const(ConstValue::Int(5)))
+        );
+        ssa.observe_by_unseen_call(x, 3);
+        assert!(sccp_process_phis(&mut values, &ssa, &block, &incoming));
+        assert_eq!(values.get(&(x, 3)), Some(&LatticeValue::Overdefined));
     }
 
     #[test]
@@ -6067,5 +6184,172 @@ p
             "a value reachable through an UpFrame must not fold a constant branch, got {:?}",
             r.constant_branches,
         );
+    }
+
+    /// The value the solver gives the last definition of `name` in `f`.
+    fn last_value(f: &crate::compilation_unit::FunctionUnit, name: &str) -> LatticeValue {
+        let symbol = f
+            .ssa
+            .var_symbol(name)
+            .expect("the variable is an SSA symbol");
+        f.sccp
+            .values
+            .iter()
+            .filter(|((sym, _), _)| *sym == symbol)
+            .max_by_key(|((_, version), _)| *version)
+            .map(|(_, value)| value.clone())
+            .expect("a definition")
+    }
+
+    /// A `switch` the flow graph keeps as one statement leaves each name its
+    /// arms write with no constant value, and a name only an arm binds may be
+    /// unbound afterwards: tclsh 8.4 to 9.1 print `0` and `1` for `proc f {s} {
+    /// set go 1; switch -glob -- $s { q* { set go 0; set fresh 1 } }; puts $go;
+    /// puts $fresh }` called with `q1`, and fail on `$fresh` with `zz`.
+    #[test]
+    fn an_opaque_switch_arm_leaves_what_it_writes_without_a_constant_or_a_settled_existence() {
+        let registry = CommandRegistry::build_default();
+        for arm in ["-glob", "-nocase", "-regexp"] {
+            let cu = crate::compilation_unit::CompilationUnit::build_for(
+                &format!(
+                    "proc f {{s}} {{ set go 1; switch {arm} -- $s {{ q* {{ set go 0; set fresh 1 }} }}; puts $go; puts $fresh }}"
+                ),
+                &registry,
+                false,
+            );
+            let f = cu.function("::f").expect("procedure analysed");
+            assert_eq!(last_value(f, "go"), LatticeValue::Overdefined, "{arm}");
+            assert_eq!(puts_reads(f, "fresh"), [Existence::MayBound], "{arm}");
+        }
+        // A name no arm writes keeps its constant.
+        let cu = crate::compilation_unit::CompilationUnit::build_for(
+            "proc f {s} { set go 1; switch -glob -- $s { q* { set other 0 } }; puts $go }",
+            &registry,
+            false,
+        );
+        let f = cu.function("::f").expect("procedure analysed");
+        assert_eq!(last_value(f, "go"), LatticeValue::Const(ConstValue::Int(1)));
+    }
+
+    /// What a command an arm runs does to the frame is as real as a write the
+    /// arm makes itself: a callee that writes the caller's name through
+    /// `upvar`, and a command that may write any name (`namespace eval`,
+    /// `dict with`), leave the name with no constant, while a callee that
+    /// writes only a global leaves a local alone.
+    #[test]
+    fn an_opaque_switch_arm_that_runs_a_writer_or_a_barrier_leaves_the_name_unsettled() {
+        let registry = CommandRegistry::build_default();
+        for source in [
+            "proc zero {v} {upvar 1 $v x; set x 0}\nproc f {s} { set go 1; switch -glob -- $s { q* { zero go } }; puts $go }",
+            "proc f {s} { set go 1; switch -glob -- $s { q* { dict with d { set go 0 } } }; puts $go }",
+            "proc f {s} { set go 1; switch -glob -- $s { q* { eval $s } }; puts $go }",
+        ] {
+            let cu = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false);
+            let f = cu.function("::f").expect("procedure analysed");
+            assert_eq!(last_value(f, "go"), LatticeValue::Overdefined, "{source}");
+        }
+        let cu = crate::compilation_unit::CompilationUnit::build_for(
+            "set go 1\nswitch -glob -- [gets stdin] { q* { namespace eval :: {set go 0} } }\nputs $go\n",
+            &registry,
+            false,
+        );
+        let f = cu.function("::top").expect("top level analysed");
+        assert_eq!(last_value(f, "go"), LatticeValue::Overdefined);
+        let cu = crate::compilation_unit::CompilationUnit::build_for(
+            "proc hit {} {global hits; incr hits}\nproc f {s} { set go 1; switch -glob -- $s { q* { hit } }; puts $go }",
+            &registry,
+            false,
+        );
+        let f = cu.function("::f").expect("procedure analysed");
+        assert_eq!(last_value(f, "go"), LatticeValue::Const(ConstValue::Int(1)));
+    }
+
+    /// The names a callback script writes — `after`, `after idle`, a
+    /// variable trace's callback, and a procedure named as a callback — are
+    /// externally mutable in every function, the top level and a procedure
+    /// alike, and a callback that writes a computed name makes every name so.
+    #[test]
+    fn the_names_a_callback_writes_are_never_constant() {
+        let registry = CommandRegistry::build_default();
+        for source in [
+            "set go 1\nafter idle {set ::go 0}\nputs $go\n",
+            "set go 1\nafter 100 { set go 0 }\nputs $go\n",
+            "set go 1\ntrace add variable x write { set ::go 0 ;# }\nputs $go\n",
+            "proc tick {} { set ::go 0 }\nset go 1\nafter 100 tick\nputs $go\n",
+            "set go 1\nafter 100 { set $name 0 }\nputs $go\n",
+        ] {
+            let cu = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false);
+            let f = cu.function("::top").expect("top level analysed");
+            assert_eq!(last_value(f, "go"), LatticeValue::Overdefined, "{source}");
+        }
+        let cu = crate::compilation_unit::CompilationUnit::build_for(
+            "after 100 { set go 0 }\nproc p {} { global go; set go 1; puts $go }\n",
+            &registry,
+            false,
+        );
+        let f = cu.function("::p").expect("procedure analysed");
+        assert_eq!(last_value(f, "go"), LatticeValue::Overdefined);
+        let cu = crate::compilation_unit::CompilationUnit::build_for(
+            "set unrelated 0\nafter 100 { set go 0 }\nputs $unrelated\n",
+            &registry,
+            false,
+        );
+        let f = cu.function("::top").expect("top level analysed");
+        assert_eq!(
+            last_value(f, "unrelated"),
+            LatticeValue::Const(ConstValue::Int(0))
+        );
+    }
+
+    /// A plain top-level name is the global name: the version it holds where a
+    /// call to a command the module cannot see sits has no constant value, and
+    /// every definition after the call is decided again. A procedure's local
+    /// is out of the callee's reach, and so is a name the call follows only in
+    /// a procedure the module defines.
+    #[test]
+    fn an_unseen_call_widens_the_versions_it_holds_and_no_later_one() {
+        let registry = CommandRegistry::build_default();
+        let cu = crate::compilation_unit::CompilationUnit::build_for(
+            "set x 1\nfoo\nset y 2\nset x 3\nputs $x$y\n",
+            &registry,
+            false,
+        );
+        let top = cu.function("::top").expect("top level analysed");
+        let symbol = top.ssa.var_symbol("x").expect("x");
+        assert!(top.ssa.is_observed_by_unseen_call(symbol, 1));
+        assert!(!top.ssa.is_observed_by_unseen_call(symbol, 2));
+        let x1 = top.sccp.values.get(&(symbol, 1));
+        assert_eq!(x1, Some(&LatticeValue::Overdefined));
+        assert_eq!(
+            last_value(top, "y"),
+            LatticeValue::Const(ConstValue::Int(2))
+        );
+        assert_eq!(
+            last_value(top, "x"),
+            LatticeValue::Const(ConstValue::Int(3))
+        );
+        for source in [
+            "proc p {} { set x 1; foo; puts $x }\n",
+            "proc foo {} { puts hi }\nset x 1\nfoo\nputs $x\n",
+        ] {
+            let cu = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false);
+            let f = cu
+                .function("::p")
+                .or_else(|| cu.function("::top"))
+                .expect("function analysed");
+            assert_eq!(
+                last_value(f, "x"),
+                LatticeValue::Const(ConstValue::Int(1)),
+                "{source}"
+            );
+        }
+        // The `::` spelling is externally mutable whatever the call.
+        let cu = crate::compilation_unit::CompilationUnit::build_for(
+            "set ::x 1\nputs $::x\n",
+            &registry,
+            false,
+        );
+        let f = cu.function("::top").expect("top level analysed");
+        assert_eq!(last_value(f, "::x"), LatticeValue::Overdefined);
     }
 }

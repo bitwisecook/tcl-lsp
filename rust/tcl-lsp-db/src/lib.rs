@@ -1896,6 +1896,7 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
     let trace_facts = ModuleTraceFacts {
         traced_variables: &traced_variables,
         has_dynamic_variable_trace: key.has_dynamic_variable_trace(db),
+        deferred_writes: &key.analysis_context(db).key(db).deferred_writes,
     };
     Arc::new(
         FunctionUnit::build_with_param_constants_and_classes_under(
@@ -3035,6 +3036,7 @@ pub fn function_optimisations<'db>(
         has_dynamic_trace: false,
         traced_variables: BTreeSet::new(),
         has_dynamic_variable_trace: false,
+        deferred_writes: tcl_compiler::ir::DeferredWrites::default(),
     };
     let empty_cfg = tcl_compiler::cfg::Function::new("::", "entry");
     let top_fu = FunctionUnit::build(
@@ -3081,7 +3083,8 @@ pub fn function_optimisations<'db>(
 
 /// Whether `module` carries any whole-module trace fact (execution *or*
 /// variable — `Module::traced_commands` / `has_dynamic_trace` /
-/// `traced_variables` / `has_dynamic_variable_trace`).
+/// `traced_variables` / `has_dynamic_variable_trace`) or any callback script
+/// that writes a variable (`Module::deferred_writes`).
 ///
 /// The single-proc offset-0 `Module` [`function_optimisations`] builds has
 /// no way to reconstruct these — its `OptDepsKey` threads `proc_names` /
@@ -3098,6 +3101,7 @@ fn module_has_trace_facts(module: &tcl_compiler::ir::Module) -> bool {
         || module.has_dynamic_trace
         || !module.traced_variables.is_empty()
         || module.has_dynamic_variable_trace
+        || !module.deferred_writes.is_clear()
 }
 
 /// Assemble a document's optimisations from the per-procedure memo (Task 4).
@@ -3256,6 +3260,7 @@ fn top_level_only_unit(
             has_dynamic_trace: cu.ir_module.has_dynamic_trace,
             traced_variables: cu.ir_module.traced_variables.clone(),
             has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+            deferred_writes: cu.ir_module.deferred_writes.clone(),
         },
         cfg_module: tcl_compiler::cfg::CfgModule {
             top_level: cu.cfg_module.top_level.clone(),

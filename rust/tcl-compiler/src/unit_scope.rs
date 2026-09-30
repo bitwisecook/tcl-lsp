@@ -1542,8 +1542,23 @@ fn scan_cfg_callers<'a>(
         let config = tcl_lexer::LexerConfig::from_grammar(ctx.dialect.grammar);
         for block in func.blocks.values() {
             for stmt in &block.statements {
-                if let Statement::Call { command, args, .. }
-                | Statement::Barrier { command, args, .. } = stmt
+                // A statement the CFG builder synthesised stands for an
+                // effect, never for a command that runs.
+                if let Statement::Call {
+                    command,
+                    args,
+                    tokens,
+                    ..
+                }
+                | Statement::Barrier {
+                    command,
+                    args,
+                    tokens,
+                    ..
+                } = stmt
+                    && tokens
+                        .as_ref()
+                        .is_none_or(|tokens| tokens.synthetic.is_none())
                 {
                     record_call_site_evidence(out, ctx, &caller, command, args, 0);
                 }

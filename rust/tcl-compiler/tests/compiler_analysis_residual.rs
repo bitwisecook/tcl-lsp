@@ -999,6 +999,7 @@ fn rebased_units(base: &str, shifted: &str) -> (CompilationUnit, CompilationUnit
                         trace: tcl_compiler::compilation_unit::ModuleTraceFacts {
                             traced_variables: &traced_variables,
                             has_dynamic_variable_trace: req.has_dynamic_variable_trace,
+                            deferred_writes: &req.analysis_context.deferred_writes,
                         },
                         analysis_context: req.analysis_context,
                         command_trust: &command_trust,
@@ -1532,6 +1533,7 @@ fn memoised_unit(
                     trace: tcl_compiler::compilation_unit::ModuleTraceFacts {
                         traced_variables: &traced,
                         has_dynamic_variable_trace: req.has_dynamic_variable_trace,
+                        deferred_writes: &req.analysis_context.deferred_writes,
                     },
                     analysis_context: req.analysis_context,
                     command_trust: &command_trust,

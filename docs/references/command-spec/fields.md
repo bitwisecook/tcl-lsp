@@ -1622,6 +1622,7 @@ The registry's behavioural vocabulary — one flag per fact a consumer might nee
 | `DECLARES_NAMESPACE` | declares the namespace its NamespaceName word names |
 | `TK_GEOMETRY_MANAGER` | a Tk geometry manager |
 | `DEFERS_BODY` | stores its script argument instead of running it; unset means the body is treated as executed |
+| `BODY_RUNS_IN_OWN_FRAME` | the script it stores is a definition body that runs in a frame of its own, not a callback |
 | `DEFINITION_BODY_MEMBER_ONLY` | legal only inside a definition body that declares it as a member |
 
 ### Transform conditions

@@ -1059,6 +1059,62 @@ impl ModuleCommandBindings {
         self.resolve_target_may_be_unknown(name, namespace, &mut BTreeSet::new())
     }
 
+    /// Whether invoking `name` in `namespace` may reach no implementation the
+    /// module can name: the spelling is neither a command the registry ships
+    /// for the dialect nor one the module binds, so Tcl dispatches it through
+    /// the unresolved-command handler to whatever the running interpreter
+    /// holds — a procedure of another file, an autoloaded one. What runs
+    /// there is code the module does not contain.
+    ///
+    /// The narrower sibling of [`Self::target_resolution_may_be_unknown`],
+    /// which answers for an implementation that exists and cannot be named:
+    /// this one is true for an absent literal too, which that one leaves to
+    /// the handler's own summary.
+    #[must_use]
+    pub(crate) fn may_dispatch_unresolved(&self, name: &str, namespace: &str) -> bool {
+        self.dispatches_unresolved(name, namespace, &mut BTreeSet::new())
+    }
+
+    fn dispatches_unresolved(
+        &self,
+        name: &str,
+        namespace: &str,
+        visiting: &mut BTreeSet<String>,
+    ) -> bool {
+        let Some(key) = self.lookup_key(name, namespace) else {
+            return !self.baseline.semantics.binding_names().contains(&nqn(name));
+        };
+        if !visiting.insert(key.clone()) {
+            return false;
+        }
+        // The module's binding is the join over its whole walk, so a
+        // procedure defined part way through holds `Missing` beside its
+        // target. A target the module names makes the head seen wherever it
+        // is called after the definition; only a head with no target at all
+        // is left to the handler.
+        let mut named = false;
+        let mut unresolved = false;
+        for binding in &self.bindings[&key] {
+            match binding {
+                MayBinding::Unknown => unresolved = true,
+                MayBinding::Missing => {}
+                MayBinding::Target(target) if target.terminal => named = true,
+                MayBinding::Target(target) => {
+                    named = true;
+                    unresolved |= self.dispatches_unresolved(&target.command, "::", visiting);
+                }
+            }
+        }
+        if !named {
+            let falls_back = !name.starts_with("::")
+                && namespace != "::"
+                && key == tcl_syntax::naming::qualify(namespace, name);
+            unresolved |= !falls_back || self.dispatches_unresolved(name, "::", visiting);
+        }
+        visiting.remove(&key);
+        unresolved
+    }
+
     fn lookup_key(&self, name: &str, namespace: &str) -> Option<String> {
         if name.starts_with("::") {
             let key = nqn(name);

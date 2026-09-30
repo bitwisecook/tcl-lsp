@@ -833,10 +833,25 @@ mod tests {
 
     #[test]
     fn sccp_env_extraction_promotes_single_const() {
-        let cu = CompilationUnit::build_for("set x 7\nif {$x} { ok }", &registry(), false);
+        let cu = CompilationUnit::build_for("set x 7\nif {$x} { puts ok }", &registry(), false);
         let env = sccp_env_for(&cu.top_level);
         // `x` is constant → present in env.
         assert!(env.contains_key("x"));
+    }
+
+    /// A plain top-level name is the global name: a command the module
+    /// cannot see may rewrite it, so it is no more constant than its `::`
+    /// spelling. A procedure's local stays constant across the same call.
+    #[test]
+    fn sccp_env_extraction_leaves_out_a_name_an_unseen_call_may_write() {
+        let unseen = CompilationUnit::build_for("set x 7\nif {$x} { ok }", &registry(), false);
+        assert!(!sccp_env_for(&unseen.top_level).contains_key("x"));
+        let qualified =
+            CompilationUnit::build_for("set ::x 7\nif {$::x} { puts ok }", &registry(), false);
+        assert!(!sccp_env_for(&qualified.top_level).contains_key("::x"));
+        let local =
+            CompilationUnit::build_for("proc p {} { set x 7; if {$x} { ok } }", &registry(), false);
+        assert!(sccp_env_for(&local.procedures["::p"]).contains_key("x"));
     }
 
     #[test]
@@ -845,5 +860,41 @@ mod tests {
         // O112 from the if. Branch-folding isn't run here.
         let opts = run_pass("if {$x} { ok } else { bad }");
         assert!(opts.iter().all(|o| o.code != DiagCode::O112));
+    }
+
+    /// No O112 folds a condition over a name the lattice cannot pin: one an
+    /// arm of a `switch` the flow graph keeps as one statement writes, one a
+    /// callback script writes, and a top-level one a command the module cannot
+    /// see may write, as it may write `::g`. A name none of them writes, a
+    /// procedure's local and a name a procedure the module defines leaves
+    /// alone still fold.
+    #[test]
+    fn o112_leaves_a_condition_over_a_name_the_lattice_cannot_pin() {
+        for source in [
+            "set go 1\nswitch -glob -- [gets stdin] { q* { set go 0 } }\nif {$go} { puts a } else { puts b }",
+            "set go 1\nswitch -nocase -- [gets stdin] { q { set go 0 } }\nif {$go} { puts a } else { puts b }",
+            "set go 1\nswitch -regexp -- [gets stdin] { {^q} { set go 0 } }\nif {$go} { puts a } else { puts b }",
+            "set go 1\nswitch -glob -- [gets stdin] { x - q* { set go 0 } }\nif {$go} { puts a } else { puts b }",
+            "proc p {} {\n set go 1\n switch -glob -- [gets stdin] { q* { set go 0 } }\n if {$go} { puts a } else { puts b }\n}",
+            "set go 1\ntrace add variable x write { set ::go 0 ;# }\nset x 1\nif {$go} { puts a } else { puts b }",
+            "set go 1\nafter idle {set ::go 0}\nif {$go} { puts a } else { puts b }",
+            "set g 5\nfoo\nif {$g} { puts a } else { puts b }",
+            "set ::g 5\nfoo\nif {$::g} { puts a } else { puts b }",
+        ] {
+            assert!(
+                run_pass(source).iter().all(|o| o.code != DiagCode::O112),
+                "{source}"
+            );
+        }
+        for source in [
+            "set go 1\nswitch -glob -- [gets stdin] { q* { set other 0 } }\nif {$go} { puts a } else { puts b }",
+            "proc p {} {\n set g 5\n foo\n if {$g} { puts a } else { puts b }\n}",
+            "proc foo {} { puts hi }\nset g 5\nfoo\nif {$g} { puts a } else { puts b }",
+        ] {
+            assert!(
+                run_pass(source).iter().any(|o| o.code == DiagCode::O112),
+                "{source}"
+            );
+        }
     }
 }

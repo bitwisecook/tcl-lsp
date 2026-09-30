@@ -35,7 +35,8 @@ pub const fn spec() -> CommandSpec {
             .union(Traits::IRULES_TOP_LEVEL_ONLY)
             // The body is stored for later invocation, exactly as in the
             // Tcl `proc` spec — see `commands/tcl/proc_.rs`.
-            .union(Traits::DEFERS_BODY),
+            .union(Traits::DEFERS_BODY)
+            .union(Traits::BODY_RUNS_IN_OWN_FRAME),
         surface: Some(SpecSurface::IRULES),
         arity: Arity::exact(3),
         arg_roles: &[

@@ -122,6 +122,7 @@ struct PhiUndefIndex<'a> {
     phi_def: &'a super::helpers::PhiDefMap,
     phi_block: &'a super::helpers::PhiBlockMap,
     killed: &'a FxHashSet<(String, crate::ssa::Version)>,
+    may_defs: &'a super::helpers::MayDefMap,
 }
 
 /// The read-only scope and suppression facts for the version-0 / statement
@@ -1652,12 +1653,12 @@ file; this call falls through to the 'unknown' handler."
             return;
         };
 
-        let (phi_def, phi_block, killed) =
-            build_phi_undef_index(&fu.ssa, considered, Some(registry));
+        let maps = build_phi_undef_index(&fu.ssa, considered, Some(registry));
         let phi_idx = PhiUndefIndex {
-            phi_def: &phi_def,
-            phi_block: &phi_block,
-            killed: &killed,
+            phi_def: &maps.phi_def,
+            phi_block: &maps.phi_block,
+            killed: &maps.killed,
+            may_defs: &maps.may_defs,
         };
         // Every `return_read_fires_w210` call below traces the same phi graph
         // with the same context, so they share one memo (issue #2021).
@@ -1790,6 +1791,7 @@ file; this call falls through to the 'unknown' handler."
             phi_def: phi_idx.phi_def,
             phi_block: phi_idx.phi_block,
             killed: phi_idx.killed,
+            may_defs: phi_idx.may_defs,
             considered: ctx.considered,
             executable_edges: &fu.sccp.executable_edges,
             exists_guards: ctx.exists_guards,

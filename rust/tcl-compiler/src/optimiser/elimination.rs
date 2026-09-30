@@ -698,21 +698,11 @@ fn emit_dead_stores_and_unused(
         )) {
             continue;
         }
-        // Skip if the variable is a scope alias — writes through
-        // global / upvar are visible in other scopes. Policy sets hold
-        // *base* names, so an element symbol (`a(k)`) checks its base too.
+        // Skip a store another scope or a call the module cannot see may
+        // observe: writes through global / upvar are visible elsewhere.
         let (var, _) = &chain.key;
-        // A synthetic may-def (base refresh / element fan) is not a write
-        // the user made — never an O109/O126 candidate.
-        if fu.ssa.is_synthetic_def(
-            &chain.definition.block,
-            chain.definition.statement_index,
-            var,
-        ) {
-            continue;
-        }
         let var_base = crate::naming::normalise_var_name(var);
-        if scope_aliases.contains(var) || scope_aliases.contains(var_base) {
+        if store_is_seen_elsewhere(fu, chain, &scope_aliases) {
             continue;
         }
         // Traced anywhere in the module, under the canonical `::`-stripped
@@ -766,6 +756,28 @@ fn emit_dead_stores_and_unused(
     }
 
     emit_dse_entries(ctx, fu, entries)
+}
+
+/// Whether the store `chain` defines is one the name-level SSA cannot call
+/// dead: a synthetic may-def (base refresh / element fan) is no write the user
+/// made; a scope alias is visible in other scopes (policy sets hold *base*
+/// names, so an element symbol `a(k)` checks its base too); and a call to a
+/// command the module cannot see may read the name the store leaves, as it may
+/// read a `::`-qualified one.
+fn store_is_seen_elsewhere(
+    fu: &FunctionUnit,
+    chain: &crate::def_use::DefUseChain,
+    scope_aliases: &HashSet<String>,
+) -> bool {
+    let (var, version) = &chain.key;
+    let var_base = crate::naming::normalise_var_name(var);
+    fu.ssa.is_synthetic_def(
+        &chain.definition.block,
+        chain.definition.statement_index,
+        var,
+    ) || scope_aliases.contains(var)
+        || scope_aliases.contains(var_base)
+        || fu.ssa.name_is_observed_by_unseen_call(var, *version)
 }
 
 /// Classify one dead def-use chain as O109 (dead store) or O126 (unused
@@ -2384,5 +2396,25 @@ mod tests {
             late.contains(&DiagCode::O109),
             "but the store is still dead there: {late:?}",
         );
+    }
+
+    /// A call to a command the module cannot see may read a top-level name as
+    /// it may read `::x`, so the store it can observe is no dead store; a store
+    /// overwritten before any such call, and a procedure's local, are still
+    /// dead.
+    #[test]
+    fn o109_keeps_a_top_level_store_a_call_the_module_cannot_see_may_read() {
+        let dead = |src: &str| run_pass(src).iter().any(|o| o.code == DiagCode::O109);
+        assert!(!dead("set x 1\nfoo\nset x 2\nputs $x\n"));
+        assert!(!dead("set ::x 1\nfoo\nset ::x 2\nputs $::x\n"));
+        assert!(!dead("set x 1\nsource other.tcl\nset x 2\nputs $x\n"));
+        assert!(!dead(
+            "proc p {} {\n set x 1\n source other.tcl\n set x 2\n puts $x\n}\n"
+        ));
+        assert!(dead("set x 1\nset x 2\nfoo\nputs $x\n"));
+        assert!(dead("proc p {} {\n set x 1\n foo\n set x 2\n puts $x\n}\n"));
+        assert!(dead(
+            "proc foo {} { puts hi }\nset x 1\nfoo\nset x 2\nputs $x\n"
+        ));
     }
 }

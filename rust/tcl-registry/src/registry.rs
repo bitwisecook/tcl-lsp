@@ -3583,6 +3583,43 @@ impl CommandRegistry {
         })
     }
 
+    /// The 0-based argument positions of this invocation that hold a script,
+    /// command prefix or lambda the command stores as a **callback**: to run
+    /// after it returns, at the global level or in the frame of whatever
+    /// fires it, where a plain variable name can be one the registering code
+    /// holds.
+    ///
+    /// The positions [`Self::script_timing`] calls
+    /// [`Deferred`](crate::hover::ScriptTiming::Deferred), less those of a
+    /// command that stores a definition
+    /// ([`Traits::BODY_RUNS_IN_OWN_FRAME`]): a `proc` body is dormant too, but
+    /// runs in a frame of its own. A command that runs the script now
+    /// ([`SameInvocation`](crate::hover::ScriptTiming::SameInvocation)) or
+    /// only names a registration (`trace remove`,
+    /// [`ReferenceOnly`](crate::hover::ScriptTiming::ReferenceOnly)) has none.
+    /// Indices count as [`Self::script_timing`] counts them, the resolved
+    /// subcommand word included.
+    #[must_use]
+    pub fn callback_script_indices(
+        &self,
+        name: &str,
+        args: &[&str],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Vec<usize> {
+        if self
+            .invocation_traits(name, args, dialect)
+            .contains(Traits::BODY_RUNS_IN_OWN_FRAME)
+        {
+            return Vec::new();
+        }
+        (0..args.len())
+            .filter(|&index| {
+                self.script_timing(name, args, index, dialect)
+                    == Some(crate::hover::ScriptTiming::Deferred)
+            })
+            .collect()
+    }
+
     /// User-controlled values that this concrete deferred callback host
     /// substitutes into argument `index` before Tcl evaluates it.
     ///
@@ -8585,6 +8622,53 @@ mod tests {
             .is_empty(),
             "the option word itself is not callback text"
         );
+    }
+
+    /// The registry states which stored scripts are callbacks — the words a
+    /// consumer must treat as run later, outside the registering frame — and
+    /// which are a definition's body or run now.
+    #[test]
+    fn callback_scripts_are_the_deferred_words_of_a_command_that_stores_no_definition() {
+        let reg = CommandRegistry::build_default();
+        let callbacks: &[(&str, &[&str], &[usize])] = &[
+            ("after", &["100", "{set done 1}"], &[1]),
+            ("after", &["idle", "{set done 1}"], &[1]),
+            (
+                "trace",
+                &["add", "variable", "x", "write", "{set go 0 ;#}"],
+                &[4],
+            ),
+            ("bind", &[".", "<Key>", "{set go 0}"], &[2]),
+            ("fileevent", &["stdin", "readable", "{set go 0}"], &[2]),
+            ("chan", &["event", "stdin", "readable", "{set go 0}"], &[3]),
+            ("interp", &["bgerror", "{}", "{set go 0 ;#}"], &[2]),
+            ("button", &[".b", "-command", "{set go 0}"], &[2]),
+        ];
+        for (name, args, expected) in callbacks {
+            assert_eq!(
+                reg.callback_script_indices(name, args, None),
+                *expected,
+                "{name} {args:?}"
+            );
+        }
+        // A definition's body is dormant and runs in a frame of its own, and
+        // the scripts these run now or only name are no callback.
+        let none: &[(&str, &[&str])] = &[
+            ("proc", &["p", "{}", "{set x 1}"]),
+            ("snit::method", &["T", "m", "{}", "{set x 1}"]),
+            ("lambda", &["{}", "{set x 1}"]),
+            ("catch", &["{set x 1}"]),
+            ("if", &["1", "{set x 1}"]),
+            ("uplevel", &["#0", "{set x 1}"]),
+            ("trace", &["remove", "variable", "x", "write", "cb"]),
+            ("set", &["x", "1"]),
+        ];
+        for (name, args) in none {
+            assert!(
+                reg.callback_script_indices(name, args, None).is_empty(),
+                "{name} {args:?}"
+            );
+        }
     }
 
     #[test]

@@ -2408,4 +2408,172 @@ mod tests {
         // `(?:^|\\n)\\s*set\\s+(\\w+)\\s+(\\{[^{}]*\\})`.
         assert_eq!(w231("puts hi; set l {a {b c} d}\nlset l 9 X\n"), 1);
     }
+
+    /// The loop-termination verdicts (W240, W241, W242) `src` draws on the
+    /// whole-file walk and on the per-item walk, each in source order.
+    fn verdicts_on_both_paths(src: &str) -> (Vec<String>, Vec<String>) {
+        let verdicts = |per_item: bool| -> Vec<String> {
+            let mut a = Analyser::new();
+            let result = if per_item {
+                a.analyse_per_item(src, "tcl8.6")
+            } else {
+                a.analyse(src, "tcl8.6")
+            };
+            let mut found: Vec<(u32, String)> = result
+                .diagnostics
+                .iter()
+                .filter(|d| matches!(d.code.as_str(), "W240" | "W241" | "W242"))
+                .map(|d| (d.span.start(), d.code.to_string()))
+                .collect();
+            found.sort();
+            found.into_iter().map(|(_, code)| code).collect()
+        };
+        (verdicts(false), verdicts(true))
+    }
+
+    /// `src` draws exactly `expected` on both paths.
+    fn assert_verdicts(src: &str, expected: &[&str]) {
+        let (whole, per_item) = verdicts_on_both_paths(src);
+        assert_eq!(whole, expected, "whole file: {src}");
+        assert_eq!(per_item, expected, "per item: {src}");
+    }
+
+    /// `src` draws neither W240 nor W241 on either path: the header is left
+    /// undecided, and the text may still draw W242's hint that nothing in the
+    /// loop modifies its counter.
+    fn assert_undecided(src: &str) {
+        let (whole, per_item) = verdicts_on_both_paths(src);
+        for (path, found) in [("whole file", &whole), ("per item", &per_item)] {
+            assert!(
+                found.iter().all(|code| code == "W242"),
+                "{path}: {src}\n{found:?}"
+            );
+        }
+        assert_eq!(per_item, whole, "{src}");
+    }
+
+    /// A `switch` the flow graph keeps as one statement — `-glob`, `-regexp`,
+    /// `-nocase`, a fall-through arm, `case` — defines every name its arms
+    /// write, so a loop an arm can end is no infinite loop. tclsh 8.4 to 9.1
+    /// with input `q`: `set go 1; while {$go} { switch -glob -- [gets stdin]
+    /// { q* { set go 0 } } }; puts done` prints `done`.
+    #[test]
+    fn a_switch_arm_that_ends_the_loop_keeps_w241_silent() {
+        for src in [
+            "set go 1; while {$go} { switch -glob -- [gets stdin] { q* { set go 0 } } }; puts done\n",
+            "set go 1\nwhile {$go} {\n switch -nocase -- [gets stdin] {\n  q { set go 0 }\n }\n}\n",
+            "set go 1\nwhile {$go} {\n switch -regexp -- [gets stdin] {\n  {^q} { set go 0 }\n }\n}\n",
+            "set go 1\nwhile {$go} {\n switch -glob -- [gets stdin] {\n  x - q* { set go 0 }\n }\n}\n",
+            "set go 1\nwhile {$go} {\n switch -glob -- [gets stdin] {\n  a* {}\n  default { set go 0 }\n }\n}\n",
+            "set go 1\nwhile {$go} {\n case [gets stdin] in {\n  q* { set go 0 }\n }\n}\n",
+            "set go 1\nfor {} {$go} {} {\n switch -glob -- [gets stdin] { q* { set go 0 } }\n}\n",
+            "proc p {} {\n set go 1\n while {$go} {\n  switch -glob -- [gets stdin] { q* { set go 0 } }\n }\n}\n",
+            // A write buried in a command the arm runs, and each kind of write.
+            "set go 1\nwhile {$go} {\n switch -glob -- [gets stdin] { q* { if {[llength {a}]} { set go 0 } } }\n}\n",
+            "set n 3\nwhile {$n} {\n switch -glob -- [gets stdin] { q* { incr n -1 } }\n}\n",
+            "set l {}\nwhile {[llength $l] < 1} {\n switch -glob -- [gets stdin] { q* { lappend l x } }\n}\n",
+            "set go 1\nwhile {[info exists go]} {\n switch -glob -- [gets stdin] { q* { unset go } }\n}\n",
+            // A `global` binding an arm makes, then writes through.
+            "proc p {} {\n set go 1\n while {$go} {\n  switch -glob -- [gets stdin] { q* { global go; set go 0 } }\n }\n}\n",
+        ] {
+            assert_verdicts(src, &[]);
+        }
+    }
+
+    /// What a command an arm runs does to the frame ends the loop as a write
+    /// the arm makes itself would: a callee that writes the caller's name
+    /// through `upvar`, and a command that may write any name (`namespace
+    /// eval`, `dict with`). A callee that writes only a global leaves a local
+    /// loop alone.
+    #[test]
+    fn a_command_an_arm_runs_that_ends_the_loop_keeps_w241_silent() {
+        for src in [
+            "proc zero {v} {upvar 1 $v x; set x 0}\nproc p {} {\n set go 1\n while {$go} {\n  switch -glob -- [gets stdin] { q* { zero go } }\n }\n}\n",
+            "proc zero {v} {upvar 1 $v x; set x 0}\nset go 1\nwhile {$go} {\n switch -glob -- [gets stdin] { q* { zero go } }\n}\n",
+            "set go 1\nwhile {$go} {\n switch -glob -- [gets stdin] { q* { namespace eval :: {set go 0} } }\n}\n",
+            "proc p {} {\n set go 1\n while {$go} {\n  switch -glob -- [gets stdin] { q* { dict with d { set go 0 } } }\n }\n}\n",
+        ] {
+            assert_undecided(src);
+        }
+        assert_verdicts(
+            "proc hit {} {global hits; incr hits}\nproc p {} {\n set go 1\n while {$go} {\n  switch -glob -- [gets stdin] { q* { hit } }\n }\n}\n",
+            &["W241"],
+        );
+    }
+
+    /// The same statement leaves a loop no arm writes for alone: only a name
+    /// an arm writes stops being decided.
+    #[test]
+    fn a_switch_arm_that_writes_another_name_leaves_the_verdict() {
+        assert_verdicts(
+            "set go 1\nwhile {$go} {\n switch -glob -- [gets stdin] { q* { set other 0 } }\n}\n",
+            &["W241"],
+        );
+        assert_verdicts(
+            "proc p {} {\n set go 1\n while {$go} {\n  switch -glob -- [gets stdin] { q* { set other 0 } }\n }\n}\n",
+            &["W241"],
+        );
+    }
+
+    /// A loop nothing else sets is dead until an arm sets it: no W240 for
+    /// `set go 0; switch -glob -- [gets stdin] { q* { set go 1 } }; while
+    /// {$go} { … }`, which tclsh runs once for input `q`.
+    #[test]
+    fn a_switch_arm_that_starts_the_loop_keeps_w240_silent() {
+        for src in [
+            "set go 0\nswitch -glob -- [gets stdin] { q* { set go 1 } }\nwhile {$go} { puts x; set go 0 }\n",
+            "set go 0\nswitch -glob -- [gets stdin] { q* { set go 1 } }\nfor {} {$go} {} { puts x; set go 0 }\n",
+            "proc p {} {\n set go 0\n switch -glob -- [gets stdin] { q* { set go 1 } }\n while {$go} { puts x; set go 0 }\n}\n",
+        ] {
+            assert_verdicts(src, &[]);
+        }
+        assert_verdicts(
+            "set n 0\nswitch -glob -- [gets stdin] { q* { set other 1 } }\nwhile {$n} {puts x}\n",
+            &["W240"],
+        );
+    }
+
+    /// A callback script the module stores writes the loop's variable
+    /// without any statement of the loop saying so: `after`, `after idle`, a
+    /// variable trace, `fileevent`, `chan event`, `bind`, and a callback that
+    /// names a procedure writing the name through `::`.
+    #[test]
+    fn a_callback_that_writes_the_loop_variable_keeps_w241_silent() {
+        for src in [
+            "set done 0\nafter 100 { set done 1 }\nwhile {!$done} { update }\n",
+            "set go 1\nafter idle {set ::go 0}\nwhile {$go} {update}\n",
+            "set go 1\ntrace add variable x write { set ::go 0 ;# }\nwhile {$go} { set x 1 }\nputs done\n",
+            "set go 1\nfileevent stdin readable { set go 0 }\nwhile {$go} { update }\n",
+            "set go 1\nchan event stdin readable { set go 0 }\nwhile {$go} { update }\n",
+            "set go 1\nbind . <Key> { set go 0 }\nwhile {$go} { update }\n",
+            "proc tick {} { set ::done 1 }\nset done 0\nafter 100 tick\nwhile {!$done} { update }\n",
+            // A quoted script, and a command prefix built with `list`.
+            "set done 0\nafter 100 \"set done 1\"\nwhile {!$done} { update }\n",
+            "set done 0\nafter 100 [list set done 1]\nwhile {!$done} { update }\n",
+            "proc tick {n} { set ::done $n }\nset done 0\nafter 100 [list tick 1]\nwhile {!$done} { update }\n",
+        ] {
+            assert_undecided(src);
+        }
+    }
+
+    /// A plain top-level name is the global name, so a call to a command the
+    /// module cannot see may end the loop as it may one over `::go`; a
+    /// procedure's local is out of every callee's reach, and a procedure the
+    /// module defines writes no global.
+    #[test]
+    fn a_call_the_module_cannot_see_keeps_a_top_level_loop_silent() {
+        assert_undecided("set go 1\nwhile {$go} { foo }\n");
+        assert_undecided("set ::go 1\nwhile {$::go} { foo }\n");
+        // A sourced file runs in the frame of the call, a procedure's too.
+        assert_undecided("set go 1\nwhile {$go} { source other.tcl }\n");
+        assert_undecided("proc p {} {\n set go 1\n while {$go} { source other.tcl }\n}\n");
+        assert_verdicts(
+            "proc p {} {\n set go 1\n while {$go} { foo }\n}\n",
+            &["W241"],
+        );
+        assert_verdicts(
+            "proc foo {} { puts hi }\nset go 1\nwhile {$go} { foo }\n",
+            &["W241"],
+        );
+    }
 }

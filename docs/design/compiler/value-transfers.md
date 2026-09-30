@@ -1142,8 +1142,8 @@ and every specialisation inherits them:
 | a word is not an exact value at this use (multi-token, `{*}`, unresolvable variable, JimTcl `$(…)`) | the driver | decline (`NotExact`) |
 | the head's binding is suspect: renamed, aliased to an unknown target, redefined, or in an opaque namespace (`ModuleCommandMutations::trusts`, `trusts_proc_binding`, `redefined_procedures`, `opaque_namespaces`) | binding validity — not an author-trust check | decline (`RebindingSuspected`); a consumer with no whole-module view uses `distrust_all()` |
 | the invocation has no semantics declaration, or declares a route of none (`evaluate none`) | the resolver, at step 1 | decline (`NoSemantics`, or `NoRoute` with the evaluation page's `NoRouteReason`); the generic conservative transfer applies, and a declared plan or transfer still answers its own domain |
-| the place is `::`-qualified, escaping, or the function has a dynamic trace (`is_externally_mutable` over the `var_observability` escaping set) | the solver, before any transfer runs | the def is `Overdefined` and no transfer re-narrows it (`EscapingPlace`) |
-| the place is named in `Module::traced_variables` (`TraceInputs`) | the solver | same (`TracedPlace`) |
+| the place is `::`-qualified, escaping, or the function has a dynamic trace (`is_externally_mutable` over the `var_observability` escaping set), or the version is one a call to a command the module cannot see, or a call that sources a file, holds (`SsaFunction::is_observed_by_unseen_call`) | the solver, before any transfer runs | the def is `Overdefined` and no transfer re-narrows it (`EscapingPlace`) |
+| the place is named in `Module::traced_variables` or `Module::deferred_writes` (`TraceInputs`) | the solver | same (`TracedPlace`) |
 | the target is an array-element base write, or the targets overlap, or a target is trace-visible | the driver | decline (`OverlappingTargets`), stated as a precision limit |
 | a dynamic key (`incr a($i)`) | `DynamicNameBarrier` | decline (`DynamicName`), not pending: the miss is permanent and `join(prev, Unknown) = prev` would launder a stale element constant |
 | the prior value has the wrong intrep for the operation, or the place is unbound and the release's uninitialised behaviour is not proven | the evaluator | decline (`WrongRepresentation`, `UnboundPlace`) — the program errors at run time, and an error is never a value; the error is a completion fact (§ `catch`, `try`, and completion) |
@@ -1156,7 +1156,22 @@ and every specialisation inherits them:
 | a resource cap is hit: output bytes, allocation before it happens, fuel, depth, request budget, cancellation | the route and the budget | decline (`Budget`), distinct from an unsupported case (`Unsupported`) and from a transient host failure (`Transient`), and never an exact negative |
 | a regexp search was cut short or a capture is approximate | the regexp owner | decline (`Approximate`), never "no match" |
 | the answer fails validation | the driver | decline (`MalformedAnswer`) with a load or evaluation notice; the generic conservative result is kept |
-| the statement is a `Barrier` or `UpFrame` | the solver | every tracked value widens, as today |
+| the statement is a `Barrier` or `UpFrame`, or follows an opaque `switch` whose arm runs a command that may write any name | the solver | every tracked value widens, as today |
+
+The names in `Module::deferred_writes` come from the scripts a command stores
+to run after it returns — the words the registry states as callbacks
+(`CommandRegistry::callback_script_indices`: `after`, `fileevent`, `bind`, a
+variable trace's script, never the body of a definition, which runs in a frame
+of its own and is marked `Traits::BODY_RUNS_IN_OWN_FRAME`). Such a script runs
+at the global level or in the frame of whatever fires it, so a plain name in
+it can be a variable the registering code holds, and every name it writes,
+destroys or binds is externally mutable in every function. A quoted word with
+no substitution is read as the script it is, and a word that is one `[…]`
+substitution of a command the registry states builds a command prefix
+(`list`) is read as the command it builds. A callback word computed some other
+way (`after 100 $script`) or spelled as several words (`after 100 set done 1`,
+for which the registry states no script position) is not read, so a write it
+makes stays invisible to the solver.
 
 `incr` of `010` is the release row in one line: it answers 11 under
 Tcl 9.1 and 9.0 and 9 under 8.6, 8.5, and 8.4, so a profile that names no
@@ -1311,7 +1326,11 @@ document's initial global frame a registry special variable enters
 variable (`ConnectionScope::cross_event_defs`) as `MayBound`, which is
 the rule `drop_cross_event_existence_folds` applies to the post-pass's
 output today. A `Barrier` or `UpFrame` statement sets every place to
-`MayBound`, as it sets every value to `Overdefined`. The dynamic-name
+`MayBound`, as it sets every value to `Overdefined`. A call in the top-level
+script to a command the module cannot see (`SyntheticMarker::UnseenCall`)
+sets every place `MayBound` from there on, and the version each name holds
+there `Overdefined`, because a plain top-level name is the global `::name`.
+The dynamic-name
 barrier is flow-sensitive here: a dynamic write
 (`DynamicNameBarrier::writes`) turns every `Unbound` place `MayBound`
 from that statement on, and a dynamic destroy (`destroys`) turns every
@@ -1889,7 +1908,7 @@ flowchart LR
     SEL -. no block stands for an arm .-> NOCFG["no applied reachability<br/>no O107 · no arm deletion"]
 ```
 
-The contract has three parts:
+The contract has four parts:
 
 1. **The exact whole-variable case.** `evaluate_branch` resolves a `Raw`
    operand from the lattice only when the existing word and variable-name
@@ -1925,6 +1944,30 @@ The contract has three parts:
    optional presentation work after the semantics are established, and no
    optimisation code is reserved for them until the ordered-matching,
    completion, source-edit mapping, and proof contracts are implemented.
+4. **What an opaque form defines.** The arms stay inside the one statement,
+   so a write made in one is in no block of the CFG. The SSA gives the
+   statement a may-definition of every name an arm writes or binds — the
+   default arm's and a fall-through arm's included, through every nested
+   command and substitution, `incr`, `append`, `lappend`, `lset`, `dict set`,
+   `array set`, `unset` and the `global`, `upvar` and `variable` bindings
+   (`ssa::switch_may_defs`, the same walk `collapsed_extra_defs` makes). The
+   statement also uses the version each name held before it, as a quoted
+   use — real for liveness, so the store feeding it stays, and never a read
+   for read-before-set — and the solver's value is the join of that version
+   and the written one, which no transfer states: `Overdefined`. A place
+   only an arm binds is may-bound afterwards, a binding an arm makes marks its
+   name in the alias lattice (`var_observability::stmt_gen`), taint keeps
+   what the name held before, and W210 reads the may-definition as a φ with
+   one operand, so a name only an arm sets is still reported where it is
+   read. What a command in an arm does to the frame beyond its own writes
+   follows the statement as it follows a command the graph lowers: the names a
+   callee writes into the frame through `upvar` are may-definitions of a
+   marker statement after the `switch` (`SyntheticMarker::ArmWrites`), and a
+   command that may write any name — `namespace eval`, `dict with`,
+   `eval $script` — adds the caller-frame barrier, which widens every value
+   (a command that leaves the procedure adds none). A selection record does
+   not refine the writes: the statement stays a may-definition even where the
+   record proves which arm runs.
 
 The selection fact is recorded once per statement: `SccpResult::selections`
 (`rust/tcl-compiler/src/sccp.rs`) holds a `SelectionRecord { span,

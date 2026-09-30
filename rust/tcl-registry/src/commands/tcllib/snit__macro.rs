@@ -48,8 +48,9 @@ pub fn spec() -> CommandSpec {
         // `DEFERS_BODY`: the macro body is stored against the name and runs
         // only when a type definition invokes it. tclsh 8.6.16 / 9.0.4,
         // byte-identical: `proc p {} { snit::macro m {} {error stop}; set
-        // ::reached 1 }` sets `::reached`.
-        traits: Traits::DEFERS_BODY,
+        // ::reached 1 }` sets `::reached`. The body is a definition, and
+        // runs in a frame of its own.
+        traits: Traits::DEFERS_BODY.union(Traits::BODY_RUNS_IN_OWN_FRAME),
         tcllib_package: Some("snit"),
         required_package: Some("snit"),
         ..CommandSpec::DEFAULT

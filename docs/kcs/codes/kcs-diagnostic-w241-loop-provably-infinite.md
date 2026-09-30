@@ -42,6 +42,19 @@ If the body assigns the counter itself (`set v ...`, nested
 `incr v`, `lset`, ...) the analyser backs off — it cannot
 reason about arbitrary rewrites.
 
+The proof is about the value the condition's variable holds, so a write the
+analyser cannot place leaves the loop undecided and draws no `W241`: a
+variable an arm of a `switch` in the loop sets (`-glob`, `-regexp`,
+`-nocase`, a fall-through arm, `case`, directly or through a procedure that
+sets the caller's variable with `upvar`), one a callback script stored
+anywhere in the file sets (`after`, `fileevent`, `bind`, a variable trace's
+callback, a procedure named as a callback, a command prefix built with
+`list`), and — at the top level — one a call to a command the file does not
+define may set, as it may set `$::go`.
+In a procedure a local is out of every callee's reach, so `while {$go} { foo
+}` over a local `go` is still reported; a `source` in the loop runs its file in
+the procedure's frame, so it is not.
+
 ## Example that triggers it
 
 ```tcl

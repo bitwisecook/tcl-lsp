@@ -65,13 +65,23 @@ single-hop results stay byte-identical.
 
 A name that is not a private local of the frame is forced `OVERDEFINED`
 regardless of what is assigned to it, so anything derived from it is
-`OVERDEFINED` too. Three sources feed the escaping set:
+`OVERDEFINED` too. Four sources feed the escaping set:
 
 - the per-function [`var_observability`](../../../rust/tcl-compiler/src/var_observability.rs)
   alias/trace lattice — `global`, `variable`, `my variable`, `upvar`,
   `namespace upvar`, and any name under a `trace`;
 - whole-module facts the caller supplies (`extra_global_escaping`): for the
   **top-level** body, every name some other procedure declares `global`;
+- the names the module's callback scripts write, destroy or bind
+  (`Module::deferred_writes`, carried by `TraceInputs` into every function,
+  the top level and each procedure): an `after`, `fileevent`, `bind` or
+  variable-trace script runs outside the code that registered it, and so does
+  a procedure named as one. The registry states which words are such scripts
+  (`CommandRegistry::callback_script_indices`); the scan over them
+  (`deferred_writes.rs`) names no command. A callback that writes a computed
+  name makes every name escaping, as a trace on a computed name does; a
+  callback word computed at run time, or spelled as several words, is not
+  read;
 - for a **`TclOO` method** body, when the *propagation pass* asks for one:
   the class's instance variables — the class-level `variable` declarations
   plus the method's own (`MethodDef::instance_vars`). An instance variable is
@@ -91,6 +101,16 @@ regardless of what is assigned to it, so anything derived from it is
 
 What survives the projection for a method body is therefore a provably
 method-local name, which no `my` / `next` / `[self …]` dispatch can reach.
+
+The escaping set is name-based and whole-function. A call in the top-level
+script to a command the module cannot see adds a flow-sensitive fact beside
+it: the CFG marks the call (`SyntheticMarker::UnseenCall`), the SSA records the
+version each name holds there (`SsaFunction::is_observed_by_unseen_call`), and
+the solver forces each recorded version — a definition or a φ — to
+`OVERDEFINED`, so a plain top-level name after such a call is as undecided as
+its `::` spelling while a definition made afterwards is decided again. A
+procedure's locals are recorded only at a call that sources a file, which runs
+in the frame of the call.
 
 #### The method-dispatch barrier and its evidence rules
 
@@ -283,6 +303,15 @@ name owner proves the operand is exactly one variable reference
 (`whole_variable_operand`), so each arm is an `Applied` branch and the dead
 arms' blocks leave `executable_blocks`.
 
+The record states a selection, not the writes: the SSA gives an opaque
+`switch` a may-definition of every name its arms write or bind
+(`ssa::switch_may_defs`), so the solver takes the value a name holds after it
+as the join of the value before and `OVERDEFINED`, whether or not a record
+proves which arm runs. What a command an arm runs does to the frame follows
+the statement: the names a callee writes through `upvar` are may-definitions
+of a marker after it, and a command that may write any name adds the
+caller-frame barrier ([value-transfers.md](value-transfers.md) § `switch`).
+
 Consumers read the one decision. O112 folds a `switch` only from it: the
 record at the statement's span for an opaque form, the `Applied` facts of the
 chain for a flattened one. The analyser's `switch_body_is_selected` and the
@@ -355,7 +384,9 @@ is `Unavailable`, never `Unbound`.
   synthetic loop header binds its binders once the list is proven to have an
   element and leaves them as they were over a proven-empty list.
 - **Clobbers.** A `Barrier` or `UpFrame` makes every place `MayBound`, as
-  it widens every value; a computed name is applied from its own statement
+  it widens every value, and so does a top-level call to a command the
+  module cannot see (`SyntheticMarker::UnseenCall`); a computed name is
+  applied from its own statement
   on (`dynamic_names::statement_barrier`): a dynamic write turns an
   `Unbound` place `MayBound`, a dynamic destroy a bound one; a statement that
   keeps a nested body inline makes every place the body defines or unsets

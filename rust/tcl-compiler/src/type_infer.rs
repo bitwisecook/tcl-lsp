@@ -1297,7 +1297,8 @@ fn foreach_var_lattice(container_shape: Option<&TypeShape>, nvars: usize, j: usi
 /// analyse_var_observability`]), named by `extra_global_escaping` (the
 /// whole-module `global`-declaration scan for the *top-level* unit — see
 /// [`crate::var_observability::scan_module_global_names`]), or traced
-/// *anywhere in the module* (`trace_facts`) — is forced `Overdefined` here,
+/// *anywhere in the module* (`trace_facts`), or written by a callback script
+/// of the module — is forced `Overdefined` here,
 /// reusing the exact predicate [`crate::sccp::sccp_with_extra_escaping`] and
 /// [`crate::optimiser::propagation`]'s O102 load-forwarding already apply to
 /// their own (separate) lattices, rather than re-deriving a third,
@@ -1329,6 +1330,7 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
         escaping.extend(extra_global_escaping.iter().cloned());
     }
     escaping.extend(trace_facts.traced_variables.iter().cloned());
+    escaping.extend(trace_facts.deferred_writes.names.iter().cloned());
     // Constructor heads written `[Foo new]` inside this function resolve
     // relative names against the function's own namespace.
     let namespace = function_namespace(&cfg.name);
@@ -1349,7 +1351,8 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
         values: &sccp.values,
         folded: &sccp.folded_types,
         escaping: &escaping,
-        has_dynamic_variable_trace: trace_facts.has_dynamic_variable_trace,
+        has_dynamic_variable_trace: trace_facts.has_dynamic_variable_trace
+            || trace_facts.deferred_writes.any,
         numbers: numbers_of(registry),
     };
 

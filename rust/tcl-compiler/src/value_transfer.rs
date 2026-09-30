@@ -101,6 +101,11 @@ pub struct AnalysisContextKey {
     /// The names an iRules `when` handler of the module may find bound on
     /// entry ([`ConnectionScoped`]); empty for a module with no handler.
     pub connection_scoped: ConnectionScoped,
+    /// The names the module's callback scripts write
+    /// ([`crate::ir::Module::deferred_writes`]): each is externally mutable
+    /// in every function, so a callback edited anywhere in the module
+    /// re-keys every function's lattice.
+    pub deferred_writes: crate::ir::DeferredWrites,
 }
 
 /// The names an iRules `when` handler may find bound on entry
@@ -145,6 +150,7 @@ impl AnalysisContextKey {
             tier: AnalysisTier::Deep,
             evaluator_revision: u64::from(tcl_registry::pack_hooks::evaluator_generation().0),
             connection_scoped: ConnectionScoped::default(),
+            deferred_writes: crate::ir::DeferredWrites::default(),
         }
     }
 
@@ -153,6 +159,14 @@ impl AnalysisContextKey {
     #[must_use]
     pub fn with_connection_scoped(mut self, scoped: ConnectionScoped) -> Self {
         self.connection_scoped = scoped;
+        self
+    }
+
+    /// The key with the names the module's callback scripts write
+    /// ([`Self::deferred_writes`]).
+    #[must_use]
+    pub fn with_deferred_writes(mut self, writes: crate::ir::DeferredWrites) -> Self {
+        self.deferred_writes = writes;
         self
     }
 
@@ -1368,6 +1382,7 @@ impl<'a> LatticeDriver<'a> {
                 registry,
                 traced_variables: &EMPTY_NAMES,
                 has_dynamic_variable_trace: false,
+                deferred_writes: &crate::ir::NO_DEFERRED_WRITES,
                 analysis_context: None,
                 existence: None,
             },

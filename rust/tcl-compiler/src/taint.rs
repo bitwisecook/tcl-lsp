@@ -1972,6 +1972,17 @@ fn propagate_statement_taints(
         let stmt = &ssa_stmt.statement;
         for (&var, &ver) in &ssa_stmt.defs {
             let mut inferred = evaluate_taint_def(stmt, var, &ssa_stmt.uses, &*taints, ctx, ssa);
+            // A name an opaque `switch`'s arms may write keeps the taint it had
+            // when no arm runs.
+            if crate::ssa::has_arm_may_defs(stmt)
+                && ssa_stmt.may_defs.contains(&var)
+                && let Some(before) = ssa_stmt
+                    .uses
+                    .get(&var)
+                    .and_then(|&prior| taints.get(&(var, prior)))
+            {
+                inferred = inferred.join(*before);
+            }
             // Enrich the inferred taint with rendered-property
             // colours when available.
             if let Some(rp) = rendered_props
@@ -2801,6 +2812,7 @@ fn find_taint_warnings_for_cu_base_with_external_variable_seeds(
     let module_traces = crate::compilation_unit::ModuleTraceFacts {
         traced_variables: &cu.ir_module.traced_variables,
         has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+        deferred_writes: &cu.ir_module.deferred_writes,
     };
     let identities = crate::realm::document_realm_bindings_with_config(
         &cu.source,
@@ -9582,6 +9594,7 @@ mod tests {
             let traces = ModuleTraceFacts {
                 traced_variables: &cu.ir_module.traced_variables,
                 has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+                deferred_writes: &cu.ir_module.deferred_writes,
             };
 
             let fu = cu.function("::p").unwrap();
@@ -9606,6 +9619,7 @@ mod tests {
             let traces = ModuleTraceFacts {
                 traced_variables: &cu.ir_module.traced_variables,
                 has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+                deferred_writes: &cu.ir_module.deferred_writes,
             };
             let fu = cu.function("::p").unwrap();
             let patched = apply_module_variable_traces((*fu.taints).clone(), &fu.ssa, traces);
@@ -9614,5 +9628,21 @@ mod tests {
                 "no trace in scope — map must be unchanged"
             );
         }
+    }
+
+    /// A name an opaque `switch`'s arm may overwrite keeps the taint it held
+    /// when no arm runs: the arm need not run, so `puts $u` still sees data
+    /// read from the channel.
+    #[test]
+    fn a_tainted_name_an_opaque_switch_arm_may_overwrite_stays_tainted() {
+        let registry = CommandRegistry::build_default();
+        let source = "proc p {s} {\n set u [gets stdin]\n switch -glob -- $s { q* { set u clean } }\n puts $u\n}\n";
+        let cu = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let found = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert!(
+            found.iter().any(|w| w.code == DiagCode::T101),
+            "expected T101 for the sink after the switch, got {found:?}"
+        );
     }
 }

@@ -33,7 +33,7 @@ pub fn spec() -> CommandSpec {
         body_kind: BodyKind::Structural,
         // `DEFERS_BODY`, for the same reason as `snit::method` and proved the
         // same way on both oracles.
-        traits: Traits::DEFERS_BODY,
+        traits: Traits::DEFERS_BODY.union(Traits::BODY_RUNS_IN_OWN_FRAME),
         hover: Some(HoverSnippet {
             summary: "Define a type method outside a type definition body.",
             synopsis: &["snit::typemethod type name arglist body"],

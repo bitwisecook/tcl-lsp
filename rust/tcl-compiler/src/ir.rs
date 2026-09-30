@@ -405,6 +405,19 @@ pub enum SyntheticMarker {
     /// site widens. It sits *beside* the call it widens for, which is why
     /// naming the callee on it would make codegen run the callee twice.
     CallerFrameOpaque,
+    /// A call, in the top-level script, to a command the module cannot see: a
+    /// plain name there is the global `::name`, which the code that command
+    /// reaches may write, unset or read. It defines and reads nothing itself;
+    /// the SSA records the version each name holds where it sits
+    /// ([`crate::ssa::SsaFunction::is_observed_by_unseen_call`]), and every
+    /// pass that trusts a name's value across a statement asks that record.
+    UnseenCall,
+    /// The names a callee an arm of an opaque `switch` calls writes into the
+    /// frame (`zero line` with `upvar 1`), carried on a statement of its own
+    /// after the `switch` because the arms are not lowered: the names are
+    /// *may*-definitions of the statement, as the writes the arms make
+    /// themselves are ([`crate::ssa::switch_may_defs`]).
+    ArmWrites,
 }
 
 /// Original parsed tokens for a command invocation.
@@ -1701,6 +1714,43 @@ pub enum TopLevelKind {
     ProcedureBody,
 }
 
+/// The variables the scripts a module stores as callbacks write, destroy or
+/// bind.
+///
+/// A script a command stores to run after it returns — an `after` or
+/// `fileevent` handler, a `bind`ing, a variable trace's callback, everything
+/// the registry states as a callback
+/// ([`tcl_registry::CommandRegistry::callback_script_indices`]) — runs at the
+/// global level, or in the frame of the code that fires it. A plain name in
+/// it can denote a variable the registering code holds, and nothing in that
+/// code's text shows the write. Whole-module and position-independent, like
+/// [`Module::traced_variables`]: a name in [`Self::names`] is externally
+/// mutable in every function, and the solver never refines it.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+pub struct DeferredWrites {
+    /// The literal names a callback script writes, destroys or binds
+    /// (`global`, `upvar`, `variable`), the leading `::` stripped and an
+    /// element's array beside it.
+    pub names: std::collections::BTreeSet<String>,
+    /// A callback writes, destroys or binds a name computed at run time, so
+    /// any variable may change at any time.
+    pub any: bool,
+}
+
+impl DeferredWrites {
+    /// Whether no callback script of the module writes anything.
+    #[must_use]
+    pub fn is_clear(&self) -> bool {
+        self.names.is_empty() && !self.any
+    }
+}
+
+/// The fact of a build with no module to scan: no callback writes anything.
+pub static NO_DEFERRED_WRITES: DeferredWrites = DeferredWrites {
+    names: std::collections::BTreeSet::new(),
+    any: false,
+};
+
 /// A top-level module: procedures + top-level script.
 ///
 /// This is the only mutable IR type — it accumulates procedures and
@@ -1853,6 +1903,10 @@ pub struct Module {
     /// Forces the propagation optimiser to treat *every* variable as
     /// potentially traced.
     pub has_dynamic_variable_trace: bool,
+    /// The variables the scripts the module stores as callbacks write — see
+    /// [`DeferredWrites`]. Populated after lowering, beside
+    /// [`Self::traced_variables`].
+    pub deferred_writes: DeferredWrites,
 }
 
 fn execution_namespace_for_qname(qname: &str) -> String {

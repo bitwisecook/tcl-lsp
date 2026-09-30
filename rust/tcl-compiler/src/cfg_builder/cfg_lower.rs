@@ -645,6 +645,11 @@ impl CfgBuilder<'_> {
     fn lower_opaque_switch(&mut self, stmt: &Statement, block_name: &str) -> String {
         use crate::cfg_builder::Completion;
         self.block_mut(block_name).statements.push(stmt.clone());
+        // A command an arm runs is inside the statement, so the scans of the
+        // statements the graph lowers never reach it.
+        for effect in self.opaque_arm_effects(stmt) {
+            self.block_mut(block_name).statements.push(effect);
+        }
         if !self.faithful_exceptions {
             return block_name.to_owned();
         }
@@ -783,7 +788,9 @@ impl CfgBuilder<'_> {
         // generically rather than compiling a jump table; codegen emits a
         // generic `switch` invoke for the opaque statement. SSA reads of the
         // subject + arm/default bodies are recovered by `ssa::uses_of`'s
-        // `Statement::Switch` arm; the switch contributes no defs.
+        // `Statement::Switch` arm, and what they write by
+        // `ssa::switch_may_defs` and the statements `opaque_arm_effects` puts
+        // after the switch.
         // A `-nocase` exact switch must also stay opaque: the flattened form
         // builds a `STR_EQ`/JUMP_TABLE dispatch that is case-sensitive, so the
         // case-insensitive match has to run through the generic `switch`

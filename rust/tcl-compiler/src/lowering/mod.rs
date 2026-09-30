@@ -4823,8 +4823,9 @@ fn lower_with(mut lowerer: Lowerer<'_>, source: &str) -> Module {
 impl Lowerer<'_> {
     /// Complete either module entry path after its top-level script has been
     /// lowered.  Namespace tables, OO extraction, source/profile stamps, and
-    /// trace facts deliberately have this one owner so compiling a runtime
-    /// procedure target cannot drift from ordinary module lowering.
+    /// trace and callback-write facts deliberately have this one owner so
+    /// compiling a runtime procedure target cannot drift from ordinary module
+    /// lowering.
     pub(crate) fn finish_module(mut self, source: &str) -> Module {
         // Surface namespace import / export directives onto the module for
         // downstream consumers (codegen import resolution and warning passes).
@@ -4839,6 +4840,7 @@ impl Lowerer<'_> {
         source.clone_into(&mut module.source);
         module.dialect = dialect;
         populate_trace_facts(&mut module, registry);
+        module.deferred_writes = crate::deferred_writes::scan_module(&module, registry);
         module
     }
 }
