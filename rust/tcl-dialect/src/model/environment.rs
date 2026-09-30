@@ -39,10 +39,9 @@
 //! and same-precedence collisions are typed construction errors, not
 //! nearest-wins picks.
 //!
-//! [`EnvironmentRegistry::resolve`] replaces the divergent validators of
-//! the old model (`available_dialects`, `is_known_dialect_name`, the
-//! directive's `KNOWN_DIALECTS` match, `resolve_known`) — every name a
-//! user can write today keeps resolving, as data, not as a shim.
+//! [`EnvironmentRegistry::resolve`] is the one name validator: every name a
+//! user can write — a canonical id, an alias, an editor language id — resolves
+//! as data, not through a per-surface list.
 
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
@@ -107,6 +106,29 @@ impl EditorLanguageIdentityId {
         "tcl-xilinx",
         "tcl-apl",
     ];
+
+    /// Language ids a client sends that select an environment without being
+    /// its [`EnvironmentDefinition::editor_identity`], the identity a
+    /// generator emits a language mode for. Each pairs the language id with
+    /// the canonical id of the environment it selects: an APL file is an iApp
+    /// presentation sublanguage, and the `tcl-…` spellings name `bpf`,
+    /// Libero and `SpecTcl`.
+    pub const SELECTING: &'static [(&'static str, &'static str)] = &[
+        ("tcl-apl", "f5-iapps"),
+        ("tcl-bpf", "bpf"),
+        ("tcl-libero", "microchip-libero-eda-tcl"),
+        ("tcl-spec", "spectcl"),
+    ];
+
+    /// The canonical id of the environment the language id `language_id`
+    /// selects through [`Self::SELECTING`], when it is one of those.
+    #[must_use]
+    pub fn selected_environment(language_id: &str) -> Option<&'static str> {
+        Self::SELECTING
+            .iter()
+            .find(|&&(spelling, _)| spelling == language_id)
+            .map(|&(_, environment)| environment)
+    }
 
     /// The identity for `id`, or `None` when no editor contributes it —
     /// this constructor is the only way to obtain one, which is the whole
@@ -1586,7 +1608,6 @@ pub fn bundled_pack_definitions() -> Vec<EnvironmentDefinition> {
 mod tests {
     use super::*;
     use crate::DialectProfile;
-    use crate::KNOWN_DIALECTS;
     use crate::TclVersion;
 
     /// #2139: one predicate owns the untrusted class, and every variant has
@@ -1636,9 +1657,6 @@ mod tests {
     #[test]
     fn every_old_name_and_alias_resolves() {
         let registry = EnvironmentRegistry::compiled();
-        for &name in KNOWN_DIALECTS {
-            assert!(registry.resolve(name).is_some(), "{name}");
-        }
         for profile in DialectProfile::all() {
             let resolved = registry.resolve(profile.name).expect(profile.name);
             for &alias in profile.aliases {
@@ -1903,6 +1921,37 @@ mod tests {
         assert!(plain.targets.contains(&v("8.4")));
         assert!(plain.targets.contains(&v("9.1.2")));
         assert!(!plain.targets.contains(&v("9.2")));
+    }
+
+    /// Each selecting language id names a compiled environment that does not
+    /// own the spelling itself: an environment's own identity and canonical
+    /// id resolve as themselves.
+    #[test]
+    fn selecting_language_ids_name_compiled_environments_that_do_not_own_them() {
+        let registry = EnvironmentRegistry::compiled();
+        for &(spelling, environment) in EditorLanguageIdentityId::SELECTING {
+            assert!(
+                registry.resolve(environment).is_some(),
+                "`{spelling}` selects `{environment}`"
+            );
+            assert_eq!(
+                EditorLanguageIdentityId::selected_environment(spelling),
+                Some(environment)
+            );
+            assert!(
+                !registry.definitions().iter().any(|definition| {
+                    definition.id.as_str() == spelling
+                        || definition
+                            .editor_identity
+                            .is_some_and(|identity| identity.as_str() == spelling)
+                }),
+                "`{spelling}` is no environment's own id or identity"
+            );
+        }
+        assert_eq!(
+            EditorLanguageIdentityId::selected_environment("tcl-irule"),
+            None
+        );
     }
 
     #[test]

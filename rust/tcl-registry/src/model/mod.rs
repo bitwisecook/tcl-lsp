@@ -92,7 +92,7 @@ pub use declaration::{
 };
 pub use ingress::{
     DocumentEnvironment, context_for_profile, environments, irules_context,
-    is_known_environment_name, resolve_environment, resolve_known_environment,
+    is_known_environment_name, resolve_environment, resolve_known_environment, resolve_language_id,
     selectable_environments, static_context_for, static_context_for_profile,
     static_document_context_for, static_document_context_for_profile,
 };

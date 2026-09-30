@@ -8780,7 +8780,7 @@ impl Backend {
             diagnostic_publisher,
             documents: Arc::new(DocumentStore::default()),
             diag_slots: Arc::new(Mutex::new(HashMap::new())),
-            default_dialect: Mutex::new("tcl8.6".to_owned()),
+            default_dialect: Mutex::new(DEFAULT_SESSION_DIALECT.to_owned()),
             default_dialect_explicit: Mutex::new(false),
             session_dialect_override: Mutex::new(None),
             document_dialect_overrides: Mutex::new(HashMap::new()),
@@ -11312,46 +11312,26 @@ impl Backend {
     /// language id does not name a known dialect — the caller falls
     /// back to the session default.
     fn dialect_from_language_id(language_id: &str) -> Option<LanguageDialect> {
-        // Ids that must **not** reach the environment resolver as written,
-        // because the resolver answers them differently or not at all. Every
-        // other spelling — a canonical id, an alias, or a contributed editor
-        // identity (`tcl90`, `tcl-synopsys`; the version-pinned ones are
-        // undotted because a language id containing a `.` cannot carry a
-        // `configurationDefaults` override) — is declared by the
-        // environment catalogue and resolves below, which keeps a new
-        // environment resolvable here the day it is added.
-        let mapped = match language_id {
-            // Every editor sends the bare `tcl` id for a plain `.tcl` buffer;
-            // it names no version, and 8.6 is the fallback the rest of the
-            // resolution chain is written against. (The `tcl` *environment*
-            // is the lenient whole-ladder one, which is a different answer.)
-            "tcl" => "tcl8.6",
-            // `tcl-apl` is the APL (iApp presentation language) editor id — an
-            // iApp sublanguage, so it analyses as `f5-iapps` rather than
-            // falling through to the default Tcl dialect.
-            "tcl-apl" => "f5-iapps",
-            // Editor ids the environment catalogue does not declare (its own
-            // identities are `bpf`-less, `tcl-microchip`, `tclspec`), kept
-            // because editors and older configurations still send them.
-            "tcl-bpf" => "bpf",
-            "tcl-libero" => "microchip-libero-eda-tcl",
-            // `tcl-spec` matches the `tcl-…` shape the other integration ids
-            // use; the catalogue's own id for SpecTcl packs is `tclspec`.
-            "tcl-spec" => "spectcl",
-            other => other,
+        // Every editor sends the bare `tcl` id for a plain `.tcl` buffer; it
+        // names no version, and 8.6 is the fallback the rest of the
+        // resolution chain is written against. (The `tcl` *environment* is
+        // the lenient whole-ladder one, which is a different answer.) It is
+        // the detection trigger, not an environment selection.
+        let language_id = if language_id == "tcl" {
+            "tcl8.6"
+        } else {
+            language_id
         };
         // This is an editor-ID ingress boundary, and it goes through the one
-        // environment seam: aliases and command consumers cannot retain a
-        // free-text dialect spelling after this point, and an id that names
-        // no environment answers `None` so the caller falls back to the
-        // session default.
-        tcl_registry::model::resolve_known_environment(mapped)
-            // A language id names a *contributed identity*, never a legacy
-            // alias: `irules` resolves to `f5-irules` wherever a dialect
-            // name is configured, but no editor contributes it as a language
-            // id, and taking it as one would select an environment through a
-            // spelling the contribution manifest never declares.
-            .filter(|environment| environment.is_contributed_identity(mapped))
+        // language-id resolver: a canonical id, a contributed identity
+        // (`tcl90`, `tcl-synopsys`; the version-pinned ones are undotted
+        // because a language id containing a `.` cannot carry a
+        // `configurationDefaults` override) or a selecting spelling
+        // (`tcl-apl`) answers with its environment, so a new environment is
+        // resolvable here the day it is declared. An alias is not a language
+        // id, and an id that names no environment answers `None` so the
+        // caller falls back to the session default.
+        tcl_registry::model::resolve_language_id(language_id)
             .map(|environment| LanguageDialect(environment.unit_profile()))
     }
 
@@ -18003,14 +17983,13 @@ impl Backend {
             },
             None => self.session_dialect().await,
         };
-        // The catalogue's labels for the resolved dialect, so a status bar or
-        // picker can render it without keeping its own name table. `null` for a
-        // name the catalogue does not know (an unrecognised configured value).
-        // The model carries no `short_name`, so the label comes from the
-        // catalogue projection — reached from the *resolved environment*, not
-        // from a second name validator, and `null` for a name that names no
-        // catalogue entry (`tk`, the lenient `tcl`, an unknown value).
-        let dialect_profile = tcl_lsp_core::environment_for_dialect(&dialect).catalogue_profile();
+        // The resolved environment's labels, so a status bar or picker can
+        // render the dialect without keeping its own name table: every
+        // environment carries them, `tk`, `jim` and the lenient `tcl`
+        // included. `null` only for a name that names no environment (an
+        // unrecognised configured value).
+        let resolved = tcl_registry::model::resolve_known_environment(&dialect);
+        let environment = resolved.as_ref().map(|resolved| &*resolved.definition);
         // Whether a `tclLsp.dialect` was actually configured for this URI — by
         // the folder it sits under, or session-wide — as opposed to the
         // built-in fallback that a never-configured session reports.  A
@@ -18081,8 +18060,16 @@ impl Backend {
             "uri": uri_str,
             "folder_uri": folder_uri,
             "dialect": dialect,
-            "dialect_display_name": dialect_profile.map(|profile| profile.display_name),
-            "dialect_short_name": dialect_profile.map(|profile| profile.short_name),
+            "dialect_id": environment.map(|environment| environment.id.as_str()),
+            "dialect_display_name": environment.map(|environment| environment.display_name.as_ref()),
+            "dialect_short_name": environment.map(|environment| environment.short_name.as_ref()),
+            // `language` or `packages`: the group a picker files the dialect
+            // under.
+            "dialect_kind": environment.map(|environment| environment.kind.word()),
+            "dialect_description": environment.map(tcl_dialect::model::EnvironmentDefinition::description),
+            // Where the environment came from: `built-in`, `bundled-pack`,
+            // `user-pack` or `workspace-pack`.
+            "dialect_provenance": environment.map(|environment| environment.provenance.word()),
             "dialect_explicitly_set": dialect_explicitly_set,
             // The deliberate session override, when one is in force — `null`
             // otherwise. Observable so a caller (and the e2e suite) can tell a
@@ -18238,35 +18225,47 @@ impl Backend {
         })))
     }
 
-    /// Handle `tcl-lsp.listDialects`: the dialect catalogue as presentation data
-    /// — canonical `name` (the spelling `tcl-lsp.setDialect` and
-    /// `tclLsp.dialect` take), the full and compact labels, the dedicated
-    /// editor language id (`null` where the dialect has none) and the file
-    /// extensions it owns, each with its human-facing name.
+    /// Handle `tcl-lsp.listDialects`: every selectable environment as
+    /// presentation data, in selectable order (languages first, then Tcl
+    /// releases with packages, canonical id ascending within each). Each entry
+    /// carries the canonical `name` (the spelling `tcl-lsp.setDialect` and
+    /// `tclLsp.dialect` take), the full and compact labels, the `kind`
+    /// (`language` or `packages`) a picker groups by, the derived one-line
+    /// `description`, the `aliases` a directive also accepts, the dedicated
+    /// editor language id (`null` where the environment has none) and the file
+    /// `extensions` it owns, each with its human-facing name.
     ///
-    /// The `VS Code` extension gets this list projected into its manifest at
-    /// build time (`cargo xtask gen-editor-dialects`); every other editor asks
-    /// for it here, so a dialect picker or status bar never has to hardcode one.
+    /// Read from the live registry, so an environment a pack declares appears
+    /// without a rebuild. The `VS Code` extension also gets the compiled list
+    /// projected into its manifest at build time (`cargo xtask
+    /// gen-editor-dialects`); every other editor asks for it here, so a
+    /// dialect picker or status bar never has to hardcode one.
     fn list_dialects_command() -> serde_json::Value {
-        // Read from the dialect catalogue rather than the environment one:
-        // the environment catalogue has different *contents* (it adds `tcl`
-        // and `tk`) and no `short_name`, so swapping the source would change
-        // this command's payload and every picker built on it.
         serde_json::Value::Array(
-            tcl_dialect::DialectProfile::all()
+            tcl_registry::model::selectable_environments()
                 .iter()
-                .map(|profile| {
+                .map(|environment| {
                     serde_json::json!({
-                        "name": profile.name,
-                        "display_name": profile.display_name,
-                        "short_name": profile.short_name,
-                        "editor_language_id": profile.editor_language_id,
-                        "file_extensions": profile
+                        "name": environment.id.as_str(),
+                        "display_name": environment.display_name.as_ref(),
+                        "short_name": environment.short_name.as_ref(),
+                        "kind": environment.kind.word(),
+                        "description": environment.description(),
+                        "aliases": environment
+                            .aliases
+                            .iter()
+                            .map(AsRef::as_ref)
+                            .collect::<Vec<&str>>(),
+                        "editor_language_id": environment
+                            .editor_identity
+                            .map(tcl_dialect::model::EditorLanguageIdentityId::as_str),
+                        "extensions": environment
+                            .server_detection
                             .file_extensions
                             .iter()
-                            .map(|ext| serde_json::json!({
-                                "extension": ext.extension,
-                                "display_name": ext.display_name,
+                            .map(|claim| serde_json::json!({
+                                "extension": claim.extension.as_ref(),
+                                "display_name": claim.display_name.as_ref(),
                             }))
                             .collect::<Vec<serde_json::Value>>(),
                     })
@@ -18703,7 +18702,7 @@ impl Backend {
         let mut rescan_workspace = self.apply_global_library_paths(cfg).await;
         rescan_workspace |= self.apply_workspace_scan_budget(cfg).await;
         self.apply_global_toggles(cfg, signature_fallback_cfg).await;
-        self.apply_global_formatting(cfg).await;
+        let dialect_warning = self.apply_global_formatting(cfg).await;
         self.apply_global_analyser_knobs(cfg).await;
         // Mirror the applied analyser knobs onto the salsa config input so the
         // query graph recomputes against the latest settings.
@@ -18713,6 +18712,7 @@ impl Backend {
         // an edit schedules between here and the reload's own reschedule.
         self.invalidate_diag_inputs();
         drop(analyser_inputs_guard);
+        self.warn_configured_dialect(dialect_warning).await;
         if rescan_workspace {
             self.scan_workspace_folders().await;
         }
@@ -18900,8 +18900,10 @@ impl Backend {
         }
     }
 
-    /// The formatter / style-width / default-dialect knobs.
-    async fn apply_global_formatting(&self, cfg: &serde_json::Value) {
+    /// The formatter / style-width / default-dialect knobs. Returns the
+    /// warning for a configured dialect that names no environment, for the
+    /// caller to send after it has released the analyser-inputs gate.
+    async fn apply_global_formatting(&self, cfg: &serde_json::Value) -> Option<String> {
         if let Some(len) = cfg
             .get("formatting")
             .and_then(|f| f.get("lineLength"))
@@ -18926,9 +18928,39 @@ impl Backend {
         {
             *self.style_line_length.lock().await = u32::try_from(len).unwrap_or(120);
         }
-        if let Some(dialect) = cfg.get("dialect").and_then(serde_json::Value::as_str) {
+        match cfg.get("dialect").and_then(serde_json::Value::as_str) {
+            Some(dialect) => self.apply_configured_session_dialect(dialect).await,
+            None => None,
+        }
+    }
+
+    /// Set the session dialect from a configured `tclLsp.dialect`.
+    ///
+    /// A value that resolves to an environment is stored as written, because a
+    /// sidecar stub is found by the configured spelling. One that names no
+    /// environment is not stored: the session keeps the built-in default
+    /// rather than resolving every document to the lenient `tcl` sink, and the
+    /// returned warning names the value and the selectable dialects.
+    async fn apply_configured_session_dialect(&self, dialect: &str) -> Option<String> {
+        if is_known_dialect_name(dialect) {
             *self.default_dialect.lock().await = dialect.to_owned();
             *self.default_dialect_explicit.lock().await = true;
+            return None;
+        }
+        DEFAULT_SESSION_DIALECT.clone_into(&mut *self.default_dialect.lock().await);
+        *self.default_dialect_explicit.lock().await = false;
+        Some(format!(
+            "tclLsp.dialect `{dialect}` is not a known dialect; using the default, \
+             {DEFAULT_SESSION_DIALECT}. Valid dialects: {}",
+            selectable_dialect_names()
+        ))
+    }
+
+    /// Send the warning [`Self::apply_configured_session_dialect`] returned, if
+    /// there is one, on the client's log channel.
+    async fn warn_configured_dialect(&self, warning: Option<String>) {
+        if let Some(message) = warning {
+            self.client.log_message(MessageType::WARNING, message).await;
         }
     }
 
@@ -23500,9 +23532,9 @@ impl LanguageServer for Backend {
             .and_then(serde_json::Value::as_str)
             .map(str::to_owned);
         let analyser_inputs_guard = self.analyser_inputs_gate.write().await;
+        let mut dialect_warning = None;
         if let Some(d) = dialect {
-            *self.default_dialect.lock().await = d;
-            *self.default_dialect_explicit.lock().await = true;
+            dialect_warning = self.apply_configured_session_dialect(&d).await;
             // No re-resolve here: the coalesced reload below ends with one
             // (`pull_and_apply_config`'s own, at the single point every pull
             // passes through), so doing it per notification would only
@@ -23527,6 +23559,7 @@ impl LanguageServer for Backend {
         // keystroke.
         self.invalidate_diag_inputs();
         drop(analyser_inputs_guard);
+        self.warn_configured_dialect(dialect_warning).await;
         // VS Code (and the e2e harness) push an empty/partial payload as a
         // signal to re-pull the full resolved config via
         // `workspace/configuration`.  Always re-pull so `features.*`, the
@@ -27389,20 +27422,33 @@ fn non_ascii_mode_str(mode: NonAsciiMode) -> serde_json::Value {
     serde_json::Value::String(label.to_owned())
 }
 
-/// The rejection message for a dialect-setting command, naming every canonical
-/// dialect the catalogue offers so the caller can correct the spelling from the
-/// error alone rather than having to ask for the list separately.
+/// The session dialect before any `tclLsp.dialect` is configured, and the one a
+/// configured value that names no environment falls back to.
+const DEFAULT_SESSION_DIALECT: &str = "tcl8.6";
+
+/// The canonical ids of the selectable environments, comma-separated, read from
+/// the live registry: what a message that rejects a dialect spelling offers
+/// instead.
+fn selectable_dialect_names() -> String {
+    tcl_registry::model::selectable_environments()
+        .iter()
+        .map(|environment| environment.id.as_str().to_owned())
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// The rejection message for a dialect-setting command, naming every selectable
+/// dialect so the caller can correct the spelling from the error alone rather
+/// than having to ask for the list separately.
 fn unknown_dialect_error(dialect: &str) -> String {
     // The accepted set is `Environment::resolve`'s — canonical ids, aliases
     // and contributed editor identities — which is wider than the canonical
     // list quoted here. The list stays canonical deliberately: it is a
     // "correct your spelling to one of these" message, not the acceptance set.
-    let valid = tcl_dialect::DialectProfile::all()
-        .iter()
-        .map(|profile| profile.name)
-        .collect::<Vec<_>>()
-        .join(", ");
-    format!("unknown dialect: {dialect} (valid surface: {valid})")
+    format!(
+        "unknown dialect: {dialect} (valid surface: {})",
+        selectable_dialect_names()
+    )
 }
 
 /// Extract `tclLsp.style.nonAscii` from an LSP settings payload, accepting
@@ -36100,10 +36146,10 @@ mod tests {
         }
     }
 
-    /// The full input set the language-id table accepts, with the dialect each
-    /// input resolves to. The table is catalogue-driven (plus a fallback for the
-    /// spellings the catalogue has no field for), and every one of these inputs
-    /// must resolve exactly as listed.
+    /// The full input set the language-id ingress accepts, with the dialect each
+    /// input resolves to. The ingress is registry-driven (canonical ids,
+    /// contributed editor identities and the selecting spellings), and every
+    /// one of these inputs must resolve exactly as listed.
     #[test]
     fn dialect_from_language_id_accepts_every_legacy_spelling() {
         for (language_id, dialect) in [
@@ -36158,80 +36204,257 @@ mod tests {
         }
     }
 
-    /// Every canonical dialect name reaches its own profile through the
-    /// catalogue-first lookup — including any profile added after this test was
-    /// written, which a hand-maintained table would miss.
+    /// Every selectable environment answers to its canonical id and to its
+    /// contributed editor identity, and to nothing that is only an alias — so
+    /// an environment added later needs no table here.
     #[test]
-    fn dialect_from_language_id_covers_the_whole_catalog() {
-        for profile in tcl_dialect::DialectProfile::all() {
+    fn dialect_from_language_id_covers_every_selectable_environment() {
+        for environment in tcl_registry::model::selectable_environments() {
+            let id = environment.id.as_str();
             assert_eq!(
-                Backend::dialect_from_language_id(profile.name).map(LanguageDialect::name),
-                Some(profile.name),
+                Backend::dialect_from_language_id(id).map(LanguageDialect::name),
+                Some(id),
+                "canonical id `{id}` must resolve to itself",
             );
-            if let Some(editor_id) = profile.editor_language_id {
+            if let Some(identity) = environment.editor_identity {
                 assert_eq!(
-                    Backend::dialect_from_language_id(editor_id).map(LanguageDialect::name),
-                    Some(profile.name),
-                    "editor language id `{editor_id}` must resolve to `{}`",
-                    profile.name,
+                    Backend::dialect_from_language_id(identity.as_str()).map(LanguageDialect::name),
+                    Some(id),
+                    "editor language id `{}` must resolve to `{id}`",
+                    identity.as_str(),
                 );
+            }
+            for alias in &environment.aliases {
+                let is_identity = environment
+                    .editor_identity
+                    .is_some_and(|identity| identity.as_str() == alias.as_ref());
+                let is_selecting =
+                    tcl_dialect::model::EditorLanguageIdentityId::selected_environment(alias)
+                        .is_some();
+                if !is_identity && !is_selecting {
+                    assert!(
+                        Backend::dialect_from_language_id(alias).is_none(),
+                        "alias `{alias}` of `{id}` is not a language id",
+                    );
+                }
             }
         }
     }
 
-    /// `tcl-lsp.listDialects` reports the whole catalogue with the presentation
-    /// fields an editor needs to build a picker without its own name table.
+    /// `tcl-lsp.listDialects` reports every selectable environment, in
+    /// selectable order, with the presentation fields an editor needs to build
+    /// a picker without its own name table.
     #[test]
-    fn list_dialects_command_reports_the_catalog_with_presentation_fields() {
+    fn list_dialects_command_reports_every_selectable_environment() {
         let value = Backend::list_dialects_command();
         let entries = value.as_array().expect("an array of dialects");
-        assert_eq!(entries.len(), tcl_dialect::DialectProfile::all().len());
-        for (entry, profile) in entries.iter().zip(tcl_dialect::DialectProfile::all()) {
-            assert_eq!(entry["name"], profile.name);
-            assert_eq!(entry["display_name"], profile.display_name);
-            assert_eq!(entry["short_name"], profile.short_name);
-            match profile.editor_language_id {
-                Some(id) => assert_eq!(entry["editor_language_id"], id),
-                None => assert!(entry["editor_language_id"].is_null()),
-            }
-            let extensions = entry["file_extensions"]
+        let selectable = tcl_registry::model::selectable_environments();
+        assert_eq!(entries.len(), selectable.len());
+        for (entry, environment) in entries.iter().zip(&selectable) {
+            let id = environment.id.as_str();
+            assert_eq!(entry["name"], id);
+            assert_eq!(entry["display_name"], environment.display_name.as_ref());
+            assert_eq!(entry["short_name"], environment.short_name.as_ref());
+            assert_eq!(entry["kind"], environment.kind.word(), "{id}");
+            assert_eq!(entry["description"], environment.description(), "{id}");
+            let aliases: Vec<&str> = entry["aliases"]
                 .as_array()
-                .expect("file_extensions is an array");
-            assert_eq!(extensions.len(), profile.file_extensions.len());
-            for (reported, ext) in extensions.iter().zip(profile.file_extensions) {
-                assert_eq!(reported["extension"], ext.extension);
-                assert_eq!(reported["display_name"], ext.display_name);
+                .expect("aliases is an array")
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .collect();
+            let expected: Vec<&str> = environment.aliases.iter().map(AsRef::as_ref).collect();
+            assert_eq!(aliases, expected, "{id}");
+            match environment.editor_identity {
+                Some(identity) => assert_eq!(entry["editor_language_id"], identity.as_str()),
+                None => assert!(entry["editor_language_id"].is_null(), "{id}"),
+            }
+            let extensions = entry["extensions"]
+                .as_array()
+                .expect("extensions is an array");
+            let claimed = &environment.server_detection.file_extensions;
+            assert_eq!(extensions.len(), claimed.len(), "{id}");
+            for (reported, claim) in extensions.iter().zip(claimed) {
+                assert_eq!(reported["extension"], claim.extension.as_ref());
+                assert_eq!(reported["display_name"], claim.display_name.as_ref());
             }
         }
 
-        let irules = entries
+        let names: Vec<&str> = entries
             .iter()
-            .find(|entry| entry["name"] == "f5-irules")
-            .expect("the catalog carries f5-irules");
+            .filter_map(|entry| entry["name"].as_str())
+            .collect();
+        for offered in ["jim", "tk", "xilinx-eda-tcl", "tcl8.6"] {
+            assert!(names.contains(&offered), "`{offered}` is selectable");
+        }
+        assert!(!names.contains(&"tcl"), "the lenient sink is not a choice");
+        let kinds: Vec<&str> = entries
+            .iter()
+            .filter_map(|entry| entry["kind"].as_str())
+            .collect();
+        let languages = kinds.iter().take_while(|kind| **kind == "language").count();
+        assert!(
+            kinds[languages..].iter().all(|kind| *kind == "packages"),
+            "languages come first, then tool shells: {kinds:?}",
+        );
+
+        let find = |name: &str| {
+            entries
+                .iter()
+                .find(|entry| entry["name"] == name)
+                .unwrap_or_else(|| panic!("the list carries {name}"))
+        };
+        let irules = find("f5-irules");
         assert_eq!(irules["editor_language_id"], "tcl-irule");
         assert!(
-            irules["file_extensions"]
+            irules["extensions"]
                 .as_array()
                 .is_some_and(|exts| !exts.is_empty()),
             "iRules owns file extensions",
         );
+        assert_eq!(find("jim")["editor_language_id"], "tcl-jim");
+        assert_eq!(find("jim")["kind"], "language");
+        assert_eq!(find("tk")["kind"], "packages");
+        assert!(
+            find("xilinx-eda-tcl")["aliases"]
+                .as_array()
+                .is_some_and(|aliases| aliases.iter().any(|alias| alias == "vivado")),
+            "the Vivado shell answers to `vivado`",
+        );
     }
 
-    /// The unknown-dialect rejection names the valid set, so a caller can fix
-    /// the spelling from the error alone.
+    /// The unknown-dialect rejection names the selectable set, so a caller can
+    /// fix the spelling from the error alone.
     #[test]
-    fn unknown_dialect_error_lists_every_canonical_name() {
+    fn unknown_dialect_error_lists_every_selectable_name() {
         let message = unknown_dialect_error("tcl8.7");
         assert!(
             message.starts_with("unknown dialect: tcl8.7"),
             "the rejected name comes first: {message}",
         );
-        for profile in tcl_dialect::DialectProfile::all() {
-            assert!(
-                message.contains(profile.name),
-                "`{}` must appear in the valid list: {message}",
-                profile.name,
-            );
+        let listed = message
+            .split_once("(valid surface: ")
+            .and_then(|(_, list)| list.strip_suffix(')'))
+            .expect("the message carries the valid surface");
+        let expected: Vec<String> = tcl_registry::model::selectable_environments()
+            .iter()
+            .map(|environment| environment.id.to_string())
+            .collect();
+        assert_eq!(listed.split(", ").collect::<Vec<_>>(), expected);
+    }
+
+    /// Every list the server builds is the registry's selectable set:
+    /// `listDialects` and the unknown-dialect rejection name the same canonical
+    /// ids, in the same order, with nothing added or dropped.
+    #[test]
+    fn every_runtime_enumeration_is_the_registry() {
+        let expected: Vec<String> = tcl_registry::model::selectable_environments()
+            .iter()
+            .map(|environment| environment.id.to_string())
+            .collect();
+        let listed = Backend::list_dialects_command();
+        let listed: Vec<&str> = listed
+            .as_array()
+            .expect("an array of dialects")
+            .iter()
+            .filter_map(|entry| entry["name"].as_str())
+            .collect();
+        assert_eq!(listed, expected);
+        let rejection = unknown_dialect_error("klingon");
+        let quoted = rejection
+            .split_once("(valid surface: ")
+            .and_then(|(_, list)| list.strip_suffix(')'))
+            .expect("the rejection carries the valid surface");
+        assert_eq!(quoted.split(", ").collect::<Vec<_>>(), expected);
+    }
+
+    /// A configured session dialect that resolves is kept as written and marks
+    /// the dialect explicit; one that names no environment is not stored, the
+    /// session keeps the built-in default, and the warning names the value and
+    /// the selectable dialects.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_session_dialect_naming_no_environment_falls_back_with_a_warning() {
+        let backend = test_backend();
+        assert_eq!(
+            backend.apply_configured_session_dialect("irules").await,
+            None
+        );
+        assert_eq!(backend.session_dialect().await, "irules");
+        assert!(*backend.default_dialect_explicit.lock().await);
+
+        let warning = backend
+            .apply_configured_session_dialect("nonsense")
+            .await
+            .expect("an unknown dialect is reported");
+        assert!(warning.contains("`nonsense`"), "{warning}");
+        for name in ["jim", "tk", "xilinx-eda-tcl", "tcl9.1"] {
+            assert!(warning.contains(name), "{name}: {warning}");
+        }
+        assert_eq!(backend.session_dialect().await, DEFAULT_SESSION_DIALECT);
+        assert!(!*backend.default_dialect_explicit.lock().await);
+    }
+
+    /// `getEffectiveConfig` labels come from the resolved environment, so `tk`,
+    /// `jim` and the lenient `tcl` carry them too; only a name that names no
+    /// environment reports `null`.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn effective_config_labels_come_from_the_resolved_environment() {
+        let backend = test_backend();
+        let mut seen = Vec::new();
+        for (dialect, display, short, kind, provenance) in [
+            ("jim", "Jim Tcl", "Jim", "language", "built-in"),
+            ("tk", "Tk", "Tk", "packages", "built-in"),
+            ("tcl", "Tcl", "Tcl", "language", "built-in"),
+            (
+                "vivado",
+                "Xilinx Vivado",
+                "Vivado",
+                "packages",
+                "bundled-pack",
+            ),
+        ] {
+            *backend.default_dialect.lock().await = dialect.to_owned();
+            let config = backend
+                .get_effective_config_command(&[])
+                .await
+                .expect("effective config")
+                .expect("config payload");
+            assert_eq!(config["dialect"], dialect);
+            assert_eq!(config["dialect_display_name"], display, "{dialect}");
+            assert_eq!(config["dialect_short_name"], short, "{dialect}");
+            assert_eq!(config["dialect_kind"], kind, "{dialect}");
+            assert_eq!(config["dialect_provenance"], provenance, "{dialect}");
+            let description = config["dialect_description"]
+                .as_str()
+                .expect("a description");
+            assert!(description.contains(display), "{dialect}: {description}");
+            seen.push(config["dialect_id"].as_str().map(str::to_owned));
+        }
+        assert_eq!(
+            seen,
+            [
+                Some("jim".to_owned()),
+                Some("tk".to_owned()),
+                Some("tcl".to_owned()),
+                Some("xilinx-eda-tcl".to_owned())
+            ]
+        );
+
+        *backend.default_dialect.lock().await = "klingon".to_owned();
+        let unknown = backend
+            .get_effective_config_command(&[])
+            .await
+            .expect("effective config")
+            .expect("config payload");
+        for field in [
+            "dialect_id",
+            "dialect_display_name",
+            "dialect_short_name",
+            "dialect_kind",
+            "dialect_description",
+            "dialect_provenance",
+        ] {
+            assert!(unknown[field].is_null(), "{field}: {unknown}");
         }
     }
 

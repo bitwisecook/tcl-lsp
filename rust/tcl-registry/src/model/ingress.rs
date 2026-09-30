@@ -87,8 +87,8 @@ use std::sync::{Arc, Mutex, OnceLock};
 use rustc_hash::FxHashMap;
 
 use tcl_dialect::model::{
-    DialectPoint, EnvironmentDefinition, EnvironmentIdentity, EnvironmentRegistry,
-    LENIENT_ENVIRONMENT_ID,
+    DialectPoint, EditorLanguageIdentityId, EnvironmentDefinition, EnvironmentIdentity,
+    EnvironmentRegistry, LENIENT_ENVIRONMENT_ID,
 };
 use tcl_dialect::{DialectProfile, LexerGrammar, LibraryVersionOverrides};
 
@@ -163,6 +163,21 @@ pub fn is_known_environment_name(name: &str) -> bool {
 #[must_use]
 pub fn resolve_known_environment(name: &str) -> Option<DocumentEnvironment> {
     is_known_environment_name(name).then(|| resolve_environment(name))
+}
+
+/// Resolve a client's `languageId` to the environment it names: a canonical
+/// id, a contributed editor identity, or one of the contributed spellings
+/// that select an environment without being its identity
+/// ([`EditorLanguageIdentityId::SELECTING`]). `None` when it names none.
+///
+/// A plain alias is not a language id. `irules` resolves through
+/// [`resolve_known_environment`] wherever a dialect *name* is accepted, but no
+/// editor contributes it, and taking it here would let a client select an
+/// environment through a spelling the contribution manifest never declares.
+#[must_use]
+pub fn resolve_language_id(language_id: &str) -> Option<DocumentEnvironment> {
+    let name = EditorLanguageIdentityId::selected_environment(language_id).unwrap_or(language_id);
+    resolve_known_environment(name).filter(|environment| environment.is_contributed_identity(name))
 }
 
 impl DocumentEnvironment {
@@ -288,7 +303,7 @@ impl DocumentEnvironment {
 
     /// Whether `name` is one of this environment's **contributed
     /// identities** — its canonical id or its editor language id — as
-    /// opposed to a legacy alias it also answers to.
+    /// opposed to an alias it also answers to.
     ///
     /// The editor-side ingress (an LSP `languageId`, a contributed file
     /// association) is a claim about a *contributed identity*, under the
@@ -534,6 +549,36 @@ pub fn irules_context() -> Arc<ContextRegistry> {
 mod tests {
 
     use super::*;
+
+    /// A language id names an environment by its canonical id, its contributed
+    /// editor identity, or a selecting spelling — and never by a plain alias.
+    #[test]
+    fn a_language_id_is_an_identity_or_a_selecting_spelling_never_an_alias() {
+        let selects =
+            |language_id: &str| resolve_language_id(language_id).map(|e| e.id().to_owned());
+        for (language_id, environment) in [
+            ("jim", "jim"),
+            ("tcl-jim", "jim"),
+            ("tcl-irule", "f5-irules"),
+            ("f5-irules", "f5-irules"),
+            ("tcl90", "tcl9.0"),
+            ("tcl-xilinx", "xilinx-eda-tcl"),
+            ("tk", "tk"),
+            ("tcl-apl", "f5-iapps"),
+            ("tcl-bpf", "bpf"),
+            ("tcl-libero", "microchip-libero-eda-tcl"),
+            ("tcl-spec", "spectcl"),
+        ] {
+            assert_eq!(
+                selects(language_id).as_deref(),
+                Some(environment),
+                "{language_id}"
+            );
+        }
+        for alias in ["irules", "vivado", "jimsh", "wish", "plaintext", ""] {
+            assert_eq!(selects(alias), None, "`{alias}` is not a language id");
+        }
+    }
 
     /// The VM's pin and the point must name the same release. `tk` had them
     /// split — its profile grammar and core said 8.6 while

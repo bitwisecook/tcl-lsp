@@ -120,6 +120,69 @@ fn reports_resolved_feature_map() {
     }
 }
 
+/// A session-scope `tclLsp.dialect` that names no environment is not stored:
+/// the server logs a warning naming the value and the selectable dialects and
+/// uses the default, rather than resolving every document to the lenient `tcl`
+/// sink.
+#[test]
+fn an_unknown_session_dialect_warns_and_uses_the_default() {
+    let mut lsp = Lsp::with_config(json!({ "dialect": "tcl9.0" }));
+    let settled = lsp.apply_configuration_settle(json!({ "dialect": "nonsense" }), "", |cfg| {
+        cfg.get("dialect") == Some(&json!("tcl8.6"))
+    });
+    assert_eq!(settled["dialect_explicitly_set"], json!(false), "{settled}");
+    let warning = lsp.await_log(
+        &["`nonsense`", "Valid dialects", "jim", "xilinx-eda-tcl"],
+        std::time::Duration::from_secs(10),
+        0,
+    );
+    assert!(warning.contains("tcl8.6"), "{warning}");
+}
+
+/// `getEffectiveConfig` labels the dialect from its resolved environment
+/// (`jim` carries them too) and `listDialects` lists that same environment
+/// with its kind and description.
+#[test]
+fn effective_config_and_list_dialects_describe_the_same_environment() {
+    let mut lsp = Lsp::with_config(json!({ "dialect": "jim" }));
+    let cfg = lsp.effective_config("");
+    assert_eq!(cfg["dialect"], json!("jim"), "{cfg}");
+    assert_eq!(cfg["dialect_id"], json!("jim"), "{cfg}");
+    assert_eq!(cfg["dialect_display_name"], json!("Jim Tcl"), "{cfg}");
+    assert_eq!(cfg["dialect_short_name"], json!("Jim"), "{cfg}");
+    assert_eq!(cfg["dialect_kind"], json!("language"), "{cfg}");
+    assert_eq!(cfg["dialect_provenance"], json!("built-in"), "{cfg}");
+
+    let listed = lsp.execute_command("tcl-lsp.listDialects", json!([]));
+    let entries = listed.as_array().expect("listDialects answers an array");
+    let jim = entries
+        .iter()
+        .find(|entry| entry["name"] == "jim")
+        .expect("jim is selectable");
+    assert_eq!(jim["display_name"], cfg["dialect_display_name"]);
+    assert_eq!(jim["description"], cfg["dialect_description"]);
+    assert_eq!(jim["kind"], cfg["dialect_kind"]);
+    assert_eq!(jim["editor_language_id"], json!("tcl-jim"));
+    let names: Vec<&str> = entries
+        .iter()
+        .filter_map(|entry| entry["name"].as_str())
+        .collect();
+    assert!(names.contains(&"tk"), "{names:?}");
+    assert!(!names.contains(&"tcl"), "the lenient sink is not listed");
+}
+
+/// A tool shell is `packages` kind and bundled-pack provenance — what the
+/// notice keys on — and its alias resolves as the configured dialect.
+#[test]
+fn a_bundled_tool_shell_reports_packages_kind_and_bundled_provenance() {
+    let mut lsp = Lsp::with_config(json!({ "dialect": "vivado" }));
+    let cfg = lsp.effective_config("");
+    assert_eq!(cfg["dialect_id"], json!("xilinx-eda-tcl"), "{cfg}");
+    assert_eq!(cfg["dialect_kind"], json!("packages"), "{cfg}");
+    assert_eq!(cfg["dialect_provenance"], json!("bundled-pack"), "{cfg}");
+    assert_eq!(cfg["dialect_short_name"], json!("Vivado"), "{cfg}");
+}
+
 #[test]
 fn reports_dialect_and_scalars() {
     let mut lsp = Lsp::tcl();
