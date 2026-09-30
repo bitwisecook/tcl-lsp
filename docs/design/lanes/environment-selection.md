@@ -127,10 +127,13 @@ validated; unknown → WARNING `logMessage` + default. `KNOWN_DIALECTS` and
 | Site | Status |
 |---|---|
 | `rust/tcl-registry/src/model/context.rs` `surface_admits`, `AuthoringScope::core`, `SurfaceQuery::core` (D17-J) — `CorePoints`, nearest-first in `best_visible`; `ContextRegistry::resolve_command` (assembly.rs) tie-break not yet nearest-first; ledger row D17-J still reads open | done (2a) |
-| `rust/tcl-spectcl/core-surfaces/jim.tclspec` (roster; additions pack beside it) | todo |
-| `proc` spec for Jim (statics), `class`/`super` grammar, two-word proc names | todo |
-| W002 cross-family wording (`system` is `commands/expect/system.rs`) | todo |
-| `rust/xtask/src/command_backing.rs` classification for Jim additions | todo |
+| `rust/tcl-spectcl/core-surfaces/jim-own-surface.tclspec` — 60 commands on measured windows, registered at `Provenance::BuiltIn` through a new `register_core_surface_specs` seam (overlays only reach catalogue profiles); `stdin`/`stdout`/`stderr` as `dynamic_surface`; `callback-inventory` walks pack commands | done |
+| Jim `proc`: `ArgRole::StaticVarList`, `CommandRegistry::procedure_definition_words`; analyser, signature scan and binding replay read positions from roles; statics declared as body locals. Left out: no IR static variable, so a 4-word `proc` body gets no W210/W211 dataflow; `&g` does not mark outer `g` used | done |
+| `DefinerFamily::JimClass`, `members_are_two_word_commands`; `class` row's `definition_body` (method member, `new`, built-in object methods, implicit `self`, dynamic dispatch); `ClassDef` with bases and variable dict; `CLASS method …` and `proc {CLASS M}` recorded; `[CLASS new]` types the object. Left out: IR-level W210 may fire on an instance-variable read inside a `CLASS method` body; `constructor`/`defaultconstructor`/`baseclass` via the open member set; a method written before its class is unattached; computed bases mark `inheritance_unknown` | done |
+| W002 only where the providing dialect is related (`providers_in_any_dialect`, `Family::on_one_line_with`, `shares_packages_with`, `ResolvedContext::is_related_to_a_provider_of`); Expect's `system` under jim is W123. Also fixed: `resolve_spec` did not apply the inherited-surface roster (a jim document accepted `coroutine`); `both_resolution_paths_apply_the_roster` pins it; nearest-first extended to `assembly.rs` | done |
+| Acceptance: `rust/tcl-spectcl/tests/jim_document.rs` on both analyser tiers | done |
+| `command-backing` needs no Jim rows (reads core Tcl specs only) | n/a |
+| Not done: `tcl-lsp-server` e2e for a jim document (`tcl-jim` didOpen, `jimsh` shebang), CLI `--dialect jim` e2e on the merged tree | 2d |
 
 ## Behavioural deltas accepted
 
