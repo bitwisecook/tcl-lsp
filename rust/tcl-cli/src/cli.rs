@@ -30,31 +30,34 @@ use std::path::PathBuf;
 
 use clap::builder::{PossibleValue, PossibleValuesParser};
 use clap::{Args, Parser, Subcommand};
-use tcl_dialect::DialectProfile;
+use tcl_dialect::model::{EditorLanguageIdentityId, EnvironmentRegistry};
 
-/// The enumerated `--dialect` values, projected from the profile catalogue: one
-/// visible entry per canonical profile carrying its `display_name` as the
-/// value help, plus the additive `tk` ingress, with every registered alias
-/// (`irules`, `tcl-irule`) accepted but hidden.
+/// The enumerated `--dialect` values, read from the compiled selectable
+/// environment set: one visible entry per canonical id carrying the
+/// environment's description as the value help, with every alias and editor
+/// identity (`irules`, `vivado`, `tcl-jim`) accepted but hidden.
 ///
-/// This is exactly the set [`tcl_cli_support::resolve_dialect`] resolves, so
-/// enumerating it in `--help` narrows nothing: an unrecognised spelling was
-/// already an input error, it is now reported with the list of names.
+/// The compiled form (not the live registry) because clap builds its parsers
+/// while the command line is parsed, before any pack has registered an
+/// environment. [`tcl_cli_support::resolve_dialect`] resolves through the
+/// live registry, so a value the parser lets through is never refused by it.
 fn dialect_possible_values() -> Vec<PossibleValue> {
-    // `tk` has no catalogue profile by design, so it is added explicitly
-    // here rather than coming from the profile catalogue iteration below;
-    // it resolves through the one ingress seam.
-    let tk = tcl_cli_support::environment::profile_for_dialect("tk");
-    DialectProfile::all()
+    EnvironmentRegistry::compiled_selectable()
         .iter()
-        .map(|profile| {
-            PossibleValue::new(profile.name)
-                .help(profile.display_name)
-                .aliases(profile.aliases.iter().copied())
+        .map(|environment| {
+            let mut hidden: Vec<&'static str> =
+                environment.aliases.iter().map(AsRef::as_ref).collect();
+            if let Some(identity) = environment
+                .editor_identity
+                .map(EditorLanguageIdentityId::as_str)
+                && !hidden.contains(&identity)
+            {
+                hidden.push(identity);
+            }
+            PossibleValue::new(environment.id.as_str())
+                .help(environment.description())
+                .aliases(hidden)
         })
-        .chain(std::iter::once(
-            PossibleValue::new(tk.name).help(tk.display_name),
-        ))
         .collect()
 }
 
@@ -1171,4 +1174,60 @@ pub enum DockerCommand {
         #[arg(long)]
         json: bool,
     },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::dialect_possible_values;
+    use clap::builder::PossibleValue;
+    use tcl_dialect::model::EnvironmentRegistry;
+
+    /// The `--dialect` values are the registry's selectable canonical ids in
+    /// selectable order, each helped by the environment's description, with
+    /// every alias carried as a hidden spelling — never a hand list, never
+    /// the lenient sink.
+    #[test]
+    fn every_runtime_enumeration_is_the_registry() {
+        let selectable = EnvironmentRegistry::compiled_selectable();
+        let values = dialect_possible_values();
+        let names: Vec<&str> = values.iter().map(PossibleValue::get_name).collect();
+        let expected: Vec<&str> = selectable
+            .iter()
+            .map(|environment| environment.id.as_str())
+            .collect();
+        assert_eq!(names, expected);
+        for (value, environment) in values.iter().zip(selectable) {
+            assert!(!value.is_hide_set(), "{} is listed", environment.id);
+            assert_eq!(
+                value.get_help().map(ToString::to_string),
+                Some(environment.description()),
+                "{}",
+                environment.id
+            );
+            for alias in &environment.aliases {
+                assert!(
+                    value.matches(alias, false),
+                    "`{alias}` is accepted for {}",
+                    environment.id
+                );
+            }
+        }
+    }
+
+    /// Aliases and editor identities are accepted but never listed as values
+    /// of their own, and the lenient sink is not a choice.
+    #[test]
+    fn aliases_and_identities_are_hidden_spellings() {
+        let values = dialect_possible_values();
+        let accepts = |spelling: &str| values.iter().any(|value| value.matches(spelling, false));
+        for spelling in ["vivado", "irules", "wish", "jimsh", "tcl-jim", "tcl-xilinx"] {
+            assert!(accepts(spelling), "`{spelling}` is accepted");
+            assert!(
+                values.iter().all(|value| value.get_name() != spelling),
+                "`{spelling}` is not listed"
+            );
+        }
+        assert!(!accepts("tcl"));
+        assert!(!accepts("nonsense"));
+    }
 }

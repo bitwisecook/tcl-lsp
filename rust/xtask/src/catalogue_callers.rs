@@ -51,14 +51,6 @@ const ALLOWED: &[(&str, &str)] = &[
         "tests: the CLI's environment seam agrees with every catalogue profile",
     ),
     (
-        "rust/tcl-cli-support/src/input.rs",
-        "the CLI's unknown-dialect message lists the catalogue names",
-    ),
-    (
-        "rust/tcl-cli/src/cli.rs",
-        "the `--dialect` values are built from the catalogue",
-    ),
-    (
         "rust/tcl-cli/src/commands/registry.rs",
         "`registry-dump --all-dialects` snapshots the plain-Tcl profiles",
     ),

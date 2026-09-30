@@ -209,11 +209,10 @@ pub fn combined_effective_dialect(
 ///
 /// This is the CLI ingest boundary: an unrecognised spelling is an input
 /// error, never an accidental fallback to plain Tcl. Every accepted
-/// spelling — a canonical id, a registered alias (`irules` → `f5-irules`),
-/// and the set-only `tk` ingress that has no catalogue profile by design —
-/// resolves through the one environment resolver
-/// ([`crate::environment::known_profile_for_dialect`]), which hands back
-/// the typed additive profile for `tk` the same way it does for a catalogue
+/// spelling — a canonical id, an alias (`irules` → `f5-irules`), or an editor
+/// language id — resolves through the one environment resolver
+/// ([`crate::environment::known_profile_for_dialect`]), which hands back the
+/// typed additive profile for `tk` the same way it does for a catalogue
 /// profile.
 pub fn resolve_dialect(value: Option<&str>) -> Result<Option<&'static DialectProfile>, CliError> {
     value
@@ -228,19 +227,13 @@ pub fn resolve_dialect(value: Option<&str>) -> Result<Option<&'static DialectPro
         .transpose()
 }
 
-/// The canonical dialect names [`resolve_dialect`] accepts, comma-separated:
-/// the profile catalogue plus the additive `tk` ingress, which has no catalogue
-/// profile by design but resolves all the same.
+/// The canonical ids of the selectable environments [`resolve_dialect`]
+/// accepts, comma-separated, read from the live registry so a registered pack
+/// environment is named too.
 fn known_dialect_names() -> String {
-    DialectProfile::all()
+    tcl_registry::model::selectable_environments()
         .iter()
-        .map(|profile| profile.name)
-        // `tk` has no catalogue profile by design, so it is appended
-        // explicitly here rather than coming from the profile catalogue
-        // iteration above; it resolves through the same environment seam.
-        .chain(std::iter::once(
-            crate::environment::profile_for_dialect("tk").name,
-        ))
+        .map(|environment| environment.id.as_str().to_owned())
         .collect::<Vec<_>>()
         .join(", ")
 }
@@ -483,8 +476,8 @@ fn expand_user(path: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests {
 
-    use super::resolve_dialect;
-    use tcl_dialect::DialectProfile;
+    use super::{known_dialect_names, resolve_dialect};
+    use tcl_dialect::model::EnvironmentRegistry;
 
     #[test]
     fn explicit_irules_alias_resolves_to_the_canonical_profile() {
@@ -522,14 +515,28 @@ mod tests {
             message.starts_with("unknown dialect `not-a-real-dialect`; valid names are "),
             "unexpected message: {message}"
         );
-        for profile in DialectProfile::all() {
+        for environment in EnvironmentRegistry::compiled_selectable() {
             assert!(
-                message.contains(profile.name),
+                message.contains(environment.id.as_str()),
                 "message omits `{}`: {message}",
-                profile.name
+                environment.id
             );
         }
+        assert!(message.contains("jim"), "message omits `jim`: {message}");
         assert!(message.contains("tk"), "message omits `tk`: {message}");
+    }
+
+    /// The names the unknown-dialect message lists are the registry's
+    /// selectable canonical ids, in selectable order: no hand list, and not
+    /// the lenient sink.
+    #[test]
+    fn every_runtime_enumeration_is_the_registry() {
+        let expected: Vec<&str> = EnvironmentRegistry::compiled_selectable()
+            .iter()
+            .map(|environment| environment.id.as_str())
+            .collect();
+        let listed = known_dialect_names();
+        assert_eq!(listed.split(", ").collect::<Vec<_>>(), expected);
     }
 
     #[test]

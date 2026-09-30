@@ -1254,3 +1254,23 @@ fn samples_optimiser_profiles_are_regenerated() {
         );
     }
 }
+
+/// `--dialect` takes every selectable environment's canonical id (`jim`, `tk`,
+/// a tool shell), accepts an alias or editor identity as a hidden spelling
+/// (`vivado`, `jimsh`, `tcl-jim`), and rejects anything else with the list of
+/// canonical ids.
+#[test]
+fn the_dialect_flag_takes_the_registry_names_and_rejects_the_rest() {
+    for dialect in ["jim", "tk", "xilinx-eda-tcl", "vivado", "jimsh", "tcl-jim"] {
+        run_tcl(&["diag", "--dialect", dialect, "--source", "puts hello"]);
+    }
+    let rejected = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .args(["diag", "--dialect", "nonsense", "--source", "puts hello"])
+        .output()
+        .expect("failed to spawn tcl binary");
+    assert!(!rejected.status.success(), "an unknown dialect is refused");
+    let stderr = String::from_utf8_lossy(&rejected.stderr);
+    for name in ["jim", "tk", "tcl9.1", "xilinx-eda-tcl"] {
+        assert!(stderr.contains(name), "the list omits `{name}`: {stderr}");
+    }
+}
