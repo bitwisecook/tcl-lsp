@@ -57,7 +57,7 @@ use crate::model::surface::{
     BuildCapability, CapabilityPredicate, Provider, SurfaceDeclaration, VENDOR_SURFACE_PACKAGES,
     is_closed_world_package, is_placement_gated_package, vendor_surface_package,
 };
-use tcl_dialect::model::{SurfaceQuery, surface_admits};
+use tcl_dialect::model::{CorePoints, SurfaceQuery, surface_admits};
 // The vendor-surface summary payload: plain registry-derived data, not
 // part of the retiring profile trait, so both faces answer with the one
 // type and the parity pin can compare them directly. The retiring trait
@@ -1187,40 +1187,54 @@ fn release_line(
 fn compute_authoring_scope(context: &ResolvedContext) -> AuthoringScope {
     let mut scope = AuthoringScope::default();
     if let Some(core) = context.environment.core {
-        scope.core = Some(match core.family {
-            // The primary pins the release; without one the question is
-            // about the family's whole ladder.
-            Family::Tcl => (
-                Family::Tcl,
-                context
-                    .floors
-                    .primary(&VersionAxisId::core(Family::Tcl))
-                    .cloned(),
-            ),
-            Family::F5Irules => (Family::F5Irules, None),
-            // Every other family derives its Tcl-facing surface from an
-            // ancestry anchor, so the release it authors against is that
-            // anchor — derived, not per family.
-            //
-            // `f5-tcl`: measurements §4a (F5 reclassification,
-            // `docs/design/f5/bigip-irule-parser-measurements.md`) — the
-            // trunk-riding environments (`f5-iapps`, `f5-tmsh`) embed the
-            // fork of Tcl at 8.4.6, and every 8.4/8.5 discriminator behaves
-            // as 8.4.
-            //
-            // `jim`: the 8.6 command-set anchor (`jim_tcl.txt`), which is
-            // the whole of jim's inherit-then-override — a `jim` document
-            // resolves `set`, `if`, `proc`, `lassign`, `dict` and `lmap`
-            // from the shared core specs instead of from 76
-            // hand-re-authored copies.
-            family @ (Family::F5Tcl | Family::Jim) => (
+        // The Tcl-facing point a family derives from its ancestry anchor,
+        // so the release it authors against is that anchor — derived, not
+        // per family.
+        let anchor_point = |family: Family| {
+            (
                 Family::Tcl,
                 family
                     .ancestry()
                     .filter(|ancestry| ancestry.parent == Family::Tcl)
                     .and_then(|ancestry| Version::parse(ancestry.anchor).ok()),
-            ),
-        });
+            )
+        };
+        match core.family {
+            // The primary pins the release; without one the question is
+            // about the family's whole ladder.
+            Family::Tcl => scope.core.push((
+                Family::Tcl,
+                context
+                    .floors
+                    .primary(&VersionAxisId::core(Family::Tcl))
+                    .cloned(),
+            )),
+            Family::F5Irules => scope.core.push((Family::F5Irules, None)),
+            // `f5-tcl`: measurements §4a (F5 reclassification,
+            // `docs/design/f5/bigip-irule-parser-measurements.md`) — the
+            // trunk-riding environments (`f5-iapps`, `f5-tmsh`) embed the
+            // fork of Tcl at 8.4.6, and every 8.4/8.5 discriminator behaves
+            // as 8.4.
+            Family::F5Tcl => scope.core.push(anchor_point(Family::F5Tcl)),
+            // `jim`: its own family first, then the 8.6 command-set anchor
+            // (`jim_tcl.txt`). The anchor is how a `jim` document resolves
+            // `set`, `if`, `proc`, `lassign`, `dict` and `lmap` from the
+            // shared core specs instead of from 76 hand-re-authored
+            // copies; the own-family point is how a row that says
+            // `available {jim 0.81-}` is admitted, and it is asked first,
+            // so such a row shadows an inherited Tcl row for the same
+            // command.
+            Family::Jim => {
+                scope.core.push((
+                    Family::Jim,
+                    context
+                        .floors
+                        .primary(&VersionAxisId::core(Family::Jim))
+                        .cloned(),
+                ));
+                scope.core.push(anchor_point(Family::Jim));
+            }
+        }
     }
     for package in VENDOR_SURFACE_PACKAGES {
         if vendor_surface_package(context.environment.id.as_str()) == Some(*package)
@@ -1236,9 +1250,10 @@ fn compute_authoring_scope(context: &ResolvedContext) -> AuthoringScope {
 /// as a [`SurfaceQuery`].
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AuthoringScope {
-    /// The core family this environment authors against, and the release
-    /// when one is pinned.
-    core: Option<(Family, Option<Version>)>,
+    /// The core families this environment authors against, nearest first,
+    /// each with the release when one is pinned. A family with an ancestry
+    /// anchor lists itself, then the anchor.
+    core: Vec<(Family, Option<Version>)>,
     /// The vendor packages whose surface this environment carries.
     packages: Vec<&'static str>,
 }
@@ -1248,10 +1263,11 @@ impl AuthoringScope {
     #[must_use]
     pub fn query(&self) -> SurfaceQuery<'_> {
         SurfaceQuery {
-            core: self
-                .core
-                .as_ref()
-                .map(|(family, release)| (*family, release.as_ref().map(Version::as_str))),
+            core: CorePoints::from_ordered(
+                self.core
+                    .iter()
+                    .map(|(family, release)| (*family, release.as_ref().map(Version::as_str))),
+            ),
             packages: &self.packages,
         }
     }
@@ -1994,9 +2010,9 @@ mod tests {
     /// A `jim` context resolves the shared core surface through
     /// its ancestry edge instead of through 76 re-authored specs: the
     /// `Core(Tcl)` provider is active, the Tcl-axis primary is the 8.6
-    /// anchor, and the derived point is the 8.6 line — so
-    /// `lassign` (8.5+) and `lmap` (8.6+) both resolve while an
-    /// 8.4-only shape does not.
+    /// anchor, and the derived point is jim's own family followed by the
+    /// 8.6 line — so `lassign` (8.5+) and `lmap` (8.6+) both resolve while
+    /// an 8.4-only shape does not.
     #[test]
     fn a_jim_context_inherits_the_tcl_core_surface() {
         let ctx = context("jim");
@@ -2027,7 +2043,10 @@ mod tests {
         // The derived point, and what it admits.
         assert_eq!(
             ctx.authoring_query(),
-            SurfaceQuery::core(Family::Tcl, "8.6")
+            SurfaceQuery {
+                core: CorePoints::two((Family::Jim, None), (Family::Tcl, Some("8.6"))),
+                packages: &[],
+            }
         );
         for gate in [
             SpecSurface::ALL_TCL,
@@ -2056,6 +2075,90 @@ mod tests {
         let registry = crate::model::assembly::universe();
         for name in ["set", "if", "proc", "lassign", "lmap", "dict"] {
             assert!(ctx.resolve_spec(registry, name).is_some(), "{name}");
+        }
+    }
+
+    const JIM_FROM_080: &[SpecSurface] = &[SpecSurface::core_in(Family::Jim, &[("0.80", None)])];
+
+    /// A registry holding the shipped surface plus a spec of `name` for each
+    /// of `surfaces`, registered in that order.
+    fn registry_with(name: &'static str, surfaces: &[&'static [SpecSurface]]) -> CommandRegistry {
+        let mut registry = CommandRegistry::build_default();
+        for surface in surfaces {
+            registry.insert(CommandSpec {
+                name,
+                surface: Some(*surface),
+                ..CommandSpec::DEFAULT
+            });
+        }
+        registry
+    }
+
+    /// A spec available only from jim 0.80 is admitted at a `jim`
+    /// document's own point and at no Tcl point, and the inherited Tcl
+    /// surface still resolves there.
+    #[test]
+    fn a_jim_context_resolves_a_command_only_jim_provides() {
+        let registry = registry_with("loop", &[JIM_FROM_080]);
+        let jim = context("jim");
+
+        let looped = jim
+            .resolve_spec(&registry, "loop")
+            .expect("a jim document resolves a Core(Jim) command");
+        assert_eq!(looped.surface, Some(JIM_FROM_080));
+        assert!(
+            jim.resolve_spec(&registry, "puts").is_some(),
+            "the inherited Tcl surface still resolves"
+        );
+
+        for environment in ["tcl8.6", "tcl9.0", "tcl", "tk", "f5-iapps"] {
+            assert!(
+                context(environment)
+                    .resolve_spec(&registry, "loop")
+                    .is_none(),
+                "{environment}: a Core(Jim) command is not part of a Tcl surface"
+            );
+        }
+    }
+
+    /// Where a jim-only row and an inherited Tcl row both offer one
+    /// command, a `jim` document sees the jim row and a Tcl document the
+    /// Tcl row — whichever was registered last, and even when the Tcl row
+    /// is the narrower of the two.
+    #[test]
+    fn a_jim_row_shadows_the_inherited_tcl_row_for_a_jim_context() {
+        let jim = context("jim");
+        let tcl = context("tcl8.6");
+
+        // `proc` has an inherited Tcl row in the shipped surface.
+        let registry = registry_with("proc", &[JIM_FROM_080]);
+        assert_eq!(
+            jim.resolve_spec(&registry, "proc")
+                .and_then(|spec| spec.surface),
+            Some(JIM_FROM_080)
+        );
+        let inherited = tcl.resolve_spec(&registry, "proc").expect("Tcl's proc");
+        assert_ne!(inherited.surface, Some(JIM_FROM_080));
+
+        // A single-release Tcl row is as narrow as a jim row can be, so
+        // breadth ties and only the point's order can decide.
+        for surfaces in [
+            [SpecSurface::TCL86, JIM_FROM_080],
+            [JIM_FROM_080, SpecSurface::TCL86],
+        ] {
+            let registry = registry_with("shadow_probe", &surfaces);
+            assert_eq!(
+                jim.resolve_spec(&registry, "shadow_probe")
+                    .and_then(|spec| spec.surface),
+                Some(JIM_FROM_080),
+                "{surfaces:?}: jim"
+            );
+            assert_eq!(
+                tcl.resolve_spec(&registry, "shadow_probe")
+                    .and_then(|spec| spec.surface),
+                Some(SpecSurface::TCL86),
+                "{surfaces:?}: tcl8.6"
+            );
         }
     }
 

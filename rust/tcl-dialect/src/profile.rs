@@ -34,7 +34,7 @@ use crate::grammar::{
     LexerGrammar, ListParse, NumberSyntax, QuoteTermination, VarSyntax, WordSeparators,
 };
 use crate::library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKey};
-use crate::model::{Family, SpecProvider, SurfaceLayer, SurfaceQuery};
+use crate::model::{CorePoints, Family, SpecProvider, SurfaceLayer, SurfaceQuery};
 use crate::version::{StringCharacterModel, TclVersion, Ternary};
 
 /// Library pins for the 8.4/8.5-era plain Tcl profiles: Tk tracks the
@@ -1466,15 +1466,18 @@ impl DialectProfile {
         }
         SurfaceQuery {
             core: match self.signature_base {
-                Some(version) => Some((Family::Tcl, Some(version.version_string()))),
+                Some(version) => CorePoints::one(Family::Tcl, Some(version.version_string())),
                 // No pinned release, but still a Tcl surface: the permissive
                 // `tcl` sink and the `tk` ingress profile ask about the whole
                 // ladder. A profile whose grammar names no core family
                 // (`f5-bigip`) has no Tcl surface to ask about.
-                None => self
+                None if self
                     .grammar_union
-                    .contains(&SpecProvider::Core(Family::Tcl))
-                    .then_some((Family::Tcl, None)),
+                    .contains(&SpecProvider::Core(Family::Tcl)) =>
+                {
+                    CorePoints::one(Family::Tcl, None)
+                }
+                None => CorePoints::NONE,
             },
             packages: self.surface_packages,
         }
@@ -1766,7 +1769,9 @@ mod tests {
     use super::KNOWN_DIALECTS;
     use crate::grammar::{BracedVarStyle, EscapeSyntax, ExprCommentStyle, NumberSyntax};
     use crate::library::{LibraryVersion, LibraryVersionOverrides, VersionKey};
-    use crate::model::{Family, SpecProvider, SpecSurface, SurfaceQuery, surface_admits};
+    use crate::model::{
+        CorePoints, Family, SpecProvider, SpecSurface, SurfaceQuery, surface_admits,
+    };
     use crate::version::{TclVersion, Ternary};
 
     #[test]
@@ -2134,7 +2139,7 @@ mod tests {
                 .expect("catalogue profile")
                 .surface_query(),
             SurfaceQuery {
-                core: None,
+                core: CorePoints::NONE,
                 packages: &["bigip"],
             }
         );
@@ -2153,7 +2158,7 @@ mod tests {
         // the iRules profile) the precise point — never under-approximates.
         for p in DialectProfile::all() {
             let query = p.surface_query();
-            if let Some((family, _)) = query.core {
+            for (family, _) in query.core.iter() {
                 assert!(
                     p.grammar_union.contains(&SpecProvider::Core(family)),
                     "{}: grammar_union must cover the point's core family",
@@ -2247,7 +2252,8 @@ mod tests {
             assert!(
                 query
                     .core
-                    .is_none_or(|(family, _)| family == Family::Tcl || p.is_irules()),
+                    .iter()
+                    .all(|(family, _)| family == Family::Tcl || p.is_irules()),
                 "{}: a non-iRules point asks on the Tcl ladder",
                 p.name
             );

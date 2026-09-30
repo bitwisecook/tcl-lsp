@@ -22,6 +22,7 @@
 //! every consumer. Supports dialect filtering and trait-membership
 //! queries.
 
+use std::cmp::Ordering;
 use std::collections::{BTreeSet, HashMap};
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, OnceLock};
@@ -58,6 +59,7 @@ use tcl_dialect::model::Family;
 use tcl_dialect::model::SurfaceQuery;
 use tcl_dialect::model::surface_admits;
 use tcl_dialect::model::surface_breadth;
+use tcl_dialect::model::surface_nearness;
 use tcl_dialect::model::{SpecProvider, SurfaceLayer, surface_provided_by};
 use tcl_dialect::version_satisfies;
 
@@ -1146,6 +1148,35 @@ pub fn spec_packs_of(name: &str) -> &'static [&'static str] {
         .map_or(&[][..], |packs| packs.as_slice())
 }
 
+/// The one numeral grammar `family` has at `release`, or across its whole
+/// ladder when no release is pinned. `None` when the release is unknown or
+/// the ladder's releases disagree.
+fn point_number_syntax(
+    family: Family,
+    release: Option<&str>,
+) -> Option<tcl_syntax::number::NumberSyntax> {
+    let grammar_for = |release| tcl_dialect::model::grammar(family, release).numbers;
+    if let Some(spelling) = release {
+        family
+            .releases()
+            .iter()
+            .find(|release| release.as_str() == spelling)
+            .map(|&release| grammar_for(release))
+            .or_else(|| {
+                if family == Family::Tcl {
+                    tcl_dialect::TclVersion::from_package_version(spelling)
+                        .map(tcl_dialect::TclVersion::number_syntax)
+                } else {
+                    None
+                }
+            })
+    } else {
+        let mut releases = family.releases().iter().copied();
+        let first = releases.next().map(grammar_for);
+        first.filter(|&first| releases.all(|release| grammar_for(release) == first))
+    }
+}
+
 impl CommandRegistry {
     /// Build the default registry with core Tcl + stdlib + tcllib commands.
     #[must_use]
@@ -1986,8 +2017,10 @@ impl CommandRegistry {
 
     /// The single spec-selection rule (§5.3, D6): among the specs of one
     /// name visible under `dialect`, pick the **most specific** — a
-    /// dialect-scoped spec beats a catch-all (`surface: None`), a narrower
-    /// surface beats a wider one, and among equals the
+    /// dialect-scoped spec beats a catch-all (`surface: None`), a spec
+    /// offered by a nearer core point of the query beats one offered only
+    /// by a farther one (a document's own family over its ancestry
+    /// anchor), a narrower surface beats a wider one, and among equals the
     /// *last-registered* spec wins, so curated pack overrides keep beating
     /// the data they shadow. `get_for_surface`, the iRules event
     /// cross-product, and (via `ProfileQueries::resolve_command`) the CLI
@@ -2002,6 +2035,14 @@ impl CommandRegistry {
         // have one visible spec, so calculating it before a tie is known
         // repeatedly walks their authored availability windows for no effect.
         let mut best_breadth: Option<u32> = None;
+        // Nearness only distinguishes candidates when the query has more
+        // than one core point; with one, every admitted row ranks `0`.
+        let nearness_query = dialect.filter(|query| query.core.len() > 1);
+        let nearness = |rows| {
+            nearness_query.map_or(0, |query| {
+                surface_nearness(rows, &query).unwrap_or(usize::MAX)
+            })
+        };
 
         for (index, spec) in specs.iter().copied().enumerate() {
             if !self.spec_visible(spec, dialect) {
@@ -2021,15 +2062,22 @@ impl CommandRegistry {
                     // Equal catch-all scopes still use last registration.
                     best = Some((index, spec));
                 }
-                (Some(best_rows), Some(rows)) => {
-                    let old_breadth =
-                        *best_breadth.get_or_insert_with(|| surface_breadth(best_rows));
-                    let breadth = surface_breadth(rows);
-                    if breadth < old_breadth || (breadth == old_breadth && index > best_index) {
+                (Some(best_rows), Some(rows)) => match nearness(rows).cmp(&nearness(best_rows)) {
+                    Ordering::Less => {
                         best = Some((index, spec));
-                        best_breadth = Some(breadth);
+                        best_breadth = None;
                     }
-                }
+                    Ordering::Greater => {}
+                    Ordering::Equal => {
+                        let old_breadth =
+                            *best_breadth.get_or_insert_with(|| surface_breadth(best_rows));
+                        let breadth = surface_breadth(rows);
+                        if breadth < old_breadth || (breadth == old_breadth && index > best_index) {
+                            best = Some((index, spec));
+                            best_breadth = Some(breadth);
+                        }
+                    }
+                },
             }
         }
         best.map(|(_, spec)| spec)
@@ -3385,9 +3433,10 @@ impl CommandRegistry {
     /// Numeral grammar for a control invocation query.
     ///
     /// An explicit surface point is authoritative even when this registry is
-    /// profile-less (the ordinary cross-dialect command universe). A query
-    /// without one exact grammar abstains through
-    /// [`tcl_syntax::number::Numbers::Unknown`]; only an absent query falls
+    /// profile-less (the ordinary cross-dialect command universe). The
+    /// nearest core point with one exact grammar answers; a query none of
+    /// whose points has one abstains through
+    /// [`tcl_syntax::number::Numbers::Unknown`]. Only an absent query falls
     /// back to the registry's attached profile/default.
     fn control_numbers(&self, dialect: Option<SurfaceQuery<'_>>) -> tcl_syntax::number::Numbers {
         use tcl_syntax::number::Numbers;
@@ -3395,30 +3444,11 @@ impl CommandRegistry {
         let Some(query) = dialect else {
             return Numbers::of_profile(self.profile());
         };
-        let Some((family, release)) = query.core else {
-            return Numbers::Unknown;
-        };
-        let grammar_for = |release| tcl_dialect::model::grammar(family, release).numbers;
-        let syntax = if let Some(spelling) = release {
-            family
-                .releases()
-                .iter()
-                .find(|release| release.as_str() == spelling)
-                .map(|&release| grammar_for(release))
-                .or_else(|| {
-                    if family == Family::Tcl {
-                        tcl_dialect::TclVersion::from_package_version(spelling)
-                            .map(tcl_dialect::TclVersion::number_syntax)
-                    } else {
-                        None
-                    }
-                })
-        } else {
-            let mut releases = family.releases().iter().copied();
-            let first = releases.next().map(grammar_for);
-            first.filter(|&first| releases.all(|release| grammar_for(release) == first))
-        };
-        syntax.map_or(Numbers::Unknown, Numbers::Target)
+        query
+            .core
+            .iter()
+            .find_map(|(family, release)| point_number_syntax(family, release))
+            .map_or(Numbers::Unknown, Numbers::Target)
     }
 
     /// Parse a case-list invocation using only options available in this
@@ -6439,9 +6469,15 @@ mod tests {
             .enumerate()
             .filter(|(_, spec)| registry.spec_visible(spec, dialect))
             .max_by_key(|&(index, spec)| {
+                let nearness = std::cmp::Reverse(
+                    spec.surface
+                        .zip(dialect)
+                        .and_then(|(rows, query)| surface_nearness(rows, &query))
+                        .unwrap_or(usize::MAX),
+                );
                 let scope_tightness =
                     std::cmp::Reverse(spec.surface.map_or(u32::MAX, surface_breadth));
-                (spec.surface.is_some(), scope_tightness, index)
+                (spec.surface.is_some(), nearness, scope_tightness, index)
             })
             .map(|(_, spec)| *spec)
     }
@@ -6523,6 +6559,55 @@ mod tests {
             &registry,
             &[tie_first, tie_last],
             Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+        );
+    }
+
+    #[test]
+    fn best_visible_prefers_the_nearer_core_point() {
+        use tcl_dialect::model::CorePoints;
+
+        let registry = CommandRegistry::build_default();
+        let jim_rows = surface![SpecSurface::core_in(Family::Jim, &[("0.80", None)])];
+        let own = synthetic_spec("near_own", Some(jim_rows), Traits::empty());
+        let inherited = synthetic_spec("near_inherited", Some(SpecSurface::TCL86), Traits::empty());
+        let inherited_wide = synthetic_spec(
+            "near_inherited_wide",
+            Some(SpecSurface::ALL_TCL),
+            Traits::empty(),
+        );
+        let catch_all = synthetic_spec("near_catch_all", None, Traits::empty());
+        let own_first = SurfaceQuery {
+            core: CorePoints::two((Family::Jim, None), (Family::Tcl, Some("8.6"))),
+            packages: &[],
+        };
+
+        // The own-family row wins over an inherited row registered after
+        // it and just as narrow, and over a wider one registered before it.
+        for specs in [
+            [own, inherited],
+            [inherited, own],
+            [inherited_wide, own],
+            [own, inherited_wide],
+        ] {
+            assert_best_visible_matches_reference(&registry, &specs, Some(own_first));
+            assert_eq!(
+                registry
+                    .best_visible(&specs, Some(own_first))
+                    .map(|spec| spec.name),
+                Some("near_own")
+            );
+        }
+        // A scoped row still beats a catch-all, and the inherited row is
+        // still what a query without the own-family point selects.
+        assert_best_visible_matches_reference(&registry, &[catch_all, inherited], Some(own_first));
+        assert_eq!(
+            registry
+                .best_visible(
+                    &[own, inherited],
+                    Some(SurfaceQuery::core(Family::Tcl, "8.6"))
+                )
+                .map(|spec| spec.name),
+            Some("near_inherited")
         );
     }
 

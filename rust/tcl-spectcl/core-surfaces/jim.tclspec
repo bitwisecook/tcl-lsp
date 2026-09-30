@@ -40,13 +40,12 @@
 # Jim's *own* commands — `loop`, `range`, `lsubst`, `alias`, `local`,
 # `upcall`, `xtrace`, `ref`/`getref`/`setref`, the `os.*` and `json::*`
 # rows, and the arithmetic command forms `+ - * /` — are not here. A roster
-# names what the *ancestor* provides; an addition is a spec of its own.
-# Since Q13 a spec *can* say `available {jim 0.81-}`, but nothing can yet
-# *resolve* one: a `jim` document asks at the `(tcl 8.6)` ancestry anchor,
-# which is how the shared core specs reach it, and a point matches one
-# family. Ledger D17-J carries the remainder. Until then Jim's additions are
-# absent rather than wrong, which is the safe direction — an unknown head is
-# a hint.
+# names what the *ancestor* provides; an addition is a spec of its own, and
+# says `available {jim 0.81-}`. A `jim` document asks at two points, its own
+# family first and the `(tcl 8.6)` ancestry anchor second: the anchor is how
+# the shared core specs reach it, the own-family point is how a `Core(Jim)`
+# row does, and where both offer one command the Jim row is the one
+# selected. A Jim command with no spec is an unknown head, which is a hint.
 #
 # `binary` and `zlib` are on the roster unconditionally although a
 # `--minimal` build compiles both out: the build axis is real
