@@ -64,8 +64,8 @@ pub use dynamic::{
 };
 pub use environment::{
     BundledCore, BundledEnvironmentRow, BundledPlacement, BundledVersion, ConfigurationOrigin,
-    CoreProfileSelector, DetectionFacts, EditorLanguageIdentityId, EnvironmentDefinition,
-    EnvironmentId, EnvironmentIdentity, EnvironmentKind, EnvironmentOverlay,
+    CoreProfileSelector, DEFAULT_ENVIRONMENT_ID, DetectionFacts, EditorLanguageIdentityId,
+    EnvironmentDefinition, EnvironmentId, EnvironmentIdentity, EnvironmentKind, EnvironmentOverlay,
     EnvironmentOverlayError, EnvironmentPolicy, EnvironmentRegistry, EnvironmentRegistryError,
     FileExtensionClaim, KeyedAxis, LENIENT_ENVIRONMENT_ID, PackageChanges, PackagePlacement,
     Placement, Provenance, TargetChanges, WorldPolicy, bundled_pack_definitions,

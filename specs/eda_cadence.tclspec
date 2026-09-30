@@ -28,12 +28,12 @@ environment cadence-eda-tcl {
     core            tcl 8.4
     version_ceiling 8.4
     editor_identity tcl-cadence
-    ambient         sdc keyed SdcVersion
-    ambient         upf keyed UpfVersion
     ambient         cadence-genus keyed ToolVersion
     ambient         cadence-common keyed ToolVersion
     ambient         cadence-innovus keyed ToolVersion
     ambient         cadence-xcelium keyed ToolVersion
+    ambient         sdc keyed SdcVersion
+    ambient         upf keyed UpfVersion
     alias           genus
     alias           innovus
     file_extension  globals -name {Innovus/Genus Globals}

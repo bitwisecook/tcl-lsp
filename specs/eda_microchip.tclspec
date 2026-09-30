@@ -33,9 +33,9 @@ environment microchip-libero-eda-tcl {
     core            tcl 8.5
     version_ceiling 8.5
     editor_identity tcl-microchip
+    ambient         libero keyed ToolVersion
     ambient         sdc keyed SdcVersion
     ambient         upf keyed UpfVersion
-    ambient         libero keyed ToolVersion
     alias           libero
     help_terms      {microchip microsemi actel libero smartfusion igloo proasic}
 }

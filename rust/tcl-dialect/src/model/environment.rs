@@ -427,7 +427,7 @@ impl EnvironmentDefinition {
     /// Derived from the definition, never authored: a `Language` reads as
     /// its display name; a `Packages` environment reads as its display name,
     /// the core release, and the ambient packages in declaration order
-    /// (`Xilinx Vivado — Tcl 8.5 + sdc, upf, vivado`).
+    /// (`Xilinx Vivado — Tcl 8.5 + vivado, sdc, upf`).
     #[must_use]
     pub fn description(&self) -> String {
         if self.kind == EnvironmentKind::Language {
@@ -947,6 +947,12 @@ fn ladder_environments() -> Vec<EnvironmentDefinition> {
 /// The id of the lenient environment: the sink every unknown, unstated or
 /// plain `tcl` name resolves to.
 pub const LENIENT_ENVIRONMENT_ID: &str = "tcl";
+
+/// The id of the environment a session analyses under when no dialect is
+/// configured or detected. Every editor's `dialect` default is generated from
+/// this constant, so a manifest cannot name a different starting point from
+/// the one the server uses.
+pub const DEFAULT_ENVIRONMENT_ID: &str = "tcl8.6";
 
 /// The plain-`tcl` fallback: the full-ladder lenient environment every
 /// unversioned document lands on.
@@ -2066,7 +2072,7 @@ mod tests {
                 .resolve("xilinx-eda-tcl")
                 .expect("xilinx")
                 .description(),
-            "Xilinx Vivado — Tcl 8.5 + sdc, upf, vivado"
+            "Xilinx Vivado — Tcl 8.5 + vivado, sdc, upf"
         );
         let tk = registry.resolve("tk").expect("tk");
         assert_eq!(tk.description(), "Tk — Tcl 8.6 + Tk");
@@ -2423,6 +2429,18 @@ mod tests {
         assert!(
             cadence < acme && acme < xilinx,
             "`spicegentcl/ngspice` sorts among the tool shells: {ids:?}"
+        );
+    }
+
+    /// The starting environment is a choice a user can also make: it is
+    /// selectable and is not the lenient sink.
+    #[test]
+    fn the_default_environment_is_selectable() {
+        assert_ne!(DEFAULT_ENVIRONMENT_ID, LENIENT_ENVIRONMENT_ID);
+        assert!(
+            EnvironmentRegistry::compiled_selectable()
+                .iter()
+                .any(|definition| definition.id.as_str() == DEFAULT_ENVIRONMENT_ID)
         );
     }
 

@@ -46,20 +46,6 @@
         },
         expected_packages: [
             PackagePlacement {
-                package: "sdc",
-                version: Keyed(
-                    SdcVersion,
-                ),
-                ambient: true,
-            },
-            PackagePlacement {
-                package: "upf",
-                version: Keyed(
-                    UpfVersion,
-                ),
-                ambient: true,
-            },
-            PackagePlacement {
                 package: "cadence-genus",
                 version: Keyed(
                     ToolVersion,
@@ -84,6 +70,20 @@
                 package: "cadence-xcelium",
                 version: Keyed(
                     ToolVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "sdc",
+                version: Keyed(
+                    SdcVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "upf",
+                version: Keyed(
+                    UpfVersion,
                 ),
                 ambient: true,
             },
@@ -167,20 +167,6 @@
         },
         expected_packages: [
             PackagePlacement {
-                package: "sdc",
-                version: Keyed(
-                    SdcVersion,
-                ),
-                ambient: true,
-            },
-            PackagePlacement {
-                package: "upf",
-                version: Keyed(
-                    UpfVersion,
-                ),
-                ambient: true,
-            },
-            PackagePlacement {
                 package: "quartus-project",
                 version: Keyed(
                     ToolVersion,
@@ -226,6 +212,20 @@
                 package: "quartus-misc",
                 version: Keyed(
                     ToolVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "sdc",
+                version: Keyed(
+                    SdcVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "upf",
+                version: Keyed(
+                    UpfVersion,
                 ),
                 ambient: true,
             },
@@ -317,20 +317,6 @@
         },
         expected_packages: [
             PackagePlacement {
-                package: "sdc",
-                version: Keyed(
-                    SdcVersion,
-                ),
-                ambient: true,
-            },
-            PackagePlacement {
-                package: "upf",
-                version: Keyed(
-                    UpfVersion,
-                ),
-                ambient: true,
-            },
-            PackagePlacement {
                 package: "questa",
                 version: Keyed(
                     ToolVersion,
@@ -348,6 +334,20 @@
                 package: "calibre",
                 version: Keyed(
                     ToolVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "sdc",
+                version: Keyed(
+                    SdcVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "upf",
+                version: Keyed(
+                    UpfVersion,
                 ),
                 ambient: true,
             },
@@ -431,6 +431,13 @@
         },
         expected_packages: [
             PackagePlacement {
+                package: "libero",
+                version: Keyed(
+                    ToolVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
                 package: "sdc",
                 version: Keyed(
                     SdcVersion,
@@ -441,13 +448,6 @@
                 package: "upf",
                 version: Keyed(
                     UpfVersion,
-                ),
-                ambient: true,
-            },
-            PackagePlacement {
-                package: "libero",
-                version: Keyed(
-                    ToolVersion,
                 ),
                 ambient: true,
             },
@@ -528,20 +528,6 @@
         },
         expected_packages: [
             PackagePlacement {
-                package: "sdc",
-                version: Keyed(
-                    SdcVersion,
-                ),
-                ambient: true,
-            },
-            PackagePlacement {
-                package: "upf",
-                version: Keyed(
-                    UpfVersion,
-                ),
-                ambient: true,
-            },
-            PackagePlacement {
                 package: "synopsys-dc",
                 version: Keyed(
                     ToolVersion,
@@ -573,6 +559,20 @@
                 package: "synopsys",
                 version: Keyed(
                     ToolVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "sdc",
+                version: Keyed(
+                    SdcVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "upf",
+                version: Keyed(
+                    UpfVersion,
                 ),
                 ambient: true,
             },
@@ -660,6 +660,13 @@
         },
         expected_packages: [
             PackagePlacement {
+                package: "vivado",
+                version: Keyed(
+                    ToolVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
                 package: "sdc",
                 version: Keyed(
                     SdcVersion,
@@ -670,13 +677,6 @@
                 package: "upf",
                 version: Keyed(
                     UpfVersion,
-                ),
-                ambient: true,
-            },
-            PackagePlacement {
-                package: "vivado",
-                version: Keyed(
-                    ToolVersion,
                 ),
                 ambient: true,
             },

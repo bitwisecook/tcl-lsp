@@ -37,11 +37,11 @@ environment mentor-eda-tcl {
     core            tcl 8.6
     version_ceiling 8.6
     editor_identity tcl-mentor
-    ambient         sdc keyed SdcVersion
-    ambient         upf keyed UpfVersion
     ambient         questa keyed ToolVersion
     ambient         questa-formal keyed ToolVersion
     ambient         calibre keyed ToolVersion
+    ambient         sdc keyed SdcVersion
+    ambient         upf keyed UpfVersion
     alias           questa
     alias           modelsim
     file_extension  do -name {ModelSim/Questa Do Script}

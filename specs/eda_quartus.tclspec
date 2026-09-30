@@ -52,8 +52,6 @@ environment intel-quartus-eda-tcl {
     core            tcl 8.5
     version_ceiling 8.5
     editor_identity tcl-quartus
-    ambient         sdc keyed SdcVersion
-    ambient         upf keyed UpfVersion
     ambient         quartus-project keyed ToolVersion
     ambient         quartus-flow keyed ToolVersion
     ambient         quartus-sta keyed ToolVersion
@@ -61,6 +59,8 @@ environment intel-quartus-eda-tcl {
     ambient         quartus-report keyed ToolVersion
     ambient         quartus-device keyed ToolVersion
     ambient         quartus-misc keyed ToolVersion
+    ambient         sdc keyed SdcVersion
+    ambient         upf keyed UpfVersion
     alias           quartus
     file_extension  qsf -name {Quartus Settings File}
     file_extension  qpf -name {Quartus Project File}

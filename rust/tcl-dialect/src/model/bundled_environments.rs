@@ -23,16 +23,6 @@ pub(crate) const BUNDLED_ENVIRONMENTS: &[BundledEnvironmentRow] = &[
         }),
         placements: &[
             BundledPlacement {
-                package: "sdc",
-                version: BundledVersion::Keyed(KeyedAxis::SdcVersion),
-                ambient: true,
-            },
-            BundledPlacement {
-                package: "upf",
-                version: BundledVersion::Keyed(KeyedAxis::UpfVersion),
-                ambient: true,
-            },
-            BundledPlacement {
                 package: "cadence-genus",
                 version: BundledVersion::Keyed(KeyedAxis::ToolVersion),
                 ambient: true,
@@ -50,6 +40,16 @@ pub(crate) const BUNDLED_ENVIRONMENTS: &[BundledEnvironmentRow] = &[
             BundledPlacement {
                 package: "cadence-xcelium",
                 version: BundledVersion::Keyed(KeyedAxis::ToolVersion),
+                ambient: true,
+            },
+            BundledPlacement {
+                package: "sdc",
+                version: BundledVersion::Keyed(KeyedAxis::SdcVersion),
+                ambient: true,
+            },
+            BundledPlacement {
+                package: "upf",
+                version: BundledVersion::Keyed(KeyedAxis::UpfVersion),
                 ambient: true,
             },
         ],
@@ -81,16 +81,6 @@ pub(crate) const BUNDLED_ENVIRONMENTS: &[BundledEnvironmentRow] = &[
         }),
         placements: &[
             BundledPlacement {
-                package: "sdc",
-                version: BundledVersion::Keyed(KeyedAxis::SdcVersion),
-                ambient: true,
-            },
-            BundledPlacement {
-                package: "upf",
-                version: BundledVersion::Keyed(KeyedAxis::UpfVersion),
-                ambient: true,
-            },
-            BundledPlacement {
                 package: "questa",
                 version: BundledVersion::Keyed(KeyedAxis::ToolVersion),
                 ambient: true,
@@ -103,6 +93,16 @@ pub(crate) const BUNDLED_ENVIRONMENTS: &[BundledEnvironmentRow] = &[
             BundledPlacement {
                 package: "calibre",
                 version: BundledVersion::Keyed(KeyedAxis::ToolVersion),
+                ambient: true,
+            },
+            BundledPlacement {
+                package: "sdc",
+                version: BundledVersion::Keyed(KeyedAxis::SdcVersion),
+                ambient: true,
+            },
+            BundledPlacement {
+                package: "upf",
+                version: BundledVersion::Keyed(KeyedAxis::UpfVersion),
                 ambient: true,
             },
         ],
@@ -127,6 +127,11 @@ pub(crate) const BUNDLED_ENVIRONMENTS: &[BundledEnvironmentRow] = &[
         }),
         placements: &[
             BundledPlacement {
+                package: "libero",
+                version: BundledVersion::Keyed(KeyedAxis::ToolVersion),
+                ambient: true,
+            },
+            BundledPlacement {
                 package: "sdc",
                 version: BundledVersion::Keyed(KeyedAxis::SdcVersion),
                 ambient: true,
@@ -134,11 +139,6 @@ pub(crate) const BUNDLED_ENVIRONMENTS: &[BundledEnvironmentRow] = &[
             BundledPlacement {
                 package: "upf",
                 version: BundledVersion::Keyed(KeyedAxis::UpfVersion),
-                ambient: true,
-            },
-            BundledPlacement {
-                package: "libero",
-                version: BundledVersion::Keyed(KeyedAxis::ToolVersion),
                 ambient: true,
             },
         ],
@@ -170,16 +170,6 @@ pub(crate) const BUNDLED_ENVIRONMENTS: &[BundledEnvironmentRow] = &[
             build: BuildProfileId::Canonical,
         }),
         placements: &[
-            BundledPlacement {
-                package: "sdc",
-                version: BundledVersion::Keyed(KeyedAxis::SdcVersion),
-                ambient: true,
-            },
-            BundledPlacement {
-                package: "upf",
-                version: BundledVersion::Keyed(KeyedAxis::UpfVersion),
-                ambient: true,
-            },
             BundledPlacement {
                 package: "quartus-project",
                 version: BundledVersion::Keyed(KeyedAxis::ToolVersion),
@@ -215,6 +205,16 @@ pub(crate) const BUNDLED_ENVIRONMENTS: &[BundledEnvironmentRow] = &[
                 version: BundledVersion::Keyed(KeyedAxis::ToolVersion),
                 ambient: true,
             },
+            BundledPlacement {
+                package: "sdc",
+                version: BundledVersion::Keyed(KeyedAxis::SdcVersion),
+                ambient: true,
+            },
+            BundledPlacement {
+                package: "upf",
+                version: BundledVersion::Keyed(KeyedAxis::UpfVersion),
+                ambient: true,
+            },
         ],
         world_policy: WorldPolicy::Open,
         version_ceiling: Some("8.5"),
@@ -241,16 +241,6 @@ pub(crate) const BUNDLED_ENVIRONMENTS: &[BundledEnvironmentRow] = &[
         }),
         placements: &[
             BundledPlacement {
-                package: "sdc",
-                version: BundledVersion::Keyed(KeyedAxis::SdcVersion),
-                ambient: true,
-            },
-            BundledPlacement {
-                package: "upf",
-                version: BundledVersion::Keyed(KeyedAxis::UpfVersion),
-                ambient: true,
-            },
-            BundledPlacement {
                 package: "synopsys-dc",
                 version: BundledVersion::Keyed(KeyedAxis::ToolVersion),
                 ambient: true,
@@ -273,6 +263,16 @@ pub(crate) const BUNDLED_ENVIRONMENTS: &[BundledEnvironmentRow] = &[
             BundledPlacement {
                 package: "synopsys",
                 version: BundledVersion::Keyed(KeyedAxis::ToolVersion),
+                ambient: true,
+            },
+            BundledPlacement {
+                package: "sdc",
+                version: BundledVersion::Keyed(KeyedAxis::SdcVersion),
+                ambient: true,
+            },
+            BundledPlacement {
+                package: "upf",
+                version: BundledVersion::Keyed(KeyedAxis::UpfVersion),
                 ambient: true,
             },
         ],
@@ -307,6 +307,11 @@ pub(crate) const BUNDLED_ENVIRONMENTS: &[BundledEnvironmentRow] = &[
         }),
         placements: &[
             BundledPlacement {
+                package: "vivado",
+                version: BundledVersion::Keyed(KeyedAxis::ToolVersion),
+                ambient: true,
+            },
+            BundledPlacement {
                 package: "sdc",
                 version: BundledVersion::Keyed(KeyedAxis::SdcVersion),
                 ambient: true,
@@ -314,11 +319,6 @@ pub(crate) const BUNDLED_ENVIRONMENTS: &[BundledEnvironmentRow] = &[
             BundledPlacement {
                 package: "upf",
                 version: BundledVersion::Keyed(KeyedAxis::UpfVersion),
-                ambient: true,
-            },
-            BundledPlacement {
-                package: "vivado",
-                version: BundledVersion::Keyed(KeyedAxis::ToolVersion),
                 ambient: true,
             },
         ],
