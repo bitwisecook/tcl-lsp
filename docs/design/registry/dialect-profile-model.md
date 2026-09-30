@@ -306,7 +306,9 @@ impl DialectProfile {
 ```
 
 `all()` excludes `PLAIN_TCL` and `TK_PROFILE`: the fallback is a resolution
-sink and `tk` is an environment, not a selectable dialect. `find` resolves
+sink, and `tk` is an environment with no catalogue row — a user selects it
+through the environment registry (`EnvironmentRegistry::selectable`), never
+through the catalogue, which is an identity key only. `find` resolves
 an **environment id**, never a user-written string; user strings go through
 `resolve_environment`, whose alias table canonicalises `irules` and
 `tcl-irule` → `f5-irules`, `wish` → `tk`, and the undotted editor language

@@ -5,7 +5,7 @@
 
 ## Summary
 
-Switch between Tcl versions and iRules/iApps/BIG-IP/EDA dialects to get dialect-specific analysis.
+Pick what a file is analysed as: a language (a Tcl release, F5 iRules/iApps/tmsh/BIG-IP, Jim Tcl, BPF-Tcl, Expect, or a SpecTcl/SslicTcl declaration) or a tool environment — a Tcl release plus its library packages, such as Tk or an EDA shell like Vivado. The choice decides which commands, diagnostics and event metadata apply.
 
 ## Applies to
 
