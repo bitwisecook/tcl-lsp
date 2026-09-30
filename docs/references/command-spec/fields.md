@@ -23,6 +23,12 @@ On a subcommand this is the subcommand word itself (`length` in `string length`)
 
 The shipped builtin this pack command *is* — `lassign` for a `vendor::unpack` that behaves exactly like it. The only admissible source of a builtin identity for a pack command: a codegen stamp (`codegen_hook`, `inline_codegen_hook`, an intrinsic `semantic_operation`) survives only as the builtin this names carries it, and only in a bundled pack — anywhere else the load drops it with a warning. A site specialised on such a stamp records the builtin's identity, so the compiled code runs where the pack name is an alias of that builtin. Unset for a shipped command, or a pack command that claims no builtin identity.
 
+### `runtime_backing` — Runtime backing
+
+*command only* — How the command's behaviour reaches the runtime: `none`, `host-native`, `shipped-builtin ID`, `tcl-body {-package-source PATH}` or `tcl-body {-pack-text {TEXT}}`. Every shipped core command declares it; a command that declares nothing reads as `none` — nothing executes it.
+
+How the command's behaviour reaches the runtime, from which code generation chooses the identity a compiled site records — never from the command's name. `shipped-builtin ID` is a builtin the runtime registers, known by its registry identity; `tcl-body {-package-source PATH}` is a Tcl body the package's own installed source supplies, and `tcl-body {-pack-text {TEXT}}` one carried in the pack (reported at load, because a library upgrade then diverges from it silently); `host-native` is a command the host registered natively, attested by a guard identity and never by a procedure definition; `none`, the default, says nothing executes it in the target runtime. A shipped command keeps its backing through any override.
+
 ## Availability
 
 Where and when the command exists: which dialects ship it, which package must be required first, and the version that introduced, deprecated, or removed it. This group is what makes "unknown command", "needs Tcl 8.6", and "missing package require" accurate — for most third-party commands it is the highest-value group after the name and arity.

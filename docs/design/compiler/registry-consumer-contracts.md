@@ -79,17 +79,25 @@ slices proceed without deciding anything here.
 >
 > Step 6 has begun with the take-shipped floor: `SecurityFloor::apply`
 > keeps a shipped command's `lowering_hook`, `analyser_hook`,
-> `semantic_operation`, `state_transitions`, `native_lowering` and `bpf_op`
-> through any override, from any tier, beside the two codegen hooks it
-> already kept (rule 4 of § *The loader's stamp rejection rule*).
+> `semantic_operation`, `state_transitions`, `native_lowering`, `bpf_op` and
+> `runtime_backing` through any override, from any tier, beside the two
+> codegen hooks it already kept (rule 4 of § *The loader's stamp rejection
+> rule*).
+>
+> Step 7 has begun with the backing fact. `CommandSpec::runtime_backing`
+> (`tcl_registry::RuntimeBacking`, with `BodySource`) is declared on every
+> core Tcl command as the row of `docs/generated/wasm-command-backing.md` that
+> names it, `tcl_spectcl::BackingSyntax` reads and spells the `runtime_backing`
+> statement, and the iRule-test stub generator emits a mock only for a command
+> whose backing is `None` or `HostNative`. The runtimes' backing query, the
+> intrinsic families, and the manifest are still proposed.
 >
 > The rest of the vocabulary is proposed and names nothing in the
 > workspace:
 >
 > - **Identity and backing** — the `ReferenceBody` and
->   `ShippedImplementation` claims, `RuntimeBacking` with the
->   `runtime_backing` field, `BodySource`, `IdentityKind`,
->   `CodegenCapability`, and `ArtefactIdentityManifest`.
+>   `ShippedImplementation` claims, `IdentityKind`, `CodegenCapability`, and
+>   `ArtefactIdentityManifest`.
 > - **Packages** — `SpecDirective`, `DependencyTier`, and the `tcl spec
 >   test` verb.
 >
@@ -1525,7 +1533,7 @@ and lifetime argument.
 | 1 | purity, effects, types, transfers, evaluators | none possible at run time; the fact is authoritative for analysis by ruling; what emitted code can check is the binding, and the pack facts it was compiled under | evaluators exist; the answer protocol does not; a constant a pack's `const_fold` computed claims the pack's facts, checked at admission |
 | 2 | this command is a shipped builtin | the live binding is that builtin | `alias_of` decides which codegen stamps a bundled pack keeps, and codegen records the target's identity and claims the pack's facts, checked at admission |
 | 3 | a reference Tcl body | exact definition match of the live proc | the admission seam exists; no spec field |
-| 4 | a runtime implementation ships with the package | the runtime reports what it loaded; the artefact pins it | no `runtime_backing` field, no bundler |
+| 4 | a runtime implementation ships with the package | the runtime reports what it loaded; the artefact pins it | the `runtime_backing` field exists and every core command declares it; no runtime reports it yet, no bundler |
 
 ```mermaid
 flowchart LR
@@ -1569,7 +1577,7 @@ answered the target). `rust/tcl-compiler/src/site_claims.rs` builds both
 from the origin the installer records beside each spec it inserts
 (`CommandRegistry::pack_origin`, `rust/tcl-registry/src/pack_origin.rs`),
 the registry's overlay generation, and the compiling thread's evaluator
-revision. Rungs 3 and 4's variants are steps 8's and 7's.
+revision. Rung 3's variant is step 8's and rung 4's is step 7's; `RuntimeBacking` and `BodySource`, which rung 4's variant will carry, are built (step 7) and ride on the spec rather than in the artefact.
 
 ```rust,ignore
 /// What a specialised site carries in the artefact. Rungs 1 and 2 are
@@ -1621,7 +1629,8 @@ struct PackFactStamp {
     evaluator_revision: u64,
 }
 
-/// Rung 4's per-command fact. `CommandSpec::runtime_backing`.
+/// Rung 4's per-command fact. `CommandSpec::runtime_backing`. Built
+/// (`rust/tcl-registry/src/runtime_backing.rs`); `None` is the default.
 enum RuntimeBacking {
     /// A shipped builtin, attested by its registry identity.
     ShippedBuiltin { identity: &'static str },
@@ -1640,10 +1649,11 @@ enum BodySource {
     /// the host filesystem seam; the spec field is a pointer, so a library
     /// upgrade moves the body with it.
     PackageSource { relative_path: &'static str },
-    /// Text carried in the pack. A library upgrade then diverges
-    /// silently, so this variant is reported at load and turns its sites
-    /// plain on the first mismatch.
-    PackText,
+    /// Text carried in the pack — the body itself, so the variant holds it
+    /// (the loader's `tcl-body {-pack-text {TEXT}}` has nowhere else to put
+    /// it). A library upgrade then diverges silently, so this variant is
+    /// reported at load and turns its sites plain on the first mismatch.
+    PackText { text: &'static str },
 }
 
 /// What codegen emits to hold the site, chosen from the backing and never
@@ -1732,8 +1742,8 @@ refuses survives:
    fields on a subcommand or a form are not restored, and the stamp rule
    above already covers the stamps among them.
 
-Rules 1 to 3 are built (step 4); rule 4 is built for the six fields that
-exist (step 6) and takes `runtime_backing` in with its field (step 7).
+Rules 1 to 3 are built (step 4); rule 4 is built too: the six fields that
+existed (step 6), and `runtime_backing` with its field (step 7).
 
 - **Rung 1** is where analysis facts live, and the analyser needs nothing
   from this page to use them. For *emitted code* the artefact records
@@ -1790,7 +1800,10 @@ exist (step 6) and takes `runtime_backing` in with its field (step 7).
   that shows why backing is declared and checked rather than assumed. The
   generator reads `runtime_backing` and emits a mock only for a `None` or
   `HostNative` command, so a command with a declared Tcl body gets that
-  body and a shipped builtin gets none.
+  body and a shipped builtin gets none. That is built: the table drops the
+  46 entries it held for shared Tcl core commands (`append`, `set`,
+  `string`, …) and `pkg::create`, which the harness never dispatched —
+  real Tcl runs them — and keeps every iRules command.
 - **The strong sense is not SpecTcl.** The intrinsic table, the
   command-backing classification, and the ABI descriptor table in
   `rust/tcl-runtime-api/src/codegen_abi.rs` are generated from the Rust
@@ -1815,7 +1828,8 @@ This is the runtime programme. Nothing on the analyser side waits for it.
   identities from the pinned shipped generation only, never from an
   overlay; `register_spec_builtin` stops reading `build_default()`. The
   `command-backing` gate (`rust/xtask/src/command_backing.rs`) becomes a
-  `runtime_backing` query that `tcl-vm` asks too: its `HANDLER_EXTRA`,
+  `runtime_backing` query that `tcl-vm` asks too (step 7 declares the rows
+  on the specs first; the query and the gate's change follow): its `HANDLER_EXTRA`,
   `STDLIB`, `NOT_REQUIRED`, and `KNOWN_UNBACKED` lists become
   `RuntimeBacking` rows on the specs, its registration scan becomes the
   query, and `docs/generated/wasm-command-backing.md` becomes the query's
@@ -2126,6 +2140,7 @@ and come before any runtime guard work.
 - `rust/tcl-vm/src/interp.rs`, `exec.rs`, `command.rs`, `cmd_string.rs`, `environment.rs` — `command_binding_matches`, `procedure_binding_matches`, `guarded_commands`, `bump_cmd_epoch`, registration, the pin
 - `runtime/rust/src/interp.rs`, `codegen_abi.rs`, `cmd_string.rs`, `builtins.rs`, `capi.rs` — the WASM runtime's guard table, `execute_intrinsic`, `register_spec_builtin`, `invalidate_command_environment`, and the C surface
 - `rust/tcl-spectcl/src/loader.rs`, `loader/eval.rs`, `loader/environment_block.rs`, `discovery.rs`, `install.rs` — what a pack may write, tier to provenance, discovery, and the floor's application
+- `rust/tcl-registry/src/runtime_backing.rs`, `rust/tcl-spectcl/src/backing.rs` — `RuntimeBacking` and `BodySource`, and `BackingSyntax`, the one spelling of the `runtime_backing` statement for the loader and the Spec Studio
 - `rust/tcl-spec-hooks/src/sandbox.rs`, `pack_eval.rs`, `host.rs` — the hook whitelist, the pack evaluator, and the hook host with its per-pack engines, budgets, and context keys
 - `rust/tcl-spec-studio/src/render_spectcl.rs`, `render_rs.rs`, `coverage.rs`, `schema.rs`, `draft.rs`, `help.rs` — `GAPS`, `GapKind`, the `.rs` contribution export, and the four studio surfaces
 - `rust/tcl-vm/src/compiled.rs` — `CompiledUnit`, `CompilerProvenance`, and the generations an identity manifest joins

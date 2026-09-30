@@ -943,6 +943,15 @@ same facts: an edited pack turns such a site back to ordinary dispatch
 rather than changing what it computes (§ *What the artefact records per
 rung* there).
 
+A pack may also say how a command's behaviour reaches the runtime, with
+`runtime_backing` — `none`, `host-native`, `shipped-builtin ID`,
+`tcl-body {-package-source PATH}`, or `tcl-body {-pack-text {TEXT}}` (a
+`RuntimeBacking`, rung 4 of the same page). It is declared vocabulary: every
+shipped core command declares one, an override keeps the shipped command's
+(the security floor), and nothing yet admits a compiled site on it. A
+`-pack-text` body, which a library upgrade makes diverge silently, is
+reported at load as an information notice on the command's row.
+
 The `world_effects` block rows stay documented vocabulary the loader does
 not read, a library-defined completion code scoped to one command's body
 has no spelling, and a method-scoped taint sink is a registry change

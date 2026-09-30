@@ -31,6 +31,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "append",
+        runtime_backing: RuntimeBacking::shipped("append"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED

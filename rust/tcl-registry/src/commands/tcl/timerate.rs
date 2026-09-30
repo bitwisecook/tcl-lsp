@@ -189,6 +189,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "timerate",
+        runtime_backing: RuntimeBacking::shipped("timerate"),
         // Tcl 8.6+ only — see the doc comment above. Narrower than the
         // sibling `time`'s `surface: Some(SpecSurface::ALL_TCL)`.
         surface: Some(SpecSurface::TCL86_PLUS),

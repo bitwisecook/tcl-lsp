@@ -248,6 +248,7 @@ static SEMANTICS: crate::value_transfer::selection::SwitchSemantics =
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "switch",
+        runtime_backing: RuntimeBacking::shipped("switch"),
         // Present, unrestricted, and available in every dialect including
         // iRules: its own `dialects` group explicitly carries the `IRULES`
         // bit (the `ALL_TCL | IRULES` value below), so it intersects the

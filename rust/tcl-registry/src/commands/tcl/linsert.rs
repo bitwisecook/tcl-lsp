@@ -61,6 +61,7 @@ const FORMS: &[FormSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "linsert",
+        runtime_backing: RuntimeBacking::shipped("linsert"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED

@@ -49,6 +49,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fpclassify",
+        runtime_backing: RuntimeBacking::shipped("fpclassify"),
         // Added in Tcl 9.0 (`package require tcl 9.0` in its own SYNOPSIS)
         // and unchanged in 9.1 — see the module comment.
         surface: Some(SpecSurface::TCL90_PLUS),

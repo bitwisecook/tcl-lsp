@@ -275,6 +275,7 @@ const fn match_style(kind: OptionEffectKind) -> OptionEffect {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lsearch",
+        runtime_backing: RuntimeBacking::shipped("lsearch"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED

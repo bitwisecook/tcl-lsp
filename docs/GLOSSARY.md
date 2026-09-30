@@ -1751,18 +1751,22 @@ See also: [The C Tcl extension shim](design/runtime/c-extension-shim.md),
 
 ### Runtime backing
 
-The proposed per-command registry fact naming how a described command's
-executable behaviour arrives at run time, in four variants: a shipped
+The per-command registry fact naming how a described command's executable
+behaviour arrives at run time, in four variants — `CommandSpec::runtime_backing`,
+a `RuntimeBacking` in `rust/tcl-registry/src/runtime_backing.rs`: a shipped
 builtin attested by its registry identity; a Tcl body, with the source its
 text comes from — a path into the package's own installed source, or text
 carried in the pack, which is reported at load and turns its sites plain on
 the first mismatch; a command the host registered natively, a shimmed C
 command or an embedder's own handler, attested by a
 [guard identity](#guard-identity) and never by a procedure definition; or
-nothing that executes the command in the target runtime. Code generation
-chooses from it which identity the compiled artefact records — a command
-binding, a procedure binding, a guard, or none — so the runtime can attest
-the claim at admission or fall back to generic dispatch. See
+nothing that executes the command in the target runtime, which is also what a
+spec that declares nothing reads as. Every core Tcl command declares one; a
+pack states it with `runtime_backing`, and an override keeps a shipped
+command's. Code generation will choose from it which identity the compiled
+artefact records — a command binding, a procedure binding, a guard, or
+none — so the runtime can attest the claim at admission or fall back to
+generic dispatch; nothing reads it that way yet. See
 [Registry consumer contracts § What the artefact records per rung](design/compiler/registry-consumer-contracts.md#what-the-artefact-records-per-rung).
 
 KCS tag: `codegen`.

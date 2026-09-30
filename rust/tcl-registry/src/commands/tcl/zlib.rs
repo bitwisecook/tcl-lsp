@@ -400,6 +400,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "zlib",
+        runtime_backing: RuntimeBacking::shipped("zlib"),
         // See the module doc comment: no zlib.n page and no `zlib` TOC
         // entry on either the 8.4 or 8.5 tcl-lang.org doc trees, present
         // and textually identical (bar the 8.6-only `stream header`

@@ -110,6 +110,7 @@ static REPEATED: &[RepeatedArgLayout] = &[RepeatedArgLayout::every(ArgRole::VarW
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "global",
+        runtime_backing: RuntimeBacking::shipped("global"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY

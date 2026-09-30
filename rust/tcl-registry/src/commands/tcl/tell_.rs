@@ -53,6 +53,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tell",
+        runtime_backing: RuntimeBacking::shipped("tell"),
         // `surface: Some(SpecSurface::ALL_TCL)`. F5 iRules bans `tell` — the
         // sandboxed TMM interpreter has no real filesystem/channel-seek
         // support — and under the explicit-per-spec model that ban is carried

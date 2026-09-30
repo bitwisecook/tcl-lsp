@@ -134,6 +134,26 @@ impl PackNotice {
             severity: Severity::Information,
         }
     }
+
+    /// The notice a `runtime_backing tcl-body {-pack-text …}` draws: once,
+    /// on the declaring command's row. The body text travels with the pack,
+    /// so an upgrade of the library it models diverges from it silently;
+    /// information, because nothing is wrong with the pack, and the sites that
+    /// rest on such a body turn plain on the first mismatch.
+    #[must_use]
+    pub fn pack_text_backing(command: &PackCommand) -> Self {
+        Self {
+            path: command.file.clone(),
+            line: command.line,
+            context: format!("command {}", command.spec.name),
+            message:
+                "`runtime_backing tcl-body {-pack-text …}` carries the body in the pack, so an \
+                      upgrade of the library it models diverges from it silently; sites that rest \
+                      on it turn plain dispatch on the first mismatch"
+                    .to_owned(),
+            severity: Severity::Information,
+        }
+    }
 }
 
 /// One pack, merged from every file that named it.
@@ -484,6 +504,18 @@ pub(crate) fn load_sources(
                 crate::stamps::admit_codegen_stamps(command, provenance, crate::stamps::shipped())
             {
                 notices.push(PackNotice::stamp_refused(command, &refusal));
+            }
+        }
+        // A body carried in the pack is the one backing that goes stale
+        // without anyone touching the pack, so it is said at load.
+        for command in &merged.commands {
+            if matches!(
+                command.spec.runtime_backing,
+                tcl_registry::RuntimeBacking::TclBody {
+                    source: tcl_registry::BodySource::PackText { .. }
+                }
+            ) {
+                notices.push(PackNotice::pack_text_backing(command));
             }
         }
         // The execution half of the trust ruling, said where the author

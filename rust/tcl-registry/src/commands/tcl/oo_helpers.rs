@@ -129,6 +129,14 @@ pub fn qualified_specs() -> Vec<CommandSpec> {
                 name: qualified,
                 traits,
                 implementation_namespace: Some("::oo::Helpers"),
+                // The qualified spelling is a shipped builtin under its own
+                // name wherever its bare twin is one; the `ooutil` twins
+                // (8.6/8.7, from a package) declare no backing and so
+                // neither do theirs.
+                runtime_backing: match bare.runtime_backing {
+                    RuntimeBacking::ShippedBuiltin { .. } => RuntimeBacking::shipped(qualified),
+                    other => other,
+                },
                 ..bare
             }
         })

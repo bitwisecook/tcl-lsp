@@ -269,6 +269,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "encoding",
+        runtime_backing: RuntimeBacking::shipped("encoding"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::BYTE_COMPILED | Traits::SAFE_INTERP_HIDDEN,
         arity: Arity::at_least(1),

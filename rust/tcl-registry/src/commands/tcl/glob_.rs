@@ -154,6 +154,7 @@ fn glob_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "glob",
+        runtime_backing: RuntimeBacking::shipped("glob"),
         // `Some(SpecSurface::ALL_TCL)`, deliberately: `glob` is banned in F5
         // iRules (the TMM sandbox has no real filesystem), and that exclusion
         // is now modelled by this explicit surface — `ALL_TCL` does NOT carry

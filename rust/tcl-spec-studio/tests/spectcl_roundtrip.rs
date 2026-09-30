@@ -441,6 +441,57 @@ fn alias_of_survives_the_round_trip() {
     );
 }
 
+/// `runtime_backing` is a per-command fact with five spellings; every one
+/// survives the studio round trip, and `none` — the default — writes no row.
+/// The whole-surface trips meet the `shipped-builtin` spelling on every core
+/// command, but no shipped spec declares the other three.
+#[test]
+fn runtime_backing_survives_the_round_trip() {
+    use tcl_registry::{BodySource, RuntimeBacking};
+
+    for backing in [
+        RuntimeBacking::shipped("lassign"),
+        RuntimeBacking::package_source("init.tcl"),
+        RuntimeBacking::HostNative,
+        RuntimeBacking::TclBody {
+            source: BodySource::PackText {
+                text: "proc p {a} {\n    return [list $a {b}]\n}",
+            },
+        },
+        // Unbalanced braces are backslash-quoted, not braced.
+        RuntimeBacking::TclBody {
+            source: BodySource::PackText { text: "puts \"{\"" },
+        },
+    ] {
+        let spec = tcl_registry::CommandSpec {
+            name: "vendor::unpack",
+            arity: tcl_registry::arity::Arity::at_least(1),
+            runtime_backing: backing,
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        let draft = Value::Object(draft::from_command_spec(&spec));
+        let trip = round_trip(&draft);
+
+        assert!(trip.notices.is_empty(), "{:?}\n{}", trip.notices, trip.text);
+        assert!(trip.text.contains("runtime_backing "), "{}", trip.text);
+        assert_eq!(
+            trip.reloaded["runtime_backing"], draft["runtime_backing"],
+            "{}",
+            trip.text
+        );
+    }
+
+    let spec = tcl_registry::CommandSpec {
+        name: "vendor::unpack",
+        arity: tcl_registry::arity::Arity::at_least(1),
+        ..tcl_registry::CommandSpec::DEFAULT
+    };
+    let draft = Value::Object(draft::from_command_spec(&spec));
+    let trip = round_trip(&draft);
+    assert!(!trip.text.contains("runtime_backing"), "{}", trip.text);
+    assert_eq!(trip.reloaded["runtime_backing"], serde_json::json!("none"));
+}
+
 /// A declared `semantics` / `evaluate` plan is plain data — like
 /// `object_class` a level up — so it round-trips in full: no `GAPS` entry,
 /// no notice, the reloaded declaration equal to the one drafted.

@@ -668,6 +668,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "file",
+        runtime_backing: RuntimeBacking::shipped("file"),
         surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED | Traits::RETURNS_PATH | Traits::SAFE_INTERP_HIDDEN,
         arity: Arity::at_least(1),

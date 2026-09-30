@@ -31,13 +31,14 @@
 //!
 //! The floor also keeps a shipped command's identity on the axis that decides
 //! what emitted code and the analyser's dispatch do with it: the two codegen
-//! hooks, and the six catalogue fields `lowering_hook`, `analyser_hook`,
-//! `semantic_operation`, `state_transitions`, `native_lowering` and `bpf_op`.
-//! An override that swapped any of them would change which shipped
-//! implementation a compiled site rests on without the site knowing, so each
-//! takes the shipped value. This is a contract about the closed catalogues,
-//! not a trust gate on analysis facts: an override still changes arity, roles
-//! and hover.
+//! hooks, the six catalogue fields `lowering_hook`, `analyser_hook`,
+//! `semantic_operation`, `state_transitions`, `native_lowering` and `bpf_op`,
+//! and the `runtime_backing` fact that says how the command's behaviour
+//! reaches the runtime. An override that swapped any of them would change
+//! which shipped implementation a compiled site rests on without the site
+//! knowing, so each takes the shipped value. This is a contract about the
+//! closed catalogues, not a trust gate on analysis facts: an override still
+//! changes arity, roles and hover.
 //!
 //! # What a pack may still do
 //!
@@ -145,6 +146,11 @@ impl SecurityFloor {
         take_shipped(&mut spec.state_transitions, shipped.state_transitions);
         take_shipped(&mut spec.native_lowering, shipped.native_lowering);
         take_shipped(&mut spec.bpf_op, shipped.bpf_op);
+        // A backing is a variant rather than an `Option`, whose `None` is
+        // "declares nothing" — the default a shipped command yields to.
+        if !shipped.runtime_backing.is_none() {
+            spec.runtime_backing = shipped.runtime_backing;
+        }
         spec.callback_taint_inputs =
             union_leaked(spec.callback_taint_inputs, shipped.callback_taint_inputs);
     }
@@ -219,6 +225,7 @@ pub const MERGED_FIELDS: &[&str] = &[
     "state_transitions",
     "native_lowering",
     "bpf_op",
+    "runtime_backing",
 ];
 
 /// Security-bearing by name but deliberately not part of the floor, with the
@@ -272,6 +279,7 @@ mod tests {
                         | "state_transitions"
                         | "native_lowering"
                         | "bpf_op"
+                        | "runtime_backing"
                 );
             if security_bearing {
                 found.push(name.to_owned());
@@ -305,8 +313,8 @@ mod tests {
         crate::bpf_op::BpfProgTypeSet::PASS_LIKE,
     );
 
-    /// A shipped command with all six catalogue fields of the codegen and
-    /// dispatch axis set.
+    /// A shipped command with all seven fields of the codegen and dispatch
+    /// axis set.
     static SHIPPED_AXIS: CommandSpec = CommandSpec {
         name: "probe",
         lowering_hook: Some(crate::hooks::LoweringHookId::If),
@@ -319,6 +327,7 @@ mod tests {
             crate::completion::CompletionCode::Break,
         )),
         bpf_op: Some(&SHIPPED_OP),
+        runtime_backing: crate::runtime_backing::RuntimeBacking::shipped("probe"),
         ..CommandSpec::DEFAULT
     };
 
@@ -346,6 +355,7 @@ mod tests {
         assert_eq!(swapped.analyser_hook, SHIPPED_AXIS.analyser_hook);
         assert_eq!(swapped.semantic_operation, SHIPPED_AXIS.semantic_operation);
         assert_eq!(swapped.native_lowering, SHIPPED_AXIS.native_lowering);
+        assert_eq!(swapped.runtime_backing, SHIPPED_AXIS.runtime_backing);
         assert_eq!(
             format!("{:?}", swapped.state_transitions),
             format!("{:?}", SHIPPED_AXIS.state_transitions),
@@ -379,6 +389,20 @@ mod tests {
         assert!(declared.state_transitions.is_none());
         assert!(declared.native_lowering.is_none());
         assert!(declared.bpf_op.is_none());
+        assert!(declared.runtime_backing.is_none());
+    }
+
+    #[test]
+    fn a_declared_backing_stands_where_the_shipped_command_declares_none() {
+        use crate::runtime_backing::RuntimeBacking;
+
+        let mut declared = CommandSpec {
+            name: "probe",
+            runtime_backing: RuntimeBacking::HostNative,
+            ..CommandSpec::DEFAULT
+        };
+        SecurityFloor::of(&BARE).apply(&mut declared);
+        assert_eq!(declared.runtime_backing, RuntimeBacking::HostNative);
     }
 
     static BARE: CommandSpec = CommandSpec {

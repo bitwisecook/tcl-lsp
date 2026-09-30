@@ -207,3 +207,40 @@ fn a_workspace_override_cannot_drop_the_bpf_op() {
         "an override that says nothing keeps the shipped BPF op"
     );
 }
+
+#[test]
+fn a_workspace_override_cannot_swap_the_runtime_backing() {
+    use tcl_registry::RuntimeBacking;
+
+    let kept = shipped("tcl8.6", "lindex").runtime_backing;
+    assert_eq!(kept, RuntimeBacking::shipped("lindex"));
+    // Claiming the command is the host's own, or that nothing executes it,
+    // is the swap a compiled site's identity must not follow.
+    for body in ["runtime_backing host-native", "runtime_backing none"] {
+        let spec = overridden("runtime-backing", "tcl8.6", "lindex", body);
+        assert_eq!(
+            spec.runtime_backing, kept,
+            "`{body}` does not change how a shipped command reaches the runtime"
+        );
+    }
+}
+
+#[test]
+fn a_new_command_keeps_the_backing_it_declares() {
+    use tcl_registry::RuntimeBacking;
+
+    let dir = tmpdir("new-backing");
+    let packs = packs_from(
+        &dir,
+        "speclib probe 2.0 {\n  command probe::native {\n    arity 1..\n    runtime_backing host-native\n  }\n}\n",
+    );
+    let registry = registry_for_dialect_with_packs("tcl8.6", &packs);
+    let spec = registry
+        .get("probe::native")
+        .expect("the pack command loads");
+    assert_eq!(
+        spec.runtime_backing,
+        RuntimeBacking::HostNative,
+        "a command that overrides nothing inherits no floor, so its own fact stands"
+    );
+}

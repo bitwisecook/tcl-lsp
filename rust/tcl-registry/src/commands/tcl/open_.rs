@@ -135,6 +135,7 @@ const ACCESS_VALUES: &[ArgValue] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "open",
+        runtime_backing: RuntimeBacking::shipped("open"),
         surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED
             | Traits::OPENS_CHANNEL

@@ -61,6 +61,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "nextto",
+        runtime_backing: RuntimeBacking::shipped("nextto"),
         surface: Some(SpecSurface::TCL86_PLUS),
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),

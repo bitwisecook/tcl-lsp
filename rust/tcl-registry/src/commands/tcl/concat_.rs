@@ -28,6 +28,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "concat",
+        runtime_backing: RuntimeBacking::shipped("concat"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         byte_array_effect: ByteArrayEffect::Coerces,
         const_fold: Some(crate::const_fold::fold_concat),

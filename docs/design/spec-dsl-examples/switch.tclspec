@@ -8,6 +8,7 @@
 speclib tcl 2.1 {
 
 command switch {
+    runtime_backing shipped-builtin switch
     # Present and unrestricted in every dialect including iRules; the legal
     # *option set* narrows per Tcl version through the per-option gates below,
     # not through a whole-command dialect gate.

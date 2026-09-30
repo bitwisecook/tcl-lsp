@@ -295,6 +295,7 @@ fn binary_scan_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "binary",
+        runtime_backing: RuntimeBacking::shipped("binary"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::BYTE_COMPILED | Traits::CSE_CANDIDATE | Traits::FRAME_HASH_BUILTIN,
         arity: Arity::at_least(1),

@@ -51,6 +51,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "pwd",
+        runtime_backing: RuntimeBacking::shipped("pwd"),
         surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED | Traits::RETURNS_PATH | Traits::SAFE_INTERP_HIDDEN,
         arity: Arity::exact(0),

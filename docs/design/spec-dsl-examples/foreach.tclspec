@@ -8,6 +8,7 @@
 speclib tcl 2.1 {
 
 command foreach {
+    runtime_backing shipped-builtin foreach
     dialects {all-tcl f5-irules}
     traits {NOT_PROC_FACTORY BYTE_COMPILED CONTROL_FLOW LANGUAGE_KEYWORD
             HAS_LOOP_BODY NEVER_INLINE_BODY LOOP_LIST_HEADER}

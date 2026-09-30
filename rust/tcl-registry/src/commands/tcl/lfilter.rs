@@ -95,6 +95,7 @@ fn lfilter_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lfilter",
+        runtime_backing: RuntimeBacking::shipped("lfilter"),
         traits: Traits::CONTROL_FLOW
             | Traits::LANGUAGE_KEYWORD
             | Traits::HAS_LOOP_BODY

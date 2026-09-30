@@ -120,6 +120,7 @@ const SELF_SUBCOMMAND_VALUES: &[ArgValue] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "self",
+        runtime_backing: RuntimeBacking::shipped("self"),
         traits: Traits::PURE
             | Traits::LANGUAGE_KEYWORD
             | Traits::TCLOO_INTROSPECTION

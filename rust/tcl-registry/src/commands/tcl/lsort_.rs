@@ -186,6 +186,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lsort",
+        runtime_backing: RuntimeBacking::shipped("lsort"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         // NOT `Traits::PURE` / `Traits::CSE_CANDIDATE`: unlike `lsearch`
         // (which has no comparator option), `-command cmdPrefix` lets a

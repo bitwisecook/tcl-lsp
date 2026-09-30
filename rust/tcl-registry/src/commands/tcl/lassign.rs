@@ -64,6 +64,7 @@ fn lassign_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lassign",
+        runtime_backing: RuntimeBacking::shipped("lassign"),
         traits: Traits::FRAMELESS_RUNTIME | Traits::FRAME_HASH_BUILTIN | Traits::BYTE_COMPILED,
         surface: Some(SpecSurface::TCL85_PLUS),
         arity: Arity::at_least(1),

@@ -36,6 +36,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "expr",
+        runtime_backing: RuntimeBacking::shipped("expr"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY

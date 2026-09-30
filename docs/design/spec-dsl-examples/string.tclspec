@@ -42,6 +42,7 @@ values is-classes {
 }
 
 command string {
+    runtime_backing shipped-builtin string
     # A pure value-transform ensemble with no filesystem/process/network
     # access, so every dialect that hosts a real Tcl core carries it.
     # Individual subcommands and `is` classes still narrow per Tcl version

@@ -51,6 +51,7 @@ static SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "coroinject",
+        runtime_backing: RuntimeBacking::shipped("coroinject"),
         traits: Traits::EVALUATES_CODE | Traits::COROUTINE_PRIMITIVE,
         surface: Some(SpecSurface::TCL90_PLUS),
         arity: Arity::at_least(2),

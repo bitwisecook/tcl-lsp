@@ -510,3 +510,33 @@ fn a_bundled_stamp_on_an_alias_of_target_is_admitted() {
 
     let _ = std::fs::remove_dir_all(&root);
 }
+
+/// A `runtime_backing tcl-body {-pack-text …}` is reported at load — once,
+/// as information, on its command's row — because the body travels with the
+/// pack and goes stale without anyone touching it. The other backings, a body
+/// read from the library's own source among them, draw nothing.
+#[test]
+fn a_pack_text_backing_is_reported_at_load() {
+    let root = scratch("pack-text");
+    let dir = root.join(".tcl-lsp");
+    std::fs::create_dir_all(&dir).expect("pack dir");
+    std::fs::write(
+        dir.join("probe.tclspec"),
+        "speclib probe 2.1 {\n\
+         command probe::file { arity 0; runtime_backing tcl-body {-package-source init.tcl} }\n\
+         command probe::host { arity 0; runtime_backing host-native }\n\
+         command probe::text { arity 0; runtime_backing tcl-body {-pack-text {return 1}} }\n\
+         }\n",
+    )
+    .expect("write pack");
+    let set = load_workspace(&root);
+
+    assert_eq!(set.notices.len(), 1, "{:#?}", set.notices);
+    let notice = &set.notices[0];
+    assert!(notice.message.contains("-pack-text"), "{notice:?}");
+    assert_eq!(notice.severity, pack::Severity::Information);
+    assert_eq!(notice.context, "command probe::text");
+    assert_eq!(notice.line, 4, "the command's own row");
+
+    let _ = std::fs::remove_dir_all(&root);
+}

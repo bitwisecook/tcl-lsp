@@ -48,6 +48,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lremove",
+        runtime_backing: RuntimeBacking::shipped("lremove"),
         // `list` is a *value* argument, not a variable name — like
         // `lreplace`/`linsert`/`lindex`, `lremove` reads nothing and
         // writes nothing; it only ever returns a new list. It has its

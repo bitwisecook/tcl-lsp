@@ -39,6 +39,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "oo::singleton",
+        runtime_backing: RuntimeBacking::shipped("oo::singleton"),
         // `oo::singleton create Name { … }` is a four-token `HEAD NAME
         // BRACED BRACED` call — the same shape `oo::class`, `oo::abstract`,
         // `oo::configurable`, and `oo::object` also match, which is why it

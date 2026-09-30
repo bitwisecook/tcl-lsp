@@ -2285,6 +2285,10 @@ fn command_advanced(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     );
     d.insert("alias_of".into(), opt_str(spec.alias_of));
     d.insert(
+        "runtime_backing".into(),
+        json!(tcl_spectcl::BackingSyntax::from_backing(spec.runtime_backing).spelling()),
+    );
+    d.insert(
         "byte_array_payload".into(),
         spec.byte_array_payload
             .map_or(Value::Null, |p| json!(byte_payload_expr(p))),

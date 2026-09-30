@@ -35,6 +35,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "const",
+        runtime_backing: RuntimeBacking::shipped("const"),
         // Gated `TCL90_PLUS`: `const` does not exist in iRules' embedded Tcl
         // 8.4.6, so it is correctly neither pre-9.0 nor iRules-visible. See
         // `tcl9_commands_gated_to_tcl90` in registry.rs.

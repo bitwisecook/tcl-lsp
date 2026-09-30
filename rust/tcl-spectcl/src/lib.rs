@@ -65,6 +65,7 @@
 //! (`docs/design/registry/spec-packs.md`, "Performance: the format does not decide
 //! it").
 
+pub mod backing;
 pub mod bundled;
 pub mod cache;
 pub mod catalogue;
@@ -83,6 +84,7 @@ pub mod stamps;
 pub mod surface_roster_conversion;
 pub mod upgrade;
 
+pub use backing::BackingSyntax;
 pub use cache::{evaluate_pack_cached, evaluate_pack_including, snapshot_memoised};
 pub use discovery::{DiscoveryOptions, PackFile, Tier, discover};
 pub use export::{ExportLoss, Registration, export_pack, export_pack_reporting};

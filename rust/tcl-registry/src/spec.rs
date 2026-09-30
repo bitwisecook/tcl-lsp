@@ -2012,6 +2012,22 @@ pub struct CommandSpec {
     /// the VM's alias hop from the pack name to the builtin admits it.
     pub alias_of: Option<&'static str>,
 
+    /// How this command's behaviour arrives at run time: a shipped builtin
+    /// attested by its registry identity, a Tcl body and where its text comes
+    /// from, a command the host registered natively, or nothing at all
+    /// (rung 4 of `docs/design/compiler/registry-consumer-contracts.md`
+    /// § *Four rungs of codegen meeting `.tclspec`*). One fact per command,
+    /// chosen from by code generation so that the identity a compiled
+    /// artefact records is never guessed from the command's name.
+    ///
+    /// Declared on every core Tcl command (the rows of
+    /// `docs/generated/wasm-command-backing.md`); [`RuntimeBacking::None`]
+    /// for every command that declares nothing. The take-shipped floor
+    /// ([`crate::security_floor`]) keeps a shipped command's backing through
+    /// any override. Declared vocabulary so far: nothing yet admits a
+    /// specialised site on it.
+    pub runtime_backing: crate::runtime_backing::RuntimeBacking,
+
     /// `<proto>::payload` byte-array layout — `Some` when this command's
     /// getter returns raw bytes (a binary source) and its `replace` form is a
     /// byte sink, for the S110 byte-array-corruption check. `None` = not a
@@ -2459,6 +2475,7 @@ impl CommandSpec {
         deprecated_replacement: None,
         deprecated_replacement_drop_in: false,
         alias_of: None,
+        runtime_backing: crate::runtime_backing::RuntimeBacking::None,
         byte_array_payload: None,
         byte_array_effect: crate::byte_array_effect::ByteArrayEffect::None,
         definition_body: None,

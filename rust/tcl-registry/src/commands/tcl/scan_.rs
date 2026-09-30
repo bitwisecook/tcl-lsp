@@ -218,6 +218,7 @@ fn scan_int(s: &[u8], mut si: usize, conv: u8) -> Option<(String, usize)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "scan",
+        runtime_backing: RuntimeBacking::shipped("scan"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         // The match / conversion path is the only one that writes: a failed
         // `regexp`, and a `scan` or `binary scan` whose input runs out, leave

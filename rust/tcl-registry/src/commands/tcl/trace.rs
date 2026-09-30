@@ -1296,6 +1296,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "trace",
+        runtime_backing: RuntimeBacking::shipped("trace"),
         // Present and unrestricted: `trace` carries an iRules row explicitly
         // (`ALL_TCL.union(IRULES)`), so it resolves under the bare `IRULES`
         // mask, and every dialect that hosts a real Tcl core (irules, iapps,

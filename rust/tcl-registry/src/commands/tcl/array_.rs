@@ -347,6 +347,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "array",
+        runtime_backing: RuntimeBacking::shipped("array"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         // The `unset` subform destroys elements or the whole array
         // (`ArrayUnsetCmd`, tclVar.c) — `FIRE_AND_FORGET_TEARDOWN` and the

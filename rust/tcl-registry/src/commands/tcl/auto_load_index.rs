@@ -31,6 +31,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "auto_load_index",
+        runtime_backing: RuntimeBacking::package_source("init.tcl"),
         // `surface: Some(SpecSurface::ALL_TCL)` matches every sibling
         // autoloading proc (`auto_execok`, `auto_import`, `auto_load`,
         // `auto_mkindex`, `auto_mkindex_old`, `auto_qualify`, `auto_reset`):

@@ -105,7 +105,9 @@ sites and are not debt.
   ([spec-packs.md](docs/design/registry/spec-packs.md)). Edit the
   `.tclspec`, not Rust.
 - Add a command's `CommandSpec` and its WASM runtime backing in the same
-  change (see *WASM command parity*).
+  change (see *WASM command parity*), and declare the spec's
+  `runtime_backing` to match: `every_core_command_declares_a_backing` holds
+  a core command's declaration to its row in the backing report.
 - Argument roles resolve `clause_grammar` → `arg_role_resolver` →
   `arg_roles` → `assigns_variable_at`; a clause grammar states where a
   chain's keywords, conditions and scripts sit, and the resolver is

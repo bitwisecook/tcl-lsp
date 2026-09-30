@@ -43,6 +43,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "llength",
+        runtime_backing: RuntimeBacking::shipped("llength"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         const_fold: Some(crate::const_fold::fold_llength),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::LIST_LENGTH),

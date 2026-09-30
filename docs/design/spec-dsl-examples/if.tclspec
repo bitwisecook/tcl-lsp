@@ -9,6 +9,7 @@
 speclib tcl 2.1 {
 
 command if {
+    runtime_backing shipped-builtin if
     dialects {all-tcl f5-irules}
     traits {NOT_PROC_FACTORY BYTE_COMPILED CONTROL_FLOW LANGUAGE_KEYWORD
             HAS_BOOLEAN_COND NEVER_INLINE_BODY BRANCH_SELECTED_BODY

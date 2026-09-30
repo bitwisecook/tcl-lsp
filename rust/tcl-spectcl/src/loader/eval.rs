@@ -240,6 +240,7 @@ const ROW_WORDS: &[&str] = &[
     "deprecated_replacement",
     "deprecated_replacement_drop_in",
     "alias_of",
+    "runtime_backing",
     "xc_translatable",
     "arg",
     "repeat",

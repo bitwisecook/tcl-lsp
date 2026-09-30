@@ -1,4 +1,4 @@
-# Lane: consumer contracts — steps 1–4 landed, steps 5 and 6 in progress; the plan for steps 2–10
+# Lane: consumer contracts — steps 1–4 landed, steps 5 to 7 in progress; the plan for steps 2–10
 
 ## Goal
 
@@ -1077,6 +1077,59 @@ and CC6.3, each its own checkpoint.
   bundled pack overrides a command, so nothing a user runs changes today;
   a workspace pack that did swap one of the six now finds the shipped value
   installed.
+
+## Step 7 — progress
+
+Item order follows § *Plan for steps 2–10* › *Step 7* § *Ordering and
+checkpoints*: CC7.1 (sonnet) first, on its own; then the opus items, CC7.3,
+CC7.2 and CC7.4 in that order, each its own checkpoint, and CC7.5 (the fuzz
+exit) last.
+
+| Item | State | Checkpoint | Notes |
+|---|---|---|---|
+| CC7.1 `RuntimeBacking` on the spec | landed | `wip(consumer-contracts): step 7 — RuntimeBacking on the spec` | `rust/tcl-registry/src/runtime_backing.rs` (new): `RuntimeBacking` (`ShippedBuiltin { identity }`, `TclBody { source }`, `HostNative`, `None` — the default) and `BodySource` (`PackageSource { relative_path }`, `PackText { text }` — the text is carried, D7.3), with `shipped`, `package_source` and `is_none`; `CommandSpec::runtime_backing`, `CommandSpec::DEFAULT` says `None`, `RuntimeBacking` and `BodySource` reach the prelude and the crate root. **The rows.** The report's 389 core Tcl commands each declare what the report says: 324 `ShippedBuiltin` (the 282 handler and native rows and the 42 known-gap rows, whose target state it is, D7.5), 11 `TclBody`/`PackageSource` (`init.tcl` 7, `package.tcl` 3, `parray.tcl` 1 — the stdlib rows) and 54 `None` (the not-required rows, by default). A mechanical pass placed the 128 standard spec literals; seven builders needed hand edits — `mathop_generated` (the two qualified spellings `ShippedBuiltin`, the bare operator word `None`), `mathfunc_generated` (both spellings), `dict::qualified_specs`, `oo_helpers::qualified_specs` (shipped where the bare twin is, so the `ooutil` twins declare none), and the `corotype`, `zipfs` and `list_math_91` factories; the identity is the spec's own name as the spec spells it, `::` kept (D7.4). **The floor.** `runtime_backing` joins `SecurityFloor::apply` (a non-`None` shipped backing wins), `MERGED_FIELDS` and the field scan (D6.1). **The statement.** `rust/tcl-spectcl/src/backing.rs` (new) — `BackingSyntax` with `parse`, `parse_spelling`, `spelling`, `from_backing` and `leak` — is the one spelling of the five `runtime_backing` statements (`none`, `host-native`, `shipped-builtin ID`, `tcl-body {-package-source PATH}`, `tcl-body {-pack-text {TEXT}}`) for the loader (`apply_command_stmt`'s new arm and `eval.rs`'s `ROW_WORDS`, the two halves of the one loader), the Studio's draft and both its renderers; a statement that does not read is dropped with a warning and claims nothing. `PackNotice::pack_text_backing` — an Information notice on the command's row, raised in `pack::load_sources` beside the stamp refusals — reports a `-pack-text` body at load (D7.7). **The Studio.** `FieldKind::RuntimeBacking` (`IDENTITY` category, sharing the `text` wire tag, so the front-end needs no new editor and `every_field_kind_has_a_front_end_editor` stays green), `draft.rs` (the spelling), `render_spectcl.rs`'s `runtime_backing_row` (re-spelled through the parser, so the row is always one the loader reads back), `render_rs.rs`'s `runtime_backing_expr`, `help.rs`, `coverage.rs`'s witness and `Field` row, `relations.rs` (the "Builtin identity" cluster) and `examples/fields_core.rs` (D7.6); `docs/references/command-spec/fields.md` regenerated. **The generator.** `gen_irule_test_data.rs` emits a stub only for a command whose backing is `None` or `HostNative`; the plan expected the output byte-identical, and it is not: 46 entries for shared Tcl core commands and `pkg::create` drop, all dead (D7.8). **The ports.** Nine ports of shipped core commands declare `runtime_backing shipped-builtin NAME` (D7.9). Tests: `registry_sweep.rs`'s `every_core_command_declares_a_backing` reads the committed report and holds the spec to it in both directions — the row's kind, the identity equal to the name, the stdlib file the note names — and requires every non-core spec in the Tcl table to declare nothing (a mutation check, one declaration removed, fails it naming the command); `i6_security_floor.rs` gains `a_workspace_override_cannot_swap_the_runtime_backing` (`lindex` against `host-native` and `none`) and `a_new_command_keeps_the_backing_it_declares`; `security_floor.rs`'s unit rows cover it; `eval_loader.rs`'s `runtime_backing_reads_each_shape_through_both_paths` (five shapes, an unstated one, two that do not read — through the static fast path and the interpreter); `workspace_packs.rs`'s `a_pack_text_backing_is_reported_at_load`; `spectcl_roundtrip.rs`'s `runtime_backing_survives_the_round_trip` (five backings, one with unbalanced braces, and `none` writing no row); `backing.rs`'s four unit rows. Moved: `spectcl_ports.rs`'s `every_port_loads_and_matches_its_shipped_spec` (the ports now declare it, D7.9); `_mock_stubs.tcl` (D7.8); `pack-goldens` rewrote all 25 snapshots (every `spec` digest moved once, as for `alias_of`; the nine edited ports' notice lines moved by one). Gates: `cargo test -p tcl-registry` (lib 946, was 943; `registry_sweep` 40, was 39; every other binary), `-p tcl-spectcl` (lib 196, was 192; `eval_loader` 26, was 25; `i6_security_floor` 10, was 8; `workspace_packs` 10, was 9; `codegen_stamps`, `golden_packs`, `spec_corpus` and every other binary), `-p tcl-spec-studio` (lib 199; `spectcl_roundtrip` 10, was 9; `spectcl_ports` 11; `reference_doc` regenerated; every other binary), `-p xtask -p tcl-mcp -p tcl-cli` (480), `-p tcl-irule-test` (28, against the regenerated stubs), `-p tcl-compiler -p tcl-lsp-core --lib` (6531, 2 ignored; 2350); `runtime/rust`'s `cargo check --tests` clean; `cargo check --workspace --all-targets`; clippy (`-p tcl-registry -p tcl-spectcl -p tcl-spec-studio -p xtask --all-targets --no-deps -- -D warnings`) and `cargo fmt` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows), `pack-goldens --check` (25), `gen-irule-test-data --check`, `command-backing --check` (389 commands, unchanged), `callback-inventory --check`, `audit-option-dialects --check` (114), `retired-api-gate`, `owner-resolution` (45), `kcs-index-links` green, `dialect-drift` at its 8. Docs: the design page (status box, the rung table's row 4, the rung-4 `RuntimeBacking` block with its `PackText { text }`, the rung-4 bullet, rule 4, the registration bullet), `docs/GLOSSARY.md` § *Runtime backing*, `spec-packs.md` § *What a pack still cannot say*, `spec-dsl-examples/README.md` (the keyword row and the override bullet), `irule-test-framework.md` decision rule 1. No KCS note: nothing a user runs changes today. Deviations: the text `PackText` carries (D7.3); the identity (D7.4); the rows and their test (D7.5); one spelling for six consumers, and the Studio kind sharing the `text` tag (D7.6); the notice's seat (D7.7); the generator's output moves (D7.8); the ports (D7.9). D7.3–D7.9 |
+
+### CC7.1 — what the next items read
+
+- **For CC7.2 (the backing query and the gate).** The declared rows are
+  the report's rows and `every_core_command_declares_a_backing` holds them
+  equal to the committed report. Until CC7.2 renders the report from the
+  spec, the report (from the source scan and the gate's four lists) and the
+  specs are two sources kept equal by that test; once the report is a
+  rendering of `spec.runtime_backing` against `backing_report()` the test is
+  a tautology and may be deleted with the lists. Match on the variant, not
+  on a category string: `ShippedBuiltin` carries the identity the runtime
+  reports (`spec.name` as spelled, so `tcl::mathfunc::abs` and
+  `::tcl::mathfunc::abs` are two identities), `TclBody` a `PackageSource`
+  file the embedded library defines, `None` a command nothing executes.
+  The 42 known-gap rows declare `ShippedBuiltin` and stay on
+  `KNOWN_UNBACKED` as the drift waiver (D7.1); a spec that declares `None`
+  and is registered by a runtime is drift, and every not-required row
+  declares `None` by default.
+- **For CC7.4 and the manifest.** `BackingSyntax::spelling` is the canonical
+  text of a backing and round-trips through `parse_spelling`; `BodySource::PackText`
+  holds the body, which a rung-3 claim compares against the live procedure
+  (CC8.1).
+- **For CC6.2.** `runtime_backing` is one of the declarations the
+  capability matrix must forbid a `Transitive` or `Development` pack: the
+  loader reads the statement at every tier, the floor keeps a shipped
+  command's backing, and nothing else gates the statement yet.
+- **Reported, not fixed.** The Studio's Test tab and `spectcl_check` do not
+  raise the `-pack-text` notice, which `pack::load_sources` raises for a
+  pack the server loads (D7.7).
+
+### Behavioural deltas accepted in step 7
+
+- CC7.1: `CommandSpec` gains `runtime_backing`, so every command's `Debug`
+  text and all 25 pack goldens' `spec` digests move once; every core Tcl
+  command declares its row of the WASM command-backing report; a pack may
+  write `runtime_backing`, and a `-pack-text` body draws an Information
+  notice at load.
+- CC7.1: the iRule-test stub table no longer lists 46 shared Tcl core
+  commands and `pkg::create` (D7.8). The harness never dispatched them;
+  `_mock_stubs.tcl` reads 933 stub actions, was 979.
+- CC7.1: the Spec Studio gains a "Runtime backing" field in the Identity
+  group, edited as text in the statement's own spelling.
 
 ## Plan for steps 2–10
 
@@ -4233,6 +4286,64 @@ everything else in this lane is independent of both.
   `xtask` links `tcl-runtime` and `tcl-vm` to ask `backing_report()`.
   **D7.2** The WASM manifest is a custom section `tcl.manifest` encoded
   by one function pair in `tcl-runtime-api`.
+- **D7.3** `BodySource::PackText` carries its text: `PackText { text:
+  &'static str }`, where the page's `PackText,` is a unit variant. The
+  statement `tcl-body {-pack-text {TEXT}}` has a body to keep, and a unit
+  variant would drop it at load — the Studio round trip could not write it
+  back, and rung 3 (CC8.1) compares the body against the live procedure. The
+  design page's block is corrected to match.
+- **D7.4** A `ShippedBuiltin`'s identity is the spec's own name, spelled as
+  the spec spells it, `::` kept — the spelling the VM's builtin table
+  already keys (`register_spec_builtin` keeps the registry's spelling as the
+  stable identity). A command the registry carries under two spellings
+  (`tcl::mathfunc::abs`, `::tcl::mathfunc::abs`) is two specs and two
+  identities. The qualified `oo::Helpers::*` specs follow their bare twin:
+  shipped where it is, and the `ooutil` twins (8.6/8.7, from a package, not
+  core) declare none. Mathop's bare operator word (`+`) is grammar
+  evaluated inside `expr`, not a command, and stays `None`.
+- **D7.5** The rows are the report's rows and are checked against the report.
+  335 declarations (324 `ShippedBuiltin`, 11 `TclBody`) and 54 defaulted
+  `None` fall out of the 389 rows; `every_core_command_declares_a_backing`
+  reads the committed `docs/generated/wasm-command-backing.md` rather than
+  keeping a second list in the test, checks it in both directions, and
+  requires the non-core specs in the Tcl table to declare nothing. The
+  three lists CC7.2 deletes are the report's source until then; this test
+  keeps the declarations honest against it, and can be deleted with them.
+- **D7.6** One spelling serves six consumers. `BackingSyntax` (in
+  `tcl-spectcl`, beside `semantic_operation_spelling`) parses the words after
+  `runtime_backing`, spells them back, converts a spec's backing, and leaks
+  its strings only where the loader needs `'static` data — the Studio parses
+  and re-spells on every edit and must not leak. The Studio holds the
+  statement's own spelling as the draft value and gives the kind the `text`
+  wire tag: an editor for a closed vocabulary would not fit strings, paths
+  and bodies, and no front-end change was needed. A spelling that does not
+  read renders a `TODO` comment in `.tclspec`, and no field in `.rs`.
+- **D7.7** The `-pack-text` notice is a `PackNotice` raised where merged
+  commands are assembled (`pack::load_sources`), like the stamp refusals and
+  the dormant-hook notices, because a loader `Notice` is always a warning and
+  this is information. The Spec Studio assembles its own set (`store.rs`) and
+  `spectcl_check` previews an install; neither raises it, having no consumer
+  for an information line about a body they do not run.
+- **D7.8** The plan expects `gen_irule_test_data.rs`'s output byte-identical
+  because "every iRules command is `None`". The iRules registry also holds the
+  shared Tcl core commands (surface `ALL_TCL_AND_IRULES`), which now declare a
+  backing, so gating on `None`/`HostNative` drops 46 of the table's entries —
+  `append`, `array`, `binary`, `break`, `catch`, `clock`, `concat`, `continue`,
+  `encoding`, `error`, `eval`, `expr`, `for`, `foreach`, `format`, `global`,
+  `if`, `incr`, `info`, `join`, `lappend`, `lindex`, `linsert`, `list`,
+  `llength`, `lrange`, `lreplace`, `lsearch`, `lset`, `lsort`, `regexp`,
+  `regsub`, `return`, `scan`, `set`, `split`, `string`, `subst`, `switch`,
+  `trace`, `unset`, `uplevel`, `upvar`, `variable`, `while` and `pkg_create`.
+  They were dead: the harness looks a command up in `_command_map` only from
+  its `unknown` handler, for commands the interpreter has not defined, and
+  real Tcl defines these. The file is regenerated (933 stub actions, was 979)
+  and the `tcl-irule-test` suite passes on it.
+- **D7.9** The ports declare their backing. `every_port_loads_and_matches_its_shipped_spec`
+  compares each port's draft with its shipped spec's, and a shipped spec now
+  declares one; the DSL has the spelling, so the difference is not a gap to
+  document but a line to transcribe — `if`, `foreach`, `switch`, `lsort`,
+  `string`, `upvar`, `return`, `oo::class` and `subst` each gain
+  `runtime_backing shipped-builtin NAME`.
 - **D8.1** `Engine::set_release` is slice 4's. **D8.2** `docker.rs` stays
   registry-free; `tcl docker create` computes native extensions.
 - **D9.1** Versioned stamps are `StampWindow<T>` slices mirroring

@@ -1349,3 +1349,74 @@ fn from_frame_effect_derives_the_alias_pairs_resolver() {
         );
     }
 }
+
+/// `runtime_backing` reads each of its five shapes, an unstated one is `none`,
+/// and one that does not read is dropped with a notice that leaves the
+/// command's other facts alone — through both evaluation paths, so the row
+/// word is known to the static fast path as well as to the interpreter.
+#[test]
+fn runtime_backing_reads_each_shape_through_both_paths() {
+    use tcl_registry::{BodySource, RuntimeBacking};
+
+    let source = r"speclib probe 2.1 {
+    command probe::bare { arity 3 }
+    command probe::none { arity 3; runtime_backing none }
+    command probe::host { arity 3; runtime_backing host-native }
+    command probe::shipped { arity 3; runtime_backing shipped-builtin lassign }
+    command probe::file { arity 3; runtime_backing tcl-body {-package-source init.tcl} }
+    command probe::text {
+        arity 3
+        runtime_backing tcl-body {-pack-text {proc p {a} {
+    return [list $a {b}]
+}}}
+    }
+    command probe::unfinished { arity 3; runtime_backing tcl-body {-package-source} }
+    command probe::unknown { arity 3; runtime_backing native }
+}
+";
+    for pack in [
+        evaluate_pack(source),
+        evaluate_through_the_interpreter(source),
+    ] {
+        let backing = |name: &str| pack.command(name).expect(name).spec.runtime_backing;
+        assert_eq!(backing("probe::bare"), RuntimeBacking::None);
+        assert_eq!(backing("probe::none"), RuntimeBacking::None);
+        assert_eq!(backing("probe::host"), RuntimeBacking::HostNative);
+        assert_eq!(
+            backing("probe::shipped"),
+            RuntimeBacking::shipped("lassign")
+        );
+        assert_eq!(
+            backing("probe::file"),
+            RuntimeBacking::package_source("init.tcl")
+        );
+        assert_eq!(
+            backing("probe::text"),
+            RuntimeBacking::TclBody {
+                source: BodySource::PackText {
+                    text: "proc p {a} {\n    return [list $a {b}]\n}"
+                }
+            }
+        );
+        // A declaration that does not read claims nothing, and costs the
+        // command no other fact.
+        for name in ["probe::unfinished", "probe::unknown"] {
+            let command = pack.command(name).expect(name);
+            assert_eq!(command.spec.runtime_backing, RuntimeBacking::None);
+            assert_eq!(command.spec.arity.min, 3, "{name} keeps its arity");
+        }
+        let dropped: Vec<&str> = pack
+            .notices
+            .iter()
+            .filter(|notice| notice.message.contains("unreadable `runtime_backing`"))
+            .map(|notice| notice.context.as_str())
+            .collect();
+        assert_eq!(
+            dropped,
+            ["command probe::unfinished", "command probe::unknown"],
+            "{:#?}",
+            pack.notices
+        );
+        assert_eq!(pack.notices.len(), 2, "{:#?}", pack.notices);
+    }
+}

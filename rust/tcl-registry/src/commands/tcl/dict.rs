@@ -687,6 +687,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "dict",
+        runtime_backing: RuntimeBacking::shipped("dict"),
         // The `unset` subform removes keys (`DictUnsetCmd`, tclDictObj.c) —
         // `FIRE_AND_FORGET_TEARDOWN` and the `destructive` flag live on
         // that subcommand.
@@ -892,6 +893,7 @@ pub fn qualified_specs() -> Vec<CommandSpec> {
             let &(_, summary, synopsis) = QUALIFIED_HOVER.iter().find(|&&(n, _, _)| n == bare)?;
             Some(CommandSpec {
                 name: qualified,
+                runtime_backing: RuntimeBacking::shipped(qualified),
                 traits: sub.traits
                     | if sub.pure {
                         Traits::PURE

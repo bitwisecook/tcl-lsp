@@ -163,6 +163,7 @@ use tcl_registry::world_effect::{
 };
 use tcl_registry::{CommandPrefixArguments, InvocationArguments};
 
+use crate::backing::BackingSyntax;
 use crate::catalogue;
 use tcl_dialect::model::SpecSurface;
 
@@ -6231,6 +6232,19 @@ fn apply_command_stmt(
             spec.deprecated_replacement_drop_in = parse_flag(stmt.tail());
         }
         "alias_of" => spec.alias_of = Some(leak_str(&value)),
+        // How the command's behaviour reaches the runtime. A declaration that
+        // does not read is dropped, which claims nothing: the default is
+        // `none`, "nothing executes it".
+        "runtime_backing" => {
+            let words: Vec<String> = stmt.tail().iter().map(|word| word.text.clone()).collect();
+            match BackingSyntax::parse(&words) {
+                Ok(syntax) => spec.runtime_backing = syntax.leak(),
+                Err(why) => log.say(
+                    stmt.line,
+                    format!("unreadable `runtime_backing` dropped: {why}"),
+                ),
+            }
+        }
         "xc_translatable" => {
             spec.xc_translatable = parse_tristate(&value);
             if spec.xc_translatable.is_none() {

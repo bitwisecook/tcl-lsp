@@ -33,6 +33,7 @@ const COMPLETION_CODES: &[CompletionCode] = &[CompletionCode::Continue];
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "continue",
+        runtime_backing: RuntimeBacking::shipped("continue"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED

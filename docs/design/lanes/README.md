@@ -117,4 +117,7 @@ checkpoint compiling.
   semantics keys have landed. Step 6 (the take-shipped floor, the
   capability matrix, the overlay to the compile service) is in progress
   too, in § *Step 6 — progress*: the floor over the whole codegen and
-  dispatch axis has landed.
+  dispatch axis has landed. So is step 7 (identities from the pinned
+  generation, `runtime_backing`, the intrinsic families, the manifest, the
+  runtime context), in § *Step 7 — progress*: `runtime_backing` on the
+  spec, declared on every core command, has landed.

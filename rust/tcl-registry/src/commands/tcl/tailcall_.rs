@@ -52,6 +52,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tailcall",
+        runtime_backing: RuntimeBacking::shipped("tailcall"),
         // `TCL86_PLUS` also, via the mask-intersection rule
         // `CommandSpec::supports_dialect` / `ProfileQueries::is_available`
         // apply, already resolves availability correctly for every non-core

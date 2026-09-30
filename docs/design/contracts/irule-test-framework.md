@@ -44,7 +44,10 @@ The Rust modules are:
 1. **Registry-backed generated data has a native owner.**
    `_event_data.tcl` is generated from `EventRegistry` and `_mock_stubs.tcl`
    from the resolved F5 iRules profile registry plus the hand-written-mock boundary
-   in `command_mocks.tcl`. They must never be edited by hand: `cargo xtask
+   in `command_mocks.tcl`, and only for a command whose declared
+   `runtime_backing` is `None` or `HostNative`: a shipped builtin or a Tcl
+   body is supplied by the interpreter, so it needs no mock and the table
+   holds none. They must never be edited by hand: `cargo xtask
    gen-irule-test-data` regenerates them and `make xtask-check` detects drift.
    `_mock_stubs.tcl` is a single data table consumed by one generic
    `::itest::cmd::_stub` proc rather than ~1500 individual stub procs, because

@@ -84,6 +84,7 @@ fn push_spellings(out: &mut Vec<CommandSpec>, spec: &mathfunc::MathFuncSpec) {
         ));
         out.push(CommandSpec {
             name,
+            runtime_backing: RuntimeBacking::shipped(name),
             surface,
             traits: Traits::PURE,
             arity,

@@ -1227,6 +1227,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "namespace",
+        runtime_backing: RuntimeBacking::shipped("namespace"),
         surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY

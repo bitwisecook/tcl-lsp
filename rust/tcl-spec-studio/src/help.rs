@@ -1024,6 +1024,19 @@ that builtin. Unset for a shipped command, or a pack command that claims \
 no builtin identity.",
     ),
     (
+        "runtime_backing",
+        "How the command's behaviour reaches the runtime, from which code \
+generation chooses the identity a compiled site records — never from the \
+command's name. `shipped-builtin ID` is a builtin the runtime registers, \
+known by its registry identity; `tcl-body {-package-source PATH}` is a Tcl \
+body the package's own installed source supplies, and `tcl-body {-pack-text \
+{TEXT}}` one carried in the pack (reported at load, because a library \
+upgrade then diverges from it silently); `host-native` is a command the \
+host registered natively, attested by a guard identity and never by a \
+procedure definition; `none`, the default, says nothing executes it in the \
+target runtime. A shipped command keeps its backing through any override.",
+    ),
+    (
         "byte_array_payload",
         "F5 only: describes a `<proto>::payload`-style command's layout so \
 the binary-data corruption check (string operations applied to raw \

@@ -901,6 +901,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "chan",
+        runtime_backing: RuntimeBacking::shipped("chan"),
         traits: Traits::BYTE_COMPILED,
         // `chan` is a Tcl 8.5+ ensemble: no chan.n manual page and no `chan`
         // entry in the 8.4 command index (confirmed: the 8.4 URL 404s and the
