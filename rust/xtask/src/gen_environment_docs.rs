@@ -445,6 +445,12 @@ fn artifacts(model: &Model) -> Result<Vec<(&'static str, String)>> {
 pub fn run(check: bool) -> Result<ExitCode> {
     let root = repo_root();
     let model = Model::load()?;
+    // Before anything is written, so a manifest that leaves an environment
+    // with no prompt fragment is never emitted.
+    let gaps = prompt_gaps(&model);
+    if !gaps.is_empty() {
+        bail!("no prompt fragment reads {gaps:?}");
+    }
     let mut drift = Vec::new();
     for (rel, content) in artifacts(&model)? {
         let path = root.join(rel);
@@ -470,10 +476,6 @@ pub fn run(check: bool) -> Result<ExitCode> {
         return Ok(ExitCode::from(1));
     }
     if check {
-        let gaps = prompt_gaps(&model);
-        if !gaps.is_empty() {
-            bail!("no prompt fragment reads {gaps:?}");
-        }
         eprintln!("OK: environment documentation and the prompt manifest match the registry.");
     }
     Ok(ExitCode::SUCCESS)

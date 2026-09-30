@@ -85,7 +85,7 @@
           ".tm",
           ".test"
         ],
-        "firstLine": "^#!.*\\btclsh\\b",
+        "firstLine": "^#!.*\\b(?:tclsh|wish)[0-9.]*\\b",
         "configuration": "./language-configuration.json"
       },
       {

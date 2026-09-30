@@ -33,7 +33,9 @@
 //! - VS Code `package.json` `contributes.languages` (one language per
 //!   environment with an editor identity, carrying its extensions, its
 //!   whole-basename `filenames` and a `firstLine` pattern built from its
-//!   shebang words), `contributes.grammars` (a `source.tcl` grammar row for
+//!   shebang words; the plain `tcl` language takes the stems of every
+//!   environment without a language of its own, under any version),
+//!   `contributes.grammars` (a `source.tcl` grammar row for
 //!   any language that lacks one), `contributes.semanticTokenScopes` (one
 //!   block per language), the `onLanguage:` half of `activationEvents`, the
 //!   per-language `configurationDefaults`, and the language-id pattern every
@@ -309,6 +311,11 @@ pub struct Language {
     pub dialect: Option<String>,
     /// Interpreter words a shebang line names to select the language.
     pub shebang_words: Vec<String>,
+    /// Interpreter stems a shebang line may follow with any version
+    /// (`tclsh` covers `tclsh8.7`), on the plain language only: an interpreter
+    /// no environment models still means Tcl. When set, `firstLine` reads these
+    /// instead of [`Language::shebang_words`].
+    pub shebang_stems: Vec<String>,
     /// Whether this is one of the [`EXTRA_LANGUAGES`]: a language that selects
     /// an environment without being its editor identity.
     pub is_extra: bool,
@@ -344,6 +351,7 @@ fn language_of(environment: &EnvironmentDefinition, id: &str) -> Language {
         configuration: None,
         dialect: Some(environment.id.to_string()),
         shebang_words: strings(&environment.server_detection.shebang_words),
+        shebang_stems: Vec::new(),
         is_extra: false,
         scopes: scope_shape(environment),
     }
@@ -380,6 +388,7 @@ fn extra_language(extra: &ExtraLanguage) -> Result<Language> {
         configuration: Some(extra.configuration.to_owned()),
         dialect: Some(dialect),
         shebang_words: Vec::new(),
+        shebang_stems: Vec::new(),
         is_extra: true,
         scopes: extra.scopes,
     })
@@ -419,6 +428,7 @@ pub fn languages() -> Result<Vec<Language>> {
         configuration: None,
         dialect: None,
         shebang_words: strings(&lenient.server_detection.shebang_words),
+        shebang_stems: Vec::new(),
         is_extra: false,
         scopes: ScopeShape::TclWithObjects,
     });
@@ -480,17 +490,46 @@ pub fn languages() -> Result<Vec<Language>> {
         }
         langs[0].extensions.push((*ext).to_owned());
     }
+    langs[0].shebang_stems = plain_tcl_shebang_stems(&langs);
 
     Ok(langs)
 }
 
-/// `^#!.*\bjimsh\b`: a first line whose interpreter is one of `words`.
-fn first_line_pattern(words: &[String]) -> Option<String> {
+/// The interpreter stems of every environment that has no language of its own
+/// (the plain `tcl` language is the identity of the lenient environment, and
+/// `tk` and `bpf` have none): `tclsh` and `wish`. The plain language recognises
+/// them under any version, so `#!/usr/bin/wish` and a `tclsh8.7` no environment
+/// models both open as Tcl.
+fn plain_tcl_shebang_stems(langs: &[Language]) -> Vec<String> {
+    let registry = EnvironmentRegistry::compiled();
+    let stems: BTreeSet<&str> = registry
+        .definitions()
+        .iter()
+        .filter(|environment| {
+            language_of_environment(langs, environment.id.as_str())
+                .is_none_or(|lang| lang.dialect.is_none())
+        })
+        .flat_map(|environment| environment.server_detection.shebang_words.iter())
+        .map(|word| shebang_stem(word))
+        .collect();
+    strings(stems)
+}
+
+/// An interpreter word without its version suffix: `tclsh8.6` is `tclsh`.
+pub fn shebang_stem(word: &str) -> &str {
+    word.trim_end_matches(|c: char| c.is_ascii_digit() || c == '.')
+}
+
+/// `^#!.*\bjimsh\b`: a first line whose interpreter is one of `words`. With
+/// `stems`, the words are stems and any version follows them:
+/// `^#!.*\b(?:tclsh|wish)[0-9.]*\b`.
+fn first_line_pattern(words: &[String], stems: bool) -> Option<String> {
     let escaped: Vec<String> = words.iter().map(|word| regex::escape(word)).collect();
+    let version = if stems { "[0-9.]*" } else { "" };
     match escaped.as_slice() {
         [] => None,
-        [word] => Some(format!(r"^#!.*\b{word}\b")),
-        many => Some(format!(r"^#!.*\b(?:{})\b", many.join("|"))),
+        [word] => Some(format!(r"^#!.*\b{word}{version}\b")),
+        many => Some(format!(r"^#!.*\b(?:{}){version}\b", many.join("|"))),
     }
 }
 
@@ -551,7 +590,12 @@ fn contributed_language(lang: &Language, configuration: &str) -> Value {
             );
         }
     }
-    if let Some(pattern) = first_line_pattern(&lang.shebang_words) {
+    let pattern = if lang.shebang_stems.is_empty() {
+        first_line_pattern(&lang.shebang_words, false)
+    } else {
+        first_line_pattern(&lang.shebang_stems, true)
+    };
+    if let Some(pattern) = pattern {
         entry.insert("firstLine".to_owned(), Value::String(pattern));
     }
     entry.insert(
@@ -1091,10 +1135,7 @@ fn set_zed_first_line(original: &str, pattern: Option<&str>) -> Result<String> {
 /// without a version suffix (`tclsh8.6` is covered by `tclsh` because the
 /// pattern is not anchored after the word).
 fn zed_first_line_pattern(words: &[String]) -> Option<String> {
-    let stems: BTreeSet<&str> = words
-        .iter()
-        .map(|word| word.trim_end_matches(|c: char| c.is_ascii_digit() || c == '.'))
-        .collect();
+    let stems: BTreeSet<&str> = words.iter().map(|word| shebang_stem(word)).collect();
     if stems.is_empty() {
         return None;
     }
@@ -1526,6 +1567,39 @@ mod tests {
         assert_eq!(expect["firstLine"], r"^#!.*\bexpect\b");
         let tcl86 = manifest_language(&rendered, "tcl86");
         assert_eq!(tcl86["firstLine"], r"^#!.*\b(?:tclsh8\.6|wish8\.6)\b");
+    }
+
+    /// The plain `tcl` language recognises the interpreter stems of every
+    /// environment without a language of its own under any version, so a
+    /// `wish` script and a `tclsh` release the registry does not model open as
+    /// Tcl; an interpreter another language owns is left to it.
+    #[test]
+    fn the_plain_tcl_language_recognises_the_shebang_stems_no_other_language_owns() {
+        let langs = languages().unwrap();
+        let rendered = render_vscode_package(&committed(VSCODE_PACKAGE), &langs).unwrap();
+        let pattern = manifest_language(&rendered, "tcl")["firstLine"]
+            .as_str()
+            .expect("the plain language has a firstLine")
+            .to_owned();
+        assert_eq!(pattern, r"^#!.*\b(?:tclsh|wish)[0-9.]*\b");
+        let plain = Regex::new(&pattern).unwrap();
+        for shebang in [
+            "#!/usr/bin/tclsh",
+            "#!/usr/bin/wish",
+            "#!/usr/bin/env tclsh",
+            "#!/usr/bin/tclsh8.7",
+            "#!/usr/bin/env wish8.6 -f",
+        ] {
+            assert!(plain.is_match(shebang), "{shebang}");
+        }
+        for shebang in [
+            "#!/usr/bin/jimsh",
+            "#!/usr/bin/expect",
+            "#!/usr/bin/tclshell",
+            "#!/bin/sh",
+        ] {
+            assert!(!plain.is_match(shebang), "{shebang}");
+        }
     }
 
     #[test]

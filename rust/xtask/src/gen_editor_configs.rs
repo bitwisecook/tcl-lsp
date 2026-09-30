@@ -45,9 +45,9 @@ use tcl_dialect::model::{DEFAULT_ENVIRONMENT_ID, EnvironmentDefinition, Environm
 
 use crate::editor_extensions::{
     Language, ZED_LANGUAGES, ZedLanguage, all_extensions, language_of_environment, languages,
-    zed_config_path,
+    shebang_stem, zed_config_path,
 };
-use crate::util::{replace_generated_region, repo_root};
+use crate::util::{replace_generated_region, repo_root, write_if_changed};
 
 const ZED_EXTENSION: &str = "editors/zed/extension.toml";
 const ZED_README: &str = "editors/zed/README.md";
@@ -58,17 +58,10 @@ const NEOVIM_README: &str = "editors/neovim/README.md";
 const SUBLIME_README: &str = "editors/sublime-text/README.md";
 const INSTALL_EDITORS: &str = "INSTALL-editors.md";
 
-/// The environments that get an Emacs derived mode, with the mode's name.
-/// The rest of the family opens in plain `tcl-mode`: the server routes those
-/// files from their own name or content, so sending the plain language id
-/// costs nothing but the mode line.
-const EMACS_MODES: &[(&str, &str)] = &[
-    ("expect", "expect-mode"),
-    ("f5-iapps", "f5-iapps-mode"),
-    ("f5-irules", "f5-irules-mode"),
-    ("f5-tmsh", "f5-tmsh-mode"),
-    ("jim", "jim-tcl-mode"),
-];
+/// The mode names that are not the environment id with its dots dropped
+/// (`tcl8.6` is `tcl86-mode`). Jim's derives from `tcl-mode` and says so, which
+/// leaves `jim-mode` for a mode written for Jim alone.
+const EMACS_MODE_NAMES: &[(&str, &str)] = &[("jim", "jim-tcl-mode")];
 
 /// Reserved words a Lua table key cannot be written bare as.
 const LUA_KEYWORDS: &[&str] = &[
@@ -202,21 +195,16 @@ impl Model {
             .environments
             .iter()
             .flat_map(|environment| environment.server_detection.shebang_words.iter())
-            .map(|word| shebang_stem(word))
+            .map(|word| shebang_stem(word).to_owned())
             .collect();
         stems.extend(
             self.langs
                 .iter()
                 .flat_map(|lang| lang.shebang_words.iter())
-                .map(|word| shebang_stem(word)),
+                .map(|word| shebang_stem(word).to_owned()),
         );
         stems.into_iter().collect()
     }
-}
-
-fn shebang_stem(word: &str) -> String {
-    word.trim_end_matches(|c: char| c.is_ascii_digit() || c == '.')
-        .to_owned()
 }
 
 /// `words` laid out greedily, one space apart, on lines that stay within
@@ -545,23 +533,36 @@ fn elisp_dolist_head(var: &str, items: &[String]) -> String {
 }
 
 /// An environment with its own Emacs derived mode, and the mode's name.
-type DerivedMode<'a> = (&'a Arc<EnvironmentDefinition>, &'static str);
+type DerivedMode<'a> = (&'a Arc<EnvironmentDefinition>, String);
 
-/// The derived modes in selectable order.
-fn derived_modes(model: &Model) -> Result<Vec<DerivedMode<'_>>> {
-    let mut found = Vec::new();
-    for environment in model.environments {
-        if let Some(&(_, mode)) = EMACS_MODES
-            .iter()
-            .find(|(id, _)| *id == environment.id.as_str())
-        {
-            found.push((environment, mode));
-        }
-    }
-    if found.len() != EMACS_MODES.len() {
-        bail!("EMACS_MODES names an environment that is not selectable");
-    }
-    Ok(found)
+/// The Emacs derived mode's name for `environment`.
+fn emacs_mode_name(environment: &EnvironmentDefinition) -> String {
+    let id = environment.id.as_str();
+    EMACS_MODE_NAMES
+        .iter()
+        .find(|(named, _)| *named == id)
+        .map_or_else(
+            || format!("{}-mode", id.replace('.', "")),
+            |(_, mode)| (*mode).to_owned(),
+        )
+}
+
+/// The derived modes in selectable order: every environment with an editor
+/// identity to send as the `languageId` and an extension, file name or
+/// shebang word to key on. The rest of the family opens in plain `tcl-mode`:
+/// the server routes those files from their own name or content, so sending
+/// the plain language id costs nothing but the mode line.
+fn derived_modes(model: &Model) -> Vec<DerivedMode<'_>> {
+    model
+        .environments
+        .iter()
+        .filter(|environment| environment.editor_identity.is_some())
+        .filter(|environment| {
+            let reg = model.registration(environment);
+            !reg.extensions.is_empty() || !reg.filenames.is_empty() || !reg.shebang_words.is_empty()
+        })
+        .map(|environment| (environment, emacs_mode_name(environment)))
+        .collect()
 }
 
 /// The derived-mode definitions and every `auto-mode-alist` /
@@ -682,10 +683,16 @@ fn emacs_notes(model: &Model, owners: &[DerivedMode<'_>]) -> Result<String> {
         model.default_environment()?.id
     ));
     notes.push('\n');
+    let names = model.filenames_outside(&derived);
+    let file_names = if names.is_empty() {
+        String::new()
+    } else {
+        format!(", and the file names {}", code_sentence_list(&names))
+    };
     notes.push_str(&wrap_text(&format!(
-        "Everything else the registry owns rides plain `tcl-mode`: {}, and the BIG-IP \
-         configuration file names. The server detects those from their own content or file \
-         name, so the `languageId` has no ambiguity to resolve.",
+        "Everything else the registry owns rides plain `tcl-mode`: {}{file_names}. The \
+         server detects those from their own content or file name, so the `languageId` has \
+         no ambiguity to resolve.",
         code_sentence_list(&plain)
     )));
     notes.push('\n');
@@ -698,7 +705,7 @@ fn emacs_notes(model: &Model, owners: &[DerivedMode<'_>]) -> Result<String> {
 }
 
 fn render_emacs_readme(original: &str, model: &Model) -> Result<String> {
-    let owners = derived_modes(model)?;
+    let owners = derived_modes(model);
     let text =
         replace_generated_region(original, "emacs-modes", &emacs_mode_forms(model, &owners))?;
     let text = replace_generated_region(&text, "emacs-eglot", &emacs_eglot_forms(model, &owners))?;
@@ -955,7 +962,7 @@ pub fn run(check: bool) -> Result<ExitCode> {
         if check {
             drift.push(rel);
         } else {
-            fs::write(&path, rendered).with_context(|| format!("writing {}", path.display()))?;
+            write_if_changed(&path, &rendered)?;
             eprintln!("wrote {rel}");
         }
     }
@@ -1027,6 +1034,98 @@ mod tests {
             }
         }
         assert_eq!(seen, 17, "the target files declare 17 regions");
+    }
+
+    /// Every environment with an editor identity and something to key on gets a
+    /// derived mode with a name of its own, and a new one would need no edit
+    /// here.
+    #[test]
+    fn every_environment_with_an_identity_and_a_claim_has_a_derived_mode() {
+        let model = Model::load().unwrap();
+        let owners = derived_modes(&model);
+        let names: Vec<&str> = owners.iter().map(|(_, mode)| mode.as_str()).collect();
+        for mode in &names {
+            assert!(
+                mode.ends_with("-mode") && !mode.contains('.') && *mode != "tcl-mode",
+                "{mode}"
+            );
+            assert_eq!(
+                names.iter().filter(|other| *other == mode).count(),
+                1,
+                "{mode}"
+            );
+        }
+        for environment in model.environments {
+            let reg = model.registration(environment);
+            let claims = !reg.extensions.is_empty()
+                || !reg.filenames.is_empty()
+                || !reg.shebang_words.is_empty();
+            let has_mode = owners
+                .iter()
+                .any(|(owner, _)| owner.id.as_str() == environment.id.as_str());
+            assert_eq!(
+                has_mode,
+                environment.editor_identity.is_some() && claims,
+                "{}",
+                environment.id
+            );
+        }
+        for (id, mode) in [
+            ("expect", "expect-mode"),
+            ("f5-iapps", "f5-iapps-mode"),
+            ("f5-irules", "f5-irules-mode"),
+            ("f5-tmsh", "f5-tmsh-mode"),
+            ("jim", "jim-tcl-mode"),
+            ("tcl8.6", "tcl86-mode"),
+            ("xilinx-eda-tcl", "xilinx-eda-tcl-mode"),
+        ] {
+            assert!(
+                owners
+                    .iter()
+                    .any(|(owner, name)| owner.id.as_str() == id && name == mode),
+                "{id} has {mode}"
+            );
+        }
+    }
+
+    /// The Emacs forms are read by Emacs, which this generator cannot run: each
+    /// top-level form must close its parentheses before the next begins, and
+    /// the region as a whole must balance. Parentheses inside strings (regexp
+    /// groups) and comments do not count.
+    #[test]
+    fn the_emacs_forms_balance_their_parentheses() {
+        let model = Model::load().unwrap();
+        let owners = derived_modes(&model);
+        for (name, forms) in [
+            ("modes", emacs_mode_forms(&model, &owners)),
+            ("eglot", emacs_eglot_forms(&model, &owners)),
+            ("hooks", emacs_hook_forms(&owners)),
+        ] {
+            let mut depth: i32 = 0;
+            for line in forms.lines() {
+                let starts_form = line.starts_with('(');
+                if starts_form {
+                    assert_eq!(depth, 0, "{name}: a form starts inside another: {line}");
+                }
+                let mut in_string = false;
+                let mut chars = line.chars();
+                while let Some(c) = chars.next() {
+                    match c {
+                        '\\' if in_string => {
+                            chars.next();
+                        }
+                        '"' => in_string = !in_string,
+                        ';' if !in_string => break,
+                        '(' if !in_string => depth += 1,
+                        ')' if !in_string => depth -= 1,
+                        _ => {}
+                    }
+                    assert!(depth >= 0, "{name}: an unmatched ')' in {line}");
+                }
+                assert!(!in_string, "{name}: an unterminated string in {line}");
+            }
+            assert_eq!(depth, 0, "{name}: the region does not balance");
+        }
     }
 
     #[test]

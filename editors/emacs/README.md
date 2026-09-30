@@ -29,31 +29,58 @@ Add to your `init.el`:
 ;; on (see `dialect_from_language_id`).
 ;; <generated: emacs-modes>
 (define-derived-mode expect-mode tcl-mode "Expect")
+(define-derived-mode f5-bigip-mode tcl-mode "BIG-IP")
 (define-derived-mode f5-iapps-mode tcl-mode "iApps")
 (define-derived-mode f5-irules-mode tcl-mode "iRules")
 (define-derived-mode f5-tmsh-mode tcl-mode "tmsh")
 (define-derived-mode jim-tcl-mode tcl-mode "Jim")
+(define-derived-mode spectcl-mode tcl-mode "SpecTcl")
+(define-derived-mode sslictcl-mode tcl-mode "SslicTcl")
+(define-derived-mode tcl84-mode tcl-mode "Tcl 8.4")
+(define-derived-mode tcl85-mode tcl-mode "Tcl 8.5")
+(define-derived-mode tcl86-mode tcl-mode "Tcl 8.6")
+(define-derived-mode tcl90-mode tcl-mode "Tcl 9.0")
+(define-derived-mode tcl91-mode tcl-mode "Tcl 9.1")
+(define-derived-mode cadence-eda-tcl-mode tcl-mode "Cadence")
+(define-derived-mode intel-quartus-eda-tcl-mode tcl-mode "Quartus")
+(define-derived-mode mentor-eda-tcl-mode tcl-mode "Questa")
+(define-derived-mode synopsys-eda-tcl-mode tcl-mode "Synopsys")
+(define-derived-mode xilinx-eda-tcl-mode tcl-mode "Vivado")
 
 ;; The extensions, file names and interpreters each derived mode owns.
 (add-to-list 'auto-mode-alist '("\\.\\(exp\\|expect\\)\\'" . expect-mode))
 (add-to-list 'interpreter-mode-alist '("expect" . expect-mode))
+(add-to-list 'auto-mode-alist '("\\.scf\\'" . f5-bigip-mode))
+(add-to-list 'auto-mode-alist '("/\\(bigip\\.conf\\|bigip_base\\.conf\\|bigip_gtm\\.conf\\|bigip_script\\.conf\\|bigip_user\\.conf\\)\\'" . f5-bigip-mode))
 (add-to-list 'auto-mode-alist '("\\.\\(iapp\\|iappimpl\\|impl\\|apl\\)\\'" . f5-iapps-mode))
 (add-to-list 'auto-mode-alist '("/presentation\\'" . f5-iapps-mode))
 (add-to-list 'auto-mode-alist '("\\.\\(irul\\|irule\\|irules\\)\\'" . f5-irules-mode))
 (add-to-list 'auto-mode-alist '("\\.tmsh\\'" . f5-tmsh-mode))
 (add-to-list 'interpreter-mode-alist '("jimsh" . jim-tcl-mode))
+(add-to-list 'auto-mode-alist '("\\.tclspec\\'" . spectcl-mode))
+(add-to-list 'auto-mode-alist '("\\.sslictcl\\'" . sslictcl-mode))
+(add-to-list 'interpreter-mode-alist '("tclsh8.4" . tcl84-mode))
+(add-to-list 'interpreter-mode-alist '("wish8.4" . tcl84-mode))
+(add-to-list 'interpreter-mode-alist '("tclsh8.5" . tcl85-mode))
+(add-to-list 'interpreter-mode-alist '("wish8.5" . tcl85-mode))
+(add-to-list 'interpreter-mode-alist '("tclsh8.6" . tcl86-mode))
+(add-to-list 'interpreter-mode-alist '("wish8.6" . tcl86-mode))
+(add-to-list 'interpreter-mode-alist '("tclsh9.0" . tcl90-mode))
+(add-to-list 'interpreter-mode-alist '("wish9.0" . tcl90-mode))
+(add-to-list 'interpreter-mode-alist '("tclsh9.1" . tcl91-mode))
+(add-to-list 'interpreter-mode-alist '("wish9.1" . tcl91-mode))
+(add-to-list 'auto-mode-alist '("\\.globals\\'" . cadence-eda-tcl-mode))
+(add-to-list 'auto-mode-alist '("\\.\\(qsf\\|qpf\\|qip\\)\\'" . intel-quartus-eda-tcl-mode))
+(add-to-list 'auto-mode-alist '("\\.do\\'" . mentor-eda-tcl-mode))
+(add-to-list 'auto-mode-alist '("\\.\\(sdc\\|upf\\)\\'" . synopsys-eda-tcl-mode))
+(add-to-list 'auto-mode-alist '("\\.xdc\\'" . xilinx-eda-tcl-mode))
 
 ;; Plain `tcl-mode` for the rest of the family. The server routes these from
 ;; their own name or content, so sending languageId "tcl" costs nothing but
 ;; the mode line.
-(dolist (ext '("tcl" "tk" "itcl" "tm" "test" "scf" "tclspec" "sslictcl"
-               "globals" "qsf" "qpf" "qip" "do" "sdc" "upf" "xdc"))
+(dolist (ext '("tcl" "tk" "itcl" "tm" "test"))
   (add-to-list 'auto-mode-alist
                (cons (concat "\\." ext "\\'") 'tcl-mode)))
-(dolist (name '("bigip.conf" "bigip_base.conf" "bigip_gtm.conf"
-                "bigip_script.conf" "bigip_user.conf"))
-  (add-to-list 'auto-mode-alist
-               (cons (concat "/" (regexp-quote name) "\\'") 'tcl-mode)))
 ;; </generated>
 
 ;; <generated: emacs-eglot>
@@ -63,19 +90,50 @@ Add to your `init.el`:
   (add-to-list 'eglot-server-programs
                '((expect-mode :language-id "tcl-expect") . ("/path/to/tcl-lsp-server")))
   (add-to-list 'eglot-server-programs
+               '((f5-bigip-mode :language-id "tcl-bigip") . ("/path/to/tcl-lsp-server")))
+  (add-to-list 'eglot-server-programs
                '((f5-iapps-mode :language-id "tcl-iapp") . ("/path/to/tcl-lsp-server")))
   (add-to-list 'eglot-server-programs
                '((f5-irules-mode :language-id "tcl-irule") . ("/path/to/tcl-lsp-server")))
   (add-to-list 'eglot-server-programs
                '((f5-tmsh-mode :language-id "tcl-tmsh") . ("/path/to/tcl-lsp-server")))
   (add-to-list 'eglot-server-programs
-               '((jim-tcl-mode :language-id "tcl-jim") . ("/path/to/tcl-lsp-server"))))
+               '((jim-tcl-mode :language-id "tcl-jim") . ("/path/to/tcl-lsp-server")))
+  (add-to-list 'eglot-server-programs
+               '((spectcl-mode :language-id "tclspec") . ("/path/to/tcl-lsp-server")))
+  (add-to-list 'eglot-server-programs
+               '((sslictcl-mode :language-id "sslictcl") . ("/path/to/tcl-lsp-server")))
+  (add-to-list 'eglot-server-programs
+               '((tcl84-mode :language-id "tcl84") . ("/path/to/tcl-lsp-server")))
+  (add-to-list 'eglot-server-programs
+               '((tcl85-mode :language-id "tcl85") . ("/path/to/tcl-lsp-server")))
+  (add-to-list 'eglot-server-programs
+               '((tcl86-mode :language-id "tcl86") . ("/path/to/tcl-lsp-server")))
+  (add-to-list 'eglot-server-programs
+               '((tcl90-mode :language-id "tcl90") . ("/path/to/tcl-lsp-server")))
+  (add-to-list 'eglot-server-programs
+               '((tcl91-mode :language-id "tcl91") . ("/path/to/tcl-lsp-server")))
+  (add-to-list 'eglot-server-programs
+               '((cadence-eda-tcl-mode :language-id "tcl-cadence") . ("/path/to/tcl-lsp-server")))
+  (add-to-list 'eglot-server-programs
+               '((intel-quartus-eda-tcl-mode :language-id "tcl-quartus") . ("/path/to/tcl-lsp-server")))
+  (add-to-list 'eglot-server-programs
+               '((mentor-eda-tcl-mode :language-id "tcl-mentor") . ("/path/to/tcl-lsp-server")))
+  (add-to-list 'eglot-server-programs
+               '((synopsys-eda-tcl-mode :language-id "tcl-synopsys") . ("/path/to/tcl-lsp-server")))
+  (add-to-list 'eglot-server-programs
+               '((xilinx-eda-tcl-mode :language-id "tcl-xilinx") . ("/path/to/tcl-lsp-server"))))
 ;; </generated>
 
 ;; <generated: emacs-hooks>
 ;; Auto-start on Tcl and the dialect modes
-(dolist (h '(tcl-mode-hook expect-mode-hook f5-iapps-mode-hook
-             f5-irules-mode-hook f5-tmsh-mode-hook jim-tcl-mode-hook))
+(dolist (h '(tcl-mode-hook expect-mode-hook f5-bigip-mode-hook
+             f5-iapps-mode-hook f5-irules-mode-hook f5-tmsh-mode-hook
+             jim-tcl-mode-hook spectcl-mode-hook sslictcl-mode-hook
+             tcl84-mode-hook tcl85-mode-hook tcl86-mode-hook tcl90-mode-hook
+             tcl91-mode-hook cadence-eda-tcl-mode-hook
+             intel-quartus-eda-tcl-mode-hook mentor-eda-tcl-mode-hook
+             synopsys-eda-tcl-mode-hook xilinx-eda-tcl-mode-hook))
   (add-hook h #'eglot-ensure))
 ;; </generated>
 ```
@@ -112,16 +170,16 @@ Pass settings via eglot workspace configuration:
 <!-- </generated> -->
 
 <!-- <generated: emacs-notes> -->
-`.exp`, `.expect`, `.iapp`, `.iappimpl`, `.impl`, `.apl`, `.irul`, `.irule`,
-`.irules`, and `.tmsh` files are handled by the derived modes in the eglot
-setup above, which send the correct `languageId` — do **not** also map them
-to plain `tcl-mode`, or they would analyse as `tcl8.6`.
+`.exp`, `.expect`, `.scf`, `.iapp`, `.iappimpl`, `.impl`, `.apl`, `.irul`,
+`.irule`, `.irules`, `.tmsh`, `.tclspec`, `.sslictcl`, `.globals`, `.qsf`,
+`.qpf`, `.qip`, `.do`, `.sdc`, `.upf`, and `.xdc` files are handled by the
+derived modes in the eglot setup above, which send the correct `languageId`
+— do **not** also map them to plain `tcl-mode`, or they would analyse as
+`tcl8.6`.
 
 Everything else the registry owns rides plain `tcl-mode`: `.tcl`, `.tk`,
-`.itcl`, `.tm`, `.test`, `.scf`, `.tclspec`, `.sslictcl`, `.globals`, `.qsf`,
-`.qpf`, `.qip`, `.do`, `.sdc`, `.upf`, and `.xdc`, and the BIG-IP
-configuration file names. The server detects those from their own content or
-file name, so the `languageId` has no ambiguity to resolve.
+`.itcl`, `.tm`, and `.test`. The server detects those from their own content
+or file name, so the `languageId` has no ambiguity to resolve.
 
 The `auto-mode-alist`, `interpreter-mode-alist` and `eglot-server-programs`
 forms above are generated from the environment registry by `cargo xtask
