@@ -206,7 +206,7 @@ fn collect_bundled_packs(rows: &mut BTreeMap<String, InventoryRow>) -> Result<()
 /// invisible rather than classified.
 ///
 /// Only the commands the family adds are walked, under its own name: the
-/// inherited Tcl surface is already projected under the profiles that own it.
+/// inherited Tcl surface is projected under the profiles that own it.
 fn collect_core_surface_commands(rows: &mut BTreeMap<String, InventoryRow>) -> Result<()> {
     tcl_spectcl::core_surfaces::ensure();
     for spec in tcl_spectcl::core_surfaces::builtin_commands() {

@@ -1497,7 +1497,7 @@ impl CommandRegistry {
         self.insert_static(Box::leak(Box::new(spec)));
     }
 
-    /// A copy of this registry with `specs` indexed after every spec already
+    /// A copy of this registry with `specs` indexed after every other spec
     /// under their names.
     ///
     /// The copy shares every `&'static CommandSpec` with the original and
