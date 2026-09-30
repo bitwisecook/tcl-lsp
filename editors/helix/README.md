@@ -257,8 +257,8 @@ The `[[language]]` blocks above are generated from the environment registry by
 `cargo xtask gen-editor-configs`, and CI fails if they drift — so this block
 stays in step with what the server actually routes. Do not hand-edit them. An
 environment that owns an extension or a shebang interpreter gets a block of its
-own; each block's `language-id` is the language id VS Code sends for the same
-environment.
+own; each block's `language-id` is the environment's editor language id, or its
+canonical name when it has none.
 
 Helix keys `file-types` on extension only, so a vendor script saved as plain
 `.tcl` still needs a `# tcl-dialect:` comment or the `dialect` setting below,
