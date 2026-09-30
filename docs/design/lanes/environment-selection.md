@@ -149,6 +149,17 @@ git. Before the final commit:
   `used to`, `legacy`, `migrat`, `2166`, and rewrite each hit to describe
   behaviour, not history.
 
+## Gate notes
+
+- `cargo xtask dialect-drift` fails on eight pre-existing sites in
+  `tcl-compiler` and `tcl-lsp-core` (none touched here). The Makefile's
+  `xtask-check:` line lists `xtask-dialect-drift` after its `##` help
+  comment, so the gate has never run in CI; queued as a separate task.
+  Lanes here must add no new site, and treat that gate's pre-existing
+  failures as out of scope.
+- Base `rust` CI at `c2860edcb` is red on `cargo-deny` and a Tank
+  cache-preparation step of `rust-tests-shard`; `rust-check` is green.
+
 ## Open uncertainties
 
 - Whether the JetBrains platform LSP client renders `showMessageRequest`
