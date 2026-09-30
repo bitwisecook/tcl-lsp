@@ -48,6 +48,13 @@ tcl-compiler = { path = "../tcl-compiler" }
 tcl-cli-support = { path = "../tcl-cli-support" }
 tcl-lsp-core = { path = "../tcl-lsp-core" }
 tcl-bigip-query = { path = "../tcl-bigip-query" }
+tcl-runtime-api = { path = "../tcl-runtime-api" }
+tcl-vm = { path = "../tcl-vm" }
+# The standalone WASM runtime, which `command-backing` asks what it registers.
+# It is excluded from the workspace (it needs `unsafe`), so it is reached by
+# path; its `wasm_stdlib` feature embeds the Tcl library whose commands it
+# reports as defined by that library.
+tcl-runtime = { path = "../../runtime/rust", features = ["wasm_stdlib"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 syn = { version = "3", features = ["full"] }

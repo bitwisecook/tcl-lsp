@@ -1153,9 +1153,11 @@ re-resolves every specialised site at admission. An intrinsic also belongs to a
 family (`IntrinsicId::family`): a `Value` member computes from its arguments
 alone, and a Family-B member reaches a runtime's variable store or channel
 and so takes the variable-trace domain, which a guard request for it must
-cover or the runtime refuses it. Both runtimes derive
-identities through `register_spec_builtin` for one command today and key
-them by the command's token generation: a guard's check resolves the
+cover or the runtime refuses it. Both runtimes attach
+identities by a sweep after registration, to every builtin whose spec
+declares an intrinsic, from the generation they are pinned to and never from
+a pack overlay, and key them by the command's token generation: a guard's
+check resolves the
 guarded name afresh and needs an attestation at the token it reaches, so
 defining, renaming or aliasing another command leaves a guard alone, the
 profile pin keeps the identities, and replacing, deleting, renaming away or
@@ -1770,7 +1772,11 @@ command or an embedder's own handler, attested by a
 nothing that executes the command in the target runtime, which is also what a
 spec that declares nothing reads as. Every core Tcl command declares one; a
 pack states it with `runtime_backing`, and an override keeps a shipped
-command's. Code generation will choose from it which identity the compiled
+command's. Each runtime reports what it registered (`backing_report`, as a
+`RegisteredBacking`: a handler, a `TclOO` object, a definition from the Tcl
+library it embeds, a handler that only refuses, or nothing), and `cargo xtask
+command-backing` holds every core command's declaration to the WASM runtime's
+answer. Code generation will choose from it which identity the compiled
 artefact records — a command binding, a procedure binding, a guard, or
 none — so the runtime can attest the claim at admission or fall back to
 generic dispatch; nothing reads it that way yet. See

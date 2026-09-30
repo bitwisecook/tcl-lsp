@@ -46,6 +46,7 @@ use tcl_runtime_api::error_stack::{validate_error_stack, ErrorStack};
 use tcl_runtime_api::guard::{
     GuardDomain, GuardDomains, GuardError, GuardIdentity, GuardManager, GuardToken,
 };
+use tcl_runtime_api::RegisteredBacking;
 
 use crate::builtins;
 use crate::frame::{FrameStack, Link, VarError};
@@ -878,6 +879,10 @@ pub struct InterpState {
     /// token continue to apply the final builtin's dialect availability rather
     /// than treating its new display spelling as an unrelated extension.
     registry_builtin_names: RefCell<std::collections::HashMap<u64, Vec<u8>>>,
+    /// The generations of the builtins registered only to refuse a call with a
+    /// "not supported" error ([`Interp::register_unsupported`]), which the
+    /// backing report tells apart from a handler.
+    unsupported_builtins: RefCell<std::collections::HashSet<u64>>,
     /// The current namespace for command resolution (the eval context; a proc
     /// runs in its *defining* namespace — wired with procs). Global at top level.
     current_ns: Cell<NsId>,
@@ -1360,6 +1365,7 @@ impl Interp {
             guards: RefCell::new(guards),
             guarded_commands: RefCell::new(std::collections::BTreeMap::new()),
             registry_builtin_names: RefCell::new(std::collections::HashMap::new()),
+            unsupported_builtins: RefCell::new(std::collections::HashSet::new()),
             current_ns: Cell::new(GLOBAL),
             recursion_depth: Cell::new(0),
             recursion_limit: Cell::new(RECURSION_LIMIT),
@@ -1817,12 +1823,24 @@ impl Interp {
     ) {
         let displaced = self.namespaces.borrow().resolve_generation(GLOBAL, name);
         let generation = self.bind_builtin(name, f);
+        self.attest(generation, displaced, identities);
+    }
+
+    /// The one writer of the attestation table: attest `identities` for the
+    /// command token `generation` and drop the entry of the token it displaced.
+    /// What is already attested for `generation` stays.
+    fn attest(
+        &self,
+        generation: u64,
+        displaced: Option<u64>,
+        identities: std::collections::BTreeSet<GuardIdentity>,
+    ) {
         let mut attested = self.guarded_commands.borrow_mut();
         if let Some(displaced) = displaced {
             attested.remove(&displaced);
         }
         if !identities.is_empty() {
-            attested.insert(generation, identities);
+            attested.entry(generation).or_default().extend(identities);
         }
     }
 
@@ -1833,19 +1851,137 @@ impl Interp {
         self.bind_attested_builtin(name, f, std::collections::BTreeSet::from([identity]));
     }
 
-    /// Register a builtin and derive every semantic identity from its registry
-    /// command, subcommand, and invocation-form descriptors.
-    pub fn register_spec_builtin(&mut self, spec: &tcl_registry::CommandSpec, f: BuiltinFn) {
-        let identities = spec
-            .intrinsic_ids()
-            .into_iter()
-            .flat_map(|id| {
-                id.guard_semantics_variants().iter().map(move |semantics| {
-                    GuardIdentity::registry_intrinsic_with_semantics(id.stable_id(), *semantics)
+    /// Register a builtin that only refuses: a call answers "not supported"
+    /// where an unregistered command would answer `invalid command name`. The
+    /// backing report says so ([`RegisteredBacking::Unsupported`]) rather than
+    /// counting it as a handler.
+    pub(crate) fn register_unsupported(&mut self, name: &[u8], f: BuiltinFn) {
+        let generation = self.bind_builtin(name, f);
+        self.0.unsupported_builtins.borrow_mut().insert(generation);
+    }
+
+    /// Attach the registry's intrinsic identities to the builtins this
+    /// interpreter registered, from the generation it is pinned to.
+    ///
+    /// The sweep reads that generation's shipped store and nothing an overlay
+    /// installed: a pack's command is not a runtime implementation, and only
+    /// the runtime may attest. A name is attested only while the command bound
+    /// at it is still the builtin registered there, so a name a script has
+    /// since redefined or renamed over gains no attestation for a procedure,
+    /// and a builtin moved to another name keeps the one it already has (the
+    /// table is keyed by the command token's generation, which a rename
+    /// carries). It runs once, at the end of registration: the table survives
+    /// the profile pin, and a later sweep would attest whatever an embedder
+    /// registered at a registry name as the registry's command.
+    pub(crate) fn attach_identities(&mut self) {
+        let registry = crate::environment::store_for_profile(self.dialect_profile());
+        self.attach_identities_from(registry);
+    }
+
+    /// The sweep over one generation's store. Only [`Self::attach_identities`]
+    /// chooses the store in production: the generation the interpreter is
+    /// pinned to.
+    fn attach_identities_from(&mut self, registry: &tcl_registry::CommandRegistry) {
+        for name in registry.command_names() {
+            let Some(spec) = registry.get_exact(name) else {
+                continue;
+            };
+            let identities: std::collections::BTreeSet<GuardIdentity> = spec
+                .intrinsic_ids()
+                .into_iter()
+                .flat_map(|id| {
+                    id.guard_semantics_variants().iter().map(move |semantics| {
+                        GuardIdentity::registry_intrinsic_with_semantics(id.stable_id(), *semantics)
+                    })
                 })
-            })
-            .collect();
-        self.bind_attested_builtin(spec.name.as_bytes(), f, identities);
+                .collect();
+            if identities.is_empty() {
+                continue;
+            }
+            let Some(generation) = self.shipped_builtin_generation(spec.name.as_bytes()) else {
+                continue;
+            };
+            self.attest(generation, None, identities);
+        }
+    }
+
+    /// The token generation of the builtin this interpreter registered at
+    /// `name`, when that is still the command `name` resolves to from the
+    /// global namespace.
+    fn shipped_builtin_generation(&self, name: &[u8]) -> Option<u64> {
+        let namespaces = self.namespaces.borrow();
+        let generation = namespaces.resolve_generation(GLOBAL, name)?;
+        let fqn = namespaces.resolve_fqn(GLOBAL, name)?;
+        (self.0.registry_builtin_names.borrow().get(&generation) == Some(&fqn))
+            .then_some(generation)
+    }
+
+    /// What this interpreter's handler table backs, by command name: the
+    /// runtime's own answer to "what did you register", which a spec's
+    /// `runtime_backing` declaration is held to.
+    ///
+    /// Every command bound in any namespace is classified by what it is — a
+    /// native handler, an engine-installed `TclOO` root, or a handler that only
+    /// refuses. Two kinds of name are reported that no table entry holds: the
+    /// commands the object system binds in every object's namespace, which
+    /// exist once the roots do; and, in a build that embeds the Tcl library,
+    /// the commands that library defines, which exist once `init_library` has
+    /// sourced it. A build without the numeric tower reports the commands a
+    /// build with it registers as needing the tower. Names are without a
+    /// leading `::`, and a name this runtime does not mention is absent.
+    #[must_use]
+    pub fn backing_report(&self) -> Vec<(String, RegisteredBacking)> {
+        let mut report = std::collections::BTreeMap::new();
+        {
+            let namespaces = self.namespaces.borrow();
+            let unsupported = self.0.unsupported_builtins.borrow();
+            let roots = self.0.registry_object_roots.borrow();
+            for ns in namespaces.descendant_ids(GLOBAL) {
+                for name in namespaces.command_names(ns) {
+                    let backing = match namespaces.command_in(ns, name) {
+                        Some(Command::Builtin(_)) => {
+                            let refuses = namespaces
+                                .command_generation(ns, name)
+                                .is_some_and(|generation| unsupported.contains(&generation));
+                            if refuses {
+                                RegisteredBacking::Unsupported
+                            } else {
+                                RegisteredBacking::Builtin
+                            }
+                        }
+                        Some(Command::OoObject(id)) if roots.contains_key(&id) => {
+                            RegisteredBacking::Object
+                        }
+                        _ => continue,
+                    };
+                    let fqn = namespaces.command_fqn_at(ns, name);
+                    report.insert(
+                        String::from_utf8_lossy(&fqn)
+                            .trim_start_matches("::")
+                            .to_owned(),
+                        backing,
+                    );
+                }
+            }
+            if !roots.is_empty() {
+                for name in crate::cmd_oo::object_namespace_command_names() {
+                    report.insert(name.to_owned(), RegisteredBacking::Object);
+                }
+            }
+        }
+        #[cfg(feature = "wasm_stdlib")]
+        for (name, file) in crate::embedded_stdlib::DEFINED_COMMANDS {
+            report
+                .entry((*name).to_owned())
+                .or_insert(RegisteredBacking::Stdlib { file });
+        }
+        #[cfg(not(have_tommath))]
+        for name in builtins::tower_command_names() {
+            report
+                .entry(name)
+                .or_insert(RegisteredBacking::NeedsNumericTower);
+        }
+        report.into_iter().collect()
     }
 
     /// The identities attested for the command `name` resolves to from the
@@ -10963,6 +11099,191 @@ mod tests {
             );
             ok(i, b"set o [C new]");
             assert!(moves(i, b"oo::copy $o"), "oo::copy");
+        });
+    }
+
+    /// The sweep reads the generation the interpreter is pinned to and nothing
+    /// an overlay installed: a pack's command is no runtime implementation, and
+    /// only the runtime may attest.
+    #[test]
+    fn identities_come_from_the_pinned_generation_never_an_overlay() {
+        use tcl_registry::{CommandSpec, IntrinsicId, SemanticOperationId};
+        leak_free(|i| {
+            // A generation an overlay installed under this interpreter's own
+            // profile, holding a spec that declares an intrinsic, and a builtin
+            // of that name in the interpreter.
+            let overlaid = tcl_registry::registry_for_profile_with_overlay(
+                i.dialect_profile(),
+                0xC0DE,
+                |registry| {
+                    registry.insert(CommandSpec {
+                        name: "overlay_length",
+                        semantic_operation: Some(SemanticOperationId::Intrinsic(
+                            IntrinsicId::StringLength,
+                        )),
+                        ..CommandSpec::DEFAULT
+                    });
+                },
+            );
+            i.register_builtin(b"overlay_length", guarded_builtin);
+
+            i.attach_identities();
+            assert!(
+                i.attested_identities(b"overlay_length").is_none(),
+                "the sweep of the pinned generation attests nothing an overlay declares"
+            );
+            assert!(
+                i.attested_identities(b"string").is_some(),
+                "and still attests the shipped command"
+            );
+
+            // Control: the fixture is sound, a sweep over the overlay's own
+            // store would attest the builtin.
+            i.attach_identities_from(&overlaid);
+            assert!(i.attested_identities(b"overlay_length").is_some());
+        });
+    }
+
+    /// A name is attested only while the command bound at it is the builtin
+    /// the runtime registered there: a procedure defined over it, or another
+    /// builtin renamed into it, gains nothing, and the original, put back,
+    /// has what it had.
+    #[test]
+    fn the_sweep_attests_only_the_builtin_it_registered() {
+        leak_free(|i| {
+            use tcl_registry::IntrinsicId;
+            let length = GuardIdentity::registry_intrinsic_with_semantics(
+                IntrinsicId::StringLength.stable_id(),
+                IntrinsicId::StringLength.guard_semantics_key(i.runtime_version()),
+            );
+            let attested = |i: &Interp| {
+                i.attested_identities(b"string")
+                    .is_some_and(|identities| identities.contains(&length))
+            };
+            assert!(attested(i));
+
+            ok(i, b"rename string original");
+            assert!(!attested(i), "moved away, the name reaches nothing");
+            ok(i, b"proc string args {return x}");
+            i.attach_identities();
+            assert!(!attested(i), "a procedure at the name gains no attestation");
+
+            ok(i, b"rename string {}");
+            ok(i, b"rename puts string");
+            i.attach_identities();
+            assert!(
+                !attested(i),
+                "another builtin renamed into the name gains none"
+            );
+
+            ok(i, b"rename string puts");
+            ok(i, b"rename original string");
+            assert!(attested(i), "the original, restored, is attested as it was");
+        });
+    }
+
+    /// Every builtin this runtime registers at the name of a spec that
+    /// declares an intrinsic is attested for every identity the spec's
+    /// intrinsics have, and no other command is attested at all.
+    #[test]
+    fn every_registered_builtin_with_an_intrinsic_is_attested_for_all_of_them() {
+        leak_free(|i| {
+            let registry = crate::environment::store_for_profile(i.dialect_profile());
+            let report = tcl_runtime_api::BackingReport::from_entries(i.backing_report());
+            let mut attested_names = 0;
+            for name in registry.command_names() {
+                let spec = registry.get_exact(name).expect("a named spec");
+                let expected: std::collections::BTreeSet<GuardIdentity> = spec
+                    .intrinsic_ids()
+                    .into_iter()
+                    .flat_map(|id| {
+                        id.guard_semantics_variants().iter().map(move |semantics| {
+                            GuardIdentity::registry_intrinsic_with_semantics(
+                                id.stable_id(),
+                                *semantics,
+                            )
+                        })
+                    })
+                    .collect();
+                let actual = i.attested_identities(name.as_bytes());
+                if expected.is_empty() || report.of(name) != RegisteredBacking::Builtin {
+                    assert!(actual.is_none(), "{name} has nothing to attest");
+                } else {
+                    assert_eq!(actual.as_ref(), Some(&expected), "{name}");
+                    attested_names += 1;
+                }
+            }
+            assert!(attested_names >= 10, "{attested_names}");
+        });
+    }
+
+    /// The backing report says what the handler table holds: handlers, the
+    /// engine's `TclOO` roots and the commands the object system binds in every
+    /// object, handlers that only refuse, and absences; and nothing a script
+    /// defines.
+    #[test]
+    fn the_backing_report_says_what_the_handler_table_holds() {
+        leak_free(|i| {
+            let report =
+                |i: &Interp| tcl_runtime_api::BackingReport::from_entries(i.backing_report());
+            let before = report(i);
+            assert_eq!(before.of("set"), RegisteredBacking::Builtin);
+            assert_eq!(
+                before.of("::tcl::string::insert"),
+                RegisteredBacking::Builtin
+            );
+            assert_eq!(before.of("exec"), RegisteredBacking::Unsupported);
+            assert_eq!(before.of("oo::class"), RegisteredBacking::Object);
+            assert_eq!(before.of("oo::object"), RegisteredBacking::Object);
+            assert_eq!(before.of("my"), RegisteredBacking::Object);
+            assert_eq!(before.of("zipfs"), RegisteredBacking::Absent);
+            assert_eq!(before.of("tcl::dict::get"), RegisteredBacking::Absent);
+            #[cfg(have_tommath)]
+            assert_eq!(before.of("expr"), RegisteredBacking::Builtin);
+            #[cfg(not(have_tommath))]
+            assert_eq!(before.of("expr"), RegisteredBacking::NeedsNumericTower);
+
+            ok(i, b"proc mine {} {}");
+            ok(i, b"oo::class create Mine");
+            ok(i, b"interp alias {} aliased {} set");
+            let after = report(i);
+            for name in ["mine", "Mine", "aliased"] {
+                assert_eq!(after.of(name), RegisteredBacking::Absent, "{name}");
+            }
+            assert_eq!(after, before, "a script adds nothing to the report");
+        });
+    }
+
+    /// The commands a build without the numeric tower reports as needing it
+    /// are the ones a build with it registers as handlers.
+    #[cfg(have_tommath)]
+    #[test]
+    fn the_tower_commands_a_build_without_it_names_are_registered_with_it() {
+        leak_free(|i| {
+            let report = tcl_runtime_api::BackingReport::from_entries(i.backing_report());
+            let names = crate::builtins::tower_command_names();
+            assert!(names.len() > 60, "{}", names.len());
+            for name in names {
+                assert_eq!(report.of(&name), RegisteredBacking::Builtin, "{name}");
+            }
+        });
+    }
+
+    /// A build without the tower reports each of those commands as needing it,
+    /// and registers none of them.
+    #[cfg(not(have_tommath))]
+    #[test]
+    fn a_build_without_the_tower_reports_the_commands_it_lacks_as_needing_it() {
+        leak_free(|i| {
+            let report = tcl_runtime_api::BackingReport::from_entries(i.backing_report());
+            for name in crate::builtins::tower_command_names() {
+                assert_eq!(
+                    report.of(&name),
+                    RegisteredBacking::NeedsNumericTower,
+                    "{name}"
+                );
+            }
+            assert_eq!(ok(i, b"info commands expr"), b"");
         });
     }
 

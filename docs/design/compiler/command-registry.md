@@ -1851,11 +1851,10 @@ classification, and the ABI descriptor table — are generated from this Rust
 registry by an `xtask` build task, and a pack names a member of a closed
 catalogue without ever adding one
 ([registry-consumer-contracts.md](registry-consumer-contracts.md)
-§ *Rulings*). The backing gate today reads `runtime/rust`'s
-`register_builtin` and `register_spec_builtin` calls as source text and
-carries its residue in four committed lists
-(`rust/xtask/src/command_backing.rs`); step 7 of that page's § *Build
-order* makes those lists rows of a registry query. Each field carries
+§ *Rulings*). The backing gate holds each core spec's declared
+`runtime_backing` to what `runtime/rust` and `tcl-vm` report registering
+(`backing_report`), and carries one waiver list, `KNOWN_UNBACKED`
+(`rust/xtask/src/command_backing.rs`). Each field carries
 a plain-language explanation written for Tcl developers with a worked Tcl
 example of that field, and a Reference tab searches the whole vocabulary —
 every field, trait, argument role, and taint colour, each with its own.

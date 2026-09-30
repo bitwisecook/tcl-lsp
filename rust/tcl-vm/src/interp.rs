@@ -45,7 +45,7 @@ use tcl_runtime_api::{
     ArrayElementRead, ArrayInvalidation, ArrayReadFailure, ArrayReadMiss, ArrayTarget, Code,
     CommandId, Commands, CompileService, Completion, FatalTail, FrameId, FrameLinkOrigin, Frames,
     Introspect, Namespaces, NsId, ProcInfo, ProcParam, ProcedureCompileTarget, ProcedureDispatch,
-    Procs, ROOT_NS, ScriptCompileTarget, Traces, VarId, VarStore, VarUnsetError,
+    Procs, ROOT_NS, RegisteredBacking, ScriptCompileTarget, Traces, VarId, VarStore, VarUnsetError,
 };
 use tcl_syntax::expr::{eval, parse_expr};
 
@@ -2708,26 +2708,15 @@ impl Vm {
         self.register_attested(canonical, canonical, f, BTreeSet::from([identity]));
     }
 
-    /// Register a builtin and derive every semantic identity from its registry
-    /// specification, including subcommand and form intrinsics.
-    pub fn register_spec_builtin(&mut self, spec: &tcl_registry::CommandSpec, f: BuiltinFn) {
-        // Keep the registry's spelling as the stable identity so a qualified
-        // builtin such as `::tcl::dict::info` is still filtered by its own
-        // release surface, including after rename/import/hide/expose.
-        let identities = spec
-            .intrinsic_ids()
-            .into_iter()
-            .flat_map(|id| {
-                id.guard_semantics_variants().iter().map(move |semantics| {
-                    GuardIdentity::registry_intrinsic_with_semantics(id.stable_id(), *semantics)
-                })
-            })
-            .collect();
-        self.register_attested(spec.name, spec.name.trim_start_matches("::"), f, identities);
-        self.builtin_identities.insert(
-            spec.name.trim_start_matches("::").to_owned(),
-            spec.name.to_owned(),
-        );
+    /// Register a builtin under its registry's own spelling — rooted, as
+    /// `::tcl::dict::get` — and keep that spelling as its registry identity, so
+    /// the release surface gates it by the name the registry knows it under
+    /// wherever a rename, import, hide or expose later takes it. The registry
+    /// has no spec for the unrooted spelling these commands are stored under,
+    /// which is why the spelling has to be kept.
+    pub(crate) fn register_spelled(&mut self, name: &str, f: BuiltinFn) {
+        let key = self.register(name, f);
+        self.builtin_identities.insert(key, name.to_owned());
     }
 
     /// Register a builtin and attest `identities` for the token it is bound
@@ -2741,16 +2730,105 @@ impl Vm {
     ) {
         let displaced = self.visible_command_generation(displaced_key).copied();
         let key = self.register(name, f);
-        let generation = self.visible_command_generation(&key).copied();
+        if let Some(generation) = self.visible_command_generation(&key).copied() {
+            self.attest(generation, displaced, identities);
+        } else if let Some(displaced) = displaced {
+            self.guarded_commands.borrow_mut().remove(&displaced);
+        }
+    }
+
+    /// The one writer of the attestation table: attest `identities` for the
+    /// command token `generation` and drop the entry of the token it displaced.
+    /// What is already attested for `generation` stays.
+    fn attest(&self, generation: u64, displaced: Option<u64>, identities: BTreeSet<GuardIdentity>) {
         let mut attested = self.guarded_commands.borrow_mut();
         if let Some(displaced) = displaced {
             attested.remove(&displaced);
         }
-        if let Some(generation) = generation
-            && !identities.is_empty()
-        {
-            attested.insert(generation, identities);
+        if !identities.is_empty() {
+            attested.entry(generation).or_default().extend(identities);
         }
+    }
+
+    /// Attach the registry's intrinsic identities to the builtins this VM
+    /// registered, from the generation it is pinned to.
+    ///
+    /// The sweep reads that generation's shipped store and nothing an overlay
+    /// installed: a pack's command is not a runtime implementation, and only
+    /// the runtime may attest. A name is attested only while the command bound
+    /// at it is still the builtin registered there, so a name a script has
+    /// since redefined, or renamed another builtin over, gains no attestation
+    /// for that command, and a builtin moved to another name keeps the one it
+    /// already has (the table is keyed by the command token's generation, which
+    /// a rename carries). It runs once, at the end of registration: the table
+    /// survives the profile pin, and a later sweep would attest whatever an
+    /// embedder registered at a registry name as the registry's command.
+    pub(crate) fn attach_identities(&mut self) {
+        let registry = crate::environment::store_for_profile(self.dialect_profile);
+        self.attach_identities_from(registry);
+    }
+
+    /// The sweep over one generation's store. Only [`Self::attach_identities`]
+    /// chooses the store in production: the generation the VM is pinned to.
+    fn attach_identities_from(&mut self, registry: &tcl_registry::CommandRegistry) {
+        for name in registry.command_names() {
+            let Some(spec) = registry.get_exact(name) else {
+                continue;
+            };
+            let identities: BTreeSet<GuardIdentity> = spec
+                .intrinsic_ids()
+                .into_iter()
+                .flat_map(|id| {
+                    id.guard_semantics_variants().iter().map(move |semantics| {
+                        GuardIdentity::registry_intrinsic_with_semantics(id.stable_id(), *semantics)
+                    })
+                })
+                .collect();
+            if identities.is_empty() {
+                continue;
+            }
+            let key = spec.name.strip_prefix("::").unwrap_or(spec.name);
+            if !matches!(self.commands.get(key), Some(Command::Builtin(_)))
+                || self
+                    .builtin_identity_for_key(key)
+                    .is_none_or(|identity| identity.trim_start_matches("::") != key)
+            {
+                continue;
+            }
+            let Some(generation) = self.visible_command_generation(key).copied() else {
+                continue;
+            };
+            self.attest(generation, None, identities);
+        }
+    }
+
+    /// What this VM's command table backs, by command name: the runtime's own
+    /// answer to "what did you register", which a spec's `runtime_backing`
+    /// declaration is held to.
+    ///
+    /// Every visible command is classified by what it is: a native handler
+    /// (the engine's own or an embedder's) or an engine-installed `TclOO`
+    /// root. A command a script defines is no backing. This VM embeds no Tcl
+    /// library, so nothing is reported as defined by one. Names are without a
+    /// leading `::`, and a name this VM does not mention is absent.
+    #[must_use]
+    pub fn backing_report(&self) -> Vec<(String, RegisteredBacking)> {
+        let mut report: Vec<(String, RegisteredBacking)> = self
+            .commands
+            .iter()
+            .filter_map(|(key, command)| {
+                let backing = match command {
+                    Command::Builtin(_) | Command::Native(_) => RegisteredBacking::Builtin,
+                    Command::Object(_) if self.registry_object_roots.contains_key(key) => {
+                        RegisteredBacking::Object
+                    }
+                    _ => return None,
+                };
+                Some((key.clone(), backing))
+            })
+            .collect();
+        report.sort();
+        report
     }
 
     /// The identities attested for the command `name` resolves to from the
@@ -13682,6 +13760,170 @@ mod family_b_tests {
             .prepare_command_guard("string", identity, domains)
             .expect("string stays attested after the pin");
         assert!(vm.check_command_guard(token, "string"));
+    }
+
+    /// The sweep reads the generation the VM is pinned to and nothing an
+    /// overlay installed: a pack's command is not a runtime implementation, and
+    /// only the runtime may attest.
+    #[test]
+    fn identities_come_from_the_pinned_generation_never_an_overlay() {
+        use tcl_registry::{CommandSpec, IntrinsicId, SemanticOperationId};
+        let mut vm = Vm::new();
+        // A generation an overlay installed under this VM's own profile,
+        // holding a spec that declares an intrinsic, and a builtin of that name
+        // in the VM.
+        let overlaid = tcl_registry::registry_for_profile_with_overlay(
+            vm.dialect_profile,
+            0xC0DE,
+            |registry| {
+                registry.insert(CommandSpec {
+                    name: "overlay_length",
+                    semantic_operation: Some(SemanticOperationId::Intrinsic(
+                        IntrinsicId::StringLength,
+                    )),
+                    ..CommandSpec::DEFAULT
+                });
+            },
+        );
+        vm.register("overlay_length", guarded_builtin);
+
+        vm.attach_identities();
+        assert!(
+            vm.attested_identities("overlay_length").is_none(),
+            "the sweep of the pinned generation attests nothing an overlay declares"
+        );
+        assert!(
+            vm.attested_identities("string").is_some(),
+            "and still attests the shipped command"
+        );
+
+        // Control: the fixture is sound, a sweep over the overlay's own store
+        // would attest the builtin.
+        vm.attach_identities_from(&overlaid);
+        assert!(vm.attested_identities("overlay_length").is_some());
+    }
+
+    /// A name is attested only while the command bound at it is the builtin the
+    /// VM registered there: a procedure defined over it, or another builtin
+    /// renamed into it, gains nothing, and the original, put back, has what it
+    /// had.
+    #[test]
+    fn the_sweep_attests_only_the_builtin_it_registered() {
+        use tcl_registry::IntrinsicId;
+        let mut vm = Vm::new();
+        vm.set_compiler(Box::new(BytecodeCompileService::default()));
+        let length = GuardIdentity::registry_intrinsic_with_semantics(
+            IntrinsicId::StringLength.stable_id(),
+            IntrinsicId::StringLength.guard_semantics_key(vm.runtime_version()),
+        );
+        let attested = |vm: &Vm| {
+            vm.attested_identities("string")
+                .is_some_and(|identities| identities.contains(&length))
+        };
+        assert!(attested(&vm));
+
+        eval_value(&mut vm, "rename string original");
+        assert!(!attested(&vm), "moved away, the name reaches nothing");
+        eval_value(&mut vm, "proc string args {return x}");
+        vm.attach_identities();
+        assert!(
+            !attested(&vm),
+            "a procedure at the name gains no attestation"
+        );
+
+        eval_value(&mut vm, "rename string {}; rename puts string");
+        vm.attach_identities();
+        assert!(
+            !attested(&vm),
+            "another builtin renamed into the name is attested as itself and not as `string`"
+        );
+
+        eval_value(&mut vm, "rename string puts; rename original string");
+        assert!(
+            attested(&vm),
+            "the original, restored, is attested as it was"
+        );
+    }
+
+    /// Every builtin this VM registers at the name of a spec that declares an
+    /// intrinsic is attested for every identity the spec's intrinsics have.
+    #[test]
+    fn every_registered_builtin_with_an_intrinsic_is_attested_for_all_of_them() {
+        let vm = Vm::new();
+        let registry = crate::environment::store_for_profile(vm.dialect_profile);
+        let report = tcl_runtime_api::BackingReport::from_entries(vm.backing_report());
+        let mut attested_names = 0;
+        for name in registry.command_names() {
+            let spec = registry.get_exact(name).expect("a named spec");
+            let expected: BTreeSet<GuardIdentity> = spec
+                .intrinsic_ids()
+                .into_iter()
+                .flat_map(|id| {
+                    id.guard_semantics_variants().iter().map(move |semantics| {
+                        GuardIdentity::registry_intrinsic_with_semantics(id.stable_id(), *semantics)
+                    })
+                })
+                .collect();
+            if expected.is_empty() || report.of(name) != RegisteredBacking::Builtin {
+                continue;
+            }
+            let actual = vm
+                .attested_identities(name)
+                .unwrap_or_else(|| panic!("{name} is registered and has intrinsics"));
+            assert!(expected.is_subset(&actual), "{name}");
+            attested_names += 1;
+        }
+        assert!(attested_names >= 10, "{attested_names}");
+        assert!(
+            vm.attested_identities("set").is_none(),
+            "no intrinsic, nothing"
+        );
+    }
+
+    /// Every builtin registered under a spelling the registry names it by has
+    /// that spelling in the registry, which is what the release surface gates
+    /// it with.
+    #[test]
+    fn a_spelled_builtin_names_a_spec_the_registry_has() {
+        let vm = Vm::new();
+        let registry = crate::environment::store_for_profile(vm.dialect_profile);
+        let spelled: Vec<&String> = vm
+            .builtin_identities
+            .values()
+            .filter(|identity| identity.starts_with("::"))
+            .collect();
+        assert!(spelled.len() >= 15, "{}", spelled.len());
+        for identity in spelled {
+            assert!(
+                registry
+                    .get_exact(identity)
+                    .is_some_and(|spec| spec.name == identity.as_str()),
+                "{identity}"
+            );
+        }
+    }
+
+    /// The backing report says what the command table holds: handlers and the
+    /// engine's `TclOO` roots, absences, and nothing a script defines.
+    #[test]
+    fn the_backing_report_says_what_the_command_table_holds() {
+        let mut vm = Vm::new();
+        vm.set_compiler(Box::new(BytecodeCompileService::default()));
+        let before = tcl_runtime_api::BackingReport::from_entries(vm.backing_report());
+        assert_eq!(before.of("set"), RegisteredBacking::Builtin);
+        assert_eq!(before.of("::tcl::dict::get"), RegisteredBacking::Builtin);
+        assert_eq!(before.of("oo::class"), RegisteredBacking::Object);
+        assert_eq!(before.of("oo::object"), RegisteredBacking::Object);
+        assert_eq!(before.of("tclLog"), RegisteredBacking::Absent);
+
+        eval_value(&mut vm, "proc mine {} {}");
+        eval_value(&mut vm, "oo::class create Mine");
+        eval_value(&mut vm, "interp alias {} aliased {} set");
+        let after = tcl_runtime_api::BackingReport::from_entries(vm.backing_report());
+        for name in ["mine", "Mine", "aliased"] {
+            assert_eq!(after.of(name), RegisteredBacking::Absent, "{name}");
+        }
+        assert_eq!(after, before, "a script adds nothing to the report");
     }
 
     /// The pin keeps every attestation and the pinned surface decides which of

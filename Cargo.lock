@@ -4580,6 +4580,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-runtime"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "tcl-cmd-core",
+ "tcl-core-types",
+ "tcl-dialect",
+ "tcl-host-native",
+ "tcl-lexer",
+ "tcl-platform",
+ "tcl-regex",
+ "tcl-registry",
+ "tcl-runtime-api",
+ "tcl-syntax",
+]
+
+[[package]]
 name = "tcl-runtime-api"
 version = "0.1.0"
 dependencies = [
@@ -5907,9 +5924,12 @@ dependencies = [
  "tcl-lexer",
  "tcl-lsp-core",
  "tcl-registry",
+ "tcl-runtime",
+ "tcl-runtime-api",
  "tcl-spectcl",
  "tcl-syntax",
  "tcl-test-support",
+ "tcl-vm",
 ]
 
 [[package]]

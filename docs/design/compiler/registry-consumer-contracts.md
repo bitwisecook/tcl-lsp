@@ -126,8 +126,18 @@ slices proceed without deciding anything here.
 > runs the variable's traces while observing it. A guard request for a
 > member covers its family's domains, or a runtime refuses it.
 >
-> The runtimes' backing query and the manifest are not built. Nor is the
-> rest of the vocabulary, which names nothing in the workspace:
+> The runtimes answer what they back. `tcl_runtime_api::RegisteredBacking` and
+> `BackingReport` are the vocabulary: `runtime/rust`'s `Interp::backing_report`
+> and `tcl-vm`'s `Vm::backing_report` say whether a name is a handler, a `TclOO`
+> object, defined by the Tcl library the runtime embeds, registered only to
+> refuse, or absent, and `cargo xtask command-backing` holds every core
+> command's declared `runtime_backing` to the WASM runtime's answer, with one
+> waiver list for the commands it does not yet back. Each runtime attaches its
+> intrinsic guard identities by a sweep after registration, from the
+> generation it is pinned to and never from an overlay.
+>
+> The manifest is not built. Nor is the rest of the vocabulary, which names
+> nothing in the workspace:
 >
 > - **Identity and backing** — the `ReferenceBody` and
 >   `ShippedImplementation` claims, `IdentityKind`, and
@@ -230,16 +240,15 @@ Jim's surface, authored as SpecTcl and compiled in
 (`rust/tcl-spectcl/core-surfaces/jim.tclspec`).
 
 **Rationale.** The registry is already the source of truth the drift gate
-reads: `rust/xtask/src/command_backing.rs` scans `runtime/rust`'s
-`register_builtin` and `register_spec_builtin` calls against
-`tcl_registry`'s core specs and writes
-`docs/generated/wasm-command-backing.md`, accounting for the residue in
-four committed lists (`HANDLER_EXTRA`, `STDLIB`, `NOT_REQUIRED`,
-`KNOWN_UNBACKED`). Generating the catalogue instead replaces a scan of
-source text with a query, and it is the direction `tcl-runtime-api`'s
-shared `CodegenAbiImportId` descriptor table already takes. A SpecTcl
-source cannot be the generator's input without making a workspace pack
-able to add a catalogue member, which the standing rules forbid.
+reads: `rust/xtask/src/command_backing.rs` holds each core spec's declared
+`runtime_backing` to what `runtime/rust` and `tcl-vm` report registering and
+writes `docs/generated/wasm-command-backing.md`, accounting for the residue in
+one committed list (`KNOWN_UNBACKED`). Generating the catalogue from the
+registry is that same move, from a scan of source text to a query, and it is
+the direction `tcl-runtime-api`'s shared `CodegenAbiImportId` descriptor table
+already takes. A SpecTcl source cannot be the generator's input without making
+a workspace pack able to add a catalogue member, which the standing rules
+forbid.
 
 **Consequences.** No standing document text has to move:
 [../registry/spec-packs.md](../registry/spec-packs.md) § *One authoring
@@ -252,9 +261,9 @@ generator plus one sentence in [command-registry.md](command-registry.md)
 § *Authoring a spec without Rust* separating the Spec Studio's `.rs`
 contribution export (`rust/tcl-spec-studio/src/render_rs.rs`, a drafting
 aid whose output a human reviews into the tree) from a build-time
-backend. Code predicates: `command_backing`'s four classification lists
-become rows of the `runtime_backing` fact, and its registration scan
-becomes a registry query that `tcl-vm` asks too.
+backend. Code predicates: `command_backing`'s classification lists are rows
+of the `runtime_backing` fact, and its registration scan is a query that
+`tcl-vm` answers too.
 
 **Decided with the build.** Step 1 of § *Build order* states the
 separation in [command-registry.md](command-registry.md) § *Authoring a
@@ -1513,12 +1522,12 @@ error.
   child-interpreter lifecycle) move through `invalidate_lookup_guards`. It
   is a different mechanism from the binding check, and neither depends on
   the other.
-- The WASM runtime derives a guard identity for one command (`string`,
-  through `register_spec_builtin` in `runtime/rust/src/cmd_string.rs`) and
-  `execute_intrinsic` implements one of the 28 `IntrinsicId` members. Its
-  guard resolves through `CommandRegistry::build_default()` with no pack
-  overlay. Its emitted modules carry no identity: no ABI version, no
-  dialect pin, no registry generation, no pack hashes.
+- The WASM runtime attaches guard identities by a sweep after registration
+  (`attach_identities` in `runtime/rust/src/interp.rs`), to every builtin
+  whose spec declares an intrinsic, from the generation it is pinned to and
+  never from a pack overlay, and `execute_intrinsic` implements one of the 28
+  `IntrinsicId` members. Its emitted modules carry no identity: no ABI
+  version, no dialect pin, no registry generation, no pack hashes.
 - A pack's `codegen_hook`, `inline_codegen_hook`, and `semantic_operation
   {Intrinsic …}` stamps survive the load only as a bundled pack's
   `alias_of` target's own, and are dropped with a warning naming the
@@ -1628,7 +1637,7 @@ and lifetime argument.
 | 1 | purity, effects, types, transfers, evaluators | none possible at run time; the fact is authoritative for analysis by ruling; what emitted code can check is the binding, and the pack facts it was compiled under | evaluators exist; the answer protocol does not; a constant a pack's `const_fold` computed claims the pack's facts, checked at admission |
 | 2 | this command is a shipped builtin | the live binding is that builtin | `alias_of` decides which codegen stamps a bundled pack keeps, and codegen records the target's identity and claims the pack's facts, checked at admission |
 | 3 | a reference Tcl body | exact definition match of the live proc | the admission seam exists; no spec field |
-| 4 | a runtime implementation ships with the package | the runtime reports what it loaded; the artefact pins it | the `runtime_backing` field exists and every core command declares it; no runtime reports it yet, no bundler |
+| 4 | a runtime implementation ships with the package | the runtime reports what it loaded; the artefact pins it | the `runtime_backing` field exists and every core command declares it; both runtimes report what they back and the gate holds the declaration to the WASM runtime's answer; no bundler |
 
 ```mermaid
 flowchart LR
@@ -1919,16 +1928,20 @@ This is the runtime programme. Nothing on the analyser side waits for it.
 - **Registration stays a runtime-owned handler table** in its documented
   order, since the registry holds no handler pointers and TclOO must
   override `variable`, the event loop must replace `update`, and `string`
-  must come last. A sweep after registration and after the pin attaches
-  identities from the pinned shipped generation only, never from an
-  overlay; `register_spec_builtin` stops reading `build_default()`. The
-  `command-backing` gate (`rust/xtask/src/command_backing.rs`) becomes a
-  `runtime_backing` query that `tcl-vm` asks too (step 7 declares the rows
-  on the specs first; the query and the gate's change follow): its `HANDLER_EXTRA`,
-  `STDLIB`, `NOT_REQUIRED`, and `KNOWN_UNBACKED` lists become
-  `RuntimeBacking` rows on the specs, its registration scan becomes the
-  query, and `docs/generated/wasm-command-backing.md` becomes the query's
-  rendered report so the drift gate still fails on a changed row.
+  must come last. A sweep after registration attaches identities from the
+  pinned shipped generation only, never from an overlay: each runtime walks the
+  specs of the generation it is pinned to and attests a spec's intrinsics to the
+  builtin registered at its name, only while the command bound there is still
+  that builtin. It runs once, at the end of registration, and the table
+  survives the profile pin. The
+  `command-backing` gate (`rust/xtask/src/command_backing.rs`) asks each
+  runtime what it registered — `runtime/rust`'s `Interp::backing_report` and
+  `tcl-vm`'s `Vm::backing_report` answer with a `RegisteredBacking` per name:
+  a handler, a `TclOO` object, a definition from the embedded Tcl library, a
+  handler that only refuses, or nothing — and holds every core spec's declared
+  `runtime_backing` to the WASM runtime's answer, with `KNOWN_UNBACKED` the
+  only list left. `docs/generated/wasm-command-backing.md` is the rendering of
+  the declarations and both answers, so the drift gate fails on a changed row.
 - **The intrinsic table splits by family.** Half the 28 `IntrinsicId`
   members are value functions over the shared cores
   (`IntrinsicFamily::Value`). The other fourteen are Family-B operations
@@ -2270,10 +2283,10 @@ and come before any runtime guard work.
 - `rust/tcl-compiler/src/dynamic_names.rs`, `analyser/diagnostics/security.rs` — the substitution barrier and W102
 - `rust/tcl-compiler/src/codegen/emitter/bytecoded.rs`, `codegen/cmd_subst.rs`, `codegen/statements.rs`, `codegen/values.rs` — the typed hook dispatch and the residual by-name sites
 - `rust/tcl-compiler/src/realm.rs`, `command_binding.rs` — alias knowledge and binding validity
-- `rust/tcl-runtime-api/src/lib.rs`, `guard.rs`, `codegen_abi.rs`, `site_claim.rs` — `CommandBindingIdentity`, `ProcedureBindingIdentity`, `GuardIdentity`, the ABI descriptor table, `SiteClaim` and `PackFactStamp`
+- `rust/tcl-runtime-api/src/lib.rs`, `guard.rs`, `codegen_abi.rs`, `site_claim.rs`, `backing.rs` — `CommandBindingIdentity`, `ProcedureBindingIdentity`, `GuardIdentity`, the ABI descriptor table, `SiteClaim` and `PackFactStamp`, and `RegisteredBacking` with `BackingReport`
 - `rust/tcl-compiler/src/site_claims.rs`, `rust/tcl-registry/src/pack_origin.rs`, `codegen_stamp.rs` — the claims codegen records, the pack origin they are built from, and the one "same stamp, same site" predicate
-- `rust/tcl-vm/src/interp.rs`, `exec.rs`, `command.rs`, `cmd_string.rs`, `environment.rs` — `command_binding_matches`, `procedure_binding_matches`, `guarded_commands`, `bump_cmd_epoch`, registration, the pin
-- `runtime/rust/src/interp.rs`, `codegen_abi.rs`, `cmd_string.rs`, `builtins.rs`, `capi.rs` — the WASM runtime's guard table, `execute_intrinsic`, `register_spec_builtin`, `invalidate_command_environment`, and the C surface
+- `rust/tcl-vm/src/interp.rs`, `exec.rs`, `command.rs`, `cmd_string.rs`, `environment.rs` — `command_binding_matches`, `procedure_binding_matches`, `guarded_commands`, `attach_identities`, `backing_report`, `bump_cmd_epoch`, registration, the pin
+- `runtime/rust/src/interp.rs`, `codegen_abi.rs`, `builtins.rs`, `embedded_stdlib.rs`, `capi.rs` — the WASM runtime's guard table, `attach_identities`, `backing_report`, `execute_intrinsic`, `invalidate_command_environment`, the commands the embedded Tcl library defines, and the C surface
 - `rust/tcl-spectcl/src/loader.rs`, `loader/eval.rs`, `loader/environment_block.rs`, `discovery.rs`, `install.rs`, `stamps.rs` — what a pack may write, tier to provenance, discovery and the dependency tier it reads beside a manifest, the floor's application, and the two gates a stamp or a declaration must pass
 - `rust/tcl-registry/src/runtime_backing.rs`, `rust/tcl-spectcl/src/backing.rs` — `RuntimeBacking` and `BodySource`, and `BackingSyntax`, the one spelling of the `runtime_backing` statement for the loader and the Spec Studio
 - `rust/tcl-spec-hooks/src/sandbox.rs`, `pack_eval.rs`, `host.rs` — the hook whitelist, the pack evaluator, and the hook host with its per-pack engines, budgets, and context keys
@@ -2282,7 +2295,7 @@ and come before any runtime guard work.
 - `rust/tcl-engine-api/src/lib.rs`, `rust/tcl-engine-tclvm/src/lib.rs`, `rust/tcl-cshim/src/lib.rs`, `rust/tcl-cshim/src/ffi.rs`, `rust/tcl-cshim/src/obj.rs`, `rust/tcl-cshim/include/tclshim.h` — the engine interface, its one implementation, `Interp::load_static` and its `Loaded` report, the 34 exported symbols, and the header
 - `rust/tcl-dialect/src/version.rs`, `profile.rs`, `rust/tcl-registry/src/model/ingress.rs`, `assembly.rs`, `rust/tcl-compiler/src/compile_service.rs`, `rust/tcl-lsp-db/src/lib.rs` — the release, the pin, the overlay ingress and its `OverlayMiss`, the compile service's overlay door, and the salsa registry queries
 - `rust/tcl-pkg-model/src/manifest.rs`, `lockfile.rs`, `tier.rs`, `rust/tcl-pkg/src/docker.rs` — the package manager's data model and the derivation of a package's dependency tier, which the pack loader reads too, and the container generator
-- `rust/xtask/src/command_backing.rs`, `gen_irule_test_data.rs`, `docs/generated/wasm-command-backing.md` — the backing gate, its four classification lists, the registry-generated iRules mocks, and the rendered report
+- `rust/xtask/src/command_backing.rs`, `gen_irule_test_data.rs`, `docs/generated/wasm-command-backing.md` — the backing gate and its one waiver list, the registry-generated iRules mocks, and the rendered report
 - `rust/tcl-irule-test/tcl/command_mocks.tcl`, `_mock_stubs.tcl` — the simulator's hand-written and generated command backing
 
 ## Test anchors
@@ -2304,6 +2317,7 @@ and come before any runtime guard work.
 - `rust/tcl-spectcl/tests/i6_security_floor.rs` — the floor and its take-shipped extension
 - `rust/tcl-spectcl/tests/workspace_packs.rs`, `codegen_stamps.rs` — the stamp rejection rule's two witnesses: a refused stamp under the tier gate, and a bundled `alias_of` stamp whose recorded target identity the VM admits through its alias hop (refused for a proc at the pack name); the claims' admission: a changed pack refuses the site, and a pack's fold is admitted only under its facts; and, in `workspace_packs.rs`, the capability gate: `a_transitive_dependencys_alias_of_is_dropped` and `a_direct_dependency_keeps_alias_of_but_not_a_stamp`
 - `rust/tcl-vm/tests/command_mutation_deopt_e2e.rs` — `a_rung_zero_module_is_admitted_under_a_changed_pack_set`, the claims check's rung-0 floor
+- `runtime/rust/src/interp.rs`, `rust/tcl-vm/src/interp.rs`, `rust/xtask/src/command_backing.rs` — the backing query and its gate: `identities_come_from_the_pinned_generation_never_an_overlay` and `the_sweep_attests_only_the_builtin_it_registered` in each runtime, `a_declared_builtin_the_runtime_lacks_is_drift_unless_waived` and `a_declared_none_the_runtime_registers_is_drift` in the gate
 - `rust/tcl-registry/src/model/ingress.rs`, `rust/tcl-compiler/src/compile_service.rs`, `rust/tcl-lsp-db/tests/overlay_generations.rs`, `dialect_seam.rs`, `rust/tcl-spectcl/tests/codegen_stamps.rs` — the overlay miss: `an_uninstalled_overlay_is_an_error_not_the_plain_generation`, the service's `a_service_whose_overlay_is_gone_declines_every_compile` and `a_service_for_the_packs_overlay_compiles_against_the_generation_they_installed`, the database's abstention, retry and retired-generation tests, and `the_compilation_unit_sees_the_packs_commands`
 
 ## Related docs

@@ -50,7 +50,7 @@ pub fn install(interp: &mut Interp) {
         b"fileevent",
         b"fcopy",
     ] {
-        interp.register_builtin(name, unsupported_cmd);
+        interp.register_unsupported(name, unsupported_cmd);
     }
 }
 

@@ -85,7 +85,7 @@ expect_relevant .github/workflows/report-pyz.yml
 expect_unrelated README.md
 expect_unrelated docs/design/compiler/wasm-native-lowering-plan.md
 expect_relevant rust/tcl-lsp-server/src/lib.rs
-expect_unrelated runtime/rust/src/lib.rs
+expect_relevant runtime/rust/src/lib.rs
 expect_unrelated grammars/tree-sitter-tcl/grammar.js
 expect_unrelated editors/vscode/src/test/runTest.ts
 expect_invalid ""

@@ -2,6 +2,7 @@
 # job's doctest command intentionally covers every workspace member, including
 # the four packages excluded from its nextest invocation, so this manifest is
 # the union of the nextest and doctest closures.
+runtime/rust
 rust/bigip-report-gen/rust
 rust/bpf-tcl
 rust/bpf-tcl-codegen
@@ -35,6 +36,7 @@ rust/tcl-lsp-db
 rust/tcl-lsp-server
 rust/tcl-mcp
 rust/tcl-pkg
+rust/tcl-pkg-model
 rust/tcl-platform
 rust/tcl-regex
 rust/tcl-registry
