@@ -170,7 +170,9 @@ server-sent message renders in every editor with no client code.
   `initializationOptions` and `didChangeConfiguration`, applied live — and
   `[notifications] environment_kind = false` in the XDG `config.ini` or a
   project `.tcl-lsp.ini` for editors without a settings UI, layered as
-  every other key in [config-precedence.md](config-precedence.md).
+  every other key in [config-precedence.md](config-precedence.md). The
+  file layer is read on the `workspace/configuration` pull, so a client
+  that declines that request applies no `[notifications]` key.
   `getEffectiveConfig` reports it as `notifications_environment_kind`.
 - **Policy.** [config-precedence.md](config-precedence.md) keeps ignored
   settings silent. This notice is not about an ignored setting: it is a
