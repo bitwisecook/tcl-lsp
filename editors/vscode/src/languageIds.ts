@@ -31,23 +31,24 @@
 // @generated:language-ids:begin -- cargo xtask gen-editor-extensions
 export const TCL_LANGUAGE_IDS = new Set([
   "tcl",
-  "tcl-cadence",
   "tcl-expect",
   "tcl-bigip",
   "tcl-iapp",
   "tcl-irule",
   "tcl-tmsh",
-  "tcl-quartus",
-  "tcl-mentor",
-  "tcl-microchip",
+  "tcl-jim",
   "tclspec",
   "sslictcl",
-  "tcl-synopsys",
   "tcl84",
   "tcl85",
   "tcl86",
   "tcl90",
   "tcl91",
+  "tcl-cadence",
+  "tcl-quartus",
+  "tcl-mentor",
+  "tcl-microchip",
+  "tcl-synopsys",
   "tcl-xilinx",
   "tcl-apl",
 ]);
@@ -56,6 +57,43 @@ export const TCL_LANGUAGE_IDS = new Set([
 export function isTclLanguage(languageId: string): boolean {
   return TCL_LANGUAGE_IDS.has(languageId);
 }
+
+// The dialect a language id implies — what the status bar shows for a document
+// until the server has said which dialect it analyses the document under.
+//
+// Keys are *language ids* (undotted); values are *dialect* names, which keep
+// their dots. The two namespaces are distinct: `tcl84` is what VS Code calls
+// the language, `tcl8.4` is what the server calls the dialect. Every
+// environment's editor identity is a key, and so is each spelling a client
+// may send that selects an environment without being its identity.
+
+// @generated:language-id-dialects:begin -- cargo xtask gen-editor-extensions
+export const LANGUAGE_ID_DIALECTS: Record<string, string> = {
+  "tcl-expect": "expect",
+  "tcl-bigip": "f5-bigip",
+  "tcl-iapp": "f5-iapps",
+  "tcl-irule": "f5-irules",
+  "tcl-tmsh": "f5-tmsh",
+  "tcl-jim": "jim",
+  tclspec: "spectcl",
+  sslictcl: "sslictcl",
+  tcl84: "tcl8.4",
+  tcl85: "tcl8.5",
+  tcl86: "tcl8.6",
+  tcl90: "tcl9.0",
+  tcl91: "tcl9.1",
+  "tcl-cadence": "cadence-eda-tcl",
+  "tcl-quartus": "intel-quartus-eda-tcl",
+  "tcl-mentor": "mentor-eda-tcl",
+  "tcl-microchip": "microchip-libero-eda-tcl",
+  "tcl-synopsys": "synopsys-eda-tcl",
+  "tcl-xilinx": "xilinx-eda-tcl",
+  "tcl-apl": "f5-iapps",
+  "tcl-bpf": "bpf",
+  "tcl-libero": "microchip-libero-eda-tcl",
+  "tcl-spec": "spectcl",
+};
+// @generated:language-id-dialects:end
 
 // Which of our languages owns a given file extension (leading dot included, as
 // `path.extname` and VS Code's own `files.associations` spell it), and which
@@ -76,7 +114,6 @@ export const EXTENSION_LANGUAGE_IDS: Record<string, string> = {
   ".itcl": "tcl",
   ".tm": "tcl",
   ".test": "tcl",
-  ".globals": "tcl-cadence",
   ".exp": "tcl-expect",
   ".expect": "tcl-expect",
   ".scf": "tcl-bigip",
@@ -87,12 +124,13 @@ export const EXTENSION_LANGUAGE_IDS: Record<string, string> = {
   ".irule": "tcl-irule",
   ".irules": "tcl-irule",
   ".tmsh": "tcl-tmsh",
+  ".tclspec": "tclspec",
+  ".sslictcl": "sslictcl",
+  ".globals": "tcl-cadence",
   ".qsf": "tcl-quartus",
   ".qpf": "tcl-quartus",
   ".qip": "tcl-quartus",
   ".do": "tcl-mentor",
-  ".tclspec": "tclspec",
-  ".sslictcl": "sslictcl",
   ".sdc": "tcl-synopsys",
   ".upf": "tcl-synopsys",
   ".xdc": "tcl-xilinx",

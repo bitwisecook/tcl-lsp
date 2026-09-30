@@ -152,18 +152,6 @@ const ALLOWED: &[(&str, &str)] = &[
         "rust/xtask/src/callback_inventory.rs",
         "the callback inventory is computed per catalogue profile",
     ),
-    (
-        "rust/xtask/src/editor_extensions.rs",
-        "the editor language table is built from the catalogue",
-    ),
-    (
-        "rust/xtask/src/gen_ai.rs",
-        "the AI prompt manifest lists the catalogue's dialects",
-    ),
-    (
-        "rust/xtask/src/gen_editor_dialects.rs",
-        "the editor dialect lists are projected from the catalogue",
-    ),
 ];
 
 /// Every `*.rs` file under `dir`, skipping build output and hidden

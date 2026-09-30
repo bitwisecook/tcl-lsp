@@ -86,7 +86,13 @@ import { openSpecStudio, prepareSpecStudioStorage } from "./specStudio";
 import { registerHighlightingHealthChecks } from "./highlightingHealth";
 import { ensureStickyScrollDefaultModel } from "./stickyScrollHealth";
 import { DiffDiagnosticsSuppressor } from "./diffAnalysis";
-import { TCL_LANGUAGE_IDS, isTclLanguage, tclLanguageIdForPath } from "./languageIds";
+import {
+  LANGUAGE_ID_DIALECTS,
+  TCL_LANGUAGE_IDS,
+  isTclLanguage,
+  tclLanguageIdForPath,
+} from "./languageIds";
+import { DIALECT_LABELS } from "./chat/dialectCatalog";
 import { registerIlxReferenceProvider } from "./ilxReferences";
 import { PackFileExtension, syncPackFileAssociations } from "./packAssociations";
 
@@ -109,65 +115,9 @@ export function isAiEnabled(): boolean {
   return workspace.getConfiguration("tclLsp.ai").get<boolean>("enabled", true);
 }
 
-// @generated:dialect-labels:begin
-const DIALECT_LABELS: Record<string, string> = {
-  bpf: "BPF",
-  "cadence-eda-tcl": "Cadence Genus / Innovus / Xcelium",
-  expect: "Expect",
-  "f5-bigip": "F5 BIG-IP",
-  "f5-iapps": "F5 iApps",
-  "f5-irules": "F5 iRules",
-  "f5-tmsh": "F5 tmsh Scripts",
-  "intel-quartus-eda-tcl": "Intel Quartus Prime",
-  "mentor-eda-tcl": "Siemens Questa / ModelSim",
-  "microchip-libero-eda-tcl": "Microchip Libero SoC",
-  spectcl: "SpecTcl",
-  sslictcl: "SslicTcl",
-  "synopsys-eda-tcl": "Synopsys DC / PrimeTime / ICC2 / Formality",
-  "tcl8.4": "Tcl 8.4",
-  "tcl8.5": "Tcl 8.5",
-  "tcl8.6": "Tcl 8.6",
-  "tcl9.0": "Tcl 9.0",
-  "tcl9.1": "Tcl 9.1",
-  "xilinx-eda-tcl": "Xilinx Vivado",
-};
-// @generated:dialect-labels:end
-
 // Sourced from ./languageIds (a vscode-free module) and re-exported so existing
 // importers that pull these from ./extension keep working.
 export { TCL_LANGUAGE_IDS, isTclLanguage };
-
-/**
- * Map language IDs that imply a specific dialect.
- *
- * Keys are *language ids* (undotted — see `./languageIds`); values are
- * *dialect* names, which keep their dots. The two namespaces are distinct:
- * `tcl84` is what VS Code calls the language, `tcl8.4` is what the server
- * calls the dialect.
- */
-// @generated:language-id-dialects:begin -- cargo xtask gen-editor-extensions
-const LANGUAGE_ID_DIALECTS: Record<string, string> = {
-  "tcl-cadence": "cadence-eda-tcl",
-  "tcl-expect": "expect",
-  "tcl-bigip": "f5-bigip",
-  "tcl-iapp": "f5-iapps",
-  "tcl-irule": "f5-irules",
-  "tcl-tmsh": "f5-tmsh",
-  "tcl-quartus": "intel-quartus-eda-tcl",
-  "tcl-mentor": "mentor-eda-tcl",
-  "tcl-microchip": "microchip-libero-eda-tcl",
-  tclspec: "spectcl",
-  sslictcl: "sslictcl",
-  "tcl-synopsys": "synopsys-eda-tcl",
-  tcl84: "tcl8.4",
-  tcl85: "tcl8.5",
-  tcl86: "tcl8.6",
-  tcl90: "tcl9.0",
-  tcl91: "tcl9.1",
-  "tcl-xilinx": "xilinx-eda-tcl",
-  "tcl-apl": "f5-iapps",
-};
-// @generated:language-id-dialects:end
 
 const TCL_VERSION_DIALECTS: Record<string, string> = {
   "8.4": "tcl8.4",

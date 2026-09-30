@@ -956,12 +956,12 @@ xtask-gen-bundled-environments: ## Verify the compiled environment seed matches 
 	@echo "==> Checking the bundled-pack environment seed against specs/ (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-bundled-environments --check
 
-xtask-gen-editor-dialects: ## Verify editor selectable dialect lists match DialectProfile::all
+xtask-gen-editor-dialects: ## Verify editor selectable dialect lists match the selectable environments (drift gate)
 	@echo "==> Checking generated editor dialect lists (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-editor-dialects --check
 
-xtask-editor-extensions: ## Verify the editors' extension/language lists match the dialect catalog + bundled packs (drift gate)
-	@echo "==> Checking editor extension/language lists against the dialect catalog (cargo xtask)"
+xtask-editor-extensions: ## Verify the editors' language, extension and first-line lists match the environment registry + bundled packs (drift gate)
+	@echo "==> Checking editor extension/language lists against the environment registry (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-editor-extensions --check
 
 xtask-owner-resolution: ## Verify the shared semantic-owner contract resolves to live source and gates
@@ -1808,7 +1808,24 @@ editors/zed/languages/tcl/highlights.scm: $(_CATALOG_DEPS)
 # the ownership explicit so a `make generate` after a dialect, lexical grammar,
 # or command-registry change always refreshes every affected editor surface.
 _EDITOR_DIALECT_DEPS := $(shell find $(ROOT)rust/tcl-dialect/src $(ROOT)rust/xtask/src -name '*.rs')
-_EDITOR_DIALECT_OUTPUTS := editors/vscode/package.json editors/vscode/src/extension.ts editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/TclLspSettings.kt editors/sublime-text/plugin.py editors/sublime-text/sublime-package.json
+_EDITOR_DIALECT_OUTPUTS := \
+	editors/vscode/package.json \
+	editors/vscode/src/languageIds.ts \
+	editors/vscode/src/compilerExplorerHtml.ts \
+	editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/TclLspSettings.kt \
+	editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/TclFileType.kt \
+	editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/packs/PackAssociationReconciler.kt \
+	editors/jetbrains/src/main/resources/META-INF/plugin.xml \
+	editors/jetbrains/src/main/resources/textmate/package.json \
+	editors/sublime-text/plugin.py \
+	editors/sublime-text/sublime-package.json \
+	editors/sublime-text/LSP-Tcl.sublime-settings \
+	editors/zed/languages/tcl/config.toml \
+	editors/zed/languages/expect/config.toml \
+	editors/zed/languages/iapps/config.toml \
+	editors/zed/languages/irules/config.toml \
+	editors/zed/languages/tmsh/config.toml \
+	editors/zed/languages/apl/config.toml
 $(_EDITOR_DIALECT_OUTPUTS): $(_EDITOR_DIALECT_DEPS)
 
 _TMLANGUAGE_KEYWORD_DEPS := $(shell find $(ROOT)rust/tcl-registry/src $(ROOT)rust/tcl-dialect/src $(ROOT)rust/tcl-syntax/src $(ROOT)rust/xtask/src -name '*.rs')
@@ -1820,6 +1837,8 @@ generate: editors/vscode/src/generated/iruleEvents.json editors/zed/languages/tc
 	cd $(ROOT) && cargo xtask gen-bundled-environments
 	@echo "==> Generating editor dialect projections (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-editor-dialects
+	@echo "==> Generating editor language and extension lists (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-editor-extensions
 	@echo "==> Generating TextMate keyword grammars (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-tmlanguage-keywords
 

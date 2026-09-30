@@ -41,7 +41,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     // interpreter is discovered or used.
     var pythonPath: String = "auto"
     var serverPath: String = ""
-    var dialect: String = "tcl8.6"
+    var dialect: String = DEFAULT_DIALECT
     var extraCommands: String = ""  // comma-separated
     var libraryPaths: String = ""   // comma-separated
     // null means this editor layer inherits config.ini; an explicit empty
@@ -713,25 +713,28 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
             ApplicationManager.getApplication().getService(TclLspSettings::class.java)
 
         // @generated:dialect-options:begin
+        const val DEFAULT_DIALECT = "tcl8.6"
         val DIALECT_OPTIONS = listOf(
             "bpf" to "BPF",
-            "cadence-eda-tcl" to "Cadence Genus / Innovus / Xcelium",
             "expect" to "Expect",
             "f5-bigip" to "F5 BIG-IP",
             "f5-iapps" to "F5 iApps",
             "f5-irules" to "F5 iRules",
             "f5-tmsh" to "F5 tmsh Scripts",
-            "intel-quartus-eda-tcl" to "Intel Quartus Prime",
-            "mentor-eda-tcl" to "Siemens Questa / ModelSim",
-            "microchip-libero-eda-tcl" to "Microchip Libero SoC",
+            "jim" to "Jim Tcl",
             "spectcl" to "SpecTcl",
             "sslictcl" to "SslicTcl",
-            "synopsys-eda-tcl" to "Synopsys DC / PrimeTime / ICC2 / Formality",
             "tcl8.4" to "Tcl 8.4",
             "tcl8.5" to "Tcl 8.5",
             "tcl8.6" to "Tcl 8.6",
             "tcl9.0" to "Tcl 9.0",
             "tcl9.1" to "Tcl 9.1",
+            "cadence-eda-tcl" to "Cadence Genus / Innovus / Xcelium",
+            "intel-quartus-eda-tcl" to "Intel Quartus Prime",
+            "mentor-eda-tcl" to "Siemens Questa / ModelSim",
+            "microchip-libero-eda-tcl" to "Microchip Libero SoC",
+            "synopsys-eda-tcl" to "Synopsys DC / PrimeTime / ICC2 / Formality",
+            "tk" to "Tk",
             "xilinx-eda-tcl" to "Xilinx Vivado",
         )
         // @generated:dialect-options:end
