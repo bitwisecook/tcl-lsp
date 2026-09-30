@@ -133,6 +133,22 @@ Status: `todo` / `wip` / `done`. Line numbers are as surveyed on
   names may change (open decision).
 - A one-time notice appears for `Packages`-kind environments.
 
+## Landing checklist
+
+The `rust` branch documents current state only; process history lives in
+git. Before the final commit:
+
+- Delete this file and restore `lanes/README.md` to "In flight: None".
+- Rewrite `contracts/environment-selection.md` as present-tense fact: no
+  ledger ids, no "deferred", no decision attributions or dates, no
+  phase/lane/stage vocabulary. What the system does not do may be stated
+  as fact under a neutral heading.
+- Grep the whole diff against `rust` (code comments, doc comments, docs,
+  generated-file headers; commit messages exempt) for `lane`, `phase`,
+  `stage`, `wip`, `D17`, `D15`, `as of`, `no longer`, `previously`,
+  `used to`, `legacy`, `migrat`, `2166`, and rewrite each hit to describe
+  behaviour, not history.
+
 ## Open uncertainties
 
 - Whether the JetBrains platform LSP client renders `showMessageRequest`
