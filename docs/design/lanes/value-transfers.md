@@ -5809,6 +5809,23 @@ with the commit, then 0); `retired-api-gate`, `owner-resolution` (45
 rows) and `kcs-index-links` pass; `dialect-drift` 8 sites, none new;
 `cargo check --workspace --all-targets` clean.
 
+| Item | Commit | What landed | Its tests |
+|---|---|---|---|
+| VT6.4 | `wip(value-transfers): slice 6 — O112, the selected body and the loop simulator read one selection` | O112 (`structure_elimination.rs`) folds a `switch` only from what the solver decided (D183): an opaque form reads the unit's selection record by the statement's span (`record_decision`), the flattened exact form the `Applied` branches of its dispatch chain (`chain_decision`), the walk carrying the function unit beside the `Env` the `if`, `while` and `for` conditions still read (`Facts`); `resolve_subject`, `pattern_matches` and `SwitchInfo` are gone, and `cfg_builder::switch_is_flattened` is the one predicate lowering and O112 share for which form a statement is. The record's arm indices read through the default-index rule (an index one past the arms is the final `default`), every member must run one body, and the message gains a wording for members that match different patterns sharing a body. `value_transfer.rs` gains the consumer-side query (D184): `literal_selection` runs the command's declared `Selection` transfer over `LiteralInputs` for words a caller proves, each with how it was written (`WordForm`, so the delimited `-` body rule applies), and `statement_selection` reads a lowered `Statement::Switch`'s recorded words through it, only where the plan reads the statement's own subject and clause count. `exec_switch` (`static_loops.rs`) asks it over the simulator's environment for the statement's own command, so the mode, `-nocase` and fall-through it ignored are honoured; the analyser's `switch_body_is_selected` (`handlers.rs`, split into itself, `switch_words` and `switch_clause_bodies`) asks it for the clause whose body runs, regexp mode included, and reads a braced word as its own text. Beyond the item's three files: `value_transfer.rs`, `cfg_builder/mod.rs` and `cfg_lower.rs` (the predicate), `lowering/structured.rs` (`braced_word_flags` and `quoted_word_flags` are `pub(crate)`, the delimiters the analyser reads) | `opaque_modes_fold_to_the_arm_the_command_selects`, `the_selection_reads_the_subject_at_the_statement`, `a_finite_subject_folds_only_where_its_members_agree`, `case_folds_through_its_own_selection`, `a_declined_selection_leaves_the_switch_alone` (`structure_elimination.rs`, new: every opaque mode, a subject with three versions, members that agree and members that part, `case` from 8.4 to 8.6 and none from 9.0, a malformed pattern, a quoted `-` body under 9.1 and the unnamed profile, an unknown subject and a `default`-only statement left alone); `a_literal_call_selects_through_the_registry`, `a_delimited_fallthrough_word_declines_only_where_it_may_be_91`, `a_literal_case_call_selects_its_glob_arm` and `a_lowered_statement_selects_over_its_recorded_words` (`value_transfer.rs`, new); `summarise_honours_the_mode_of_a_switch` and `summarise_bails_where_the_selection_is_not_made` (`static_loops.rs`, new); `computed_creation_declines_a_delimited_fallthrough_body_on_91` (analyser tests, new); `program_four_folds_in_every_form` (compiler witnesses, new: program (4)'s exact, `-glob`, `-regexp`, `-nocase` and fall-through forms each leave `puts always` under every analysed dialect that has the form, and print `always` before and after the optimiser under tclsh 8.4 to 9.1, `-nocase` from 8.5). Moved by the mandate (§ *`switch`*, step 2; the O112 row; the item's "O112 fires for `-glob`, `-regexp`, `-nocase` and fall-through forms"): `switch_regexp_mode_is_skipped` becomes `switch_regexp_mode_selects_through_the_owner`; `structure_elimination_switch` (optimiser tests) folds `-regexp` where it asserted no O112; `computed_creation_switch_supports_registry_modes_and_fallthrough` (analyser tests) reads `switch -regexp -- Dialect {D* - …}` as selecting the creating body, as tclsh 9.0 does, where it asserted the selection abstains, and gains a malformed-pattern abstention; `the_flattened_form_yields_o107` (compiler witnesses) reads O107 from the passes' raw findings beside O112, which subsumes its rewrite once the findings are applied together, and asserts the applied program keeps neither the arm nor the `switch`. Completed, not moved: `mode_switch` (`static_loops.rs`) states the words the lowering records; the three tests of the removed `resolve_subject` and `pattern_matches` go with them |
+
+Green at VT6.4: `tcl-compiler` 9818 passed, 6 ignored across its 67
+binaries, and 7 doctests; `tcl-explorer` 104; `tcl-cli` 129 across its
+binaries (`cli` 50, `value_transfers_cli` 8); `tcl-lsp-db` 129 (103 in
+the library, 26 across its integration binaries); workspace clippy
+(`--all-targets -D warnings`), no `#[allow]` added, and `cargo fmt
+--check`; `value-transfers --check` (22 clean, 19 waived, 83 pinned
+across 34 files, 6607 rows) and `registry-axes --check` (893 pinned
+across 147 files, 36 waived, 16 clean; the ledger regenerated for one
+line shift, `handlers.rs` 1966 → 1968), both unchanged in count;
+`pack-goldens` (25 packs, 0 rewritten), `retired-api-gate`,
+`owner-resolution` (45 rows) and `kcs-index-links` pass; `dialect-drift`
+8 sites, none new; `cargo check --workspace --all-targets` clean.
+
 ### Slice 9 — nested writes in expressions
 
 #### Goal and exit
@@ -9263,6 +9280,63 @@ has the witnesses):
   the list owner — is the statement's arms plus its default. `-matchvar`
   and `-indexvar` never reach a `Statement::Switch` (the lowering makes
   them a barrier), so a record's `writes` are empty today.
+- **D183 — O112 folds a `switch` only from what the solver decided**
+  (VT6.4). An opaque form (`-glob`, `-regexp`, `-nocase`, a fall-through
+  arm, `case`) reads the unit's selection record by the statement's span
+  (`record_decision`): every member of every record at that span must run
+  one body, the record must state the statement's own arms (its pattern
+  spans, in order, are the statement's), and a record that writes is not
+  folded. The flattened exact form has no record and reads its dispatch
+  chain (`chain_decision`): the `Applied` constant branch at each arm's
+  pattern span, the first decided true with every earlier one decided false
+  the arm, all false the default, an undecided arm leaving it open; a
+  statement with no arm has no chain, so `switch [gets stdin] {default
+  {…}}` is left alone (nothing states its subject is read).
+  `cfg_builder::switch_is_flattened` is the one predicate lowering and O112
+  share for which form a statement is. `resolve_subject`, `pattern_matches`
+  and `SwitchInfo` are gone with the flow-insensitive `Env` projection they
+  read for a `switch`: a record is per statement, at the versions the
+  statement reads, so program (4)'s `acc` (three versions, `foobar` at the
+  switch) folds where the projection, which needs every version to agree,
+  saw none. The message keeps its three wordings and adds a fourth for
+  members that match different patterns sharing a body through fall-through
+  ("always runs the body of pattern …"). Delta: a `switch` the solver never
+  reached — one inside an opaque `catch` body, which the CFG keeps as one
+  call when the body holds control flow — has neither a record nor a chain,
+  so O112 leaves it; it had folded through the projection where the
+  subject's variable held one constant in the whole function. The plan's
+  "first-unfoldable-clause and `catch`-descent limits go" names limits of
+  the old pass this reading cannot tie to code — `try_eliminate_if` still
+  stops at its first undecided clause (the item leaves `if`, `while` and
+  `for` on the expression route over the `Env`) and the walk still
+  descends into `catch` bodies — so what the item removes is the private
+  matcher, and the one behaviour it loses is the fold in a region the
+  solver never analysed.
+- **D184 — a consumer holding words asks the registry for the selection**
+  (VT6.4). `literal_selection` and `statement_selection`
+  (`value_transfer.rs`) run the command's declared `Selection` transfer
+  over `LiteralInputs`: the words as the caller states them, each with how
+  it was written (`WordForm`: bare, quoted, braced, unproven), so D179's
+  rule about a delimited `-` body applies, and an unproven word declines
+  the whole fact; the one subject value the caller proves stands in for a
+  word the call spells as a variable. `exec_switch` (the loop simulator)
+  asks it for the statement's own command over the words the lowering
+  recorded, only where the plan reads the statement's own subject and
+  clause count (D182's condition), so the mode, `-nocase` and fall-through
+  it ignored are honoured, a `-glob` pattern matches as a glob, and a
+  statement whose words were not recorded (a hand-built one) or whose
+  pattern the command would substitute ends the simulation. The analyser's
+  `switch_body_is_selected` keeps the registry's layout query
+  (`case_invocation`) for where the subject, patterns and clause list sit,
+  states the subject and the inline patterns through `static_word_value`,
+  reads every other word as written, and asks the same transfer for the
+  clause whose body runs; a braced word is its own text (`static_word_value`
+  had substituted a braced inline pattern from the environment), a word
+  left to substitute that is neither subject nor pattern is unproven, and
+  the selection must read the layout's own subject and the walk's own
+  clause count or the arm is not decided. Regexp mode is decided too: the
+  old walk abstained on it. `Statement::Switch::command`, the spelling the
+  statement was written with, is the head the query resolves.
 
 ### Open questions for the owner
 

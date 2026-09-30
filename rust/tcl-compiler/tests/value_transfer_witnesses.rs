@@ -36,7 +36,9 @@ use tcl_compiler::intervals::{Interval, compute_intervals_with, numbers_for_dial
 use tcl_compiler::ir::Statement;
 use tcl_compiler::lowering::lower_to_ir_with_dialect;
 use tcl_compiler::optimiser::Optimisation;
-use tcl_compiler::optimiser::manager::{optimise_source_multipass, optimise_with_dialect};
+use tcl_compiler::optimiser::manager::{
+    optimise_raw, optimise_source_multipass, optimise_with_dialect,
+};
 use tcl_compiler::static_loops::{
     DEFAULT_MAX_STATIC_LOOP_ITERS, LoopSemantics, StaticEnv, StaticValue, parse_literal_value,
     summarise_for_statement,
@@ -174,7 +176,16 @@ fn text(value: &str) -> LatticeValue {
 /// Every release on `PATH` prints `expected` for `source` and for its
 /// optimised form under that release's dialect.
 fn prints_under_every_release(source: &str, expected: &str) {
+    prints_under_releases_from(source, expected, "8.4");
+}
+
+/// [`prints_under_every_release`] for the releases from `first` on: a
+/// program using an option a release lacks runs only where it exists.
+fn prints_under_releases_from(source: &str, expected: &str, first: &str) {
     for (series, tclsh) in releases_on_path() {
+        if series < first {
+            continue;
+        }
         let (rewritten, _) = optimised(source, &dialect_of(series));
         for program in [source, rewritten.as_str()] {
             assert_eq!(
@@ -3105,9 +3116,12 @@ fn a_substituted_body_clobbers_what_it_unsets() {
 
 /// A whole-variable `switch` subject resolves from the lattice (VT6.1; §
 /// `switch`, step 1), so program (4)'s flattened form decides per arm: I231
-/// on the dead arm's pattern and O107 on its body, the optimised program
-/// printing `always` under 8.4 to 9.1. A `${…}` subject whose name carries
-/// a backslash stays `Raw` and decides nothing — no I231 and no O107 — and
+/// on the dead arm's pattern and O107 on its body, beside O112 on the whole
+/// statement, which subsumes O107's rewrite when the findings are applied
+/// together — so O107 is read from the passes' raw findings and the
+/// applied program keeps neither the arm nor the `switch`, printing
+/// `always` under 8.4 to 9.1. A `${…}` subject whose name carries a
+/// backslash stays `Raw` and decides nothing — no I231 and no O107 — and
 /// tclsh prints `hit` before and after the optimiser.
 #[test]
 fn the_flattened_form_yields_o107() {
@@ -3123,10 +3137,18 @@ fn the_flattened_form_yields_o107() {
                 .any(|d| d.code == DiagCode::I231 && d.span.start() == pattern),
             "{dialect}: I231 on the dead arm's pattern: {diagnostics:#?}"
         );
+        let registry = static_context_for(dialect).commands();
+        let raw = optimise_raw(source, registry, Some(dialect));
+        for code in [DiagCode::O107, DiagCode::O112] {
+            assert!(
+                raw.iter().any(|o| o.code == code),
+                "{dialect}: {code:?} is a finding:\n{raw:#?}"
+            );
+        }
         let (rewritten, rewrites) = optimised(source, dialect);
         assert!(
-            rewrites.iter().any(|o| o.code == DiagCode::O107) && !rewritten.contains("puts never"),
-            "{dialect}: O107 removes the dead arm's body:\n{rewritten}\n{rewrites:#?}"
+            !rewritten.contains("puts never") && !rewritten.contains("switch"),
+            "{dialect}: the applied program keeps neither the arm nor the switch:\n{rewritten}\n{rewrites:#?}"
         );
     }
     prints_under_every_release(source, "always\n");
@@ -3141,6 +3163,59 @@ fn the_flattened_form_yields_o107() {
         );
     }
     prints_under_every_release(negative, "hit\n");
+}
+
+/// Program (4) — `switch` over the string two appends build — folds to its
+/// `default` in every form: the exact form through its dispatch chain, and the
+/// `-glob`, `-regexp`, `-nocase` and fall-through forms through the
+/// selection record the solver makes at the statement, where the subject has
+/// the version the statement reads. The optimised program prints `always`
+/// under tclsh 8.4 to 9.1 (`-nocase` from 8.5).
+#[test]
+fn program_four_folds_in_every_form() {
+    let build = "set acc \"\"; append acc foo; append acc bar\n";
+    let arms = "{\n    baz     { puts never }\n    default { puts always }\n}\n";
+    let folds = |source: &str, dialect: &str| {
+        let (rewritten, rewrites) = optimised(source, dialect);
+        assert!(
+            rewrites.iter().any(|o| o.code == DiagCode::O112)
+                && !rewritten.contains("puts never")
+                && !rewritten.contains("switch"),
+            "{dialect}: O112 leaves `puts always`:\n{source}\n{rewritten}\n{rewrites:#?}"
+        );
+    };
+    for (options, first) in [
+        ("", "8.4"),
+        ("-glob ", "8.4"),
+        ("-regexp ", "8.4"),
+        ("-nocase ", "8.5"),
+    ] {
+        let source = format!("{build}switch {options}-- $acc {arms}");
+        for dialect in DIALECTS {
+            // `-nocase` is 8.5's: a profile that may be 8.4 leaves it alone.
+            let has_it = first == "8.4" || !matches!(dialect, "tcl8.4" | "f5-irules" | "tcl");
+            if has_it {
+                folds(&source, dialect);
+            } else {
+                assert!(
+                    !rewrites_of(&source, dialect)
+                        .iter()
+                        .any(|o| o.code == DiagCode::O112),
+                    "{dialect}: {source}"
+                );
+            }
+        }
+        prints_under_releases_from(&source, "always\n", first);
+    }
+    // `baz -` shares `qux`'s body; the `-` is spelled bare, the one spelling
+    // every release reads alike.
+    let source = format!(
+        "{build}switch -- $acc {{\n    baz     -\n    qux     {{ puts never }}\n    default {{ puts always }}\n}}\n"
+    );
+    for dialect in DIALECTS {
+        folds(&source, dialect);
+    }
+    prints_under_every_release(&source, "always\n");
 }
 
 /// `case` lowers as an opaque glob selection over its own contract (D180),

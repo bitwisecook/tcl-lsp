@@ -647,12 +647,16 @@ fn structure_elimination_switch() {
     assert!(optimised(gdef, TCL).contains("set z 3"));
     assert!(opt_fires(gdef, TCL, "O112"));
 
-    // -regexp is NOT statically eliminated.
-    assert!(!opt_fires(
-        "switch -regexp abc {\n    ^a { set x 1 }\n    default { set y 2 }\n}",
-        TCL,
-        "O112"
-    ));
+    // -regexp folds through the regexp engine: `^a` matches abc (first arm),
+    // `^b` does not (default). tclsh 8.6: arm 1 and arm 2 respectively.
+    let re = "switch -regexp abc {\n    ^a { set x 1 }\n    default { set y 2 }\n}";
+    assert!(optimised(re, TCL).contains("set x 1"));
+    assert!(!optimised(re, TCL).contains("set y 2"));
+    assert!(!optimised(re, TCL).contains("switch"));
+    assert!(opt_fires(re, TCL, "O112"));
+    let rdef = "switch -regexp abc {\n    ^b { set x 1 }\n    default { set y 2 }\n}";
+    assert!(!optimised(rdef, TCL).contains("set x 1"));
+    assert!(optimised(rdef, TCL).contains("set y 2"));
 
     // -glob fallthrough (`a* -` then `z* {body}`) selects the next body.
     // tclsh: switch -glob abc {a* - z* {1} default {2}} ⇒ 1.

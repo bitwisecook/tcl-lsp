@@ -148,7 +148,7 @@ fn word_is_braced(arg_tokens: &[tcl_lexer::Token], arg_single: &[bool], index: u
 }
 
 /// [`word_is_braced`] for every argument, for the generic-invoke fallback.
-fn braced_word_flags(
+pub(crate) fn braced_word_flags(
     arg_tokens: &[tcl_lexer::Token],
     arg_single: &[bool],
     len: usize,
@@ -161,7 +161,7 @@ fn braced_word_flags(
 /// Per argument, whether the word was double-quoted: its representative
 /// token opens at the `"` (a quoted-opening `Esc` token counts the quote as
 /// a delimiter byte) or runs inside the quotes.
-fn quoted_word_flags(arg_tokens: &[tcl_lexer::Token], len: usize) -> Vec<bool> {
+pub(crate) fn quoted_word_flags(arg_tokens: &[tcl_lexer::Token], len: usize) -> Vec<bool> {
     (0..len)
         .map(|i| {
             arg_tokens.get(i).is_some_and(|token| {

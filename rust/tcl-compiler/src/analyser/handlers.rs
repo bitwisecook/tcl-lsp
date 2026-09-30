@@ -43,12 +43,14 @@ use tcl_lexer::{Span, Token, TokenType};
 use tcl_syntax::list::find_element;
 
 use crate::alias::{command_table_transitions, is_current_interpreter, resolve_alias};
+use crate::lowering::structured::{braced_word_flags, quoted_word_flags};
 use crate::parsing::syntax::descend::descend_token;
 use crate::parsing::syntax::segment::segments_from_tree;
 use crate::segmenter::SegmentedCommand;
 use crate::signature_scan::params::bind_proc_formals;
 use crate::signature_scan::types::ParamDef;
 use crate::signature_scan::types::SignatureCommandAlias;
+use crate::value_transfer::{WordForm, literal_selection};
 
 use super::state::Analyser;
 use super::types::{
@@ -7681,6 +7683,12 @@ impl Analyser {
         Some(exprs.len() < bodies.len() && bodies.last().copied() == Some(wanted))
     }
 
+    /// Whether the body at `arm.body_span` is the one the `switch` runs, when
+    /// the environment states the words the registry's selection reads: the
+    /// selection is the command's own (mode, case folding, ordered first
+    /// match, the final `default`, fall-through, the regexp engine), never a
+    /// match made here. `None` where any word is not stated, the selection
+    /// declines, or the subject's members would run different bodies.
     fn switch_body_is_selected(
         &mut self,
         proc_qname: &str,
@@ -7688,7 +7696,7 @@ impl Analyser {
         env: &std::collections::HashMap<String, String>,
         depth: u32,
     ) -> Option<bool> {
-        let registry = self.registry.as_deref()?;
+        let registry = self.registry.clone()?;
         let args: Vec<&str> = arm.controller.args().iter().map(String::as_str).collect();
         let (case, invocation) = registry.case_invocation(
             arm.controller.name(),
@@ -7698,81 +7706,113 @@ impl Analyser {
         if usize::from(case.subject_args) != 1 {
             return None;
         }
-        if invocation.mode == tcl_registry::spec::CaseMatchMode::Regexp {
+        let values = self.switch_words(proc_qname, arm, &invocation, env, depth)?;
+        let words: Vec<(&str, WordForm)> = values
+            .iter()
+            .map(|(text, form)| (text.as_str(), *form))
+            .collect();
+        let selection = literal_selection(&registry, arm.controller.name(), &words, None)?;
+        let bodies = self.switch_clause_bodies(arm, &case, &invocation)?;
+        if bodies.len() != selection.clauses || Some(selection.subject) != invocation.subject_index
+        {
             return None;
         }
-        let subject = self.static_word_value(
-            arm.controller.args().get(invocation.subject_index?)?,
-            proc_qname,
-            env,
-            &mut Vec::new(),
-            depth,
-        )?;
+        let mut verdicts = selection.fact.bodies.iter().map(|body| match body {
+            None => Some(false),
+            Some(clause) => bodies.get(*clause).map(|span| *span == arm.body_span),
+        });
+        let first = verdicts.next()??;
+        verdicts
+            .all(|verdict| verdict == Some(first))
+            .then_some(first)
+    }
 
-        let mut clauses: Vec<(String, String, Span)> = Vec::new();
-        if let Some(list_index) = invocation.clause_list_index {
-            let word = arm.controller.args().get(list_index)?;
-            let token = *arm.controller.arg_tokens().get(list_index)?;
-            for ((pattern, _), (body, body_token)) in crate::segmenter::flatten_case_list_clauses(
-                &self.source,
-                word,
-                token,
-                &case,
-                self.lexer_config(),
-            ) {
-                clauses.push((pattern, body, body_token.span));
-            }
-        } else {
-            let mut idx = invocation.inline_clause_start?;
-            while idx + 1 < arm.controller.args().len() {
-                let pattern = self.static_word_value(
-                    arm.controller.args().get(idx)?,
-                    proc_qname,
-                    env,
-                    &mut Vec::new(),
-                    depth,
-                )?;
-                let body_span = arm.controller.arg_tokens().get(idx + 1)?.span;
-                clauses.push((
-                    pattern,
-                    arm.controller.args().get(idx + 1)?.clone(),
-                    body_span,
-                ));
-                idx += 2;
-            }
-        }
-
-        let mut default = None;
-        let mut selected = None;
-        for (idx, (pattern, _, _body_span)) in clauses.iter().enumerate() {
-            if case.is_keyword_pattern(pattern, idx, clauses.len()) {
-                default.get_or_insert(idx);
-                continue;
-            }
-            let matched = match invocation.mode {
-                tcl_registry::spec::CaseMatchMode::Exact if invocation.nocase => {
-                    pattern.to_lowercase() == subject.to_lowercase()
-                }
-                tcl_registry::spec::CaseMatchMode::Exact => pattern == &subject,
-                tcl_registry::spec::CaseMatchMode::Glob => {
-                    tcl_syntax::glob::string_case_match(pattern, &subject, invocation.nocase)
-                }
-                tcl_registry::spec::CaseMatchMode::Regexp
-                | tcl_registry::spec::CaseMatchMode::Other => return None,
+    /// The words of a `switch` as its selection reads them, each with how it
+    /// was written: the subject and the inline patterns as the environment
+    /// states them (a braced one is its own text), every other word as
+    /// written. A word left to substitute that is not the subject or a
+    /// pattern is unproven, so a `-` body it might spell declines the
+    /// selection.
+    fn switch_words(
+        &mut self,
+        proc_qname: &str,
+        arm: &ControlArm,
+        invocation: &tcl_registry::spec::CaseInvocation,
+        env: &std::collections::HashMap<String, String>,
+        depth: u32,
+    ) -> Option<Vec<(String, WordForm)>> {
+        let controller = &arm.controller;
+        let count = controller.args().len();
+        let braced = braced_word_flags(
+            controller.arg_tokens(),
+            controller.arg_single_token(),
+            count,
+        );
+        let quoted = quoted_word_flags(controller.arg_tokens(), count);
+        let is_pattern = |index: usize| {
+            invocation
+                .inline_clause_start
+                .is_some_and(|start| index >= start && (index - start).is_multiple_of(2))
+        };
+        let mut words = Vec::with_capacity(count);
+        for (index, text) in controller.args().iter().enumerate() {
+            let stated = invocation.subject_index == Some(index) || is_pattern(index);
+            let form = if braced[index] {
+                WordForm::Braced
+            } else if quoted[index] {
+                WordForm::Quoted
+            } else {
+                WordForm::Bare
             };
-            if matched {
-                selected = Some(idx);
-                break;
-            }
+            words.push(if braced[index] {
+                (
+                    self.word_rules().collapse_braced_word(text).into_owned(),
+                    form,
+                )
+            } else if stated {
+                let value =
+                    self.static_word_value(text, proc_qname, env, &mut Vec::new(), depth)?;
+                (value, form)
+            } else if ['$', '[', '\\'].iter().any(|mark| text.contains(*mark)) {
+                (text.clone(), WordForm::Unproven)
+            } else {
+                (text.clone(), form)
+            });
         }
-        let mut selected = selected.or(default)?;
-        while clauses
-            .get(selected)
-            .is_some_and(|(_, body, _)| case.fallthrough_body == Some(body.as_str()))
-        {
-            selected += 1;
+        Some(words)
+    }
+
+    /// The body span of each clause of a `switch`, in the command's order:
+    /// the clause-list word's bodies, or every second inline word after the
+    /// patterns begin.
+    fn switch_clause_bodies(
+        &self,
+        arm: &ControlArm,
+        case: &tcl_registry::spec::CaseListSpec,
+        invocation: &tcl_registry::spec::CaseInvocation,
+    ) -> Option<Vec<Span>> {
+        let args = arm.controller.args();
+        let tokens = arm.controller.arg_tokens();
+        if let Some(list_index) = invocation.clause_list_index {
+            let clauses = crate::segmenter::flatten_case_list_clauses(
+                &self.source,
+                args.get(list_index)?,
+                *tokens.get(list_index)?,
+                case,
+                self.lexer_config(),
+            );
+            return Some(
+                clauses
+                    .into_iter()
+                    .map(|(_, (_, body))| body.span)
+                    .collect(),
+            );
         }
-        Some(clauses.get(selected)?.2 == arm.body_span)
+        let start = invocation.inline_clause_start?;
+        (start..args.len().saturating_sub(1))
+            .step_by(2)
+            .map(|pattern| tokens.get(pattern + 1).map(|token| token.span))
+            .collect()
     }
 
     /// Apply one dominating statement to the literal environment.  Binding

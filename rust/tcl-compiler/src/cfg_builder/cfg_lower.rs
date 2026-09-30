@@ -27,7 +27,7 @@ use tcl_lexer::Span;
 
 use crate::cfg::{LoopNode, Terminator};
 use crate::expr_ast::{BinOp, ExprNode};
-use crate::ir::{Statement, SwitchMode};
+use crate::ir::Statement;
 use crate::ir_helpers::expr_has_command;
 
 use super::CfgBuilder;
@@ -788,7 +788,7 @@ impl CfgBuilder<'_> {
         // builds a `STR_EQ`/JUMP_TABLE dispatch that is case-sensitive, so the
         // case-insensitive match has to run through the generic `switch`
         // command (the VM/runtime `cmd_switch`).
-        if *mode != SwitchMode::Exact || *nocase || arms.iter().any(|arm| arm.fallthrough) {
+        if !super::switch_is_flattened(*mode, *nocase, arms) {
             return self.lower_opaque_switch(stmt, block_name);
         }
 
@@ -1229,7 +1229,7 @@ impl CfgBuilder<'_> {
 mod tests {
     use super::*;
     use crate::cfg_builder::build_cfg_function as build_cfg_function_for_registry;
-    use crate::ir::{ForeachIterator, Script, SwitchArm, TryHandler};
+    use crate::ir::{ForeachIterator, Script, SwitchArm, SwitchMode, TryHandler};
     use tcl_lexer::Span;
     use tcl_registry::CommandRegistry;
 

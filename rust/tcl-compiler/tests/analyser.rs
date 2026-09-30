@@ -6869,13 +6869,55 @@ mod class_factories {
                 .contains_key("::T::D::class")
         );
 
+        // `D*` as a regular expression matches `Dialect` (zero or more `D`
+        // from the start), so the regexp selection falls through into the
+        // creating body; tclsh 9.0 makes the class.
         let regexp = src.replace("switch -glob", "switch -regexp");
         assert!(
-            !analysis(&regexp, "tcl9.0")
+            analysis(&regexp, "tcl9.0")
                 .all_classes
                 .contains_key("::T::D::class"),
-            "unsupported regexp selection must abstain"
+            "the regexp selection reaches the creating body"
         );
+        // A pattern the regexp engine rejects is a selection nothing makes.
+        let malformed = src
+            .replace("switch -glob", "switch -regexp")
+            .replace("D* -", "{(} -");
+        assert!(
+            !analysis(&malformed, "tcl9.0")
+                .all_classes
+                .contains_key("::T::D::class"),
+            "a malformed pattern must abstain"
+        );
+    }
+
+    /// A quoted `-` body of the separate-words form reads two ways on 9.1b0
+    /// (its byte-compiled `switch` runs it as a command), so the selection
+    /// declines there and the class is not made; 9.0 reads it by value and
+    /// falls through into the creating body, and the bare spelling reads
+    /// alike everywhere.
+    #[test]
+    fn computed_creation_declines_a_delimited_fallthrough_body_on_91() {
+        let src = concat!(
+            "namespace eval ::T {}\n",
+            "oo::class create ::T::Mother { superclass oo::class }\n",
+            "proc ::T::mk {name selector} {\n",
+            "    switch -glob -- $selector D* \"-\" fallback {\n",
+            "        ::T::Mother create ${name}::class {}\n",
+            "    } default {}\n",
+            "}\n",
+            "::T::mk ::T::D Dialect\n",
+        );
+        let made = |source: &str, dialect: &str| {
+            analysis(source, dialect)
+                .all_classes
+                .contains_key("::T::D::class")
+        };
+        assert!(made(src, "tcl9.0"));
+        assert!(!made(src, "tcl9.1"));
+        let bare = src.replace("\"-\"", "-");
+        assert!(made(&bare, "tcl9.0"));
+        assert!(made(&bare, "tcl9.1"));
     }
 
     #[test]

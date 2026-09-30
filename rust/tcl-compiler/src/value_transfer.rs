@@ -51,9 +51,9 @@ use tcl_registry::value_transfer::{
     ExactValue, ExactValueOrUnavailable, Existence, ExistenceOutcome, FactDomain, FactView,
     InvocationLayout, InvocationOutcome, IterableKind, LanguageProfileId, LiftedAnswer,
     NestedPolicy, NumericValue, OperandId, OperandView, PlaceKind, PlaceRef, PlanAnswer,
-    RepresentationEvidence, ResolvedInvocationView, RouteIdentity, StoreOutcome, TargetId,
-    TransferAnswer, TypeFacts, ValueIdentity, ValueShape, WordPart, WordStructure, evaluate_lifted,
-    validate_outcome,
+    RepresentationEvidence, ResolvedInvocationView, RouteIdentity, SelectionFact, StoreOutcome,
+    TargetId, TransferAnswer, TypeFacts, ValueIdentity, ValueShape, WordPart, WordStructure,
+    evaluate_lifted, validate_outcome,
 };
 use tcl_registry::{
     ArgRole, CommandRegistry, InvocationWord, InvocationWordKind, InvocationWords,
@@ -4171,6 +4171,167 @@ pub fn literal_template_plan(
     }
 }
 
+/// How one word of a case-list call was written, for a consumer that reads
+/// the call's words rather than the lattice ([`literal_selection`]). The
+/// releases part on a fall-through body's delimiters, so a word whose value
+/// the caller proves says how it was spelled.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum WordForm {
+    /// A bare word with nothing to substitute.
+    Bare,
+    /// A double-quoted word with nothing to substitute.
+    Quoted,
+    /// A brace-quoted word.
+    Braced,
+    /// A word whose value the caller does not prove.
+    Unproven,
+}
+
+/// The selection a case-list call makes over words whose values the caller
+/// proves, with what its indices read against.
+#[derive(Debug, Clone)]
+pub(crate) struct LiteralSelection {
+    /// The selection: one entry, for the one subject value the words state.
+    pub fact: SelectionFact,
+    /// The plan's subject word, an index into the call's words.
+    pub subject: usize,
+    /// How many pattern and body pairs the plan read.
+    pub clauses: usize,
+}
+
+/// The inputs over `words` for the resolved case-list command `command`:
+/// every word exact but the unproven ones, each with the structure its form
+/// states.
+fn literal_selection_inputs<'a>(
+    command: &'a str,
+    words: &[(&'a str, WordForm)],
+    profile: Option<&'static tcl_dialect::DialectProfile>,
+) -> tcl_registry::value_transfer::LiteralInputs<'a> {
+    let texts: Vec<&str> = words.iter().map(|&(text, _)| text).collect();
+    let mut inputs =
+        tcl_registry::value_transfer::LiteralInputs::new(command, None, &texts, profile);
+    for (index, &(_, form)) in words.iter().enumerate() {
+        let id = OperandId(index);
+        inputs = match form {
+            WordForm::Bare => inputs.with_bare(id),
+            WordForm::Quoted => inputs.with_quoted(id),
+            WordForm::Braced => inputs.with_braced(id),
+            WordForm::Unproven => inputs.with_unproven(id),
+        };
+    }
+    inputs
+}
+
+/// The selection the case-list call `head words…` makes when the caller
+/// proves the words' values (`docs/design/compiler/value-transfers.md`
+/// § *`switch`*): the registry's declared `Selection` transfer for the
+/// resolved command, the shared core choosing the arm. `subject` gives the
+/// plan's subject word the value the caller proves for it when the words
+/// spell it otherwise (`$mode`). `None` where the head declares no
+/// selection, or the plan or the transfer declines.
+pub(crate) fn literal_selection(
+    registry: &CommandRegistry,
+    head: &str,
+    words: &[(&str, WordForm)],
+    subject: Option<&str>,
+) -> Option<LiteralSelection> {
+    let invocation: Vec<InvocationWord<'_>> = words
+        .iter()
+        .map(|&(text, form)| match form {
+            WordForm::Unproven => InvocationWord::Dynamic,
+            _ => InvocationWord::Literal(text),
+        })
+        .collect();
+    let resolved = registry
+        .resolve_structured_invocation(
+            InvocationWords::structured(InvocationWord::Literal(head), &invocation),
+            registry.own_surface_query(),
+        )
+        .resolved()?;
+    let semantics = resolved.semantics.value.semantics()?;
+    let command = resolved.canonical_command;
+    let profile = registry.profile();
+    let mut inputs = literal_selection_inputs(command, words, profile);
+    let mut plan = semantics.structure(&inputs);
+    if let (Some(value), PlanAnswer::CaseList { subject: at, .. }) = (subject, &plan) {
+        let mut proven = words.to_vec();
+        *proven.get_mut(at.0)? = (value, WordForm::Bare);
+        inputs = literal_selection_inputs(command, &proven, profile);
+        plan = semantics.structure(&inputs);
+    }
+    let PlanAnswer::CaseList {
+        subject: at, arms, ..
+    } = plan
+    else {
+        return None;
+    };
+    let clauses = plan_clause_count(
+        &inputs,
+        &arms,
+        WordValueRules::from_config(&LexerConfig::for_profile(profile)),
+    )?;
+    let TransferAnswer::Selection(fact) =
+        semantics.transfer(FactDomain::Selection, &inputs, &mut Budget::evaluation())
+    else {
+        return None;
+    };
+    Some(LiteralSelection {
+        fact,
+        subject: at.0,
+        clauses,
+    })
+}
+
+/// The form a lowered word's source says it has.
+const fn form_of(source: OperandSource) -> WordForm {
+    match source {
+        OperandSource::Literal => WordForm::Bare,
+        OperandSource::QuotedLiteral => WordForm::Quoted,
+        OperandSource::BracedLiteral => WordForm::Braced,
+        OperandSource::Substituted | OperandSource::Unknown => WordForm::Unproven,
+    }
+}
+
+/// The selection the lowered case-list statement `stmt` makes when its
+/// subject word holds `subject`: the words as the lowering recorded them
+/// (`switch_arguments` over `raw_args` and the delimiter flags), through
+/// [`literal_selection`] for the command the statement names. Only where the
+/// plan reads the statement's own subject and clause count — an inliner
+/// renames `subject` and leaves `raw_args` — and where the words'
+/// delimiters were recorded; `None` otherwise.
+pub(crate) fn statement_selection(
+    registry: &CommandRegistry,
+    stmt: &Statement,
+    subject: &str,
+) -> Option<SelectionFact> {
+    let Statement::Switch {
+        subject: written,
+        arms,
+        default_body,
+        raw_args,
+        raw_arg_braced,
+        raw_arg_quoted,
+        command,
+        ..
+    } = stmt
+    else {
+        return None;
+    };
+    if raw_arg_braced.len() != raw_args.len() || raw_arg_quoted.len() != raw_args.len() {
+        return None;
+    }
+    let config = LexerConfig::for_profile(registry.profile());
+    let cooked = switch_arguments(raw_args, (raw_arg_braced, raw_arg_quoted), &config);
+    let words: Vec<(&str, WordForm)> = cooked
+        .iter()
+        .map(|word| (word.text.as_ref(), form_of(word.source)))
+        .collect();
+    let selection = literal_selection(registry, command, &words, Some(subject))?;
+    let clauses = arms.len() + usize::from(default_body.is_some());
+    (raw_args.get(selection.subject) == Some(written) && selection.clauses == clauses)
+        .then_some(selection.fact)
+}
+
 /// Split a command-substitution body into `(head_word, rest)`. `rest` is
 /// `None` if the body is a single word, otherwise the remaining text with
 /// the leading whitespace stripped.
@@ -4682,6 +4843,147 @@ mod tests {
             "the opaque statement"
         );
         assert!(function.sccp.selections.is_empty());
+    }
+
+    /// The selection the call `head words…` makes under `dialect`.
+    fn call_selection(
+        dialect: &str,
+        head: &str,
+        words: &[(&str, WordForm)],
+        subject: Option<&str>,
+    ) -> Option<LiteralSelection> {
+        let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
+        literal_selection(registry, head, words, subject)
+    }
+
+    /// A consumer holding a call's words gets the command's own selection —
+    /// mode, case folding, the final `default`, fall-through — from the
+    /// registry, and the subject a caller proves for a word the call spells
+    /// as a variable. Each answer is tclsh 8.6.18's.
+    #[test]
+    fn a_literal_call_selects_through_the_registry() {
+        use WordForm::{Bare, Braced};
+        let glob = [
+            ("-glob", Bare),
+            ("--", Bare),
+            ("abc", Bare),
+            ("a*", Bare),
+            ("A", Braced),
+            ("default", Bare),
+            ("D", Braced),
+        ];
+        let chosen = call_selection("tcl8.6", "switch", &glob, None).expect("a selection");
+        assert_eq!(chosen.fact.selected, [Some(0)]);
+        assert_eq!(chosen.fact.bodies, [Some(0)]);
+        assert_eq!((chosen.subject, chosen.clauses), (2, 2));
+        // The subject the call spells as `$x`, given the value the caller
+        // proves, selects the final default.
+        let mut variable = glob;
+        variable[2] = ("$x", WordForm::Unproven);
+        assert!(call_selection("tcl8.6", "switch", &variable, None).is_none());
+        let chosen = call_selection("tcl8.6", "switch", &variable, Some("zzz")).expect("selected");
+        assert_eq!(chosen.fact.selected, [Some(1)]);
+        assert_eq!(chosen.fact.bodies, [Some(1)]);
+        // The regexp mode runs the engine; `-nocase` needs a release that has it.
+        let regexp = [
+            ("-regexp", Bare),
+            ("--", Bare),
+            ("abc", Bare),
+            ("^a.c$", Bare),
+            ("A", Braced),
+        ];
+        let chosen = call_selection("tcl8.6", "switch", &regexp, None).expect("a selection");
+        assert_eq!(chosen.fact.selected, [Some(0)]);
+        let nocase = [
+            ("-nocase", Bare),
+            ("--", Bare),
+            ("ABC", Bare),
+            ("abc", Bare),
+            ("A", Braced),
+        ];
+        assert!(call_selection("tcl8.6", "switch", &nocase, None).is_some());
+        assert!(call_selection("tcl", "switch", &nocase, None).is_none());
+        // A pattern the caller does not prove declines the whole selection.
+        let mut unproven = glob;
+        unproven[3] = ("$p", WordForm::Unproven);
+        assert!(call_selection("tcl8.6", "switch", &unproven, None).is_none());
+    }
+
+    /// A `-` body reads two ways on 9.1b0 when it is delimited: a bare one
+    /// falls through everywhere, a quoted one only where the profile rules
+    /// 9.1 out.
+    #[test]
+    fn a_delimited_fallthrough_word_declines_only_where_it_may_be_91() {
+        use WordForm::{Bare, Braced, Quoted};
+        for (form, under_91) in [(Bare, true), (Quoted, false), (Braced, false)] {
+            let words = [
+                ("--", Bare),
+                ("a", Bare),
+                ("a", Bare),
+                ("-", form),
+                ("b", Bare),
+                ("B", Braced),
+            ];
+            for dialect in ["tcl8.6", "tcl9.0", "tcl9.1", "tcl"] {
+                let chosen = call_selection(dialect, "switch", &words, None);
+                let expected = matches!(dialect, "tcl8.6" | "tcl9.0") || under_91;
+                assert_eq!(chosen.is_some(), expected, "{dialect}: {form:?}");
+                if let Some(chosen) = chosen {
+                    assert_eq!(chosen.fact.bodies, [Some(1)], "{dialect}: {form:?}");
+                }
+            }
+        }
+    }
+
+    /// `case` reads its own contract through the same query: glob patterns
+    /// and the `in` word skipped, from the releases that have it.
+    #[test]
+    fn a_literal_case_call_selects_its_glob_arm() {
+        use WordForm::{Bare, Braced};
+        let words = [
+            ("abc", Bare),
+            ("in", Bare),
+            ("a*", Bare),
+            ("A", Braced),
+            ("default", Bare),
+            ("D", Braced),
+        ];
+        for dialect in ["tcl8.4", "tcl8.6"] {
+            let chosen = call_selection(dialect, "case", &words, None).expect("a selection");
+            assert_eq!(chosen.fact.selected, [Some(0)], "{dialect}");
+        }
+        assert!(call_selection("tcl9.0", "case", &words, None).is_none());
+    }
+
+    /// The lowered statement's selection is asked over its recorded words,
+    /// and only where they are the statement's own: a subject an inliner
+    /// renamed, or words whose delimiters the lowering did not record, make
+    /// none.
+    #[test]
+    fn a_lowered_statement_selects_over_its_recorded_words() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let module = crate::lowering::lower_to_ir(
+            "switch -glob -- $mode {a* {set v 1} b {set v 2} default {set v 3}}\n",
+            registry,
+        );
+        let statement = module.top_level.statements[0].clone();
+        assert!(matches!(statement, Statement::Switch { .. }));
+        let selected = |statement: &Statement, subject: &str| {
+            statement_selection(registry, statement, subject).map(|fact| fact.bodies)
+        };
+        assert_eq!(selected(&statement, "abc"), Some(vec![Some(0)]));
+        assert_eq!(selected(&statement, "b"), Some(vec![Some(1)]));
+        assert_eq!(selected(&statement, "zzz"), Some(vec![Some(2)]));
+        let mut renamed = statement.clone();
+        if let Statement::Switch { subject, .. } = &mut renamed {
+            *subject = "$other".to_owned();
+        }
+        assert_eq!(selected(&renamed, "abc"), None);
+        let mut unrecorded = statement;
+        if let Statement::Switch { raw_arg_quoted, .. } = &mut unrecorded {
+            raw_arg_quoted.clear();
+        }
+        assert_eq!(selected(&unrecorded, "abc"), None);
     }
 
     #[test]

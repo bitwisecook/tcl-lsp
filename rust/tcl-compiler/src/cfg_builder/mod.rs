@@ -117,6 +117,18 @@ fn all_str_tokens(cmd: &str, args: &[String]) -> CommandTokens {
     )
 }
 
+/// Whether a `switch` lowers to a dispatch chain of `StrEq` branches, one
+/// per arm, rather than to one opaque statement: only an exact,
+/// case-sensitive one with no fall-through arm does. Its selection is then
+/// the chain's decided branches; the opaque forms' is the selection record.
+pub(crate) fn switch_is_flattened(
+    mode: crate::ir::SwitchMode,
+    nocase: bool,
+    arms: &[crate::ir::SwitchArm],
+) -> bool {
+    mode == crate::ir::SwitchMode::Exact && !nocase && !arms.iter().any(|arm| arm.fallthrough)
+}
+
 mod cfg_lower;
 pub mod global_write_info;
 pub mod upvar_info;

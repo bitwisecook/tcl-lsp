@@ -29,7 +29,7 @@ use std::collections::HashMap;
 use tcl_registry::CommandRegistry;
 
 use crate::expr_ast::ExprNode;
-use crate::ir::{IfClause, Script, Statement, SwitchArm, SwitchMode};
+use crate::ir::{IfClause, Script, Statement};
 use crate::naming::normalise_var_name;
 use crate::tcl_expr_eval::{Env, EnvValue, FoldPolicy, TclValue, eval_tcl_expr_with_policy};
 use crate::value_shapes::is_static_var_word;
@@ -187,7 +187,13 @@ fn strip_word_delimiters(text: &str) -> String {
     stripped.to_owned()
 }
 
-fn resolve_switch_subject(text: &str, env: &StaticEnv) -> Option<String> {
+/// The value a `switch` subject holds in the simulator: a braced word's
+/// own text, a lone `$name` read from the environment, or a word with no
+/// substitution as written.
+fn resolve_switch_subject(text: &str, braced: bool, env: &StaticEnv) -> Option<String> {
+    if braced {
+        return Some(text.to_owned());
+    }
     let stripped = text.trim();
     if stripped.contains('$') || stripped.contains('[') {
         let name = simple_var_ref(stripped)?;
@@ -200,10 +206,6 @@ fn resolve_switch_subject(text: &str, env: &StaticEnv) -> Option<String> {
         });
     }
     Some(strip_word_delimiters(stripped))
-}
-
-fn resolve_switch_pattern(pattern: &str) -> String {
-    strip_word_delimiters(pattern)
 }
 
 // Simulator
@@ -261,13 +263,7 @@ fn exec_statement(stmt: &Statement, env: &mut StaticEnv, semantics: LoopSemantic
         Statement::If {
             clauses, else_body, ..
         } => exec_if(clauses, else_body.as_ref(), env, semantics),
-        Statement::Switch {
-            subject,
-            arms,
-            default_body,
-            mode,
-            ..
-        } => exec_switch(subject, arms, default_body.as_ref(), *mode, env, semantics),
+        Statement::Switch { .. } => exec_switch(stmt, env, semantics),
         // Calls, barriers, returns, loops (other than the
         // top-level summarised `for`) — out of supported subset.
         _ => false,
@@ -304,36 +300,42 @@ fn exec_if(
     }
 }
 
-fn exec_switch(
-    subject: &str,
-    arms: &[SwitchArm],
-    default_body: Option<&Script>,
-    _mode: SwitchMode,
-    env: &mut StaticEnv,
-    semantics: LoopSemantics<'_>,
-) -> bool {
-    let Some(subject_value) = resolve_switch_subject(subject, env) else {
+/// Run a `switch` over the environment: the registry's selection for the
+/// statement's own command and options, with the subject holding the value
+/// the environment gives it, chooses the body — mode, case folding and
+/// fall-through as the command reads them. A selection the registry does not
+/// make (a pattern the environment cannot state, an error the command
+/// raises) ends the simulation.
+fn exec_switch(stmt: &Statement, env: &mut StaticEnv, semantics: LoopSemantics<'_>) -> bool {
+    let Statement::Switch {
+        subject,
+        subject_braced,
+        arms,
+        default_body,
+        ..
+    } = stmt
+    else {
         return false;
     };
-    let mut pending_fallthrough = false;
-    let mut selected_body: Option<&Script> = None;
-    for arm in arms {
-        let pattern = resolve_switch_pattern(&arm.pattern);
-        let matches = pattern == subject_value;
-        if !(matches || pending_fallthrough) {
-            continue;
-        }
-        if let Some(body) = arm.body.as_ref() {
-            selected_body = Some(body);
-            break;
-        }
-        pending_fallthrough = true;
+    let Some(value) = resolve_switch_subject(subject, *subject_braced, env) else {
+        return false;
+    };
+    let Some(fact) = crate::value_transfer::statement_selection(semantics.registry, stmt, &value)
+    else {
+        return false;
+    };
+    let ([body], [writes]) = (fact.bodies.as_slice(), fact.writes.as_slice()) else {
+        return false;
+    };
+    if !writes.is_empty() {
+        return false;
     }
-    let body = selected_body.or(default_body);
-    match body {
-        None => true,
-        Some(b) => exec_script(b, env, semantics),
-    }
+    let chosen = match body {
+        None => return true,
+        Some(arm) if *arm == arms.len() => default_body.as_ref(),
+        Some(arm) => arms.get(*arm).and_then(|arm| arm.body.as_ref()),
+    };
+    chosen.is_some_and(|script| exec_script(script, env, semantics))
 }
 
 // For-loop summarisation
@@ -413,6 +415,7 @@ pub fn summarise_for_statement(
 mod tests {
     use super::*;
     use crate::expr_parser::parse_expr;
+    use crate::ir::{SwitchArm, SwitchMode};
     use tcl_lexer::Span;
 
     fn registry() -> CommandRegistry {
@@ -664,16 +667,39 @@ mod tests {
     /// `switch $mode { a {set v 1} default {set v 9} }` — shared by the
     /// switch-dispatch case and its unresolvable-subject counterpart.
     fn mode_switch() -> Statement {
+        mode_switch_with(&[], SwitchMode::Exact, false, "a")
+    }
+
+    /// `switch <options> $mode { <pattern> {set v 1} default {set v 9} }` as
+    /// the lowering records it: the words as written with how each was
+    /// delimited, beside the arms and the mode the options select.
+    fn mode_switch_with(
+        options: &[&str],
+        mode: SwitchMode,
+        nocase: bool,
+        pattern: &str,
+    ) -> Statement {
+        let list = format!("{pattern} {{set v 1}} default {{set v 9}}");
+        let raw_args: Vec<String> = options
+            .iter()
+            .copied()
+            .chain(["$mode", list.as_str()])
+            .map(str::to_owned)
+            .collect();
+        let mut braced = vec![false; raw_args.len()];
+        if let Some(last) = braced.last_mut() {
+            *last = true;
+        }
         Statement::Switch {
             subject_braced: false,
-            raw_arg_braced: Vec::new(),
-            raw_arg_quoted: Vec::new(),
+            raw_arg_braced: braced,
+            raw_arg_quoted: vec![false; raw_args.len()],
             command: "switch".into(),
             span: sp(),
             subject: "$mode".into(),
             subject_span: sp(),
             arms: vec![SwitchArm {
-                pattern: "a".into(),
+                pattern: pattern.into(),
                 pattern_braced: true,
                 pattern_span: sp(),
                 body: Some(script_of(vec![assign_const("v", "1")])),
@@ -682,11 +708,32 @@ mod tests {
             }],
             default_body: Some(script_of(vec![assign_const("v", "9")])),
             default_span: None,
-            mode: SwitchMode::Exact,
-            nocase: false,
-            raw_args: Vec::new(),
+            mode,
+            nocase,
+            raw_args,
             patterns_braced: true,
         }
+    }
+
+    /// What `v` holds after `switch <options> $mode …` runs once with
+    /// `mode` set to `value` under Tcl 8.6, or `None` where the simulation
+    /// gives up.
+    fn v_after(switch: Statement, value: &str) -> Option<StaticValue> {
+        let body = script_of(vec![switch]);
+        let init = script_of(vec![assign_const("i", "0"), assign_const("mode", value)]);
+        summarise_static_for(
+            &init,
+            &parse_expr("$i < 1", None),
+            &script_of(vec![incr("i", None)]),
+            &body,
+            &StaticEnv::new(),
+            1000,
+            LoopSemantics {
+                policy: FoldPolicy::default(),
+                registry: tcl_registry::model::ingress::static_context_for("tcl8.6").commands(),
+            },
+        )?
+        .remove("v")
     }
 
     #[test]
@@ -747,6 +794,99 @@ mod tests {
         )
         .expect("summarised");
         assert_eq!(env.get("v"), Some(&StaticValue::Int(1)));
+    }
+
+    /// The simulator runs the command's own selection, so the mode its
+    /// options select is honoured where it had compared every pattern as a
+    /// string: `-glob` matches `a*`, `-exact` does not, `-nocase` folds
+    /// case, `-regexp` runs the engine, and a `-` body supplies the next.
+    #[test]
+    fn summarise_honours_the_mode_of_a_switch() {
+        let taken = Some(StaticValue::Int(1));
+        let default = Some(StaticValue::Int(9));
+        let cases = [
+            (
+                &["-glob", "--"][..],
+                SwitchMode::Glob,
+                false,
+                "a*",
+                "abc",
+                &taken,
+            ),
+            (
+                &["-exact", "--"],
+                SwitchMode::Exact,
+                false,
+                "a*",
+                "abc",
+                &default,
+            ),
+            (
+                &["-nocase", "--"],
+                SwitchMode::Exact,
+                true,
+                "ABC",
+                "abc",
+                &taken,
+            ),
+            (
+                &["-regexp", "--"],
+                SwitchMode::Regexp,
+                false,
+                "^a.c$",
+                "abc",
+                &taken,
+            ),
+            (
+                &["-regexp", "--"],
+                SwitchMode::Regexp,
+                false,
+                "^b",
+                "abc",
+                &default,
+            ),
+        ];
+        for (options, mode, nocase, pattern, value, expected) in cases {
+            assert_eq!(
+                v_after(mode_switch_with(options, mode, nocase, pattern), value),
+                *expected,
+                "{options:?} {pattern} against {value}"
+            );
+        }
+    }
+
+    /// A statement whose words the lowering did not record, or whose subject
+    /// the environment cannot state, is outside the supported subset.
+    #[test]
+    fn summarise_bails_where_the_selection_is_not_made() {
+        let mut unrecorded = mode_switch();
+        if let Statement::Switch { raw_args, .. } = &mut unrecorded {
+            raw_args.clear();
+        }
+        assert_eq!(v_after(unrecorded, "a"), None);
+        // The separate-words form: a literal pattern word selects, and a
+        // pattern the command would substitute is no value to match.
+        let inline = |pattern: &str| {
+            let mut statement = mode_switch();
+            if let Statement::Switch {
+                raw_args,
+                raw_arg_braced,
+                raw_arg_quoted,
+                patterns_braced,
+                ..
+            } = &mut statement
+            {
+                *raw_args = ["$mode", pattern, "set v 1", "default", "set v 9"]
+                    .map(str::to_owned)
+                    .to_vec();
+                *raw_arg_braced = vec![false, false, true, false, true];
+                *raw_arg_quoted = vec![false; 5];
+                *patterns_braced = false;
+            }
+            statement
+        };
+        assert_eq!(v_after(inline("a"), "a"), Some(StaticValue::Int(1)));
+        assert_eq!(v_after(inline("$pat"), "a"), None);
     }
 
     #[test]
