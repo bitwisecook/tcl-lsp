@@ -1298,8 +1298,10 @@ fn parse_limit_int(bytes: &[u8]) -> Result<i64, Vec<u8>> {
 /// reads numerals exactly as the release it reports.
 const DEFAULT_RUNTIME_VERSION: tcl_dialect::TclVersion = tcl_dialect::TclVersion::V9_0;
 
-/// Install `version`'s numeric-literal grammar as this thread's ambient one, so
-/// every numeral this runtime reads (`expr`, `format`, `dict`, `incr`, the
+/// Install `version`'s build-time facts as this thread's ambient ones: the C
+/// regex engine's implicit compile flags (see
+/// [`crate::regex_capi::set_runtime_release`]), and the numeric-literal
+/// grammar, so every numeral this runtime reads (`expr`, `format`, `dict`, `incr`, the
 /// bignum tower — all of which parse through `tcl_syntax::number::parse_whole`
 /// with `ParseFlags::default()`) follows the emulated release: `0755` is 493
 /// under 8.4/8.6 and 755 under 9.0, `0b`/`0o` exist from 8.5, and `0d` plus `_`
@@ -1310,8 +1312,9 @@ const DEFAULT_RUNTIME_VERSION: tcl_dialect::TclVersion = tcl_dialect::TclVersion
 /// conversion — hence ambient state rather than an argument threaded through
 /// every `Tcl_GetIntFromObj`-shaped call. Called from [`Interp::new`] and
 /// [`Interp::set_runtime_version`], i.e. everywhere a release is established.
-fn install_number_syntax(version: tcl_dialect::TclVersion) {
+fn install_ambient_release(version: tcl_dialect::TclVersion) {
     tcl_syntax::number::set_runtime_syntax(version.number_syntax());
+    crate::regex_capi::set_runtime_release(version);
 }
 
 fn default_host() -> Rc<dyn tcl_platform::Host> {
@@ -1421,7 +1424,7 @@ impl Interp {
         // another release by an interpreter built earlier on this thread, so a
         // fresh interp installs its own rather than inheriting whatever is
         // there (`set_runtime_version` re-installs when an embedder repins).
-        install_number_syntax(DEFAULT_RUNTIME_VERSION);
+        install_ambient_release(DEFAULT_RUNTIME_VERSION);
         builtins::install(&mut interp);
         // C sets `tcl_version`/`tcl_patchLevel` in `Tcl_CreateInterp`
         // (9.0.4 `generic/tclBasic.c:1346-1347`), **not** in `Tcl_Init` — so
@@ -1470,7 +1473,7 @@ impl Interp {
     /// from this one value rather than being set independently, so the two
     /// engines cannot drift apart by having one of them updated and not the
     /// other. Today that is the numeric-literal grammar (see
-    /// [`install_number_syntax`]), the namespace-scope variable fallback
+    /// [`install_ambient_release`]), the namespace-scope variable fallback
     /// (TIP 278), and the release-reporting globals.
     ///
     /// The fallback is a property of the **namespace table**, which every
@@ -1502,7 +1505,7 @@ impl Interp {
         // second interpreter constructed on a thread where an earlier one
         // installed 8.4 must re-install its own release even when its version
         // field needs no change.
-        install_number_syntax(version);
+        install_ambient_release(version);
         if std::ptr::eq(self.dialect_profile(), profile) {
             return;
         }
