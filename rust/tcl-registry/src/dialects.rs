@@ -16,20 +16,17 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Dialect detection heuristics (and re-exports of the dialect vocabulary).
+//! Dialect detection heuristics.
 //!
-//! The dialect *types* — `SpecSurface`, [`KNOWN_DIALECTS`], the
-//! `DialectProfile` catalogue — live in the foundational `tcl-dialect` crate
-//! (dialect-profile-model.md §3) so layers below the registry (tcl-lexer,
-//! tcl-syntax) consume the same source of truth. They are re-exported here
-//! for the registry's own convenience and for backwards compatibility.
+//! The dialect *types* — `SpecSurface`, the `DialectProfile` catalogue — live
+//! in the foundational `tcl-dialect` crate (dialect-profile-model.md §3) so
+//! layers below the registry (tcl-lexer, tcl-syntax) consume the same source
+//! of truth.
 //!
-//! What genuinely lives here is dialect *detection*: the directive /
+//! What lives here is dialect *detection*: the directive /
 //! shebang / content-signature / version-guard heuristics, which tokenise
 //! source text and therefore need `tcl_lexer` — they sit above the lexer,
 //! unlike the vocabulary itself.
-
-pub use tcl_dialect::{KNOWN_DIALECTS, available_dialects};
 
 /// Number of leading lines scanned for a `# tcl-dialect:` directive.
 pub const DIALECT_DIRECTIVE_SCAN_LINES: usize = 5;

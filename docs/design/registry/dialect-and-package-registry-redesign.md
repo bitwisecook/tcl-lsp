@@ -910,7 +910,8 @@ capability-specific:
 
 `DialectProfile` with `PLAIN_TCL` and `TK_PROFILE` as interned statics the
 seam consumes — the lexer's grammar key (§11 D5) and the editor
-catalogues' identity key; `KNOWN_DIALECTS` as the CLI `--dialect`, MCP
+catalogues' identity key; the selectable environment set
+(`EnvironmentRegistry::selectable`) as the CLI `--dialect`, MCP
 `dialect_schema` and explorer payload vocabulary (§11 D15); and
 `ProfileQueries`, `pub(crate)` to `tcl-registry`. Everything else the
 model replaced is deleted and held at zero by `cargo xtask

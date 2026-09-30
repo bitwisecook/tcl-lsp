@@ -378,8 +378,7 @@ impl PartialEq for DialectProfile {
 
 impl Eq for DialectProfile {}
 
-/// The catalogue: one profile per canonical dialect, in
-/// [`KNOWN_DIALECTS`](crate::KNOWN_DIALECTS) (sorted) order.
+/// The catalogue: one profile per canonical dialect, in sorted-name order.
 ///
 /// Surface and behaviour values follow the per-dialect table in
 /// `docs/design/registry/dialect-profile-model.md` §7.
@@ -1524,10 +1523,13 @@ impl DialectProfile {
             .map(TclVersion::string_character_model)
     }
 
-    /// The full catalogue of canonical dialect profiles, in sorted-name order
-    /// (the [`KNOWN_DIALECTS`](crate::KNOWN_DIALECTS) order). Excludes the
-    /// [`Self::plain_tcl`] fallback — it is a resolution sink, not a
-    /// selectable dialect.
+    /// The full catalogue of canonical dialect profiles, in sorted-name order.
+    /// Excludes the [`Self::plain_tcl`] fallback — it is a resolution sink, not
+    /// a selectable dialect.
+    ///
+    /// The lexer's grammar rows and the editors' identity key, never a list of
+    /// names shown to a user: that reads
+    /// [`EnvironmentRegistry::selectable`](crate::model::EnvironmentRegistry::selectable).
     #[must_use]
     pub fn all() -> &'static [DialectProfile] {
         &CATALOG
@@ -1727,46 +1729,9 @@ impl DialectProfile {
     }
 }
 
-/// Canonical dialect profile names, in sorted order.
-///
-/// Kept pre-sorted so [`available_dialects`] returns them in sorted
-/// order. This
-/// is the single source of truth for the explorer's dialect dropdown and
-/// the CLI's `--dialect` choices. Every name here resolves to its own
-/// [`DialectProfile::find`] entry (`f5-tmsh` / `f5-bigip` are first-class
-/// profiles, D8; `tk` is a library pin, not a profile — §7.2).
-pub const KNOWN_DIALECTS: &[&str] = &[
-    "bpf",
-    "cadence-eda-tcl",
-    "expect",
-    "f5-bigip",
-    "f5-iapps",
-    "f5-irules",
-    "f5-tmsh",
-    "intel-quartus-eda-tcl",
-    "mentor-eda-tcl",
-    "microchip-libero-eda-tcl",
-    "spectcl",
-    "sslictcl",
-    "synopsys-eda-tcl",
-    "tcl8.4",
-    "tcl8.5",
-    "tcl8.6",
-    "tcl9.0",
-    "tcl9.1",
-    "xilinx-eda-tcl",
-];
-
-/// Return the canonical dialect profile names in sorted order.
-#[must_use]
-pub fn available_dialects() -> &'static [&'static str] {
-    KNOWN_DIALECTS
-}
-
 #[cfg(test)]
 mod tests {
     use super::DialectProfile;
-    use super::KNOWN_DIALECTS;
     use crate::grammar::{BracedVarStyle, EscapeSyntax, ExprCommentStyle, NumberSyntax};
     use crate::library::{LibraryVersion, LibraryVersionOverrides, VersionKey};
     use crate::model::{
@@ -1939,19 +1904,22 @@ mod tests {
     }
 
     #[test]
-    fn catalog_matches_known_dialects_exactly() {
-        // One profile per canonical name, in the same (sorted) order —
-        // KNOWN_DIALECTS and the catalogue can never drift apart.
+    fn catalog_is_one_profile_per_canonical_name_in_sorted_order() {
         let names: Vec<&str> = DialectProfile::all().iter().map(|p| p.name).collect();
-        assert_eq!(names.as_slice(), KNOWN_DIALECTS);
+        let mut sorted = names.clone();
+        sorted.sort_unstable();
+        sorted.dedup();
+        assert_eq!(names, sorted);
     }
 
     #[test]
     fn find_resolves_canonical_names_to_themselves() {
-        for &name in KNOWN_DIALECTS {
+        for profile in DialectProfile::all() {
             assert_eq!(
-                DialectProfile::find(name).expect("catalogue profile").name,
-                name
+                DialectProfile::find(profile.name)
+                    .expect("catalogue profile")
+                    .name,
+                profile.name
             );
         }
     }

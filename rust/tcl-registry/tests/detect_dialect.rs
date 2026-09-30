@@ -352,10 +352,8 @@ fn the_speclib_directive_is_a_content_signature() {
 /// to its own surface, and round-trips through the catalogue.
 #[test]
 fn spectcl_is_a_catalogued_dialect() {
-    use tcl_dialect::KNOWN_DIALECTS;
     use tcl_dialect::model::{Family, SurfaceLayer, SurfaceQuery};
 
-    assert!(KNOWN_DIALECTS.contains(&"spectcl"));
     assert_eq!(
         tcl_dialect::DialectProfile::find("spectcl")
             .map(tcl_dialect::DialectProfile::surface_query),
@@ -476,10 +474,8 @@ fn the_word_sslictcl_alone_does_not_route_a_tcl_script() {
 /// to its own surface, and round-trips through the catalogue.
 #[test]
 fn sslictcl_is_a_catalogued_dialect() {
-    use tcl_dialect::KNOWN_DIALECTS;
     use tcl_dialect::model::{Family, SurfaceLayer, SurfaceQuery};
 
-    assert!(KNOWN_DIALECTS.contains(&"sslictcl"));
     assert_eq!(
         tcl_dialect::DialectProfile::find("sslictcl")
             .map(tcl_dialect::DialectProfile::surface_query),

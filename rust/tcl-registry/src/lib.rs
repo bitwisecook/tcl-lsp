@@ -249,8 +249,8 @@ pub use completion::{
     CompletionPayloadObligations, CompletionValueSemantics,
 };
 pub use dialects::{
-    DETECT_SCAN_BYTES, KNOWN_DIALECTS, available_dialects, detect_dialect,
-    detect_dialect_directive, detect_dialect_from_source, dialect_from_extension,
+    DETECT_SCAN_BYTES, detect_dialect, detect_dialect_directive, detect_dialect_from_source,
+    dialect_from_extension,
 };
 pub use dispatch_stability::{
     DispatchDependencies, DispatchDependencyComposition, DispatchDependencyDescriptor,

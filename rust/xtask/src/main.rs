@@ -46,9 +46,9 @@
 //!   documents exactly the builtins `tcl-bigip-query` registers.
 //! - `bigip-data-schema` — verify the hand-maintained BIG-IP object-spec data
 //!   is internally consistent.
-//! - `catalogue-callers` — hold every spelling of `DialectProfile::all()` and
-//!   `KNOWN_DIALECTS` to an allowlist (`--check` is accepted for symmetry; the
-//!   gate only verifies).
+//! - `catalogue-callers` — hold every spelling of `DialectProfile::all()`,
+//!   `KNOWN_DIALECTS` and `available_dialects(` to an allowlist (`--check` is
+//!   accepted for symmetry; the gate only verifies).
 //! - `gen-editor-catalogs` — generate the VS Code iRules-event catalog JSON
 //!   from the registry (`--check` to verify instead of write).
 //! - `number-drift` — flag hand-rolled Tcl radix-prefix recognition outside
@@ -364,8 +364,8 @@ enum Command {
         check: bool,
     },
 
-    /// Hold every caller of `DialectProfile::all()` and `KNOWN_DIALECTS` to
-    /// the allowlist in `rust/xtask/src/catalogue_callers.rs`: a list of names
+    /// Hold every caller of `DialectProfile::all()`, `KNOWN_DIALECTS` and
+    /// `available_dialects(` to the allowlist in `rust/xtask/src/catalogue_callers.rs`: a list of names
     /// shown to a user reads the environment registry, not the catalogue.
     #[command(name = "catalogue-callers")]
     CatalogueCallers {

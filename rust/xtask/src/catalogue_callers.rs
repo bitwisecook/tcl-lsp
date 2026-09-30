@@ -19,11 +19,13 @@
 //! `catalogue-callers` — holds the dialect catalogue's enumerations to an
 //! allowlist.
 //!
-//! `DialectProfile::all()` and `KNOWN_DIALECTS` list the lexer's grammar rows
-//! and the editors' identity key. A list of names shown to a user comes from
-//! the environment registry (read at run time, or projected by a generator
-//! over the compiled registry), never from the catalogue
+//! `DialectProfile::all()` lists the lexer's grammar rows and the editors'
+//! identity key. A list of names shown to a user comes from the environment
+//! registry (read at run time, or projected by a generator over the compiled
+//! registry), never from the catalogue
 //! (`docs/design/contracts/environment-selection.md`, § *The rule*).
+//! `KNOWN_DIALECTS` and `available_dialects(` are needles too: neither exists,
+//! so a caller that reintroduces one is refused.
 //!
 //! Every file under `rust/` that spells either enumeration in code needs an
 //! entry in [`ALLOWED`] with a one-line reason. An entry whose file no
@@ -38,8 +40,12 @@ use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-/// The spellings of the two catalogue enumerations.
-const NEEDLES: &[&str] = &["DialectProfile::all(", "KNOWN_DIALECTS"];
+/// The spellings of the catalogue enumerations.
+const NEEDLES: &[&str] = &[
+    "DialectProfile::all(",
+    "KNOWN_DIALECTS",
+    "available_dialects(",
+];
 
 /// This file names the needles as data.
 const SELF_PATH: &str = "rust/xtask/src/catalogue_callers.rs";
@@ -59,10 +65,6 @@ const ALLOWED: &[(&str, &str)] = &[
         "tests: the grammar table agrees with every catalogue row",
     ),
     (
-        "rust/tcl-dialect/src/lib.rs",
-        "re-exports `KNOWN_DIALECTS` from the catalogue",
-    ),
-    (
         "rust/tcl-dialect/src/model/environment.rs",
         "tests: the compiled environments agree with the catalogue",
     ),
@@ -72,7 +74,7 @@ const ALLOWED: &[(&str, &str)] = &[
     ),
     (
         "rust/tcl-dialect/src/profile.rs",
-        "the catalogue itself: `KNOWN_DIALECTS`, `all()` and their invariant tests",
+        "the catalogue itself: `all()` and its invariant tests",
     ),
     (
         "rust/tcl-explorer/src/environment.rs",
@@ -80,7 +82,7 @@ const ALLOWED: &[(&str, &str)] = &[
     ),
     (
         "rust/tcl-lsp-server/src/lib.rs",
-        "`listDialects`, `getEffectiveConfig` labels, the unknown-dialect error and the pack pre-warm",
+        "the pack file-extension report and the registry pre-warm walk the catalogue's grammar rows",
     ),
     (
         "rust/tcl-mcp/src/environment.rs",
@@ -96,11 +98,7 @@ const ALLOWED: &[(&str, &str)] = &[
     ),
     (
         "rust/tcl-registry/src/dialects.rs",
-        "the extension and filename detection maps read the catalogue; re-exports `KNOWN_DIALECTS`",
-    ),
-    (
-        "rust/tcl-registry/src/lib.rs",
-        "re-exports `KNOWN_DIALECTS`",
+        "the extension and filename detection maps read the catalogue",
     ),
     (
         "rust/tcl-registry/src/model/assembly.rs",
@@ -125,10 +123,6 @@ const ALLOWED: &[(&str, &str)] = &[
     (
         "rust/tcl-registry/tests/dialect_profile.rs",
         "tests: catalogue profile invariants",
-    ),
-    (
-        "rust/tcl-registry/tests/registry_commands.rs",
-        "tests: the registry's dialect roster matches `KNOWN_DIALECTS`",
     ),
     (
         "rust/tcl-registry/tests/registry_sweep.rs",
@@ -192,6 +186,17 @@ fn collect_rs_files(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
+/// Whether `code` spells `needle` as its own token: a match that continues a
+/// longer identifier (`names_available_dialects(`) is a different name.
+fn spells(code: &str, needle: &str) -> bool {
+    code.match_indices(needle).any(|(at, _)| {
+        !code[..at]
+            .chars()
+            .next_back()
+            .is_some_and(|before| before.is_alphanumeric() || before == '_')
+    })
+}
+
 /// The line numbers in `text` that spell a needle in code. Comment lines
 /// and the comment tail of a code line do not count.
 fn call_sites(text: &str) -> Vec<usize> {
@@ -203,7 +208,7 @@ fn call_sites(text: &str) -> Vec<usize> {
                 return false;
             }
             let code = trimmed.split("//").next().unwrap_or(trimmed);
-            NEEDLES.iter().any(|needle| code.contains(needle))
+            NEEDLES.iter().any(|needle| spells(code, needle))
         })
         .map(|(index, _)| index + 1)
         .collect()
@@ -321,8 +326,18 @@ mod tests {
 let names = 1; // KNOWN_DIALECTS
 for profile in DialectProfile::all() {
     use_it(KNOWN_DIALECTS);
+    let all = available_dialects();
 ";
-        assert_eq!(call_sites(text), [4, 5]);
+        assert_eq!(call_sites(text), [4, 5, 6]);
+    }
+
+    #[test]
+    fn a_longer_identifier_is_not_a_call_site() {
+        let text = "\
+fn names_available_dialects() {}
+let all = crate::available_dialects();
+";
+        assert_eq!(call_sites(text), [2]);
     }
 
     #[test]
