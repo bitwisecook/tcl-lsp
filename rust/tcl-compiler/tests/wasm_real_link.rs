@@ -868,6 +868,19 @@ fn guarded_boxed_intrinsic_runs_and_falls_back_against_the_real_runtime() {
             Some("trace add execution string enter list\n"),
             "3",
         ),
+        // The result is the same on either path, which is why the runtime
+        // crate's `guarded_intrinsic_guards_survive_unrelated_command_mutation`
+        // checks the guard itself; this row proves the emitted module links and
+        // runs over an interpreter whose command table has moved.
+        (
+            "unrelated proc keeps the fast path",
+            "string length 😀\n",
+            Some(
+                "proc unrelated {} {return 1}\nrename unrelated other\n\
+                 interp alias {} alias_of_other {} other\n",
+            ),
+            "1",
+        ),
     ];
     for (name, program, setup, expected) in cases {
         assert_eq!(

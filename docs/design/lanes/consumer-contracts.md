@@ -1017,6 +1017,7 @@ and CC5.2 last, each its own checkpoint.
 |---|---|---|---|
 | CC5.1 one semantics key per member | landed | `wip(consumer-contracts): step 5 — one semantics key per member` | `rust/tcl-registry/src/intrinsic.rs`: `const SEMANTICS_REVISION: [(IntrinsicId, u32); 28]`, one explicit row per member (every row `0`, matched by `stable_id`, never by declaration order; the array length is the catalogue's, so a member added without a row does not compile). `guard_semantics_key` is `semantics_key(release_variant(runtime), &SEMANTICS_REVISION)` — a key packs three disjoint fields, the member's own `stable_id` (bits 16–31), its revision (bits 2–15) and the release variant (bits 0–1, `RUNTIME_INVARIANT_SEMANTICS` for every member but `StringLength`, which keeps its three: 8.4/8.5 BMP, 8.6 UTF-16, 9.x scalar) (D5.2). `guard_semantics_variants` is an exhaustive per-member match with no wildcard, each arm a `const { &[…] }` block over the `member_keys!` macro, so it keeps its `&'static [u32]` signature and a new member must say which releases it is versioned across (D5.4); `revision_in` panics on a member with no row, at compile time through those blocks. The shared `INVARIANT_SEMANTICS` and `VERSIONED_STRING_SEMANTICS` slices are gone. `revision_in` and `semantics_key` take the revision table as a parameter so a test can bump one row of a copy. Every key is now non-zero, so every intrinsic's guard identity takes the packed form (the stable id in the high half of the identity's 64-bit value, the key in the low half), where a release-invariant member's used to be its bare stable id: each identity value moves once, and no persisted artefact holds one (D5.3). Tests (`intrinsic.rs`, 13 in the file, was 5): the plan's `every_member_has_a_distinct_semantics_key` (no key answered by two members on any of the five releases, no key on two members' variant lists, none zero) and `bumping_one_members_revision_moves_no_other_key` (for each of the 28 members, at revision 1 and at the field's maximum: every one of that member's keys moves, no other member's does), plus `the_revision_table_names_every_member_exactly_once`, `the_variants_are_exactly_the_keys_the_releases_answer` (pins `guard_semantics_variants` to `guard_semantics_key` across all five releases), `a_key_names_its_member_in_its_high_field`, `a_bumped_member_still_collides_with_no_other`, `a_revision_beyond_its_field_is_refused` (`should_panic`) and `string_length_answers_three_keys_across_five_releases`. The runtime and VM tests that call `guard_semantics_key` are unchanged and pass; the plan's "one literal `0x0306`-style assertion" does not exist as a key literal — the only one is `stable_ids_round_trip_without_ordinal_dependence`'s on `stable_id()`, which does not move (D5.5). Gates: `cargo test -p tcl-registry --no-fail-fast` (lib 941, was 933, and every binary), `-p tcl-vm --lib guard` (8), `-p tcl-compiler --lib mixed_region_plan` (8), and `runtime/rust`'s own `cargo test --lib -- guard intrinsic` (15; a standalone workspace, built with its own `target/`); `-p tcl-compiler --test wasm_tiers --test wasm_real_link` (6, 13) pass, but every real-link case skips loudly in this container — no `wasm32-wasip1` target, and no libtommath under the worktree's `tmp/` — so the identity check is covered by the runtime crate's `codegen_abi` tests and the planner's `mixed_region_plan` tests rather than by a linked module; `cargo check --workspace --all-targets`; clippy (`-p tcl-registry --all-targets --no-deps -- -D warnings`) and `cargo fmt -p tcl-registry` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows — the value-transfers lane's own figures, moved by its merged commits), `pack-goldens --check` (25), `retired-api-gate`, `owner-resolution` (45), `kcs-index-links` green, `dialect-drift` at its 8. No KCS note: nothing a user runs changes. Docs: the design page's status box and its "intrinsic table splits by family" bullet, `docs/GLOSSARY.md` § *Guard identity*. D5.2–D5.5 |
 | CC5.3 the Explorer observability record | landed | `wip(consumer-contracts): step 5 — the AOT decline record` | `select_native_i64_add_plan` returned `None` at the first premise that failed, so a compile that did not select the sealed native i64 addition fell to the generic or general plan and said nothing of why. The composition moves to `rust/tcl-compiler/src/codegen/wasm/native_add.rs` (new; the function and its six helpers leave `pipeline.rs`, D5.9) and is rebuilt as one derivation of selection and record: `native_add::select` evaluates every premise, records each one it finds wanting as a `NativeDecline`, and returns `Ok(selection)` only where none is rejected, so the two cannot disagree. **The types** are in `common_aot_plan.rs`, where the plan puts them: `NativePremise` (`SemanticPlans`, `Packaging`, `SealedProgram`, `Pass(id)`, `Coverage`, `DirectCall`, `DirectBody`, `ClosedProgram`, `Frame`, `Actuals`, `Boundary`, `NativeInteger`, `Operands`), `NativeDeclineReason` (26 variants; each wrapped typed reason keeps its own `as_str`) and `NativeDecline { premise, reason, sites }` (D5.7); `as_str` is added to the four typed declines that had none (`DirectProcBodyDecline`, `CommonAotCoverageDecline`, `ClosedProgramCoverageDecline`, `NativeIntegerDeclineReason`). **The plan** `WasmCodegenPlan::GenericInvoke` and `::General` gain `native_declines: Vec<NativeDecline>`, with the accessor `WasmCodegenPlan::native_declines()` (empty for `NativeI64Add`); `mixed_region_plan.rs` is untouched: the addition is a whole-program top-level selection that needs the unit, registry and options, which the region plan's builder does not have (D5.6). **Evaluation.** The options' premises (target plan policy, packaging, sealed environment, each of the five passes) are always evaluated; while none of the five passes is enabled the addition has not been asked for and no proof is built, so the record is those premises alone (D5.8: measured on a 300-statement, 150-procedure script in a debug build, `CommonAotProofPlan::build` costs 410 ms of `compile_wasm`'s 446 ms and about a fifth of the 1.9 s unit build, for every caller: `tcl compwasm`, the MCP tool, the fuzz harness). Once a pass is enabled the unit-level premises (excluded surfaces, the closed-program accounting) and, per direct call site, the direct call, its body, the closed-program shape, the frame's two flags, both actuals, the boundary, the integer proof (cached per callee) and the operands are each evaluated independently; a premise whose input another rejects is not evaluated. Entries dedupe on (premise, reason) and collect their sites, so the record is bounded by premises, not by calls; a unit with no call to its own procedure records `direct-call: no-direct-call`. **The Explorer.** `codegenPlan` gains `nativeDeclines` (`premise`, `reason`, `detail`, `sites`), and the plan the `wasm` header carries is repeated once, unchanged, as `data.aot`; the plan's "`aot` view" did not exist (the `wasm` text view prints only the WAT and function headers, `codegenPlan` was JSON-only, and `--show aot` matched no view), so `views.rs` gains the `aot` descriptor (`AOT Plan`, group `codegen`, `Tree`) and `view_tree.rs` its builder, which `render_all` and the TUI pick up from `tree_view_ids()` and the browser and editor panels show through their structured fallback (D5.10). `meta.views` is 36, was 35. Tests: `native_add.rs` (8) — `a_selected_addition_records_no_decline`, `an_addition_nobody_asked_for_records_the_options_premises_alone`, `a_hosted_compile_names_the_environment_the_passes_and_what_they_take_down` (five entries, the call named), `a_rejected_body_records_each_premise_it_takes_down` (the `native-integer` pass off: body, frame and the integer proof, each at the call), `a_surviving_statement_rejects_the_closed_program_and_the_actuals_it_hides`, `a_program_without_a_procedure_call_names_the_missing_call`, `a_second_call_to_the_callee_is_recorded_at_both_sites` and `the_target_and_its_packaging_are_premises_too`; the plan's `wasm_tiers.rs::a_failed_native_add_names_every_rejected_premise` (public API: the selected program rejects nothing, the same program hosted with two passes off names five premises and the call); the explorer text snapshots the plan asks for, `render.rs`'s `aot_text_lists_every_rejected_native_premise` (the six premises of an untouched Explorer) and `aot_text_follows_the_pass_selection` (seven, with the cascade a missing pass causes), `serialise.rs`'s `aot_view_carries_the_plan_and_every_rejected_native_premise` (the JSON, typed, with the site) and `view_tree.rs`'s `aot_view_names_a_selected_native_add`. Mutation checks: recording only the first rejected premise fails seven of the eight `native_add` tests (the selected case alone passes) and the `wasm_tiers` test; serialising `nativeDeclines` as `[]` fails both text snapshots and the JSON test. Moved: `serialise.rs`'s `meta_lists_all_dialects_views_and_severities` (36 views) and `wasm_view_exposes_common_native_i64_selection_evidence` (a selected plan's `nativeDeclines` is `[]`); every existing native add test passes unmodified (`pipeline.rs`'s four, the explorer's selection-evidence test, `wasm_codegen`, `wasm_execute`), and the real-link native rows skip loudly here (no `wasm32-wasip1` target), so the emitted module is covered by the pipeline tests that inspect its WAT. Gates: `cargo test -p tcl-compiler --no-fail-fast` (lib 6546, 2 ignored, was 6538; `wasm_tiers` 7, was 6; `wasm_real_link` 13, skipping loudly; `wasm_codegen` 45, `wasm_execute` 4, `codegen` 164, `codegen_integration` 17 and every other binary), `-p tcl-explorer` (lib 108, was 104), `-p tcl-cli --no-fail-fast` (lib 27, `cli` 50, `compile_verbs` 11, `explorer_gui` 2, `pkg_verbs` 13, `spec_verbs` 18, `value_transfers_cli` 8); `tcl-explorer-wasm` is outside the workspace (wasm32, its own lockfile) and reads only keys this item adds to; `cargo check --workspace --all-targets`; `cargo clippy --workspace --all-targets -- -D warnings` and `cargo fmt --all` clean, no new `#[allow]`; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged: the moved `ChannelWrite` and `Set` matches trip no site), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389), `retired-api-gate` and `owner-resolution` (45) OK, `kcs-index-links` green, `dialect-drift` at its 8 sites. Docs: `semantic-aot-optimisation.md` (the observability paragraph states the record as built), `wasm-explorer-view.md` (`nativeDeclines`, `data.aot` and the `aot` view), `kcs-feature-compiler-explorer.md` (an *AOT plan* section), the `compiler-explorer` skill's view catalogue. Deviations: the record sits on `WasmCodegenPlan`, not `MixedRegionPlan` (D5.6); `NativeDecline` gains `sites` (D5.7); the record is complete only once a pass is enabled (D5.8); the composition has its own module (D5.9); the `aot` view is created here (D5.10). D5.6–D5.10 |
+| CC5.2 guard identities keyed by token generation | landed | `wip(consumer-contracts): step 5 — guard identities persist` | Both runtimes held a command's guard identities in a table keyed by its name, and every command-table mutation cleared it whole and moved the `CommandEnvironment`, `Namespace` and `UnknownHandling` domains (the VM's `bump_cmd_epoch`, the runtime's `invalidate_command_environment`, and the runtime's profile pin with it), so the first `proc`, `rename`, `interp alias`, `namespace import`, `interp hide` or `interp expose` after registration emptied the table for the interpreter's life: `prepare` answered `IdentityUnavailable`, every `check` answered false, and every guarded intrinsic of a linked module took generic dispatch from then on (the design page's "never repopulated" row). **The table** is `guarded_commands: HashMap<u64, BTreeSet<GuardIdentity>>` in the VM (the generation of `command_identity.generations`, read through `visible_command_generation`) and `BTreeMap<u64, BTreeSet<GuardIdentity>>` in the runtime (`Namespaces::resolve_generation`): a command's identities sit under its token generation, which both runtimes already carry through a rename and a hide and replace on a rebinding (D5.11). **Registration** goes through one funnel per runtime, `register_attested` (VM) and `bind_attested_builtin` (runtime): bind, attest the generation bound and drop the displaced generation's entry; `register_guarded_builtin` and `register_spec_builtin` use it, the VM's `register` returns the storage key it bound at, and the runtime's `register_builtin` shares a `bind_builtin` that returns the generation. **The read** is `attested_identities(name)` in each: it resolves the guarded name afresh, from the current namespace, to a key and a generation, requires the pinned surface to admit the command (`command_visible_for_surface_at` in the runtime, `resolve_command_fqn`'s filter in the VM) and answers the entry at that generation. `prepare_command_guard`, `check_command_guard` and the runtime's `check_command_guard_identity` (the second half of the ABI's `tcl_codegen_guard_check`, which recomputes the identity from the runtime version and re-resolves the argv head on every check) all read through it, so a guard follows its command through rename and hide, stops at a different command at the name, and a `proc string` in a namespace drops it for the calls made from that namespace alone. **What moves the domains** (D5.12). A command-table mutation moves none: the VM's `bump_cmd_epoch` keeps its resolution-memo clear and its counter and loses both guard effects; the runtime loses eleven `invalidate_command_environment` calls (the pin, `move_bound_command`, `delete_bound_command`, `delete_command`, `create_ensemble`, procedure definition, `bind_command_replacement`, the two OO command-retirement paths, hide and expose) and keeps eight (`namespaces_mut`, `ensure_namespace`, `ensure_command_owned_namespace`, `ensure_global_namespace`, `delete_namespace_by_id`, `create_child`, `with_child`, `delete_child`); the VM's new `invalidate_lookup_guards` is called from `ns_path_set`, `mark_interp_trusted`, `make_safe` and `delete_interp`. The Interpreter and ObjectDispatch domains and the trace domains are untouched, so a renamed or traced intrinsic still falls back; `tcl-runtime-api` is untouched (D5.13). **The pin** keeps the table in both runtimes, and the surface decides what a guard reaches (D5.14). Tests, in the runtime: `an_unrelated_mutation_keeps_the_guard_and_a_rebinding_drops_it` re-states `command_mutation_invalidates_guard_and_identity_attestation`, whose one assertion, that an unrelated registration stales the guard, is the behaviour the item removes — an unrelated `proc`, `rename` and `interp alias` keep the guard and a fresh `prepare`; `namespace eval other {namespace path ::}` stales the token and leaves the attestation; the pin keeps a `CommandEnvironment`-only token and `prepare`; `rename guarded moved` drops the guard at `guarded`, where `prepare` answers `IdentityUnavailable`, and `prepare("moved")` succeeds; renaming back restores the guard; hide drops it and expose restores it; a `proc guarded` drops it for good; `a_shadowing_definition_drops_the_guard_only_for_calls_from_its_namespace` (the plan's risk row: a `proc guarded` in `ns` leaves the guard at `::`, drops it with the current namespace set to `ns` and restores it back at `::`); `an_unrelated_mutation_keeps_the_string_length_guard` (the spec-registered `string length` over the registry's base domains, through `check_command_guard_identity`: an unrelated `proc`, `rename` and alias keep it, `rename string moved` drops it, `rename moved string` restores it, `proc string` drops it); `a_pin_to_a_release_without_the_command_leaves_it_unattested` (a guarded builtin named `lassign`, a command Tcl 8.4 lacks, under 8.4 and back); and `codegen_abi.rs`'s `guarded_intrinsic_guards_survive_unrelated_command_mutation`, which makes the ABI call an emitted module makes (`tcl_codegen_guard_prepare`, `tcl_codegen_guard_check`) over the base domains: three unrelated scripts leave the check at 1, `proc string` moves it to 0. In the VM's `family_b_tests` (D5.16): the restated test and the shadowing test under the same names (the `interp` verbs run through `eval_value`, and a probe builtin checks the token from wherever it runs for the shadowing row), `a_profile_pin_keeps_the_spec_registered_string_attested`, `a_pin_to_a_release_without_the_command_leaves_it_unattested`, and the rename test gains its `prepare` assertion. The real-link case gains the plan's "unrelated proc keeps the fast path" row (D5.15). **Mutation checks.** In the runtime, `bind_command_replacement` moving the command domains again fails four of the 18 guard and pin tests — `guarded_intrinsic_guards_survive_unrelated_command_mutation`, `an_unrelated_mutation_keeps_the_guard_and_a_rebinding_drops_it`, `an_unrelated_mutation_keeps_the_string_length_guard` and the shadowing test; resolving the guarded name from `::` alone fails the shadowing test only; dropping the surface gate from the read fails the pin test only. In the VM, `bump_cmd_epoch` calling `invalidate_lookup_guards` fails the restated test and the shadowing test (2 of the 37 in `family_b_tests`); resolving from the empty namespace key alone fails the shadowing test only; reading through `resolve_command_fqn_raw`, which skips the surface filter, fails the pin test only; and `bump_cmd_epoch` clearing the table again fails the restated test, the shadowing test and both pin tests (4 of 37). **Moved.** `renaming_spec_registered_string_stales_its_intrinsic_guard`'s second assertion in the runtime, that the guard at the new name `moved` fails, contradicts D5.11, since the token at `moved` is the one the rename carried, and is replaced by a `prepare("string", …)` that answers `IdentityUnavailable`; the VM's twin keeps both assertions (its manual take and `register_command` mint a new generation) and gains the same `prepare` one; the runtime helper `assert_interpreter_guard_stale` asserts the attestation is present instead of re-registering the builtin, which only the old clearing made necessary. Gates: `cargo test -p tcl-vm --lib` (100, was 97), `-p tcl-vm --test command_mutation_deopt_e2e` (76, unchanged), `-p tcl-vm` in full under `LANG=C.UTF-8` (50 binaries, 1477 tests; `expanded_invoke_e2e` needs the `tmp` oracle tree, which was linked for its run); `runtime/rust`'s `cargo test --locked --lib` (707, was 703) and `--tests` (12 integration binaries, 160 tests), its own workspace, built with `TCL_TOMMATH_DIR`, under `LANG=C.UTF-8` (under an empty `LANG`, `cmd_misc.rs`'s `encoding_ensemble_resolves_like_tclsh` fails as `tcl-vm`'s `encoding_command` test does, issue #2271); `-p tcl-runtime-api` (29, unchanged); `-p tcl-compiler --test wasm_real_link --test wasm_tiers` (13 and 7, with `TCL_REQUIRE_WASM_LINK=1`, run for real: `wasm32-wasip1`, wasi-sdk 34.0 and wasmtime were installed for this item, so the 13 real-link cases execute and pass against the changed runtime, where CC5.3's row recorded them skipping); `-p tcl-registry` (21 binaries, 1276 tests), `-p tcl-explorer` (108); `cargo check --workspace --all-targets`; `cargo clippy --workspace --all-targets -- -D warnings` and `cargo fmt --all` clean, and the runtime's own `cargo clippy --all-targets -- -D warnings` and `cargo fmt`, no new `#[allow]`; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389), `retired-api-gate` and `owner-resolution` (45) OK, `kcs-index-links` green, `dialect-drift` at its 8 sites. **Fuzz.** The plan's exit campaign: `tcl-fuzz run --subject runtime-rust --reference tclvm`, both engines built from this tree (`tclvm` debug, `runtime/rust`'s `run_script` release with `TCL_TOMMATH_DIR`) and hard-linked out of the build tree so a rebuild could not change them mid-run, one release at a time, findings in a scratch directory. Release 9.0: seed 5210000, 3000 iterations, 2998 matched, 2 findings, 1096 s. Release 8.6: seed 5310000, 800 iterations, 800 matched, no finding, 324 s. 23 minutes 40 seconds in all. The two 9.0 findings (seeds 5210167 and 5211533, both `stdout_mismatch`) are one `tclvm` compiler defect and no guard: `proc p {} {return \101}` answers `\101` where C Tcl 9.0 and `runtime/rust` answer `A`, because the compiler pushes `return`'s value word as source text when it holds a backslash escape and no `$` or `[` (`tcl dis` shows `push1 "\101"`; `emit_value`'s default arm in `rust/tcl-compiler/src/codegen/cmd_subst.rs`, reached from `emit_proc_return`). With the escaped word decoded by hand in each script, `tclvm`, `runtime/rust` and C Tcl agree, and `runtime/rust` matched C Tcl on both scripts as they stand; the code involved is unchanged since this step began and no guard is in its path. So the campaign is not finding-free and neither finding is this item's: it is reported, not fixed (*CC5.2 — what the next items read*). Docs: `rename-alias.md` § 3.5 (a rename changes what a guard's name resolves to and no longer clears anything), `tclvm-opcode-status.md` note 5, `value-transfers-review.md` R12, the design page (the guard-eligibility bullet, the diagram's "never repopulated" row, the paragraph after it, an *Intrinsic guard identities persist* bullet and the test anchor), `docs/GLOSSARY.md` § *Guard identity*. Deviations: keyed by generation and read live, not a name-keyed entry that moves (D5.11); the domains keep the lookup events only (D5.12); no `GuardDomain::CommandToken` (D5.13); the pin keeps the table and the read filters (D5.14); the real-link row is output-equal to the fallback (D5.15); the VM twin sits in `family_b_tests` (D5.16). D5.11–D5.16 |
 
 ### CC5.1 — what the next items read
 
@@ -1051,6 +1052,45 @@ and CC5.2 last, each its own checkpoint.
   `native i64 add: selected` there, a branch `aot_view_names_a_selected_native_add`
   covers with hand-built JSON.
 
+### CC5.2 — what the next items read
+
+- **For CC7.2.** The table is keyed by generation, so the sweep's attach is
+  "resolve the name to its generation and insert under it"
+  (`Namespaces::resolve_generation` in the runtime, `visible_command_generation`
+  in the VM), and it must attest only a generation that is still the shipped
+  builtin (the runtime's `registry_builtin_names`, by generation, and the VM's
+  `builtin_identities`, by name, moving with a rename, record which), or a name a script has since
+  redefined would gain an attestation for a `proc`. Registration attests through
+  `register_attested` and `bind_attested_builtin`, which bind, attest the
+  generation bound and drop the displaced one; the sweep may call them or do the
+  same three things. The pin no longer empties the table (D5.14), so a sweep run
+  again at the pin has nothing to restore: the surface filter already hides what
+  the pinned release lacks.
+- **For CC7.3 and CC7.4.** Nothing changes for them: the identity values,
+  `guard_semantics_variants` and the ABI's guard functions are as CC5.1 left
+  them, and a change to a member's guarded contract still raises its
+  `SEMANTICS_REVISION` row, which moves its identity. A module compiled before
+  this item links and runs unchanged (D5.13).
+- **For a guard family added later.** A guard is valid while its token's domains
+  have not moved *and* the name it guards resolves, from the namespace the call
+  is made in, to a command attested for the guard's identity. A family whose
+  guard depends on a command being one particular builtin is covered by the
+  second condition at no cost. A family that depends on a command's *absence*
+  has no identity to attest and is not covered; it needs a domain (the
+  `GuardDomain` set has no per-command variant, D5.13). A family that depends on
+  how names resolve, not on what a name is bound to, takes the lookup domains,
+  which `namespace path`, namespace creation and deletion and interpreter
+  topology still move (D5.12).
+- **For the Explorer and the AOT record.** Nothing: the record concerns the
+  plan, and the guard tables are the runtimes'.
+- **Reported, not fixed.** `tclvm` prints `\101` for `proc p {} {return \101};
+  puts [p]`, where C Tcl 9.0 and the runtime print `A`: `return`'s value word
+  is pushed as source text when it holds a backslash escape and no `$` or `[`
+  (`emit_value`'s default arm, `rust/tcl-compiler/src/codegen/cmd_subst.rs`, via
+  `emit_proc_return` in `codegen/emitter/terminator.rs`). Found by this item's
+  fuzz campaign (release 9.0, seeds 5210167 and 5211533); it is independent of
+  the guard tables.
+
 ### Behavioural deltas accepted in step 5
 
 - CC5.1: every intrinsic's guard identity value changes once, because
@@ -1070,6 +1110,29 @@ and CC5.2 last, each its own checkpoint.
   and the `aot` payload, and `tcl explore --show aot --text` prints the plan
   and the rejected premises. `WasmCodegenPlan::GenericInvoke` and `::General`
   gain a field, which no pattern in the tree spelled out.
+- CC5.2: defining, renaming, deleting, aliasing, importing, hiding or exposing
+  a command other than the guarded one no longer stales a guard or empties the
+  attestation table in either runtime, so `string length` and every other
+  guarded intrinsic of a linked module keeps its fast path after a `proc foo`,
+  where every guard failed for the rest of the interpreter's life. A guard
+  follows its command through `rename` and `interp hide`: renaming the guarded
+  command away drops the guard at its name, and renaming it back, or exposing
+  it, restores it, where the table was never refilled. Replacing the command,
+  or shadowing it by a definition in a namespace, drops the guard for the calls
+  that reach the other command and for those alone.
+- CC5.2: the profile pin no longer clears the attestation table in either
+  runtime, and the runtime's pin no longer moves `CommandEnvironment`,
+  `Namespace` or `UnknownHandling`; a VM pinned at construction can issue a
+  guard, where it held none. A token over the `Interpreter` domain still goes
+  stale at a pin, and a guard on a command the pinned release lacks answers
+  false through the surface filter.
+- CC5.2: the VM's `bump_cmd_epoch` no longer moves guard domains (it clears
+  the resolution memo and advances the counter); `namespace path`,
+  `interp marktrusted`, making an interpreter safe and deleting one move the
+  lookup domains through `invalidate_lookup_guards`. No script observes any
+  of this: the guards steer emitted code only, the ABI, the identity values and
+  `tcl-runtime-api` are unchanged, and a module the previous compiler emitted
+  links and runs.
 
 ## Step 6 — progress
 
@@ -4329,6 +4392,84 @@ everything else in this lane is independent of both.
   the browser and editor panels reconcile tabs from `meta.views` and show a
   view with no bespoke renderer through their structured fallback, so no
   front-end changes; `meta.views` is 36.
+- **D5.11** The attestation is keyed by generation and read live; nothing
+  moves on rename or hide. The plan's shape, a name-keyed table of
+  `(generation, identities)` whose entry moves with `builtin_identities`, keeps
+  two stores in step (the name and its generation) where one is enough: both
+  runtimes already carry a command's token generation through a rename and a
+  hide (the VM's `set_visible_command_generation`, the runtime's
+  `insert_moved_binding`) and mint a new one for a rebinding. So
+  `guarded_commands` is `generation → identities`, and `attested_identities`
+  resolves the guarded name afresh, from the current namespace, to a key and a
+  generation, and answers the entry at that generation. A guard follows its
+  command wherever the name goes and stops at a different command at the name (a
+  `proc string`, an alias, an import); a definition in a namespace that shadows
+  the command reaches a different token only for calls made from that
+  namespace, which is the plan's risk row. `register_attested` and
+  `bind_attested_builtin` remove the entry of the generation a registration
+  displaces; an entry for a command deleted by `rename x {}` stays in the table,
+  unreachable, and the table grows only with registrations. D5.1 stands: the
+  `CommandEnvironment` guard invalidates per token, by this read and not by an
+  epoch per token.
+- **D5.12** A command-table mutation moves no guard domain and clears no table;
+  the events that change how names resolve keep moving the three lookup
+  domains. Before, every definition, rename, deletion, alias, ensemble
+  creation, OO retirement, hide, expose and profile pin cleared the table and
+  moved `CommandEnvironment`, `Namespace` and `UnknownHandling`. The check's
+  re-resolution now decides what a mutation staled (D5.11), so the domains stay
+  for `namespace path`, namespace creation and deletion, and interpreter
+  topology: the runtime's `invalidate_command_environment` keeps its eight
+  calls (`namespaces_mut`, the three `ensure_*namespace` funnels,
+  `delete_namespace_by_id`, `create_child`, `with_child`, `delete_child`) and
+  loses its eleven at the command-table paths; the VM's `bump_cmd_epoch` keeps
+  its resolution-memo clear and its counter and loses both guard effects, and
+  `invalidate_lookup_guards` (new) is called from `ns_path_set`,
+  `mark_interp_trusted`, `make_safe` and `delete_interp`. The Interpreter and
+  ObjectDispatch domains and the trace domains are untouched, as D5.1 says.
+- **D5.13** No `GuardDomain::CommandToken`. The plan left it to the implementer
+  whether the domain lattice needs the finer key. It does not: a domain is an
+  epoch a token snapshots at issue and compares at check, and the command's
+  generation, which the check already reads to find the attestation, is that
+  epoch for one command. A variant would put a second per-command counter beside
+  the generation for the same job and add a bit to every token's
+  `GuardDomains`, which the ABI's `domains` word, the registry's base sets and
+  the emitter carry. `rust/tcl-runtime-api/src/guard.rs` is untouched, so the
+  ABI, the identity values and a compiled module's guard sites are unchanged: a
+  module compiled before this item links and runs against a runtime from this
+  tree.
+- **D5.14** The profile pin keeps the whole table, and the pinned surface decides
+  what a guard reaches. The plan's "keeps the entries whose spec is in the
+  pinned generation" filters at the pin; filtering at the read does the same for
+  every release an interpreter is pinned to and back, with nothing to rebuild
+  when the pin moves. An entry for a command the pinned release lacks is kept
+  and unreachable (`command_visible_for_surface_at` in the runtime, the surface
+  filter of `resolve_command_fqn` in the VM) and reachable again when the pin
+  returns to a release that has the command
+  (`a_pin_to_a_release_without_the_command_leaves_it_unattested`, `lassign`
+  under 8.4, in both runtimes). A token whose domains include `Interpreter`,
+  as the registry's base sets do, still goes stale at a pin, as an
+  interpreter-policy change should; what the pin keeps is the attestation, so a
+  guard can be issued after it, where a pinned VM used to hold none (its
+  `bump_cmd_epoch` cleared the table).
+- **D5.15** The real-link row cannot tell the fast path from the fallback. The
+  harness reads the module's standard output, and a guarded intrinsic answers
+  alike on either path: `renamed fallback` tells them apart because the
+  mutation changes the command (`proc string` answers 99), and `traced
+  fallback` answers 3 on both. The "unrelated proc keeps the fast path" row is
+  added as the plan says and proves that an emitted module links and runs
+  against an interpreter whose command table has moved; the proof that the guard
+  survives is `guarded_intrinsic_guards_survive_unrelated_command_mutation`,
+  which makes the exact `tcl_codegen_guard_check` call an emitted module makes.
+  A row that told the paths apart needs a probe in the runtime, such as a
+  fast-path counter, which is not this item's.
+- **D5.16** The VM twin is re-stated where it lives. The plan names
+  `command_mutation_deopt_e2e.rs`, which drives the compile epoch through
+  scripts and holds no guard test (it does not mention a guard); the test the
+  item re-states is `family_b_tests`'s
+  `any_command_mutation_invalidates_guard_and_live_identity_attestation`, so
+  the twin is re-stated in place under the runtime's new name. The e2e binary
+  runs green unchanged, as a regression check on the compile epoch that
+  `bump_cmd_epoch` still owns.
 - **D6.1** CC6.1 covers the six existing fields; `runtime_backing` joins
   the floor in CC7.1. **D6.2** `DependencyTier` is defined in `tcl-pkg`
   and re-exported by `tcl-registry`'s `model::capability`; `tcl-spectcl`

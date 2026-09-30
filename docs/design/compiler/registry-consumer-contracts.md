@@ -1465,11 +1465,21 @@ error.
   error. This check re-resolves on every admission and survives command
   mutation.
 - **Intrinsic guard eligibility.** `guarded_commands` in the same file is
-  the specialised intrinsic guard table, and `bump_cmd_epoch` clears it on
-  every command-environment mutation, including the profile pin. It is a
-  different mechanism from the binding check, and clearing it does not
-  break ordinary bytecode binding; it means no intrinsic fast path is
-  eligible after the first mutation.
+  the intrinsic guard table: the identities a builtin is attested for, by
+  the generation of the command token it was registered under. The table
+  survives every command-environment mutation, the profile pin included,
+  and is read live. A guard's check resolves the guarded name from the
+  current namespace, through the command surface the VM is pinned to, to a
+  token generation, and finds an attestation there or does not. Defining,
+  renaming or aliasing another command changes nothing for it; replacing,
+  deleting, renaming away or hiding the guarded command leaves the name
+  without an attestation, and renaming it back or exposing it restores one,
+  since a generation follows its command. `bump_cmd_epoch` clears the
+  command-resolution memo only; the guard domains a command-table mutation
+  cannot express (`namespace path`, safe and trusted interpreters, the
+  child-interpreter lifecycle) move through `invalidate_lookup_guards`. It
+  is a different mechanism from the binding check, and neither depends on
+  the other.
 - The WASM runtime derives a guard identity for one command (`string`,
   through `register_spec_builtin` in `runtime/rust/src/cmd_string.rs`) and
   `execute_intrinsic` implements one of the 28 `IntrinsicId` members. Its
@@ -1500,28 +1510,39 @@ error.
 
 ```mermaid
 flowchart LR
-    R["registration<br/>string registered from its spec;<br/>28 intrinsic identities derived"]
-    P["profile pin<br/>set_dialect_profile bumps the<br/>command epoch; guard table cleared"]
-    M["first proc, rename, alias …<br/>every command-table mutation<br/>clears the guard table again"]
-    N["never repopulated<br/>no insert path after startup;<br/>the WASM runtime pins this by test"]
+    R["registration<br/>string registered from its spec;<br/>28 intrinsic identities attested<br/>at its token generation"]
+    P["profile pin<br/>identities kept; the interpreter-policy<br/>epoch moves"]
+    M["proc, rename, alias of another command<br/>no guard moves"]
+    N["rename, replace or hide string<br/>the name reaches no attestation:<br/>generic dispatch"]
     R --> P --> M --> N
     B["binding provenance · separate<br/>command_binding_matches re-resolves<br/>each site at every admission"]
     B -. unaffected by the guard table .-> M
 ```
 
-Both runtimes clear their *intrinsic guard* table on every
-command-environment mutation and never repopulate it: `bump_cmd_epoch` in
-`rust/tcl-vm/src/interp.rs` and `invalidate_command_environment` in
-`runtime/rust/src/interp.rs`, the latter pinned as intended by the test
-`command_mutation_invalidates_guard_and_identity_attestation`. No pinned VM
-and no WASM runtime that has defined a proc holds a live intrinsic guard;
-the guarded fast path proven by
+Both runtimes key their *intrinsic guard* table by command token
+generation and keep it across command-environment mutations:
+`bump_cmd_epoch` in `rust/tcl-vm/src/interp.rs` and
+`invalidate_command_environment` in `runtime/rust/src/interp.rs` no longer
+touch it. A guard over `CommandEnvironment` depends on its command's token
+and on no other: every check resolves the guarded name afresh and requires
+an attestation at the generation it reaches, so mutating one command
+invalidates that command's guards and no other's, as
+`an_unrelated_mutation_keeps_the_guard_and_a_rebinding_drops_it` pins in
+each runtime. The WASM runtime's `string length` guard over the registry's
+base domains survives an unrelated `proc`, `rename` and `interp alias`, and
+falls back once `string` is rebound
+(`guarded_intrinsic_guards_survive_unrelated_command_mutation`,
 `guarded_boxed_intrinsic_runs_and_falls_back_against_the_real_runtime` in
-`rust/tcl-compiler/tests/wasm_real_link.rs` runs before anything is
-defined. Persisting an intrinsic guard identity must still invalidate
-eligibility when its dependencies change; attaching one by name after
-registration is not proof that a replacement handler implements the
-builtin. Admission-time checks and runtime fast-path guards are different
+`rust/tcl-compiler/tests/wasm_real_link.rs`). The domains that describe the
+lookup environment itself still move on their own events — namespace paths,
+imports and namespace lifecycle, interpreter topology — and a trace
+registration moves its trace domain; the VM's interpreter and
+object-dispatch domains stay permanently poisoned. A profile pin keeps the
+attestations, and the identity's semantics key decides whether a token
+survives it. Attaching an identity by name after registration is not proof
+that a replacement handler implements the builtin: an attestation belongs
+to the token registered with it, and a replacement is a new token with
+none. Admission-time checks and runtime fast-path guards are different
 mechanisms, and neither protects the other without a specific dominance
 and lifetime argument.
 
@@ -1816,11 +1837,12 @@ existed (step 6), and `runtime_backing` with its field (step 7).
 
 This is the runtime programme. Nothing on the analyser side waits for it.
 
-- **Persist intrinsic guard identities**, keyed by command token
-  generation, surviving the profile pin and following rename and hide the
-  way builtin identities already do, with eligibility invalidated when a
-  dependency changes. A design change to a tested contract in both
-  runtimes; nothing else on this list works until it lands.
+- **Intrinsic guard identities persist**, keyed by command token
+  generation: they survive command-table mutation and the profile pin,
+  follow rename and hide with the token, as builtin identities do, and a
+  command's guards are invalidated exactly when its token is replaced,
+  deleted, or moved off the name the guard resolves. Both runtimes hold this
+  contract and test it.
 - **Registration stays a runtime-owned handler table** in its documented
   order, since the registry holds no handler pointers and TclOO must
   override `variable`, the event loop must replace `update`, and `string`
@@ -2153,7 +2175,7 @@ and come before any runtime guard work.
 ## Test anchors
 
 - `rust/tcl-registry/tests/analyser_hooks.rs` — pins the analyser-hook stamps and, through `analyser_hook_stamps_are_disjoint_from_definer_families`, the member-axis separation; re-baselined as variants retire
-- `runtime/rust/src/interp.rs` — `command_mutation_invalidates_guard_and_identity_attestation`, the contract the persisted-identity step changes
+- `runtime/rust/src/interp.rs`, `rust/tcl-vm/src/interp.rs` — `an_unrelated_mutation_keeps_the_guard_and_a_rebinding_drops_it`, the per-token guard contract in each runtime
 - `rust/tcl-compiler/tests/wasm_real_link.rs` — `guarded_boxed_intrinsic_runs_and_falls_back_against_the_real_runtime`, the guarded path against the real runtime
 - `rust/tcl-cshim/tests/sandbox_isolation.rs` — a pack program and a hook body cannot reach a shimmed command
 - `rust/tcl-spectcl/tests/spec_corpus.rs` — every shipped pack loaded, analysed, and run through the hook host at budget; a loading and containment gate, not a value oracle

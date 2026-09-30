@@ -866,8 +866,13 @@ pub struct InterpState {
     active_var_trace_scopes: RefCell<Vec<crate::cmd_trace::VarTraceScope>>,
     /// Runtime-issued speculative guards and explicitly attested builtin IDs.
     guards: RefCell<GuardManager>,
+    /// The stable semantic identities attested for each command token, by the
+    /// token's generation. A generation follows its command through rename and
+    /// hide, and a replacement or deletion leaves the old entry unreachable, so
+    /// an attestation lasts exactly as long as the command it describes.
+    /// Ordinary registration attests nothing.
     guarded_commands:
-        RefCell<std::collections::BTreeMap<Vec<u8>, std::collections::BTreeSet<GuardIdentity>>>,
+        RefCell<std::collections::BTreeMap<u64, std::collections::BTreeSet<GuardIdentity>>>,
     /// Registry identity of each engine-installed builtin command generation.
     /// A command keeps this key across rename and hide, so imports of a moved
     /// token continue to apply the final builtin's dialect availability rather
@@ -1507,7 +1512,6 @@ impl Interp {
             return;
         }
         self.invalidate_interpreter_policy();
-        self.invalidate_command_environment();
         self.0.dialect_profile.set(profile);
         self.0
             .profile_registry
@@ -1779,6 +1783,11 @@ impl Interp {
     /// Register a built-in command (a possibly-qualified `name`, creating
     /// intermediate namespaces; overwrites any existing command of `name`).
     pub fn register_builtin(&mut self, name: &[u8], f: BuiltinFn) {
+        self.bind_builtin(name, f);
+    }
+
+    /// Bind a builtin, returning the token generation it is bound under.
+    fn bind_builtin(&mut self, name: &[u8], f: BuiltinFn) -> u64 {
         let ns = self.namespaces.borrow_mut().command_home_ns(GLOBAL, name);
         let tail = tcl_syntax::naming::written_command_tail(name).to_vec();
         self.bind_command_replacement(ns, &tail, Command::Builtin(f));
@@ -1795,27 +1804,39 @@ impl Interp {
             .registry_builtin_names
             .borrow_mut()
             .insert(generation, fqn);
+        generation
+    }
+
+    /// Bind a builtin and attest `identities` for the token it is bound under.
+    /// The token it displaces takes its attestation with it.
+    fn bind_attested_builtin(
+        &mut self,
+        name: &[u8],
+        f: BuiltinFn,
+        identities: std::collections::BTreeSet<GuardIdentity>,
+    ) {
+        let displaced = self.namespaces.borrow().resolve_generation(GLOBAL, name);
+        let generation = self.bind_builtin(name, f);
+        let mut attested = self.guarded_commands.borrow_mut();
+        if let Some(displaced) = displaced {
+            attested.remove(&displaced);
+        }
+        if !identities.is_empty() {
+            attested.insert(generation, identities);
+        }
     }
 
     /// Register a builtin with a stable semantic identity understood by
     /// offline-generated code. Ordinary registration never infers identity
     /// from a spelling or function address.
     pub fn register_guarded_builtin(&mut self, name: &[u8], f: BuiltinFn, identity: GuardIdentity) {
-        self.register_builtin(name, f);
-        if let Some(fqn) = self.namespaces.borrow().resolve_fqn(GLOBAL, name) {
-            self.guarded_commands
-                .borrow_mut()
-                .entry(fqn)
-                .or_default()
-                .insert(identity);
-        }
+        self.bind_attested_builtin(name, f, std::collections::BTreeSet::from([identity]));
     }
 
     /// Register a builtin and derive every semantic identity from its registry
     /// command, subcommand, and invocation-form descriptors.
     pub fn register_spec_builtin(&mut self, spec: &tcl_registry::CommandSpec, f: BuiltinFn) {
-        self.register_builtin(spec.name.as_bytes(), f);
-        let identities: std::collections::BTreeSet<_> = spec
+        let identities = spec
             .intrinsic_ids()
             .into_iter()
             .flat_map(|id| {
@@ -1824,15 +1845,31 @@ impl Interp {
                 })
             })
             .collect();
-        if !identities.is_empty() {
-            if let Some(fqn) = self
-                .namespaces
-                .borrow()
-                .resolve_fqn(GLOBAL, spec.name.as_bytes())
-            {
-                self.guarded_commands.borrow_mut().insert(fqn, identities);
-            }
+        self.bind_attested_builtin(spec.name.as_bytes(), f, identities);
+    }
+
+    /// The identities attested for the command `name` resolves to from the
+    /// current namespace. The name is resolved afresh, so a command that was
+    /// replaced, renamed away, hidden, or is no longer admitted by the pinned
+    /// surface answers `None`, and one restored by `rename` or `expose` answers
+    /// what it did before.
+    fn attested_identities(
+        &self,
+        name: &[u8],
+    ) -> Option<std::collections::BTreeSet<GuardIdentity>> {
+        let current = self.current_ns.get();
+        let (fqn, generation, command) = {
+            let namespaces = self.namespaces.borrow();
+            (
+                namespaces.resolve_fqn(current, name)?,
+                namespaces.resolve_generation(current, name)?,
+                namespaces.resolve(current, name)?,
+            )
+        };
+        if !self.command_visible_for_surface_at(&command, &fqn, Some(generation)) {
+            return None;
         }
+        self.guarded_commands.borrow().get(&generation).cloned()
     }
 
     /// Verify live command identity and issue a guard over `domains`.
@@ -1849,19 +1886,13 @@ impl Interp {
             return Err(GuardError::PrerequisiteUnsatisfied);
         }
         drop(traces);
-        let observed = self
-            .namespaces
-            .borrow()
-            .resolve_fqn(self.current_ns.get(), name)
-            .and_then(|fqn| {
-                let identities = self.guarded_commands.borrow();
-                let identities = identities.get(&fqn)?;
-                Some(if identities.contains(&expected) {
-                    expected
-                } else {
-                    *identities.first()?
-                })
-            });
+        let observed = self.attested_identities(name).and_then(|identities| {
+            Some(if identities.contains(&expected) {
+                expected
+            } else {
+                *identities.first()?
+            })
+        });
         self.guards
             .borrow_mut()
             .prepare(expected, observed, domains)
@@ -1870,15 +1901,7 @@ impl Interp {
     /// Re-check a guard against the current resolved implementation identity.
     #[must_use]
     pub fn check_command_guard(&self, token: GuardToken, name: &[u8]) -> bool {
-        let Some(fqn) = self
-            .namespaces
-            .borrow()
-            .resolve_fqn(self.current_ns.get(), name)
-        else {
-            return false;
-        };
-        let identities = self.guarded_commands.borrow();
-        let Some(identities) = identities.get(&fqn) else {
+        let Some(identities) = self.attested_identities(name) else {
             return false;
         };
         identities
@@ -1898,16 +1921,8 @@ impl Interp {
         name: &[u8],
         expected: GuardIdentity,
     ) -> bool {
-        let Some(fqn) = self
-            .namespaces
-            .borrow()
-            .resolve_fqn(self.current_ns.get(), name)
-        else {
-            return false;
-        };
-        let identities = self.guarded_commands.borrow();
-        if !identities
-            .get(&fqn)
+        if !self
+            .attested_identities(name)
             .is_some_and(|identities| identities.contains(&expected))
         {
             return false;
@@ -1962,8 +1977,16 @@ impl Interp {
         self.invalidate_guard_domain(GuardDomain::Interpreter);
     }
 
+    /// Invalidate the guard domains that depend on the command lookup
+    /// environment: namespace structure and lifecycle, and interpreter topology.
+    ///
+    /// A command-table mutation does not come here. What a guard needs of its
+    /// command is decided when it is checked, by resolving the guarded name to
+    /// a token generation and finding an attestation there
+    /// ([`Self::attested_identities`]), so replacing, deleting, renaming,
+    /// hiding, or aliasing one command invalidates that command's guards and no
+    /// other's.
     fn invalidate_command_environment(&self) {
-        self.guarded_commands.borrow_mut().clear();
         let mut guards = self.guards.borrow_mut();
         guards.invalidate(GuardDomain::CommandEnvironment);
         guards.invalidate(GuardDomain::Namespace);
@@ -2059,7 +2082,6 @@ impl Interp {
     /// ([`rename_windows`](crate::cmd_trace::TraceTable::rename_windows))
     /// records the equivalence our name-keyed registries cannot express.
     fn move_bound_command(&mut self, old: &[u8], new: &[u8]) -> RenameOutcome {
-        self.invalidate_command_environment();
         let Some(old_fqn) = self.resolve_cmd_fqn(old) else {
             return RenameOutcome::NoSuchCommand;
         };
@@ -2121,7 +2143,6 @@ impl Interp {
                 Some(Command::Imported { identity, .. }) => (None, Some(identity)),
                 _ => (None, None),
             };
-        self.invalidate_command_environment();
         // Command traces fire *before* the table mutation (the command still
         // exists under its name during the callback), with the fully-qualified
         // old name and an empty new one. C deletes the command *token* it
@@ -2323,7 +2344,6 @@ impl Interp {
     /// Delete the command bound to `name` (the alias-clear form); returns whether
     /// it existed.
     pub(crate) fn delete_command(&mut self, name: &[u8]) -> bool {
-        self.invalidate_command_environment();
         // If `name` is a suspended coroutine, terminate its worker first.
         crate::cmd_coro::on_command_deleted(self, name);
         let source_generation = self.resolve_cmd_token(name);
@@ -2351,7 +2371,6 @@ impl Interp {
     /// Register an ensemble command (`namespace ensemble create`); `name` is the
     /// ensemble command (possibly qualified — rooted at global like any builtin).
     pub(crate) fn create_ensemble(&mut self, name: &[u8], cfg: crate::ensemble::EnsembleConfig) {
-        self.invalidate_command_environment();
         let fqn = self.fqn_for(name);
         // The `-command` name resolves relative to the current namespace, like a
         // proc name (C's `TclGetNamespaceForQualName(name, cxtPtr=nsPtr, ...)` in
@@ -2423,7 +2442,6 @@ impl Interp {
         body_obj: *mut TclObj,
         native: Option<NativeProcEntry>,
     ) {
-        self.invalidate_command_environment();
         let body = obj_bytes(body_obj);
         let ns = self
             .namespaces
@@ -2473,7 +2491,6 @@ impl Interp {
     /// command is bound. Fresh bindings use the same funnel (the lifecycle step
     /// is then a no-op).
     pub(crate) fn bind_command_replacement(&mut self, ns: NsId, tail: &[u8], command: Command) {
-        self.invalidate_command_environment();
         let displaced = self.namespaces.borrow().command_in(ns, tail);
         self.on_bound_command_replaced(ns, tail);
         if let Some(owner) = displaced.as_ref().and_then(Command::oo_object) {
@@ -2651,7 +2668,6 @@ impl Interp {
         self.remove_oo_command_roles(owner, &OO_COMMAND_RETIREMENT_ORDER);
         self.forget_registry_object_root(owner);
         self.0.retiring_oo_commands.borrow_mut().remove(&owner);
-        self.invalidate_command_environment();
     }
 
     fn remove_oo_command_roles(&mut self, owner: OoId, roles: &[OoCommandRole]) {
@@ -2684,7 +2700,6 @@ impl Interp {
         for (fqn, generation) in removed {
             self.remove_cmd_traces_of_token(&fqn, Some(generation));
         }
-        self.invalidate_command_environment();
     }
 
     /// Fire `fqn`'s `delete` traces and drop the ones the dying token owned.
@@ -8348,7 +8363,6 @@ impl Interp {
                 self.hidden
                     .borrow_mut()
                     .insert(hidden_name.to_vec(), binding);
-                self.invalidate_command_environment();
                 CommandVisibilityOutcome::Moved
             }
             None => CommandVisibilityOutcome::Missing,
@@ -8395,7 +8409,6 @@ impl Interp {
                 if let Some(token) = ensemble {
                     token.rename(new_fqn);
                 }
-                self.invalidate_command_environment();
                 CommandVisibilityOutcome::Moved
             }
             None => CommandVisibilityOutcome::Missing,
@@ -10558,10 +10571,9 @@ mod tests {
     }
 
     fn assert_interpreter_guard_stale(interp: &mut Interp, token: GuardToken) {
-        // Command-table mutation deliberately clears all identity attestations.
-        // Restore this explicit identity so a failed check proves the
-        // Interpreter epoch changed rather than merely observing a missing ID.
-        interp.register_guarded_builtin(b"guarded", guarded_builtin, GUARDED_IDENTITY);
+        // The command stays attested through every mutation below, so a failed
+        // check proves the Interpreter epoch changed.
+        assert!(interp.attested_identities(b"guarded").is_some());
         assert!(!interp.check_command_guard(token, b"guarded"));
     }
 
@@ -10744,20 +10756,108 @@ mod tests {
         });
     }
 
+    /// A guard is bound to its command's token. A definition, rename or alias
+    /// of another command leaves it and its attestation alone; replacing,
+    /// renaming away or hiding the command drops it, and restoring the same
+    /// token brings it back; a profile pin keeps the attestation.
     #[test]
-    fn command_mutation_invalidates_guard_and_identity_attestation() {
+    fn an_unrelated_mutation_keeps_the_guard_and_a_rebinding_drops_it() {
         leak_free(|i| {
             i.register_guarded_builtin(b"guarded", guarded_builtin, GUARDED_IDENTITY);
             let domains = GuardDomains::one(GuardDomain::CommandEnvironment);
             let token = i
                 .prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains)
                 .unwrap();
+
             i.register_builtin(b"unrelated", guarded_builtin);
+            ok(i, b"proc foo {} {return 1}");
+            ok(i, b"rename foo bar");
+            ok(i, b"interp alias {} baz {} bar");
+            ok(i, b"rename baz {}");
+            assert!(i.check_command_guard(token, b"guarded"));
+            assert!(i
+                .prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains)
+                .is_ok());
+
+            // A change to the lookup environment itself stales the token over
+            // it, and the attestation stays.
+            ok(i, b"namespace eval other {namespace path ::}");
+            assert!(!i.check_command_guard(token, b"guarded"));
+            let token = i
+                .prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains)
+                .expect("still attested");
+
+            // The profile pin keeps the attestation and a token that does not
+            // depend on interpreter policy.
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            assert!(i.check_command_guard(token, b"guarded"));
+            assert!(i
+                .prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains)
+                .is_ok());
+
+            // Renaming the command away drops the guard at its name, and the
+            // attestation goes with the command; restoring the name restores it.
+            ok(i, b"rename guarded moved");
             assert!(!i.check_command_guard(token, b"guarded"));
             assert_eq!(
                 i.prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains),
                 Err(GuardError::IdentityUnavailable)
             );
+            assert!(i
+                .prepare_command_guard(b"moved", GUARDED_IDENTITY, domains)
+                .is_ok());
+            ok(i, b"rename moved guarded");
+            assert!(i.check_command_guard(token, b"guarded"));
+
+            // Hiding it drops the guard, exposing it restores it.
+            assert_eq!(
+                i.hide_command(b"guarded", b"guarded"),
+                CommandVisibilityOutcome::Moved
+            );
+            assert!(!i.check_command_guard(token, b"guarded"));
+            assert_eq!(
+                i.expose_command(b"guarded", b"guarded"),
+                CommandVisibilityOutcome::Moved
+            );
+            assert!(i.check_command_guard(token, b"guarded"));
+
+            // A different command at the name is never attested.
+            ok(i, b"proc guarded {} {return 1}");
+            assert!(!i.check_command_guard(token, b"guarded"));
+            assert_eq!(
+                i.prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains),
+                Err(GuardError::IdentityUnavailable)
+            );
+        });
+    }
+
+    /// The attestation belongs to the token the name reaches, so a definition
+    /// in a namespace that shadows the command drops the guard for calls made
+    /// from that namespace and only from it.
+    #[test]
+    fn a_shadowing_definition_drops_the_guard_only_for_calls_from_its_namespace() {
+        leak_free(|i| {
+            i.register_guarded_builtin(b"guarded", guarded_builtin, GUARDED_IDENTITY);
+            let domains = GuardDomains::one(GuardDomain::CommandEnvironment);
+            let token = i
+                .prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains)
+                .unwrap();
+
+            ok(i, b"namespace eval ns {proc guarded {} {return shadow}}");
+            let ns = i
+                .namespaces
+                .borrow()
+                .find_namespace(GLOBAL, b"ns")
+                .expect("the namespace exists");
+            assert!(i.check_command_guard(token, b"guarded"));
+            i.current_ns.set(ns);
+            assert!(!i.check_command_guard(token, b"guarded"));
+            assert_eq!(
+                i.prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains),
+                Err(GuardError::IdentityUnavailable)
+            );
+            i.current_ns.set(GLOBAL);
+            assert!(i.check_command_guard(token, b"guarded"));
         });
     }
 
@@ -10997,7 +11097,74 @@ mod tests {
                 .unwrap();
             assert_eq!(i.eval_str(b"rename string moved"), Code::Ok);
             assert!(!i.check_command_guard(token, b"string"));
-            assert!(!i.check_command_guard(token, b"moved"));
+            assert_eq!(
+                i.prepare_command_guard(
+                    b"string",
+                    identity,
+                    GuardDomains::one(GuardDomain::CommandEnvironment)
+                ),
+                Err(GuardError::IdentityUnavailable)
+            );
+        });
+    }
+
+    /// The real runtime's `string length` guard, over the registry's base
+    /// domains, survives the definition, rename and alias of unrelated commands
+    /// and falls back once `string` itself is rebound.
+    #[test]
+    fn an_unrelated_mutation_keeps_the_string_length_guard() {
+        leak_free(|i| {
+            let identity = GuardIdentity::registry_intrinsic_with_semantics(
+                tcl_registry::IntrinsicId::StringLength.stable_id(),
+                tcl_registry::IntrinsicId::StringLength.guard_semantics_key(i.runtime_version()),
+            );
+            let domains = GuardDomains::one(GuardDomain::CommandEnvironment)
+                .with(GuardDomain::Namespace)
+                .with(GuardDomain::CommandTrace)
+                .with(GuardDomain::Interpreter);
+            let token = i
+                .prepare_command_guard(b"string", identity, domains)
+                .expect("the registry BASE domains are guardable");
+
+            ok(i, b"proc foo {x} {return $x}");
+            ok(i, b"rename foo bar");
+            ok(i, b"interp alias {} baz {} bar");
+            assert!(i.check_command_guard_identity(token, b"string", identity));
+
+            ok(i, b"rename string moved");
+            assert!(!i.check_command_guard_identity(token, b"string", identity));
+            ok(i, b"rename moved string");
+            assert!(i.check_command_guard_identity(token, b"string", identity));
+            ok(i, b"proc string args {return shadow}");
+            assert!(!i.check_command_guard_identity(token, b"string", identity));
+        });
+    }
+
+    /// The pin keeps every attestation and the pinned surface decides which of
+    /// them a guard reaches: a command the release lacks has none, and answers
+    /// again under a release that has it.
+    #[test]
+    fn a_pin_to_a_release_without_the_command_leaves_it_unattested() {
+        leak_free(|i| {
+            // `lassign` is a command Tcl 8.4 does not have.
+            i.register_guarded_builtin(b"lassign", guarded_builtin, GUARDED_IDENTITY);
+            let domains = GuardDomains::one(GuardDomain::CommandEnvironment);
+            let token = i
+                .prepare_command_guard(b"lassign", GUARDED_IDENTITY, domains)
+                .expect("attested in the default release");
+            assert!(i.check_command_guard(token, b"lassign"));
+
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_4);
+            assert!(!i.check_command_guard(token, b"lassign"));
+            assert_eq!(
+                i.prepare_command_guard(b"lassign", GUARDED_IDENTITY, domains),
+                Err(GuardError::IdentityUnavailable)
+            );
+
+            i.set_runtime_version(tcl_dialect::TclVersion::V9_0);
+            assert!(i
+                .prepare_command_guard(b"lassign", GUARDED_IDENTITY, domains)
+                .is_ok());
         });
     }
 

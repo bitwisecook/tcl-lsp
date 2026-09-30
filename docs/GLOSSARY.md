@@ -1150,9 +1150,12 @@ attest the identity of the live command first, and falls back to generic
 dispatch when it cannot. This is intrinsic guard *eligibility*, distinct
 from the command-binding provenance check (`command_binding_matches`) that
 re-resolves every specialised site at admission. Both runtimes derive
-identities through `register_spec_builtin` for one command today and clear
-their guard tables on every command-environment mutation, including the
-profile pin; the binding check survives those mutations.
+identities through `register_spec_builtin` for one command today and key
+them by the command's token generation: a guard's check resolves the
+guarded name afresh and needs an attestation at the token it reaches, so
+defining, renaming or aliasing another command leaves a guard alone, the
+profile pin keeps the identities, and replacing, deleting, renaming away or
+hiding the guarded command drops its guards.
 See [Registry consumer contracts](design/compiler/registry-consumer-contracts.md).
 
 KCS tag: `codegen`.

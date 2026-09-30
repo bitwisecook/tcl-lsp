@@ -2490,6 +2490,57 @@ mod tests {
         });
     }
 
+    /// A guard is bound to `string`'s command token: defining, renaming or
+    /// aliasing another command leaves the exact check an emitted module makes
+    /// answering one, and rebinding `string` itself answers zero.
+    #[test]
+    fn guarded_intrinsic_guards_survive_unrelated_command_mutation() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+            let words = [
+                owned_word(b"string"),
+                owned_word(b"length"),
+                owned_word(b"abc"),
+            ];
+            let base_domains = i32::from(
+                GuardDomains::one(GuardDomain::CommandEnvironment)
+                    .with(GuardDomain::Namespace)
+                    .with(GuardDomain::CommandTrace)
+                    .with(GuardDomain::Interpreter)
+                    .bits(),
+            );
+            let token = prepare_intrinsic_guard(IntrinsicId::StringLength, &words, base_domains);
+            assert_ne!(token, 0);
+            let check = || {
+                tcl_codegen_guard_check(
+                    token,
+                    IntrinsicId::StringLength.stable_id(),
+                    words.as_ptr(),
+                    i32::try_from(words.len()).unwrap(),
+                )
+            };
+            assert_eq!(check(), 1);
+            for script in [
+                &b"proc unrelated {} {return 1}"[..],
+                b"rename unrelated other",
+                b"interp alias {} alias_of_other {} other",
+            ] {
+                assert_eq!(tcl_eval_code(box_str(script)), 0);
+                assert_eq!(check(), 1, "{}", String::from_utf8_lossy(script));
+            }
+            assert_eq!(
+                tcl_eval_code(box_str(b"proc string args {return shadow}")),
+                0
+            );
+            assert_eq!(check(), 0);
+            tcl_codegen_guard_release(token);
+            release_words(&words);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
     #[test]
     #[cfg(have_tommath)]
     fn compiled_slots_and_named_access_share_one_cell() {

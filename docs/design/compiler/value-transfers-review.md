@@ -609,12 +609,12 @@ The companion's separation of description, identity, and executable backing
 is useful. Its opening conclusion that both runtimes attest only one command
 and lose identity before execution is too broad.
 
-In the VM, `bump_cmd_epoch` clears `guarded_commands`, the specialised
-intrinsic guard table. But `command_binding_matches` uses
-`builtin_identity_for_key` and `registry_object_roots`, with alias following
-and execution-trace checks. Those are distinct mechanisms in
-[interp.rs](../../../rust/tcl-vm/src/interp.rs). The ordinary bytecode
-binding checks are not demonstrated broken by clearing the intrinsic table.
+In the VM, `guarded_commands` is the specialised intrinsic guard table,
+keyed by command token generation and read live. `command_binding_matches`
+uses `builtin_identity_for_key` and `registry_object_roots`, with alias
+following and execution-trace checks. Those are distinct mechanisms in
+[interp.rs](../../../rust/tcl-vm/src/interp.rs), and neither depends on the
+other.
 
 Distinguish command binding provenance, intrinsic guard eligibility, and
 pack/implementation attestation in the text and diagrams. Persisting an

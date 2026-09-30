@@ -204,15 +204,21 @@ arena (`InterpState::cmd_arena`), and it is a name interner, not a
 binding cache: ids map to FQNs, and the FQN is re-resolved when a
 `dispatch_id` invokes it.
 
-A rename does invalidate the *compiled* command environment, which is a
-different mechanism.  Both halves — `move_bound_command` and
-`delete_bound_command` — call `invalidate_command_environment`, which
-clears the intrinsic guard table (`guarded_commands`) and invalidates the
-`CommandEnvironment`, `Namespace`, and `UnknownHandling` guard domains, so
-no compiled fast path survives a rename.  A compiled artefact's binding
-identities are a third mechanism again: they are re-resolved at admission
-rather than cached, so a rename changes what they resolve to and not
-whether they are checked
+A rename does change the *compiled* command environment, which is a
+different mechanism, and it does so per token.  The intrinsic guard table
+(`guarded_commands`) is keyed by command token generation, and a
+generation follows its command through `move_bound_command`, hide and
+expose, so a rename moves the attestation with the builtin: a guard over
+`string` resolves the name `string` afresh on every check and finds no
+attestation once `string` has been renamed away, and finds it again if the
+command is renamed back.  Nothing about a rename touches another command's
+guard, and neither `move_bound_command` nor `delete_bound_command` moves a
+guard domain's epoch; `invalidate_command_environment` is for the events
+that change the lookup environment itself (`namespace path`, import and
+forget, namespace lifecycle, interpreter topology).  A compiled artefact's
+binding identities are a third mechanism again: they are re-resolved at
+admission rather than cached, so a rename changes what they resolve to and
+not whether they are checked
 ([../compiler/registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
 § *Codegen and the registry today*).
 
