@@ -123,7 +123,9 @@ validated; unknown → WARNING `logMessage` + default. `KNOWN_DIALECTS` and
 | W002 only where the providing dialect is related (`providers_in_any_dialect`, `Family::on_one_line_with`, `shares_packages_with`, `ResolvedContext::is_related_to_a_provider_of`); Expect's `system` under jim is W123. Also fixed: `resolve_spec` did not apply the inherited-surface roster (a jim document accepted `coroutine`); `both_resolution_paths_apply_the_roster` pins it; nearest-first extended to `assembly.rs` | done |
 | Acceptance: `rust/tcl-spectcl/tests/jim_document.rs` on both analyser tiers | done |
 | `command-backing` needs no Jim rows (reads core Tcl specs only) | n/a |
-| Not done: `tcl-lsp-server` e2e for a jim document (`tcl-jim` didOpen, `jimsh` shebang), CLI `--dialect jim` e2e on the merged tree | 2d |
+| `tcl-lsp-server` e2e for a jim document (`tests/e2e/jim.rs`, 10 tests: `tcl-jim` id, `jimsh` shebang, `jimsh` alias directive, the program clean under jim and flagged under tcl86, `listDialects` 21 ids with kinds and the Vivado description, `.xdc` kind/provenance, unknown session dialect WARNING) and 5 `tcl` CLI tests in `rust/tcl-cli/tests/cli.rs`; four new test binaries sharded in `scripts/dev/rust-test-binary-shards.tsv` | done (2d) |
+| Found by 2d: the server registers the compiled core surfaces only when the start-up pack reload publishes, so a `tcl-jim` document opened right after `initialize` is first published with false positives until the republish — being fixed so generation 0 carries the built-in surfaces for every consumer | wip |
+| Merged head verified by 2d: fmt, `cargo check --workspace`, workspace clippy, every crate's tests, `make xtask-check` (with the two new gates), `catalogue-callers` (25). VS Code host: 963/967 in the single-root run; the four failures are the pre-existing #829 semantic-token timeouts on a debug server (fail identically on the merge base), one W100 load flake, and a knock-on; multi-folder 14/14; partition counts 968/967/1 confirmed real. `make prep-pr` not yet run | done |
 
 ## Behavioural deltas accepted
 
