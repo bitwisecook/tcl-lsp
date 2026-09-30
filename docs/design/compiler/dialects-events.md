@@ -85,7 +85,7 @@ profile through three distinct codes:
 
 | Code | Meaning |
 |------|---------|
-| `W002` | The command exists, but is disabled in the active dialect profile. The message carries an "available in: …" suffix built by `dialect_availability_suffix` from the spec's own `surface` |
+| `W002` | The command exists, but is disabled in the active dialect profile. The message carries an "available in: …" suffix built by `dialect_availability_suffix` from the spec's own `surface`, or — for a name the document's registry does not load, such as Jim's `loop` in a Tcl document — from the surface rows of every dialect's specs of that name (`CommandRegistry::providers_in_any_dialect`) |
 | `W123` | Unresolved command — not found in the registry, user procs, or an `unknown` handler |
 | `W001` | The command resolved, but its first word is not a recognised subcommand. Suppressed when the spec sets `allow_unknown_subcommands` |
 
