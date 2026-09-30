@@ -131,6 +131,7 @@ const OPTION_RELATIONS: &[OptionRelation] = &[OptionRelation {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "source",
+        runtime_backing: RuntimeBacking::shipped("source"),
         // Core Tcl 8.4-9.1 (present in every fetched manpage, only its
         // SYNOPSIS/option set shifts — see the module doc comment and FORMS
         // above). Unavailable under `f5-irules` because its surface is

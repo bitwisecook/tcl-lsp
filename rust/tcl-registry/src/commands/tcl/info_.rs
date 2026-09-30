@@ -721,6 +721,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "info",
+        runtime_backing: RuntimeBacking::shipped("info"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::BYTE_COMPILED,
         arity: Arity::at_least(1),

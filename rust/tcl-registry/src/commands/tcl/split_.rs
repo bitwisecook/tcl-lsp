@@ -27,6 +27,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "split",
+        runtime_backing: RuntimeBacking::shipped("split"),
         // `split`'s surface carries an iRules row explicitly
         // (`ALL_TCL.union(IRULES)`), deliberately, not by oversight: it is a
         // pure string/list-manipulation command, exactly the class iRules

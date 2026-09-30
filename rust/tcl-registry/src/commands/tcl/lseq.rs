@@ -131,6 +131,7 @@ const OP_KEYWORD_VALUES: &[ArgValue] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lseq",
+        runtime_backing: RuntimeBacking::shipped("lseq"),
         // Deterministic in the common (plain-number-argument) case, but
         // `expr` pairs `PURE_EVALUATION`/`TAINT_SINK` rather than plain
         // `PURE` for exactly the reason that applies here too — see the

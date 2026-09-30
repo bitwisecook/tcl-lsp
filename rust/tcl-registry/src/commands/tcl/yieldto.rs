@@ -96,6 +96,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "yieldto",
+        runtime_backing: RuntimeBacking::shipped("yieldto"),
         surface: Some(SpecSurface::TCL86_PLUS),
         // Deliberately no `TAINT_SINK`: `command` is looked up and invoked
         // by name with already-substituted argument words — ordinary

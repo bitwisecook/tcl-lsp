@@ -28,6 +28,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lindex",
+        runtime_backing: RuntimeBacking::shipped("lindex"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         const_fold: Some(crate::const_fold::fold_lindex),
         traits: Traits::FRAMELESS_RUNTIME

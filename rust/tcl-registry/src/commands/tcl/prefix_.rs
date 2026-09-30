@@ -105,6 +105,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::prefix",
+        runtime_backing: RuntimeBacking::shipped("tcl::prefix"),
         traits: Traits::NOT_PROC_FACTORY,
         // Added in Tcl 8.6 (TIP 265).
         surface: Some(SpecSurface::TCL86_PLUS),

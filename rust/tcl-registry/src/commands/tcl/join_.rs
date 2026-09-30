@@ -27,6 +27,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "join",
+        runtime_backing: RuntimeBacking::shipped("join"),
         // `Some(SpecSurface::ALL_TCL_AND_IRULES)` is deliberate, not an
         // oversight: `join` is a pure list-manipulation command — none of the
         // filesystem/process/interp surface (`open`, `exec`, `file`, `glob`,

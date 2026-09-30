@@ -27,6 +27,7 @@ descriptor world_effects class-factory-effects {
 }
 
 command oo::class {
+    runtime_backing shipped-builtin oo::class
     dialects tcl8.6+
     traits {NOT_PROC_FACTORY IS_OO_METACLASS LANGUAGE_KEYWORD DEFINES_PROCEDURE}
     arity 1..

@@ -272,6 +272,7 @@ fn subst_evaluates_commands(args: &[&str]) -> bool {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "subst",
+        runtime_backing: RuntimeBacking::shipped("subst"),
         // Present and unrestricted: its `dialects` group carries the
         // `IRULES` bit explicitly (`ALL_TCL.union(IRULES)`), so it resolves
         // under the bare `IRULES` availability mask; every dialect hosting

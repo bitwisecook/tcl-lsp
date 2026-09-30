@@ -356,6 +356,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "package",
+        runtime_backing: RuntimeBacking::shipped("package"),
         // Universal core Tcl 8.4-9.1 (present, with the shape detailed on each
         // subcommand above, on every fetched manpage). F5 iRules drops it
         // (K36322151 — the TMM data-plane sandbox has no real package-loading

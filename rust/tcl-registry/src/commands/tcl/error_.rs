@@ -45,6 +45,7 @@ const COMPLETION_CODES: &[CompletionCode] = &[CompletionCode::Error];
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "error",
+        runtime_backing: RuntimeBacking::shipped("error"),
         // Present and unrestricted: its surface explicitly carries an iRules
         // row (unlike the TMM-sandbox-banned commands, whose bare `ALL_TCL`
         // surface never intersects the `IRULES` mask) — `error` is a pure

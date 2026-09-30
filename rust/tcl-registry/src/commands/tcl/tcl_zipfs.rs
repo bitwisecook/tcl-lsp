@@ -111,6 +111,7 @@ static LIST_OPTIONS: [OptionSpec; 2] = [
 fn make_spec(name: &'static str) -> CommandSpec {
     CommandSpec {
         name,
+        runtime_backing: RuntimeBacking::shipped(name),
         surface: Some(SpecSurface::TCL90_PLUS),
         // `BYTE_COMPILED` follows this codebase's convention (see
         // `traits.rs`'s doc comment): "recognised core builtin", not

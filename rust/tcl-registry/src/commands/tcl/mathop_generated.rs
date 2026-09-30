@@ -91,6 +91,14 @@ fn push_spellings(out: &mut Vec<CommandSpec>, spec: OperatorSpec) {
         ));
         out.push(CommandSpec {
             name,
+            // The two qualified spellings are real commands the runtime
+            // registers (`cmd_mathop.rs`); the bare operator word is grammar
+            // evaluated inside `expr`, which nothing dispatches as a command.
+            runtime_backing: if prefix.is_empty() {
+                RuntimeBacking::None
+            } else {
+                RuntimeBacking::shipped(name)
+            },
             // The `::tcl::mathop` command ensemble was added in Tcl 8.5 (TIP
             // 174), so every operator *command* has an 8.5+ floor even when
             // its `OperatorSpec.surface` is `None` ("no gate beyond mathop's

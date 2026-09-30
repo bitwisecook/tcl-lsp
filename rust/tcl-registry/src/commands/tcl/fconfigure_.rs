@@ -332,6 +332,7 @@ pub fn resolve_fconfigure_option(
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fconfigure",
+        runtime_backing: RuntimeBacking::shipped("fconfigure"),
         surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED | Traits::SAFE_INTERP_HIDDEN,
         arity: Arity::at_least(1),

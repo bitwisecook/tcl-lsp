@@ -971,6 +971,10 @@ fn find_rename_barriers(
     let mut out = RenameBarriers::default();
     let scope_at =
         |offset: u32| scope_label_at_offset(&analysis.global_scope, offset, "::", include_global);
+    // A carrier, not a consumer: this holds the set `build_declared_surface`
+    // returns only to hand it to `DocumentCommandSurface` below, and never
+    // spells `DeclaredSurface` itself (`rust/xtask/src/retired_api_gate.rs`
+    // relies on that to keep this file off the type's owner list).
     let declared = tcl_compiler::analyser::types::build_declared_surface(&analysis.stub_commands);
     let surface = tcl_registry::model::DocumentCommandSurface::new(registry, Some(&declared));
     for inv in &analysis.command_invocations {

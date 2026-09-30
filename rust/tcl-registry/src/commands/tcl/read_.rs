@@ -105,6 +105,7 @@ fn read_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "read",
+        runtime_backing: RuntimeBacking::shipped("read"),
         surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED | Traits::TAINT_SOURCE,
         // Positional count only: 1 (bare channelId, or -nonewline

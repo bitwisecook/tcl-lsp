@@ -127,6 +127,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "unknown",
+        runtime_backing: RuntimeBacking::package_source("init.tcl"),
         // Universal core Tcl 8.4-9.1 (present, arity- and synopsis-unchanged,
         // in every fetched manpage — see the module doc comment). `ALL_TCL`
         // here — with no iRules row — is what encodes the iRules ban

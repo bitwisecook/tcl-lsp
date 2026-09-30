@@ -134,6 +134,11 @@ pub enum FieldKind {
     /// `Option<SemanticOperationId>` — the target-neutral operation identity,
     /// a closed vocabulary: `invoke`, an intrinsic, or a structured lowering.
     SemanticOperation,
+    /// [`tcl_registry::RuntimeBacking`] — how the command's behaviour reaches
+    /// the runtime, held as the statement's own spelling (`none`,
+    /// `host-native`, `shipped-builtin ID`, `tcl-body {-package-source PATH}`,
+    /// `tcl-body {-pack-text {TEXT}}`) and edited as text.
+    RuntimeBacking,
     /// A field the studio cannot model as data — a function pointer or a
     /// reference to a `&'static` descriptor. Held (and emitted) as a verbatim
     /// Rust expression the author supplies.
@@ -153,7 +158,9 @@ impl FieldKind {
             Self::Count => "count",
             Self::OptCount => "optCount",
             Self::OptIndex => "optIndex",
-            Self::Text => "text",
+            // A backing is edited as text: its draft value is the statement's
+            // own spelling.
+            Self::Text | Self::RuntimeBacking => "text",
             Self::OptText => "optText",
             Self::Prose => "prose",
             Self::TextList => "textList",
@@ -1342,6 +1349,17 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "The shipped builtin this pack command is — the only admissible source \
          of a builtin identity for a pack command. Unset for every shipped \
          command and every pack command that names no target.",
+    ),
+    f(
+        "runtime_backing",
+        "Runtime backing",
+        IDENTITY,
+        FieldKind::RuntimeBacking,
+        "How the command's behaviour reaches the runtime: `none`, \
+         `host-native`, `shipped-builtin ID`, `tcl-body {-package-source \
+         PATH}` or `tcl-body {-pack-text {TEXT}}`. Every shipped core \
+         command declares it; a command that declares nothing reads as \
+         `none` — nothing executes it.",
     ),
     f(
         "byte_array_payload",

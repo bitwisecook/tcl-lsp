@@ -57,6 +57,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "proc",
+        runtime_backing: RuntimeBacking::shipped("proc"),
         surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::INSTALLS_NAMED_DEFINITION

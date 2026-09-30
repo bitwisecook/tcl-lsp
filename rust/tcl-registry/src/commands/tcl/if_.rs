@@ -100,6 +100,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "if",
+        runtime_backing: RuntimeBacking::shipped("if"),
         // Present and unrestricted everywhere. `if` is a pure control-flow
         // keyword with no filesystem/process/network access, so its surface
         // carries an iRules row explicitly (`ALL_TCL.union(IRULES)`) and it

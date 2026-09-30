@@ -257,11 +257,14 @@ pub const CLUSTERS: &[Cluster] = &[
     },
     Cluster {
         name: "Builtin identity",
-        why: "Which shipped builtin a pack command is, and the codegen-axis \
+        why: "Which shipped builtin a pack command is, the codegen-axis \
               stamps a bundled pack may carry on it only as that builtin's own \
-              — the stamp rejection rule reads them together.",
+              — the stamp rejection rule reads them together — and how its \
+              behaviour reaches the runtime, from which code generation \
+              chooses the identity a compiled site records.",
         members: &[
             "alias_of",
+            "runtime_backing",
             "codegen_hook",
             "inline_codegen_hook",
             "semantic_operation",

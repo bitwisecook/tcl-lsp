@@ -1141,11 +1141,14 @@ KCS tag: `ipa`.
 
 The stable identity a runtime attaches to a command it registered from a
 registry spec — `GuardIdentity` in `rust/tcl-runtime-api/src/guard.rs`, an
-intrinsic's stable id packed with its release-semantics key. Compiled code
-that wants to take an intrinsic fast path asks the runtime to attest the
-identity of the live command first, and falls back to generic dispatch
-when it cannot. This is intrinsic guard *eligibility*, distinct from the
-command-binding provenance check (`command_binding_matches`) that
+intrinsic's stable id packed with its semantics key. The key is one per
+intrinsic (the intrinsic's own stable id, its revision, and a release
+variant that only `string length` has more than one of), so an intrinsic
+whose guarded contract changes invalidates its own guards and no other's.
+Compiled code that wants to take an intrinsic fast path asks the runtime to
+attest the identity of the live command first, and falls back to generic
+dispatch when it cannot. This is intrinsic guard *eligibility*, distinct
+from the command-binding provenance check (`command_binding_matches`) that
 re-resolves every specialised site at admission. Both runtimes derive
 identities through `register_spec_builtin` for one command today and clear
 their guard tables on every command-environment mutation, including the
@@ -1748,18 +1751,22 @@ See also: [The C Tcl extension shim](design/runtime/c-extension-shim.md),
 
 ### Runtime backing
 
-The proposed per-command registry fact naming how a described command's
-executable behaviour arrives at run time, in four variants: a shipped
+The per-command registry fact naming how a described command's executable
+behaviour arrives at run time, in four variants — `CommandSpec::runtime_backing`,
+a `RuntimeBacking` in `rust/tcl-registry/src/runtime_backing.rs`: a shipped
 builtin attested by its registry identity; a Tcl body, with the source its
 text comes from — a path into the package's own installed source, or text
 carried in the pack, which is reported at load and turns its sites plain on
 the first mismatch; a command the host registered natively, a shimmed C
 command or an embedder's own handler, attested by a
 [guard identity](#guard-identity) and never by a procedure definition; or
-nothing that executes the command in the target runtime. Code generation
-chooses from it which identity the compiled artefact records — a command
-binding, a procedure binding, a guard, or none — so the runtime can attest
-the claim at admission or fall back to generic dispatch. See
+nothing that executes the command in the target runtime, which is also what a
+spec that declares nothing reads as. Every core Tcl command declares one; a
+pack states it with `runtime_backing`, and an override keeps a shipped
+command's. Code generation will choose from it which identity the compiled
+artefact records — a command binding, a procedure binding, a guard, or
+none — so the runtime can attest the claim at admission or fall back to
+generic dispatch; nothing reads it that way yet. See
 [Registry consumer contracts § What the artefact records per rung](design/compiler/registry-consumer-contracts.md#what-the-artefact-records-per-rung).
 
 KCS tag: `codegen`.

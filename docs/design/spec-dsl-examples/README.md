@@ -974,7 +974,12 @@ gate rather than pass silently.
   carries it, and the load drops it everywhere else with a warning naming
   the provenance and the target (the stamp rejection rule).
 - `command NAME -override { … }` claims a name a shipped spec already
-  has; without it, shipped wins and the collision is reported.
+  has; without it, shipped wins and the collision is reported. An
+  override keeps the shipped command's security facts and its
+  compiler-side identity — the two codegen hooks, `lowering_hook`,
+  `analyser_hook`, `semantic_operation`, `state_transitions`,
+  `native_lowering`, `bpf_op` and `runtime_backing` — wherever the
+  shipped command has one, and gives no notice that it did.
 
 ## What a pack cannot author
 
@@ -1404,6 +1409,7 @@ schema order. "excluded" rows carry the reason.
 | `deprecated_replacement` | `deprecated_replacement NAME` |  |
 | `deprecated_replacement_drop_in` | `deprecated_replacement_drop_in ?yes\|no?` |  |
 | `alias_of` | `alias_of NAME` | the shipped builtin this pack command is — the target whose own codegen-axis stamps a bundled pack may carry (`docs/design/compiler/registry-consumer-contracts.md` § "The loader's stamp rejection rule") |
+| `runtime_backing` | `runtime_backing none\|host-native\|shipped-builtin ID\|tcl-body {-package-source PATH}\|tcl-body {-pack-text {TEXT}}` | how the command's behaviour reaches the runtime (`docs/design/compiler/registry-consumer-contracts.md` § "Four rungs of codegen meeting `.tclspec`", rung 4); every shipped core command declares one, and an unstated one reads as `none`. A `-pack-text` body is reported at load |
 | `byte_array_payload` | `byte_array_payload -replace-data-index N ?-message-flag-shift?` |  |
 | `byte_array_effect` | `byte_array_effect None\|Transparent\|Coerces\|CaseFolds\|Encodes\|{Rebinarifies N}` |  |
 | `definition_body` | `definition_body NAME\|{ … }` | a shipped grammar by name (`tcloo`, `tcloo-configurable`, `snit`, `snit-widget`, `itcl`), a pack `descriptor`, or the inline block — see "Definer grammars and scoped bodies" |

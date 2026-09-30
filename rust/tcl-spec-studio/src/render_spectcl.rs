@@ -2777,6 +2777,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     text(out, ctx, draft, "deprecated_replacement");
     flag(out, ctx, draft, "deprecated_replacement_drop_in");
     text(out, ctx, draft, "alias_of");
+    runtime_backing_row(out, ctx, draft);
 
     // Descriptors.
     out.gap();
@@ -3073,6 +3074,28 @@ fn manufacturer_row(method: &Value) -> Vec<String> {
         row.push(n.to_string());
     }
     row
+}
+
+/// `runtime_backing none|host-native|shipped-builtin ID|tcl-body {…}` — the
+/// draft holds the statement's own spelling, read and re-spelled through the
+/// loader's parser ([`tcl_spectcl::BackingSyntax`]) so the row is always one
+/// the loader reads back; a spelling that does not read is a `TODO`, not a
+/// statement the loader would drop.
+fn runtime_backing_row(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
+    if !ctx.set(draft, "runtime_backing") {
+        return;
+    }
+    let Some(spelling) = draft["runtime_backing"].as_str() else {
+        return;
+    };
+    match tcl_spectcl::BackingSyntax::parse_spelling(spelling) {
+        Ok(syntax) => out.line(&format!("runtime_backing {}", syntax.spelling())),
+        Err(_) => out.comment(&format!(
+            "TODO(spectcl): `runtime_backing {spelling}` does not read; the loader \
+             takes `none`, `host-native`, `shipped-builtin ID`, `tcl-body \
+             {{-package-source PATH}}` or `tcl-body {{-pack-text {{TEXT}}}}`."
+        )),
+    }
 }
 
 /// `semantic_operation Invoke|{Intrinsic ID}|{StructuredLowering ID}` — the

@@ -195,6 +195,7 @@ const FORMS: &[FormSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "vwait",
+        runtime_backing: RuntimeBacking::shipped("vwait"),
         // Present everywhere except iRules: `ALL_TCL` carries no iRules row,
         // so this spec never intersects the bare `IRULES` mask and is banned
         // there by plain intersection, with no disable list — see the module

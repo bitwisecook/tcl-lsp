@@ -63,6 +63,19 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
             )],
         },
     ),
+    (
+        "runtime_backing",
+        Example {
+            code: "lassign $items first second",
+            focuses: &[focus(
+                0,
+                "lassign",
+                "declares shipped-builtin lassign — the runtime registers it, \
+                 so a compiled site records that builtin's identity and the \
+                 runtime can attest it",
+            )],
+        },
+    ),
     // Availability
     (
         "surface",

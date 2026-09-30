@@ -28,6 +28,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "list",
+        runtime_backing: RuntimeBacking::shipped("list"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         const_fold: Some(crate::const_fold::fold_list),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::LIST_OF_ARGS),

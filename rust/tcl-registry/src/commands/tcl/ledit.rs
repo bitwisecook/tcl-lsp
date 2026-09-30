@@ -44,6 +44,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "ledit",
+        runtime_backing: RuntimeBacking::shipped("ledit"),
         // `ledit` reads the list variable's current value, replaces a
         // range, and writes the result back — a read-before-write of
         // `listVar`, like `lappend`/`append`/`incr` and unlike `lset`'s

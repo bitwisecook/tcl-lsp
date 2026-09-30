@@ -49,6 +49,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lpop",
+        runtime_backing: RuntimeBacking::shipped("lpop"),
         // `lpop` reads the list variable's current value, removes one
         // (possibly deeply nested) element, and writes the shortened list
         // back — a read-before-write of `varName`, like `lappend` /

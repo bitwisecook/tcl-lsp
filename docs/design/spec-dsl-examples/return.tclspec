@@ -33,6 +33,7 @@ values return-codes {
 }
 
 command return {
+    runtime_backing shipped-builtin return
     # ALL_TCL.union(IRULES): a pure control-flow primitive with no
     # filesystem/process/network access, so every dialect hosting a real Tcl
     # core carries it unmodified.  Its legal OPTION SET still narrows per

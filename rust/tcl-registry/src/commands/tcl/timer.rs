@@ -256,6 +256,7 @@ static SIDE_EFFECTS: [SideEffect; 1] = [SideEffect {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "timer",
+        runtime_backing: RuntimeBacking::shipped("timer"),
         // `DEFERS_BODY`, exactly as `after` carries it (`tcl/after_.rs`) —
         // this command shares `after`'s event queue and id namespace, as the
         // module header above records. No 9.1 interpreter exists here to

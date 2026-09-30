@@ -91,6 +91,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tclPkgUnknown",
+        runtime_backing: RuntimeBacking::package_source("package.tcl"),
         // Not a `Tcl_CreateObjCommand` builtin — a Tcl-level library proc
         // (`library/package.tcl` in every one of 8.4 through 9.1, never
         // `init.tcl`) with no `CmdInfo` row of its own.

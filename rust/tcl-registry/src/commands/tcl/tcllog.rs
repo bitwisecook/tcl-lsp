@@ -93,6 +93,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tclLog",
+        runtime_backing: RuntimeBacking::package_source("init.tcl"),
         surface: Some(SpecSurface::ALL_TCL),
         // A redefinable Tcl library proc — see `Traits::OVERRIDABLE_LIBRARY_PROC`.
         // The default body directly wraps `puts stderr $string` (module

@@ -65,6 +65,7 @@ const SCRIPT: &[ClauseSlot] = &[ClauseSlot::of(ArgRole::Body)];
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "while",
+        runtime_backing: RuntimeBacking::shipped("while"),
         // Present and unrestricted — `while` carries an iRules row explicitly
         // (`ALL_TCL.union(IRULES)`), resolving under the bare `IRULES` mask; a
         // pure control-flow keyword with no filesystem/process/network access,

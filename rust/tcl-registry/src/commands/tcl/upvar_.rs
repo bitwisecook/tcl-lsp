@@ -142,6 +142,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "upvar",
+        runtime_backing: RuntimeBacking::shipped("upvar"),
         // A pure variable-scoping primitive — no filesystem, process, or
         // network access — so every dialect that hosts a real Tcl core carries
         // it unmodified, the same reasoning `global`/`variable` use for their

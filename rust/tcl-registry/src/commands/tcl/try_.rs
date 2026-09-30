@@ -132,6 +132,7 @@ const FIRST_CLAUSE_KEYWORD_VALUES: &[ArgValue] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "try",
+        runtime_backing: RuntimeBacking::shipped("try"),
         // `FRAMELESS_RUNTIME` deliberately absent: unlike `throw`/`error`/
         // `return` (which build their completion directly with no `vm`
         // touch), `cmd_try` evaluates `body`, every handler `script`, and

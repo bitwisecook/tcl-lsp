@@ -1743,6 +1743,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "string",
+        runtime_backing: RuntimeBacking::shipped("string"),
         // Present and unrestricted: its surface carries an iRules row
         // explicitly (`ALL_TCL.union(IRULES)`), so it resolves under the
         // iRules point — a pure value-transform ensemble with no

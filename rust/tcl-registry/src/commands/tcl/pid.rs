@@ -93,6 +93,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "pid",
+        runtime_backing: RuntimeBacking::shipped("pid"),
         surface: Some(SpecSurface::ALL_TCL),
         // Reads process/channel-table state that lives outside the
         // argument list rather than being a pure function of its own

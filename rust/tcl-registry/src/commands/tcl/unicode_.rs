@@ -147,6 +147,7 @@ static SUBCOMMANDS: [SubCommand; 4] = [
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "unicode",
+        runtime_backing: RuntimeBacking::shipped("unicode"),
         traits: Traits::BYTE_COMPILED | Traits::CSE_CANDIDATE,
         surface: Some(SpecSurface::TCL91),
         arity: Arity::at_least(1),

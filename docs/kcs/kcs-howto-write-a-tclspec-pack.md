@@ -67,7 +67,11 @@ Three tiers, nearest wins:
 - **Bundled** — shipped with tcl-lsp itself; you never write to this one.
 
 A command name your pack shares with a shipped command loses to the
-shipped one, unless you write `command NAME -override { … }`.
+shipped one, unless you write `command NAME -override { … }`. An override
+replaces the shipped command's arguments, options and hover text. It cannot
+remove the shipped command's taint facts, or change how the compiler and the
+analyser handle the command: those stay as shipped, and the override does
+not warn you that it kept them.
 
 ### Validating a pack
 

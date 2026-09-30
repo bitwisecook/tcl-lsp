@@ -34,6 +34,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "oo::abstract",
+        runtime_backing: RuntimeBacking::shipped("oo::abstract"),
         // `oo::abstract create Name { … }` is a four-token `HEAD NAME
         // BRACED BRACED` call — the same shape `oo::class` also matches,
         // which is why it carries `NOT_PROC_FACTORY` too. The

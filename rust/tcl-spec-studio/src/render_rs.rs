@@ -520,6 +520,29 @@ fn member_body_command_expr(command: &Value) -> Option<String> {
     ))
 }
 
+/// A `runtime_backing` value (the statement's spelling) as its
+/// `RuntimeBacking` expression, or `None` for a spelling that does not read.
+fn runtime_backing_expr(value: &Value) -> Option<String> {
+    use tcl_spectcl::BackingSyntax;
+    Some(match BackingSyntax::parse_spelling(value.as_str()?).ok()? {
+        BackingSyntax::None => "RuntimeBacking::None".to_owned(),
+        BackingSyntax::HostNative => "RuntimeBacking::HostNative".to_owned(),
+        BackingSyntax::ShippedBuiltin { identity } => {
+            format!("RuntimeBacking::shipped({})", rust_string(&identity))
+        }
+        BackingSyntax::PackageSource { relative_path } => {
+            format!(
+                "RuntimeBacking::package_source({})",
+                rust_string(&relative_path)
+            )
+        }
+        BackingSyntax::PackText { text } => format!(
+            "RuntimeBacking::TclBody {{ source: BodySource::PackText {{ text: {} }} }}",
+            rust_string(&text)
+        ),
+    })
+}
+
 /// A `semantic_operation` value (`{kind, detail}`) as its
 /// `Some(SemanticOperationId::…)` expression.
 fn semantic_operation_expr(value: &Value) -> Option<String> {
@@ -1466,6 +1489,7 @@ fn field_expr(field: &FieldSchema, value: &Value, default: &Value, indent: &str)
         FieldKind::ClauseGrammar => clause_grammar_expr(value, indent)?,
         FieldKind::DefinitionBody => definition_body_expr(value, indent)?,
         FieldKind::SemanticOperation => semantic_operation_expr(value)?,
+        FieldKind::RuntimeBacking => runtime_backing_expr(value)?,
         FieldKind::Hover => {
             if value.is_null() {
                 return None;

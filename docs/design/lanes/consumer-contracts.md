@@ -1,4 +1,4 @@
-# Lane: consumer contracts — steps 1–4 landed; the plan for steps 2–10
+# Lane: consumer contracts — steps 1–4 landed, steps 5 to 7 in progress; the plan for steps 2–10
 
 ## Goal
 
@@ -812,6 +812,7 @@ order, CC4.2, CC4.3, CC4.4, each its own checkpoint.
 | CC4.2 the stamp rejection rule | landed | `wip(consumer-contracts): step 4 — the stamp rejection rule` | `rust/tcl-spectcl/src/stamps.rs` (new): `Stamp` (`Codegen`, `InlineCodegen`, `Intrinsic`), `StampSite` (`Command`, `Subcommand(name)`, `Form(name)`), `RefusalReason` (`TierGate`, `NoAliasOf`, `UnknownTarget`, `NotTheTargetsOwn`), `StampRefusal` with `message()`; `stamps_admitted_from(provenance)` (rule 2: `BuiltIn`, `BundledPack`), `carries_stamp(spec)`, `shipped()` (the lenient all-Tcl store, D4.7), `stamp_refusals(spec, provenance, shipped)` (pure — the previews read it) and the plan's `admit_codegen_stamps(command: &mut PackCommand, provenance, shipped) -> Vec<StampRefusal>`, which strips through a memo keyed by the original spec's address and the exact drops (D4.10). Rule 1 at every site a stamp can sit — the command, each subcommand, each `command_forms` entry — against the target's same-named site (D4.8); the refusal names the first shipped carrier by name, at the same site when one exists (D4.9). `pack::load_sources` applies it to every merged command at `MergedPack::provenance()` and pushes `PackNotice::stamp_refused` (the command's row, context `command NAME`, `Severity::Warning`) per refusal — the plan's message verbatim for a trusted workspace pack with no target: "`codegen_hook Lassign` refused for `vendor::unpack`: a trusted workspace pack may not name a codegen catalogue member; the stamp would have to sit on `alias_of lassign`". `loader.rs`: the "names a codegen hook" `log.say` is gone (the rule's notice replaces it); the lowering-hook notice stays. `install.rs`: `debug_assert!` that no stamp survives from a provenance `stamps_admitted_from` refuses. Beyond the plan's files (D4.11): the Spec Studio assembles its own set (`store.rs`'s `merged()`), so it applies the rule to the world it installs — the document and its drafts keep the rows — and reports `PackStore::stamp_refusals` / `patch_stamp_refusals` as `stamp_refusals` in the store view (and its `patch` object); `spectcl_check` reports `stamp_refusals` for the pair's install beside `dormant_hooks`, both from a new `install_preview` helper (the function had crossed clippy's line limit), empty where the install refuses the pack (D3.27); the Studio's `relations.rs` files `alias_of` in a new "Builtin identity" cluster with the three stamp fields, its help text states the rule, and its worked example takes `lassign`'s word order (D4.12); `alias_of`'s own doc comment in `spec.rs` states the rule as built. Tests: `workspace_packs.rs` gains the plan's four — `a_workspace_stamp_without_alias_of_is_refused_and_names_the_target` (the plan's message, on the command's line, the stamp dropped), `a_workspace_stamp_with_alias_of_is_refused_by_the_tier_gate` (trusted and untrusted workspace, user and Spec Studio override, each naming its provenance; `alias_of` kept), `a_refused_stamp_costs_no_analysis_fact` (the stripped spec's `Debug` rendering equals the loader's with only `codegen_hook` cleared; installed arity, `alias_of`, `Value` and `VarWrite` roles survive), `a_bundled_stamp_on_an_alias_of_target_is_admitted` (through `bundled::load_from` on a temp `specs/`: no notice, the stamp installed; the negative: `alias_of lsort` refused by rule 1, naming `lassign`); `stamps.rs` unit tests for a subcommand stamp (admitted through `alias_of string`, refused without it, naming `string`), a form stamp with an unknown target, the gate and a stamp nothing ships, and the memo (a second strip returns the same pointer); `spectcl.rs` `stamp_refusals_preview_the_install_the_pair_describes`; `store.rs` `a_stamp_is_kept_in_the_document_and_dropped_from_the_installed_world`. Moved: `spectcl_roundtrip.rs`'s `is_policy_report` loses its dead codegen branch; `spec_corpus_baseline.txt` re-blessed — the upvar port's "names a codegen hook" line gone, six refusals added (the `return`, `string` and `upvar` ports copy their shipped specs' stamps at the workspace tier: `inline_codegen_hook Return`, `inline_codegen_hook String`, `semantic_operation {Intrinsic …}` on `string`'s `is`, `length` and `range`, `codegen_hook Upvar`), 30 lines in seven groups, the header's group text updated; `pack-goldens` rewrote `upvar.snap` only (the notice gone; no `spec` digest moved — the golden renders the loader's pack, stamps as written). Gates: `cargo test -p tcl-spectcl --no-fail-fast` (lib 192, was 188; `workspace_packs` 9, was 5; `spec_corpus` 5, `golden_packs` 3, `i6_security_floor` 2 and every other binary), `-p tcl-spec-studio --no-fail-fast` (lib 199, was 198; `reference_doc` with `fields.md` regenerated; `spectcl_roundtrip` and every other binary), `-p tcl-mcp` (114, was 113); `cargo check --workspace --all-targets`; clippy (`-p tcl-spectcl -p tcl-spec-studio -p tcl-mcp -p tcl-registry --all-targets`) and `cargo fmt` clean; `pack-goldens --check` (25), `spec_corpus` baseline, `registry-axes --check` (7831 / 16 / 40 / 896 across 147) and `value-transfers --check` unchanged, `retired-api-gate` / `owner-resolution` (45) OK, `kcs-index-links` green, `dialect-drift` at its 8. Docs: the design page's § *The loader's stamp rejection rule* states rules 1–3 as built (the site precision, `stamps_admitted_from`, the warning on the command's row, the previews; rule 4 stays step 6's), § *Codegen and the registry today*'s bullet, the rung-2 table cell and bullet, and the status box — every "today" sentence about the loader accepting stamps from any tier is gone; `spec-packs.md` § *What a pack still cannot say* gains the rule; `spec-dsl-examples/README.md`'s load-policy bullet and `alias_of` row; KCS `kcs-qa-why-was-my-pack-codegen-hook-refused.md` (User, all-editors), indexed, and linked from `kcs-howto-write-a-tclspec-pack.md`. Deviations: the rule covers subcommand and form stamps (D4.8); the refused-with-target remedy wording (D4.9); the memo (D4.10); the Studio and MCP previews (D4.11); the Studio relation, help and example (D4.12). D4.7–D4.12 |
 | CC4.3 codegen records the alias target | landed | `wip(consumer-contracts): step 4 — codegen records the alias target` | `rust/tcl-registry/src/codegen_stamp.rs` (new): `CodegenStamp` and `StampSite` move here from CC4.2's `stamps.rs` (re-exported there), with `CommandSpec::codegen_stamps` and `CommandSpec::carries_codegen_stamp_at(site, stamp)` — the one "same stamp, same site" answer the loader's rule and codegen both ask — and `ResolvedCall::stamp_site(stamp)` (form over subcommand over command, `resolve_call`'s precedence) and `ResolvedCall::stamp_identity(registry, stamp)`: the `alias_of` target's name where the registry's spec for it carries the stamp at the same site, the resolved spec's own name otherwise (D4.13). `registry_codegen_hook` (`codegen/emitter/bytecoded.rs`) records `stamp_identity(ctx.registry, CodegenStamp::Codegen(hook))` and the inline path (`codegen/cmd_subst.rs`'s `inline_codegen_resolution`) `stamp_identity(self.registry, CodegenStamp::InlineCodegen(hook))`; `command_binding_matches` is unchanged (its one prefix-free alias hop already resolves the pack name to the builtin); lowering-hook sites (`codegen/mod.rs`'s `inline_lowering_hook`) and const-fold sites (`const_subst.rs`) keep the spec's own name (D4.13). Tests: `rust/tcl-spectcl/tests/codegen_stamps.rs` (new; shard row `5 tcl-spectcl::codegen_stamps`; dev-deps `tcl-vm`, `tcl-runtime-api`, both already in the crate's graph, `Cargo.lock` gains the two edges) — a bundled `specs/` pack declaring `vendor::unpack` as `alias_of lassign` with `codegen_hook -native Lassign`, compiled through the lowering → CFG → codegen pipeline against the installed registry: `an_admitted_alias_stamp_records_the_targets_identity` (the top level's `command_bindings` holds `CommandBindingIdentity::new("vendor::unpack", "lassign")` and nothing with identity `vendor::unpack`), `the_vm_admits_it_through_the_alias_hop` (a `tcl_vm::Vm` whose compile service counts plain-dispatch compiles: before the alias the module is refused and recompiled plain, erroring on the unknown name; after `interp alias {} vendor::unpack {} lassign` it runs as compiled — `1 2`, no plain compile) and `a_proc_at_the_pack_name_recompiles_plain` (a proc at `vendor::unpack`: refused, recompiled plain, the proc's `P Q` where the specialised code would have given `1 2`) (D4.14); a mutation check — `registry_codegen_hook` put back to `resolved.spec.name` — fails the first two, and the negative still passes. `codegen_stamp.rs` unit tests: the identity is the target only where the stamp is the target's own (`lassign` → `lassign`; `lsort` or none → `vendor::unpack`), `an_override_with_an_unrelated_alias_keeps_its_own_identity` (a `lassign` spec naming `alias_of lsort` records `lassign`), and `string length`'s intrinsic carried at `Subcommand("length")` only. Gates: `cargo test -p tcl-spectcl --test codegen_stamps` (3), `--test workspace_packs` (9), `--lib stamps` (4); `-p tcl-registry --lib codegen_stamp` (3); `-p tcl-compiler --test codegen --test codegen_integration` (164, 17); `-p tcl-vm --test command_mutation_deopt_e2e` (75); `-p tcl-spec-studio --lib` (199) and `--test reference_doc` (`fields.md` regenerated); `cargo check --workspace --all-targets`; clippy (`-p tcl-registry -p tcl-compiler -p tcl-spectcl -p tcl-spec-studio -p tcl-mcp --all-targets`) and `cargo fmt` clean; `verify-nextest-binary-shards.py --metadata-only` (328 targets) and `test-nextest-binary-shards.sh` green; `registry-axes --check` (7831 / 16 / 40 / 896 across 147), `value-transfers --check` unchanged, `pack-goldens --check` (25), `retired-api-gate` / `owner-resolution` (45) OK, `kcs-index-links` green, `dialect-drift` at its 8. Docs: the design page's status box, § *Codegen and the registry today* (the second witness exists), the rung-2 table cell and bullet (both corrections built, with the override reason), and the test anchors; `vm-compiled-artifact-provenance.md` (the alias-target identity and its admission; the new witness); `alias_of`'s doc comment; the Studio's help text and worked example. Deviations: the identity is conditional, not `alias_of.unwrap_or(name)` (D4.13); the test's word order, counting service and explicit namespace (D4.14). D4.13, D4.14 |
 | CC4.4 site claims | landed | `wip(consumer-contracts): step 4 — site claims` | `rust/tcl-runtime-api/src/site_claim.rs` (new): `PackFactStamp { pack, content_hash: u64, vocabulary_version, overlay_generation, evaluator_revision }` — its doc comment names `content_hash` as the `u64` xxh3 the declaring file's `EvalSnapshotKey` interns (D4.3) — and `SiteClaim` with the two variants this step builds, `PackFacts(PackFactStamp)` and `BuiltinAlias { binding, facts }`, and `facts()`; no `Generic`, no `IdentityKind` (D4.15). `rust/tcl-bytecode/src/lib.rs`: `FunctionAsm::site_claims: Vec<SiteClaim>` (the literals in `format.rs`'s test and four `tcl-vm` test files gain `site_claims: Vec::new()`). `rust/tcl-registry/src/pack_origin.rs` (new): `PackOrigin { pack, content_hash, vocabulary_version }`; `CommandRegistry::insert_pack_origin` / `pack_origin`, a side table keyed by the installed spec's address (D4.4), which `project_for_profile` now carries with the overlay generation (D4.17); the registry's `Debug` counts it. `tcl-spectcl`: `PackCommand::content_hash`, set by the loader on both evaluation paths (`loader/eval.rs`'s `content_hash`, `pack_content_hash`, `with_content_hash` — the root file's hash, taken before the byte-order mark is stripped as `eval_snapshot_key` takes it, folded with each `include`d fragment's) (D4.16); `install::install_into` records every inserted spec's origin through `install::pack_origin`, which `PackSet::fact_stamps(evaluator_revision)` also builds from — one stamp per pack file the set installs, sorted and deduplicated, the facts an embedder hands the VM; `tcl-runtime-api` moves from CC4.3's dev-dependencies to the crate's own (`Cargo.lock` unchanged). `rust/tcl-compiler/src/site_claims.rs` (new): `pack_fact_stamp(origin, overlay_generation, evaluator_revision)`, the one stamp construction; `evaluator_revision()`; `pack_facts_claim(registry, spec)` (rung 1) and `builtin_alias_claim(registry, resolved, binding)` (rung 2, `None` where the binding's identity is the spec's own name). Codegen: `CodegenCtx::site_claim_requirements` becomes each function's `site_claims`; `stamped_binding` returns a `SiteBinding { binding, claim }` to `registry_codegen_hook` and `inline_codegen_resolution`, whose callers `require_site_binding`; `const_subst.rs`'s `ResolvedConstSubst::site_claims` (both fold returns, nested folds included) is required by `values.rs`'s `try_emit_constant_fold`; `trusted_inline_codegen_binding` declines a claimed site (D4.18). `rust/tcl-vm/src/interp.rs`: `Vm::set_pack_facts(stamps)`, which replaces the held facts and advances the compilation-deopt epoch, and `site_claims_hold` inside `function_command_bindings_match` (D4.19). No `rust/tcl-lsp-server` change: the server runs no VM (D4.20). Tests: `codegen_stamps.rs` gains the plan's `a_changed_pack_invalidates_the_site` (the VM holds the set's stamps with the content hash flipped: the module is refused and recompiled plain, `1 2` through the alias; the negative control, the set's own stamps, admits it with no plain compile) and, beyond the plan, `a_pack_fold_is_admitted_only_under_its_pack_s_facts` — rung 1 on its own: a bundled `llength -override` naming `llength::const_fold`, scoped `dialects tcl9.0` (D4.21), folds `[llength {a b c}]` to `3` and claims `PackFacts` beside `llength`'s own binding; a VM holding no facts refuses it and recompiles plain, and holding the set's facts runs it as compiled; `an_admitted_alias_stamp_records_the_targets_identity` asserts the site's `BuiltinAlias` claim carries the one stamp `fact_stamps` gives; `command_mutation_deopt_e2e.rs` gains the plan's `a_rung_zero_module_is_admitted_under_a_changed_pack_set` (a module with specialised bindings and no claims runs as compiled under no facts, one set's and a changed set's, with zero plain compiles); `site_claims.rs` unit tests `a_pack_fold_claims_the_pack_s_facts` (the same fold from an embedder-inserted spec claims nothing) and `an_inline_alias_site_claims_the_builtin` (the inline path's claim, on `alias_of lindex`). A mutation check — `site_claims_hold` answering `true` — fails exactly the two rung-1 witnesses. Moved: `the_vm_admits_it_through_the_alias_hop` and `a_proc_at_the_pack_name_recompiles_plain` set the set's facts before running — an admitted alias site now needs them, and without them the proc test's refusal would no longer isolate the proc; `pack_formatting.rs` normalises the new `content_hash` field in the `Debug` dump it compares (its doc's two differences become three). Gates: `cargo test -p tcl-spectcl --no-fail-fast` (lib 192; `codegen_stamps` 5, was 3; `workspace_packs` 9, `pack_formatting` 2, `golden_packs` 3 and every other binary); `-p tcl-compiler --lib` (6510, was 6508; 2 ignored), `--test codegen --test codegen_integration --test codegen_depth --test compiler_residual` (164, 17, 55, 59); `-p tcl-vm` lib 97, `command_mutation_deopt_e2e` 76 (was 75), `embed_api_e2e` 14, `opcode_c_parity` 86, `opcode_catch_parity` 17, `opcode_dispatch_coverage` 3, `run_script` 96 of 97 (`encoding_command` reads the system encoding, which the container's empty `LANG` makes `iso8859-1`; it passes under `LANG=C.UTF-8`, with or without this item); `-p tcl-bytecode` 33, `-p tcl-runtime-api` 29, `-p tcl-registry --lib` 931, `-p tcl-spec-studio` (lib 199 and every binary), `-p tcl-mcp` 114; `cargo check --workspace --all-targets`; clippy (`-p tcl-runtime-api -p tcl-bytecode -p tcl-registry -p tcl-compiler -p tcl-spectcl -p tcl-vm -p tcl-mcp -p tcl-spec-studio --all-targets`) and `cargo fmt` clean; `verify-nextest-binary-shards.py --metadata-only` (328 targets); `registry-axes --check` (7831 / 16 / 40 / 896 across 147) and `value-transfers --check` (20 / 19 / 90 across 36, 6607 rows) unchanged, `pack-goldens --check` (25), `retired-api-gate` / `owner-resolution` (45) OK, `kcs-index-links` green, `dialect-drift` at its 8. Docs: the design page's status box, § *Codegen and the registry today* (the optimise-path sentence corrected, D4.20), the rung table's state column for rungs 1 and 2, § *What the artefact records per rung* (rungs 1 and 2 built, `content_hash: u64`, the vocabulary version's source, no rung-0 variant), § *The admission checks, per rung* (rows 1 and 2 built), the rung 1 and 2 bullets, and the anchors; `vm-compiled-artifact-provenance.md` gains the claim, its invalidation row, and the witnesses; `spec-packs.md` § *What a pack still cannot say* states what an edited pack does to compiled sites. Deviations: the claim's two variants (D4.15); the stamp's sources (D4.16); the projection (D4.17); which sites claim (D4.18); the check's seat (D4.19); no server wiring (D4.20); the rung-1 witness beyond the plan, and its scoped override (D4.21). D4.15–D4.21 |
+| Step 4 review fixes | landed | `wip(consumer-contracts): step 4 — review fixes` | The step 4 review ("land with fixes", none blocking), the mechanical fixes only — SF2 (the include-fragment `content_hash` test), SF3 (the `project_for_profile`/overlay-generation stamping test) and D3.22's SSA wiring are the opus implementer's, next. **SF1** `retired_api_gate.rs`'s `DeclaredSurface` owners drop `rust/tcl-lsp-core/src/minify.rs`: the file never spells the type, only calls `build_declared_surface` (line ~974), and the gate was already at 0 hits, so the entry was inert and would have silenced a future hand-built `DeclaredSurface::new()` there instead of catching it; the comment explaining why `minify.rs` is a carrier moves to sit beside the `build_declared_surface` call in `minify.rs` itself, and the retired-api-gate comment above the pattern is reworded to explain the omission instead of the inclusion. **SF4** `registry-consumer-contracts.md`'s file-path-anchors line now reads "the one `untrusted(…)` predicate" (was "the second"), matching CC3.2's collapse of the two into one (`rust/tcl-registry/src/model/registration.rs`'s `untrusted` is the only `fn untrusted(` in the tree). **SF5** `rust/tcl-spectcl/tests/workspace_packs.rs`'s AGPL header gains the "You should have received a copy…" paragraph its neighbour `codegen_stamps.rs` carries; it was truncated at "GNU Affero General Public License for more details." straight to the SPDX line. **Nit** `spectcl_check`'s tool description in `rust/tcl-mcp/src/tools.rs` (~2291) loses its doubled "and" before `dormant_hooks` (the `plus` list now reads `…, untrusted_tier_refusal (…), dormant_hooks (…), and stamp_refusals (…)`, one "and" before the last item). **Waiver count** the "Step 4 is landed" paragraph's `registry-axes` citation read `7831 / 16 / 40 / 896 across 147`, a figure CC4.1 inherited from a pre-step-3-review-fix branch position and every later step 4 item repeated unverified. Step 3's own review fix (`1b05e252`) is what actually dropped two irreducible waivers — `rust/tcl-mcp/src/spectcl.rs:274` and `rust/tcl-mcp/src/tools.rs:2352`, both `until never` — taking the ledger from 38 to 36 irreducible before any step 4 commit landed; no step 4 commit touched `docs/generated/registry-axes.md` again (`git log --follow` on the file stops at `1b05e252`), yet the checked-in file already reads 36 waived (all of it `irreducible`; every other axis 0) and 893 pinned — confirmed by running `cargo xtask registry-axes` fresh, which reproduces the checked-in file byte-for-byte bar this commit's own line-number shift in `minify.rs`'s two waiver rows (one at `:1893`, now `:1897`, from SF1's added comment). The landing paragraph is corrected to `7831 / 16 / 36 / 893 across 147`; CC4.1–CC4.4's own rows are left as each item's own historical record and are not rewritten. Gates: `cargo check --workspace --all-targets`; clippy (`-p xtask -p tcl-lsp-core -p tcl-spectcl -p tcl-mcp --all-targets --no-deps -- -D warnings`) and `cargo fmt --all -- --check` clean; `cargo xtask retired-api-gate` OK (0 hits, unchanged); `registry-axes --check` OK (7831 / 16 / 36 / 893 across 147, regenerated for the `minify.rs` line shift only); `value-transfers --check` unchanged; `owner-resolution` OK; `kcs-index-links` green; `dialect-drift` at its 8 (no new site). |
 
 **Step 4 is landed.** All four items above (CC4.1, CC4.2, CC4.3 and
 CC4.4) are `landed`; the review checklist below is run against this tree
@@ -842,7 +843,7 @@ CC2.15 moved them from `step 2` (`cargo test -p xtask registry_axes`, 9). Gates 
 clippy over the three crates it touches (`-p tcl-spectcl -p
 tcl-spec-studio -p xtask --all-targets`) are clean; `cargo test -p tcl-spectcl --test
 codegen_stamps` (6) and `-p tcl-spec-studio --test spectcl_roundtrip` (9)
-pass; `registry-axes` (7831 / 16 / 40 / 896 across 147),
+pass; `registry-axes` (7831 / 16 / 36 / 893 across 147),
 `value-transfers` (20 / 19 / 90 across 36, 6607 rows), `pack-goldens`
 (25), `kcs-index-links`, `dialect-drift` (8), `retired-api-gate`,
 `owner-resolution` (45), `callback-inventory --check`,
@@ -1004,6 +1005,131 @@ against the landed tree with evidence:
   (`project_for_profile`) keeps the base's overlay generation and pack
   origins, so its `AnalysisContextKey` carries the overlay generation
   where it carried none.
+
+## Step 5 — progress
+
+Item order follows § *Plan for steps 2–10* › *Step 5* § *Ordering and
+checkpoints*: CC5.1 (sonnet) first, on its own; then the opus items, CC5.3
+and CC5.2 last, each its own checkpoint.
+
+| Item | State | Checkpoint | Notes |
+|---|---|---|---|
+| CC5.1 one semantics key per member | landed | `wip(consumer-contracts): step 5 — one semantics key per member` | `rust/tcl-registry/src/intrinsic.rs`: `const SEMANTICS_REVISION: [(IntrinsicId, u32); 28]`, one explicit row per member (every row `0`, matched by `stable_id`, never by declaration order; the array length is the catalogue's, so a member added without a row does not compile). `guard_semantics_key` is `semantics_key(release_variant(runtime), &SEMANTICS_REVISION)` — a key packs three disjoint fields, the member's own `stable_id` (bits 16–31), its revision (bits 2–15) and the release variant (bits 0–1, `RUNTIME_INVARIANT_SEMANTICS` for every member but `StringLength`, which keeps its three: 8.4/8.5 BMP, 8.6 UTF-16, 9.x scalar) (D5.2). `guard_semantics_variants` is an exhaustive per-member match with no wildcard, each arm a `const { &[…] }` block over the `member_keys!` macro, so it keeps its `&'static [u32]` signature and a new member must say which releases it is versioned across (D5.4); `revision_in` panics on a member with no row, at compile time through those blocks. The shared `INVARIANT_SEMANTICS` and `VERSIONED_STRING_SEMANTICS` slices are gone. `revision_in` and `semantics_key` take the revision table as a parameter so a test can bump one row of a copy. Every key is now non-zero, so every intrinsic's guard identity takes the packed form (the stable id in the high half of the identity's 64-bit value, the key in the low half), where a release-invariant member's used to be its bare stable id: each identity value moves once, and no persisted artefact holds one (D5.3). Tests (`intrinsic.rs`, 13 in the file, was 5): the plan's `every_member_has_a_distinct_semantics_key` (no key answered by two members on any of the five releases, no key on two members' variant lists, none zero) and `bumping_one_members_revision_moves_no_other_key` (for each of the 28 members, at revision 1 and at the field's maximum: every one of that member's keys moves, no other member's does), plus `the_revision_table_names_every_member_exactly_once`, `the_variants_are_exactly_the_keys_the_releases_answer` (pins `guard_semantics_variants` to `guard_semantics_key` across all five releases), `a_key_names_its_member_in_its_high_field`, `a_bumped_member_still_collides_with_no_other`, `a_revision_beyond_its_field_is_refused` (`should_panic`) and `string_length_answers_three_keys_across_five_releases`. The runtime and VM tests that call `guard_semantics_key` are unchanged and pass; the plan's "one literal `0x0306`-style assertion" does not exist as a key literal — the only one is `stable_ids_round_trip_without_ordinal_dependence`'s on `stable_id()`, which does not move (D5.5). Gates: `cargo test -p tcl-registry --no-fail-fast` (lib 941, was 933, and every binary), `-p tcl-vm --lib guard` (8), `-p tcl-compiler --lib mixed_region_plan` (8), and `runtime/rust`'s own `cargo test --lib -- guard intrinsic` (15; a standalone workspace, built with its own `target/`); `-p tcl-compiler --test wasm_tiers --test wasm_real_link` (6, 13) pass, but every real-link case skips loudly in this container — no `wasm32-wasip1` target, and no libtommath under the worktree's `tmp/` — so the identity check is covered by the runtime crate's `codegen_abi` tests and the planner's `mixed_region_plan` tests rather than by a linked module; `cargo check --workspace --all-targets`; clippy (`-p tcl-registry --all-targets --no-deps -- -D warnings`) and `cargo fmt -p tcl-registry` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows — the value-transfers lane's own figures, moved by its merged commits), `pack-goldens --check` (25), `retired-api-gate`, `owner-resolution` (45), `kcs-index-links` green, `dialect-drift` at its 8. No KCS note: nothing a user runs changes. Docs: the design page's status box and its "intrinsic table splits by family" bullet, `docs/GLOSSARY.md` § *Guard identity*. D5.2–D5.5 |
+
+### CC5.1 — what the next items read
+
+- **For CC5.2.** The identity values are opaque to invalidation: both
+  runtimes still build a command's identity set in `register_spec_builtin`
+  from `guard_semantics_variants()`, and the guard check still compares
+  `GuardIdentity` values, so a per-token guard table keys on whatever the
+  set holds. Within one build an identity moves only when a member's
+  `SEMANTICS_REVISION` row rises.
+- **For CC7.3.** A family split that changes a member's guard domain or
+  trace behaviour is a change to what a fast path may assume, so it raises
+  that member's row; the keys of every other member stay put.
+- **For CC7.4.** `intrinsic_table_hash` can hash `(stable_id,
+  guard_semantics_variants())` over `IntrinsicId::ALL`: every revision bump
+  moves it, and the accessors are already public. The tests' `bumped` and
+  `keys_under` helpers show the shape of a table-parameterised check.
+
+### Behavioural deltas accepted in step 5
+
+- CC5.1: every intrinsic's guard identity value changes once, because
+  every key is now non-zero and a non-zero key is packed beside the stable
+  id (D5.3). Both runtimes and the WASM planner derive the value through
+  `guard_semantics_key`, so nothing a user runs differs; a module compiled
+  by the previous compiler and linked against a runtime from this tree
+  fails the identity check and takes generic dispatch.
+
+## Step 6 — progress
+
+Item order follows § *Plan for steps 2–10* › *Step 6* § *Ordering and
+checkpoints*: CC6.1 (sonnet) first, on its own; then the opus items, CC6.2
+and CC6.3, each its own checkpoint.
+
+| Item | State | Checkpoint | Notes |
+|---|---|---|---|
+| CC6.1 the floor widens | landed | `wip(consumer-contracts): step 6 — the floor widens` | `rust/tcl-registry/src/security_floor.rs`: `SecurityFloor::apply` takes `lowering_hook`, `analyser_hook`, `semantic_operation`, `state_transitions`, `native_lowering` and `bpf_op` from the shipped command beside the two codegen hooks it already kept, through the same `take_shipped` (the shipped value wins wherever the shipped command has one; all six types are `Copy`, so no new merge shape), `MERGED_FIELDS` lists them, and `every_security_bearing_field_is_in_the_floor` names the six explicitly in a `matches!` beside its `taint` / `codegen` / `side_effect` / `credential` filter, since none of their names carries those words. The module and `apply` docs state the codegen and dispatch axis as a contract about the closed catalogues, not a trust gate on analysis facts (D6.4). Tests: `rust/tcl-spectcl/tests/i6_security_floor.rs` gains the plan's six rows, each first proving the override took effect (its own `arity 7..9` window installed, so what survives of the shipped spec is the floor's doing) — `a_workspace_override_cannot_swap_the_lowering_hook` (`while`'s `While` against `lowering_hook -native If`), `…_swap_the_analyser_hook` (`source`'s `Source` against `Rename`), `…_swap_the_semantic_operation` (`puts`'s `Intrinsic(ChannelWrite)` against `Invoke`), `…_swap_the_state_transitions` (`join`'s descriptor against a restated one, compared by `Debug` since the type has no `PartialEq`), `…_drop_the_native_lowering` (`break`) and `…_drop_the_bpf_op` (the `bpf` dialect's `pass`); the last two fields have no loader statement, so their rows lose them the only way a pack can, by replacing the command and saying nothing (D6.5). Two registry unit tests: `the_floor_takes_the_shipped_codegen_and_dispatch_axis` (all six, on a hand-built shipped spec) and `the_floor_adds_nothing_the_shipped_command_lacks` (the negative: a shipped command with none of the six leaves an override's own value alone, the registry-level twin of the unchanged `the_floor_does_not_invent_facts_for_a_new_command`). A mutation check — the six `take_shipped` lines commented out — fails all six integration rows and the unit test, and dropping `"bpf_op"` from `MERGED_FIELDS` fails the field scan. Nothing existing moved: no shipped or bundled pack overrides a command, and every test that installs an override passes unmodified. Gates: `cargo test -p tcl-spectcl --test i6_security_floor` (8, was 2), `-p tcl-registry` (lib 943, was 941, and every binary) and `-p tcl-spectcl` (lib 192 and every binary, `workspace_packs`, `codegen_stamps`, `golden_packs` included), `-p tcl-spec-studio` (lib 199 and every binary) and `-p tcl-mcp` (114); `cargo check --workspace --all-targets`; clippy (`-p tcl-registry -p tcl-spectcl --all-targets --no-deps -- -D warnings`) and `cargo fmt` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows), `pack-goldens --check` (25), `retired-api-gate`, `owner-resolution` (45), `kcs-index-links` green, `dialect-drift` at its 8. Docs: `spec-packs.md` § *Workspace trust* floor sentence, the design page's rule 4 (now built for the six, `runtime_backing` step 7's) with its status box, the BPF bullet's tense and the anchors, and the pack howto `docs/kcs/kcs-howto-write-a-tclspec-pack.md` (an override keeps the shipped taint facts and compiler-side identity, silently). D6.4, D6.5 |
+
+### CC6.1 — what the next items read
+
+- **For CC6.2.** The floor and the capability matrix are separate gates
+  and both apply: the floor is unconditional and silent (an override keeps
+  the shipped value, with no notice, exactly as it has for taint), while
+  CC6.2's capability drops `alias_of`, `runtime_backing` and reference
+  bodies with a notice naming the tier. A declaration passes both.
+- **For CC7.1.** `runtime_backing` joins the floor the way the six did:
+  one `take_shipped` line in `apply`, `"runtime_backing"` in
+  `MERGED_FIELDS` and in the field scan's `matches!`, and a seventh row in
+  `i6_security_floor.rs`. The file's `shipped` and `overridden` helpers
+  build a row in three lines.
+- **Residue, reported.** The floor reads `CommandSpec` fields only: the
+  same fields on a `SubCommand` or a form are not restored (D6.4).
+
+### Behavioural deltas accepted in step 6
+
+- CC6.1: an `-override` of a shipped command, from any tier, keeps the
+  shipped command's `lowering_hook`, `analyser_hook`, `semantic_operation`,
+  `state_transitions`, `native_lowering` and `bpf_op` wherever the shipped
+  command has one; before, only the two codegen hooks and the taint,
+  side-effect and credential facts survived. It changes arity, options,
+  roles and hover as before, and the floor gives no notice. No shipped or
+  bundled pack overrides a command, so nothing a user runs changes today;
+  a workspace pack that did swap one of the six now finds the shipped value
+  installed.
+
+## Step 7 — progress
+
+Item order follows § *Plan for steps 2–10* › *Step 7* § *Ordering and
+checkpoints*: CC7.1 (sonnet) first, on its own; then the opus items, CC7.3,
+CC7.2 and CC7.4 in that order, each its own checkpoint, and CC7.5 (the fuzz
+exit) last.
+
+| Item | State | Checkpoint | Notes |
+|---|---|---|---|
+| CC7.1 `RuntimeBacking` on the spec | landed | `wip(consumer-contracts): step 7 — RuntimeBacking on the spec` | `rust/tcl-registry/src/runtime_backing.rs` (new): `RuntimeBacking` (`ShippedBuiltin { identity }`, `TclBody { source }`, `HostNative`, `None` — the default) and `BodySource` (`PackageSource { relative_path }`, `PackText { text }` — the text is carried, D7.3), with `shipped`, `package_source` and `is_none`; `CommandSpec::runtime_backing`, `CommandSpec::DEFAULT` says `None`, `RuntimeBacking` and `BodySource` reach the prelude and the crate root. **The rows.** The report's 389 core Tcl commands each declare what the report says: 324 `ShippedBuiltin` (the 282 handler and native rows and the 42 known-gap rows, whose target state it is, D7.5), 11 `TclBody`/`PackageSource` (`init.tcl` 7, `package.tcl` 3, `parray.tcl` 1 — the stdlib rows) and 54 `None` (the not-required rows, by default). A mechanical pass placed the 128 standard spec literals; seven builders needed hand edits — `mathop_generated` (the two qualified spellings `ShippedBuiltin`, the bare operator word `None`), `mathfunc_generated` (both spellings), `dict::qualified_specs`, `oo_helpers::qualified_specs` (shipped where the bare twin is, so the `ooutil` twins declare none), and the `corotype`, `zipfs` and `list_math_91` factories; the identity is the spec's own name as the spec spells it, `::` kept (D7.4). **The floor.** `runtime_backing` joins `SecurityFloor::apply` (a non-`None` shipped backing wins), `MERGED_FIELDS` and the field scan (D6.1). **The statement.** `rust/tcl-spectcl/src/backing.rs` (new) — `BackingSyntax` with `parse`, `parse_spelling`, `spelling`, `from_backing` and `leak` — is the one spelling of the five `runtime_backing` statements (`none`, `host-native`, `shipped-builtin ID`, `tcl-body {-package-source PATH}`, `tcl-body {-pack-text {TEXT}}`) for the loader (`apply_command_stmt`'s new arm and `eval.rs`'s `ROW_WORDS`, the two halves of the one loader), the Studio's draft and both its renderers; a statement that does not read is dropped with a warning and claims nothing. `PackNotice::pack_text_backing` — an Information notice on the command's row, raised in `pack::load_sources` beside the stamp refusals — reports a `-pack-text` body at load (D7.7). **The Studio.** `FieldKind::RuntimeBacking` (`IDENTITY` category, sharing the `text` wire tag, so the front-end needs no new editor and `every_field_kind_has_a_front_end_editor` stays green), `draft.rs` (the spelling), `render_spectcl.rs`'s `runtime_backing_row` (re-spelled through the parser, so the row is always one the loader reads back), `render_rs.rs`'s `runtime_backing_expr`, `help.rs`, `coverage.rs`'s witness and `Field` row, `relations.rs` (the "Builtin identity" cluster) and `examples/fields_core.rs` (D7.6); `docs/references/command-spec/fields.md` regenerated. **The generator.** `gen_irule_test_data.rs` emits a stub only for a command whose backing is `None` or `HostNative`; the plan expected the output byte-identical, and it is not: 46 entries for shared Tcl core commands and `pkg::create` drop, all dead (D7.8). **The ports.** Nine ports of shipped core commands declare `runtime_backing shipped-builtin NAME` (D7.9). Tests: `registry_sweep.rs`'s `every_core_command_declares_a_backing` reads the committed report and holds the spec to it in both directions — the row's kind, the identity equal to the name, the stdlib file the note names — and requires every non-core spec in the Tcl table to declare nothing (a mutation check, one declaration removed, fails it naming the command); `i6_security_floor.rs` gains `a_workspace_override_cannot_swap_the_runtime_backing` (`lindex` against `host-native` and `none`) and `a_new_command_keeps_the_backing_it_declares`; `security_floor.rs`'s unit rows cover it; `eval_loader.rs`'s `runtime_backing_reads_each_shape_through_both_paths` (five shapes, an unstated one, two that do not read — through the static fast path and the interpreter); `workspace_packs.rs`'s `a_pack_text_backing_is_reported_at_load`; `spectcl_roundtrip.rs`'s `runtime_backing_survives_the_round_trip` (five backings, one with unbalanced braces, and `none` writing no row); `backing.rs`'s four unit rows. Moved: `spectcl_ports.rs`'s `every_port_loads_and_matches_its_shipped_spec` (the ports now declare it, D7.9); `_mock_stubs.tcl` (D7.8); `pack-goldens` rewrote all 25 snapshots (every `spec` digest moved once, as for `alias_of`; the nine edited ports' notice lines moved by one). Gates: `cargo test -p tcl-registry` (lib 946, was 943; `registry_sweep` 40, was 39; every other binary), `-p tcl-spectcl` (lib 196, was 192; `eval_loader` 26, was 25; `i6_security_floor` 10, was 8; `workspace_packs` 10, was 9; `codegen_stamps`, `golden_packs`, `spec_corpus` and every other binary), `-p tcl-spec-studio` (lib 199; `spectcl_roundtrip` 10, was 9; `spectcl_ports` 11; `reference_doc` regenerated; every other binary), `-p xtask -p tcl-mcp -p tcl-cli` (480), `-p tcl-irule-test` (28, against the regenerated stubs), `-p tcl-compiler -p tcl-lsp-core --lib` (6531, 2 ignored; 2350); `runtime/rust`'s `cargo check --tests` clean; `cargo check --workspace --all-targets`; clippy (`-p tcl-registry -p tcl-spectcl -p tcl-spec-studio -p xtask --all-targets --no-deps -- -D warnings`) and `cargo fmt` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows), `pack-goldens --check` (25), `gen-irule-test-data --check`, `command-backing --check` (389 commands, unchanged), `callback-inventory --check`, `audit-option-dialects --check` (114), `retired-api-gate`, `owner-resolution` (45), `kcs-index-links` green, `dialect-drift` at its 8. Docs: the design page (status box, the rung table's row 4, the rung-4 `RuntimeBacking` block with its `PackText { text }`, the rung-4 bullet, rule 4, the registration bullet), `docs/GLOSSARY.md` § *Runtime backing*, `spec-packs.md` § *What a pack still cannot say*, `spec-dsl-examples/README.md` (the keyword row and the override bullet), `irule-test-framework.md` decision rule 1. No KCS note: nothing a user runs changes today. Deviations: the text `PackText` carries (D7.3); the identity (D7.4); the rows and their test (D7.5); one spelling for six consumers, and the Studio kind sharing the `text` tag (D7.6); the notice's seat (D7.7); the generator's output moves (D7.8); the ports (D7.9). D7.3–D7.9 |
+
+### CC7.1 — what the next items read
+
+- **For CC7.2 (the backing query and the gate).** The declared rows are
+  the report's rows and `every_core_command_declares_a_backing` holds them
+  equal to the committed report. Until CC7.2 renders the report from the
+  spec, the report (from the source scan and the gate's four lists) and the
+  specs are two sources kept equal by that test; once the report is a
+  rendering of `spec.runtime_backing` against `backing_report()` the test is
+  a tautology and may be deleted with the lists. Match on the variant, not
+  on a category string: `ShippedBuiltin` carries the identity the runtime
+  reports (`spec.name` as spelled, so `tcl::mathfunc::abs` and
+  `::tcl::mathfunc::abs` are two identities), `TclBody` a `PackageSource`
+  file the embedded library defines, `None` a command nothing executes.
+  The 42 known-gap rows declare `ShippedBuiltin` and stay on
+  `KNOWN_UNBACKED` as the drift waiver (D7.1); a spec that declares `None`
+  and is registered by a runtime is drift, and every not-required row
+  declares `None` by default.
+- **For CC7.4 and the manifest.** `BackingSyntax::spelling` is the canonical
+  text of a backing and round-trips through `parse_spelling`; `BodySource::PackText`
+  holds the body, which a rung-3 claim compares against the live procedure
+  (CC8.1).
+- **For CC6.2.** `runtime_backing` is one of the declarations the
+  capability matrix must forbid a `Transitive` or `Development` pack: the
+  loader reads the statement at every tier, the floor keeps a shipped
+  command's backing, and nothing else gates the statement yet.
+- **Reported, not fixed.** The Studio's Test tab and `spectcl_check` do not
+  raise the `-pack-text` notice, which `pack::load_sources` raises for a
+  pack the server loads (D7.7).
+
+### Behavioural deltas accepted in step 7
+
+- CC7.1: `CommandSpec` gains `runtime_backing`, so every command's `Debug`
+  text and all 25 pack goldens' `spec` digests move once; every core Tcl
+  command declares its row of the WASM command-backing report; a pack may
+  write `runtime_backing`, and a `-pack-text` body draws an Information
+  notice at load.
+- CC7.1: the iRule-test stub table no longer lists 46 shared Tcl core
+  commands and `pkg::create` (D7.8). The harness never dispatched them;
+  `_mock_stubs.tcl` reads 933 stub actions, was 979.
+- CC7.1: the Spec Studio gains a "Runtime backing" field in the Identity
+  group, edited as text in the statement's own spelling.
 
 ## Plan for steps 2–10
 
@@ -4084,16 +4210,140 @@ everything else in this lane is independent of both.
 - **D5.1** Guard identities are keyed by command-token generation and the
   `CommandEnvironment` domain invalidates per token; the interpreter and
   object-dispatch domains stay whole-domain.
+- **D5.2** A guarded semantics key packs three disjoint fields: the
+  member's own `stable_id` (bits 16–31), its `SEMANTICS_REVISION` row (bits
+  2–15, so a revision up to 16383) and the release variant (bits 0–1). The
+  identity, `GuardIdentity::registry_intrinsic_with_semantics`, already
+  carries the stable id in its high half, so the key repeats it on
+  purpose: the plan's `every_member_has_a_distinct_semantics_key` is a
+  claim about the key alone, and a key read without its identity (a
+  manifest field, an Explorer line, an entry of `guard_semantics_variants`)
+  then names its member. A revision alone would start at `0` for every
+  member and collide; a hash would not be readable. The widths are asserted
+  where the key is built, at compile time for the live table (the constant
+  blocks of `guard_semantics_variants` evaluate them), and the largest
+  stable id today, `0x0801`, leaves the 16-bit field most of its room.
+- **D5.3** Every intrinsic's guard identity value moves once. A
+  release-invariant member's key was `0`, which
+  `registry_intrinsic_with_semantics` folds to the bare stable id; every key
+  is now non-zero, so every identity takes the packed form. No persisted
+  artefact holds a value — `git grep` finds them computed only by the two
+  runtimes, the WASM planner and their tests, all through
+  `guard_semantics_key` — and a mismatch fails in the conservative
+  direction: a module compiled by the previous compiler and linked against
+  a runtime from this tree fails the identity check and takes generic
+  dispatch. CC7.4's `intrinsic_table_hash` is what refuses such a module up
+  front.
+- **D5.4** `guard_semantics_variants` is an exhaustive per-member match with
+  no wildcard, each arm a `const { &[…] }` block, so the lists stay
+  `&'static [u32]` (the signature both runtimes already call) with no
+  runtime table, and a member added to the catalogue must say which releases
+  it is versioned across instead of inheriting the invariant contract.
+  `guard_semantics_key` keeps a wildcard for the release variant
+  (`release_variant`: `StringLength` by string character model, otherwise
+  `RUNTIME_INVARIANT_SEMANTICS`), and
+  `the_variants_are_exactly_the_keys_the_releases_answer` pins the two
+  functions to each other across all five releases. A member with no
+  `SEMANTICS_REVISION` row panics in `revision_in`, at compile time through
+  those blocks.
+- **D5.5** The plan's "the one literal `0x0306`-style assertion is updated"
+  found nothing to update. The tree's only `0x0306` outside `stable_id`
+  itself is `stable_ids_round_trip_without_ordinal_dependence`'s assertion
+  on `stable_id()`, which does not move; no test asserts a key or an
+  identity as a literal (`git grep` for `registry_intrinsic` and `<< 32`
+  finds none in a test), so the runtime and VM tests stand as the plan says.
 - **D6.1** CC6.1 covers the six existing fields; `runtime_backing` joins
   the floor in CC7.1. **D6.2** `DependencyTier` is defined in `tcl-pkg`
   and re-exported by `tcl-registry`'s `model::capability`; `tcl-spectcl`
   depends on `tcl-pkg` for the manifest and lockfile data model only.
   **D6.3** An overlay miss is an error at the ingress.
+- **D6.4** The widened floor keeps the floor's existing shape and reach:
+  command-level values only, and the shipped value wins wherever the
+  shipped command has one. It reads `CommandSpec` fields, so the same fields
+  on a `SubCommand` or a `CommandForm` (both carry `lowering_hook`,
+  `analyser_hook`, `semantic_operation` and `state_transitions`) are not
+  restored — the limitation the floor's comment already records for the
+  codegen hooks. That is reported, not fixed: subcommands and forms merge by
+  name with rows added and removed, a different shape from a single field,
+  and the loader's stamp rule already covers the stamps among them. An
+  override may still *add* a value to a shipped command that ships none,
+  exactly as a new command may declare one
+  (`the_floor_does_not_invent_facts_for_a_new_command`): the floor stops a
+  fact going away, it neither invents nor forbids one. It is silent, as it
+  is for taint; the pack howto says so.
+- **D6.5** `native_lowering` and `bpf_op` have no loader statement, so a
+  pack cannot swap them, only lose them by replacing a shipped command and
+  saying nothing; their rows test that (`break`, and `pass` in the `bpf`
+  dialect). The four fields a pack can spell are swapped for a different
+  catalogue member. `semantic_operation` is swapped for `Invoke`, not for an
+  `Intrinsic`: CC4.2's tier gate already strips an `Intrinsic` spelling from
+  every tier but a bundled one, so it could not exercise the floor. Every row
+  first asserts the override took effect (its `arity 7..9`, a window no
+  shipped command has), so a green row means the floor restored the value
+  rather than the override never having installed.
 - **D7.1** `HANDLER_EXTRA`, `STDLIB`, `NOT_REQUIRED` become
   `runtime_backing` rows; `KNOWN_UNBACKED` stays as the drift waiver;
   `xtask` links `tcl-runtime` and `tcl-vm` to ask `backing_report()`.
   **D7.2** The WASM manifest is a custom section `tcl.manifest` encoded
   by one function pair in `tcl-runtime-api`.
+- **D7.3** `BodySource::PackText` carries its text: `PackText { text:
+  &'static str }`, where the page's `PackText,` is a unit variant. The
+  statement `tcl-body {-pack-text {TEXT}}` has a body to keep, and a unit
+  variant would drop it at load — the Studio round trip could not write it
+  back, and rung 3 (CC8.1) compares the body against the live procedure. The
+  design page's block is corrected to match.
+- **D7.4** A `ShippedBuiltin`'s identity is the spec's own name, spelled as
+  the spec spells it, `::` kept — the spelling the VM's builtin table
+  already keys (`register_spec_builtin` keeps the registry's spelling as the
+  stable identity). A command the registry carries under two spellings
+  (`tcl::mathfunc::abs`, `::tcl::mathfunc::abs`) is two specs and two
+  identities. The qualified `oo::Helpers::*` specs follow their bare twin:
+  shipped where it is, and the `ooutil` twins (8.6/8.7, from a package, not
+  core) declare none. Mathop's bare operator word (`+`) is grammar
+  evaluated inside `expr`, not a command, and stays `None`.
+- **D7.5** The rows are the report's rows and are checked against the report.
+  335 declarations (324 `ShippedBuiltin`, 11 `TclBody`) and 54 defaulted
+  `None` fall out of the 389 rows; `every_core_command_declares_a_backing`
+  reads the committed `docs/generated/wasm-command-backing.md` rather than
+  keeping a second list in the test, checks it in both directions, and
+  requires the non-core specs in the Tcl table to declare nothing. The
+  three lists CC7.2 deletes are the report's source until then; this test
+  keeps the declarations honest against it, and can be deleted with them.
+- **D7.6** One spelling serves six consumers. `BackingSyntax` (in
+  `tcl-spectcl`, beside `semantic_operation_spelling`) parses the words after
+  `runtime_backing`, spells them back, converts a spec's backing, and leaks
+  its strings only where the loader needs `'static` data — the Studio parses
+  and re-spells on every edit and must not leak. The Studio holds the
+  statement's own spelling as the draft value and gives the kind the `text`
+  wire tag: an editor for a closed vocabulary would not fit strings, paths
+  and bodies, and no front-end change was needed. A spelling that does not
+  read renders a `TODO` comment in `.tclspec`, and no field in `.rs`.
+- **D7.7** The `-pack-text` notice is a `PackNotice` raised where merged
+  commands are assembled (`pack::load_sources`), like the stamp refusals and
+  the dormant-hook notices, because a loader `Notice` is always a warning and
+  this is information. The Spec Studio assembles its own set (`store.rs`) and
+  `spectcl_check` previews an install; neither raises it, having no consumer
+  for an information line about a body they do not run.
+- **D7.8** The plan expects `gen_irule_test_data.rs`'s output byte-identical
+  because "every iRules command is `None`". The iRules registry also holds the
+  shared Tcl core commands (surface `ALL_TCL_AND_IRULES`), which now declare a
+  backing, so gating on `None`/`HostNative` drops 46 of the table's entries —
+  `append`, `array`, `binary`, `break`, `catch`, `clock`, `concat`, `continue`,
+  `encoding`, `error`, `eval`, `expr`, `for`, `foreach`, `format`, `global`,
+  `if`, `incr`, `info`, `join`, `lappend`, `lindex`, `linsert`, `list`,
+  `llength`, `lrange`, `lreplace`, `lsearch`, `lset`, `lsort`, `regexp`,
+  `regsub`, `return`, `scan`, `set`, `split`, `string`, `subst`, `switch`,
+  `trace`, `unset`, `uplevel`, `upvar`, `variable`, `while` and `pkg_create`.
+  They were dead: the harness looks a command up in `_command_map` only from
+  its `unknown` handler, for commands the interpreter has not defined, and
+  real Tcl defines these. The file is regenerated (933 stub actions, was 979)
+  and the `tcl-irule-test` suite passes on it.
+- **D7.9** The ports declare their backing. `every_port_loads_and_matches_its_shipped_spec`
+  compares each port's draft with its shipped spec's, and a shipped spec now
+  declares one; the DSL has the spelling, so the difference is not a gap to
+  document but a line to transcribe — `if`, `foreach`, `switch`, `lsort`,
+  `string`, `upvar`, `return`, `oo::class` and `subst` each gain
+  `runtime_backing shipped-builtin NAME`.
 - **D8.1** `Engine::set_release` is slice 4's. **D8.2** `docker.rs` stays
   registry-free; `tcl docker create` computes native extensions.
 - **D9.1** Versioned stamps are `StampWindow<T>` slices mirroring

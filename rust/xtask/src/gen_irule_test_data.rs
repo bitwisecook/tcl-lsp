@@ -19,9 +19,9 @@ use std::fs;
 use std::process::ExitCode;
 
 use anyhow::{Context, Result};
-use tcl_registry::CommandRegistry;
 use tcl_registry::events::{EventRegistry, FlowChain, OrderEntry};
 use tcl_registry::model::ResolvedContext;
+use tcl_registry::{CommandRegistry, RuntimeBacking};
 
 use crate::util::{DISABLED_SENTINEL, license_banner, repo_root, write_if_changed};
 
@@ -166,7 +166,18 @@ fn stub_entries(
         // `ProfileQueries::resolve_command` — instead of treating registry
         // membership as visibility (notably excludes Tcllib, Tk, `file`,
         // and `exec`).
-        if context.resolve_spec(registry, command).is_none() {
+        let Some(spec) = context.resolve_spec(registry, command) else {
+            continue;
+        };
+        // A command the runtime already supplies — a shipped builtin, or a
+        // Tcl body it carries — is not this harness's to mock: its declared
+        // backing says the real thing runs, so a stub would only shadow it.
+        // Only a command nothing executes, or one the host registers
+        // natively, needs a mock.
+        if !matches!(
+            spec.runtime_backing,
+            RuntimeBacking::None | RuntimeBacking::HostNative
+        ) {
             continue;
         }
         if command == DISABLED_SENTINEL || command.starts_with("::tcl::mathop::") {

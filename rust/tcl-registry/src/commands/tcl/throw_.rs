@@ -46,6 +46,7 @@ const COMPLETION_CODES: &[CompletionCode] = &[CompletionCode::Error];
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "throw",
+        runtime_backing: RuntimeBacking::shipped("throw"),
         // `TCL86_PLUS`, via the mask-intersection rule
         // `CommandSpec::supports_dialect` / `ProfileQueries::is_available`,
         // already resolves availability correctly for every non-core dialect

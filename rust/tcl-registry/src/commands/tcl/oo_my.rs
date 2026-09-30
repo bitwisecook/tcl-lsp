@@ -133,6 +133,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "my",
+        runtime_backing: RuntimeBacking::shipped("my"),
         traits: Traits::LANGUAGE_KEYWORD
             | Traits::TCLOO_SELF_DISPATCH
             | Traits::TCLOO_METHOD_CONTEXT,

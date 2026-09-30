@@ -136,6 +136,7 @@ static REPEATED: &[RepeatedArgLayout] = &[RepeatedArgLayout::strided(ArgRole::Va
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "variable",
+        runtime_backing: RuntimeBacking::shipped("variable"),
         // Present and unrestricted: iRules enables `variable`, so it carries
         // an iRules row explicitly (`ALL_TCL.union(IRULES)`) and resolves
         // under the bare `IRULES` mask; no dialect pack under

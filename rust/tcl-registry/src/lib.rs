@@ -105,6 +105,7 @@ pub mod representation;
 pub mod resolved_invocation;
 pub mod result_stability;
 pub mod return_type;
+pub mod runtime_backing;
 pub mod scoped;
 pub mod security_floor;
 pub mod semantic_operation;
@@ -207,6 +208,7 @@ pub mod prelude {
     pub use crate::repeated::RepeatedArgLayout;
     pub use crate::representation::RepresentationEffect;
     pub use crate::result_stability::ResultStability;
+    pub use crate::runtime_backing::{BodySource, RuntimeBacking};
     pub use crate::scoped::{ScopedCommand, ScopedCommandEnv};
     pub use crate::semantic_operation::{InlineBodyErrorContext, SemanticOperationId};
     pub use crate::side_effects::{
@@ -321,6 +323,7 @@ pub use resolved_invocation::{
     StructuredInvocationResolution, SubcommandResolution, SubcommandResolutionKind,
 };
 pub use result_stability::ResultStability;
+pub use runtime_backing::{BodySource, RuntimeBacking};
 pub use semantic_operation::{InlineBodyErrorContext, SemanticOperationId};
 pub use side_effects::SideSwitchTarget;
 pub use spec::{

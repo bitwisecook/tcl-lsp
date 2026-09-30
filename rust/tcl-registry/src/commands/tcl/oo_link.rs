@@ -69,6 +69,7 @@ const HOVER: HoverSnippet = HoverSnippet {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "link",
+        runtime_backing: RuntimeBacking::shipped("link"),
         traits: Traits::LANGUAGE_KEYWORD
             .union(Traits::TCLOO_METHOD_CONTEXT)
             .union(Traits::TCLOO_REQUIRES_METHOD_FRAME)

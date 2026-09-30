@@ -19,6 +19,7 @@
 speclib tcl 2.1 {
 
 command subst {
+    runtime_backing shipped-builtin subst
     arity 1..
     reserved_trailing_words 1
 

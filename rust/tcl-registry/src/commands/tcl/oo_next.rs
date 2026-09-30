@@ -62,6 +62,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "next",
+        runtime_backing: RuntimeBacking::shipped("next"),
         traits: Traits::LANGUAGE_KEYWORD
             .union(Traits::TCLOO_NEXT_CHAIN)
             .union(Traits::TCLOO_METHOD_CONTEXT)

@@ -33,6 +33,7 @@ const COMPLETION_CODES: &[CompletionCode] = &[CompletionCode::Break];
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "break",
+        runtime_backing: RuntimeBacking::shipped("break"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED

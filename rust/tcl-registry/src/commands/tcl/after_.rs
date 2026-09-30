@@ -125,6 +125,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "after",
+        runtime_backing: RuntimeBacking::shipped("after"),
         surface: Some(SpecSurface::ALL_TCL),
         // The `cancel` subform destroys a scheduled
         // handler (`Tcl_AfterObjCmd`, tclTimer.c) — see the `destructive`

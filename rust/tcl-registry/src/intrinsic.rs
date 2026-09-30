@@ -19,6 +19,8 @@ use tcl_dialect::{StringCharacterModel, TclVersion};
 use crate::hooks::{CodegenHookId, InlineCodegenHookId, LoweringHookId};
 use crate::semantic_operation::SemanticOperationId;
 
+/// The release variant of a member whose guarded implementation contract
+/// reads the same on every release.
 const RUNTIME_INVARIANT_SEMANTICS: u32 = 0;
 const TCL8_UTF16_STRING_SEMANTICS: u32 = 1;
 const TCL9_SCALAR_STRING_SEMANTICS: u32 = 2;
@@ -27,14 +29,72 @@ const TCL9_SCALAR_STRING_SEMANTICS: u32 = 2;
 /// distinct key, not a reuse of the 8.6 one: the whole point of this value is
 /// that an implementation attested under one string model must not be shared
 /// with a release that counts differently, and 8.4 answers 4 where 8.6
-/// answers 2. Appended rather than renumbered, because these keys are stable.
+/// answers 2. Appended rather than renumbered, because these variants are
+/// stable.
 const TCL84_BMP_STRING_SEMANTICS: u32 = 3;
-const INVARIANT_SEMANTICS: &[u32] = &[RUNTIME_INVARIANT_SEMANTICS];
-const VERSIONED_STRING_SEMANTICS: &[u32] = &[
-    TCL8_UTF16_STRING_SEMANTICS,
-    TCL9_SCALAR_STRING_SEMANTICS,
-    TCL84_BMP_STRING_SEMANTICS,
+
+/// Width of the release-variant field, the low bits of a guarded semantics
+/// key.
+const VARIANT_BITS: u32 = 2;
+/// Width of the revision field, above the release variant.
+const REVISION_BITS: u32 = 14;
+/// Where a member's own [`IntrinsicId::stable_id`] sits in its keys: the
+/// rest of the word, above the revision.
+const MEMBER_SHIFT: u32 = VARIANT_BITS + REVISION_BITS;
+/// The largest revision a key can carry.
+const MAX_REVISION: u32 = (1 << REVISION_BITS) - 1;
+/// The largest stable identity a key can carry.
+const MAX_MEMBER_ID: u32 = u32::MAX >> MEMBER_SHIFT;
+
+/// Each member's guarded-contract revision.
+///
+/// A member's row rises when what a compiled fast path may assume of its
+/// implementation changes, and then only that member's guard-semantics keys
+/// move: compiled code attested against the old contract stops matching the
+/// live implementation, and every other member's guards stay valid. Every
+/// row starts at `0`.
+///
+/// One explicit row per member, matched by [`IntrinsicId::stable_id`] and
+/// never by declaration order; the length is the catalogue's, so a member
+/// added without a row fails to compile.
+const SEMANTICS_REVISION: [(IntrinsicId, u32); 28] = [
+    (IntrinsicId::ListAssign, 0),
+    (IntrinsicId::ListLength, 0),
+    (IntrinsicId::ListIndex, 0),
+    (IntrinsicId::ListRange, 0),
+    (IntrinsicId::ListReplace, 0),
+    (IntrinsicId::ListInsert, 0),
+    (IntrinsicId::ListSet, 0),
+    (IntrinsicId::ListConstruct, 0),
+    (IntrinsicId::DictGet, 0),
+    (IntrinsicId::DictSet, 0),
+    (IntrinsicId::DictUnset, 0),
+    (IntrinsicId::DictIncr, 0),
+    (IntrinsicId::DictAppend, 0),
+    (IntrinsicId::DictListAppend, 0),
+    (IntrinsicId::StringIndex, 0),
+    (IntrinsicId::StringRange, 0),
+    (IntrinsicId::StringEqual, 0),
+    (IntrinsicId::StringCompare, 0),
+    (IntrinsicId::StringReplace, 0),
+    (IntrinsicId::StringLength, 0),
+    (IntrinsicId::StringIs, 0),
+    (IntrinsicId::Regexp, 0),
+    (IntrinsicId::InfoExists, 0),
+    (IntrinsicId::ArrayExists, 0),
+    (IntrinsicId::ArrayNames, 0),
+    (IntrinsicId::ArraySize, 0),
+    (IntrinsicId::Concat, 0),
+    (IntrinsicId::ChannelWrite, 0),
 ];
+
+/// One `'static` list of a member's keys, one per release variant it may
+/// attest, computed from [`SEMANTICS_REVISION`] at compile time.
+macro_rules! member_keys {
+    ($member:expr; $($variant:expr),+ $(,)?) => {
+        const { &[$($member.semantics_key($variant, &SEMANTICS_REVISION)),+] }
+    };
+}
 
 /// Target-neutral identity of a registry-described intrinsic operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -172,15 +232,45 @@ impl IntrinsicId {
         }
     }
 
-    /// Stable runtime-semantics key included in guarded implementation identity.
-    ///
-    /// Most intrinsics currently have one release-invariant implementation
-    /// contract. `StringLength` is versioned because the releases count
-    /// differently: 8.4/8.5 count BMP characters and spell a supplementary
-    /// code point as its four UTF-8 bytes, 8.6 counts UTF-16-style
-    /// `Tcl_UniChar` units, and 9.x counts Unicode scalar values.
-    #[must_use]
-    pub const fn guard_semantics_key(self, runtime: TclVersion) -> u32 {
+    /// This member's row in `revisions`, an explicit [`SEMANTICS_REVISION`]-shaped
+    /// table: a parameter, not always the live table, so a test can bump one
+    /// row and prove what moves.
+    const fn revision_in(self, revisions: &[(Self, u32)]) -> u32 {
+        let mut index = 0;
+        while index < revisions.len() {
+            let (member, revision) = revisions[index];
+            if member.stable_id() == self.stable_id() {
+                return revision;
+            }
+            index += 1;
+        }
+        panic!("SEMANTICS_REVISION has no row for this intrinsic")
+    }
+
+    /// One guarded semantics key: this member's [`Self::stable_id`], its row
+    /// of `revisions`, and a release variant, in disjoint bit fields. No two
+    /// members' keys can collide, a bumped revision moves only its own
+    /// member's keys, and a versioned member's release variants stay
+    /// distinct from each other.
+    const fn semantics_key(self, release_variant: u32, revisions: &[(Self, u32)]) -> u32 {
+        let revision = self.revision_in(revisions);
+        assert!(
+            release_variant < 1 << VARIANT_BITS,
+            "a release variant must fit its field"
+        );
+        assert!(
+            revision <= MAX_REVISION,
+            "a semantics revision must fit its field"
+        );
+        assert!(
+            self.stable_id() <= MAX_MEMBER_ID,
+            "a stable identity must fit its field"
+        );
+        (self.stable_id() << MEMBER_SHIFT) | (revision << VARIANT_BITS) | release_variant
+    }
+
+    /// The release variant this member's guarded contract has on `runtime`.
+    const fn release_variant(self, runtime: TclVersion) -> u32 {
         match self {
             Self::StringLength => match runtime.string_character_model() {
                 StringCharacterModel::BmpCharsElseUtf8Bytes => TCL84_BMP_STRING_SEMANTICS,
@@ -191,12 +281,73 @@ impl IntrinsicId {
         }
     }
 
-    /// Every guarded runtime-semantics key this intrinsic may attest.
+    /// Stable runtime-semantics key included in guarded implementation
+    /// identity: one key per member, so a member whose guarded contract moves
+    /// (its row in `SEMANTICS_REVISION`) invalidates its own guards and no
+    /// other member's.
+    ///
+    /// Most intrinsics currently have one release-invariant implementation
+    /// contract. `StringLength` is additionally versioned because the
+    /// releases count differently: 8.4/8.5 count BMP characters and spell a
+    /// supplementary code point as its four UTF-8 bytes, 8.6 counts
+    /// UTF-16-style `Tcl_UniChar` units, and 9.x counts Unicode scalar
+    /// values.
+    #[must_use]
+    pub const fn guard_semantics_key(self, runtime: TclVersion) -> u32 {
+        self.semantics_key(self.release_variant(runtime), &SEMANTICS_REVISION)
+    }
+
+    /// Every guarded runtime-semantics key this intrinsic may attest, across
+    /// every release: one for a release-invariant member, three for
+    /// `StringLength`.
+    ///
+    /// Matched per member with no wildcard arm, like [`Self::stable_id`], so
+    /// a member added to the catalogue must say which releases it is
+    /// versioned across rather than inherit the invariant contract.
     #[must_use]
     pub const fn guard_semantics_variants(self) -> &'static [u32] {
         match self {
-            Self::StringLength => VERSIONED_STRING_SEMANTICS,
-            _ => INVARIANT_SEMANTICS,
+            Self::ListAssign => member_keys!(Self::ListAssign; RUNTIME_INVARIANT_SEMANTICS),
+            Self::ListLength => member_keys!(Self::ListLength; RUNTIME_INVARIANT_SEMANTICS),
+            Self::ListIndex => member_keys!(Self::ListIndex; RUNTIME_INVARIANT_SEMANTICS),
+            Self::ListRange => member_keys!(Self::ListRange; RUNTIME_INVARIANT_SEMANTICS),
+            Self::ListReplace => member_keys!(Self::ListReplace; RUNTIME_INVARIANT_SEMANTICS),
+            Self::ListInsert => member_keys!(Self::ListInsert; RUNTIME_INVARIANT_SEMANTICS),
+            Self::ListSet => member_keys!(Self::ListSet; RUNTIME_INVARIANT_SEMANTICS),
+            Self::ListConstruct => {
+                member_keys!(Self::ListConstruct; RUNTIME_INVARIANT_SEMANTICS)
+            }
+            Self::DictGet => member_keys!(Self::DictGet; RUNTIME_INVARIANT_SEMANTICS),
+            Self::DictSet => member_keys!(Self::DictSet; RUNTIME_INVARIANT_SEMANTICS),
+            Self::DictUnset => member_keys!(Self::DictUnset; RUNTIME_INVARIANT_SEMANTICS),
+            Self::DictIncr => member_keys!(Self::DictIncr; RUNTIME_INVARIANT_SEMANTICS),
+            Self::DictAppend => member_keys!(Self::DictAppend; RUNTIME_INVARIANT_SEMANTICS),
+            Self::DictListAppend => {
+                member_keys!(Self::DictListAppend; RUNTIME_INVARIANT_SEMANTICS)
+            }
+            Self::StringIndex => member_keys!(Self::StringIndex; RUNTIME_INVARIANT_SEMANTICS),
+            Self::StringRange => member_keys!(Self::StringRange; RUNTIME_INVARIANT_SEMANTICS),
+            Self::StringEqual => member_keys!(Self::StringEqual; RUNTIME_INVARIANT_SEMANTICS),
+            Self::StringCompare => {
+                member_keys!(Self::StringCompare; RUNTIME_INVARIANT_SEMANTICS)
+            }
+            Self::StringReplace => {
+                member_keys!(Self::StringReplace; RUNTIME_INVARIANT_SEMANTICS)
+            }
+            Self::StringLength => member_keys!(
+                Self::StringLength;
+                TCL8_UTF16_STRING_SEMANTICS,
+                TCL9_SCALAR_STRING_SEMANTICS,
+                TCL84_BMP_STRING_SEMANTICS,
+            ),
+            Self::StringIs => member_keys!(Self::StringIs; RUNTIME_INVARIANT_SEMANTICS),
+            Self::Regexp => member_keys!(Self::Regexp; RUNTIME_INVARIANT_SEMANTICS),
+            Self::InfoExists => member_keys!(Self::InfoExists; RUNTIME_INVARIANT_SEMANTICS),
+            Self::ArrayExists => member_keys!(Self::ArrayExists; RUNTIME_INVARIANT_SEMANTICS),
+            Self::ArrayNames => member_keys!(Self::ArrayNames; RUNTIME_INVARIANT_SEMANTICS),
+            Self::ArraySize => member_keys!(Self::ArraySize; RUNTIME_INVARIANT_SEMANTICS),
+            Self::Concat => member_keys!(Self::Concat; RUNTIME_INVARIANT_SEMANTICS),
+            Self::ChannelWrite => member_keys!(Self::ChannelWrite; RUNTIME_INVARIANT_SEMANTICS),
         }
     }
 
@@ -392,6 +543,160 @@ mod tests {
             IntrinsicId::ListLength.guard_semantics_key(tcl_dialect::TclVersion::V8_6),
             IntrinsicId::ListLength.guard_semantics_key(tcl_dialect::TclVersion::V9_0)
         );
+    }
+
+    /// A bumped `revisions` row for `member`, every other row as it was.
+    fn bumped(member: IntrinsicId, revision: u32) -> [(IntrinsicId, u32); 28] {
+        let mut table = SEMANTICS_REVISION;
+        for row in &mut table {
+            if row.0 == member {
+                row.1 = revision;
+            }
+        }
+        table
+    }
+
+    /// Every key `member` answers across the five releases under `revisions`.
+    fn keys_under(
+        member: IntrinsicId,
+        revisions: &[(IntrinsicId, u32)],
+    ) -> std::collections::BTreeSet<u32> {
+        tcl_dialect::TclVersion::ALL
+            .iter()
+            .map(|&release| member.semantics_key(member.release_variant(release), revisions))
+            .collect()
+    }
+
+    #[test]
+    fn the_revision_table_names_every_member_exactly_once() {
+        assert_eq!(SEMANTICS_REVISION.len(), IntrinsicId::ALL.len());
+        for &member in IntrinsicId::ALL {
+            let rows = SEMANTICS_REVISION
+                .iter()
+                .filter(|(row, _)| *row == member)
+                .count();
+            assert_eq!(
+                rows, 1,
+                "{member:?} needs exactly one SEMANTICS_REVISION row"
+            );
+            assert_eq!(member.revision_in(&SEMANTICS_REVISION), 0);
+        }
+    }
+
+    #[test]
+    fn every_member_has_a_distinct_semantics_key() {
+        let mut owners = std::collections::BTreeMap::new();
+        for &member in IntrinsicId::ALL {
+            for release in tcl_dialect::TclVersion::ALL {
+                let key = member.guard_semantics_key(release);
+                assert_ne!(key, 0, "{member:?} must not answer the no-semantics key");
+                let previous = owners.insert(key, member);
+                assert!(
+                    previous.is_none_or(|owner| owner == member),
+                    "{member:?} and {previous:?} share key {key:#x}"
+                );
+            }
+        }
+        // Distinct members, distinct variant lists: no key is on two lists.
+        let mut listed = std::collections::BTreeSet::new();
+        for &member in IntrinsicId::ALL {
+            for &key in member.guard_semantics_variants() {
+                assert!(listed.insert(key), "{member:?} lists a key another lists");
+            }
+        }
+    }
+
+    #[test]
+    fn the_variants_are_exactly_the_keys_the_releases_answer() {
+        for &member in IntrinsicId::ALL {
+            let answered = keys_under(member, &SEMANTICS_REVISION);
+            let listed: std::collections::BTreeSet<u32> =
+                member.guard_semantics_variants().iter().copied().collect();
+            assert_eq!(answered, listed, "{member:?}");
+            assert_eq!(
+                listed.len(),
+                member.guard_semantics_variants().len(),
+                "{member:?} lists a key twice"
+            );
+        }
+        assert_eq!(
+            IntrinsicId::StringLength.guard_semantics_variants().len(),
+            3
+        );
+        assert_eq!(IntrinsicId::ListLength.guard_semantics_variants().len(), 1);
+    }
+
+    #[test]
+    fn a_key_names_its_member_in_its_high_field() {
+        for &member in IntrinsicId::ALL {
+            for release in tcl_dialect::TclVersion::ALL {
+                let key = member.guard_semantics_key(release);
+                assert_eq!(key >> MEMBER_SHIFT, member.stable_id(), "{member:?}");
+                assert_eq!(
+                    IntrinsicId::from_stable_id(key >> MEMBER_SHIFT),
+                    Some(member)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn bumping_one_members_revision_moves_no_other_key() {
+        for &bumped_member in IntrinsicId::ALL {
+            for revision in [1, MAX_REVISION] {
+                let table = bumped(bumped_member, revision);
+                for &member in IntrinsicId::ALL {
+                    let before = keys_under(member, &SEMANTICS_REVISION);
+                    let after = keys_under(member, &table);
+                    if member == bumped_member {
+                        assert!(
+                            before.is_disjoint(&after),
+                            "{member:?}: a bumped revision must move every one of its keys"
+                        );
+                        assert_eq!(before.len(), after.len(), "{member:?}");
+                    } else {
+                        assert_eq!(
+                            before, after,
+                            "bumping {bumped_member:?} moved {member:?}'s keys"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_bumped_member_still_collides_with_no_other() {
+        let table = bumped(IntrinsicId::DictGet, MAX_REVISION);
+        let mut owners = std::collections::BTreeMap::new();
+        for &member in IntrinsicId::ALL {
+            for key in keys_under(member, &table) {
+                assert!(
+                    owners
+                        .insert(key, member)
+                        .is_none_or(|owner| owner == member),
+                    "{member:?} collides at key {key:#x}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "revision must fit")]
+    fn a_revision_beyond_its_field_is_refused() {
+        let table = bumped(IntrinsicId::Regexp, MAX_REVISION + 1);
+        let _ = IntrinsicId::Regexp.semantics_key(RUNTIME_INVARIANT_SEMANTICS, &table);
+    }
+
+    #[test]
+    fn string_length_answers_three_keys_across_five_releases() {
+        use tcl_dialect::TclVersion;
+        let key = |release| IntrinsicId::StringLength.guard_semantics_key(release);
+        assert_eq!(key(TclVersion::V8_4), key(TclVersion::V8_5));
+        assert_ne!(key(TclVersion::V8_5), key(TclVersion::V8_6));
+        assert_ne!(key(TclVersion::V8_6), key(TclVersion::V9_0));
+        assert_ne!(key(TclVersion::V8_4), key(TclVersion::V9_0));
+        assert_eq!(key(TclVersion::V9_0), key(TclVersion::V9_1));
     }
 
     #[test]
