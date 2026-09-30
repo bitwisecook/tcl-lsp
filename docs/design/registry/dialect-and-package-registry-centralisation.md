@@ -197,10 +197,11 @@ generated editor manifests all take `EnvironmentRegistry::selectable()`
 (or its generation-0 form), and `cargo xtask catalogue-callers --check`
 holds `DialectProfile::all()` to an allowlist of identity-key callers
 ([contracts/environment-selection.md](../contracts/environment-selection.md)).
-`registry-dump --all-dialects` and the studio's `browsable_dialects()`
-remain catalogue-keyed (T3, T7): the studio resolves through
-`catalogue_dialect_or_default`, which would sink `jim` and `tk` to the
-`tcl9.0` built-ins.
+`registry-dump --all-dialects` remains catalogue-keyed (T3). The studio's
+`browsable_dialects()` reads `EnvironmentRegistry::compiled_selectable()`
+filtered to the environments that have a catalogue profile, so `jim` and `tk`
+are not listed: the studio resolves through `catalogue_dialect_or_default`,
+which would sink them to the `tcl9.0` built-ins.
 
 ## 3. The retirement ledger
 

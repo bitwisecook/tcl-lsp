@@ -69,7 +69,11 @@ chose *Don't show again* for, separated by commas or whitespace. The server
 reads the file once, when it starts. A dismissal rewrites it: the server
 merges its own dismissals into what is on disk at that moment, so two editors
 dismissing different environments both stick, and writes through a sibling file
-renamed into place. Sections and keys it does not know are carried through
+renamed into place. Two servers that dismiss at the same moment can each rename
+a list that lacks the other's id, so after the rename the server reads the file
+back and, if one of its ids is missing, merges and writes once more (at most
+twice). The scratch file's name carries the process id. Sections and keys it
+does not know are carried through
 unchanged, because several editors, each bundling its own server, share the
 file.
 
@@ -327,7 +331,11 @@ The file form of the editor setting `tclLsp.notifications.environmentKind`
 editors with no settings UI. It layers like every other key, so an editor that
 sends the setting wins over the global file and `.tcl-lsp.ini` wins over both.
 The setting is session scoped: the primary root's merged configuration is what
-applies. Why this is the one message that reports on a classification, and the
+applies. The file layers are read when the server applies the client's answer to
+`workspace/configuration`, so a client that declines that request does not read
+`[notifications] environment_kind`; it can still send the setting in
+`initializationOptions` or `didChangeConfiguration`. Why this is the one
+message that reports on a classification, and the
 only exception to the silence about ignored settings, is in
 [config-precedence.md](config-precedence.md).
 

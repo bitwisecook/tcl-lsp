@@ -34,6 +34,9 @@ use tcl_registry::profiles::ProfileRegistry;
 
 const IRULES_DIALECT: &str = "f5-irules";
 
+/// The release an MCP session starts on: the newest stable Tcl, so a call that
+/// names no dialect sees every current command. It is separate from the
+/// editors' and the language server's `DEFAULT_ENVIRONMENT_ID`.
 const DEFAULT_DIALECT: &str = "tcl9.0";
 
 /// Process-wide session dialect — the detection default set by `set_dialect`,

@@ -137,10 +137,6 @@ const ALLOWED: &[(&str, &str)] = &[
         "tests: the studio's environment seam agrees with every catalogue profile",
     ),
     (
-        "rust/tcl-spec-studio/src/lib.rs",
-        "`browsable_dialects`, the studio's dialect picker",
-    ),
-    (
         "rust/tcl-spectcl/src/environment.rs",
         "tests: the pack loader's environment seam agrees with every catalogue profile",
     ),

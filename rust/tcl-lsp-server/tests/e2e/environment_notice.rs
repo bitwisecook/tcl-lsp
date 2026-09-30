@@ -329,6 +329,7 @@ fn a_document_opened_before_the_first_pull_lands_still_honours_the_setting() {
         "the notice went out before the setting was applied"
     );
     lsp.settle_config(&off);
+    assert!(asks(&lsp).is_empty());
     assert!(plain_messages(&lsp).is_empty());
 }
 

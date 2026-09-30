@@ -425,15 +425,8 @@ impl EnvironmentDefinition {
         if self.kind == EnvironmentKind::Language {
             return self.display_name.to_string();
         }
-        let base = self
-            .core
-            .map(|core| format!("{} {}", core.family.display_name(), core.default_release));
-        let packages: Vec<&str> = self
-            .expected_packages
-            .iter()
-            .filter(|placement| placement.ambient)
-            .map(|placement| placement.package.as_ref())
-            .collect();
+        let base = self.core_label();
+        let packages: Vec<&str> = self.ambient_packages().collect();
         let detail = match (base, packages.is_empty()) {
             (Some(base), true) => base,
             (Some(base), false) => format!("{base} + {}", packages.join(", ")),
@@ -442,7 +435,29 @@ impl EnvironmentDefinition {
         };
         format!("{} — {detail}", self.display_name)
     }
+
+    /// The core release as a label (`Tcl 8.5`): the family's name and the
+    /// core's default release. `None` for an environment with no ladder core.
+    ///
+    /// The one spelling of "which release is this environment built on" that
+    /// [`Self::description`] and the tool-environment notice both read.
+    #[must_use]
+    pub fn core_label(&self) -> Option<String> {
+        self.core
+            .map(|core| format!("{} {}", core.family.display_name(), core.default_release))
+    }
+
+    /// The packages loaded without a `package require`, in the pack's
+    /// declaration order. Hosted packages, which an environment only places
+    /// when they are required, are left out.
+    pub fn ambient_packages(&self) -> impl Iterator<Item = &str> {
+        self.expected_packages
+            .iter()
+            .filter(|placement| placement.ambient)
+            .map(|placement| placement.package.as_ref())
+    }
 }
+
 
 /// Target adjustments an overlay applies.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -2231,6 +2246,29 @@ mod tests {
         assert_eq!(bare.description(), "Tk — Tcl 8.6");
         bare.core = None;
         assert_eq!(bare.description(), "Tk");
+    }
+
+    /// The core label and the ambient packages are what the description is
+    /// made of, so anything else that quotes them agrees with it.
+    #[test]
+    fn the_description_is_the_core_label_and_the_ambient_packages() {
+        let registry = EnvironmentRegistry::compiled();
+        let vivado = registry.resolve("xilinx-eda-tcl").expect("xilinx");
+        assert_eq!(vivado.core_label().as_deref(), Some("Tcl 8.5"));
+        assert_eq!(
+            vivado.ambient_packages().collect::<Vec<_>>(),
+            ["vivado", "sdc", "upf"]
+        );
+        assert_eq!(
+            vivado.description(),
+            "Xilinx Vivado — Tcl 8.5 + vivado, sdc, upf"
+        );
+        let tk = registry.resolve("tk").expect("tk");
+        assert_eq!(tk.ambient_packages().collect::<Vec<_>>(), ["Tk"]);
+
+        let mut no_core = (*vivado).clone();
+        no_core.core = None;
+        assert_eq!(no_core.core_label(), None);
     }
 
     /// Kind is presentation: two definitions that differ only in kind

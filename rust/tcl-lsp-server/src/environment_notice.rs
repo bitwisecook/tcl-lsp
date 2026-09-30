@@ -45,7 +45,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
-use tcl_dialect::model::{EnvironmentDefinition, EnvironmentKind, Family, Provenance};
+use tcl_dialect::model::{EnvironmentDefinition, EnvironmentKind, Provenance};
 use tower_lsp_server::Client;
 use tower_lsp_server::ls_types::{MessageActionItem, MessageType, ShowDocumentParams, Uri};
 
@@ -92,25 +92,13 @@ pub(crate) fn qualifies(definition: &EnvironmentDefinition) -> bool {
 /// packages. Tool support is a set of library packages on a Tcl release, not a
 /// separate dialect; your selection keeps working as before.`
 ///
-/// The ambient packages are listed in declaration order, as
-/// [`EnvironmentDefinition::description`] lists them.
+/// The release and the ambient packages are
+/// [`EnvironmentDefinition::core_label`] and
+/// [`EnvironmentDefinition::ambient_packages`], the same two the description
+/// every picker shows is made of.
 pub(crate) fn notice_text(definition: &EnvironmentDefinition) -> String {
-    let release = definition.core.map_or_else(
-        || "Tcl".to_owned(),
-        |core| {
-            let family = match core.family {
-                Family::Tcl => "Tcl",
-                other => other.name(),
-            };
-            format!("{family} {}", core.default_release)
-        },
-    );
-    let packages: Vec<&str> = definition
-        .expected_packages
-        .iter()
-        .filter(|placement| placement.ambient)
-        .map(|placement| placement.package.as_ref())
-        .collect();
+    let release = definition.core_label().unwrap_or_else(|| "Tcl".to_owned());
+    let packages: Vec<&str> = definition.ambient_packages().collect();
     let plus = match packages.as_slice() {
         [] => String::new(),
         [only] => format!(" plus the {only} package"),
@@ -425,6 +413,11 @@ impl EnvironmentNotice {
     /// on disk at that moment, so two editors dismissing different environments
     /// both stick. Written to a sibling file and renamed into place, so a reader
     /// never sees half a file.
+    ///
+    /// This uses `std::fs` where the start-up read goes through the
+    /// [`SourceStore`]: the path is `None` wherever the platform has no state
+    /// directory (a browser worker has none), so a write only ever reaches a
+    /// native file system.
     fn persist(&self) -> std::io::Result<()> {
         let Some(path) = self.path.as_deref() else {
             return Ok(());
@@ -435,16 +428,44 @@ impl EnvironmentNotice {
             .unwrap_or_else(PoisonError::into_inner)
             .dismissed
             .clone();
+        persist_ids(path, &session, || {})
+    }
+}
+
+/// How many times [`persist_ids`] writes the merged list.
+const PERSIST_ATTEMPTS: usize = 2;
+
+/// Merge `session` into the file at `path` and check that it stuck.
+///
+/// Reading, merging and renaming is not one atomic step: two servers that read
+/// the file before either renames each write a list that lacks the other's id,
+/// and the later rename drops the earlier one's. So after each rename the file
+/// is read back, and if an id of `session` is missing the merge runs once more
+/// against what the other writer left, up to [`PERSIST_ATTEMPTS`] writes.
+/// `after_rename` runs after each rename, before the read back.
+fn persist_ids(
+    path: &Path,
+    session: &[String],
+    mut after_rename: impl FnMut(),
+) -> std::io::Result<()> {
+    for _ in 0..PERSIST_ATTEMPTS {
         let on_disk = std::fs::read_to_string(path).unwrap_or_default();
         let sections = parse_ini(&on_disk);
         let mut merged = dismissed_ids(&sections);
         for id in session {
-            if !merged.contains(&id) {
-                merged.push(id);
+            if !merged.contains(id) {
+                merged.push(id.clone());
             }
         }
-        write_atomically(path, &render_notices(sections, &merged))
+        write_atomically(path, &render_notices(sections, &merged))?;
+        after_rename();
+        let stored = std::fs::read_to_string(path).unwrap_or_default();
+        let stored = dismissed_ids(&parse_ini(&stored));
+        if session.iter().all(|id| stored.contains(id)) {
+            break;
+        }
     }
+    Ok(())
 }
 
 /// Write `content` to `path` through a temporary sibling, creating the
@@ -453,18 +474,23 @@ fn write_atomically(path: &Path, content: &str) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    // Named for the moment of writing, so two servers writing at once never
-    // share a scratch file.
-    let stamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |elapsed| elapsed.as_nanos());
-    let mut scratch = path.as_os_str().to_owned();
-    scratch.push(format!(".{stamp}.tmp"));
-    let scratch = PathBuf::from(scratch);
+    let scratch = scratch_path(path);
     std::fs::write(&scratch, content)?;
     std::fs::rename(&scratch, path).inspect_err(|_| {
         let _ = std::fs::remove_file(&scratch);
     })
+}
+
+/// The temporary sibling [`write_atomically`] writes through, named for the
+/// process and the moment of writing so two servers writing at once never share
+/// a scratch file.
+fn scratch_path(path: &Path) -> PathBuf {
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |elapsed| elapsed.as_nanos());
+    let mut scratch = path.as_os_str().to_owned();
+    scratch.push(format!(".{}.{stamp}.tmp", std::process::id()));
+    PathBuf::from(scratch)
 }
 
 #[cfg(test)]

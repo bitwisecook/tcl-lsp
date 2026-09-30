@@ -87,29 +87,33 @@ fn text_lists_no_package_a_definition_lacks() {
 }
 
 #[test]
-fn text_agrees_with_the_description_every_picker_shows() {
+fn text_and_description_read_the_same_release_and_packages() {
     for definition in tcl_registry::model::selectable_environments()
         .into_iter()
         .filter(|definition| qualifies(definition))
     {
-        let description = definition.description();
-        let (_, detail) = description
-            .split_once(" — ")
-            .expect("a Packages description");
-        let (release, packages) = detail.split_once(" + ").expect("a release and packages");
-        let packages: Vec<&str> = packages.split(", ").collect();
+        let release = definition.core_label().expect("a tool shell has a core");
+        let packages: Vec<&str> = definition.ambient_packages().collect();
         let (last, init) = packages.split_last().expect("at least one package");
+        let id = definition.id.as_str();
         let expected = format!(
-            "{} ({}) is {release} plus the {} and {last} packages.",
+            "{} ({id}) is {release} plus the {} and {last} packages.",
             definition.display_name,
-            definition.id.as_str(),
-            init.join(", "),
+            init.join(", ")
         );
         assert!(
             notice_text(&definition).starts_with(&expected),
-            "{}: {}",
-            definition.id.as_str(),
+            "{id}: {}",
             notice_text(&definition)
+        );
+        assert_eq!(
+            definition.description(),
+            format!(
+                "{} — {release} + {}",
+                definition.display_name,
+                packages.join(", ")
+            ),
+            "{id}"
         );
     }
 }
@@ -267,6 +271,92 @@ fn two_sessions_dismissing_different_environments_both_stick() {
         ids(&["xilinx-eda-tcl", "synopsys-eda-tcl"]),
         "{content}"
     );
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn a_dismissal_another_server_overwrites_is_written_again() {
+    let dir = scratch_dir("lost-update");
+    let path = dir.join("notices.ini");
+    let mut renames = 0;
+    // The other server read the file before this one renamed, then renamed its
+    // own list over ours.
+    persist_ids(&path, &ids(&["xilinx-eda-tcl"]), || {
+        renames += 1;
+        if renames == 1 {
+            let other = render_notices(Vec::new(), &ids(&["synopsys-eda-tcl"]));
+            write_atomically(&path, &other).expect("the other server renames over ours");
+        }
+    })
+    .expect("write the state file");
+    assert_eq!(renames, 2, "one retry, then it stops");
+    let content = std::fs::read_to_string(&path).expect("state file exists");
+    let mut stored = dismissed_ids(&parse_ini(&content));
+    stored.sort();
+    assert_eq!(
+        stored,
+        ids(&["synopsys-eda-tcl", "xilinx-eda-tcl"]),
+        "{content}"
+    );
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn a_write_that_stuck_is_not_repeated() {
+    let dir = scratch_dir("stuck");
+    let path = dir.join("notices.ini");
+    let mut renames = 0;
+    persist_ids(&path, &ids(&["xilinx-eda-tcl"]), || renames += 1).expect("write the state file");
+    assert_eq!(renames, 1);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn the_retry_is_bounded_when_the_file_keeps_losing_the_id() {
+    let dir = scratch_dir("bounded");
+    let path = dir.join("notices.ini");
+    let mut renames = 0;
+    persist_ids(&path, &ids(&["xilinx-eda-tcl"]), || {
+        renames += 1;
+        write_atomically(&path, &render_notices(Vec::new(), &[])).expect("the file is emptied");
+    })
+    .expect("giving up is not a failure");
+    assert_eq!(renames, PERSIST_ATTEMPTS);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn the_scratch_file_is_named_for_the_process_and_renamed_away() {
+    let path = Path::new("state").join("notices.ini");
+    let scratch = scratch_path(&path);
+    let name = scratch
+        .file_name()
+        .and_then(|name| name.to_str())
+        .expect("a file name");
+    assert!(
+        name.starts_with(&format!("notices.ini.{}.", std::process::id())),
+        "{name}"
+    );
+    assert_eq!(
+        scratch.extension().and_then(|ext| ext.to_str()),
+        Some("tmp")
+    );
+    assert_eq!(scratch.parent(), path.parent());
+
+    let dir = scratch_dir("scratch-name");
+    let target = dir.join("notices.ini");
+    write_atomically(&target, "[dismissed]\n").expect("write");
+    let names: Vec<String> = std::fs::read_dir(&dir)
+        .expect("list the directory")
+        .map(|entry| {
+            entry
+                .expect("entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+    assert_eq!(names, ["notices.ini"], "no scratch file is left behind");
     let _ = std::fs::remove_dir_all(dir);
 }
 

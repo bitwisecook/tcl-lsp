@@ -7073,6 +7073,10 @@ pub struct Backend {
     /// `tcl-lsp.getEffectiveConfig` so a caller tracing a surprising dialect can
     /// tell "nobody configured one" from "someone configured exactly this".
     default_dialect_explicit: Mutex<bool>,
+    /// The configured `tclLsp.dialect` last warned about as naming no
+    /// environment, so a value that persists across configuration pulls is
+    /// reported once rather than on every pull.
+    warned_session_dialect: Mutex<Option<String>>,
     /// A deliberate, temporary session dialect that outranks
     /// [`Backend::default_dialect`] and is **immune to configuration**.
     ///
@@ -8770,17 +8774,7 @@ impl Backend {
     #[must_use]
     pub fn with_store(client: Client, store: Arc<dyn vfs::SourceStore>) -> Self {
         let db = tcl_lsp_db::TclDatabase::default();
-        let db_config = tcl_lsp_db::AnalyserConfig::new(
-            &db,
-            default_disabled_set().into_iter().collect(),
-            NonAsciiMode::Default,
-            Vec::new(),
-            None,
-            None,
-            0,
-            Vec::new(),
-            Vec::new(),
-        );
+        let db_config = default_analyser_config(&db);
         let diagnostic_publisher = Arc::new(DiagnosticPublisher::new(client.clone()));
         // What the user asked not to be told again is read once, here.
         let environment_notice = Arc::new(environment_notice::EnvironmentNotice::load(
@@ -8794,6 +8788,7 @@ impl Backend {
             diag_slots: Arc::new(Mutex::new(HashMap::new())),
             default_dialect: Mutex::new(DEFAULT_SESSION_DIALECT.to_owned()),
             default_dialect_explicit: Mutex::new(false),
+            warned_session_dialect: Mutex::new(None),
             session_dialect_override: Mutex::new(None),
             document_dialect_overrides: Mutex::new(HashMap::new()),
             config_reload: Mutex::new(ConfigReloadSlot::default()),
@@ -12603,6 +12598,7 @@ impl Backend {
             diagnostic_publisher: _,
             default_dialect: _,
             default_dialect_explicit: _,
+            warned_session_dialect: _,
             session_dialect_override: _,
             config_reload: _,
             non_ascii_mode: _,
@@ -18990,15 +18986,27 @@ impl Backend {
     /// sidecar stub is found by the configured spelling. One that names no
     /// environment is not stored: the session keeps the built-in default
     /// rather than resolving every document to the lenient `tcl` sink, and the
-    /// returned warning names the value and the selectable dialects.
+    /// returned warning names the value and the selectable dialects. A blank
+    /// value is an unset setting and keeps the default without a warning, and
+    /// a rejected value is reported once while it stays configured.
     async fn apply_configured_session_dialect(&self, dialect: &str) -> Option<String> {
+        let mut warned = self.warned_session_dialect.lock().await;
         if is_known_dialect_name(dialect) {
             *self.default_dialect.lock().await = dialect.to_owned();
             *self.default_dialect_explicit.lock().await = true;
+            *warned = None;
             return None;
         }
         DEFAULT_SESSION_DIALECT.clone_into(&mut *self.default_dialect.lock().await);
         *self.default_dialect_explicit.lock().await = false;
+        if dialect.trim().is_empty() {
+            *warned = None;
+            return None;
+        }
+        if warned.as_deref() == Some(dialect) {
+            return None;
+        }
+        *warned = Some(dialect.to_owned());
         Some(format!(
             "tclLsp.dialect `{dialect}` is not a known dialect; using the default, \
              {DEFAULT_SESSION_DIALECT}. Valid dialects: {}",
@@ -28194,6 +28202,22 @@ fn default_disabled_set() -> HashSet<String> {
     DEFAULT_OFF_CODES.iter().map(|c| (*c).to_owned()).collect()
 }
 
+/// The analyser-config query input a fresh backend starts from: the opt-in
+/// codes disabled and every other knob unset.
+fn default_analyser_config(db: &tcl_lsp_db::TclDatabase) -> tcl_lsp_db::AnalyserConfig {
+    tcl_lsp_db::AnalyserConfig::new(
+        db,
+        default_disabled_set().into_iter().collect(),
+        NonAsciiMode::Default,
+        Vec::new(),
+        None,
+        None,
+        0,
+        Vec::new(),
+        Vec::new(),
+    )
+}
+
 /// Default BIG-IP partition assumed when a config carries no explicit
 /// one.
 const BIGIP_DEFAULT_PARTITION: &str = "Common";
@@ -36587,7 +36611,9 @@ mod tests {
     /// A configured session dialect that resolves is kept as written and marks
     /// the dialect explicit; one that names no environment is not stored, the
     /// session keeps the built-in default, and the warning names the value and
-    /// the selectable dialects.
+    /// the selectable dialects. A blank value is an unset setting: the default
+    /// stays and nothing is warned. A rejected value is warned about once while
+    /// it stays configured, and again if it returns after a good or blank one.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_session_dialect_naming_no_environment_falls_back_with_a_warning() {
         let backend = test_backend();
@@ -36608,6 +36634,42 @@ mod tests {
         }
         assert_eq!(backend.session_dialect().await, DEFAULT_SESSION_DIALECT);
         assert!(!*backend.default_dialect_explicit.lock().await);
+
+        assert_eq!(
+            backend.apply_configured_session_dialect("nonsense").await,
+            None,
+            "the same rejected value is not reported on every pull"
+        );
+        assert_eq!(backend.session_dialect().await, DEFAULT_SESSION_DIALECT);
+        assert!(
+            backend
+                .apply_configured_session_dialect("other-nonsense")
+                .await
+                .is_some_and(|message| message.contains("`other-nonsense`")),
+            "a different rejected value is reported"
+        );
+
+        for blank in ["", "  ", "\t"] {
+            assert_eq!(
+                backend.apply_configured_session_dialect("irules").await,
+                None
+            );
+            assert_eq!(
+                backend.apply_configured_session_dialect(blank).await,
+                None,
+                "a blank value is an unset setting: {blank:?}"
+            );
+            assert_eq!(backend.session_dialect().await, DEFAULT_SESSION_DIALECT);
+            assert!(!*backend.default_dialect_explicit.lock().await);
+        }
+
+        assert!(
+            backend
+                .apply_configured_session_dialect("nonsense")
+                .await
+                .is_some(),
+            "a rejected value that returns after a blank one is reported again"
+        );
     }
 
     /// `getEffectiveConfig` labels come from the resolved environment, so `tk`,
@@ -36841,17 +36903,7 @@ mod tests {
         let (service, _socket) = tower_lsp_server::LspService::new(Backend::new);
         let client = service.inner().client.clone();
         let diagnostic_publisher = Arc::new(DiagnosticPublisher::new(client.clone()));
-        let db_config = tcl_lsp_db::AnalyserConfig::new(
-            &db,
-            default_disabled_set().into_iter().collect(),
-            NonAsciiMode::Default,
-            Vec::new(),
-            None,
-            None,
-            0,
-            Vec::new(),
-            Vec::new(),
-        );
+        let db_config = default_analyser_config(&db);
         Backend {
             client,
             diagnostic_publisher,
@@ -36859,6 +36911,7 @@ mod tests {
             diag_slots: Arc::new(Mutex::new(HashMap::new())),
             default_dialect: Mutex::new("tcl8.6".to_owned()),
             default_dialect_explicit: Mutex::new(false),
+            warned_session_dialect: Mutex::new(None),
             session_dialect_override: Mutex::new(None),
             document_dialect_overrides: Mutex::new(HashMap::new()),
             config_reload: Mutex::new(ConfigReloadSlot::default()),
