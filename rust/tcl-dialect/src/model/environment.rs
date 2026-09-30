@@ -45,7 +45,7 @@
 //! user can write today keeps resolving, as data, not as a shim.
 
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use crate::model::family::{BuildProfileId, Family, Release};
 use crate::model::version_set::{Version, VersionAxisId, VersionSet, VersionSetError};
@@ -292,6 +292,21 @@ impl Provenance {
             Provenance::WorkspaceUntrusted | Provenance::StudioOverride | Provenance::Document
         )
     }
+
+    /// The machine-readable spelling status payloads carry. A workspace
+    /// pack reads the same whether or not the editor trusts the workspace:
+    /// trust is a separate fact from where the environment came from.
+    #[must_use]
+    pub const fn word(self) -> &'static str {
+        match self {
+            Provenance::BuiltIn => "built-in",
+            Provenance::BundledPack => "bundled-pack",
+            Provenance::User => "user-pack",
+            Provenance::WorkspaceTrusted | Provenance::WorkspaceUntrusted => "workspace-pack",
+            Provenance::StudioOverride => "studio-override",
+            Provenance::Document => "document",
+        }
+    }
 }
 
 /// What an environment is, for presentation.
@@ -303,7 +318,8 @@ impl Provenance {
 /// Kind is display metadata only: it shapes
 /// [`EnvironmentDefinition::description`] and is read by presentation
 /// surfaces. It never influences resolution, grammar or availability.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Kinds order as declared: languages sort before tool shells.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum EnvironmentKind {
     /// The thing being written is this language: its grammar, or its core
     /// command vocabulary, is the identity.
@@ -605,6 +621,36 @@ impl EnvironmentRegistry {
         &self.definitions
     }
 
+    /// The environments a user can pick: every definition except the
+    /// lenient sink, [`EnvironmentKind::Language`] first and then
+    /// [`EnvironmentKind::Packages`], canonical id ascending within a kind.
+    ///
+    /// The one list every picker, `--dialect` value, tool schema and
+    /// generated enumeration reads. The sink is where an unknown or
+    /// unstated name lands, so it is a fallback rather than a choice.
+    #[must_use]
+    pub fn selectable(&self) -> Vec<Arc<EnvironmentDefinition>> {
+        let mut selectable: Vec<Arc<EnvironmentDefinition>> = self
+            .definitions
+            .iter()
+            .filter(|definition| definition.id.as_str() != LENIENT_ENVIRONMENT_ID)
+            .cloned()
+            .collect();
+        selectable.sort_by(|left, right| {
+            (left.kind, left.id.as_str()).cmp(&(right.kind, right.id.as_str()))
+        });
+        selectable
+    }
+
+    /// [`Self::selectable`] over the compiled registry (generation 0): the
+    /// list for consumers that run before, or without, any pack
+    /// registration — command-line parsing and the generators.
+    #[must_use]
+    pub fn compiled_selectable() -> &'static [Arc<EnvironmentDefinition>] {
+        static COMPILED: OnceLock<Vec<Arc<EnvironmentDefinition>>> = OnceLock::new();
+        COMPILED.get_or_init(|| Self::compiled().selectable())
+    }
+
     /// Resolve any user-written name — canonical id, alias, or editor
     /// language id — to its environment. The one ingress function
     /// (centralisation contract R-a); precedence between the three tiers
@@ -876,11 +922,15 @@ fn ladder_environments() -> Vec<EnvironmentDefinition> {
     .collect()
 }
 
+/// The id of the lenient environment: the sink every unknown, unstated or
+/// plain `tcl` name resolves to.
+pub const LENIENT_ENVIRONMENT_ID: &str = "tcl";
+
 /// The plain-`tcl` fallback: the full-ladder lenient environment every
 /// unversioned document lands on.
 fn plain_tcl_environment() -> EnvironmentDefinition {
     EnvironmentDefinition {
-        id: EnvironmentId::new("tcl"),
+        id: EnvironmentId::new(LENIENT_ENVIRONMENT_ID),
         aliases: Vec::new(),
         display_name: arc("Tcl"),
         short_name: arc("Tcl"),
@@ -2251,6 +2301,100 @@ mod tests {
         let mut seeded_ids: Vec<&str> = seeded.iter().map(|d| d.id.as_str()).collect();
         seeded_ids.sort_unstable();
         assert_eq!(seeded_ids, profiles, "every vendor shell is pack-declared");
+    }
+
+    /// The selectable set is the registry without the lenient sink,
+    /// languages before tool shells, canonical id ascending within a kind.
+    #[test]
+    fn selectable_lists_languages_then_packages_by_id_without_the_sink() {
+        let selectable = EnvironmentRegistry::compiled().selectable();
+        let ids: Vec<&str> = selectable
+            .iter()
+            .map(|definition| definition.id.as_str())
+            .collect();
+        assert_eq!(
+            ids,
+            [
+                "bpf",
+                "expect",
+                "f5-bigip",
+                "f5-iapps",
+                "f5-irules",
+                "f5-tmsh",
+                "jim",
+                "spectcl",
+                "sslictcl",
+                "tcl8.4",
+                "tcl8.5",
+                "tcl8.6",
+                "tcl9.0",
+                "tcl9.1",
+                "cadence-eda-tcl",
+                "intel-quartus-eda-tcl",
+                "mentor-eda-tcl",
+                "microchip-libero-eda-tcl",
+                "synopsys-eda-tcl",
+                "tk",
+                "xilinx-eda-tcl",
+            ]
+        );
+        assert!(!ids.contains(&LENIENT_ENVIRONMENT_ID));
+        let languages = selectable
+            .iter()
+            .take_while(|definition| definition.kind == EnvironmentKind::Language)
+            .count();
+        assert!(
+            selectable[languages..]
+                .iter()
+                .all(|definition| definition.kind == EnvironmentKind::Packages),
+            "no language follows a tool shell"
+        );
+    }
+
+    /// A pack-declared environment joins the selectable set of the registry
+    /// it was built into, among the tool shells.
+    #[test]
+    fn a_pack_declared_environment_is_selectable_beside_the_tool_shells() {
+        let mut declared = bpf_environment();
+        declared.id = EnvironmentId::new("spicegentcl/ngspice");
+        declared.kind = EnvironmentKind::Packages;
+        declared.provenance = Provenance::WorkspaceTrusted;
+        let mut definitions = compiled_definitions();
+        definitions.push(declared);
+        let registry = EnvironmentRegistry::new(definitions, 1).expect("collision-free");
+        let ids: Vec<String> = registry
+            .selectable()
+            .iter()
+            .map(|definition| definition.id.to_string())
+            .collect();
+        let acme = ids.iter().position(|id| id == "spicegentcl/ngspice");
+        let cadence = ids.iter().position(|id| id == "cadence-eda-tcl");
+        let xilinx = ids.iter().position(|id| id == "xilinx-eda-tcl");
+        assert!(acme.is_some(), "{ids:?}");
+        assert!(
+            cadence < acme && acme < xilinx,
+            "`spicegentcl/ngspice` sorts among the tool shells: {ids:?}"
+        );
+    }
+
+    /// The compiled form is the generation-0 registry's selectable set.
+    #[test]
+    fn compiled_selectable_is_the_compiled_registrys_selectable_set() {
+        let compiled = EnvironmentRegistry::compiled().selectable();
+        assert_eq!(EnvironmentRegistry::compiled_selectable(), compiled);
+    }
+
+    /// The machine-readable provenance words a status payload carries.
+    #[test]
+    fn provenance_words_name_where_an_environment_came_from() {
+        let registry = EnvironmentRegistry::compiled();
+        let word = |id: &str| registry.resolve(id).expect(id).provenance.word();
+        assert_eq!(word("jim"), "built-in");
+        assert_eq!(word("tk"), "built-in");
+        assert_eq!(word("xilinx-eda-tcl"), "bundled-pack");
+        assert_eq!(Provenance::User.word(), "user-pack");
+        assert_eq!(Provenance::WorkspaceTrusted.word(), "workspace-pack");
+        assert_eq!(Provenance::WorkspaceUntrusted.word(), "workspace-pack");
     }
 
     #[test]

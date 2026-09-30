@@ -88,6 +88,7 @@ use rustc_hash::FxHashMap;
 
 use tcl_dialect::model::{
     DialectPoint, EnvironmentDefinition, EnvironmentIdentity, EnvironmentRegistry,
+    LENIENT_ENVIRONMENT_ID,
 };
 use tcl_dialect::{DialectProfile, LexerGrammar, LibraryVersionOverrides};
 
@@ -105,6 +106,17 @@ use crate::model::context::{KeyedVersions, ResolvedContext};
 #[must_use]
 pub fn environments() -> Arc<EnvironmentRegistry> {
     crate::model::registration::live_environments()
+}
+
+/// The environments a user can select, read from the **live** registry: every
+/// environment except the lenient sink, languages before tool shells, canonical
+/// id ascending within a kind
+/// ([`EnvironmentRegistry::selectable`]). The list every runtime picker and
+/// status payload is built from, so an environment a pack registers appears
+/// in it with no second wiring.
+#[must_use]
+pub fn selectable_environments() -> Vec<Arc<EnvironmentDefinition>> {
+    environments().selectable()
 }
 
 /// One resolved document environment: the definition plus the identity
@@ -126,7 +138,7 @@ pub fn resolve_environment(name: &str) -> DocumentEnvironment {
     let registry = environments();
     let definition = registry.resolve(name).unwrap_or_else(|| {
         registry
-            .resolve("tcl")
+            .resolve(LENIENT_ENVIRONMENT_ID)
             .expect("the compiled catalogue seeds the lenient `tcl` environment")
     });
     let identity = registry.identity_of(&definition);
@@ -318,7 +330,7 @@ impl DocumentEnvironment {
     /// document states nothing" asks here (see [`Self::stated_profile`]).
     #[must_use]
     pub fn is_lenient(&self) -> bool {
-        self.definition.id.as_str() == "tcl"
+        self.definition.id.as_str() == LENIENT_ENVIRONMENT_ID
     }
 
     /// The profile a **stated** dialect names — `None` when the name stated

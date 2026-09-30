@@ -67,9 +67,9 @@ pub use environment::{
     CoreProfileSelector, DetectionFacts, EditorLanguageIdentityId, EnvironmentDefinition,
     EnvironmentId, EnvironmentIdentity, EnvironmentKind, EnvironmentOverlay,
     EnvironmentOverlayError, EnvironmentPolicy, EnvironmentRegistry, EnvironmentRegistryError,
-    FileExtensionClaim, KeyedAxis, PackageChanges, PackagePlacement, Placement, Provenance,
-    TargetChanges, WorldPolicy, bundled_pack_definitions, compiled_definitions, release_line,
-    reserved_against,
+    FileExtensionClaim, KeyedAxis, LENIENT_ENVIRONMENT_ID, PackageChanges, PackagePlacement,
+    Placement, Provenance, TargetChanges, WorldPolicy, bundled_pack_definitions,
+    compiled_definitions, release_line, reserved_against,
 };
 pub use expr_grammar::{
     ExprArity, ExprGrammar, ExprSubstitution, MathFunc, MathFuncSet, PrecedenceTable, WordOperator,

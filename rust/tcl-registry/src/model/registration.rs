@@ -765,6 +765,24 @@ mod tests {
         );
     }
 
+    /// The live selectable set reads the registry as it stands: a registered
+    /// environment appears in it, and the lenient sink never does.
+    #[test]
+    fn a_registered_environment_joins_the_live_selectable_set() {
+        register_environments(
+            vec![definition("selectable-probe-env", Provenance::User)],
+            Vec::new(),
+        )
+        .expect("registration succeeds");
+        let ids: Vec<String> = crate::model::selectable_environments()
+            .iter()
+            .map(|environment| environment.id.to_string())
+            .collect();
+        assert!(ids.iter().any(|id| id == "selectable-probe-env"), "{ids:?}");
+        assert!(ids.iter().any(|id| id == "jim"), "{ids:?}");
+        assert!(ids.iter().all(|id| id != "tcl"), "{ids:?}");
+    }
+
     /// D17: a bundled pack restating an environment the compiled seed
     /// already carries from it replaces the seed row rather than colliding
     /// with it; a lower tier claiming the same name is refused with the
