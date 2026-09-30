@@ -358,6 +358,11 @@ pub const GAPS: &[Gap] = &[
         spelling: "short_name TEXT",
         kind: GapKind::PackLevel,
     },
+    Gap {
+        key: "environment_selecting_identity",
+        spelling: "selecting_identity ID",
+        kind: GapKind::PackLevel,
+    },
 ];
 
 /// The [`Gap`] for `key`, if the renderer cannot carry it.

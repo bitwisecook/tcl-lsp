@@ -48,23 +48,6 @@ fn is_word_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_'
 }
 
-/// Whether `haystack` contains `word` delimited by `\b` boundaries (ASCII).
-fn has_word(haystack: &str, word: &str) -> bool {
-    let bytes = haystack.as_bytes();
-    let mut i = 0;
-    while let Some(off) = haystack[i..].find(word) {
-        let start = i + off;
-        let end = start + word.len();
-        let before = start == 0 || !is_word_byte(bytes[start - 1]);
-        let after = end == bytes.len() || !is_word_byte(bytes[end]);
-        if before && after {
-            return true;
-        }
-        i = start + 1;
-    }
-    false
-}
-
 /// Extract a leading `<major>.<minor>` version from `s` — one or more digits, a
 /// `.`, and one or more digits. Trailing content (a patchlevel `.z`, a `-`
 /// range suffix, whitespace) is ignored, so `"9.0"`, `"9.0.3"`, and `"8.5-9.0"`
@@ -939,35 +922,52 @@ fn detect_from_content(head: &str) -> Option<&'static str> {
     None
 }
 
+/// The interpreter a `#!` line names: the basename of its first token or,
+/// when that is `env`, of the first token after it that is neither a flag
+/// (`-S`, `-i`) nor a `NAME=value` assignment. `None` when the line names no
+/// interpreter.
+fn shebang_interpreter(line: &str) -> Option<&str> {
+    fn basename(path: &str) -> &str {
+        path.rsplit(['/', '\\']).next().unwrap_or(path)
+    }
+    let mut tokens = line.strip_prefix("#!")?.split_whitespace();
+    let mut program = tokens.next()?;
+    if basename(program).eq_ignore_ascii_case("env") {
+        program = tokens.find(|token| {
+            let assignment = token
+                .split_once('=')
+                .is_some_and(|(name, _)| !name.is_empty() && !name.contains('/'));
+            !token.starts_with('-') && !assignment
+        })?;
+    }
+    Some(basename(program))
+}
+
 /// The environment a `#!…` shebang on the first line names, or `None`.
 ///
 /// Every environment declares the interpreter words that select it
 /// (`DetectionFacts::shebang_words`: `jimsh`, `wish`, `expect`,
-/// `tclsh8.6`, `wish9.0`); a word selects its environment when it appears
-/// in the line delimited by non-word bytes, so `wish` does not match
-/// `wish8.6` and `tclsh8.6` does not match `tclsh8.60`.
+/// `tclsh8.6`, `wish9.0`). The line's interpreter ([`shebang_interpreter`])
+/// selects the environment that declares it exactly, ignoring ASCII case, so
+/// `wish` does not match `wish8.6`, `tclsh8.6` does not match `tclsh8.60`, and
+/// a directory named for another shell (`/home/wish/bin/jimsh`) never
+/// selects.
 ///
 /// The lenient `tcl` environment names its unversioned shell `tclsh`, but a
 /// bare `tclsh` says nothing about the release, so that word selects
 /// nothing here and the content tiers decide.
 fn shebang_dialect(source: &str) -> Option<&'static str> {
-    let first = source.lines().next()?;
-    if !first.starts_with("#!") {
-        return None;
-    }
-    let lower = first.to_ascii_lowercase();
-    let registry = crate::model::environments();
-    let lenient = crate::model::resolve_environment("").definition;
-    registry
+    let interpreter = shebang_interpreter(source.lines().next()?)?;
+    crate::model::environments()
         .definitions()
         .iter()
-        .filter(|definition| definition.id != lenient.id)
+        .filter(|definition| definition.id.as_str() != tcl_dialect::model::LENIENT_ENVIRONMENT_ID)
         .find(|definition| {
             definition
                 .server_detection
                 .shebang_words
                 .iter()
-                .any(|word| has_word(&lower, word))
+                .any(|word| word.eq_ignore_ascii_case(interpreter))
         })
         .map(|definition| intern_environment_id(definition.id.as_str()))
 }
@@ -1334,6 +1334,44 @@ mod detect_tests {
             detect_dialect("#!/usr/bin/jimshell\nputs hi\n", None, DEF),
             DEF
         );
+    }
+
+    /// The interpreter is the line's program (or the program `env` runs), so
+    /// a directory, an argument or a flag that spells another shell selects
+    /// nothing.
+    #[test]
+    fn the_shebang_interpreter_is_the_program_the_line_runs() {
+        for (line, expected) in [
+            ("#!/home/wish/bin/jimsh", "jim"),
+            ("#!/usr/bin/env -S jimsh -e", "jim"),
+            ("#!/usr/bin/env -i FOO=1 jimsh", "jim"),
+            ("#! /usr/bin/jimsh", "jim"),
+            ("#!/opt/jimsh/bin/tclsh8.6", "tcl8.6"),
+            ("#!/usr/bin/env wish9.0 -f", "tcl9.0"),
+            ("#!/usr/bin/JimSH", "jim"),
+        ] {
+            assert_eq!(
+                detect_dialect(&format!("{line}\nputs hi\n"), None, DEF),
+                expected,
+                "{line}"
+            );
+        }
+        for line in [
+            "#!/usr/bin/tclsh8.3",
+            "#!/bin/sh -c 'exec jimsh'",
+            "#!/usr/bin/env",
+            "#!/usr/bin/env -S",
+            "#!",
+            "#!/usr/bin/tclsh8.60",
+        ] {
+            assert_eq!(
+                detect_dialect(&format!("{line}\nputs hi\n"), None, DEF),
+                DEF,
+                "{line}"
+            );
+        }
+        assert_eq!(super::shebang_interpreter("#!/usr/bin/env"), None);
+        assert_eq!(super::shebang_interpreter("puts hi"), None);
     }
 
     /// A shebang outranks a version guard, and a directive outranks the

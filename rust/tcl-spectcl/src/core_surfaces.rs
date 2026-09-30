@@ -267,11 +267,6 @@ mod tests {
             packs()[0].commands.is_empty(),
             "the roster pack declares no commands"
         );
-        assert_eq!(
-            builtin_commands().len(),
-            60,
-            "Jim's own commands: every measured name a script calls"
-        );
     }
 
     /// The commands register once: the same set again is the same

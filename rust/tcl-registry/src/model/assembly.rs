@@ -216,17 +216,19 @@ impl ContextRegistry {
             name.strip_prefix("::")
                 .and_then(|bare| self.entries.get(bare))
         })?;
-        let query = self.context.authoring_query();
-        // A query with one core point ranks every admitted spec alike; with
-        // several, a spec from a nearer point (a document's own family over
-        // its ancestry anchor) wins before breadth is compared, the order
+        // A name with one candidate has nothing to rank. A query with one core
+        // point ranks every admitted spec alike; with several, a spec from a
+        // nearer point (a document's own family over its ancestry anchor)
+        // wins before breadth is compared, the order
         // `CommandRegistry::get_for_surface` selects in.
+        let ranking_query = (candidates.len() > 1)
+            .then(|| self.context.authoring_query())
+            .filter(|query| query.core.len() > 1);
         let nearness = |entry: &SpecEntry| -> usize {
-            if query.core.len() < 2 {
-                return 0;
-            }
-            entry.spec.surface.map_or(usize::MAX, |rows| {
-                surface_nearness(rows, &query).unwrap_or(usize::MAX)
+            ranking_query.map_or(0, |query| {
+                entry.spec.surface.map_or(usize::MAX, |rows| {
+                    surface_nearness(rows, &query).unwrap_or(usize::MAX)
+                })
             })
         };
         let winner = candidates

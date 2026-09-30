@@ -319,11 +319,11 @@ pub fn core_surface_generation() -> u64 {
         .generation
 }
 
-/// The registered specs that have a core row for `family`.
-fn core_surface_specs_for(family: Family) -> Vec<&'static CommandSpec> {
-    CORE_SURFACE
-        .read()
-        .unwrap_or_else(PoisonError::into_inner)
+/// The registered generation and the specs that have a core row for `family`,
+/// read under one lock so the pair describes one registered set.
+fn core_surface_for(family: Family) -> (u64, Vec<&'static CommandSpec>) {
+    let guard = CORE_SURFACE.read().unwrap_or_else(PoisonError::into_inner);
+    let specs = guard
         .specs
         .iter()
         .copied()
@@ -333,7 +333,8 @@ fn core_surface_specs_for(family: Family) -> Vec<&'static CommandSpec> {
                     .any(|row| row.provider == SpecProvider::Core(family))
             })
         })
-        .collect()
+        .collect();
+    (guard.generation, specs)
 }
 
 /// The identity of one core-surface store: the `(profile, overlay)` store it
@@ -344,8 +345,13 @@ static CORE_SURFACE_REGISTRIES: OnceLock<Mutex<FxHashMap<CoreSurfaceKey, Arc<Com
     OnceLock::new();
 
 /// `base` — the `(profile, overlay)` store — with `family`'s registered
-/// core-surface specs indexed over it, or `base` itself when the family has
-/// none.
+/// core-surface specs indexed beneath its pack overlay, or `base` itself when
+/// the family has none.
+///
+/// The derived store is built from the profile's un-overlaid store, with the
+/// specs and then the overlay indexed over it, so a pack's row for a name the
+/// family also owns ranks after the compiled-in row on a registration-order
+/// tie.
 ///
 /// Cached on the store's identity and the registered generation, so every
 /// document of one family shares one store, and a set registered after a
@@ -358,11 +364,17 @@ pub(crate) fn registry_with_core_surface(
     overlay: u64,
     family: Family,
 ) -> Arc<CommandRegistry> {
-    let generation = core_surface_generation();
-    let specs = core_surface_specs_for(family);
+    let (generation, specs) = core_surface_for(family);
     if specs.is_empty() {
         return base;
     }
+    // Fetched before the cache lock is taken, so this never holds it while
+    // reaching for the profile cache's.
+    let unoverlaid = if overlay == 0 {
+        Arc::clone(&base)
+    } else {
+        registry_handle_for_profile(profile)
+    };
     let map = CORE_SURFACE_REGISTRIES.get_or_init(|| Mutex::new(FxHashMap::default()));
     let key: CoreSurfaceKey = (profile.name, overlay, family, generation);
     let mut guard = map.lock().expect("core surface registry cache mutex");
@@ -374,7 +386,7 @@ pub(crate) fn registry_with_core_surface(
             held_generation == generation && (held_overlay == 0 || held_overlay == overlay)
         });
     }
-    let derived = Arc::new(base.with_core_surface(&specs));
+    let derived = Arc::new(unoverlaid.with_core_surface(&specs, &base));
     guard.insert(key, Arc::clone(&derived));
     derived
 }
@@ -513,6 +525,53 @@ mod tests {
             jim.commands().command_names().count(),
             plain.commands().command_names().count() + 1,
             "one registered name more than the plain store"
+        );
+    }
+
+    /// A pack's row for a name the family's own surface also carries wins
+    /// where registration order decides, as a pack's row wins over the
+    /// shipped data it shadows: the compiled-in row is indexed beneath the
+    /// overlay, not after it.
+    ///
+    /// Built from the handles directly: the overlay table is swept by tests
+    /// that flood it, so a look-up after the install could miss.
+    #[test]
+    fn a_pack_row_outranks_the_core_surface_row_it_ties_with() {
+        use tcl_dialect::model::SurfaceQuery;
+        const OVERLAY: u64 = 0x00A8_0001;
+        let compiled_in = probe_specs()[0];
+        register_core_surface_specs(probe_specs());
+        let pack_row: &'static CommandSpec = Box::leak(Box::new(CommandSpec {
+            name: PROBE_NAME,
+            surface: Some(JIM_ONLY),
+            ..CommandSpec::DEFAULT
+        }));
+        let profile = DialectProfile::plain_tcl();
+        let overlaid = registry_for_profile_with_overlay(profile, OVERLAY, |registry| {
+            registry.insert_static(pack_row);
+        });
+        let jim = SurfaceQuery::core(Family::Jim, "0.84");
+
+        let with_pack = registry_with_core_surface(overlaid, profile, OVERLAY, Family::Jim);
+        let winner = with_pack.get_for_surface(PROBE_NAME, Some(jim));
+        assert!(winner.is_some_and(|spec| std::ptr::eq(spec, pack_row)));
+        assert!(
+            with_pack
+                .get(PROBE_NAME)
+                .is_some_and(|spec| std::ptr::eq(spec, pack_row)),
+            "a dialect-blind lookup answers with the pack row too"
+        );
+
+        let plain = registry_with_core_surface(
+            registry_handle_for_profile(profile),
+            profile,
+            0,
+            Family::Jim,
+        );
+        let winner = plain.get_for_surface(PROBE_NAME, Some(jim));
+        assert!(
+            winner.is_some_and(|spec| std::ptr::eq(spec, compiled_in)),
+            "without the overlay the compiled-in row answers"
         );
     }
 

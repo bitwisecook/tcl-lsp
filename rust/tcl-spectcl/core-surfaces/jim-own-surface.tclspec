@@ -358,11 +358,21 @@ speclib jim-own-surface 2.0 {
         }
     }
 
+    # One word or three (`command -automap prefix`), never two. An arity is a
+    # range, so the two shapes are the `refine` rows.
     command ensemble {
         available {jim 0.82-}
         arity 1..3
         defines_command_at 0
         arg 0 -role Name
+        refine plain {
+            arity 1
+            arg 0 -role Name
+        }
+        refine automap {
+            arity 3
+            arg 0 -role Name
+        }
         form Default {ensemble command ?-automap prefix?}
         hover {
             summary {Make command dispatch its first word to a command named prefix followed by that word.}

@@ -1497,29 +1497,36 @@ impl CommandRegistry {
         self.insert_static(Box::leak(Box::new(spec)));
     }
 
-    /// A copy of this registry with `specs` indexed after every other spec
-    /// under their names.
+    /// A copy of this registry with `specs` — a family's own compiled-in
+    /// surface — indexed after every shipped spec under their names, and
+    /// `overlaid`'s authored overlay indexed after them.
     ///
-    /// The copy shares every `&'static CommandSpec` with the original and
-    /// records nothing as an authored overlay: `specs` are a family's own
-    /// compiled-in surface, not a pack's contribution. Landing last makes a
-    /// dialect-blind [`Self::get`] answer with the family's own row, which is
-    /// what a registry assembled for that family's documents wants; every
-    /// availability-aware query ranks by the query's core points and is
-    /// unaffected by registration order.
+    /// `self` is the store before any pack overlay and `overlaid` is that
+    /// store with the overlay installed (the same store when there is none).
+    /// The compiled-in specs are not a pack's contribution, so a pack's row
+    /// for the same name outranks them where registration order breaks a
+    /// tie, as it outranks the shipped data it shadows. The copy shares every
+    /// `&'static CommandSpec` with its sources, records only the overlay's
+    /// specs as authored, and takes every other field from `overlaid`.
+    /// Availability-aware queries rank by the query's core points before
+    /// registration order is consulted.
     #[must_use]
-    pub(crate) fn with_core_surface(&self, specs: &[&'static CommandSpec]) -> Self {
+    pub(crate) fn with_core_surface(
+        &self,
+        specs: &[&'static CommandSpec],
+        overlaid: &Self,
+    ) -> Self {
         let mut by_name = self.by_name.clone();
-        for spec in specs {
+        for spec in specs.iter().chain(&overlaid.overlay_specs) {
             by_name.entry(spec.name).or_default().push(spec);
         }
         Self {
             by_name,
-            overlay_specs: self.overlay_specs.clone(),
-            loaded_layers: self.loaded_layers.clone(),
-            profile: self.profile,
-            ambient_packages: self.ambient_packages.clone(),
-            document_grammar: self.document_grammar,
+            overlay_specs: overlaid.overlay_specs.clone(),
+            loaded_layers: overlaid.loaded_layers.clone(),
+            profile: overlaid.profile,
+            ambient_packages: overlaid.ambient_packages.clone(),
+            document_grammar: overlaid.document_grammar,
             effective_semantics: OnceLock::new(),
         }
     }
@@ -2126,7 +2133,10 @@ impl CommandRegistry {
         // Breadth only breaks a tie between two scoped candidates. Most names
         // have one visible spec, so calculating it before a tie is known
         // repeatedly walks their authored availability windows for no effect.
+        // The best candidate's nearness is held for the same reason: it is
+        // compared against every later candidate.
         let mut best_breadth: Option<u32> = None;
+        let mut best_nearness: Option<usize> = None;
         // Nearness only distinguishes candidates when the query has more
         // than one core point; with one, every admitted row ranks `0`.
         let nearness_query = dialect.filter(|query| query.core.len() > 1);
@@ -2148,28 +2158,36 @@ impl CommandRegistry {
                 (None, Some(_)) => {
                     best = Some((index, spec));
                     best_breadth = None;
+                    best_nearness = None;
                 }
                 (Some(_), None) => {}
                 (None, None) => {
                     // Equal catch-all scopes still use last registration.
                     best = Some((index, spec));
                 }
-                (Some(best_rows), Some(rows)) => match nearness(rows).cmp(&nearness(best_rows)) {
-                    Ordering::Less => {
-                        best = Some((index, spec));
-                        best_breadth = None;
-                    }
-                    Ordering::Greater => {}
-                    Ordering::Equal => {
-                        let old_breadth =
-                            *best_breadth.get_or_insert_with(|| surface_breadth(best_rows));
-                        let breadth = surface_breadth(rows);
-                        if breadth < old_breadth || (breadth == old_breadth && index > best_index) {
+                (Some(best_rows), Some(rows)) => {
+                    let held = *best_nearness.get_or_insert_with(|| nearness(best_rows));
+                    let candidate = nearness(rows);
+                    match candidate.cmp(&held) {
+                        Ordering::Less => {
                             best = Some((index, spec));
-                            best_breadth = Some(breadth);
+                            best_breadth = None;
+                            best_nearness = Some(candidate);
+                        }
+                        Ordering::Greater => {}
+                        Ordering::Equal => {
+                            let old_breadth =
+                                *best_breadth.get_or_insert_with(|| surface_breadth(best_rows));
+                            let breadth = surface_breadth(rows);
+                            if breadth < old_breadth
+                                || (breadth == old_breadth && index > best_index)
+                            {
+                                best = Some((index, spec));
+                                best_breadth = Some(breadth);
+                            }
                         }
                     }
-                },
+                }
             }
         }
         best.map(|(_, spec)| spec)

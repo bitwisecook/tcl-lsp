@@ -796,7 +796,13 @@ impl ResolvedContext {
     /// `expr`, and its required package is in this document's world.
     #[must_use]
     pub fn spec_available(&self, spec: &CommandSpec) -> bool {
-        spec.supports_dialect(Some(self.authoring_query()))
+        self.spec_available_under(spec, self.authoring_query())
+    }
+
+    /// [`Self::spec_available`] for a caller that already holds the
+    /// authoring query.
+    fn spec_available_under(&self, spec: &CommandSpec, query: SurfaceQuery<'_>) -> bool {
+        spec.supports_dialect(Some(query))
             && (self.operator_heads_are_commands()
                 || !spec.traits.contains(Traits::OPERATOR_COMMAND))
             && self.required_package_available(spec.required_package)
@@ -811,14 +817,15 @@ impl ResolvedContext {
         registry: &CommandRegistry,
         name: &str,
     ) -> Option<&'static CommandSpec> {
-        registry
-            .get_for_surface(name, Some(self.authoring_query()))
-            .filter(|spec| self.spec_available(spec) && self.roster_admits(name, spec))
+        let query = self.authoring_query();
+        registry.get_for_surface(name, Some(query)).filter(|spec| {
+            self.spec_available_under(spec, query) && self.roster_admits(name, spec, &query)
+        })
     }
 
-    /// The enumerated half of inherit-then-override (design **Q6**) for one
-    /// spec: a spec that reaches this document only through an ancestor's
-    /// core row survives when that ancestor's roster lists the name.
+    /// The enumerated half of inherit-then-override for one spec: a spec
+    /// that reaches this document only through an ancestor's core row
+    /// survives when that ancestor's roster lists the name.
     ///
     /// The assembled generation applies the roster when it admits a spec
     /// (`ContextRegistry::assemble`); a query over a store that is not that
@@ -826,14 +833,13 @@ impl ResolvedContext {
     /// it here, so both answer alike: a `jim` document has no `coroutine`.
     /// A spec with a row of the document's own family, or a package row, or
     /// no row at all, is not the roster's to filter.
-    fn roster_admits(&self, name: &str, spec: &CommandSpec) -> bool {
+    fn roster_admits(&self, name: &str, spec: &CommandSpec, query: &SurfaceQuery<'_>) -> bool {
         let Some(rows) = spec.surface else {
             return true;
         };
-        let query = self.authoring_query();
         let mut any_row_reaches_here = false;
         for row in rows {
-            if !surface_admits(std::slice::from_ref(row), Some(&query)) {
+            if !surface_admits(std::slice::from_ref(row), Some(query)) {
                 continue;
             }
             any_row_reaches_here = true;
@@ -1295,11 +1301,10 @@ fn compute_authoring_scope(context: &ResolvedContext) -> AuthoringScope {
             // `jim`: its own family first, then the 8.6 command-set anchor
             // (`jim_tcl.txt`). The anchor is how a `jim` document resolves
             // `set`, `if`, `proc`, `lassign`, `dict` and `lmap` from the
-            // shared core specs instead of from 76 hand-re-authored
-            // copies; the own-family point is how a row that says
-            // `available {jim 0.81-}` is admitted, and it is asked first,
-            // so such a row shadows an inherited Tcl row for the same
-            // command.
+            // shared core specs; the own-family point is how a row that
+            // says `available {jim 0.81-}` is admitted, and it is asked
+            // first, so such a row shadows an inherited Tcl row for the
+            // same command.
             Family::Jim => {
                 scope.core.push((
                     Family::Jim,

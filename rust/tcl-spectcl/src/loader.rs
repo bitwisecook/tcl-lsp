@@ -9116,6 +9116,36 @@ mod tests {
         );
     }
 
+    /// `selecting_identity` rows carry the contributed language ids that
+    /// select the environment, and an unknown id is dropped with a notice.
+    #[test]
+    fn selecting_identity_rows_carry_contributed_language_ids() {
+        let pack = evaluate_pack(
+            "speclib probe 2.0 {\n environment probe-env {\n core tcl 8.6\n \
+             editor_identity tcl-microchip\n selecting_identity tcl-libero\n \
+             selecting_identity klingon\n }\n}",
+        );
+        let environment = &pack.environments[0];
+        let carried: Vec<&str> = environment
+            .selecting_identities
+            .iter()
+            .map(|identity| identity.as_str())
+            .collect();
+        assert_eq!(carried, ["tcl-libero"]);
+        let definition = environment.to_definition(PackEnvironmentTier::Workspace);
+        assert_eq!(
+            definition.selecting_identities,
+            environment.selecting_identities
+        );
+        assert!(
+            pack.notices
+                .iter()
+                .any(|n| n.message.contains("`selecting_identity klingon`")),
+            "{:?}",
+            pack.notices
+        );
+    }
+
     /// A `dialect` block parses its ladder and its axes against the closed
     /// vocabulary.
     #[test]

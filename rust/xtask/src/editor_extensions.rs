@@ -269,8 +269,8 @@ fn scope_shape(environment: &EnvironmentDefinition) -> ScopeShape {
 /// `tcl-apl` is the iApp presentation language: the `.apl` files and the
 /// `presentation` file of an iApp template. It has its own editor language
 /// (grammar, language configuration and token scopes) but no dialect of its
-/// own: the language-id table sends it to the environment
-/// [`EditorLanguageIdentityId::SELECTING`] names.
+/// own: the environment that lists it in
+/// [`EnvironmentDefinition::selecting_identities`] is the one it selects.
 struct ExtraLanguage {
     id: &'static str,
     aliases: &'static [&'static str],
@@ -349,8 +349,27 @@ fn language_of(environment: &EnvironmentDefinition, id: &str) -> Language {
     }
 }
 
+/// Every language id an environment lists as selecting it, paired with the
+/// canonical id of that environment, in language-id order.
+fn selecting_language_ids() -> Vec<(String, String)> {
+    let mut rows: Vec<(String, String)> = EnvironmentRegistry::compiled()
+        .definitions()
+        .iter()
+        .flat_map(|environment| {
+            environment
+                .selecting_identities
+                .iter()
+                .map(|identity| (identity.as_str().to_owned(), environment.id.to_string()))
+        })
+        .collect();
+    rows.sort();
+    rows
+}
+
 fn extra_language(extra: &ExtraLanguage) -> Result<Language> {
-    let dialect = EditorLanguageIdentityId::selected_environment(extra.id)
+    let (_, dialect) = selecting_language_ids()
+        .into_iter()
+        .find(|(id, _)| id == extra.id)
         .with_context(|| format!("{} is not a selecting language id", extra.id))?;
     Ok(Language {
         id: extra.id.to_owned(),
@@ -359,7 +378,7 @@ fn extra_language(extra: &ExtraLanguage) -> Result<Language> {
         filenames: strings(extra.filenames),
         fold_filename_case: false,
         configuration: Some(extra.configuration.to_owned()),
-        dialect: Some(dialect.to_owned()),
+        dialect: Some(dialect),
         shebang_words: Vec::new(),
         is_extra: true,
         scopes: extra.scopes,
@@ -837,21 +856,18 @@ fn render_language_ids(original: &str, langs: &[Language]) -> Result<String> {
 
 /// The language ids that select an environment: every environment's editor
 /// identity, then the spellings a client may send that are not an
-/// environment's identity ([`EditorLanguageIdentityId::SELECTING`]).
+/// environment's identity ([`EnvironmentDefinition::selecting_identities`]).
 fn language_id_dialects(langs: &[Language]) -> Vec<(String, String)> {
+    let selecting = selecting_language_ids();
     let mut rows: Vec<(String, String)> = langs
         .iter()
         .filter_map(|lang| {
             let dialect = lang.dialect.as_ref()?;
-            let selecting = EditorLanguageIdentityId::selected_environment(&lang.id).is_some();
-            (!selecting).then(|| (lang.id.clone(), dialect.clone()))
+            let is_selecting = selecting.iter().any(|(id, _)| *id == lang.id);
+            (!is_selecting).then(|| (lang.id.clone(), dialect.clone()))
         })
         .collect();
-    rows.extend(
-        EditorLanguageIdentityId::SELECTING
-            .iter()
-            .map(|&(id, environment)| (id.to_owned(), environment.to_owned())),
-    );
+    rows.extend(selecting);
     rows
 }
 
@@ -1481,11 +1497,10 @@ mod tests {
     #[test]
     fn the_selecting_spellings_join_the_identities_in_the_language_id_table() {
         let rows = language_id_dialects(&languages().unwrap());
-        for &(id, environment) in EditorLanguageIdentityId::SELECTING {
-            assert!(
-                rows.contains(&(id.to_owned(), environment.to_owned())),
-                "{id}"
-            );
+        let selecting = selecting_language_ids();
+        assert!(!selecting.is_empty());
+        for row in &selecting {
+            assert!(rows.contains(row), "{row:?}");
         }
         assert_eq!(
             rows.iter().filter(|(id, _)| id == "tcl-apl").count(),

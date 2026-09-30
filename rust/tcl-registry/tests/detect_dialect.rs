@@ -135,11 +135,13 @@ fn directive_resolves_environment_names_and_aliases() {
     assert_eq!(detect("# tcl-dialect: TK\nset x 1\n"), None);
 }
 
-/// A pack-declared environment resolves through the directive once the
-/// pack registers it — the same live registry the extension routing and
-/// `setDialect` read — and stops resolving once it retires.
+/// A pack-declared environment resolves through the directive and its
+/// shebang words once the pack registers it — the same live registry the
+/// extension routing and `setDialect` read — and stops resolving once it
+/// retires. A word written with capitals still selects: the shebang line is
+/// compared without regard to case.
 #[test]
-fn directive_resolves_a_registered_environment() {
+fn a_registered_environment_resolves_through_the_directive_and_shebang_tiers() {
     use std::sync::Arc;
     use tcl_dialect::model::{
         BuildProfileId, CoreProfileSelector, DetectionFacts, EnvironmentDefinition, EnvironmentId,
@@ -157,6 +159,7 @@ fn directive_resolves_a_registered_environment() {
         short_name: Arc::from("Probe"),
         kind: EnvironmentKind::Packages,
         editor_identity: None,
+        selecting_identities: Vec::new(),
         core: Some(CoreProfileSelector {
             family: Family::Tcl,
             default_release: Release::TCL_8_6,
@@ -171,10 +174,14 @@ fn directive_resolves_a_registered_environment() {
             strict_ascii: false,
             version_ceiling: None,
         },
-        server_detection: DetectionFacts::default(),
+        server_detection: DetectionFacts {
+            shebang_words: vec![Arc::from("ProbeSh")],
+            ..DetectionFacts::default()
+        },
         help_terms: Vec::new(),
         provenance: Provenance::User,
     };
+    let shebang = "#!/usr/bin/env probesh\nset x 1\n";
     let outcome = sync_environment_sources(vec![EnvironmentSource {
         id: "test:directive-probe".to_owned(),
         definitions: vec![definition],
@@ -183,9 +190,11 @@ fn directive_resolves_a_registered_environment() {
     assert!(outcome.rejected.is_empty(), "{:?}", outcome.rejected);
     assert_eq!(detect(source), Some("directive-probe-shell"));
     assert_eq!(detect(alias), Some("directive-probe-shell"));
+    assert_eq!(detect(shebang), Some("directive-probe-shell"));
 
     let _ = sync_environment_sources(Vec::new());
     assert_eq!(detect(source), None, "a retired environment abstains again");
+    assert_eq!(detect(shebang), None);
 }
 
 #[test]

@@ -36410,9 +36410,10 @@ mod tests {
         }
     }
 
-    /// Every selectable environment answers to its canonical id and to its
-    /// contributed editor identity, and to nothing that is only an alias — so
-    /// an environment added later needs no table here.
+    /// Every selectable environment answers to its canonical id, its
+    /// contributed editor identity and the language ids it lists as selecting
+    /// it, and to nothing that is only an alias — so an environment added
+    /// later needs no table here.
     #[test]
     fn dialect_from_language_id_covers_every_selectable_environment() {
         for environment in tcl_registry::model::selectable_environments() {
@@ -36430,13 +36431,22 @@ mod tests {
                     identity.as_str(),
                 );
             }
+            for identity in &environment.selecting_identities {
+                assert_eq!(
+                    Backend::dialect_from_language_id(identity.as_str()).map(LanguageDialect::name),
+                    Some(id),
+                    "selecting language id `{}` must resolve to `{id}`",
+                    identity.as_str(),
+                );
+            }
             for alias in &environment.aliases {
                 let is_identity = environment
                     .editor_identity
                     .is_some_and(|identity| identity.as_str() == alias.as_ref());
-                let is_selecting =
-                    tcl_dialect::model::EditorLanguageIdentityId::selected_environment(alias)
-                        .is_some();
+                let is_selecting = environment
+                    .selecting_identities
+                    .iter()
+                    .any(|identity| identity.as_str() == alias.as_ref());
                 if !is_identity && !is_selecting {
                     assert!(
                         Backend::dialect_from_language_id(alias).is_none(),

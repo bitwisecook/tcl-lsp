@@ -33,6 +33,7 @@ environment microchip-libero-eda-tcl {
     core            tcl 8.5
     version_ceiling 8.5
     editor_identity tcl-microchip
+    selecting_identity tcl-libero
     ambient         libero keyed ToolVersion
     ambient         sdc keyed SdcVersion
     ambient         upf keyed UpfVersion

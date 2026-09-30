@@ -108,10 +108,13 @@ set x 1
 
 ## Shebang detection
 
-The first line only is checked, and only when it starts with `#!`. The line is
-lower-cased first, so matching is case-insensitive. Each word on the line is
-looked up, at word boundaries, against every environment's `shebang_words` in
-the live registry; the first environment that owns the word wins.
+The first line only is checked, and only when it starts with `#!`. The
+interpreter is the basename of the line's first token, or, when that is `env`,
+of the first token after it that is neither a flag (`-S`, `-i`) nor a
+`NAME=value` assignment. It is compared, ignoring ASCII case, with the whole
+of each environment's `shebang_words` in the live registry, so a directory
+(`/home/wish/bin/jimsh`), an argument or a longer name (`jimshell`) selects
+nothing. The registry refuses two environments that claim one word.
 
 - `expect` → `expect` (`#!/usr/bin/expect` and `#!/usr/bin/env expect`).
 - `jimsh` → `jim`.
@@ -202,13 +205,14 @@ Dialect is re-evaluated when:
 `Backend::dialect_from_language_id` treats the bare `tcl` id as the
 detection trigger (the content tiers run, and `DEFAULT_ENVIRONMENT_ID`
 applies when none fires) and resolves every other id through
-`tcl_registry::model::resolve_language_id`: first the
-`EditorLanguageIdentityId::SELECTING` table (`tcl-apl` → `f5-iapps`,
-`tcl-bpf` → `bpf`, `tcl-libero` → `microchip-libero-eda-tcl`, `tcl-spec` →
-`spectcl`), then `resolve_known_environment` keeping only a *contributed
-identity* — an environment's canonical id or its declared editor id, never
-a plain alias such as `irules`. Each row's alternatives land on the same
-dialect.
+`tcl_registry::model::resolve_language_id`: `resolve_known_environment`
+keeping only a *contributed identity* — an environment's canonical id, its
+declared editor id, or a further language id it lists in
+`selecting_identities` (`tcl-apl` → `f5-iapps`, `tcl-bpf` → `bpf`,
+`tcl-libero` → `microchip-libero-eda-tcl`, `tcl-spec` → `spectcl`), never a
+plain alias such as `irules`. The registry index holds the selecting
+identities as its last name tier and rejects one another environment already
+owns. Each row's alternatives land on the same dialect.
 
 | Language ID | Dialect |
 |-------------|---------|

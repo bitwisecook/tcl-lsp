@@ -701,6 +701,7 @@ mod tests {
             short_name: arc(id),
             kind: EnvironmentKind::Packages,
             editor_identity: None,
+            selecting_identities: Vec::new(),
             core: Some(CoreProfileSelector {
                 family: Family::Tcl,
                 default_release: Release::TCL_8_6,
@@ -763,6 +764,65 @@ mod tests {
                 .iter()
                 .any(|claim| claim.extension.as_ref() == "regprobe")
         );
+    }
+
+    /// A registration whose names collide with the live registry's claims
+    /// registers nothing: an alias that spells a package another environment
+    /// places, a shebang word another environment claims, and a language id
+    /// another environment selects.
+    #[test]
+    fn the_live_registry_refuses_the_claims_it_cannot_resolve_one_way() {
+        use tcl_dialect::model::EditorLanguageIdentityId;
+        let claiming = |id: &str, edit: fn(&mut EnvironmentDefinition)| {
+            let mut claimant = definition(id, Provenance::User);
+            edit(&mut claimant);
+            register_environments(vec![claimant], Vec::new())
+        };
+        let alias_package = claiming("alias-package-env", |claimant| {
+            claimant.aliases = vec![arc("sdc")];
+        });
+        assert!(
+            matches!(
+                alias_package,
+                Err(EnvironmentRegistrationError::Collision(
+                    EnvironmentRegistryError::AliasSpellsPackage { ref alias, .. }
+                )) if alias == "sdc"
+            ),
+            "{alias_package:?}"
+        );
+        let shebang = claiming("shebang-word-env", |claimant| {
+            claimant.server_detection.shebang_words = vec![arc("JIMSH")];
+        });
+        assert!(
+            matches!(
+                shebang,
+                Err(EnvironmentRegistrationError::Collision(
+                    EnvironmentRegistryError::DuplicateShebangWord(ref word)
+                )) if word == "JIMSH"
+            ),
+            "{shebang:?}"
+        );
+        let selecting = claiming("selecting-identity-env", |claimant| {
+            claimant.selecting_identities = EditorLanguageIdentityId::new("tcl-bpf")
+                .into_iter()
+                .collect();
+        });
+        assert!(
+            matches!(
+                selecting,
+                Err(EnvironmentRegistrationError::Collision(
+                    EnvironmentRegistryError::DuplicateSelectingIdentity(ref id)
+                )) if id == "tcl-bpf"
+            ),
+            "{selecting:?}"
+        );
+        for id in [
+            "alias-package-env",
+            "shebang-word-env",
+            "selecting-identity-env",
+        ] {
+            assert!(!is_known_environment_name(id), "{id} is not registered");
+        }
     }
 
     /// The live selectable set reads the registry as it stands: a registered

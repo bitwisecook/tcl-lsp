@@ -75,9 +75,17 @@ impl std::fmt::Display for EnvironmentId {
     }
 }
 
-/// A member of the FIXED, contributed editor language identity set: the
-/// language ids the editor extensions contribute. Dynamic server
-/// environments *select among* these; they can never mint a new one.
+/// A member of the FIXED, contributed language identity set: the language ids
+/// a client sends. Dynamic server environments *select among* these; they can
+/// never mint a new one.
+///
+/// Most are the language ids the editor extensions contribute, each the
+/// [`EnvironmentDefinition::editor_identity`] of the environment whose
+/// documents open under it. The rest (`tcl-apl`, `tcl-bpf`, `tcl-libero`,
+/// `tcl-spec`) are spellings a client may send that name an environment
+/// without being the identity a generator emits a language mode for; an
+/// environment lists those in
+/// [`EnvironmentDefinition::selecting_identities`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct EditorLanguageIdentityId(&'static str);
 
@@ -105,30 +113,10 @@ impl EditorLanguageIdentityId {
         "tcl91",
         "tcl-xilinx",
         "tcl-apl",
+        "tcl-bpf",
+        "tcl-libero",
+        "tcl-spec",
     ];
-
-    /// Language ids a client sends that select an environment without being
-    /// its [`EnvironmentDefinition::editor_identity`], the identity a
-    /// generator emits a language mode for. Each pairs the language id with
-    /// the canonical id of the environment it selects: an APL file is an iApp
-    /// presentation sublanguage, and the `tcl-…` spellings name `bpf`,
-    /// Libero and `SpecTcl`.
-    pub const SELECTING: &'static [(&'static str, &'static str)] = &[
-        ("tcl-apl", "f5-iapps"),
-        ("tcl-bpf", "bpf"),
-        ("tcl-libero", "microchip-libero-eda-tcl"),
-        ("tcl-spec", "spectcl"),
-    ];
-
-    /// The canonical id of the environment the language id `language_id`
-    /// selects through [`Self::SELECTING`], when it is one of those.
-    #[must_use]
-    pub fn selected_environment(language_id: &str) -> Option<&'static str> {
-        Self::SELECTING
-            .iter()
-            .find(|&&(spelling, _)| spelling == language_id)
-            .map(|&(_, environment)| environment)
-    }
 
     /// The identity for `id`, or `None` when no editor contributes it —
     /// this constructor is the only way to obtain one, which is the whole
@@ -388,6 +376,10 @@ pub struct EnvironmentDefinition {
     /// The contributed editor identity this environment's documents open
     /// under, when one is dedicated.
     pub editor_identity: Option<EditorLanguageIdentityId>,
+    /// Further contributed language ids that select this environment
+    /// without being its [`Self::editor_identity`] (an APL file is an iApp
+    /// presentation sublanguage; `tcl-bpf` names `bpf`).
+    pub selecting_identities: Vec<EditorLanguageIdentityId>,
     /// The core selector — `None` only for an identity-only environment
     /// that routes outside the Tcl language pipeline entirely
     /// (`f5-bigip`, which keeps its detection identity while leaving the
@@ -433,13 +425,9 @@ impl EnvironmentDefinition {
         if self.kind == EnvironmentKind::Language {
             return self.display_name.to_string();
         }
-        let base = self.core.map(|core| {
-            let family = match core.family {
-                Family::Tcl => "Tcl",
-                other => other.name(),
-            };
-            format!("{family} {}", core.default_release)
-        });
+        let base = self
+            .core
+            .map(|core| format!("{} {}", core.family.display_name(), core.default_release));
         let packages: Vec<&str> = self
             .expected_packages
             .iter()
@@ -529,6 +517,23 @@ pub enum EnvironmentRegistryError {
     /// Two definitions select one editor identity (a same-precedence
     /// collision).
     DuplicateEditorIdentity(String),
+    /// A language id selects one environment while another environment
+    /// already owns the spelling as its id, alias or editor identity, or
+    /// selects it too.
+    DuplicateSelectingIdentity(String),
+    /// An alias equals a package another definition places, so a name read
+    /// as either would resolve two ways.
+    AliasSpellsPackage {
+        /// The offending alias.
+        alias: String,
+        /// The canonical id of the definition the alias belongs to.
+        claimed_by: String,
+        /// The canonical id of the other definition that places the package.
+        placed_by: String,
+    },
+    /// Two definitions claim one shebang interpreter word, which would make
+    /// the shebang tier's answer depend on registration order.
+    DuplicateShebangWord(String),
     /// A non-built-in definition claims a compiled (reserved) name.
     ReservedName {
         /// The reserved spelling.
@@ -552,6 +557,26 @@ impl std::fmt::Display for EnvironmentRegistryError {
             }
             Self::DuplicateEditorIdentity(id) => {
                 write!(f, "two environments select the editor identity `{id}`")
+            }
+            Self::DuplicateSelectingIdentity(id) => {
+                write!(
+                    f,
+                    "the language id `{id}` selects one environment but is already \
+                     another's name, alias or identity"
+                )
+            }
+            Self::AliasSpellsPackage {
+                alias,
+                claimed_by,
+                placed_by,
+            } => {
+                write!(
+                    f,
+                    "alias `{alias}` of `{claimed_by}` is a package `{placed_by}` places"
+                )
+            }
+            Self::DuplicateShebangWord(word) => {
+                write!(f, "two environments claim the shebang word `{word}`")
             }
             Self::ReservedName { name, claimed_by } => {
                 write!(
@@ -614,7 +639,9 @@ impl EnvironmentRegistry {
     /// A typed [`EnvironmentRegistryError`] naming the first collision:
     /// duplicate canonical ids, an alias shadowing any canonical id (the
     /// only shape a flat alias table could cycle through), duplicate
-    /// aliases, duplicate editor identities, or a non-built-in
+    /// aliases, an alias spelling a package another definition places,
+    /// duplicate editor identities, a language id selecting two
+    /// environments, a shebang word claimed twice, or a non-built-in
     /// definition claiming a compiled reserved name.
     pub fn new(
         definitions: Vec<EnvironmentDefinition>,
@@ -771,9 +798,15 @@ fn check_reserved(definitions: &[EnvironmentDefinition]) -> Result<(), Environme
     Ok(())
 }
 
-/// Build the three-tier name index: canonical ids, then aliases, then
-/// editor identities. Within a tier a collision is a typed error; across
-/// tiers the higher tier wins, fixed here at construction.
+/// Build the four-tier name index: canonical ids, then aliases, then editor
+/// identities, then selecting identities. Within a tier a collision is a
+/// typed error; across tiers the higher tier wins, fixed here at
+/// construction, except that a selecting identity another environment already
+/// owns is itself a collision.
+///
+/// Two claims that are not names are checked here too, because the registry
+/// is where every definition meets: an alias never spells a package another
+/// definition places, and a shebang word selects one environment.
 fn build_index(
     definitions: &[Arc<EnvironmentDefinition>],
 ) -> Result<HashMap<Arc<str>, usize>, EnvironmentRegistryError> {
@@ -803,6 +836,7 @@ fn build_index(
             index.insert(Arc::clone(alias), position);
         }
     }
+    check_alias_packages(definitions)?;
     let mut editor_claims: HashMap<&'static str, usize> = HashMap::new();
     for (position, definition) in definitions.iter().enumerate() {
         let Some(identity) = definition.editor_identity else {
@@ -819,7 +853,77 @@ fn build_index(
             .entry(Arc::from(identity.as_str()))
             .or_insert(position);
     }
+    for (position, definition) in definitions.iter().enumerate() {
+        for identity in &definition.selecting_identities {
+            match index.get(identity.as_str()) {
+                // The definition's own alias or editor identity: `tcl-spec`
+                // is both an alias and a selecting identity of `spectcl`.
+                Some(&owner) if owner == position => {}
+                Some(_) => {
+                    return Err(EnvironmentRegistryError::DuplicateSelectingIdentity(
+                        identity.as_str().to_owned(),
+                    ));
+                }
+                None => {
+                    index.insert(Arc::from(identity.as_str()), position);
+                }
+            }
+        }
+    }
+    check_shebang_words(definitions)?;
     Ok(index)
+}
+
+/// Reject an alias that spells a package another definition places, ambient or
+/// hosted, compared ASCII case-insensitively. A definition may alias a package
+/// it places itself (`vivado` is both the Vivado shell's alias and the package
+/// it loads).
+fn check_alias_packages(
+    definitions: &[Arc<EnvironmentDefinition>],
+) -> Result<(), EnvironmentRegistryError> {
+    let mut placed: HashMap<String, Vec<usize>> = HashMap::new();
+    for (position, definition) in definitions.iter().enumerate() {
+        for placement in &definition.expected_packages {
+            placed
+                .entry(placement.package.to_ascii_lowercase())
+                .or_default()
+                .push(position);
+        }
+    }
+    for (position, definition) in definitions.iter().enumerate() {
+        for alias in &definition.aliases {
+            let other = placed
+                .get(&alias.to_ascii_lowercase())
+                .and_then(|owners| owners.iter().find(|&&owner| owner != position));
+            if let Some(&other) = other {
+                return Err(EnvironmentRegistryError::AliasSpellsPackage {
+                    alias: alias.as_ref().to_owned(),
+                    claimed_by: definition.id.as_str().to_owned(),
+                    placed_by: definitions[other].id.as_str().to_owned(),
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Reject a shebang word two definitions claim, compared ASCII
+/// case-insensitively as the shebang tier compares them.
+fn check_shebang_words(
+    definitions: &[Arc<EnvironmentDefinition>],
+) -> Result<(), EnvironmentRegistryError> {
+    let mut claimed: HashMap<String, usize> = HashMap::new();
+    for (position, definition) in definitions.iter().enumerate() {
+        for word in &definition.server_detection.shebang_words {
+            let previous = claimed.insert(word.to_ascii_lowercase(), position);
+            if previous.is_some_and(|owner| owner != position) {
+                return Err(EnvironmentRegistryError::DuplicateShebangWord(
+                    word.as_ref().to_owned(),
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 // The compiled seed set.
@@ -830,6 +934,12 @@ fn arc(text: &str) -> Arc<str> {
 
 fn arcs(items: &[&str]) -> Vec<Arc<str>> {
     items.iter().map(|&item| arc(item)).collect()
+}
+
+fn identities(ids: &[&str]) -> Vec<EditorLanguageIdentityId> {
+    ids.iter()
+        .filter_map(|&id| EditorLanguageIdentityId::new(id))
+        .collect()
 }
 
 fn ver(text: &str) -> Version {
@@ -909,6 +1019,7 @@ fn ladder_environments() -> Vec<EnvironmentDefinition> {
         short_name: arc(&format!("Tcl {release}")),
         kind: EnvironmentKind::Language,
         editor_identity: EditorLanguageIdentityId::new(editor_id),
+        selecting_identities: Vec::new(),
         core: Some(tcl_core(release)),
         targets: tcl_line(release),
         expected_packages: vec![
@@ -964,6 +1075,7 @@ fn plain_tcl_environment() -> EnvironmentDefinition {
         short_name: arc("Tcl"),
         kind: EnvironmentKind::Language,
         editor_identity: EditorLanguageIdentityId::new("tcl"),
+        selecting_identities: Vec::new(),
         core: Some(tcl_core(Release::TCL_9_0)),
         targets: tcl_full_ladder(),
         // The lenient sink declares the same **hosted** Tk placement the
@@ -1018,6 +1130,7 @@ fn tk_environment() -> EnvironmentDefinition {
         short_name: arc("Tk"),
         kind: EnvironmentKind::Packages,
         editor_identity: None,
+        selecting_identities: Vec::new(),
         core: Some(tcl_core(Release::TCL_8_6)),
         targets: tcl_full_ladder(),
         expected_packages: vec![
@@ -1068,6 +1181,7 @@ fn jim_environment() -> EnvironmentDefinition {
         short_name: arc("Jim"),
         kind: EnvironmentKind::Language,
         editor_identity: EditorLanguageIdentityId::new("tcl-jim"),
+        selecting_identities: Vec::new(),
         core: Some(CoreProfileSelector {
             family: Family::Jim,
             default_release: Release::JIM_0_84,
@@ -1093,6 +1207,7 @@ fn irules_environment() -> EnvironmentDefinition {
         short_name: arc("iRules"),
         kind: EnvironmentKind::Language,
         editor_identity: EditorLanguageIdentityId::new("tcl-irule"),
+        selecting_identities: Vec::new(),
         core: Some(CoreProfileSelector {
             family: Family::F5Irules,
             default_release: Release::F5_IRULES_TMM,
@@ -1127,6 +1242,7 @@ fn iapps_environment() -> EnvironmentDefinition {
         short_name: arc("iApps"),
         kind: EnvironmentKind::Language,
         editor_identity: EditorLanguageIdentityId::new("tcl-iapp"),
+        selecting_identities: identities(&["tcl-apl"]),
         // Per measurement (`docs/design/f5/bigip-irule-parser-measurements.md`
         // §4a): the 8.5 baseline hypothesis is falsified — `IAppImplementation`
         // reports patchlevel 8.4.6, fails every 8.5 discriminator, and
@@ -1171,6 +1287,7 @@ fn tmsh_environment() -> EnvironmentDefinition {
         short_name: arc("tmsh"),
         kind: EnvironmentKind::Language,
         editor_identity: EditorLanguageIdentityId::new("tcl-tmsh"),
+        selecting_identities: Vec::new(),
         // CORRECTED by measurement
         // (`docs/design/f5/bigip-irule-parser-measurements.md` §4a): the
         // 8.5/8.5.13 claims are falsified — `TmshCliScript` reports
@@ -1214,6 +1331,7 @@ fn bigip_environment() -> EnvironmentDefinition {
         short_name: arc("BIG-IP"),
         kind: EnvironmentKind::Language,
         editor_identity: EditorLanguageIdentityId::new("tcl-bigip"),
+        selecting_identities: Vec::new(),
         core: None,
         targets: reqs(VersionAxisId::package("f5-bigip-schema"), &["0-"]),
         expected_packages: vec![keyed("f5-bigip-schema", KeyedAxis::BigipVersion)],
@@ -1247,6 +1365,7 @@ fn expect_environment() -> EnvironmentDefinition {
         short_name: arc("Expect"),
         kind: EnvironmentKind::Language,
         editor_identity: EditorLanguageIdentityId::new("tcl-expect"),
+        selecting_identities: Vec::new(),
         core: Some(tcl_core(Release::TCL_8_6)),
         targets: tcl_line(Release::TCL_8_6),
         expected_packages: vec![PackagePlacement {
@@ -1273,6 +1392,7 @@ fn spectcl_environment() -> EnvironmentDefinition {
         short_name: arc("SpecTcl"),
         kind: EnvironmentKind::Language,
         editor_identity: EditorLanguageIdentityId::new("tclspec"),
+        selecting_identities: identities(&["tcl-spec"]),
         core: Some(tcl_core(Release::TCL_9_0)),
         targets: tcl_line(Release::TCL_9_0),
         expected_packages: Vec::new(),
@@ -1301,6 +1421,7 @@ fn sslictcl_environment() -> EnvironmentDefinition {
         short_name: arc("SslicTcl"),
         kind: EnvironmentKind::Language,
         editor_identity: EditorLanguageIdentityId::new("sslictcl"),
+        selecting_identities: Vec::new(),
         core: Some(tcl_core(Release::TCL_9_0)),
         targets: tcl_line(Release::TCL_9_0),
         expected_packages: Vec::new(),
@@ -1330,6 +1451,7 @@ fn bpf_environment() -> EnvironmentDefinition {
         short_name: arc("BPF"),
         kind: EnvironmentKind::Language,
         editor_identity: None,
+        selecting_identities: identities(&["tcl-bpf"]),
         core: Some(tcl_core(Release::TCL_9_0)),
         targets: tcl_line(Release::TCL_9_0),
         // The bpf command surface rides provider declarations in its own
@@ -1469,6 +1591,8 @@ pub struct BundledEnvironmentRow {
     pub aliases: &'static [&'static str],
     /// `editor_identity`, a contributed id.
     pub editor_identity: Option<&'static str>,
+    /// `selecting_identity` rows, contributed ids.
+    pub selecting_identities: &'static [&'static str],
     /// The `core` row.
     pub core: Option<BundledCore>,
     /// `ambient` / `hosted` rows, in declaration order.
@@ -1559,6 +1683,7 @@ impl BundledEnvironmentRow {
             short_name: arc(self.short_name),
             kind: self.kind,
             editor_identity: self.editor_identity.and_then(EditorLanguageIdentityId::new),
+            selecting_identities: identities(self.selecting_identities),
             core,
             targets,
             expected_packages: self
@@ -1615,6 +1740,15 @@ mod tests {
     use super::*;
     use crate::DialectProfile;
     use crate::TclVersion;
+
+    /// A stand-in for a pack-declared environment: `bpf`'s definition under
+    /// `id`, with none of `bpf`'s language-id claims.
+    fn pack_environment(id: &str) -> EnvironmentDefinition {
+        let mut definition = bpf_environment();
+        definition.id = EnvironmentId::new(id);
+        definition.selecting_identities = Vec::new();
+        definition
+    }
 
     /// #2139: one predicate owns the untrusted class, and every variant has
     /// a stated answer.
@@ -1929,20 +2063,33 @@ mod tests {
         assert!(!plain.targets.contains(&v("9.2")));
     }
 
-    /// Each selecting language id names a compiled environment that does not
-    /// own the spelling itself: an environment's own identity and canonical
-    /// id resolve as themselves.
+    /// A selecting language id is contributed, resolves to the environment
+    /// that lists it, and is no other environment's id or editor identity: an
+    /// environment's own identity and canonical id resolve as themselves.
     #[test]
-    fn selecting_language_ids_name_compiled_environments_that_do_not_own_them() {
+    fn selecting_language_ids_resolve_to_the_environment_that_lists_them() {
         let registry = EnvironmentRegistry::compiled();
-        for &(spelling, environment) in EditorLanguageIdentityId::SELECTING {
-            assert!(
-                registry.resolve(environment).is_some(),
-                "`{spelling}` selects `{environment}`"
-            );
+        let mut selecting: Vec<(&str, &str)> = Vec::new();
+        for definition in registry.definitions() {
+            for identity in &definition.selecting_identities {
+                selecting.push((identity.as_str(), definition.id.as_str()));
+            }
+        }
+        selecting.sort_unstable();
+        assert_eq!(
+            selecting,
+            [
+                ("tcl-apl", "f5-iapps"),
+                ("tcl-bpf", "bpf"),
+                ("tcl-libero", "microchip-libero-eda-tcl"),
+                ("tcl-spec", "spectcl"),
+            ]
+        );
+        for (spelling, owner) in selecting {
             assert_eq!(
-                EditorLanguageIdentityId::selected_environment(spelling),
-                Some(environment)
+                registry.resolve(spelling).map(|found| found.id.to_string()),
+                Some(owner.to_owned()),
+                "`{spelling}` selects `{owner}`"
             );
             assert!(
                 !registry.definitions().iter().any(|definition| {
@@ -1954,10 +2101,6 @@ mod tests {
                 "`{spelling}` is no environment's own id or identity"
             );
         }
-        assert_eq!(
-            EditorLanguageIdentityId::selected_environment("tcl-irule"),
-            None
-        );
     }
 
     #[test]
@@ -2105,50 +2248,65 @@ mod tests {
     }
 
     /// An alias selects an environment; it never spells a package another
-    /// environment places, so a name read as either resolves one way.
-    /// (An alias may equal a package its own environment places — the
-    /// tool's shell and the tool's package share the tool's name.)
+    /// environment places, ambient or hosted, in any case, so a name read as
+    /// either resolves one way. An alias may equal a package its own
+    /// environment places: the tool's shell and the tool's package share the
+    /// tool's name.
     #[test]
     fn an_alias_never_spells_another_environments_package() {
-        let registry = EnvironmentRegistry::compiled();
-        for definition in registry.definitions() {
-            for alias in &definition.aliases {
-                for other in registry.definitions() {
-                    if other.id == definition.id {
-                        continue;
-                    }
+        let placed_by_other = |alias: &str| {
+            let mut definitions = compiled_definitions();
+            let mut extra = pack_environment("runtime-pack-env");
+            extra.provenance = Provenance::WorkspaceTrusted;
+            extra.aliases = arcs(&[alias]);
+            definitions.push(extra);
+            EnvironmentRegistry::new(definitions, 1).err()
+        };
+        // `sdc` is ambient in the Vivado shell; `TK` is hosted by the ladder.
+        for (alias, package) in [("sdc", "sdc"), ("TK", "Tk")] {
+            match placed_by_other(alias) {
+                Some(EnvironmentRegistryError::AliasSpellsPackage {
+                    alias: named,
+                    claimed_by,
+                    placed_by,
+                }) => {
+                    assert_eq!(named, alias);
+                    assert_eq!(claimed_by, "runtime-pack-env");
                     assert!(
-                        !other
-                            .expected_packages
-                            .iter()
-                            .any(|placement| placement.package.eq_ignore_ascii_case(alias)),
-                        "alias `{alias}` of `{}` is a package `{}` places",
-                        definition.id,
-                        other.id
+                        registry_places(&placed_by, package),
+                        "`{placed_by}` places `{package}`"
                     );
                 }
+                other => panic!("`{alias}` must be rejected as a package, got {other:?}"),
             }
         }
+        assert_eq!(placed_by_other("not-a-package"), None);
+        // The owner is exempt: `vivado` is the Vivado shell's alias and package.
+        let registry = EnvironmentRegistry::compiled();
+        let vivado = registry.resolve("vivado").expect("the Vivado alias");
+        assert!(
+            vivado
+                .expected_packages
+                .iter()
+                .any(|placement| placement.package.eq_ignore_ascii_case("vivado"))
+        );
     }
 
-    /// Shebang words select one environment each: two environments
-    /// claiming a word would make the shebang tier's answer depend on
-    /// registration order.
+    fn registry_places(environment: &str, package: &str) -> bool {
+        EnvironmentRegistry::compiled()
+            .resolve(environment)
+            .is_some_and(|definition| {
+                definition
+                    .expected_packages
+                    .iter()
+                    .any(|placement| placement.package.as_ref() == package)
+            })
+    }
+
+    /// The compiled environments select by these interpreter words.
     #[test]
-    fn a_shebang_word_selects_one_environment() {
+    fn the_compiled_shebang_words_name_their_environments() {
         let registry = EnvironmentRegistry::compiled();
-        let mut claimed: HashMap<&str, &str> = HashMap::new();
-        for definition in registry.definitions() {
-            for word in &definition.server_detection.shebang_words {
-                let previous = claimed.insert(word, definition.id.as_str());
-                assert!(
-                    previous.is_none(),
-                    "`{word}` is claimed by `{}` and `{:?}`",
-                    definition.id,
-                    previous
-                );
-            }
-        }
         for (word, owner) in [
             ("jimsh", "jim"),
             ("wish", "tk"),
@@ -2156,7 +2314,19 @@ mod tests {
             ("tclsh8.5", "tcl8.5"),
             ("wish9.0", "tcl9.0"),
         ] {
-            assert_eq!(claimed.get(word), Some(&owner), "{word}");
+            let claimants: Vec<&str> = registry
+                .definitions()
+                .iter()
+                .filter(|definition| {
+                    definition
+                        .server_detection
+                        .shebang_words
+                        .iter()
+                        .any(|claimed| claimed.as_ref() == word)
+                })
+                .map(|definition| definition.id.as_str())
+                .collect();
+            assert_eq!(claimants, [owner], "{word}");
         }
     }
 
@@ -2174,8 +2344,7 @@ mod tests {
         );
         // An alias shadowing a canonical id (the cycle shape).
         let mut shadowing = base.clone();
-        let mut extra = bpf_environment();
-        extra.id = EnvironmentId::new("my-env");
+        let mut extra = pack_environment("my-env");
         extra.aliases = arcs(&["tcl8.6"]);
         shadowing.push(extra);
         assert_eq!(
@@ -2187,11 +2356,9 @@ mod tests {
         );
         // Two environments claiming one alias.
         let mut dup_alias = base.clone();
-        let mut a = bpf_environment();
-        a.id = EnvironmentId::new("env-a");
+        let mut a = pack_environment("env-a");
         a.aliases = arcs(&["shared-alias"]);
-        let mut b = bpf_environment();
-        b.id = EnvironmentId::new("env-b");
+        let mut b = pack_environment("env-b");
         b.aliases = arcs(&["shared-alias"]);
         dup_alias.push(a);
         dup_alias.push(b);
@@ -2203,11 +2370,9 @@ mod tests {
         );
         // Two environments selecting one editor identity.
         let mut dup_editor = base.clone();
-        let mut c = bpf_environment();
-        c.id = EnvironmentId::new("env-c");
+        let mut c = pack_environment("env-c");
         c.editor_identity = EditorLanguageIdentityId::new("tcl-apl");
-        let mut d = bpf_environment();
-        d.id = EnvironmentId::new("env-d");
+        let mut d = pack_environment("env-d");
         d.editor_identity = EditorLanguageIdentityId::new("tcl-apl");
         dup_editor.push(c);
         dup_editor.push(d);
@@ -2215,6 +2380,34 @@ mod tests {
             EnvironmentRegistry::new(dup_editor, 1).err(),
             Some(EnvironmentRegistryError::DuplicateEditorIdentity(
                 "tcl-apl".to_owned()
+            ))
+        );
+        // A language id another environment already selects, or owns as an
+        // identity, alias or id.
+        // (`tcl-bpf` is selected by `bpf`, `tcl-jim` is Jim's editor identity,
+        // `tcl-spec` is an alias of `spectcl`, `sslictcl` is a canonical id.)
+        for taken in ["tcl-bpf", "tcl-jim", "tcl-spec", "sslictcl"] {
+            let mut selecting = base.clone();
+            let mut claimant = pack_environment("selecting-claimant");
+            claimant.selecting_identities = identities(&[taken]);
+            selecting.push(claimant);
+            assert_eq!(
+                EnvironmentRegistry::new(selecting, 1).err(),
+                Some(EnvironmentRegistryError::DuplicateSelectingIdentity(
+                    taken.to_owned()
+                )),
+                "{taken}"
+            );
+        }
+        // Two environments claiming one shebang word, in any case.
+        let mut dup_shebang = base;
+        let mut claimant = pack_environment("shebang-claimant");
+        claimant.server_detection.shebang_words = arcs(&["JimSH"]);
+        dup_shebang.push(claimant);
+        assert_eq!(
+            EnvironmentRegistry::new(dup_shebang, 1).err(),
+            Some(EnvironmentRegistryError::DuplicateShebangWord(
+                "JimSH".to_owned()
             ))
         );
     }
@@ -2262,8 +2455,7 @@ mod tests {
         let bundled_id = seeded[0].id.as_str().to_owned();
         let mut hijack = compiled_definitions();
         hijack.retain(|definition| definition.id.as_str() != bundled_id);
-        let mut intruder = bpf_environment();
-        intruder.id = EnvironmentId::new(&bundled_id);
+        let mut intruder = pack_environment(&bundled_id);
         intruder.provenance = Provenance::WorkspaceTrusted;
         hijack.push(intruder);
         assert_eq!(
@@ -2410,8 +2602,7 @@ mod tests {
     /// it was built into, among the tool shells.
     #[test]
     fn a_pack_declared_environment_is_selectable_beside_the_tool_shells() {
-        let mut declared = bpf_environment();
-        declared.id = EnvironmentId::new("spicegentcl/ngspice");
+        let mut declared = pack_environment("spicegentcl/ngspice");
         declared.kind = EnvironmentKind::Packages;
         declared.provenance = Provenance::WorkspaceTrusted;
         let mut definitions = compiled_definitions();
@@ -2467,8 +2658,7 @@ mod tests {
     #[test]
     fn compiled_names_are_reserved_for_non_builtins() {
         let mut definitions = compiled_definitions();
-        let mut intruder = bpf_environment();
-        intruder.id = EnvironmentId::new("workspace-env");
+        let mut intruder = pack_environment("workspace-env");
         intruder.aliases = arcs(&["irules"]);
         intruder.provenance = Provenance::WorkspaceTrusted;
         definitions.retain(|d| d.id.as_str() != "f5-irules");
@@ -2484,8 +2674,7 @@ mod tests {
         );
         // A namespaced third-party id passes.
         let mut fine = compiled_definitions();
-        let mut third_party = bpf_environment();
-        third_party.id = EnvironmentId::new("mypack/mytool");
+        let mut third_party = pack_environment("mypack/mytool");
         third_party.provenance = Provenance::User;
         fine.push(third_party);
         assert!(EnvironmentRegistry::new(fine, 1).is_ok());

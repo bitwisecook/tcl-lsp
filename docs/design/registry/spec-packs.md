@@ -730,6 +730,7 @@ rows, in the order the shipped blocks write them:
 | `core FAMILY RELEASE ?-build PROFILE?` | the base release; a compiled family or a `dialect` block the pack declares |
 | `version_ceiling RELEASE` | the upper-bound release for option gating, on the core's ladder |
 | `editor_identity ID` | one of the **contributed** editor language ids — an environment selects, never mints |
+| `selecting_identity ID` | a further contributed language id that selects this environment without being its `editor_identity` (`tcl-libero` selects the Libero shell); repeatable. Another environment already owning the spelling rejects the registration |
 | `ambient PACKAGE VERSION\|tracks-base\|keyed KEY` | a package present with no `package require`; `keyed` names an external version axis (`ToolVersion`, `SdcVersion`, `UpfVersion`, `BigipVersion`) |
 | `hosted PACKAGE REQUIREMENT` | an installable package, floored on its own axis |
 | `alias NAME` | a retired or convenience spelling that resolves here; never a package name another environment places or a pack provides |

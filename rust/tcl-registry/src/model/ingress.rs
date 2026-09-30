@@ -87,8 +87,8 @@ use std::sync::{Arc, Mutex, OnceLock};
 use rustc_hash::FxHashMap;
 
 use tcl_dialect::model::{
-    DialectPoint, EditorLanguageIdentityId, EnvironmentDefinition, EnvironmentIdentity,
-    EnvironmentRegistry, LENIENT_ENVIRONMENT_ID,
+    DialectPoint, EnvironmentDefinition, EnvironmentIdentity, EnvironmentRegistry,
+    LENIENT_ENVIRONMENT_ID,
 };
 use tcl_dialect::{DialectProfile, LexerGrammar, LibraryVersionOverrides};
 
@@ -166,9 +166,10 @@ pub fn resolve_known_environment(name: &str) -> Option<DocumentEnvironment> {
 }
 
 /// Resolve a client's `languageId` to the environment it names: a canonical
-/// id, a contributed editor identity, or one of the contributed spellings
-/// that select an environment without being its identity
-/// ([`EditorLanguageIdentityId::SELECTING`]). `None` when it names none.
+/// id, a contributed editor identity, or a contributed language id the
+/// environment lists among its
+/// [`EnvironmentDefinition::selecting_identities`]. `None` when it names
+/// none.
 ///
 /// A plain alias is not a language id. `irules` resolves through
 /// [`resolve_known_environment`] wherever a dialect *name* is accepted, but no
@@ -176,8 +177,8 @@ pub fn resolve_known_environment(name: &str) -> Option<DocumentEnvironment> {
 /// environment through a spelling the contribution manifest never declares.
 #[must_use]
 pub fn resolve_language_id(language_id: &str) -> Option<DocumentEnvironment> {
-    let name = EditorLanguageIdentityId::selected_environment(language_id).unwrap_or(language_id);
-    resolve_known_environment(name).filter(|environment| environment.is_contributed_identity(name))
+    resolve_known_environment(language_id)
+        .filter(|environment| environment.is_contributed_identity(language_id))
 }
 
 impl DocumentEnvironment {
@@ -302,8 +303,9 @@ impl DocumentEnvironment {
     }
 
     /// Whether `name` is one of this environment's **contributed
-    /// identities** — its canonical id or its editor language id — as
-    /// opposed to an alias it also answers to.
+    /// identities** — its canonical id, its editor language id or a language
+    /// id it lists as selecting it — as opposed to an alias it also answers
+    /// to.
     ///
     /// The editor-side ingress (an LSP `languageId`, a contributed file
     /// association) is a claim about a *contributed identity*, under the
@@ -318,7 +320,9 @@ impl DocumentEnvironment {
             || self
                 .definition
                 .editor_identity
-                .is_some_and(|identity| identity.as_str() == name)
+                .into_iter()
+                .chain(self.definition.selecting_identities.iter().copied())
+                .any(|identity| identity.as_str() == name)
     }
 
     /// The **catalogue** profile this environment has, `None` when it has

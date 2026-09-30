@@ -15,6 +15,7 @@
                 "tcl-cadence",
             ),
         ),
+        selecting_identities: [],
         core: Some(
             CoreProfileSelector {
                 family: Tcl,
@@ -136,6 +137,7 @@
                 "tcl-quartus",
             ),
         ),
+        selecting_identities: [],
         core: Some(
             CoreProfileSelector {
                 family: Tcl,
@@ -286,6 +288,7 @@
                 "tcl-mentor",
             ),
         ),
+        selecting_identities: [],
         core: Some(
             CoreProfileSelector {
                 family: Tcl,
@@ -400,6 +403,11 @@
                 "tcl-microchip",
             ),
         ),
+        selecting_identities: [
+            EditorLanguageIdentityId(
+                "tcl-libero",
+            ),
+        ],
         core: Some(
             CoreProfileSelector {
                 family: Tcl,
@@ -497,6 +505,7 @@
                 "tcl-synopsys",
             ),
         ),
+        selecting_identities: [],
         core: Some(
             CoreProfileSelector {
                 family: Tcl,
@@ -629,6 +638,7 @@
                 "tcl-xilinx",
             ),
         ),
+        selecting_identities: [],
         core: Some(
             CoreProfileSelector {
                 family: Tcl,

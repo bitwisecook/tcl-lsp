@@ -131,6 +131,16 @@ fn render_row(pack: &str, environment: &PackEnvironment) -> Result<String> {
             |identity| format!("Some({:?})", identity.as_str())
         )
     );
+    let _ = writeln!(
+        out,
+        "selecting_identities: {},",
+        strs(
+            environment
+                .selecting_identities
+                .iter()
+                .map(|identity| identity.as_str())
+        )
+    );
     let _ = writeln!(out, "core: {core},");
     let _ = writeln!(out, "placements: &[{placements}],");
     let _ = writeln!(

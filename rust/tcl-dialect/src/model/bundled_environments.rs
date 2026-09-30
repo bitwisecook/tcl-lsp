@@ -16,6 +16,7 @@ pub(crate) const BUNDLED_ENVIRONMENTS: &[BundledEnvironmentRow] = &[
         kind: EnvironmentKind::Packages,
         aliases: &["genus", "innovus"],
         editor_identity: Some("tcl-cadence"),
+        selecting_identities: &[],
         core: Some(BundledCore {
             family: Family::Tcl,
             release: "8.4",
@@ -74,6 +75,7 @@ pub(crate) const BUNDLED_ENVIRONMENTS: &[BundledEnvironmentRow] = &[
         kind: EnvironmentKind::Packages,
         aliases: &["questa", "modelsim"],
         editor_identity: Some("tcl-mentor"),
+        selecting_identities: &[],
         core: Some(BundledCore {
             family: Family::Tcl,
             release: "8.6",
@@ -120,6 +122,7 @@ pub(crate) const BUNDLED_ENVIRONMENTS: &[BundledEnvironmentRow] = &[
         kind: EnvironmentKind::Packages,
         aliases: &["libero"],
         editor_identity: Some("tcl-microchip"),
+        selecting_identities: &["tcl-libero"],
         core: Some(BundledCore {
             family: Family::Tcl,
             release: "8.5",
@@ -164,6 +167,7 @@ pub(crate) const BUNDLED_ENVIRONMENTS: &[BundledEnvironmentRow] = &[
         kind: EnvironmentKind::Packages,
         aliases: &["quartus"],
         editor_identity: Some("tcl-quartus"),
+        selecting_identities: &[],
         core: Some(BundledCore {
             family: Family::Tcl,
             release: "8.5",
@@ -234,6 +238,7 @@ pub(crate) const BUNDLED_ENVIRONMENTS: &[BundledEnvironmentRow] = &[
         kind: EnvironmentKind::Packages,
         aliases: &["dc_shell", "primetime"],
         editor_identity: Some("tcl-synopsys"),
+        selecting_identities: &[],
         core: Some(BundledCore {
             family: Family::Tcl,
             release: "8.6",
@@ -300,6 +305,7 @@ pub(crate) const BUNDLED_ENVIRONMENTS: &[BundledEnvironmentRow] = &[
         kind: EnvironmentKind::Packages,
         aliases: &["vivado"],
         editor_identity: Some("tcl-xilinx"),
+        selecting_identities: &[],
         core: Some(BundledCore {
             family: Family::Tcl,
             release: "8.5",

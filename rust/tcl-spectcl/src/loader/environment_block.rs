@@ -187,6 +187,10 @@ pub struct PackEnvironment {
     /// presentation rule, since an editor identity only decides which
     /// contributed language a document opens under.
     pub editor_identity: Option<EditorLanguageIdentityId>,
+    /// The validated `selecting_identity ID` rows: further contributed
+    /// language ids that select the environment without being its
+    /// `editor_identity`. An unknown id is dropped with a notice.
+    pub selecting_identities: Vec<EditorLanguageIdentityId>,
     /// The `core FAMILY RELEASE ?-build P?` selector, when it names a
     /// **compiled** family.
     pub core: Option<CoreProfileSelector>,
@@ -245,6 +249,7 @@ impl PackEnvironment {
             short_name: Arc::from(self.short_name.as_deref().unwrap_or(display_name)),
             kind: self.kind,
             editor_identity: self.editor_identity,
+            selecting_identities: self.selecting_identities.clone(),
             core: self.core,
             targets,
             expected_packages: self
@@ -392,6 +397,7 @@ pub(super) fn parse_rows(
         short_name: None,
         kind: EnvironmentKind::Packages,
         editor_identity: None,
+        selecting_identities: Vec::new(),
         core: None,
         pack_core: None,
         placements: Vec::new(),
@@ -499,6 +505,7 @@ fn read_row(
                 | "policy"
                 | "alias"
                 | "editor_identity"
+                | "selecting_identity"
                 | "display_name"
                 | "short_name"
                 | "kind"
@@ -531,6 +538,7 @@ fn read_row(
         "ambient" => return placement_row(environment, stmt, true, log),
         "hosted" => return placement_row(environment, stmt, false, log),
         "editor_identity" => editor_identity_row(environment, stmt, log),
+        "selecting_identity" => selecting_identity_row(environment, stmt, log),
         "file_extension" => file_extension_row(environment, stmt, log),
         "filename" => match stmt.word_text(1) {
             "" => log.say(stmt.line, "`filename` needs a basename"),
@@ -617,6 +625,23 @@ fn editor_identity_row(environment: &mut PackEnvironment, stmt: &Stmt, log: &mut
                 "`editor_identity {id}` is not a contributed editor language id \
                  (review B7 — an environment selects one, never mints one); the row \
                  is kept without routing"
+            ),
+        ),
+    }
+}
+
+/// `selecting_identity ID`: a contributed language id that selects the
+/// environment without being its `editor_identity`. An unknown id is dropped
+/// with a notice, as for `editor_identity`.
+fn selecting_identity_row(environment: &mut PackEnvironment, stmt: &Stmt, log: &mut Log) {
+    let id = stmt.word_text(1);
+    match EditorLanguageIdentityId::new(id) {
+        Some(identity) => environment.selecting_identities.push(identity),
+        None => log.say(
+            stmt.line,
+            format!(
+                "`selecting_identity {id}` is not a contributed editor language id \
+                 (an environment selects one, never mints one); the row is ignored"
             ),
         ),
     }

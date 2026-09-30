@@ -170,6 +170,18 @@ impl Family {
         }
     }
 
+    /// The family's name as a description shows it: `Tcl`, `F5 Tcl`,
+    /// `F5 iRules`, `Jim`.
+    #[must_use]
+    pub const fn display_name(self) -> &'static str {
+        match self {
+            Self::Tcl => "Tcl",
+            Self::F5Tcl => "F5 Tcl",
+            Self::F5Irules => "F5 iRules",
+            Self::Jim => "Jim",
+        }
+    }
+
     /// The family's release ladder, oldest first.
     #[must_use]
     pub const fn releases(self) -> &'static [Release] {
