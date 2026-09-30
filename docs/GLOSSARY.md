@@ -1786,8 +1786,10 @@ what a pack at that distance may declare. The tier — `DependencyTier` in
 the root manifest names in `require` (direct), one reached only through
 another package (transitive), or one named only in `dev-require`
 (development). Discovery computes it from the `tclpkg.lock` beside the
-project's manifest, never from what a package's own manifest claims, and a
-pack no package ships has none. The capability —
+project's manifest, never from what a package's own manifest claims; a pack
+no package ships, and a pack in a project with no lockfile, have none, and
+below a project with a lockfile a package that file does not place is
+transitive. The capability —
 `CodegenCapability::for_tier` in `rust/tcl-registry/src/model/capability.rs` —
 is the matrix over it: the root may declare everything, a direct dependency
 an `alias_of` and a [runtime backing](#runtime-backing) but no codegen-axis

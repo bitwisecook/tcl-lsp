@@ -562,10 +562,12 @@ message. See [W139](../../kcs/codes/kcs-diagnostic-w139-retired-at-resolved-vers
   can carry a manifest and a lockfile of its own and would otherwise name
   itself a root — reading through the same closed-file store as the packs,
   and never from what a package's own manifest claims. A file found any
-  other way, a project with no lockfile, a package the lockfile does not
-  list, and a manifest or lockfile that does not read leave the file with no
-  tier. The tier is part of the pack set's key, so a package moving in the
-  lockfile's graph reloads what its packs may declare.
+  other way, and a file in a project with no lockfile, have no tier. Below a
+  project that has a lockfile a file always has one: a package the lockfile
+  does not list, a manifest that does not read and a lockfile that does not
+  read each leave it transitive, the least a package gets. The tier is part
+  of the pack set's key, so a package moving in the lockfile's graph reloads
+  what its packs may declare.
 - **Live reload of a pack outside the workspace needs a 3.17 client.** The
   session-wide watcher registration uses workspace-relative patterns, which a
   client matches only inside its workspace folders, so the user tier and any

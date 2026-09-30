@@ -216,8 +216,10 @@ guard, and neither `move_bound_command` nor `delete_bound_command` moves a
 guard domain's epoch; `invalidate_command_environment` is for the events
 that change the lookup environment itself: `namespace path`, `namespace
 export`, `namespace unknown`, `namespace delete`, a `namespace forget` that
-removes an imported command, the creation of a `TclOO` class or object, and
-the creation and deletion of a child interpreter (`namespace import` and a
+removes an imported command, the creation of a `TclOO` class or object,
+`oo::copy`'s copy of an object's namespace, `interp invokehidden` with
+`-namespace` or `-global` (whether or not the namespace it names exists yet),
+and the creation and deletion of a child interpreter (`namespace import` and a
 `namespace eval` that creates a namespace are not among them).  A compiled
 artefact's binding identities are a third mechanism again: they are
 re-resolved at admission rather than cached, so a rename changes what they

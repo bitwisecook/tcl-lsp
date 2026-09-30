@@ -278,6 +278,21 @@ fn store_profile(environment_id: &str) -> &'static DialectProfile {
     DialectProfile::find(environment_id).unwrap_or_else(DialectProfile::plain_tcl)
 }
 
+/// Every profile a generation's store key can carry: the catalogue's, and the
+/// permissive sink [`store_profile`] answers for each environment the
+/// catalogue does not hold — `tk`, the lenient `tcl`, and any environment a
+/// pack declares.
+///
+/// A host that installs a workspace's pack overlay installs it under each of
+/// these, so that no environment the ingress resolves asks for a key nothing
+/// installed: a document in one of them would otherwise meet an
+/// [`OverlayMiss`] for the life of the session.
+pub fn store_profiles() -> impl Iterator<Item = &'static DialectProfile> {
+    DialectProfile::all()
+        .iter()
+        .chain(std::iter::once(DialectProfile::plain_tcl()))
+}
+
 /// A pack overlay's registry generation that nothing has installed.
 ///
 /// A non-zero overlay names the generation a workspace's `SpecTcl` packs
@@ -564,6 +579,32 @@ pub(crate) mod tests {
     use tcl_dialect::DialectProfile;
     use tcl_dialect::model::EnvironmentRegistry;
     use tcl_dialect::model::SpecSurface;
+
+    /// A host installs a pack overlay under [`store_profiles`], so every key
+    /// [`store_profile`] can produce has to be on that list: a catalogue
+    /// environment, `tk`, the lenient `tcl`, and one no catalogue holds (the
+    /// shape of a pack-declared environment) each read their store from it.
+    #[test]
+    fn every_store_key_is_a_profile_a_host_can_install() {
+        let installable: Vec<&'static DialectProfile> = store_profiles().collect();
+        let ids = DialectProfile::all()
+            .iter()
+            .map(|profile| profile.name)
+            .chain(["tk", "tcl", "a-pack-declared-environment"]);
+        for id in ids {
+            let profile = store_profile(id);
+            assert!(
+                installable
+                    .iter()
+                    .any(|candidate| std::ptr::eq(*candidate, profile)),
+                "`{id}` reads a store a host cannot install into"
+            );
+        }
+        assert!(std::ptr::eq(
+            store_profile("tk"),
+            DialectProfile::plain_tcl()
+        ));
+    }
 
     fn new_registry_for(profile_name: &str) -> Arc<ContextRegistry> {
         let environments = EnvironmentRegistry::compiled();

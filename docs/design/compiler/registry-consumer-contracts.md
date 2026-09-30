@@ -1600,10 +1600,13 @@ describe the lookup environment itself — `CommandEnvironment`, `Namespace` and
 and never on a command's definition, rename, alias, import, hide or expose.
 The WASM runtime moves them on `namespace path`, `namespace export`,
 `namespace unknown`, `namespace delete`, a `namespace forget` that removes an
-imported command, the creation of a `TclOO` class or object, and the creation
-and deletion of a child interpreter; it leaves them alone when `namespace
-eval` creates a namespace, on `namespace import`, and when the `unknown`
-command is bound, renamed or deleted. The VM moves them on `namespace path`,
+imported command, the creation of a `TclOO` class or object, `oo::copy`'s copy
+of an object's namespace, `interp invokehidden` with `-namespace` or `-global`
+(whether or not the namespace it names exists yet), and the creation and
+deletion of a child interpreter; it leaves them alone when `namespace eval`
+creates a namespace,
+on `namespace import`, and when the `unknown` command is bound, renamed or
+deleted. The VM moves them on `namespace path`,
 on making an interpreter safe, on `interp marktrusted` and on deleting a child
 interpreter, and on nothing else, so a `namespace delete`, `namespace export`
 or `namespace unknown` leaves a VM token over them valid (issue #2292). A
@@ -2105,13 +2108,20 @@ the file, where the project is the *outermost* directory inside the
 workspace folder holding both a manifest and a lockfile. The outermost, not
 the nearest: an installed dependency's directory can hold a manifest and a
 lockfile of its own, and the nearest pair would let it name itself a root. A
-file found any other way, a package the lockfile does not list, a project
-with no lockfile, and a manifest or lockfile that does not read all leave
-the pack with no tier, and a pack with no tier is not narrowed. The gate
-does not bind a pack file to the package the lockfile lists: a manifest
-names its own package, so a dependency that names itself a package the
-lockfile does not list is unlimited. The lockfile hash of each pack
-described below is what would bind the two, and it is not built.
+file found any other way, and a file in a workspace whose project has no
+lockfile, leave the pack with no tier, and a pack with no tier is not
+narrowed. Below a project that has a lockfile no pack is without one: a
+package the lockfile does not list, a manifest that does not read and a
+lockfile that does not read all leave it transitive, the least a package
+gets, so a dependency cannot lift itself by writing `package anything`. The
+outermost-pair rule holds only where the project has a lockfile: a
+dependency that ships its own manifest and lockfile under a root that has a
+manifest and no lockfile is itself the outermost pair, becomes a root, and
+is not narrowed, which is what a pack with no tier is today. The gate does
+not bind a pack file to the package the lockfile lists: a manifest names its
+own package, so a dependency that names itself a package the lockfile does
+list takes that package's tier. The lockfile hash of each pack described
+below is what would bind the two, and it is not built.
 
 ## C Tcl extensions
 

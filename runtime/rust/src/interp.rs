@@ -10919,6 +10919,53 @@ mod tests {
         });
     }
 
+    /// The three lookup domains move together on a hidden invocation into a
+    /// namespace, whether the namespace is named, is the global one, or does not
+    /// exist yet, and on `oo::copy`: events the guard domain's docs list beside
+    /// `namespace path` and the rest, which a command-table mutation is not.
+    #[test]
+    fn the_lookup_domains_move_on_a_hidden_invocation_into_a_namespace_and_on_oo_copy() {
+        leak_free(|i| {
+            i.register_guarded_builtin(b"guarded", guarded_builtin, GUARDED_IDENTITY);
+            let domains = GuardDomains::one(GuardDomain::CommandEnvironment)
+                .with(GuardDomain::Namespace)
+                .with(GuardDomain::UnknownHandling);
+            let moves = |i: &mut Interp, script: &[u8]| {
+                let token = i
+                    .prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains)
+                    .expect("the lookup domains are guardable");
+                ok(i, script);
+                assert!(i.attested_identities(b"guarded").is_some());
+                !i.check_command_guard(token, b"guarded")
+            };
+
+            ok(i, b"interp hide {} lindex");
+            assert!(
+                moves(i, b"interp invokehidden {} -namespace fresh lindex {a b} 0"),
+                "a namespace it creates"
+            );
+            assert!(
+                moves(i, b"interp invokehidden {} -namespace fresh lindex {a b} 0"),
+                "a namespace that exists"
+            );
+            assert!(
+                moves(i, b"interp invokehidden {} -global lindex {a b} 0"),
+                "the global namespace"
+            );
+            assert!(
+                !moves(i, b"interp invokehidden {} lindex {a b} 0"),
+                "a hidden invocation that names no namespace moves nothing"
+            );
+
+            ok(
+                i,
+                b"oo::class create C {variable v; constructor {} {set v 1}}",
+            );
+            ok(i, b"set o [C new]");
+            assert!(moves(i, b"oo::copy $o"), "oo::copy");
+        });
+    }
+
     #[test]
     fn trace_registration_invalidates_matching_guard_domains() {
         leak_free(|i| {

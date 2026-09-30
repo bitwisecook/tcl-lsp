@@ -318,6 +318,14 @@ impl OverlayGenerations {
         if held.iter().any(|(existing, _)| *existing == key) {
             return;
         }
+        // A key that installs is no longer a miss on record: if it is retired
+        // and misses again, that is a new miss for the host to report, not
+        // one it has already heard about.
+        self.misses
+            .lock()
+            .expect("overlay miss mutex")
+            .seen
+            .remove(&key);
         held.push_back((key, registry));
         while held.len() > HELD_OVERLAYS {
             held.pop_front();
@@ -4220,6 +4228,47 @@ mod value_transfer_parity;
 mod tests {
     use super::*;
     use std::sync::Mutex;
+
+    /// A key that misses, installs, retires and misses again is reported each
+    /// time it misses: the log keeps a miss once while it stands, and forgets
+    /// it when the key installs.
+    #[test]
+    fn a_key_that_installs_is_reported_again_if_it_misses_later() {
+        let generations = OverlayGenerations::default();
+        let key: OverlayKey = ("tcl9.0".to_owned(), 0xAB);
+        let miss = OverlayMiss {
+            environment: key.0.clone(),
+            overlay: key.1,
+        };
+        let take = |generations: &OverlayGenerations| {
+            std::mem::take(&mut generations.misses.lock().expect("miss log").unreported)
+        };
+        generations.record(&miss);
+        generations.record(&miss);
+        assert_eq!(
+            take(&generations),
+            vec![miss.clone()],
+            "one record while it stands"
+        );
+
+        let registry = Arc::new(CommandRegistry::build_default());
+        generations.hold(key.clone(), Arc::clone(&registry));
+        // Retired: later keys push it out of the held generations.
+        let later = u64::try_from(HELD_OVERLAYS).expect("a small count");
+        for overlay in 0..=later {
+            generations.hold(
+                ("tcl9.0".to_owned(), 0x1000 + overlay),
+                Arc::clone(&registry),
+            );
+        }
+        assert!(generations.held(&key).is_none(), "the key was retired");
+        generations.record(&miss);
+        assert_eq!(
+            take(&generations),
+            vec![miss],
+            "a miss after the key installed is a new one"
+        );
+    }
 
     fn cfg(db: &TclDatabase) -> AnalyserConfig {
         AnalyserConfig::new(

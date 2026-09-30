@@ -4092,6 +4092,18 @@ async fn sync_evaluator_epoch(db: &TrackedMutex<tcl_lsp_db::TclDatabase>) {
     tcl_lsp_db::set_evaluator_epoch(&mut db, epoch);
 }
 
+/// Install `packs` as the overlay of every registry key the ingress can ask
+/// for: each catalogue profile and the permissive sink that `tk`, the lenient
+/// `tcl` and a pack-declared environment read their store from
+/// ([`tcl_registry::model::store_profiles`]). An environment left out would
+/// answer every compile query with an overlay miss for the life of the
+/// session.
+fn install_pack_overlays(packs: &tcl_spectcl::PackSet) {
+    for profile in tcl_registry::model::store_profiles() {
+        let _ = tcl_spectcl::install::registry_with_packs(profile, packs);
+    }
+}
+
 /// Make the registry cache's overlay epoch the salsa input
 /// `tcl_lsp_db::OverlayEpoch`, which every query that resolves a pack overlay
 /// reads. The cache is process-wide state the database cannot see change, so
@@ -21331,12 +21343,7 @@ impl Backend {
             // dialect anyway. It runs on a worker: it is parse-free but not
             // free.
             let for_worker = Arc::clone(&packs);
-            let _ = crate::rt::spawn_blocking(move || {
-                for profile in tcl_dialect::DialectProfile::all() {
-                    let _ = tcl_spectcl::install::registry_with_packs(profile, &for_worker);
-                }
-            })
-            .await;
+            let _ = crate::rt::spawn_blocking(move || install_pack_overlays(&for_worker)).await;
             // The analyser reads the key off the salsa config, so publish it
             // before anything re-analyses, with the overlay epoch that says
             // the generations behind it are installed.
@@ -42753,6 +42760,98 @@ proc p {} {
         let _installed = tcl_registry::registry_for_profile_with_overlay(profile, OVERLAY, |_| {});
         sync_overlay_epoch(&db).await;
         assert!(has_unit().await, "installed and synced, the unit builds");
+    }
+
+    /// A wish script resolves to the `tk` environment, whose registry store is
+    /// the permissive sink's and no catalogue profile's. The overlay the server
+    /// installs has to reach that key too, or every compile query for a wish
+    /// document answers with a miss for the life of the session and the
+    /// analyser reads the plain registry for good: the document keeps its unit,
+    /// its compiler checks and its rewrites, and a workspace pack's command
+    /// stops being unknown in it.
+    #[tokio::test]
+    async fn a_wish_document_reads_the_workspace_packs_like_any_other() {
+        const PACK: &str = "speclib wishpack 1 {\n    command wishcmd {\n        arity 1..\n        \
+                            arg 0 -role Value\n        arg 1 -role VarWrite\n    }\n}\n";
+        // A bare `wish` shebang names no dialect on its own; the directive (as
+        // a `.tk` extension or `tcl-lsp.setDialect` would) selects `tk`.
+        const SOURCE: &str = "#!/usr/bin/wish\n# tcl-dialect: tk\nwishcmd {1 2} a\nputs $a\n\
+                              set x 1\nset y [expr {$x + 1}]\nputs $y\n\
+                              if {$x == 1} {puts one}\n";
+        assert_eq!(
+            tcl_registry::detect_dialect(SOURCE, None, "tcl9.0"),
+            "tk",
+            "the document is in the `tk` environment"
+        );
+        let packs = tcl_spectcl::pack::load_in_memory(vec![(
+            tcl_spectcl::PackFile {
+                tier: tcl_spectcl::Tier::Workspace,
+                path: PathBuf::from("/workspace/.tcl-lsp/wishpack.tclspec"),
+                origin: tcl_spectcl::discovery::Origin::DotDir,
+                dependency_tier: None,
+            },
+            PACK.to_owned(),
+        )]);
+        assert!(packs.notices.is_empty(), "{:#?}", packs.notices);
+
+        let db = TrackedMutex::new("db", tcl_lsp_db::TclDatabase::default());
+        let (file, config) = {
+            let db = db.lock().await;
+            let file = tcl_lsp_db::SourceFile::new(&*db, SOURCE.to_owned(), "tk".to_owned(), None);
+            let config = tcl_lsp_db::AnalyserConfig::new(
+                &*db,
+                Vec::new(),
+                NonAsciiMode::Default,
+                Vec::new(),
+                None,
+                None,
+                packs.key,
+                Vec::new(),
+                Vec::new(),
+            );
+            (file, config)
+        };
+        let unknown = || async {
+            let db = db.lock().await;
+            tcl_lsp_db::file_analysis_incremental(&*db, file, config)
+                .diagnostics
+                .iter()
+                .any(|d| {
+                    d.code == tcl_compiler::compiler_checks::DiagCode::W123
+                        && d.message.contains("wishcmd")
+                })
+        };
+        assert!(
+            unknown().await,
+            "control: before the packs install, the command is unknown"
+        );
+        let _ = tcl_lsp_db::take_overlay_misses();
+
+        install_pack_overlays(&packs);
+        sync_overlay_epoch(&db).await;
+
+        assert!(!unknown().await, "the analyser reads the pack's command");
+        {
+            let db = db.lock().await;
+            assert!(
+                tcl_lsp_db::document_compilation_unit_for(&*db, file, config).is_some(),
+                "the unit builds under the workspace key"
+            );
+            let diagnostics = tcl_lsp_db::compiler_check_diagnostics(&*db, file, config);
+            assert!(
+                !diagnostics.checks.is_empty(),
+                "and the compiler checks that read it report"
+            );
+            assert!(
+                !diagnostics.optimisations.is_empty(),
+                "and the rewrites that read it are offered"
+            );
+        }
+        let misses: Vec<_> = tcl_lsp_db::take_overlay_misses()
+            .into_iter()
+            .filter(|miss| miss.overlay == packs.key)
+            .collect();
+        assert!(misses.is_empty(), "no query missed: {misses:?}");
     }
 
     /// A workspace whose packs are not installed is one line on the log: the

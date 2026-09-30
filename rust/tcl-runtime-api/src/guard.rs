@@ -53,8 +53,11 @@ pub enum GuardDomain {
     /// The command lookup environment as a whole. The WASM runtime moves it
     /// on `namespace path`, `namespace export`, `namespace unknown`,
     /// `namespace delete`, a `namespace forget` that removes an imported
-    /// command, the creation of a `TclOO` class or object, and the creation and
-    /// deletion of a child interpreter; not on `namespace import`, nor on a
+    /// command, the creation of a `TclOO` class or object, `oo::copy`'s copy
+    /// of an object's namespace, `interp invokehidden` with `-namespace` or
+    /// `-global` (whether or not the namespace it names exists yet), and the
+    /// creation and deletion of a child interpreter; not on `namespace
+    /// import`, nor on a
     /// `namespace eval` that creates a namespace. The VM moves it on
     /// `namespace path`, on making an interpreter safe, on `interp
     /// marktrusted` and on deleting a child interpreter, and on nothing else

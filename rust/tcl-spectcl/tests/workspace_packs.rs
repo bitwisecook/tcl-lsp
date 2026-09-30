@@ -767,8 +767,45 @@ fn a_package_moving_in_the_graph_changes_what_its_pack_loads() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
-/// A pack no package ships — one under `.tcl-lsp/` — has no tier, so the
-/// matrix does not narrow it: it keeps its backing as well as its `alias_of`.
+/// A manifest that places nothing does not lift its pack: one that does not
+/// read, and one that names a package the lockfile does not list, leave the
+/// dependency at the floor of a listed package, transitive, so its `alias_of`
+/// and its backing are dropped as a transitive package's are. A dependency
+/// cannot reach the workspace's own rights by writing `package anything`.
+#[test]
+fn a_manifest_that_places_nothing_does_not_lift_its_pack() {
+    use tcl_dialect::model::DependencyTier;
+    let root = stage_packages("capability-unplaced", "require direct 1.0.0\n");
+    for manifest in ["not a manifest %%\n", "package anything\nversion 1.0.0\n"] {
+        std::fs::write(root.join("lib/direct-1.0.0/tclpkg.tcl"), manifest).expect("rewrite");
+        let set = load_workspace(&root);
+        let (command, messages) = loaded(&set, "direct");
+        assert_eq!(
+            command.dependency_tier,
+            Some(DependencyTier::Transitive),
+            "{manifest:?}"
+        );
+        assert_eq!(command.spec.alias_of, None, "{manifest:?}");
+        assert_eq!(
+            command.spec.runtime_backing,
+            tcl_registry::RuntimeBacking::None,
+            "{manifest:?}"
+        );
+        assert!(
+            messages
+                .iter()
+                .any(|message| message.contains("a transitive dependency's pack may not declare")),
+            "{manifest:?}: {messages:?}"
+        );
+    }
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// A pack no package places has no tier, so the matrix does not narrow it: it
+/// keeps its backing as well as its `alias_of`. That is a pack under
+/// `.tcl-lsp/`, which no package ships, and — since nothing is known of a
+/// graph with no lockfile — one beside a dependency's manifest in a workspace
+/// that has none.
 #[test]
 fn a_pack_no_package_ships_is_not_narrowed() {
     use tcl_dialect::model::WorkspaceTrust;
@@ -786,4 +823,14 @@ fn a_pack_no_package_ships_is_not_narrowed() {
         tcl_registry::RuntimeBacking::shipped("lassign")
     );
     assert_eq!(messages, vec![stamp_refused_for("vendor")]);
+
+    let root = stage_packages("capability-no-lockfile", "require direct 1.0.0\n");
+    std::fs::remove_file(root.join("tclpkg.lock")).expect("remove the lockfile");
+    let set = load_workspace(&root);
+    for speclib in ["direct", "deep", "devdep", "myapp"] {
+        let (command, _) = loaded(&set, speclib);
+        assert_eq!(command.dependency_tier, None, "{speclib}");
+        assert_eq!(command.spec.alias_of, Some("lassign"), "{speclib}");
+    }
+    let _ = std::fs::remove_dir_all(&root);
 }

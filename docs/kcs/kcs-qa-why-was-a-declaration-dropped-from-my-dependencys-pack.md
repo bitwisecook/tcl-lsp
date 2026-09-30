@@ -27,8 +27,9 @@ tcl-lsp trusts them by how close the package sits to your project:
 
 tcl-lsp works the distance out from the `tclpkg.lock` beside your project's
 `tclpkg.tcl`. It never takes it from what the package's own manifest says. A
-project with no lockfile, or a package the lockfile does not list, gets no
-limit.
+project with no lockfile gets no limit, because nothing says how far any
+package sits. Once there is a lockfile, a package it does not list, and one
+whose own manifest does not read, sit at the far end: they may say neither.
 
 When a row is refused, the server drops it and puts one warning on the
 command's line:
