@@ -25,7 +25,7 @@
 use std::cmp::Ordering;
 use std::collections::{BTreeSet, HashMap};
 use std::hash::{Hash, Hasher};
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, OnceLock, PoisonError, RwLock};
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -60,7 +60,7 @@ use tcl_dialect::model::SurfaceQuery;
 use tcl_dialect::model::surface_admits;
 use tcl_dialect::model::surface_breadth;
 use tcl_dialect::model::surface_nearness;
-use tcl_dialect::model::{SpecProvider, SurfaceLayer, surface_provided_by};
+use tcl_dialect::model::{SpecProvider, SpecSurface, SurfaceLayer, surface_provided_by};
 use tcl_dialect::version_satisfies;
 
 /// The trait union defining a **frame-sensitive** command — see
@@ -564,6 +564,16 @@ pub struct ProcedureWords {
     pub body: usize,
 }
 
+impl ProcedureWords {
+    /// Tcl's `proc name args body`, for a consumer that has no registry to ask.
+    pub const TCL_PROC: Self = Self {
+        name: 0,
+        params: 1,
+        statics: None,
+        body: 2,
+    };
+}
+
 /// Lookup facade over command specs.
 ///
 /// The registry is built once from the command spec modules and then
@@ -722,21 +732,23 @@ impl EffectiveRegistrySemantics {
     }
 }
 
-/// Command names registered by *every* dialect, built once and cached. Backs
+/// Command names registered by *every* dialect. Backs
 /// [`CommandRegistry::known_in_any_dialect`] — the dialect-agnostic existence
 /// check over every loaded dialect. `rootable` is the subset whose bare spec
 /// can also denote a rooted singleton command; method-context-only spellings
 /// such as `my` are deliberately absent from it.
 /// Built from the same spec functions [`CommandRegistry::build_default`]
 /// and [`CommandRegistry::load_surface`] draw from, so it stays in lock-step
-/// with the registry's command universe.
+/// with the registry's command universe, plus the core-surface specs a crate
+/// above the registry has registered ([`crate::register_core_surface_specs`]).
+#[derive(Clone)]
 struct AllDialectCommandNames {
     known: FxHashSet<&'static str>,
     rootable: FxHashSet<&'static str>,
     providers: FxHashMap<&'static str, NameProviders>,
 }
 
-/// Who offers a command name across the compiled-in universe — see
+/// Who offers a command name across the command universe — see
 /// [`CommandRegistry::providers_in_any_dialect`].
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct NameProviders {
@@ -745,39 +757,54 @@ pub struct NameProviders {
     pub unrestricted: bool,
     /// The providers the surface rows of every spec of this name name.
     pub providers: Vec<SpecProvider>,
+    /// The surface rows of every spec of this name, for naming the dialects
+    /// that offer it.
+    pub rows: Vec<SpecSurface>,
 }
 
-fn all_dialect_command_names() -> &'static AllDialectCommandNames {
-    static NAMES: OnceLock<AllDialectCommandNames> = OnceLock::new();
-    NAMES.get_or_init(|| {
-        let mut known: FxHashSet<&'static str> = FxHashSet::default();
-        let mut rootable: FxHashSet<&'static str> = FxHashSet::default();
-        let mut providers: FxHashMap<&'static str, NameProviders> = FxHashMap::default();
-        let mut add = |specs: Vec<CommandSpec>| {
-            for spec in specs {
-                // Normalise away a leading `::` so a spec registered only in
-                // its fully-qualified spelling (e.g.
-                // `::tcl::unsupported::corotype`, which has no separate bare
-                // registration) still matches `known_in_any_dialect`'s
-                // already-bare query — the caller strips a literal `::` head
-                // from the source text before calling in, so the set must be
-                // bare-normalised too or the two never agree.
-                let name = spec.name.strip_prefix("::").unwrap_or(spec.name);
-                known.insert(name);
-                if name.contains("::") || !spec.traits.contains(Traits::TCLOO_METHOD_CONTEXT) {
-                    rootable.insert(name);
-                }
-                let offered = providers.entry(name).or_default();
-                match spec.surface {
-                    None => offered.unrestricted = true,
-                    Some(rows) => {
-                        for row in rows {
-                            if !offered.providers.contains(&row.provider) {
-                                offered.providers.push(row.provider);
-                            }
-                        }
+impl AllDialectCommandNames {
+    fn add(&mut self, spec: &CommandSpec) {
+        // Normalise away a leading `::` so a spec registered only in
+        // its fully-qualified spelling (e.g.
+        // `::tcl::unsupported::corotype`, which has no separate bare
+        // registration) still matches `known_in_any_dialect`'s
+        // already-bare query — the caller strips a literal `::` head
+        // from the source text before calling in, so the set must be
+        // bare-normalised too or the two never agree.
+        let name = spec.name.strip_prefix("::").unwrap_or(spec.name);
+        self.known.insert(name);
+        if name.contains("::") || !spec.traits.contains(Traits::TCLOO_METHOD_CONTEXT) {
+            self.rootable.insert(name);
+        }
+        let offered = self.providers.entry(name).or_default();
+        match spec.surface {
+            None => offered.unrestricted = true,
+            Some(rows) => {
+                for row in rows {
+                    if !offered.providers.contains(&row.provider) {
+                        offered.providers.push(row.provider);
+                    }
+                    if !offered.rows.contains(row) {
+                        offered.rows.push(*row);
                     }
                 }
+            }
+        }
+    }
+}
+
+/// The names every compiled-in spec set offers.
+fn compiled_command_names() -> &'static AllDialectCommandNames {
+    static NAMES: OnceLock<AllDialectCommandNames> = OnceLock::new();
+    NAMES.get_or_init(|| {
+        let mut names = AllDialectCommandNames {
+            known: FxHashSet::default(),
+            rootable: FxHashSet::default(),
+            providers: FxHashMap::default(),
+        };
+        let mut add = |specs: Vec<CommandSpec>| {
+            for spec in &specs {
+                names.add(spec);
             }
         };
         add(crate::commands::bpf::bpf_command_specs());
@@ -804,12 +831,40 @@ fn all_dialect_command_names() -> &'static AllDialectCommandNames {
         // unknown-command report on a user's `proc arity` call into a
         // misleading dialect-availability one — the exact opposite of the
         // context-sensitivity the SpecTcl grammars exist to provide.
-        AllDialectCommandNames {
-            known,
-            rootable,
-            providers,
-        }
+        names
     })
+}
+
+/// The command universe: the compiled-in names plus the registered
+/// core-surface specs' (a family's own commands, such as Jim's `loop`), built
+/// once per registered generation.
+fn all_dialect_command_names() -> &'static AllDialectCommandNames {
+    static WITH_CORE_SURFACE: RwLock<Option<(u64, &'static AllDialectCommandNames)>> =
+        RwLock::new(None);
+    let compiled = compiled_command_names();
+    let registered = crate::cache::core_surface_generation();
+    if registered == 0 {
+        return compiled;
+    }
+    let held = WITH_CORE_SURFACE
+        .read()
+        .unwrap_or_else(PoisonError::into_inner)
+        .filter(|&(built, _)| built == registered)
+        .map(|(_, names)| names);
+    if let Some(names) = held {
+        return names;
+    }
+    let (generation, specs) = crate::cache::core_surface_specs();
+    let mut merged = compiled.clone();
+    for spec in specs {
+        merged.add(spec);
+    }
+    // One allocation per registered generation, held for the process.
+    let merged: &'static AllDialectCommandNames = Box::leak(Box::new(merged));
+    *WITH_CORE_SURFACE
+        .write()
+        .unwrap_or_else(PoisonError::into_inner) = Some((generation, merged));
+    merged
 }
 
 /// Whether `spec` may serve as the bare-name fallback for a rooted spelling.
@@ -823,7 +878,8 @@ fn rooted_fallback_allowed(rooted: &str, spec: &CommandSpec) -> bool {
     })
 }
 
-/// Append the indices covered by `layouts` whose declared role equals `role`.
+/// Append the indices covered by `layouts` whose declared role is one of
+/// `wanted`, each with its role.
 ///
 /// `tail_len` is the number of argument words the layouts index over (the
 /// whole post-head list, or the words after a subcommand word), and `offset`
@@ -831,19 +887,24 @@ fn rooted_fallback_allowed(rooted: &str, spec: &CommandSpec) -> bool {
 /// the same `+1`-for-the-subcommand-word convention every other role source
 /// here uses.
 fn push_repeated_roles(
-    out: &mut Vec<usize>,
+    out: &mut Vec<(usize, ArgRole)>,
     layouts: &[crate::repeated::RepeatedArgLayout],
     tail_len: usize,
     offset: usize,
-    role: ArgRole,
+    wanted: &[ArgRole],
 ) {
-    for layout in layouts.iter().filter(|l| l.role == role) {
-        out.extend(layout.indices(tail_len).into_iter().map(|i| i + offset));
+    for layout in layouts.iter().filter(|l| wanted.contains(&l.role)) {
+        out.extend(
+            layout
+                .indices(tail_len)
+                .into_iter()
+                .map(|i| (i + offset, layout.role)),
+        );
     }
 }
 
 /// Append the `args` indices consumed by value-taking options whose value role
-/// (primary or secondary) equals `role`.
+/// (primary or secondary) is one of `wanted`, each with that role.
 ///
 /// Walks `args` from `scan_start` (1 to skip a subcommand word, else 0),
 /// resolving option names, aliases, and unique abbreviations through the
@@ -856,11 +917,11 @@ fn push_repeated_roles(
 /// index for a query of either role — the multi-role convention, split across
 /// queries.
 fn push_option_value_roles(
-    out: &mut Vec<usize>,
+    out: &mut Vec<(usize, ArgRole)>,
     options: &[crate::hover::OptionSpec],
     args: &[&str],
     scan_start: usize,
-    role: ArgRole,
+    wanted: &[ArgRole],
 ) {
     let mut i = scan_start;
     while i < args.len() {
@@ -869,8 +930,12 @@ fn push_option_value_roles(
         }
         if let Some(opt) = crate::spec::resolve_option_prefix(options, args[i]) {
             let vals = opt.value_indices(args, i);
-            if opt.value_role() == Some(role) || opt.value_also_role() == Some(role) {
-                out.extend(vals.iter().copied());
+            for role in [opt.value_role(), opt.value_also_role()]
+                .into_iter()
+                .flatten()
+                .filter(|role| wanted.contains(role))
+            {
+                out.extend(vals.iter().map(|&index| (index, role)));
             }
             i += 1 + vals.len();
         } else {
@@ -4372,15 +4437,42 @@ impl CommandRegistry {
                 .map(|(i, _)| i)
                 .collect();
         }
+        self.arg_role_assignments(name, args, &[role])
+            .into_iter()
+            .map(|(index, _)| index)
+            .collect()
+    }
+
+    /// The `(index, role)` pairs a call gives any of `wanted`, ascending by
+    /// index, from the sources [`Self::arg_indices_for_role`] documents. One
+    /// resolver run answers every wanted role, so a consumer that needs several
+    /// (a definer's name, parameter list and body) asks once.
+    ///
+    /// [`ArgRole::CommandPrefix`] is not answered here; see
+    /// [`Self::command_prefixes`].
+    fn arg_role_assignments(
+        &self,
+        name: &str,
+        args: &[&str],
+        wanted: &[ArgRole],
+    ) -> Vec<(usize, ArgRole)> {
         let Some(spec) = self.get(name) else {
             return Vec::new();
         };
         let n = args.len();
-        let mut out: Vec<usize> = Vec::new();
-        let case_body_roles_allowed = spec.case_list.is_none()
+        let wants = |role: ArgRole| wanted.contains(&role);
+        let mut out: Vec<(usize, ArgRole)> = Vec::new();
+        let case_body_roles_allowed = !wants(ArgRole::Body)
+            || spec.case_list.is_none()
             || self
                 .case_invocation(name, args, self.own_surface_query())
                 .is_some();
+        let finish = |mut out: Vec<(usize, ArgRole)>| {
+            out.retain(|&(idx, _)| idx < n);
+            out.sort_by_key(|&(idx, _)| idx);
+            out.dedup();
+            out
+        };
 
         // Check subcommand (exact or unique-prefix abbreviation).
         if !spec.subcommands.is_empty()
@@ -4392,65 +4484,62 @@ impl CommandRegistry {
                 out.extend(
                     resolver(&args[1..])
                         .into_iter()
-                        .filter(|(_, r)| *r == role)
-                        .map(|(i, _)| i as usize + 1),
+                        .filter(|(_, r)| wants(*r))
+                        .map(|(i, r)| (i as usize + 1, r)),
                 );
             } else {
                 out.extend(
                     sub.arg_roles
                         .iter()
-                        .filter(|(_, r)| *r == role)
-                        .map(|(i, _)| *i as usize + 1),
+                        .filter(|(_, r)| wants(*r))
+                        .map(|(i, r)| (*i as usize + 1, *r)),
                 );
             }
             // Repeated tails, over the words after the subcommand word.
-            push_repeated_roles(&mut out, sub.repeated_args, n.saturating_sub(1), 1, role);
+            push_repeated_roles(&mut out, sub.repeated_args, n.saturating_sub(1), 1, wanted);
             // Value-taking options on the subcommand (scan past the sub word).
-            push_option_value_roles(&mut out, sub.options, args, 1, role);
-            out.retain(|&idx| idx < n);
-            out.sort_unstable();
-            out.dedup();
-            return out;
+            push_option_value_roles(&mut out, sub.options, args, 1, wanted);
+            return finish(out);
         }
 
         // Option-selected pattern layouts are owned by the paired pattern
         // resolver.  Reusing that answer keeps role consumers aligned with
         // hover and semantic-token consumers, including profile-gated option
         // abbreviations and reserved positional suffixes.
-        if role == ArgRole::Pattern && spec.pattern_arg_resolver.is_some() {
+        let pattern_resolved = spec.pattern_arg_resolver.is_some();
+        if wants(ArgRole::Pattern) && pattern_resolved {
             out.extend(
                 self.pattern_args(name, args)
                     .into_iter()
-                    .map(|pattern| usize::from(pattern.index)),
+                    .map(|pattern| (usize::from(pattern.index), ArgRole::Pattern)),
             );
+        }
         // Top-level positional roles.
-        } else if let Some(resolver) = spec.arg_role_resolver {
+        let admitted = |role: ArgRole| {
+            wants(role)
+                && (role != ArgRole::Body || case_body_roles_allowed)
+                && !(role == ArgRole::Pattern && pattern_resolved)
+        };
+        if let Some(resolver) = spec.arg_role_resolver {
             out.extend(
                 resolver(args)
                     .into_iter()
-                    .filter(|(_, r)| {
-                        *r == role && (role != ArgRole::Body || case_body_roles_allowed)
-                    })
-                    .map(|(i, _)| i as usize),
+                    .filter(|(_, r)| admitted(*r))
+                    .map(|(i, r)| (i as usize, r)),
             );
         } else {
             out.extend(
                 spec.arg_roles
                     .iter()
-                    .filter(|(_, r)| {
-                        *r == role && (role != ArgRole::Body || case_body_roles_allowed)
-                    })
-                    .map(|(i, _)| *i as usize),
+                    .filter(|(_, r)| admitted(*r))
+                    .map(|(i, r)| (*i as usize, *r)),
             );
         }
         // Repeated tails (`global a b c`, `upvar ?level? o l o l`).
-        push_repeated_roles(&mut out, spec.repeated_args, n, 0, role);
+        push_repeated_roles(&mut out, spec.repeated_args, n, 0, wanted);
         // Value-taking options carry roles at their (dynamic) value positions.
-        push_option_value_roles(&mut out, spec.options, args, 0, role);
-        out.retain(|&idx| idx < n);
-        out.sort_unstable();
-        out.dedup();
-        out
+        push_option_value_roles(&mut out, spec.options, args, 0, wanted);
+        finish(out)
     }
 
     /// Resolve the argument indices whose **brace-quoted** word this command
@@ -5642,10 +5731,21 @@ impl CommandRegistry {
         if !spec.traits.contains(Traits::DEFINES_PROCEDURE) {
             return None;
         }
+        let assignments = self.arg_role_assignments(
+            head,
+            args,
+            &[
+                ArgRole::Name,
+                ArgRole::ParamList,
+                ArgRole::StaticVarList,
+                ArgRole::Body,
+            ],
+        );
         let first = |role: ArgRole| {
-            self.arg_indices_for_role(head, args, role)
-                .into_iter()
-                .min()
+            assignments
+                .iter()
+                .find(|&&(_, assigned)| assigned == role)
+                .map(|&(index, _)| index)
         };
         Some(ProcedureWords {
             name: first(ArgRole::Name)?,
@@ -8134,8 +8234,8 @@ mod tests {
 
     fn indices(options: &[crate::hover::OptionSpec], args: &[&str], role: ArgRole) -> Vec<usize> {
         let mut out = Vec::new();
-        push_option_value_roles(&mut out, options, args, 0, role);
-        out
+        push_option_value_roles(&mut out, options, args, 0, &[role]);
+        out.into_iter().map(|(index, _)| index).collect()
     }
 
     #[test]

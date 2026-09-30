@@ -72,6 +72,9 @@ use std::time::{Duration, Instant};
 use serde_json::{Value, json};
 
 /// Default per-request timeout.
+/// LSP `MessageType.Warning`, as a `window/logMessage` carries it.
+const LOG_MESSAGE_WARNING: i64 = 2;
+
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 /// Longer default for `initialize` / `request` without an explicit deadline.
 const REQUEST_TIMEOUT: Duration = Duration::from_mins(1);
@@ -1389,6 +1392,19 @@ impl Lsp {
             })
     }
 
+    /// [`Lsp::await_log`] for a `window/logMessage` of type `Warning` alone: a
+    /// message the server logs at another severity does not satisfy it.
+    pub fn await_warning_log(&self, needles: &[&str], timeout: Duration, since: usize) -> String {
+        self.try_await_log_of_type(needles, Some(LOG_MESSAGE_WARNING), timeout, since)
+            .unwrap_or_else(|| {
+                panic!(
+                    "no warning window/logMessage containing all of {needles:?} within \
+                     {timeout:?}{}",
+                    latency_barrier_timeout_note()
+                )
+            })
+    }
+
     /// Like [`Lsp::await_log`] but returns `None` on timeout instead of
     /// panicking, for callers that can make progress another way when the
     /// marker does not arrive — e.g. a convergence loop that simply re-issues
@@ -1399,11 +1415,30 @@ impl Lsp {
         timeout: Duration,
         since: usize,
     ) -> Option<String> {
+        self.try_await_log_of_type(needles, None, timeout, since)
+    }
+
+    /// [`Lsp::try_await_log`], limited to log messages of `message_type` when
+    /// one is given.
+    fn try_await_log_of_type(
+        &self,
+        needles: &[&str],
+        message_type: Option<i64>,
+        timeout: Duration,
+        since: usize,
+    ) -> Option<String> {
         let deadline = Instant::now() + scaled_timeout(timeout);
         let mut notes = self.shared.notifications.lock().unwrap();
         loop {
             for note in notes.iter().skip(since) {
                 if note.get("method").and_then(Value::as_str) != Some("window/logMessage") {
+                    continue;
+                }
+                let logged_type = note
+                    .get("params")
+                    .and_then(|p| p.get("type"))
+                    .and_then(Value::as_i64);
+                if message_type.is_some() && logged_type != message_type {
                     continue;
                 }
                 let msg = note

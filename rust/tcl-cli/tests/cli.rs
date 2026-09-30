@@ -1351,14 +1351,15 @@ fn diag_accepts_the_jim_program_under_the_jim_dialect() {
 
 /// The control for the Jim runs: the same program under Tcl 8.6 is refused, so
 /// the clean result above comes from the dialect and not from a `diag` that
-/// reports nothing.
+/// reports nothing. The four-word `proc` is an arity error and `loop` and
+/// `sleep` are Jim's commands, disabled in a Tcl document.
 #[test]
 fn diag_rejects_the_jim_program_under_tcl86() {
     let (code, rows) = diag_severities("jim-tcl86", JIM_PROGRAM, &["--dialect", "tcl8.6"]);
     assert_eq!(code, Some(1), "{rows:?}");
     let codes: Vec<&str> = rows.iter().map(|(_, c)| c.as_str()).collect();
     assert!(codes.contains(&"E003"), "{rows:?}");
-    assert!(codes.contains(&"W123"), "{rows:?}");
+    assert!(codes.contains(&"W002"), "{rows:?}");
 }
 
 /// A `jimsh` shebang selects Jim with no `--dialect` flag.

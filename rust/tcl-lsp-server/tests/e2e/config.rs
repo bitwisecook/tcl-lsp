@@ -123,7 +123,8 @@ fn reports_resolved_feature_map() {
 /// A session-scope `tclLsp.dialect` that names no environment is not stored:
 /// the server logs a warning naming the value and the selectable dialects and
 /// uses the default, rather than resolving every document to the lenient `tcl`
-/// sink.
+/// sink. A document then opens under the default: Jim's `loop` is a command
+/// Tcl 8.6 does not have, and the report says which dialect does.
 #[test]
 fn an_unknown_session_dialect_warns_and_uses_the_default() {
     let mut lsp = Lsp::with_config(json!({ "dialect": "tcl9.0" }));
@@ -131,12 +132,24 @@ fn an_unknown_session_dialect_warns_and_uses_the_default() {
         cfg.get("dialect") == Some(&json!("tcl8.6"))
     });
     assert_eq!(settled["dialect_explicitly_set"], json!(false), "{settled}");
-    let warning = lsp.await_log(
+    let warning = lsp.await_warning_log(
         &["`nonsense`", "Valid dialects", "jim", "xilinx-eda-tcl"],
         std::time::Duration::from_secs(10),
         0,
     );
     assert!(warning.contains("tcl8.6"), "{warning}");
+
+    let uri = unique_uri("tcl");
+    let diagnostics = lsp.open_ready_lang(&uri, "loop i 0 3 { puts $i }\n", "tcl");
+    let cfg = lsp.effective_config(&uri);
+    assert_eq!(cfg["dialect_id"], json!("tcl8.6"), "{cfg}");
+    assert!(
+        diagnostics.iter().any(|d| d["code"] == json!("W002")
+            && d["message"]
+                .as_str()
+                .is_some_and(|message| message.contains("jim"))),
+        "`loop` is Jim's, disabled under Tcl 8.6: {diagnostics:#?}"
+    );
 }
 
 /// `getEffectiveConfig` labels the dialect from its resolved environment

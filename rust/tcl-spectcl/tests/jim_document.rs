@@ -93,14 +93,64 @@ fn a_static_is_a_local_of_the_body_and_no_argument() {
 }
 
 /// Each spelling of a static declares its name: `name`, `{name value}` and,
-/// from 0.83, `&name`.
+/// from 0.83, `&name`. A bare `name` and `&name` refer to the enclosing scope's
+/// variable, so it is used there.
 #[test]
 fn every_static_spelling_declares_its_name() {
     let source = jim("set seed 5\nset shared 1\n\
          proc mix {a} {seed {n 0} &shared} { return [expr {$a + $seed + $n + $shared}] }\n\
          puts [mix 1]\n");
     for findings in both_tiers(&source) {
-        assert_eq!(substantive(findings), vec![], "{source}");
+        assert_eq!(findings, vec![], "{source}");
+    }
+}
+
+/// A bare `name` or `&name` static reads the enclosing scope's variable when the
+/// procedure is defined; a `{name value}` static names its own initial value and
+/// reads nothing there.
+#[test]
+fn only_a_bare_or_ampersand_static_reads_the_enclosing_variable() {
+    let reads_of = |statics: &str| -> usize {
+        let source = jim(&format!(
+            "set seed 5\nproc p {{a}} {{{statics}}} {{ return $a }}\nputs $seed\n"
+        ));
+        [false, true]
+            .map(|per_item| {
+                let result = run(&source, per_item);
+                result.global_scope.variables["seed"].references.len()
+            })
+            .into_iter()
+            .reduce(|first, second| {
+                assert_eq!(first, second, "both tiers count the same reads: {source}");
+                first
+            })
+            .expect("two tiers")
+    };
+    assert_eq!(reads_of("seed"), 2, "the static and the `puts`");
+    assert_eq!(reads_of("&seed"), 2, "the reference and the `puts`");
+    assert_eq!(reads_of("{seed 0}"), 1, "only the `puts`");
+}
+
+/// The edges of a static list: an empty list declares nothing, a one-word list
+/// declares one static, and an element of three fields is an error `jimsh`
+/// raises while creating the procedure.
+#[test]
+fn the_edges_of_a_static_list() {
+    let empty = jim("proc f {} {} { return 1 }\nputs [f]\n");
+    let one_word = jim("set n 1\nproc f {} {n} { return $n }\nputs $n\nputs [f]\n");
+    let three_fields = jim("proc f {} {{a b c}} { return 1 }\nputs [f]\n");
+    for findings in both_tiers(&empty) {
+        assert_eq!(findings, vec![], "{empty}");
+    }
+    for findings in both_tiers(&one_word) {
+        assert_eq!(findings, vec![], "{one_word}");
+    }
+    for findings in both_tiers(&three_fields) {
+        assert_eq!(
+            findings,
+            vec![(DiagCode::E006, "{{a b c}}".to_owned())],
+            "{three_fields}"
+        );
     }
 }
 
@@ -219,13 +269,34 @@ fn a_derived_class_inherits_its_bases_variables() {
     assert_eq!(derived.variables, ["x", "y", "z"]);
 }
 
-/// A base-class list or a variable dictionary that is computed leaves the
-/// class's inheritance unknown rather than guessed.
+/// A computed base-class list leaves the class's inheritance unknown rather
+/// than guessed; a computed variable dictionary names no variables and changes
+/// no ancestry.
 #[test]
-fn a_computed_class_definition_leaves_its_inheritance_unknown() {
-    let source = jim("class Dyn $bases $vars\n");
-    let result = run(&source, false);
-    assert!(result.all_classes["::Dyn"].inheritance_unknown);
+fn only_a_computed_base_list_leaves_the_inheritance_unknown() {
+    let source = jim("class Dyn $bases {x 0}\nclass Vars $vars\n");
+    for per_item in [false, true] {
+        let result = run(&source, per_item);
+        assert!(result.all_classes["::Dyn"].inheritance_unknown);
+        assert!(!result.all_classes["::Vars"].inheritance_unknown);
+        assert!(result.all_classes["::Vars"].variables.is_empty());
+    }
+}
+
+/// A variable dictionary with a key and no value is an error in `jimsh`; the
+/// keys are still read, so a method body's reads of them add nothing.
+#[test]
+fn an_odd_variable_dictionary_is_an_argument_shape_error() {
+    let source = jim("class P {x 0 y}\n");
+    for per_item in [false, true] {
+        let result = run(&source, per_item);
+        assert_eq!(
+            findings_of(&result, &source),
+            vec![(DiagCode::E005, "{x 0 y}".to_owned())],
+            "{source}"
+        );
+        assert_eq!(result.all_classes["::P"].variables, ["x", "y"]);
+    }
 }
 
 /// The definer's own arity is enforced: `class` needs a name and a variable
@@ -279,6 +350,39 @@ fn a_raw_two_word_proc_is_a_method_without_the_class_variables() {
     assert!(result.all_classes["::Point"].methods.contains_key("move"));
     assert!(!result.all_variables.contains_key("Point move::x"));
     assert!(!result.all_variables.contains_key("Point move::self"));
+}
+
+/// A `proc {CLASS M}` written before `class CLASS …` is a method of it too: the
+/// class command dispatches through the commands named `CLASS *`.
+#[test]
+fn a_two_word_proc_written_before_its_class_is_a_method() {
+    let source = jim("proc {Point move} {dx} { return $dx }\nclass Point {x 0}\n");
+    for per_item in [false, true] {
+        let result = run(&source, per_item);
+        assert_eq!(findings_of(&result, &source), vec![], "{source}");
+        assert!(
+            result.all_classes["::Point"].methods.contains_key("move"),
+            "per_item={per_item}"
+        );
+    }
+}
+
+/// A method body that names its own class finds it, on either analyser tier:
+/// the class stays indexed while the body is walked, so the object the body
+/// constructs is typed and `$copy clone` is a dispatch on the class.
+#[test]
+fn a_method_body_can_construct_its_own_class() {
+    let source = jim("class Point {x 0}\n\
+         Point method clone {} { set copy [Point new]\n return [$copy clone] }\n");
+    for per_item in [false, true] {
+        let result = run(&source, per_item);
+        assert_eq!(findings_of(&result, &source), vec![], "{source}");
+        assert!(result.all_classes["::Point"].methods.contains_key("clone"));
+        assert_eq!(
+            result.instance_classes["copy"], "::Point",
+            "per_item={per_item}"
+        );
+    }
 }
 
 /// `set obj [CLASS new]` types the variable, so `$obj method` is a dispatch on
@@ -344,19 +448,18 @@ set s [system new]
 puts [$s model]
 ";
 
-/// The whole program is accepted by a `jim` document: whatever it reports is
-/// a hint about a variable nothing reads, on both analyser tiers.
+/// The whole program is accepted by a `jim` document, on both analyser tiers.
 #[test]
-fn a_jim_program_draws_only_unused_variable_hints() {
+fn a_jim_program_draws_no_findings() {
     let source = jim(JIM_PROGRAM);
     for findings in both_tiers(&source) {
-        assert_eq!(substantive(findings), vec![], "{source}");
+        assert_eq!(findings, vec![], "{source}");
     }
 }
 
 /// The same text under `tcl8.6` is a different program: Tcl's `proc` takes
 /// three words, so the four-word definition is an arity error, and `loop` and
-/// `sleep` are not Tcl's commands.
+/// `sleep` are Jim's commands, disabled in a Tcl document.
 #[test]
 fn the_same_program_under_tcl_is_rejected() {
     let source = tcl86(JIM_PROGRAM);
@@ -372,25 +475,27 @@ fn the_same_program_under_tcl_is_rejected() {
         assert!(
             findings
                 .iter()
-                .any(|(code, text)| *code == DiagCode::W123 && text == "loop"),
-            "loop is not a Tcl command: {findings:?}"
+                .any(|(code, text)| *code == DiagCode::W002 && text == "loop"),
+            "loop is Jim's, not Tcl's: {findings:?}"
         );
-        assert!(on(DiagCode::W123, "sleep"), "{findings:?}");
+        assert!(on(DiagCode::W002, "sleep"), "{findings:?}");
     }
 }
 
-/// `loop i 0 3 {…}` is flagged under `tcl8.6` and accepted under `jim`, where
-/// its body is walked as the loop body it is.
+/// `loop i 0 3 {…}` is flagged under `tcl8.6`, as Jim's and disabled there,
+/// and accepted under `jim`, where its body is walked as the loop body it is.
 #[test]
 fn loop_is_flagged_under_tcl_and_accepted_under_jim() {
     let program = "loop i 0 3 { puts $i }\nloop k 2 { puts $k }\n";
     let jim_findings = analyse_with(&jim(program), false);
     assert_eq!(jim_findings, vec![], "{jim_findings:?}");
     let tcl_findings = analyse_with(&tcl86(program), false);
-    assert!(
+    assert_eq!(
         tcl_findings
             .iter()
-            .any(|(code, text)| *code == DiagCode::W123 && text == "loop"),
+            .filter(|(code, text)| *code == DiagCode::W002 && text == "loop")
+            .count(),
+        2,
         "{tcl_findings:?}"
     );
 
@@ -402,8 +507,9 @@ fn loop_is_flagged_under_tcl_and_accepted_under_jim() {
     );
 }
 
-/// Under another dialect `class` is not Jim's: nothing is recorded as a class
-/// and the word is reported.
+/// Under another dialect `class` is not Jim's: nothing is recorded as a class,
+/// `class` is reported as a Jim command disabled there, and the class name it
+/// would have defined is unknown.
 #[test]
 fn a_tcl_document_has_no_jim_class() {
     let source = tcl86("class Point {x 0 y 0}\nset p [Point new]\n");
@@ -413,10 +519,15 @@ fn a_tcl_document_has_no_jim_class() {
         "{:?}",
         result.all_classes.keys()
     );
+    let findings = findings_of(&result, &source);
     assert!(
-        findings_of(&result, &source)
-            .iter()
-            .any(|(code, _)| *code == DiagCode::W123),
-        "{source}"
+        result.diagnostics.iter().any(|d| d.code == DiagCode::W002
+            && &source[d.span.start() as usize..d.span.end() as usize] == "class"
+            && d.message.contains("jim")),
+        "{findings:?}"
+    );
+    assert!(
+        findings.contains(&(DiagCode::W123, "Point".to_owned())),
+        "{findings:?}"
     );
 }

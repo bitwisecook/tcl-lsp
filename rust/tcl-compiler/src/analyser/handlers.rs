@@ -937,15 +937,37 @@ struct ProcBodyWalkArgs<'a> {
     ns_prefix: &'a str,
 }
 
-/// The names a static-variable list declares: each element is a bare `name`, a
-/// `{name value}` pair, or `&name`, which refers to the enclosing scope's
-/// variable of that name and declares the same name in the body.
-fn static_variable_names(text: &str, rules: tcl_syntax::word_rules::WordValueRules) -> Vec<String> {
+/// One element of a static-variable list.
+struct StaticVariable {
+    /// The name the body declares.
+    name: String,
+    /// Whether the element refers to the enclosing scope's variable of that
+    /// name, which is read when the procedure is defined: a bare `name` or
+    /// `&name`. A `{name value}` pair names its own initial value.
+    reads_enclosing: bool,
+}
+
+/// The variables a static-variable list declares: each element is a bare
+/// `name`, a `{name value}` pair, or `&name`, which refers to the enclosing
+/// scope's variable of that name and declares the same name in the body.
+fn static_variables(
+    text: &str,
+    rules: tcl_syntax::word_rules::WordValueRules,
+) -> Vec<StaticVariable> {
     parse_param_list(text, rules)
         .into_iter()
-        .map(|param| match param.name.strip_prefix('&') {
-            Some(referenced) => referenced.to_owned(),
-            None => param.name,
+        .map(|param| {
+            let reads_enclosing = !param.has_default;
+            match param.name.strip_prefix('&') {
+                Some(referenced) => StaticVariable {
+                    name: referenced.to_owned(),
+                    reads_enclosing,
+                },
+                None => StaticVariable {
+                    name: param.name,
+                    reads_enclosing,
+                },
+            }
         })
         .collect()
 }
@@ -1847,12 +1869,7 @@ impl Analyser {
             .registry
             .as_deref()
             .and_then(|registry| registry.procedure_definition_words(cmd_name, &arg_words))
-            .unwrap_or(tcl_registry::ProcedureWords {
-                name: 0,
-                params: 1,
-                statics: None,
-                body: 2,
-            });
+            .unwrap_or(tcl_registry::ProcedureWords::TCL_PROC);
         let last = words.name.max(words.params).max(words.body);
         if args.len() <= last || arg_tokens.len() <= last {
             return false;
@@ -2137,12 +2154,30 @@ impl Analyser {
         // Static variables are locals of the body too: declared once when the
         // procedure is defined, kept between calls, and never an argument.
         let static_names = statics.map_or_else(Vec::new, |(text, tok)| {
-            let names = static_variable_names(text, self.word_rules());
+            let variables = static_variables(text, self.word_rules());
             let spans = param_name_spans_for_token(&self.source, tok);
-            for (i, name) in names.iter().enumerate() {
-                self.define_var(name, tok, &child_path, false, spans.get(i).copied());
+            for (i, variable) in variables.iter().enumerate() {
+                let span = spans.get(i).copied();
+                self.define_var(&variable.name, tok, &child_path, false, span);
+                // The definition reads the enclosing variable, so it is used
+                // there whether or not the body reads its own copy.
+                if variable.reads_enclosing
+                    && let Some(span) = span
+                {
+                    let named = self.source.get(span.as_range()).unwrap_or_default();
+                    let skipped = u32::try_from(named.len() - named.trim_start_matches('&').len())
+                        .unwrap_or(0);
+                    self.record_var_read(
+                        &variable.name,
+                        Span::new(span.start() + skipped, span.end()),
+                        path,
+                    );
+                }
             }
-            names
+            variables
+                .into_iter()
+                .map(|variable| variable.name)
+                .collect()
         });
 
         // Save / restore `last_comment` around the body walk so a
@@ -2173,7 +2208,7 @@ impl Analyser {
                 namespace: ns_prefix.to_string(),
                 scope_name: scope_name.to_string(),
                 params: params.to_vec(),
-                class_variables: static_names,
+                seeded_variables: static_names,
                 // Attached later by `fill_deferred_bodies` for bodies with a
                 // fold candidate.
                 command_trust: None,
@@ -2342,7 +2377,7 @@ impl Analyser {
                     namespace: ns_prefix.clone(),
                     scope_name,
                     params: combined_params,
-                    class_variables: Vec::new(),
+                    seeded_variables: Vec::new(),
                     // Attached later by `fill_deferred_bodies` for bodies
                     // with a fold candidate.
                     command_trust: None,
@@ -2731,7 +2766,7 @@ impl Analyser {
                 namespace: body_ns,
                 scope_name,
                 params,
-                class_variables: Vec::new(),
+                seeded_variables: Vec::new(),
                 // Attached later by `fill_deferred_bodies` for bodies with a
                 // fold candidate.
                 command_trust: None,

@@ -1319,7 +1319,7 @@ impl Analyser {
                 // The shell walk above already seeded these with their real
                 // declaration spans; the graft keeps the shell's span, so
                 // the deferred body pass only needs the names.
-                class_variables: class_variables.to_vec(),
+                seeded_variables: class_variables.to_vec(),
                 // Attached later by `fill_deferred_bodies` for bodies with a
                 // fold candidate.
                 command_trust: None,
@@ -1836,10 +1836,8 @@ impl Analyser {
 
         let vars_at = args.len() - 1;
         let rules = self.word_rules();
-        let mut inheritance_unknown = false;
-        let mut words_of = |text: &str| -> Vec<String> {
+        let words_of = |text: &str| -> Vec<String> {
             if crate::naming::is_dynamic_word(text) {
-                inheritance_unknown = true;
                 return Vec::new();
             }
             rules
@@ -1847,12 +1845,31 @@ impl Analyser {
                 .map(|elements| elements.iter().map(ToString::to_string).collect())
                 .unwrap_or_default()
         };
+        // Only a computed base list leaves the inheritance unknown; a computed
+        // variable dictionary names no variables and changes no ancestry.
+        let bases_dynamic = args.len() == 3 && crate::naming::is_dynamic_word(&args[1]);
         let superclasses = if args.len() == 3 {
             words_of(&args[1])
         } else {
             Vec::new()
         };
-        let own_variables: Vec<String> = words_of(&args[vars_at]).into_iter().step_by(2).collect();
+        let variable_words = words_of(&args[vars_at]);
+        // A dictionary with a key and no value is an error in `jimsh`; every
+        // key is still a variable, so a method body's reads of one add nothing.
+        if variable_words.len() % 2 == 1 {
+            let span = super::utils::full_word_span(arg_tokens[vars_at], &self.source);
+            self.result.diagnostics.push(super::types::Diagnostic::new(
+                tcl_core_types::DiagCode::E005,
+                span,
+                format!(
+                    "Wrong argument-count shape for '{cmd_name}': the variable dictionary has \
+                     an odd number of elements, so '{}' has no value",
+                    variable_words[variable_words.len() - 1]
+                ),
+                super::types::Severity::Error,
+            ));
+        }
+        let own_variables: Vec<String> = variable_words.into_iter().step_by(2).collect();
         // A derived class's variable dictionary is its bases' merged with its
         // own, so a method body sees every inherited instance variable too.
         let mut variables: Vec<String> = Vec::new();
@@ -1885,12 +1902,44 @@ impl Analyser {
             metaclass_provenance: super::types::MetaclassProvenance::Observed,
             superclasses,
             variables,
-            inheritance_unknown,
+            inheritance_unknown: bases_dynamic,
             doc,
             ..Default::default()
         };
-        self.register_defined_class(qualified, class, scope_path);
+        self.register_defined_class(qualified.clone(), class, scope_path);
+        self.adopt_recorded_two_word_procs(&qualified, scope_path);
         true
+    }
+
+    /// Adopt the two-word `proc`s already written for the class just defined:
+    /// `proc {CLASS member}` before `class CLASS …` is a method of it, since a
+    /// class command dispatches through the commands named `CLASS *`.
+    fn adopt_recorded_two_word_procs(&mut self, class_q: &str, scope_path: &[usize]) {
+        let rules = self.word_rules();
+        let mut adopted: Vec<(String, super::types::ProcDef)> = Vec::new();
+        for proc in self.result.all_procs.values() {
+            if !proc.name.contains(char::is_whitespace) {
+                continue;
+            }
+            let Ok(words) = rules.split_list(&proc.name) else {
+                continue;
+            };
+            let [class_word, member_word] = words.as_slice() else {
+                continue;
+            };
+            if super::class_hierarchy::resolve_written_class_name(
+                class_word,
+                &self.result.all_classes,
+            )
+            .as_deref()
+                == Some(class_q)
+            {
+                adopted.push((member_word.to_string(), proc.clone()));
+            }
+        }
+        for (member, proc) in adopted {
+            self.add_two_word_member(class_q, &member, &proc, scope_path);
+        }
     }
 
     /// Handle `CLASS member …` where `CLASS` is a `JimClass` class and `member`
@@ -1904,13 +1953,21 @@ impl Analyser {
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) -> bool {
+        // Runs for every command no hook claims, so a document that defines no
+        // class asks nothing else. A class this document has not defined has
+        // no recorded definer, so only the local class index can answer.
+        if self.result.all_classes.is_empty() {
+            return false;
+        }
         let Some(keyword) = args.first() else {
             return false;
         };
         if arg_tokens.len() != args.len() {
             return false;
         }
-        let Some(class_q) = self.resolve_user_class(cmd_name) else {
+        let Some(class_q) =
+            super::class_hierarchy::resolve_written_class_name(cmd_name, &self.result.all_classes)
+        else {
             return false;
         };
         let Some(grammar) = self
@@ -1922,7 +1979,9 @@ impl Analyser {
         let Some(member) = grammar.member(keyword) else {
             return false;
         };
-        let Some(mut class_def) = self.result.all_classes.remove(&class_q) else {
+        // The class stays indexed while its member body is walked, so a body
+        // that names the class (`[CLASS new]`) finds it on either tier.
+        let Some(mut class_def) = self.result.all_classes.get(&class_q).cloned() else {
             return false;
         };
         let member_args = &args[1..];
@@ -1968,36 +2027,56 @@ impl Analyser {
     /// dialect defines that — so this only adds the class-side fact. The
     /// method has no class variables and no `self` in its body: a raw
     /// definition is not wrapped by the class command's `method`. A class
-    /// written after the `proc` is not seen.
+    /// written after the `proc` adopts it when the class is defined
+    /// ([`Self::adopt_recorded_two_word_procs`]).
     pub(super) fn record_two_word_proc_member(
         &mut self,
         proc_name: &str,
         proc: &super::types::ProcDef,
         scope_path: &[usize],
     ) {
+        // Runs for every `proc`; a document with no class has nothing to
+        // attach a member to.
+        if self.result.all_classes.is_empty() {
+            return;
+        }
         let Ok(words) = self.word_rules().split_list(proc_name) else {
             return;
         };
         let [class_word, member_word] = words.as_slice() else {
             return;
         };
-        let Some(class_q) = self.resolve_user_class(class_word) else {
+        let Some(class_q) = super::class_hierarchy::resolve_written_class_name(
+            class_word,
+            &self.result.all_classes,
+        ) else {
             return;
         };
+        self.add_two_word_member(&class_q, member_word, proc, scope_path);
+    }
+
+    /// Add `proc` to `class_q` as its method `member` when the class's family
+    /// stores its members as two-word commands.
+    fn add_two_word_member(
+        &mut self,
+        class_q: &str,
+        member: &str,
+        proc: &super::types::ProcDef,
+        scope_path: &[usize],
+    ) {
         if !self
-            .class_definer_grammar(&class_q)
+            .class_definer_grammar(class_q)
             .is_some_and(|grammar| grammar.family.members_are_two_word_commands())
         {
             return;
         }
-        let Some(mut class_def) = self.result.all_classes.remove(&class_q) else {
+        let Some(mut class_def) = self.result.all_classes.get(class_q).cloned() else {
             return;
         };
-        let name = member_word.to_string();
         class_def.methods.insert(
-            name.clone(),
+            member.to_string(),
             MethodDef {
-                name,
+                name: member.to_string(),
                 params: proc.params.clone(),
                 params_computed: proc.params_computed,
                 name_span: proc.name_span,
@@ -2009,7 +2088,7 @@ impl Analyser {
                 forward_target: None,
             },
         );
-        self.register_defined_class(class_q, class_def, scope_path);
+        self.register_defined_class(class_q.to_string(), class_def, scope_path);
     }
 
     /// Parse an itcl class body: `inherit` → superclasses, `variable` / `common`

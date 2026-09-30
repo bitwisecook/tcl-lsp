@@ -319,6 +319,12 @@ pub fn core_surface_generation() -> u64 {
         .generation
 }
 
+/// The registered generation and every registered spec, read under one lock.
+pub(crate) fn core_surface_specs() -> (u64, Vec<&'static CommandSpec>) {
+    let guard = CORE_SURFACE.read().unwrap_or_else(PoisonError::into_inner);
+    (guard.generation, guard.specs.clone())
+}
+
 /// The registered generation and the specs that have a core row for `family`,
 /// read under one lock so the pair describes one registered set.
 fn core_surface_for(family: Family) -> (u64, Vec<&'static CommandSpec>) {
@@ -507,6 +513,26 @@ mod tests {
             Arc::ptr_eq(tcl86.commands(), &registry_handle_for_profile(profile)),
             "a catalogue environment still shares the profile cache's store"
         );
+    }
+
+    /// A registered spec is a command in some dialect, so a name only a
+    /// family's own surface offers is known, and its providers name that
+    /// family, in every registry's any-dialect universe.
+    #[test]
+    fn the_any_dialect_universe_includes_the_registered_core_surface() {
+        register_core_surface_specs(probe_specs());
+        let registry = CommandRegistry::build_default();
+        assert!(registry.known_in_any_dialect(PROBE_NAME));
+        assert!(registry.known_in_any_dialect("set"), "compiled names stay");
+        let offered = registry
+            .providers_in_any_dialect(PROBE_NAME)
+            .expect("the registered name has providers");
+        assert_eq!(
+            offered.providers,
+            [tcl_dialect::model::SpecProvider::Core(Family::Jim)]
+        );
+        assert!(!offered.unrestricted);
+        assert!(!registry.known_in_any_dialect("core-surface-unregistered"));
     }
 
     /// The jim store is the plain store plus the registered specs: every

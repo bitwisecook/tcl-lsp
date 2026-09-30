@@ -104,7 +104,7 @@ of every generated and server-side default.
 
 ## Jim
 
-`jim` is reachable from every surface by the general rule, plus four
+`jim` is reachable from every surface by the general rule, plus five
 Jim-specific facts:
 
 1. `tcl-jim` is in the fixed contributed editor-identity set and the `jim`
@@ -131,6 +131,11 @@ Jim-specific facts:
    members are two-word commands, `loop`'s two windowed forms, and the
    n-ary arithmetic commands. A `proc` whose name is a two-word list
    defines the two-word command in every dialect.
+5. A Tcl document using a Jim-only head gets W002 naming `jim` (beside the W123
+   every command outside the document's registry draws), because Jim is on
+   Tcl 8.6's line; a Jim document using a Tcl head its roster omits gets W002
+   naming the Tcl releases; a head known only to an unrelated family (Expect's
+   `system` in a Jim document) gets W123 alone.
 
 ## The notice
 

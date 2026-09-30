@@ -1004,8 +1004,9 @@ impl Analyser {
     }
 
     /// Run E006 for the argument shapes the active command spec identifies as
-    /// formal lists. This is deliberately a registry-only query, including
-    /// resolver-defined roles and nested lambda literals.
+    /// formal lists and static-variable lists. This is deliberately a
+    /// registry-only query, including resolver-defined roles and nested lambda
+    /// literals.
     fn emit_formal_parameter_list_diagnostics(
         &mut self,
         cmd_name: &str,
@@ -1023,6 +1024,14 @@ impl Analyser {
             args,
             arg_tokens,
             &parameter_indices,
+        );
+        let static_indices =
+            registry.arg_indices_for_role(cmd_name, &arg_refs, ArgRole::StaticVarList);
+        super::diagnostics::emit_invalid_static_variable_list_diagnostics(
+            self,
+            args,
+            arg_tokens,
+            &static_indices,
         );
         let lambda_indices =
             registry.arg_indices_for_role(cmd_name, &arg_refs, ArgRole::LambdaLiteral);

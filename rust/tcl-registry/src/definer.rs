@@ -957,6 +957,11 @@ impl DefinerFamily {
     }
 
     /// Registry-owned current-namespace policy for executable member bodies.
+    ///
+    /// `JimClass` reports [`MemberCurrentNamespace::DefinedEntity`] although
+    /// Jim's `class` creates no namespace and a method's `namespace current` is
+    /// the caller's: no receiver selects a namespace at run time, and the class
+    /// is the one static name a body can be attributed to.
     #[must_use]
     pub const fn member_current_namespace(self) -> MemberCurrentNamespace {
         match self {

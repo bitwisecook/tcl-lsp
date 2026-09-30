@@ -172,12 +172,7 @@ pub(super) fn handle_proc(
             let arg_words: Vec<&str> = texts[1..].iter().map(String::as_str).collect();
             registry.procedure_definition_words(head, &arg_words)
         })
-        .unwrap_or(tcl_registry::ProcedureWords {
-            name: 0,
-            params: 1,
-            statics: None,
-            body: 2,
-        });
+        .unwrap_or(tcl_registry::ProcedureWords::TCL_PROC);
     let (name_at, params_at, body_at) = (words.name + 1, words.params + 1, words.body + 1);
     if texts.len() <= name_at.max(params_at).max(body_at) {
         return;

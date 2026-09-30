@@ -71,6 +71,21 @@ fn a_jim_document_using_a_tcl_command_jim_omits_is_disabled() {
     );
 }
 
+/// A Tcl document writing a command only Jim has: Jim is on Tcl 8.6's line, so
+/// the command is disabled here and the report names the dialect that has it.
+#[test]
+fn a_tcl_document_using_a_jim_only_command_is_disabled_and_names_jim() {
+    for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+        let found = on_head(dialect, "curry", "curry puts hello");
+        assert!(
+            found.iter().any(|(code, message)| *code == DiagCode::W002
+                && message.contains("disabled in the active dialect profile")
+                && message.contains("available in: jim")),
+            "{dialect}: {found:?}"
+        );
+    }
+}
+
 /// A `jim` document writing Expect's `system`: no family Jim derives from or
 /// shares packages with has it, so it is an unknown command, not a disabled
 /// one.

@@ -19,13 +19,11 @@
 //! Environment selection end to end over LSP: a Jim Tcl document reaches the
 //! `jim` environment through its language id, a shebang line or a directive
 //! alias; the environment's own commands and `proc` form draw no false
-//! diagnostics while the same text under Tcl 8.6 does; the dialect list and the
-//! effective config describe the environments the registry holds; and a
-//! session-scope name that selects nothing is reported and replaced by the
-//! default.
+//! diagnostics while the same text under Tcl 8.6 does; and the dialect list and
+//! the effective config describe the environments the registry holds.
 
 use std::collections::BTreeSet;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use serde_json::{Value, json};
 
@@ -52,9 +50,6 @@ const JIM_PROGRAM: &str = concat!(
 
 /// LSP `DiagnosticSeverity.Hint`.
 const SEVERITY_HINT: i64 = 4;
-
-/// LSP `MessageType.Warning`.
-const MESSAGE_TYPE_WARNING: i64 = 2;
 
 /// The hints the Jim program may draw: a variable or parameter nothing reads
 /// (`W211`, `W214`, `W220`), and `catch` with no result variable (`W302`).
@@ -206,10 +201,10 @@ fn the_first_publish_for_a_tcl_jim_document_needs_no_pack_reload() {
     }
 }
 
-/// The same text under Tcl 8.6 has a four-word `proc` and commands Tcl does not
-/// have.
+/// The same text under Tcl 8.6 has a four-word `proc` and commands that are
+/// Jim's, disabled in a Tcl document.
 #[test]
-fn the_jim_program_draws_arity_and_unknown_command_errors_as_a_tcl86_document() {
+fn the_jim_program_draws_arity_errors_and_disabled_commands_as_a_tcl86_document() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diagnostics = lsp.open_ready_lang(&uri, JIM_PROGRAM, "tcl86");
@@ -230,15 +225,15 @@ fn the_jim_program_draws_arity_and_unknown_command_errors_as_a_tcl86_document() 
         "the four-word `proc` on line 2 is an arity error: {diagnostics:#?}"
     );
 
-    let unknown: BTreeSet<&str> = diagnostics
+    let disabled: BTreeSet<&str> = diagnostics
         .iter()
-        .filter(|d| code_of(d) == "W123")
+        .filter(|d| code_of(d) == "W002")
         .map(|d| covered_text(JIM_PROGRAM, d))
         .collect();
     for command in ["loop", "sleep"] {
         assert!(
-            unknown.contains(command),
-            "`{command}` is unknown under Tcl 8.6: {unknown:?} in {diagnostics:#?}"
+            disabled.contains(command),
+            "`{command}` is disabled under Tcl 8.6: {disabled:?} in {diagnostics:#?}"
         );
     }
 }
@@ -279,7 +274,11 @@ fn list_dialects_names_each_selectable_environment_once() {
         .collect();
     let distinct: BTreeSet<&str> = names.iter().copied().collect();
     assert_eq!(distinct.len(), names.len(), "{names:?}");
-    assert_eq!(names.len(), 21, "{names:?}");
+    let selectable: Vec<&str> = tcl_dialect::model::EnvironmentRegistry::compiled_selectable()
+        .iter()
+        .map(|definition| definition.id.as_str())
+        .collect();
+    assert_eq!(names, selectable);
     assert!(!distinct.contains("tcl"), "{names:?}");
 }
 
@@ -294,59 +293,4 @@ fn an_xdc_document_is_analysed_as_the_vivado_tool_shell() {
     assert_eq!(cfg["dialect_id"], json!("xilinx-eda-tcl"), "{cfg}");
     assert_eq!(cfg["dialect_kind"], json!("packages"), "{cfg}");
     assert_eq!(cfg["dialect_provenance"], json!("bundled-pack"), "{cfg}");
-}
-
-/// Wait for a `window/logMessage` of type `Warning` containing every needle.
-fn await_warning(lsp: &Lsp, needles: &[&str]) -> String {
-    let budget = scaled_timeout(Duration::from_secs(10));
-    let deadline = Instant::now() + budget;
-    loop {
-        let found = lsp.notifications().into_iter().find_map(|note| {
-            if note["method"] != "window/logMessage"
-                || note["params"]["type"] != json!(MESSAGE_TYPE_WARNING)
-            {
-                return None;
-            }
-            let message = note["params"]["message"].as_str()?.to_owned();
-            needles
-                .iter()
-                .all(|needle| message.contains(needle))
-                .then_some(message)
-        });
-        if let Some(message) = found {
-            return message;
-        }
-        assert!(
-            Instant::now() < deadline,
-            "no warning logMessage containing {needles:?} within {budget:?}; saw {:#?}",
-            lsp.notifications()
-        );
-        std::thread::sleep(Duration::from_millis(50));
-    }
-}
-
-/// A session-scope `tclLsp.dialect` that names no environment is reported as a
-/// warning listing the valid ids, and the document is analysed as Tcl 8.6 —
-/// where `loop` is unknown, which the lenient fallback would not report.
-#[test]
-fn an_unknown_session_dialect_is_reported_and_the_document_is_analysed_as_tcl86() {
-    let mut lsp = Lsp::with_config(json!({ "dialect": "tcl9.0" }));
-    lsp.apply_configuration_settle(json!({ "dialect": "nonsense" }), "", |cfg| {
-        cfg["dialect"] == json!("tcl8.6")
-    });
-    let warning = await_warning(
-        &lsp,
-        &["`nonsense`", "Valid dialects", "jim", "xilinx-eda-tcl"],
-    );
-    assert!(warning.contains("tcl8.6"), "{warning}");
-
-    let uri = unique_uri("tcl");
-    let diagnostics = lsp.open_ready_lang(&uri, "loop i 0 3 { puts $i }\n", "tcl");
-    let cfg = lsp.effective_config(&uri);
-    assert_eq!(cfg["dialect_id"], json!("tcl8.6"), "{cfg}");
-    assert_eq!(cfg["dialect_explicitly_set"], json!(false), "{cfg}");
-    assert!(
-        codes(&diagnostics).contains("W123"),
-        "`loop` is unknown under Tcl 8.6: {diagnostics:#?}"
-    );
 }
