@@ -188,8 +188,10 @@ pub struct DeferredBody {
     pub scope_name: String,
     /// The proc / method's declared parameters (locals in the body).
     pub params: Vec<crate::signature_scan::types::ParamDef>,
-    /// Class instance variables pre-bound in every method body (`variable`
-    /// declarations at class level).  Empty for proc bodies.
+    /// Variables pre-bound in the body before it is walked: the class
+    /// instance variables of every method body (`variable` declarations at
+    /// class level), or the static variables a procedure's static-variable
+    /// list declares. Empty for a proc body with no such list.
     ///
     /// The seeded var's real `definition_span` (the `variable v` declaration)
     /// is supplied by the *shell* walk (`oo::walk_method_body`), which the

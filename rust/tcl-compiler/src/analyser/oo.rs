@@ -1568,7 +1568,7 @@ impl Analyser {
             // dynamic type-private proc name still gets a chance to resolve
             // via `fold_interpolation_single`, just not the single-`$var`
             // fast path).
-            self.handle_proc_command(sub_args, sub_tokens, &[], ctx.scope_path);
+            self.handle_proc_command(sub, sub_args, sub_tokens, &[], ctx.scope_path);
             return;
         }
         // Only body-bearing members define a walkable method scope; pure

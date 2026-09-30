@@ -199,14 +199,25 @@ mod tests {
         }
     }
 
-    /// Both compiled-in packs evaluate without a notice or a load error, and
-    /// declare no hook body: a hook needs a per-pack-set host these packs are
-    /// never loaded with, so one would abstain without saying so.
+    /// Both compiled-in packs evaluate without a load error and declare no
+    /// hook body: a hook needs a per-pack-set host these packs are never
+    /// loaded with, so one would abstain without saying so. The one notice
+    /// either raises is `proc` naming the native `Proc` lowering hook, which
+    /// the IR lowering and the command-binding replay both key on to treat a
+    /// call as a procedure definition.
     #[test]
     fn the_compiled_in_packs_load_clean_and_declare_no_hook_bodies() {
         for ((name, _), pack) in CORE_SURFACES.iter().zip(packs()) {
             assert!(pack.load_error.is_none(), "{name}: {:?}", pack.load_error);
-            assert!(pack.notices.is_empty(), "{name}: {:?}", pack.notices);
+            let unexpected: Vec<_> = pack
+                .notices
+                .iter()
+                .filter(|notice| {
+                    !(notice.context == "command proc"
+                        && notice.message.starts_with("names a lowering hook"))
+                })
+                .collect();
+            assert!(unexpected.is_empty(), "{name}: {unexpected:?}");
             for command in &pack.commands {
                 assert!(
                     command.hooks.is_empty(),
@@ -221,7 +232,7 @@ mod tests {
         );
         assert_eq!(
             builtin_commands().len(),
-            59,
+            60,
             "Jim's own commands: every measured name a script calls"
         );
     }

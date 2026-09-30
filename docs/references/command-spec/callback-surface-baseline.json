@@ -798,6 +798,14 @@
       "location": "arg[1]"
     },
     {
+      "owner": "proc form plain",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "proc form statics",
+      "location": "arg[3]"
+    },
+    {
       "owner": "protocol",
       "location": "arg[1]"
     },

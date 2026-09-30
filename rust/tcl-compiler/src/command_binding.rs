@@ -2243,7 +2243,10 @@ fn recover_procedure_definition(
     let Some(argument_count) = invocation.exact_argument_count else {
         return ProcedureDefinitionReplay::Unavailable;
     };
-    if argument_count != 3 {
+    // The definer's own arity decides which call shapes define a procedure:
+    // three words for `proc name args body`, three or four for a definer that
+    // also takes a static-variable list.
+    if !u16::try_from(argument_count).is_ok_and(|count| invocation.facts.arity.accepts(count)) {
         return ProcedureDefinitionReplay::KnownError;
     }
     if !invocation.facts.arg_roles_complete {

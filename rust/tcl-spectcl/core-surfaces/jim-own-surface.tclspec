@@ -203,6 +203,65 @@ speclib jim-own-surface 2.0 {
         }
     }
 
+    # ---- procedures ---------------------------------------------------------
+    # Jim's `proc` takes an optional static-variable list between the
+    # parameter list and the body. Each element is `name`, `{name value}` or,
+    # from 0.83, `&name`; a static keeps its value between calls, is visible in
+    # the body and is never an argument. The four-argument form has been there
+    # since 0.76, with the same usage string at every release.
+    #
+    # The statics and the body are the last words of the call, so their
+    # indices move with the arity: two `repeat` rows anchored to the end of the
+    # call (`-optional-leading`, a stride longer than any call) give the body
+    # the last word and the statics the one before it when there are four. The
+    # `refine` rows state the same shapes per arity for the form-aware
+    # readers.
+    #
+    # The IR has no static variable, so the lowering hook reads the three-word
+    # shape only. A call that supplies statics stays an ordinary call to the
+    # runtime `proc`: the analyser walk declares the statics and checks the
+    # body's commands, and the body is not put through the dataflow checks
+    # (read before set, set but never used).
+
+    command proc {
+        available {jim 0.76-}
+        traits {NOT_PROC_FACTORY INSTALLS_NAMED_DEFINITION LANGUAGE_KEYWORD DEFINES_PROCEDURE NEVER_INLINE_BODY DEFERS_BODY}
+        arity 3..4
+        body_kind Structural
+        return_type String
+        command_table_effect DefinesProcedure
+        side_effect ProcDefinition -writes
+        analyser_hook -native Proc
+        lowering_hook -native Proc
+        arg 0 -role Name
+        arg 1 -role ParamList
+        repeat StaticVarList -from 2 -stride 250 -exclude-trailing 1 -optional-leading
+        repeat Body -from 2 -stride 250 -optional-leading
+
+        refine plain {
+            arity 3
+            arg 0 -role Name
+            arg 1 -role ParamList
+            arg 2 -role Body
+        }
+        refine statics {
+            arity 4
+            arg 0 -role Name
+            arg 1 -role ParamList
+            arg 2 -role StaticVarList
+            arg 3 -role Body
+        }
+
+        form Default {proc name arglist ?statics? body}
+
+        hover {
+            summary {Create a procedure, optionally with static variables that persist between calls.}
+            synopsis {proc name arglist ?statics? body}
+            description {statics is a list whose elements are name, {name value} or, from 0.83, &name. A static named alone takes the value of that variable in the defining scope; a static written as {name value} is set to value once, when the proc is defined; &name refers to the defining scope's variable. proc returns the name it defined, so local can mark it procedure-local. A braced two-word name such as {system model} defines a two-word command, which is how class methods are stored.}
+            source {Jim Tcl}
+        }
+    }
+
     # ---- commands, aliases and closures ---------------------------------
 
     command alias {
@@ -264,7 +323,7 @@ speclib jim-own-surface 2.0 {
         refine statics {
             arity 3
             arg 0 -role ParamList
-            arg 1 -role ParamList
+            arg 1 -role StaticVarList
             arg 2 -role OpaqueScript
         }
         form Default {lambda arglist ?statics? body}

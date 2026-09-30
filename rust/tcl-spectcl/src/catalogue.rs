@@ -66,6 +66,10 @@ pub const ARG_ROLES: &[Variant] = &[
     v("VarRead", "names a variable the command reads"),
     v("LoopVarList", "loop variable list (foreach / lmap)"),
     v("ParamList", "procedure parameter list"),
+    v(
+        "StaticVarList",
+        "procedure static-variable list (`proc name args statics body`)",
+    ),
     v("Name", "symbolic name (proc, namespace, class)"),
     v("Pattern", "glob or regex pattern"),
     v("Option", "option flag word"),
@@ -586,6 +590,7 @@ mod tests {
             | ArgRole::VarRead
             | ArgRole::LoopVarList
             | ArgRole::ParamList
+            | ArgRole::StaticVarList
             | ArgRole::Name
             | ArgRole::Pattern
             | ArgRole::Option

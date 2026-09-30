@@ -548,6 +548,22 @@ const TAINT_SOURCE_COUNT: usize = count_taint_sources(crate::commands::irules::I
 const TAINT_SOURCE_INDEX: [(&str, crate::taint::TaintColour); TAINT_SOURCE_COUNT] =
     build_taint_source_index();
 
+/// Where the words of one procedure definition sit — see
+/// [`CommandRegistry::procedure_definition_words`]. Indices count words after
+/// the command head.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ProcedureWords {
+    /// The procedure's name.
+    pub name: usize,
+    /// Its parameter list.
+    pub params: usize,
+    /// Its static-variable list, for a definer that takes one and a call that
+    /// supplies it.
+    pub statics: Option<usize>,
+    /// Its body.
+    pub body: usize,
+}
+
 /// Lookup facade over command specs.
 ///
 /// The registry is built once from the command spec modules and then
@@ -5543,6 +5559,35 @@ impl CommandRegistry {
             .is_some_and(|spec| spec.traits.contains(Traits::HAS_LOOP_BODY))
     }
 
+    /// Where the words of a procedure definition `head args…` sit, read from
+    /// the definer's own argument roles: the procedure name, its parameter
+    /// list, its optional static-variable list and its body.
+    ///
+    /// `None` when `head` does not define a procedure, or when `args` is too
+    /// short for the roles to place a name, a parameter list and a body. The
+    /// indices count words after the command head, so a consumer reads
+    /// `args[layout.body]` without knowing whether the dialect's definer takes
+    /// a static-variable list (`proc name args ?statics? body` in Jim) or not
+    /// (`proc name args body`).
+    #[must_use]
+    pub fn procedure_definition_words(&self, head: &str, args: &[&str]) -> Option<ProcedureWords> {
+        let spec = self.get(head)?;
+        if !spec.traits.contains(Traits::DEFINES_PROCEDURE) {
+            return None;
+        }
+        let first = |role: ArgRole| {
+            self.arg_indices_for_role(head, args, role)
+                .into_iter()
+                .min()
+        };
+        Some(ProcedureWords {
+            name: first(ArgRole::Name)?,
+            params: first(ArgRole::ParamList)?,
+            statics: first(ArgRole::StaticVarList),
+            body: first(ArgRole::Body)?,
+        })
+    }
+
     /// `{command: BytePayloadSpec}` for every registered `<proto>::payload`
     /// byte-array command — the getter is a binary source and `<cmd> replace`
     /// a byte sink for the S110 byte-array-corruption check.
@@ -10251,6 +10296,31 @@ mod tests {
                 .body_arg_implicit_args,
             1,
         );
+    }
+
+    #[test]
+    fn procedure_definition_words_place_the_three_words_of_tcl_proc() {
+        let reg = CommandRegistry::build_default();
+        assert_eq!(
+            reg.procedure_definition_words("proc", &["f", "{a b}", "{ body }"]),
+            Some(ProcedureWords {
+                name: 0,
+                params: 1,
+                statics: None,
+                body: 2,
+            })
+        );
+    }
+
+    #[test]
+    fn procedure_definition_words_answers_only_for_a_procedure_definer() {
+        let reg = CommandRegistry::build_default();
+        assert_eq!(
+            reg.procedure_definition_words("set", &["x", "1", "2"]),
+            None
+        );
+        assert_eq!(reg.procedure_definition_words("proc", &["f"]), None);
+        assert_eq!(reg.procedure_definition_words("no_such_head", &[]), None);
     }
 
     #[test]
