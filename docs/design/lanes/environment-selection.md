@@ -203,6 +203,23 @@ Unverified: VS Code test host (ENOSPC before it ran; partition counts
 978→968 / 977→967 computed statically); Kotlin edits; `(?:a|b)` in real
 VS Code `when` clauses.
 
+## Notice (1d) — state
+
+Done in worktree branch `worktree-agent-a717f7335d0479a49` (six commits,
+oldest first: state path + `[notifications]` key + VS Code setting;
+defaults read `DEFAULT_ENVIRONMENT_ID`; the notice
+(`rust/tcl-lsp-server/src/environment_notice.rs`); docs
+(`kcs-feature-tool-environments.md`, `config-precedence.md`,
+`xdg-config.md`, `kcs-feature-extension-settings.md`,
+`kcs-qa-what-config-sections-are-valid.md`); e2e harness + 14 tests in
+`tests/e2e/environment_notice.rs`). State path lives in
+`tcl_lsp_core::tcl_install::user_notices_path` (not `tcl-platform`, which
+has no filesystem code). To cherry-pick once the integration lane has
+committed its `tests/e2e.rs` edit. Known flake in the full e2e binary:
+`document_symbols::workspace_symbol_waits_out_the_startup_scan` (a
+deliberate start-up race; passes alone). The Learn-more URL targets the
+`rust` branch and resolves once the note is there.
+
 ## Gate notes
 
 - `cargo xtask dialect-drift` fails on eight pre-existing sites in

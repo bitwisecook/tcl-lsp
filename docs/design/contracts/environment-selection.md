@@ -149,13 +149,24 @@ server-sent message renders in every editor with no client code.
 - **Text.** `{display_name} ({id}) is Tcl {release} plus the {packages}
   packages. Tool support is a set of library packages on a Tcl release,
   not a separate dialect; your selection keeps working as before.`
-- **Frequency.** At most once per environment per session, and never
-  again once dismissed. Dismissals persist in
+- **When.** After `didOpen`, and again when a document's dialect changes
+  on re-resolution; at most once per environment per session, and never
+  again once dismissed. The sending task holds no document or analyser
+  lock, and waits for the first configuration pull (bounded at 30 s) before
+  consulting the setting, so a document restored at start-up cannot show
+  the notice to a user who has switched it off. Dismissals persist in
   `$XDG_STATE_HOME/tcl-lsp/notices.ini` (`[dismissed] environment-kind =
-  xilinx-eda-tcl, …`) so the choice follows the user across editors.
+  xilinx-eda-tcl, …`; `~/.local/state` by default, the platform's state
+  directory on macOS and Windows) so the choice follows the user across
+  editors; the file is read once at start-up and rewritten atomically on
+  dismissal, keeping other sections.
 - **Off switch.** `tclLsp.notifications.environmentKind` (default `true`)
-  in editor settings, mirrored as `[notifications] environment_kind` in
-  the XDG `config.ini` for editors without a settings UI.
+  in editor settings — read from the `workspace/configuration` pull,
+  `initializationOptions` and `didChangeConfiguration`, applied live — and
+  `[notifications] environment_kind = false` in the XDG `config.ini` or a
+  project `.tcl-lsp.ini` for editors without a settings UI, layered as
+  every other key in [config-precedence.md](config-precedence.md).
+  `getEffectiveConfig` reports it as `notifications_environment_kind`.
 - **Policy.** [config-precedence.md](config-precedence.md) keeps ignored
   settings silent. This notice is not about an ignored setting: it is a
   one-time explanation of a classification, and is the one scoped
