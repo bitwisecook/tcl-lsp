@@ -236,6 +236,31 @@ fn dont_show_again_is_saved_and_only_that_environment_stays_quiet() {
 }
 
 #[test]
+fn an_unreadable_state_file_is_one_warning_and_the_notice_still_asks() {
+    let state = scratch_dir("unreadable");
+    let file = state.join("tcl-lsp").join("notices.ini");
+    std::fs::create_dir_all(file.parent().expect("a parent directory")).expect("create state");
+    std::fs::write(&file, [0xff, 0xfe, 0x00, 0x9f]).expect("write a file that is not UTF-8");
+    let state_env = [("XDG_STATE_HOME", state.to_str().expect("UTF-8 path"))];
+    let reply = json!({ "features": { "linkedEditingRange": true } });
+
+    let mut lsp = start(&reply, &reply, &full_client(), &state_env, None);
+    let warning = lsp.await_log(&["could not read", "notices.ini"], WAIT, 0);
+    assert!(warning.contains("may be shown again"), "{warning}");
+    open_vivado(&mut lsp);
+    lsp.await_server_request(ASK, WAIT, 0);
+    let warnings = lsp
+        .notifications()
+        .into_iter()
+        .filter(|note| {
+            note["method"] == "window/logMessage" && message_of(note).contains("could not read")
+        })
+        .count();
+    assert_eq!(warnings, 1, "at most one warning");
+    let _ = std::fs::remove_dir_all(state);
+}
+
+#[test]
 fn a_second_open_in_the_same_session_sends_nothing_more() {
     let mut lsp = start_default(&full_client());
     let first = open_vivado(&mut lsp);
