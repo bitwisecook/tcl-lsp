@@ -527,17 +527,21 @@ mod tests {
             "-size",
             "-style",
             "-takefocus",
+            "-text",
+            "-textvariable",
+            "-underline",
             "-variable",
+            "-width",
         ] {
             assert!(
                 toggleswitch.find_option(supported, None, None).is_some(),
                 "ttk::toggleswitch must expose its documented option: {supported}"
             );
         }
-        for unsupported in ["-text", "-textvariable", "-underline", "-width"] {
+        for unsupported in ["-compound", "-image", "-padding"] {
             assert!(
                 toggleswitch.find_option(unsupported, None, None).is_none(),
-                "ttk::toggleswitch must not inherit an undocumented text option: {unsupported}"
+                "ttk::toggleswitch must not inherit an undocumented label option: {unsupported}"
             );
         }
         let treeview = specs
@@ -1445,7 +1449,16 @@ mod tests {
             .iter()
             .find(|spec| spec.name == "ttk::toggleswitch")
             .unwrap();
-        for invalid in ["-text", "-textvariable", "-underline", "-width"] {
+        // Tk 9.1.0 added the optional text element (ttkToggleswitch.c).
+        for text_option in ["-text", "-textvariable", "-underline", "-width"] {
+            assert!(
+                toggle
+                    .find_option(text_option, None, Some(floor("9.1")))
+                    .is_some(),
+                "ttk::toggleswitch exposes its 9.1.0 text option: {text_option}"
+            );
+        }
+        for invalid in ["-compound", "-image", "-padding"] {
             assert!(
                 toggle
                     .find_option(invalid, None, Some(floor("9.1")))
