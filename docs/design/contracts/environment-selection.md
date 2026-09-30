@@ -189,14 +189,15 @@ server-sent message renders in every editor with no client code.
 
 ## Not modelled
 
-- The `DialectProfile` catalogue remains the lexer's and the editors'
-  identity key (retiring it is redesign D5 / centralisation C1). This
-  contract makes it invisible, not absent.
+- The `DialectProfile` catalogue is the lexer's and the editors' identity
+  key, and nothing else (redesign D5 / centralisation C1 hold the open
+  question of keying the lexer on the environment). This contract makes
+  the catalogue invisible, not absent.
 - There is no free composition ("`tcl8.6` plus `vivado`");
   `EnvironmentOverlay` has no production caller. Kind `Packages` is the
   presentational half of that story.
-- Per-package version windows are parsed and dropped (redesign D17-P);
-  there is no `ToolVersion` setting.
+- A package version window in `available` is parsed and dropped (redesign
+  D17-P); there is no `ToolVersion` setting.
 - The vendor rows pin one release (`available {tcl 8.5}`).
 
 ## Gates

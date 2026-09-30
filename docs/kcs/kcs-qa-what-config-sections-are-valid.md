@@ -34,8 +34,10 @@ when this section appears in the **global** XDG `config.ini`; a
 
 - `dialect` — default dialect for files that have no per-file hint.
   Any dialect name the tools accept — `tcl8.4` through `tcl9.1`,
-  `f5-irules`, `f5-iapps`, `f5-tmsh`, `f5-bigip`, `expect`, `tk`, and
-  the EDA dialects. `tcl diag --help` prints the current list.
+  `f5-irules`, `f5-iapps`, `f5-tmsh`, `f5-bigip`, `jim`, `expect`, and
+  the tool environments (`tk` and the EDA shells, or an alias such as
+  `vivado`). `tcl diag --help` prints the current list, as does
+  [docs/generated/environments.md](../generated/environments.md).
 - `extraCommands` — comma- or newline-separated list of extra Tcl
   command names the analyser should recognise.
 - `libraryPaths` — one path per line, or comma-separated for one-line

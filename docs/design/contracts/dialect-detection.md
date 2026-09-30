@@ -16,6 +16,7 @@ fails — it returns `default` when nothing fires.
 | Priority | Source | Example |
 |----------|--------|---------|
 | −1 | **Per-document override** | `tcl-lsp.setDocumentDialectOverride(uri, dialect)` — a host naming one exact URI, above everything including the language id |
+| −0.5 | **Session override** | `tcl-lsp.setSessionDialectOverride(dialect)` / `tcl-lsp.setDialect` — re-tags every open buffer that has no per-document override |
 | 0 | **Editor language ID / explicit `--dialect`** | Applied by the *caller*, above `detect_dialect`, and overrides everything below |
 | 1 | **Comment directive** | `# tcl-dialect: tcl8.4` in the first 5 lines (`DIALECT_DIRECTIVE_SCAN_LINES`) |
 | 2 | **Shebang** | `#!/usr/bin/env tclsh8.5` or `#!/usr/bin/expect` (first line only) |
@@ -118,10 +119,12 @@ the live registry; the first environment that owns the word wins.
   Tcl release of that version (`tclsh8.5` and `wish8.5` both select
   `tcl8.5`), because each release environment lists both spellings.
 
-A plain `#!/usr/bin/tclsh` names the lenient `tcl` sink, which owns no
-shebang word, so it selects nothing and falls through to the next tier. So
-does a version this project does not model (`tclsh8.3`, `tclsh9.2`) — an
-unmodelled version is an abstention, not an error.
+A plain `#!/usr/bin/tclsh` selects nothing and falls through to the next
+tier: the lenient `tcl` sink declares `tclsh` as its shebang word — which
+is why the editor generators give the plain `tcl` language a first-line
+pattern — but the shebang tier skips the sink, because a fallback is not a
+choice. So does a version this project does not model (`tclsh8.3`,
+`tclsh9.2`) — an unmodelled version is an abstention, not an error.
 
 ## Per-document override (`tcl-lsp.setDocumentDialectOverride`)
 
