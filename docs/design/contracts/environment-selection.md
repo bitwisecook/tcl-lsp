@@ -80,8 +80,10 @@ names and aliases are pack data in each `specs/eda_*.tclspec`
 | `synopsys-eda-tcl` | Synopsys DC / PrimeTime / ICC2 / Formality | Synopsys | `dc_shell`, `primetime` |
 | `cadence-eda-tcl` | Cadence Genus / Innovus / Xcelium | Cadence | `genus`, `innovus` |
 
-An alias never collides with a package name a pack `provides` or pins
-(`synopsys` is a package, so it is not an alias).
+An alias may equal a package its own environment places (`vivado` is both
+the Vivado environment's alias and the package it loads) and never equals
+a package another environment or pack names, nor any other environment's
+name, alias or editor identity; the registry index rejects the collision.
 
 ## Description strings
 

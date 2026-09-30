@@ -27,6 +27,9 @@ ids, directive spellings and config keys are unchanged.
 | 8 | EDA environments take tool display names and aliases; ids unchanged (user) | The table in the contract § *Display names and aliases* |
 | 9 | The notice fires for bundled-pack `Packages` environments only — the six EDA shells (user) | `tk` and third-party pack environments are not the demotion being explained |
 | 10 | Pickers keep the word "dialect" and show two groups (user) | Fewest new words; the notice carries the explanation |
+| 11 | An alias may equal a package its own environment places (`vivado`), never another environment's package, name, alias or identity | The two namespaces are separate in code; the rule guards against a rival's name, not the owner's |
+| 12 | `description()` lists ambient packages in pack declaration order; the six EDA packs declare the tool package first so the string reads `Tcl 8.5 + vivado, sdc, upf` (1c reorders the rows) | One rule, no sort special-case |
+| 13 | User-selectable environments are every registry entry except the lenient `tcl` sink, ordered `Language` then `Packages`, canonical name within kind — one function every list and generator reads | A fallback is not a choice |
 
 ## Phases and owners
 
@@ -108,8 +111,10 @@ Status: `todo` / `wip` / `done`. Line numbers are as surveyed on
 
 | Site | Status |
 |---|---|
-| `rust/tcl-registry/src/dialects.rs:71-79`, `:993-1003` shebang parser → `shebang_words` | todo |
-| `environment.rs:243`, `:872`, `:927` `shebang_words` (only a test reads them) | todo |
+| `rust/tcl-registry/src/dialects.rs:71-79`, `:993-1003` shebang parser → `shebang_words` | done (1a) |
+| `environment.rs:243`, `:872`, `:927` `shebang_words` (only a test reads them) | done (1a): ladder rows also list `wish<release>`; bare `wish` → `tk` |
+| `EnvironmentKind`, `short_name`, `description()`, pack `kind`/`short_name` words, `tcl-jim` in `CONTRIBUTED`, EDA names/aliases as pack data + seed + catalogue rows, `catalogue-callers` gate (35-file allowlist; does not yet cover `available_dialects()`) | done (1a) |
+| Spec Studio has no environment form: `GAPS` entries `environment_kind`, `environment_short_name` under `GapKind::PackLevel` | done (1a) |
 
 ### Jim
 
