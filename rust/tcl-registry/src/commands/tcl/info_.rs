@@ -32,9 +32,10 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// available since 8.6 (dialect `None`, inheriting the parent subcommand).
 ///
 /// Every `9.0`-gated fact below (`sub_since` call sites) was cross-checked
-/// against the Tcl 9.1 beta manpage as well: `info.n` in 9.1 is byte-for-byte
-/// identical to 9.0 apart from the version banner, so a `TCL90_PLUS` gate is
-/// exact for both releases — there is no 9.1-only delta to model separately.
+/// against the Tcl 9.1b0 and 9.1.0 manpages as well: `info.n` in 9.1 differs
+/// from 9.0 only in the version banner and synopsis typesetting, so a
+/// `TCL90_PLUS` gate is exact for both releases — there is no 9.1-only delta to
+/// model separately.
 const fn sub(name: &'static str, detail: &'static str, synopsis: &'static str) -> SubSubCommand {
     SubSubCommand {
         name,

@@ -74,6 +74,40 @@ fn unicode_is_91_only_with_normalization_subcommands() {
 }
 
 #[test]
+fn grapheme_is_91_only_with_its_ensemble_arities() {
+    use tcl_registry::ArgRole;
+    // generic/tclGrapheme.c (9.1.0; absent from 9.1b0): `tclGraphemeImplMap`,
+    // arities from each subcommand's `Tcl_WrongNumArgs`.
+    let r = reg();
+    for name in ["::tcl::unsupported::grapheme", "tcl::unsupported::grapheme"] {
+        let spec = r.get(name).unwrap_or_else(|| panic!("{name} registered"));
+        assert!(spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.1"))));
+        assert!(!spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.0"))));
+        for (sub, args) in [
+            ("index", 2),
+            ("length", 1),
+            ("next", 2),
+            ("offset", 2),
+            ("prev", 2),
+            ("range", 3),
+            ("reverse", 1),
+            ("split", 1),
+        ] {
+            let s = spec
+                .subcommand(sub)
+                .unwrap_or_else(|| panic!("{name} {sub}"));
+            assert_eq!(s.arity, tcl_registry::Arity::exact(args), "{name} {sub}");
+        }
+        for sub in ["next", "prev"] {
+            let s = spec.subcommand(sub).unwrap();
+            assert!(!s.pure, "{sub} writes indexVar");
+            assert_eq!(s.arg_roles, &[(1, ArgRole::VarWrite)], "{sub}");
+        }
+        assert!(spec.subcommand("split").unwrap().pure);
+    }
+}
+
+#[test]
 fn timer_is_91_only_with_scheduler_side_effects() {
     use tcl_registry::side_effects::SideEffectTarget;
     // doc/timer.n (9.1): subcommands in/at/idle/sleep/cancel/info.  Scheduling
