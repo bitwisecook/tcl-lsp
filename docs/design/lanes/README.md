@@ -114,4 +114,7 @@ checkpoint compiling.
   guard identities, per-member semantics keys, the Explorer record) is
   in progress, item by item in the tracking document's § *Step 5 —
   progress*, planned in its § *Plan for steps 2–10*: the per-member
-  semantics keys have landed.
+  semantics keys have landed. Step 6 (the take-shipped floor, the
+  capability matrix, the overlay to the compile service) is in progress
+  too, in § *Step 6 — progress*: the floor over the whole codegen and
+  dispatch axis has landed.

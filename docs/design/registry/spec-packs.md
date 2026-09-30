@@ -720,11 +720,17 @@ quarantine-on-first-crash around it — the containment a hook body runs
 under wherever it runs. A workspace pack can make the editor
 say something wrong about the workspace's own code; it cannot reach the
 machine. Two further floors hold regardless of tier: an override can never
-weaken a shipped spec's security facts (`tcl-registry::security_floor`
-unions set-valued facts and keeps single-valued ones — the I6 invariant),
-and the workspace and Spec Studio tiers cannot `-override` a compiled
-command name, declare a `dialect` block, or claim a reserved `environment`
-name (refused at registration, with the provenance named).
+weaken a shipped spec's security facts, nor swap which shipped
+implementation the command is (`tcl-registry::security_floor` unions
+set-valued facts and keeps single-valued ones — the taint colours and
+sinks, and the command-level `codegen_hook`, `inline_codegen_hook`,
+`lowering_hook`, `analyser_hook`, `semantic_operation`,
+`state_transitions`, `native_lowering` and `bpf_op` — the I6 invariant; an
+override still changes arity, options, roles and hover, and the floor
+reads command-level values only), and the workspace and Spec Studio tiers
+cannot `-override` a compiled command name, declare a `dialect` block, or
+claim a reserved `environment` name (refused at registration, with the
+provenance named).
 
 ## Authoring rules for SpecTcl 2.0 (design E)
 

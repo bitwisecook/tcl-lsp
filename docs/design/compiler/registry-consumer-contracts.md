@@ -77,6 +77,12 @@ slices proceed without deciding anything here.
 > so a member whose guarded contract moves invalidates its own guards and
 > no other's.
 >
+> Step 6 has begun with the take-shipped floor: `SecurityFloor::apply`
+> keeps a shipped command's `lowering_hook`, `analyser_hook`,
+> `semantic_operation`, `state_transitions`, `native_lowering` and `bpf_op`
+> through any override, from any tier, beside the two codegen hooks it
+> already kept (rule 4 of § *The loader's stamp rejection rule*).
+>
 > The rest of the vocabulary is proposed and names nothing in the
 > workspace:
 >
@@ -1480,8 +1486,9 @@ error.
   and 2 below).
 - The BPF backend is a third closed catalogue (`bpf_op`) with no id table
   for packs to resolve against (the redesign's § *11.2 Deferred model
-  items*, D3), and the engine interface excludes it by rule; it joins the
-  take-shipped floor on the same footing as the other two catalogues.
+  items*, D3), and the engine interface excludes it by rule; it is on the
+  take-shipped floor on the same footing as the other two catalogues
+  (rule 4 of § *The loader's stamp rejection rule*).
 
 ```mermaid
 flowchart LR
@@ -1714,14 +1721,19 @@ refuses survives:
    install it describes, and the Spec Studio's store report for the
    workspace tier — while the document keeps the rows as written.
 4. **The floor is take-shipped for the whole axis.**
-   `rust/tcl-registry/src/security_floor.rs` protects `codegen_hook` and
+   `rust/tcl-registry/src/security_floor.rs` protected `codegen_hook` and
    `inline_codegen_hook` on overrides and nothing else, so an override
-   from any tier may still swap `lowering_hook`, `analyser_hook`,
+   from any tier could still swap `lowering_hook`, `analyser_hook`,
    `semantic_operation`, and `state_transitions`. All four join the
    take-shipped list, together with `native_lowering`, `bpf_op`, and
-   `runtime_backing`.
+   `runtime_backing`: an override keeps the shipped command's value for
+   each whenever the shipped command has one. The floor reads
+   command-level values, as it does for the two codegen hooks; the same
+   fields on a subcommand or a form are not restored, and the stamp rule
+   above already covers the stamps among them.
 
-Rules 1 to 3 are built (step 4); rule 4 is step 6's.
+Rules 1 to 3 are built (step 4); rule 4 is built for the six fields that
+exist (step 6) and takes `runtime_backing` in with its field (step 7).
 
 - **Rung 1** is where analysis facts live, and the analyser needs nothing
   from this page to use them. For *emitted code* the artefact records
@@ -2139,7 +2151,7 @@ and come before any runtime guard work.
 - `rust/tcl-compiler/tests/mro_lattice_adversarial.rs`, `analyser.rs`, `cfg.rs` — the hierarchy, member, and clause behavioural parity gates
 - `rust/tcl-lsp-server/tests/preview_tickets_e2e.rs` — the definer spelling that reaches every provider with no consumer edit
 - `rust/tcl-cshim/tests/pkga_e2e.rs` — the byte-for-byte expectations captured against Tcl 9.0.4's own `tcl.h`, the shared conformance vectors for both C legs
-- `rust/tcl-spectcl/tests/i6_security_floor.rs` — the floor the take-shipped extension widens
+- `rust/tcl-spectcl/tests/i6_security_floor.rs` — the floor and its take-shipped extension
 - `rust/tcl-spectcl/tests/workspace_packs.rs`, `codegen_stamps.rs` — the stamp rejection rule's two witnesses: a refused stamp under the tier gate, and a bundled `alias_of` stamp whose recorded target identity the VM admits through its alias hop (refused for a proc at the pack name); and the claims' admission: a changed pack refuses the site, and a pack's fold is admitted only under its facts
 - `rust/tcl-vm/tests/command_mutation_deopt_e2e.rs` — `a_rung_zero_module_is_admitted_under_a_changed_pack_set`, the claims check's rung-0 floor
 

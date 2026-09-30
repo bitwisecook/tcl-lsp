@@ -1,4 +1,4 @@
-# Lane: consumer contracts — steps 1–4 landed, step 5 in progress; the plan for steps 2–10
+# Lane: consumer contracts — steps 1–4 landed, steps 5 and 6 in progress; the plan for steps 2–10
 
 ## Goal
 
@@ -1040,6 +1040,43 @@ and CC5.2 last, each its own checkpoint.
   `guard_semantics_key`, so nothing a user runs differs; a module compiled
   by the previous compiler and linked against a runtime from this tree
   fails the identity check and takes generic dispatch.
+
+## Step 6 — progress
+
+Item order follows § *Plan for steps 2–10* › *Step 6* § *Ordering and
+checkpoints*: CC6.1 (sonnet) first, on its own; then the opus items, CC6.2
+and CC6.3, each its own checkpoint.
+
+| Item | State | Checkpoint | Notes |
+|---|---|---|---|
+| CC6.1 the floor widens | landed | `wip(consumer-contracts): step 6 — the floor widens` | `rust/tcl-registry/src/security_floor.rs`: `SecurityFloor::apply` takes `lowering_hook`, `analyser_hook`, `semantic_operation`, `state_transitions`, `native_lowering` and `bpf_op` from the shipped command beside the two codegen hooks it already kept, through the same `take_shipped` (the shipped value wins wherever the shipped command has one; all six types are `Copy`, so no new merge shape), `MERGED_FIELDS` lists them, and `every_security_bearing_field_is_in_the_floor` names the six explicitly in a `matches!` beside its `taint` / `codegen` / `side_effect` / `credential` filter, since none of their names carries those words. The module and `apply` docs state the codegen and dispatch axis as a contract about the closed catalogues, not a trust gate on analysis facts (D6.4). Tests: `rust/tcl-spectcl/tests/i6_security_floor.rs` gains the plan's six rows, each first proving the override took effect (its own `arity 7..9` window installed, so what survives of the shipped spec is the floor's doing) — `a_workspace_override_cannot_swap_the_lowering_hook` (`while`'s `While` against `lowering_hook -native If`), `…_swap_the_analyser_hook` (`source`'s `Source` against `Rename`), `…_swap_the_semantic_operation` (`puts`'s `Intrinsic(ChannelWrite)` against `Invoke`), `…_swap_the_state_transitions` (`join`'s descriptor against a restated one, compared by `Debug` since the type has no `PartialEq`), `…_drop_the_native_lowering` (`break`) and `…_drop_the_bpf_op` (the `bpf` dialect's `pass`); the last two fields have no loader statement, so their rows lose them the only way a pack can, by replacing the command and saying nothing (D6.5). Two registry unit tests: `the_floor_takes_the_shipped_codegen_and_dispatch_axis` (all six, on a hand-built shipped spec) and `the_floor_adds_nothing_the_shipped_command_lacks` (the negative: a shipped command with none of the six leaves an override's own value alone, the registry-level twin of the unchanged `the_floor_does_not_invent_facts_for_a_new_command`). A mutation check — the six `take_shipped` lines commented out — fails all six integration rows and the unit test, and dropping `"bpf_op"` from `MERGED_FIELDS` fails the field scan. Nothing existing moved: no shipped or bundled pack overrides a command, and every test that installs an override passes unmodified. Gates: `cargo test -p tcl-spectcl --test i6_security_floor` (8, was 2), `-p tcl-registry` (lib 943, was 941, and every binary) and `-p tcl-spectcl` (lib 192 and every binary, `workspace_packs`, `codegen_stamps`, `golden_packs` included), `-p tcl-spec-studio` (lib 199 and every binary) and `-p tcl-mcp` (114); `cargo check --workspace --all-targets`; clippy (`-p tcl-registry -p tcl-spectcl --all-targets --no-deps -- -D warnings`) and `cargo fmt` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows), `pack-goldens --check` (25), `retired-api-gate`, `owner-resolution` (45), `kcs-index-links` green, `dialect-drift` at its 8. Docs: `spec-packs.md` § *Workspace trust* floor sentence, the design page's rule 4 (now built for the six, `runtime_backing` step 7's) with its status box, the BPF bullet's tense and the anchors, and the pack howto `docs/kcs/kcs-howto-write-a-tclspec-pack.md` (an override keeps the shipped taint facts and compiler-side identity, silently). D6.4, D6.5 |
+
+### CC6.1 — what the next items read
+
+- **For CC6.2.** The floor and the capability matrix are separate gates
+  and both apply: the floor is unconditional and silent (an override keeps
+  the shipped value, with no notice, exactly as it has for taint), while
+  CC6.2's capability drops `alias_of`, `runtime_backing` and reference
+  bodies with a notice naming the tier. A declaration passes both.
+- **For CC7.1.** `runtime_backing` joins the floor the way the six did:
+  one `take_shipped` line in `apply`, `"runtime_backing"` in
+  `MERGED_FIELDS` and in the field scan's `matches!`, and a seventh row in
+  `i6_security_floor.rs`. The file's `shipped` and `overridden` helpers
+  build a row in three lines.
+- **Residue, reported.** The floor reads `CommandSpec` fields only: the
+  same fields on a `SubCommand` or a form are not restored (D6.4).
+
+### Behavioural deltas accepted in step 6
+
+- CC6.1: an `-override` of a shipped command, from any tier, keeps the
+  shipped command's `lowering_hook`, `analyser_hook`, `semantic_operation`,
+  `state_transitions`, `native_lowering` and `bpf_op` wherever the shipped
+  command has one; before, only the two codegen hooks and the taint,
+  side-effect and credential facts survived. It changes arity, options,
+  roles and hover as before, and the floor gives no notice. No shipped or
+  bundled pack overrides a command, so nothing a user runs changes today;
+  a workspace pack that did swap one of the six now finds the shipped value
+  installed.
 
 ## Plan for steps 2–10
 
@@ -4167,6 +4204,30 @@ everything else in this lane is independent of both.
   and re-exported by `tcl-registry`'s `model::capability`; `tcl-spectcl`
   depends on `tcl-pkg` for the manifest and lockfile data model only.
   **D6.3** An overlay miss is an error at the ingress.
+- **D6.4** The widened floor keeps the floor's existing shape and reach:
+  command-level values only, and the shipped value wins wherever the
+  shipped command has one. It reads `CommandSpec` fields, so the same fields
+  on a `SubCommand` or a `CommandForm` (both carry `lowering_hook`,
+  `analyser_hook`, `semantic_operation` and `state_transitions`) are not
+  restored — the limitation the floor's comment already records for the
+  codegen hooks. That is reported, not fixed: subcommands and forms merge by
+  name with rows added and removed, a different shape from a single field,
+  and the loader's stamp rule already covers the stamps among them. An
+  override may still *add* a value to a shipped command that ships none,
+  exactly as a new command may declare one
+  (`the_floor_does_not_invent_facts_for_a_new_command`): the floor stops a
+  fact going away, it neither invents nor forbids one. It is silent, as it
+  is for taint; the pack howto says so.
+- **D6.5** `native_lowering` and `bpf_op` have no loader statement, so a
+  pack cannot swap them, only lose them by replacing a shipped command and
+  saying nothing; their rows test that (`break`, and `pass` in the `bpf`
+  dialect). The four fields a pack can spell are swapped for a different
+  catalogue member. `semantic_operation` is swapped for `Invoke`, not for an
+  `Intrinsic`: CC4.2's tier gate already strips an `Intrinsic` spelling from
+  every tier but a bundled one, so it could not exercise the floor. Every row
+  first asserts the override took effect (its `arity 7..9`, a window no
+  shipped command has), so a green row means the floor restored the value
+  rather than the override never having installed.
 - **D7.1** `HANDLER_EXTRA`, `STDLIB`, `NOT_REQUIRED` become
   `runtime_backing` rows; `KNOWN_UNBACKED` stays as the drift waiver;
   `xtask` links `tcl-runtime` and `tcl-vm` to ask `backing_report()`.
