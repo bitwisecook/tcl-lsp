@@ -414,10 +414,11 @@ impl EnvironmentNotice {
     /// both stick. Written to a sibling file and renamed into place, so a reader
     /// never sees half a file.
     ///
-    /// This uses `std::fs` where the start-up read goes through the
-    /// [`SourceStore`]: the path is `None` wherever the platform has no state
-    /// directory (a browser worker has none), so a write only ever reaches a
-    /// native file system.
+    /// This writes with `std::fs` where the start-up read goes through the
+    /// [`SourceStore`]: the store only reads, and holds the files a host
+    /// supplies rather than the user's state directory. The path is `None`
+    /// wherever the host has no such directory (off-native), so a write only
+    /// ever reaches a real file system.
     fn persist(&self) -> std::io::Result<()> {
         let Some(path) = self.path.as_deref() else {
             return Ok(());

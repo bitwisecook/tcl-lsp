@@ -70,9 +70,9 @@ editors with no settings screen.
 environment_kind = false
 ```
 
-The server reads `config.ini` when the editor answers its `workspace/configuration`
-request, so an editor that declines that request does not read
-`[notifications] environment_kind`; use the editor setting there.
+The server reads `config.ini` when the editor answers its request for settings
+(`workspace/configuration`), so an editor that declines that request does not
+read `[notifications] environment_kind`. Use the editor setting there instead.
 
 An editor that sends the setting itself wins over `config.ini`. Your **Don't
 show again** choices are saved in `notices.ini` under your state folder
