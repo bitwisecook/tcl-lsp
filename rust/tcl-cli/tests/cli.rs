@@ -1256,12 +1256,23 @@ fn samples_optimiser_profiles_are_regenerated() {
 }
 
 /// `--dialect` takes every selectable environment's canonical id (`jim`, `tk`,
-/// a tool shell), accepts an alias or editor identity as a hidden spelling
-/// (`vivado`, `jimsh`, `tcl-jim`), and rejects anything else with the list of
-/// canonical ids.
+/// a tool shell), an alias (`vivado`, `jimsh`), an editor language id
+/// (`tcl-jim`) and a language id that only selects an environment (`tcl-bpf`,
+/// `tcl-libero`, `tcl-spec`, `tcl-apl`), and rejects anything else.
 #[test]
 fn the_dialect_flag_takes_the_registry_names_and_rejects_the_rest() {
-    for dialect in ["jim", "tk", "xilinx-eda-tcl", "vivado", "jimsh", "tcl-jim"] {
+    for dialect in [
+        "jim",
+        "tk",
+        "xilinx-eda-tcl",
+        "vivado",
+        "jimsh",
+        "tcl-jim",
+        "tcl-bpf",
+        "tcl-libero",
+        "tcl-spec",
+        "tcl-apl",
+    ] {
         run_tcl(&["diag", "--dialect", dialect, "--source", "puts hello"]);
     }
     let rejected = Command::new(env!("CARGO_BIN_EXE_tcl"))
@@ -1273,6 +1284,163 @@ fn the_dialect_flag_takes_the_registry_names_and_rejects_the_rest() {
     for name in ["jim", "tk", "tcl9.1", "xilinx-eda-tcl"] {
         assert!(stderr.contains(name), "the list omits `{name}`: {stderr}");
     }
+}
+
+/// Every verb that takes `--dialect` validates it through the one resolver,
+/// so the verbs that build their own values (`command-info`, `registry-dump`,
+/// `help`, `pkg discover`, `diff`) accept a language id that only selects an
+/// environment and refuse an unknown name. `help --dialect all` is the filter's
+/// own default and names no environment.
+#[test]
+fn every_dialect_flag_reaches_the_one_resolver() {
+    let dialect = "tcl-libero";
+    run_tcl(&["command-info", "puts", "--dialect", dialect]);
+    run_tcl(&["registry-dump", "--dialect", dialect, "-o", "-"]);
+    run_tcl(&["help", "diagnostics", "--dialect", dialect]);
+    run_tcl(&[
+        "diff",
+        "--left-source",
+        "puts a",
+        "--right-source",
+        "puts a",
+        "--dialect",
+        dialect,
+    ]);
+    run_tcl(&["help", "diagnostics", "--dialect", "all"]);
+    for verb in [
+        &["command-info", "puts"][..],
+        &["registry-dump"],
+        &["help", "diagnostics"],
+        &[
+            "diff",
+            "--left-source",
+            "puts a",
+            "--right-source",
+            "puts a",
+        ],
+    ] {
+        let rejected = Command::new(env!("CARGO_BIN_EXE_tcl"))
+            .args(verb)
+            .args(["--dialect", "nonsense"])
+            .output()
+            .expect("failed to spawn tcl binary");
+        assert!(!rejected.status.success(), "{verb:?} refuses `nonsense`");
+        let stderr = String::from_utf8_lossy(&rejected.stderr);
+        assert!(stderr.contains("unknown dialect `nonsense`"), "{stderr}");
+    }
+}
+
+/// `tcl diag --help` lists the canonical ids with their descriptions although
+/// the argument gates no value.
+#[test]
+fn the_dialect_help_lists_the_canonical_ids() {
+    let help = String::from_utf8(run_tcl(&["diag", "--help"])).expect("help is UTF-8");
+    for name in ["tcl8.6", "f5-irules", "jim", "tk", "xilinx-eda-tcl"] {
+        assert!(help.contains(&format!("- {name}: ")), "{name}: {help}");
+    }
+    assert!(help.contains("discovered `.tclspec` packs"), "{help}");
+}
+
+/// A scratch workspace, removed on drop.
+struct Workspace(PathBuf);
+
+impl Workspace {
+    fn new(tag: &str) -> Self {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("tcl-cli-{tag}-{nanos}"));
+        std::fs::create_dir_all(&root).expect("scratch workspace");
+        Workspace(root)
+    }
+
+    fn write(&self, relative: &str, text: &str) -> PathBuf {
+        let path = self.0.join(relative);
+        std::fs::create_dir_all(path.parent().expect("a parent directory")).expect("directory");
+        std::fs::write(&path, text).expect("write file");
+        path
+    }
+
+    /// `tcl` run in this workspace with the user pack tier pointed at an
+    /// empty directory, so the result does not depend on the host's packs.
+    fn tcl(&self, args: &[&str]) -> Output {
+        Command::new(env!("CARGO_BIN_EXE_tcl"))
+            .current_dir(&self.0)
+            .env("XDG_CONFIG_HOME", self.0.join("empty-config"))
+            .args(args)
+            .output()
+            .expect("failed to spawn tcl binary")
+    }
+}
+
+impl Drop for Workspace {
+    fn drop(&mut self) {
+        std::fs::remove_dir_all(&self.0).ok();
+    }
+}
+
+/// A pack declaring one tool shell on a Tcl 8.6 core.
+const MYPACK: &str = "speclib mypack 2.0 {\n\
+    environment mypack-shell {\n\
+        display_name {Mypack Shell}\n\
+        core         tcl 8.6\n\
+        alias        mypack\n\
+    }\n\
+}\n";
+
+/// An environment a workspace pack declares is a `--dialect` value: the
+/// argument is validated after the packs are published, not while the command
+/// line is parsed.
+#[test]
+fn diag_accepts_an_environment_a_workspace_pack_declares() {
+    let workspace = Workspace::new("pack-dialect");
+    workspace.write(".tcl-lsp/mypack.tclspec", MYPACK);
+    workspace.write("doc.tcl", "puts hello\n");
+    for name in ["mypack-shell", "mypack"] {
+        let output = workspace.tcl(&["diag", "--dialect", name, "doc.tcl"]);
+        assert!(
+            output.status.success(),
+            "`--dialect {name}`: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+
+/// The same name is refused where no pack declares it, and a refusal in the
+/// pack's own workspace lists the environment the pack added.
+#[test]
+fn diag_refuses_a_pack_environment_no_pack_declares() {
+    let bare = Workspace::new("no-pack-dialect");
+    bare.write("doc.tcl", "puts hello\n");
+    let output = bare.tcl(&["diag", "--dialect", "mypack-shell", "doc.tcl"]);
+    assert!(!output.status.success(), "an undeclared name is refused");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("unknown dialect `mypack-shell`"),
+        "{stderr}"
+    );
+    assert!(!valid_names(&stderr).contains(&"mypack-shell"), "{stderr}");
+
+    let with_pack = Workspace::new("pack-dialect-listed");
+    with_pack.write(".tcl-lsp/mypack.tclspec", MYPACK);
+    with_pack.write("doc.tcl", "puts hello\n");
+    let output = with_pack.tcl(&["diag", "--dialect", "nonsense", "doc.tcl"]);
+    assert!(!output.status.success(), "an unknown name is refused");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(valid_names(&stderr).contains(&"mypack-shell"), "{stderr}");
+}
+
+/// The canonical ids an unknown-dialect refusal lists.
+fn valid_names(stderr: &str) -> Vec<&str> {
+    stderr
+        .split("valid names are ")
+        .nth(1)
+        .and_then(|rest| rest.split(" (").next())
+        .expect("the refusal lists the valid names")
+        .split(',')
+        .map(str::trim)
+        .collect()
 }
 
 /// Jim's class, static-variable `proc`, `loop` and `sleep` in one document.
@@ -1389,20 +1557,11 @@ fn diag_accepts_the_vivado_alias() {
 /// ids a user can select, and no others.
 #[test]
 fn diag_lists_exactly_the_selectable_ids_for_an_unknown_dialect() {
-    let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
-        .args(["diag", "--dialect", "nonsense", "--source", "puts hello"])
-        .output()
-        .expect("failed to spawn tcl binary");
+    let workspace = Workspace::new("unknown-dialect");
+    let output = workspace.tcl(&["diag", "--dialect", "nonsense", "--source", "puts hello"]);
     assert!(!output.status.success(), "an unknown dialect is refused");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    let listed: std::collections::BTreeSet<&str> = stderr
-        .split("[possible values:")
-        .nth(1)
-        .and_then(|rest| rest.split(']').next())
-        .expect("the refusal lists the possible values")
-        .split(',')
-        .map(str::trim)
-        .collect();
+    let listed: std::collections::BTreeSet<&str> = valid_names(&stderr).into_iter().collect();
     let expected: std::collections::BTreeSet<&str> = [
         "tcl8.4",
         "tcl8.5",

@@ -191,8 +191,8 @@ byte-identical.
 
 `tcl spec` has three verbs — `import`, `upgrade`, `export`; `spectcl_check`
 exists only as the MCP tool (redesign §11 D18, R7). Every user-visible dialect list reads the environment registry: the
-CLI's `--dialect` possible values and its unknown-dialect message, the
-MCP `dialect_schema` enum, the studio's labels, `listDialects` and the
+CLI's `--dialect` help list (generation-0 form) and its unknown-dialect
+message (live), the MCP `dialect_schema` enum, the studio's labels, `listDialects` and the
 generated editor manifests all take `EnvironmentRegistry::selectable()`
 (or its generation-0 form), and `cargo xtask catalogue-callers --check`
 holds `DialectProfile::all()` to an allowlist of identity-key callers

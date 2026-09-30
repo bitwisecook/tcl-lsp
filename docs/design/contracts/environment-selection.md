@@ -21,8 +21,8 @@ One vocabulary, one resolver, two enumeration mechanisms, and nothing else.
 - **Enumeration.** A list of names shown to a user comes from exactly one
   of two places:
   1. **Runtime lists** read the live registry at the moment they are
-     built: the `tcl` CLI's `--dialect` values and its unknown-name
-     message, the MCP `dialect_schema` enum, `tcl-lsp.listDialects`,
+     built: the `tcl` CLI's unknown-name message, the MCP
+     `dialect_schema` enum, `tcl-lsp.listDialects`,
      `tcl-lsp.getEffectiveConfig` labels, the Spec Studio picker, and the
      server's `unknown_dialect_error`.
   2. **Generated artefacts** are written by `cargo xtask` from the
@@ -32,6 +32,16 @@ One vocabulary, one resolver, two enumeration mechanisms, and nothing else.
      prompt manifest, the README environment tables and
      `docs/generated/environments.md`. `make codegen` runs every generator
      in write mode.
+
+  The `tcl` CLI's `--dialect` help is the one list built at run time from
+  `compiled_selectable()`: clap builds it while parsing the command line,
+  before any pack has registered an environment. The argument itself takes
+  any string and parses as a plain `String` with no clap value gate;
+  `tcl_cli_support::resolve_dialect` validates it once, through the resolver
+  above, after the workspace and user packs are published. An environment a
+  pack declares is therefore a valid value although the help does not list
+  it, and so is every alias, editor language id and `selecting_identities`
+  spelling (`tcl-bpf`, `tcl-libero`, `tcl-spec`, `tcl-apl`).
 
   There is no third mechanism. `DialectProfile::all()` is the lexer's and
   the editors' *identity key*, never a user-facing list; the
@@ -188,7 +198,8 @@ server-sent message renders in every editor with no client code.
 - **Unknown names.** A directive tier abstains. A folder setting is
   validated and dropped. A session-scope `tclLsp.dialect` is validated: an
   unknown value logs a WARNING naming the selectable set and the default
-  applies. The CLI rejects an unknown value listing the selectable ids.
+  applies. The CLI rejects an unknown value listing the live selectable ids,
+  once the packs are published, so a name a pack declares is not unknown.
 - **Settings schemas** enumerate canonical ids only; aliases are for
   directives and the CLI, so a stored value never fails schema validation.
 - **Sidecar stubs** (`<name>.tcl.stubs`) are found by the raw configured
