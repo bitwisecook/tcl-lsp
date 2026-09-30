@@ -1274,3 +1274,159 @@ fn the_dialect_flag_takes_the_registry_names_and_rejects_the_rest() {
         assert!(stderr.contains(name), "the list omits `{name}`: {stderr}");
     }
 }
+
+/// Jim's class, static-variable `proc`, `loop` and `sleep` in one document.
+const JIM_PROGRAM: &str = concat!(
+    "class system {model \"\"}\n",
+    "proc {system model} {} {{model \"\"}} {\n",
+    "\tif {$model ne \"\"} { return $model }\n",
+    "\tif {[catch {set fp [open /etc/model r]}]} {\n",
+    "\t\tset model {HD[R]}\n",
+    "\t} else {\n",
+    "\t\tset model [string trim [read $fp]]\n",
+    "\t\tclose $fp\n",
+    "\t}\n",
+    "\treturn $model\n",
+    "}\n",
+    "loop i 0 3 { puts $i }\n",
+    "sleep 0.1\n",
+    "set s [system new]\n",
+    "puts [$s model]\n",
+);
+
+/// Write `text` to a scratch `doc.tcl`, run `tcl diag --json` over it with
+/// `extra` arguments, and return the exit code with the `(severity, code)` rows.
+fn diag_severities(tag: &str, text: &str, extra: &[&str]) -> (Option<i32>, Vec<(String, String)>) {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("clock")
+        .as_nanos();
+    let dir = std::env::temp_dir().join(format!("tcl-cli-dialect-{tag}-{nanos}"));
+    std::fs::create_dir_all(&dir).expect("scratch dir");
+    let path = dir.join("doc.tcl");
+    std::fs::write(&path, text).expect("write document");
+
+    let mut args = vec!["diag", path.to_str().expect("utf-8 path"), "--json"];
+    args.extend_from_slice(extra);
+    let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .args(&args)
+        .output()
+        .expect("failed to spawn tcl binary");
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap_or_else(|e| {
+        panic!(
+            "diag JSON: {e}\nstdout: {}\nstderr: {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        )
+    });
+    let rows = report[0]["diagnostics"]
+        .as_array()
+        .expect("diagnostics array")
+        .iter()
+        .map(|d| {
+            (
+                d["severity"].as_str().expect("severity").to_owned(),
+                d["code"].as_str().expect("code").to_owned(),
+            )
+        })
+        .collect();
+    std::fs::remove_dir_all(&dir).ok();
+    (output.status.code(), rows)
+}
+
+/// The rows that make `tcl diag` exit non-zero.
+fn problems(rows: &[(String, String)]) -> Vec<&(String, String)> {
+    rows.iter()
+        .filter(|(severity, _)| severity == "error" || severity == "warning")
+        .collect()
+}
+
+/// Under `--dialect jim` the program draws no error or warning.
+#[test]
+fn diag_accepts_the_jim_program_under_the_jim_dialect() {
+    let (code, rows) = diag_severities("jim-flag", JIM_PROGRAM, &["--dialect", "jim"]);
+    assert_eq!(code, Some(0), "{rows:?}");
+    assert_eq!(problems(&rows), Vec::<&(String, String)>::new(), "{rows:?}");
+}
+
+/// The control for the Jim runs: the same program under Tcl 8.6 is refused, so
+/// the clean result above comes from the dialect and not from a `diag` that
+/// reports nothing.
+#[test]
+fn diag_rejects_the_jim_program_under_tcl86() {
+    let (code, rows) = diag_severities("jim-tcl86", JIM_PROGRAM, &["--dialect", "tcl8.6"]);
+    assert_eq!(code, Some(1), "{rows:?}");
+    let codes: Vec<&str> = rows.iter().map(|(_, c)| c.as_str()).collect();
+    assert!(codes.contains(&"E003"), "{rows:?}");
+    assert!(codes.contains(&"W123"), "{rows:?}");
+}
+
+/// A `jimsh` shebang selects Jim with no `--dialect` flag.
+#[test]
+fn diag_analyses_a_jimsh_shebang_document_as_jim() {
+    let text = format!("#!/usr/bin/env jimsh\n{JIM_PROGRAM}");
+    let (code, rows) = diag_severities("jim-shebang", &text, &[]);
+    assert_eq!(code, Some(0), "{rows:?}");
+    assert_eq!(problems(&rows), Vec::<&(String, String)>::new(), "{rows:?}");
+}
+
+/// A tool shell's alias is accepted as the dialect.
+#[test]
+fn diag_accepts_the_vivado_alias() {
+    let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .args(["diag", "--dialect", "vivado", "--source", "puts hello"])
+        .output()
+        .expect("failed to spawn tcl binary");
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+/// A name that selects no environment fails and lists the twenty-one canonical
+/// ids a user can select, and no others.
+#[test]
+fn diag_lists_exactly_the_selectable_ids_for_an_unknown_dialect() {
+    let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .args(["diag", "--dialect", "nonsense", "--source", "puts hello"])
+        .output()
+        .expect("failed to spawn tcl binary");
+    assert!(!output.status.success(), "an unknown dialect is refused");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let listed: std::collections::BTreeSet<&str> = stderr
+        .split("[possible values:")
+        .nth(1)
+        .and_then(|rest| rest.split(']').next())
+        .expect("the refusal lists the possible values")
+        .split(',')
+        .map(str::trim)
+        .collect();
+    let expected: std::collections::BTreeSet<&str> = [
+        "tcl8.4",
+        "tcl8.5",
+        "tcl8.6",
+        "tcl9.0",
+        "tcl9.1",
+        "f5-irules",
+        "f5-iapps",
+        "f5-tmsh",
+        "f5-bigip",
+        "jim",
+        "bpf",
+        "expect",
+        "spectcl",
+        "sslictcl",
+        "tk",
+        "xilinx-eda-tcl",
+        "intel-quartus-eda-tcl",
+        "mentor-eda-tcl",
+        "microchip-libero-eda-tcl",
+        "synopsys-eda-tcl",
+        "cadence-eda-tcl",
+    ]
+    .into_iter()
+    .collect();
+    assert_eq!(expected.len(), 21);
+    assert_eq!(listed, expected, "{stderr}");
+}

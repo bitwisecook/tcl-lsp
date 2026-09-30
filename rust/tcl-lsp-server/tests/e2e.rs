@@ -120,6 +120,8 @@ mod issue945;
 mod issue954_followup;
 #[path = "e2e/issue996_stack_overflow.rs"]
 mod issue996_stack_overflow;
+#[path = "e2e/jim.rs"]
+mod jim;
 #[path = "e2e/name_resolution.rs"]
 mod name_resolution;
 #[path = "e2e/navigation.rs"]
