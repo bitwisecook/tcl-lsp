@@ -19,10 +19,12 @@
 //! Contract tests for the versioned-library axis (design doc §7.1, D5):
 //! profile library pins × registry spec `min_version` data.
 
+use tcl_dialect::model::{SpecSurface, SpecWindow};
 use tcl_dialect::{DialectProfile, LibraryVersionOverrides};
 use tcl_registry::model::ingress::{
     static_context_for, static_document_context_for_profile as ctx_for,
 };
+use tcl_registry::{CommandRegistry, CommandSpec};
 
 /// The data lock binding hover prose to structured version data: every
 /// spec whose hover snippet declares "Introduced in BIG-IP X.Y.Z" must
@@ -210,4 +212,124 @@ fn hosted_pins_supply_tracking_floors() {
     assert_eq!(placeholder.lifecycle.introduced, Some("8.7"));
     assert!(!placeholder.available_for_version(Some("8.6")));
     assert!(placeholder.available_for_version(Some("9.0")));
+}
+
+const FROM_8_6: &[SpecWindow] = &[("8.6", None)];
+const BEFORE_8_6: &[SpecWindow] = &[("8.4", Some("8.6"))];
+
+const PLAIN_ROWS: &[SpecSurface] = &[SpecSurface::package("Tk")];
+const WINDOWED_ROWS: &[SpecSurface] = &[SpecSurface::package_in("Tk", FROM_8_6)];
+
+/// When the pack's `ambient_package Tk` floor reaches the registry, relative
+/// to the projection to a profile.
+#[derive(Clone, Copy, Debug)]
+enum Floor {
+    BeforeProjection,
+    AfterProjection,
+}
+
+/// A registry of Tk-gated commands — one introduced in Tk 8.6, one retired
+/// there, one with no window, and one name declared twice, plain and then
+/// introduced in 8.6 — projected to `profile`, with a pack's
+/// `ambient_package Tk` floor when there is one.
+fn tk_gated_registry(
+    profile: &'static DialectProfile,
+    floor: Option<&'static str>,
+    arrives: Floor,
+) -> CommandRegistry {
+    let mut authored = CommandRegistry::build_default();
+    let gated = |name, rows: &'static [SpecSurface]| CommandSpec {
+        name,
+        surface: Some(rows),
+        ..CommandSpec::DEFAULT
+    };
+    authored.insert(gated("tk_from_86", WINDOWED_ROWS));
+    authored.insert(gated(
+        "tk_before_86",
+        Box::leak(Box::new([SpecSurface::package_in("Tk", BEFORE_8_6)])),
+    ));
+    authored.insert(gated("tk_always", PLAIN_ROWS));
+    authored.insert(gated("tk_redeclared", PLAIN_ROWS));
+    authored.insert(gated("tk_redeclared", WINDOWED_ROWS));
+    if let (Some(floor), Floor::BeforeProjection) = (floor, arrives) {
+        authored.insert_ambient_package("Tk", floor);
+    }
+    let mut registry = authored.project_for_profile(profile);
+    if let (Some(floor), Floor::AfterProjection) = (floor, arrives) {
+        registry.insert_ambient_package("Tk", floor);
+    }
+    registry
+}
+
+/// A package row is windowed on the package's own axis, and a registry asks
+/// it at the floor it guarantees: introduced after the floor, the row is not
+/// there yet; at or above the floor it is; with no floor stated nothing is
+/// ruled out. `tk` is the profile whose point carries a hosted library.
+#[test]
+fn a_package_row_introduced_after_the_floor_is_not_admitted() {
+    let selected = |registry: &CommandRegistry, name: &str| {
+        registry
+            .get_for_surface(name, registry.own_surface_query())
+            .map(|spec| spec.surface)
+    };
+    for arrives in [Floor::BeforeProjection, Floor::AfterProjection] {
+        for (floor, from_8_6, before_8_6) in [
+            (None, true, true),
+            (Some("8.4"), false, true),
+            (Some("8.5"), false, true),
+            (Some("8.6"), true, false),
+            (Some("9.0"), true, false),
+        ] {
+            let registry = tk_gated_registry(DialectProfile::tk(), floor, arrives);
+            let what = format!("under a floor of {floor:?} arriving {arrives:?}");
+            assert_eq!(
+                selected(&registry, "tk_from_86").is_some(),
+                from_8_6,
+                "a row introduced in 8.6, {what}"
+            );
+            assert_eq!(
+                selected(&registry, "tk_before_86").is_some(),
+                before_8_6,
+                "a row retired in 8.6, {what}"
+            );
+            assert!(
+                selected(&registry, "tk_always").is_some(),
+                "a row with no window, {what}"
+            );
+            // The projection indexes one spec per name: the later
+            // declaration wins a tie unless it is not admitted, and then the
+            // earlier one is the command. A floor that arrives afterwards
+            // finds that choice made.
+            if matches!(arrives, Floor::BeforeProjection) {
+                assert_eq!(
+                    selected(&registry, "tk_redeclared"),
+                    Some(Some(if from_8_6 { WINDOWED_ROWS } else { PLAIN_ROWS })),
+                    "a name declared plain and then from 8.6, {what}"
+                );
+            }
+        }
+    }
+}
+
+/// The floor refines a package the point already carries; it does not put
+/// one there. A plain Tcl profile's point has no Tk, so no Tk row is admitted
+/// whatever a pack declares ambient.
+#[test]
+fn a_declared_floor_does_not_put_a_package_into_the_point() {
+    let plain = DialectProfile::find("tcl8.6").expect("catalogue profile");
+    let registry = tk_gated_registry(plain, Some("9.0"), Floor::BeforeProjection);
+    assert!(registry.is_ambient_package("Tk"));
+    assert!(
+        registry
+            .own_surface_query()
+            .is_some_and(|query| !query.carries("Tk"))
+    );
+    for name in ["tk_from_86", "tk_before_86", "tk_always", "tk_redeclared"] {
+        assert!(
+            registry
+                .get_for_surface(name, registry.own_surface_query())
+                .is_none(),
+            "{name}"
+        );
+    }
 }

@@ -61,8 +61,7 @@ const SURFACE_PACKAGE: &str = "sslictcl";
 pub fn applies_to(dialect: &DialectProfile) -> bool {
     crate::document_context_for_profile(dialect)
         .authoring_query()
-        .packages
-        .contains(&SURFACE_PACKAGE)
+        .carries(SURFACE_PACKAGE)
 }
 
 /// Every loader diagnostic `source` produces, as findings.

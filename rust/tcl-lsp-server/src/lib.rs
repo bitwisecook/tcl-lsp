@@ -11716,8 +11716,7 @@ impl Backend {
         // carries no vendor package, exactly as `find` answering `None` did.
         tcl_lsp_core::document_context_for_dialect(dialect)
             .authoring_query()
-            .packages
-            .contains(&"bigip")
+            .carries("bigip")
     }
 
     /// Look up the per-folder dialect override for `uri`,

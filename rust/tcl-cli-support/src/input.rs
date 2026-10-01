@@ -508,8 +508,7 @@ mod tests {
         assert!(
             crate::environment::context_for_dialect("tk")
                 .authoring_query()
-                .packages
-                .contains(&"Tk")
+                .carries("Tk")
         );
     }
 

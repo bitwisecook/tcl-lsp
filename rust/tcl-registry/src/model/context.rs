@@ -57,7 +57,7 @@ use crate::model::surface::{
     BuildCapability, CapabilityPredicate, Provider, SurfaceDeclaration, VENDOR_SURFACE_PACKAGES,
     is_closed_world_package, is_placement_gated_package, vendor_surface_package,
 };
-use tcl_dialect::model::{SurfaceQuery, surface_admits};
+use tcl_dialect::model::{PackageFloor, SurfaceQuery, surface_admits};
 // The vendor-surface summary payload: plain registry-derived data, not
 // part of the retiring profile trait, so both faces answer with the one
 // type and the parity pin can compare them directly. The retiring trait
@@ -766,6 +766,7 @@ impl ResolvedContext {
     /// see [`Self::pack_ambient_floor`]).
     pub(crate) fn record_pack_ambient(&mut self, package: &str, version: &'static str) {
         self.pack_ambient.push((Arc::from(package), version));
+        self.authoring_scope = compute_authoring_scope(self);
     }
 
     /// Whether `spec` is available in this context: its surface admits
@@ -1241,11 +1242,14 @@ fn compute_authoring_scope(context: &ResolvedContext) -> AuthoringScope {
             ),
         });
     }
-    for package in VENDOR_SURFACE_PACKAGES {
-        if vendor_surface_package(context.environment.id.as_str()) == Some(*package)
+    for &package in VENDOR_SURFACE_PACKAGES {
+        if vendor_surface_package(context.environment.id.as_str()) == Some(package)
             || context.placement_is_ambient(package)
         {
-            scope.packages.push(package);
+            scope.packages.push(PackageFloor {
+                name: package,
+                version: context.pack_ambient_floor(package),
+            });
         }
     }
     scope
@@ -1258,8 +1262,13 @@ pub struct AuthoringScope {
     /// The core family this environment authors against, and the release
     /// when one is pinned.
     core: Option<(Family, Option<Version>)>,
-    /// The vendor packages whose surface this environment carries.
-    packages: Vec<&'static str>,
+    /// The vendor packages whose surface this environment carries, each at
+    /// the floor a loaded pack declared for it as ambient.
+    ///
+    /// A placement's own floor is an owned [`Version`] and a query lends
+    /// only borrowed strings, so the environment's pin does not appear
+    /// here; a pack's `ambient_package` row is a `'static` spelling and does.
+    packages: Vec<PackageFloor<'static>>,
 }
 
 impl AuthoringScope {
@@ -2329,13 +2338,59 @@ mod tests {
             tk.authoring_query(),
             SurfaceQuery {
                 core: plain.surface_query().core,
-                packages: &["Tk"],
+                packages: &[PackageFloor::named("Tk")],
             }
         );
         assert_eq!(tk.tcl_version_ceiling(), None);
         assert!(tk.operator_heads_are_commands());
         assert_eq!(tk.vendor_authoring_provider(), None);
         assert!(tk.placement_is_ambient("Tk"));
+    }
+
+    /// The floor a pack declares for an ambient package reaches the query of
+    /// a context whose point carries that package — and only that one — so a
+    /// spec whose package row is windowed past the floor is not available.
+    #[test]
+    fn a_pack_declared_floor_is_the_floor_of_a_carried_package_only() {
+        const FROM_8_6: &[tcl_dialect::model::SpecWindow] = &[("8.6", None)];
+        let gated = CommandSpec {
+            name: "tk-from-8.6",
+            surface: Some(surface![SpecSurface::package_in("Tk", FROM_8_6)]),
+            ..CommandSpec::DEFAULT
+        };
+
+        let mut tk = context("tk");
+        assert_eq!(
+            tk.authoring_query().package("Tk"),
+            Some(&PackageFloor::named("Tk"))
+        );
+        assert!(tk.spec_available(&gated), "no floor declared: permissive");
+
+        tk.record_pack_ambient("Tk", "8.5");
+        assert_eq!(
+            tk.authoring_query().package("Tk"),
+            Some(&PackageFloor::at("Tk", "8.5"))
+        );
+        assert!(!tk.spec_available(&gated), "introduced after the floor");
+
+        tk.record_pack_ambient("Tk", "8.6");
+        assert_eq!(
+            tk.authoring_query().package("Tk"),
+            Some(&PackageFloor::at("Tk", "8.6")),
+            "the strongest claim holds"
+        );
+        assert!(tk.spec_available(&gated));
+
+        tk.record_pack_ambient("Itcl", "4.0");
+        assert!(
+            !tk.authoring_query().carries("Itcl"),
+            "a floor does not put a package into the point"
+        );
+
+        let mut plain = context("tcl8.6");
+        plain.record_pack_ambient("Tk", "9.0");
+        assert!(!plain.authoring_query().carries("Tk"));
+        assert!(!plain.spec_available(&gated));
     }
 
     /// **Parity sweep 2**: the spec/subcommand/option availability

@@ -34,7 +34,7 @@ use crate::grammar::{
     LexerGrammar, ListParse, NumberSyntax, QuoteTermination, VarSyntax, WordSeparators,
 };
 use crate::library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKey};
-use crate::model::{Family, SpecProvider, SurfaceLayer, SurfaceQuery};
+use crate::model::{Family, PackageFloor, SpecProvider, SurfaceLayer, SurfaceQuery};
 use crate::version::{StringCharacterModel, TclVersion, Ternary};
 
 /// Library pins for the 8.4/8.5-era plain Tcl profiles: Tk tracks the
@@ -294,9 +294,13 @@ pub struct DialectProfile {
     /// world. Empty for every plain Tcl version — Tk there needs a
     /// `package require`.
     ///
+    /// Each is named with no floor: the profile says which package its point
+    /// carries, not which release of it. A registry that knows a release —
+    /// a pack's `ambient_package` row — states it on its own query.
+    ///
     /// Pinned against [`Self::vendor_surface`] by
     /// `surface_packages_carry_the_vendor_surface`, so the two cannot drift.
-    pub surface_packages: &'static [&'static str],
+    pub surface_packages: &'static [PackageFloor<'static>],
 
     // AXIS A: availability.
     /// The registry command packs `load_dialect` applies for this profile,
@@ -428,7 +432,7 @@ static CATALOG: [DialectProfile; 19] = [
         filenames: &[],
         file_extensions: &[],
         vendor_surface: Some(SpecProvider::Package("bpf")),
-        surface_packages: &["bpf"],
+        surface_packages: &[PackageFloor::named("bpf")],
         base_layers: &[SurfaceLayer::Package("bpf")],
         grammar_union: &[
             SpecProvider::Core(Family::Tcl),
@@ -540,7 +544,7 @@ static CATALOG: [DialectProfile; 19] = [
             },
         ],
         vendor_surface: Some(SpecProvider::Package("expect")),
-        surface_packages: &["expect"],
+        surface_packages: &[PackageFloor::named("expect")],
         base_layers: &[SurfaceLayer::Package("expect")],
         grammar_union: &[
             SpecProvider::Core(Family::Tcl),
@@ -591,7 +595,7 @@ static CATALOG: [DialectProfile; 19] = [
             display_name: "BIG-IP Single Configuration File",
         }],
         vendor_surface: Some(SpecProvider::Package("bigip")),
-        surface_packages: &["bigip"],
+        surface_packages: &[PackageFloor::named("bigip")],
         base_layers: &[SurfaceLayer::Package("bigip")],
         grammar_union: &[SpecProvider::Package("bigip")],
         version_ceiling: None,
@@ -644,7 +648,7 @@ static CATALOG: [DialectProfile; 19] = [
             },
         ],
         vendor_surface: Some(SpecProvider::Package("iapps")),
-        surface_packages: &["iapps"],
+        surface_packages: &[PackageFloor::named("iapps")],
         base_layers: &[SurfaceLayer::Package("iapps")],
         grammar_union: &[
             SpecProvider::Core(Family::Tcl),
@@ -743,7 +747,7 @@ static CATALOG: [DialectProfile; 19] = [
             display_name: "F5 tmsh Script",
         }],
         vendor_surface: Some(SpecProvider::Package("tmsh")),
-        surface_packages: &["tmsh"],
+        surface_packages: &[PackageFloor::named("tmsh")],
         base_layers: &[SurfaceLayer::Package("tmsh")],
         grammar_union: &[
             SpecProvider::Core(Family::Tcl),
@@ -984,7 +988,7 @@ static CATALOG: [DialectProfile; 19] = [
             display_name: "SpecTcl Command Pack",
         }],
         vendor_surface: Some(SpecProvider::Package("spectcl")),
-        surface_packages: &["spectcl"],
+        surface_packages: &[PackageFloor::named("spectcl")],
         base_layers: &[SurfaceLayer::Package("spectcl")],
         grammar_union: &[
             SpecProvider::Core(Family::Tcl),
@@ -1024,7 +1028,7 @@ static CATALOG: [DialectProfile; 19] = [
             display_name: "SslicTcl TLS Declaration",
         }],
         vendor_surface: Some(SpecProvider::Package("sslictcl")),
-        surface_packages: &["sslictcl"],
+        surface_packages: &[PackageFloor::named("sslictcl")],
         base_layers: &[SurfaceLayer::Package("sslictcl")],
         grammar_union: &[
             SpecProvider::Core(Family::Tcl),
@@ -1392,7 +1396,7 @@ static TK_PROFILE: DialectProfile = DialectProfile {
     filenames: &[],
     file_extensions: &[],
     vendor_surface: None,
-    surface_packages: &["Tk"],
+    surface_packages: &[PackageFloor::named("Tk")],
     base_layers: &[],
     grammar_union: &[SpecProvider::Core(Family::Tcl), SpecProvider::Package("Tk")],
     version_ceiling: None,
@@ -1841,7 +1845,9 @@ mod tests {
     use super::KNOWN_DIALECTS;
     use crate::grammar::{BracedVarStyle, EscapeSyntax, ExprCommentStyle, NumberSyntax};
     use crate::library::{LibraryVersion, LibraryVersionOverrides, VersionKey};
-    use crate::model::{Family, SpecProvider, SpecSurface, SurfaceQuery, surface_admits};
+    use crate::model::{
+        Family, PackageFloor, SpecProvider, SpecSurface, SurfaceQuery, surface_admits,
+    };
     use crate::version::{TclVersion, Ternary};
 
     #[test]
@@ -2049,7 +2055,7 @@ mod tests {
             DialectProfile::tk().surface_query(),
             SurfaceQuery {
                 core: DialectProfile::plain_tcl().surface_query().core,
-                packages: &["Tk"],
+                packages: &[PackageFloor::named("Tk")],
             }
         );
         // A canonical profile and a legacy alias keep their profile-owned
@@ -2134,9 +2140,9 @@ mod tests {
         // f5-iapps composes the **8.4** line: it rides the `f5-tcl` trunk
         // (fork of Tcl at 8.4.6) — measured, bigip-irule-parser-measurements.md
         // §4a; the 8.5 hypothesis is falsified.
-        let cases: &[(&str, &str, &[&str])] = &[
-            ("f5-iapps", "8.4", &["iapps"]),
-            ("expect", "8.6", &["expect"]),
+        let cases: &[(&str, &str, &[PackageFloor<'_>])] = &[
+            ("f5-iapps", "8.4", &[PackageFloor::named("iapps")]),
+            ("expect", "8.6", &[PackageFloor::named("expect")]),
         ];
         for &(name, base, packages) in cases {
             let p = DialectProfile::find(name).expect("catalogue profile");
@@ -2199,7 +2205,7 @@ mod tests {
             DialectProfile::find("f5-tmsh")
                 .expect("catalogue profile")
                 .surface_query(),
-            SurfaceQuery::core(Family::Tcl, "8.4").with_packages(&["tmsh"])
+            SurfaceQuery::core(Family::Tcl, "8.4").with_packages(&[PackageFloor::named("tmsh")])
         );
         // f5-bigip: identity only — a config parser with no Tcl surface;
         // BIG-IP documents route to the tcl-bigip validator, never the Tcl
@@ -2210,7 +2216,7 @@ mod tests {
                 .surface_query(),
             SurfaceQuery {
                 core: None,
-                packages: &["bigip"],
+                packages: &[PackageFloor::named("bigip")],
             }
         );
         // bpf embeds a genuine Tcl 9.0 (D7).
@@ -2218,7 +2224,7 @@ mod tests {
             DialectProfile::find("bpf")
                 .expect("catalogue profile")
                 .surface_query(),
-            SurfaceQuery::core(Family::Tcl, "9.0").with_packages(&["bpf"])
+            SurfaceQuery::core(Family::Tcl, "9.0").with_packages(&[PackageFloor::named("bpf")])
         );
     }
 
@@ -2235,7 +2241,8 @@ mod tests {
                     p.name
                 );
             }
-            for package in query.packages {
+            for carried in query.packages {
+                let package = carried.name;
                 assert!(
                     p.grammar_union.contains(&SpecProvider::Package(package)),
                     "{}: grammar_union must cover the point's `{package}` package",
@@ -2271,8 +2278,8 @@ mod tests {
             match p.vendor_surface {
                 Some(SpecProvider::Package(package)) => assert_eq!(
                     p.surface_packages,
-                    [package],
-                    "{}: the point carries exactly its vendor package",
+                    [PackageFloor::named(package)],
+                    "{}: the point carries exactly its vendor package, with no floor",
                     p.name
                 ),
                 _ => assert!(
@@ -2306,7 +2313,7 @@ mod tests {
                 }
                 Some(SpecProvider::Package(package)) => {
                     assert!(
-                        query.packages.contains(&package),
+                        query.carries(package),
                         "{}: the point must carry the vendor package",
                         p.name
                     );

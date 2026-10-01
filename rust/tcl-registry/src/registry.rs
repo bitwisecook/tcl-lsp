@@ -53,8 +53,8 @@ use crate::state_transition::{StateTransition, StateTransitions, TransitionSubje
 use crate::traits::Traits;
 use crate::types::VarWriteTyping;
 use crate::{InvocationArguments, InvocationWords};
-use tcl_dialect::DialectProfile;
 use tcl_dialect::model::Family;
+use tcl_dialect::model::PackageFloor;
 use tcl_dialect::model::SurfaceQuery;
 use tcl_dialect::model::surface_admits;
 use tcl_dialect::model::surface_breadth;
@@ -611,6 +611,15 @@ pub struct CommandRegistry {
     /// to packs — a package's own version floor must not depend
     /// on whether this crate happens to know the package's name.
     ambient_packages: Vec<(&'static str, &'static str)>,
+    /// The packages this registry's own point carries and the floor the
+    /// registry guarantees of each — what [`Self::own_surface_query`] lends
+    /// as the query's packages.
+    ///
+    /// Derived from [`Self::profile`] (which packages) and
+    /// [`Self::package_floor`] (which release), so every seam that moves
+    /// either refreshes it. Empty for a profile-less registry and for a
+    /// profile whose point carries no package.
+    own_packages: Vec<PackageFloor<'static>>,
     /// Special variables a `SpecTcl` pack declared with `special_var`, in
     /// installation order — the pack-authored rows [`Self::special_vars`]
     /// reads beside the shipped table.
@@ -1507,6 +1516,7 @@ impl CommandRegistry {
             loaded_layers: Vec::new(),
             profile: None,
             ambient_packages: Vec::new(),
+            own_packages: Vec::new(),
             special_vars: Vec::new(),
             document_grammar: None,
             effective_semantics: OnceLock::new(),
@@ -1679,7 +1689,23 @@ impl CommandRegistry {
     /// profile rather than re-deriving from loaded packs.
     pub(crate) fn set_profile(&mut self, profile: &'static tcl_dialect::DialectProfile) {
         self.profile = Some(profile);
+        self.refresh_own_packages();
         self.invalidate_effective_semantics();
+    }
+
+    /// Re-derive [`Self::own_packages`] from the profile and the floors this
+    /// registry now guarantees.
+    fn refresh_own_packages(&mut self) {
+        let carried = self
+            .profile
+            .map_or(&[][..], |profile| profile.surface_packages);
+        self.own_packages = carried
+            .iter()
+            .map(|package| PackageFloor {
+                name: package.name,
+                version: self.package_floor(package.name),
+            })
+            .collect();
     }
 
     /// Derive an exact registry view for `profile`, preserving this registry's
@@ -1710,7 +1736,8 @@ impl CommandRegistry {
         }
         projected.set_profile(profile);
 
-        let query = profile.surface_query();
+        let own_packages = projected.own_packages.clone();
+        let query = profile.surface_query().with_packages(&own_packages);
         projected.by_name = projected
             .by_name
             .iter()
@@ -1755,8 +1782,9 @@ impl CommandRegistry {
     /// registry resolves to no spec, so the call reaches the runtime's
     /// availability gate as a generic dispatch instead of being inlined.
     #[must_use]
-    pub fn own_surface_query(&self) -> Option<SurfaceQuery<'static>> {
-        self.profile.map(DialectProfile::surface_query)
+    pub fn own_surface_query(&self) -> Option<SurfaceQuery<'_>> {
+        self.profile
+            .map(|profile| profile.surface_query().with_packages(&self.own_packages))
     }
 
     /// Whether a loaded core layer is a Tcl 9.x release — the derivation a
@@ -1872,6 +1900,7 @@ impl CommandRegistry {
     /// `version` — the `ambient_package` statement of a `SpecTcl` pack.
     pub fn insert_ambient_package(&mut self, package: &'static str, version: &'static str) {
         self.ambient_packages.push((package, version));
+        self.refresh_own_packages();
         self.generation = next_registry_generation();
     }
 
@@ -2185,8 +2214,8 @@ impl CommandRegistry {
     /// added later cannot quietly answer for a command the profile's
     /// dialect does not have.
     fn spec_for_this_registry(&self, head: &str) -> Option<&CommandSpec> {
-        match self.profile {
-            Some(profile) => self.get_for_surface(head, Some(profile.surface_query())),
+        match self.own_surface_query() {
+            Some(query) => self.get_for_surface(head, Some(query)),
             None => self.get(head),
         }
     }
@@ -2591,7 +2620,7 @@ impl CommandRegistry {
         let Some(profile) = self.profile else {
             return true;
         };
-        if dialect.is_none_or(|query| query != profile.surface_query()) {
+        if dialect.is_none_or(|query| !query.same_point(&profile.surface_query())) {
             // The query is about some other surface's availability; this
             // profile's operator-exclusion does not apply to it.
             return true;
@@ -2736,7 +2765,18 @@ impl CommandRegistry {
     /// the static, resolved-profile answer. `None` remains permissive for an
     /// unpinned package or a hand-assembled registry with no ambient claim.
     fn package_floor_for_spec(&self, spec: &CommandSpec) -> Option<&'static str> {
-        let package = spec.owning_package()?;
+        self.package_floor(spec.owning_package()?)
+    }
+
+    /// The version floor this registry itself guarantees for `package`: the
+    /// profile's pinned runtime library version and the highest a loaded
+    /// pack declared with `ambient_package`, the stronger of the two when
+    /// both are stated.
+    ///
+    /// The one place the two claims are combined: a spec's owning package
+    /// ([`Self::package_floor_for_spec`]) and a package the registry's own
+    /// point carries ([`Self::own_surface_query`]) ask it alike.
+    fn package_floor(&self, package: &str) -> Option<&'static str> {
         let profile_floor = self
             .profile
             .and_then(|profile| profile.library_floor_default(package));
@@ -2784,11 +2824,7 @@ impl CommandRegistry {
     /// no widget or method spellings.
     #[must_use]
     pub fn instance_methods(&self, class_name: &str) -> Vec<&'static SubCommand> {
-        self.instance_methods_at(
-            class_name,
-            None,
-            self.profile.map(tcl_dialect::DialectProfile::surface_query),
-        )
+        self.instance_methods_at(class_name, None, self.own_surface_query())
     }
 
     /// [`Self::instance_methods`] with a document-resolved floor for the
@@ -2861,12 +2897,7 @@ impl CommandRegistry {
         class_name: &str,
         method: &str,
     ) -> Option<&crate::spec::SubCommand> {
-        self.instance_method_at(
-            class_name,
-            method,
-            None,
-            self.profile.map(tcl_dialect::DialectProfile::surface_query),
-        )
+        self.instance_method_at(class_name, method, None, self.own_surface_query())
     }
 
     /// [`Self::instance_method`] with a document-resolved owning-package
@@ -4014,9 +4045,7 @@ impl CommandRegistry {
                 )
             },
         );
-        let effective_dialect = self
-            .profile()
-            .map_or(dialect, |profile| Some(profile.surface_query()));
+        let effective_dialect = self.own_surface_query().or(dialect);
         Some((*case, case.invocation(args, &options, effective_dialect)?))
     }
 
@@ -5296,9 +5325,7 @@ impl CommandRegistry {
         args: InvocationArguments<'_>,
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Vec<FormatStringArg> {
-        let effective_dialect = self
-            .profile()
-            .map_or(dialect, |profile| Some(profile.surface_query()));
+        let effective_dialect = self.own_surface_query().or(dialect);
         let spec = if effective_dialect.is_none() {
             self.get(name)
         } else {
@@ -5362,9 +5389,7 @@ impl CommandRegistry {
         args: &[&str],
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Vec<crate::patterns::PatternArg> {
-        let effective_dialect = self
-            .profile()
-            .map_or(dialect, |profile| Some(profile.surface_query()));
+        let effective_dialect = self.own_surface_query().or(dialect);
         let spec = if effective_dialect.is_none() {
             self.get(name)
         } else {
@@ -5416,9 +5441,7 @@ impl CommandRegistry {
         args: InvocationArguments<'_>,
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Vec<crate::patterns::PatternArg> {
-        let effective_dialect = self
-            .profile()
-            .map_or(dialect, |profile| Some(profile.surface_query()));
+        let effective_dialect = self.own_surface_query().or(dialect);
         let spec = if effective_dialect.is_none() {
             self.get(name)
         } else {
@@ -5899,9 +5922,7 @@ impl CommandRegistry {
         // `CommandSpec.options` level (a single set per spec), so we
         // consult that directly when no subcommand match was found.
         if spec.options.iter().any(|o| o.name == "--") {
-            let effective_dialect = self
-                .profile()
-                .map_or(dialect, |profile| Some(profile.surface_query()));
+            let effective_dialect = self.own_surface_query().or(dialect);
             let reserved_trailing_words =
                 spec.case_list.map_or(spec.reserved_trailing_words, |case| {
                     case.option_scan_reserved_trailing_words(
@@ -5959,7 +5980,7 @@ impl CommandRegistry {
     /// [`TransitionSubject::Unknown`]: crate::TransitionSubject::Unknown
     #[must_use]
     pub fn command_binding_transitions(&self, words: InvocationWords<'_>) -> StateTransitions {
-        let query = self.profile.map(DialectProfile::surface_query);
+        let query = self.own_surface_query();
         self.resolve_structured_invocation(words, query)
             .resolved()
             .map_or_else(StateTransitions::default, |invocation| {
@@ -6395,6 +6416,7 @@ impl std::fmt::Debug for CommandRegistry {
             .field("loaded_layers", &self.loaded_layers)
             .field("profile", &self.profile.map(|p| p.name))
             .field("ambient_packages", &self.ambient_packages)
+            .field("own_packages", &self.own_packages)
             .field("special_vars", &self.special_vars)
             .field(
                 "document_grammar",
@@ -6591,12 +6613,7 @@ mod tests {
             assert!(registry.get(&rooted).is_none(), "rooted {head}");
             assert!(
                 registry
-                    .get_for_surface(
-                        &rooted,
-                        registry
-                            .profile()
-                            .map(tcl_dialect::DialectProfile::surface_query),
-                    )
+                    .get_for_surface(&rooted, registry.own_surface_query())
                     .is_none(),
                 "profiled rooted {head}"
             );
@@ -7255,7 +7272,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let package = synthetic_spec("d6_package", Some(SpecSurface::EXPECT), Traits::empty());
         let core = synthetic_spec("d6_core", Some(SpecSurface::ALL_TCL), Traits::empty());
-        let packages = ["expect"];
+        let packages = [PackageFloor::named("expect")];
         let with_package = SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&packages);
 
         // Package rows are visible through the package set and are narrower
@@ -7313,6 +7330,63 @@ mod tests {
                 .map(|spec| spec.name),
             Some("d6_profile_operator")
         );
+    }
+
+    /// A registry whose pack declared a floor for a package its point carries
+    /// asks under a query that is not `==` its profile's — and is still that
+    /// profile's own point, so the profile's operator exclusion applies to it.
+    #[test]
+    fn a_floor_on_the_own_query_leaves_it_the_profiles_own_point() {
+        let iapps = tcl_dialect::DialectProfile::find("f5-iapps").expect("catalogue profile");
+        assert!(!iapps.operators_as_commands);
+        let mut registry = CommandRegistry::build_default().project_for_profile(iapps);
+        registry.insert_ambient_package("iapps", "1.0");
+        let own = registry.own_surface_query();
+        let query = own.expect("a profiled registry has a point");
+        assert_eq!(
+            query.package("iapps"),
+            Some(&PackageFloor::at("iapps", "1.0"))
+        );
+        assert_ne!(query, iapps.surface_query());
+        assert!(query.same_point(&iapps.surface_query()));
+
+        let operator = synthetic_spec("floor_probe_operator", None, Traits::OPERATOR_COMMAND);
+        let ordinary = synthetic_spec("floor_probe_ordinary", None, Traits::empty());
+        assert!(!registry.spec_visible(operator, own));
+        assert!(registry.spec_visible(ordinary, own));
+        assert!(
+            registry.spec_visible(operator, Some(SurfaceQuery::core(Family::Tcl, "8.6"))),
+            "asked at another point, the exclusion is not this profile's to apply"
+        );
+    }
+
+    /// Whether a name is a command in this registry's own dialect is asked at
+    /// the point the registry's floors make, however late a floor arrives.
+    #[test]
+    fn a_command_is_known_here_only_where_the_floored_point_admits_it() {
+        const FROM_8_6: &[tcl_dialect::model::SpecWindow] = &[("8.6", None)];
+        let gated = synthetic_spec(
+            "floor_probe_from_86",
+            Some(surface![SpecSurface::package_in("Tk", FROM_8_6)]),
+            Traits::empty(),
+        );
+        for (floor, known) in [(None, true), (Some("8.5"), false), (Some("8.6"), true)] {
+            let mut authored = CommandRegistry::build_default();
+            authored.insert_static(gated);
+            let mut registry = authored.project_for_profile(tcl_dialect::DialectProfile::tk());
+            assert!(
+                registry.has_command_in_this_dialect("floor_probe_from_86"),
+                "indexed, and admitted while no floor is stated"
+            );
+            if let Some(floor) = floor {
+                registry.insert_ambient_package("Tk", floor);
+            }
+            assert_eq!(
+                registry.has_command_in_this_dialect("floor_probe_from_86"),
+                known,
+                "under a floor of {floor:?}"
+            );
+        }
     }
 
     #[test]
@@ -13049,7 +13123,10 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["\"password:\" {send pw} -re {ye+s} {send yes} timeout {puts slow}"],
-                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+                    Some(
+                        SurfaceQuery::core(Family::Tcl, "8.6")
+                            .with_packages(&[PackageFloor::named("expect")])
+                    ),
                 )
                 .is_some(),
             "clause-leading flags must not break valid Expect pattern/body pairs"
@@ -13059,7 +13136,10 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["{-re} {send literal}"],
-                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+                    Some(
+                        SurfaceQuery::core(Family::Tcl, "8.6")
+                            .with_packages(&[PackageFloor::named("expect")])
+                    ),
                 )
                 .is_some(),
             "a braced flag-shaped pattern is literal text, not a clause flag"
@@ -13069,7 +13149,10 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["-re {ye+s}"],
-                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                    Some(
+                        SurfaceQuery::core(Family::Tcl, "8.6")
+                            .with_packages(&[PackageFloor::named("expect")])
+                    )
                 )
                 .is_some(),
             "Expect permits a final pattern without an action"
@@ -13082,7 +13165,10 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &args,
-                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+                    Some(
+                        SurfaceQuery::core(Family::Tcl, "8.6")
+                            .with_packages(&[PackageFloor::named("expect")]),
+                    ),
                 )
                 .expect("outer Expect value option followed by a final pattern");
             assert_eq!(invocation.clause_list_index, None, "{args:?}");
@@ -13102,7 +13188,10 @@ mod tests {
                         &[&format!(
                             "{pattern} {{send literal}} default {{send other}}"
                         )],
-                        Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+                        Some(
+                            SurfaceQuery::core(Family::Tcl, "8.6")
+                                .with_packages(&[PackageFloor::named("expect")])
+                        ),
                     )
                     .is_some(),
                 "{pattern:?} is a literal Tcl list pattern, not script syntax"
@@ -13113,7 +13202,10 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["-timeout"],
-                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                    Some(
+                        SurfaceQuery::core(Family::Tcl, "8.6")
+                            .with_packages(&[PackageFloor::named("expect")])
+                    )
                 )
                 .is_none(),
             "a value-taking clause flag without a value/pattern/body is invalid"
@@ -13136,7 +13228,10 @@ mod tests {
             .case_invocation(
                 "expect",
                 &args,
-                Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+                Some(
+                    SurfaceQuery::core(Family::Tcl, "8.6")
+                        .with_packages(&[PackageFloor::named("expect")]),
+                ),
             )
             .expect("inline Expect flags and value flags must parse");
         let clauses = crate::CaseListSpec::EXPECT
@@ -13153,7 +13248,10 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["-not", "ready", "{send ok}"],
-                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                    Some(
+                        SurfaceQuery::core(Family::Tcl, "8.6")
+                            .with_packages(&[PackageFloor::named("expect")])
+                    )
                 )
                 .is_some(),
             "unique Expect flag abbreviations must retain the action body"
@@ -13186,7 +13284,10 @@ mod tests {
                     .case_invocation(
                         "expect",
                         &args,
-                        Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                        Some(
+                            SurfaceQuery::core(Family::Tcl, "8.6")
+                                .with_packages(&[PackageFloor::named("expect")])
+                        )
                     )
                     .is_some(),
                 "canonical {flag} must parse"
@@ -13197,7 +13298,10 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["-timeout", "5", "pattern", "{action}"],
-                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                    Some(
+                        SurfaceQuery::core(Family::Tcl, "8.6")
+                            .with_packages(&[PackageFloor::named("expect")])
+                    )
                 )
                 .is_some()
         );
@@ -13207,7 +13311,10 @@ mod tests {
                     .case_invocation(
                         "expect",
                         &[flag, "pattern", "{action}"],
-                        Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                        Some(
+                            SurfaceQuery::core(Family::Tcl, "8.6")
+                                .with_packages(&[PackageFloor::named("expect")])
+                        )
                     )
                     .is_some(),
                 "unique abbreviation {flag} must parse"
@@ -13219,7 +13326,10 @@ mod tests {
                     .case_invocation(
                         "expect",
                         &[flag, "pattern", "{action}"],
-                        Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                        Some(
+                            SurfaceQuery::core(Family::Tcl, "8.6")
+                                .with_packages(&[PackageFloor::named("expect")])
+                        )
                     )
                     .is_some(),
                 "unique canonical-prefix {flag} must remain an inline clause flag"
@@ -13231,7 +13341,10 @@ mod tests {
                     .case_invocation(
                         "expect",
                         &[flag, "pattern", "{action}"],
-                        Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                        Some(
+                            SurfaceQuery::core(Family::Tcl, "8.6")
+                                .with_packages(&[PackageFloor::named("expect")])
+                        )
                     )
                     .is_none(),
                 "ambiguous or unknown {flag} must invalidate the invocation"
@@ -13242,7 +13355,10 @@ mod tests {
             .case_invocation(
                 "expect",
                 &args,
-                Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+                Some(
+                    SurfaceQuery::core(Family::Tcl, "8.6")
+                        .with_packages(&[PackageFloor::named("expect")]),
+                ),
             )
             .expect("-- makes -re a pattern");
         let clauses = crate::CaseListSpec::EXPECT
@@ -13254,7 +13370,10 @@ mod tests {
             .case_invocation(
                 "expect",
                 &["-re", "pattern"],
-                Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+                Some(
+                    SurfaceQuery::core(Family::Tcl, "8.6")
+                        .with_packages(&[PackageFloor::named("expect")]),
+                ),
             )
             .expect("omitted final action is valid");
         assert_eq!(
@@ -13269,7 +13388,10 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["-nobrace", "{pattern}"],
-                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                    Some(
+                        SurfaceQuery::core(Family::Tcl, "8.6")
+                            .with_packages(&[PackageFloor::named("expect")])
+                    )
                 )
                 .is_some(),
             "-nobrace makes one braced word an action-less pattern"
@@ -13278,7 +13400,10 @@ mod tests {
             .case_invocation(
                 "expect",
                 &["-brace", "{default {return FOLDED}}"],
-                Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+                Some(
+                    SurfaceQuery::core(Family::Tcl, "8.6")
+                        .with_packages(&[PackageFloor::named("expect")]),
+                ),
             )
             .expect("exact -brace selects a clause list");
         assert_eq!(brace.clause_list_index, Some(1));
@@ -13287,7 +13412,10 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["-b", "{default {return FOLDED}}"],
-                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+                    Some(
+                        SurfaceQuery::core(Family::Tcl, "8.6")
+                            .with_packages(&[PackageFloor::named("expect")])
+                    ),
                 )
                 .is_none(),
             "-brace is exact-only, so -b is not a clause flag abbreviation"
@@ -13297,7 +13425,10 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["-brac", "{default {return FOLDED}}"],
-                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+                    Some(
+                        SurfaceQuery::core(Family::Tcl, "8.6")
+                            .with_packages(&[PackageFloor::named("expect")])
+                    ),
                 )
                 .is_none(),
             "-brace must not accept a near-complete prefix either"
@@ -13312,7 +13443,10 @@ mod tests {
                     .case_invocation(
                         "expect",
                         args,
-                        Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                        Some(
+                            SurfaceQuery::core(Family::Tcl, "8.6")
+                                .with_packages(&[PackageFloor::named("expect")])
+                        )
                     )
                     .is_none(),
                 "force-list selector must be first and have one remainder: {args:?}"
@@ -13411,7 +13545,10 @@ mod tests {
                     .case_invocation(
                         "expect",
                         args,
-                        Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                        Some(
+                            SurfaceQuery::core(Family::Tcl, "8.6")
+                                .with_packages(&[PackageFloor::named("expect")])
+                        )
                     )
                     .is_none(),
                 "truncated Expect invocation must abstain: {args:?}",

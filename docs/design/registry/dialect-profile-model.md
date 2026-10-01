@@ -165,8 +165,10 @@ pub struct DialectProfile {
     /// the plain Tcl-version profiles, the EDA shells, and the fallback.
     pub vendor_surface: Option<SpecProvider>,
     /// The packages this profile's own point carries — its vendor package,
-    /// or `Tk` for the `tk` ingress profile. Empty for plain Tcl.
-    pub surface_packages: &'static [&'static str],
+    /// or `Tk` for the `tk` ingress profile — each named with no floor: a
+    /// registry that knows a release of one states it on its own query.
+    /// Empty for plain Tcl.
+    pub surface_packages: &'static [PackageFloor<'static>],
     /// The command surfaces `load_surface` applies, in order. Empty only
     /// for the fallback profile.
     pub base_layers: &'static [SurfaceLayer],
@@ -187,6 +189,20 @@ surface) and `surface_packages`:
 ```rust
 pub fn surface_query(&self) -> SurfaceQuery<'static>;
 ```
+
+A query's packages are `PackageFloor { name, version }` rows: the package, and
+the lowest release of it the context guarantees, if one is stated. A spec's
+package row can carry windows on the package's own axis, and it is admitted
+when the floor lies in one — `introduced <= floor < retired`, the way a
+lifecycle is asked about a target release. A package carried with no floor
+admits every window, because a floor nobody stated cannot rule a row out; a
+package the query does not carry admits no row. A registry's own query takes
+each floor from the `ambient_package` rows its packs declared and from the
+profile's library pin, the stronger of the two; a resolved context's query
+takes the packs' rows alone. The floor refines a package already in the point
+and never adds one, and two queries are the same point
+(`SurfaceQuery::same_point`) when they carry the same core and the same
+packages, whatever floors those carry.
 
 There is **no `disabled_commands` field.** iRules availability is explicit
 per spec instead — §9.

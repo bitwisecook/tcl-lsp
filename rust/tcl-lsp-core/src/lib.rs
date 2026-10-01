@@ -292,7 +292,7 @@ mod dialect_ingress_tests {
         let profile = super::profile_for_dialect("tk");
         assert_eq!(profile.name, "tk", "the ingress must keep the spelling");
         assert!(
-            profile.surface_query().packages.contains(&"Tk"),
+            profile.surface_query().carries("Tk"),
             "the ingress must keep the TK availability bit"
         );
 
