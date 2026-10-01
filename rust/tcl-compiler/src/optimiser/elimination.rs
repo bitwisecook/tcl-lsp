@@ -290,6 +290,9 @@ struct RaiseProof<'a> {
     /// The procedure's parameters: bound on entry, so a version-0 read of one
     /// is set.
     params: Vec<String>,
+    /// At top level, the dialect whose interpreter binds its startup scalars
+    /// (`argv`, `tcl_version`) before user code; `None` in a procedure.
+    startup: Option<tcl_dialect::model::SurfaceQuery<'static>>,
     /// Names a scope alias binds, which another frame may unset.
     scope_aliases: HashSet<String>,
     /// Names a module-wide trace guards; a read trace may raise.
@@ -375,6 +378,8 @@ impl<'a> RaiseProof<'a> {
         Self {
             fu,
             params,
+            startup: (fu.name == "::top")
+                .then(|| tcl_registry::special_vars::surface_query_for_profile(ctx.dialect)),
             scope_aliases: scan_scope_aliases(&fu.cfg, registry),
             module_traced: ctx.ir_module.map(|m| &m.traced_variables),
             sites,
@@ -455,7 +460,13 @@ impl<'a> RaiseProof<'a> {
     ) -> bool {
         if ver == 0 {
             let name = self.fu.ssa.var_name(sym);
-            return self.params.iter().any(|p| p == name);
+            return self.params.iter().any(|p| p == name)
+                || self.startup.is_some_and(|dialect| {
+                    let name = name.strip_prefix("::").unwrap_or(name);
+                    tcl_registry::special_vars::special_var(name).is_some_and(|v| {
+                        v.kind == tcl_registry::special_vars::SpecialVarKind::Scalar
+                    }) && tcl_registry::special_vars::is_initially_bound(name, Some(dialect))
+                });
         }
         if !visiting.insert((sym, ver)) {
             return true;

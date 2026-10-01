@@ -2315,12 +2315,14 @@ impl CommandSpec {
     #[must_use]
     pub fn unclassified_variable_writers(&self) -> Vec<String> {
         let mut out = Vec::new();
-        if declares_variable_write(
-            self.arg_roles,
-            self.arg_role_resolver_roles,
-            self.repeated_args,
-            self.options,
-        ) && !self.traits.intersects(VARIABLE_WRITE_CLASSES)
+        if (self.assigns_variable_at.is_some()
+            || declares_variable_write(
+                self.arg_roles,
+                self.arg_role_resolver_roles,
+                self.repeated_args,
+                self.options,
+            ))
+            && !self.traits.intersects(VARIABLE_WRITE_CLASSES)
         {
             out.push(self.name.to_owned());
         }
@@ -4128,6 +4130,21 @@ mod tests {
 
     use super::*;
     use crate::registry::CommandRegistry;
+
+    #[test]
+    fn a_writer_declared_only_by_its_assigned_variable_index_must_say_how_it_writes() {
+        let spec = CommandSpec {
+            name: "w",
+            assigns_variable_at: Some(0),
+            ..CommandSpec::DEFAULT
+        };
+        assert_eq!(spec.unclassified_variable_writers(), vec!["w".to_owned()]);
+        let classified = CommandSpec {
+            traits: Traits::UNCONDITIONAL_VARIABLE_WRITE,
+            ..spec
+        };
+        assert!(classified.unclassified_variable_writers().is_empty());
+    }
 
     // Optional trailing argument names.
     //

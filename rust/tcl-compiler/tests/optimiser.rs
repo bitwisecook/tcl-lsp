@@ -2958,6 +2958,38 @@ fn a_dead_copy_of_a_tcl9_writer_target_is_still_deleted() {
     }
 }
 
+/// A scalar the interpreter binds before user code (`argv`) is set at the top
+/// level's entry, so an overwritten copy of it is a dead store there, as a
+/// literal is; an unset name keeps its store, and inside a procedure `argv` is
+/// an unset local.
+#[test]
+fn an_overwritten_copy_of_a_startup_scalar_goes_only_at_top_level() {
+    for (why, src, dead) in [
+        (
+            "a startup scalar",
+            "set dead $argv\nset dead 1\nputs $dead\n",
+            true,
+        ),
+        (
+            "an unset global",
+            "set dead $nope\nset dead 1\nputs $dead\n",
+            false,
+        ),
+        (
+            "a procedure's local",
+            "proc p {} {\n    set dead $argv\n    set dead 1\n    return $dead\n}\n",
+            false,
+        ),
+    ] {
+        assert_eq!(
+            opt_fires(src, TCL, "O109"),
+            dead,
+            "{why}: {:?}",
+            opt_codes(src, TCL)
+        );
+    }
+}
+
 /// `grapheme next|prev` read their cursor and then write it, so the cursor is
 /// set afterwards exactly when it was set before, and the store feeding it is
 /// live.
