@@ -115,7 +115,10 @@ extensions into one module), so it carries a thin C-ABI shim,
 (`TclReComp` / `TclReExec` / `TclReFree` / `TclReError`) with the `regex.h`
 `regex_t` / `regmatch_t` layout and `REG_*` codes (header:
 `runtime/rust/include/tcl_regex_capi.h`). A C Tcl build or extension that used
-to link the C engine links this instead, unchanged.
+to link the C engine links this instead, unchanged. What a C build fixes at
+compile time the shim takes from the interpreter's pinned release: `TclReComp`
+adds `REG_ZANCHOR` under 9.1, so `\z` compiles there as it does in 9.1.0's
+`regc_lex.c`.
 
 The shim is where the impedance mismatch lives, by design: the safe-Rust API
 speaks `&[u32]` codepoints, typed `ErrorCode`/`InfoFlag`, and half-open

@@ -157,6 +157,11 @@ enum NumVal {
 /// `None` for a non-numeric string or a NaN operand (the caller raises the
 /// "can't use … as operand" error).
 fn read(obj: *mut TclObj) -> Option<NumVal> {
+    read_with_syntax(obj, tcl_syntax::number::runtime_syntax())
+}
+
+/// Read a numeric object under the caller's selected Tcl numeral grammar.
+fn read_with_syntax(obj: *mut TclObj, syntax: tcl_dialect::NumberSyntax) -> Option<NumVal> {
     let tp = obj::obj_type_ptr(obj);
     if tp == &obj::TCL_INT_TYPE {
         return Some(NumVal::Wide(obj::wide_of(obj)));
@@ -167,20 +172,74 @@ fn read(obj: *mut TclObj) -> Option<NumVal> {
     if tp == &TCL_BIGNUM_TYPE {
         return Some(NumVal::Big(Mp::copy_of(mp_ptr(obj))?));
     }
-    // Untyped (or other): classify the string rep, then cache what we parsed
-    // back onto the object so the next use reads a rep instead of the spelling.
-    let value = parse_string_rep(obj)?;
+    // Untyped (or other): classify the string rep under this operation's
+    // release grammar, then cache the resulting typed representation.
+    let value = parse_string_rep_with_syntax(obj, syntax)?;
     cache_parsed_rep(obj, &value);
     Some(value)
 }
 
-/// Classify an object's string rep through the shared [`tcl_syntax::number`]
-/// grammar, without touching the object's internal rep.
-fn parse_string_rep(obj: *mut TclObj) -> Option<NumVal> {
+/// Render an integer object for Tcl's arbitrary-precision `format` conversions.
+///
+/// The returned digits are an unsigned lowercase magnitude. Prefixes, case,
+/// precision, and padding stay in the shared command core.
+pub(crate) fn integer_magnitude(
+    obj: *mut TclObj,
+    radix: Radix,
+    syntax: tcl_dialect::NumberSyntax,
+) -> Option<(bool, String)> {
+    let value = read_with_syntax(obj, syntax)?;
+    let integer = match value {
+        NumVal::Wide(value) => Mp::from_i64(value)?,
+        NumVal::Big(value) => value,
+        NumVal::Float(_) => return None,
+    };
+    let negative = mp_is_neg(&integer);
+    let mut size = 0;
+    // SAFETY: `integer` owns a live `mp_int`; libtommath reports an output
+    // buffer size including the trailing NUL for the requested valid radix.
+    if unsafe { mp_radix_size(integer.ptr(), radix as c_int, &mut size) } != MP_OKAY || size <= 0 {
+        return None;
+    }
+    let mut bytes = vec![0_u8; usize::try_from(size).ok()?];
+    let mut written = 0;
+    // SAFETY: the buffer has the size libtommath requested, and the radix is
+    // one of 2, 8, 10, or 16 from the shared numeral owner.
+    if unsafe {
+        mp_to_radix(
+            integer.ptr(),
+            bytes.as_mut_ptr().cast::<c_char>(),
+            bytes.len(),
+            &mut written,
+            radix as c_int,
+        )
+    } != MP_OKAY
+    {
+        return None;
+    }
+    let end = written.saturating_sub(1).min(bytes.len());
+    let digits = core::str::from_utf8(&bytes[..end]).ok()?;
+    Some((
+        negative,
+        digits
+            .strip_prefix('-')
+            .unwrap_or(digits)
+            .to_ascii_lowercase(),
+    ))
+}
+
+/// Classify an object's string representation under an explicit release grammar.
+fn parse_string_rep_with_syntax(
+    obj: *mut TclObj,
+    syntax: tcl_dialect::NumberSyntax,
+) -> Option<NumVal> {
     let bytes = obj::bytes_of(obj);
     let s = core::str::from_utf8(&bytes).ok()?;
     use tcl_syntax::number::Number;
-    match tcl_syntax::number::parse_whole(s)? {
+    match tcl_syntax::number::parse_whole_with(
+        s,
+        tcl_syntax::number::ParseFlags::for_syntax(syntax),
+    )? {
         Number::Int(v) => Some(NumVal::Wide(v)),
         Number::Double(d) => Some(NumVal::Float(d)),
         Number::Big {

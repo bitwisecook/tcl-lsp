@@ -779,9 +779,14 @@ pub(crate) fn irule_binary(op: BinOp, left: &Value, right: &Value) -> Result<Val
         // Case-sensitive `string match` / `regexp` — the dialect operators have
         // no `-nocase` form.
         MatchesGlob => tcl_syntax::glob::string_match(&operand, &subject),
-        MatchesRegex => {
-            crate::cmd_regexp::regexp_matches(&operand, &subject, false).map_err(TclError::new)?
-        }
+        // iRules embeds Tcl 8.4, whose ARE has no `\z`.
+        MatchesRegex => crate::cmd_regexp::regexp_matches(
+            &operand,
+            &subject,
+            false,
+            tcl_dialect::TclVersion::V8_4,
+        )
+        .map_err(TclError::new)?,
         _ => return Err(TclError::new("unsupported operator")),
     };
     Ok(Value::bool(truth))

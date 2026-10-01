@@ -2,14 +2,14 @@
 # Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Jim Tcl's inherited command surface — design Q6, ruled 2026-08-28.
+# Jim Tcl's inherited command surface.
 #
 # `Family::Jim`'s ancestry edge is a `Lineage::Reimplementation` anchored at
 # Tcl 8.6: "a small footprint reimplementation of the Tcl scripting
 # language" implementing "a significant subset of the Tcl 8.6 command set"
-# (jim_tcl.txt, INTRODUCTION). P6 used that edge to delete the jim branch's
-# 76 hand-written core command specs — but an edge alone inherits the whole
-# ancestor surface, and a *subset* inherited wholesale over-admits
+# (jim_tcl.txt, INTRODUCTION). The edge is how Jim reaches the shared core
+# command specs without a copy of its own — but an edge alone inherits the
+# whole ancestor surface, and a *subset* inherited wholesale over-admits
 # everything outside it. This file is the subset, written out.
 #
 # It is not a discoverable loadable. A `specs/` directory a user or a
@@ -40,13 +40,13 @@
 # Jim's *own* commands — `loop`, `range`, `lsubst`, `alias`, `local`,
 # `upcall`, `xtrace`, `ref`/`getref`/`setref`, the `os.*` and `json::*`
 # rows, and the arithmetic command forms `+ - * /` — are not here. A roster
-# names what the *ancestor* provides; an addition is a spec of its own.
-# Since Q13 a spec *can* say `available {jim 0.81-}`, but nothing can yet
-# *resolve* one: a `jim` document asks at the `(tcl 8.6)` ancestry anchor,
-# which is how the shared core specs reach it, and a point matches one
-# family. Ledger D17-J carries the remainder. Until then Jim's additions are
-# absent rather than wrong, which is the safe direction — an unknown head is
-# a hint.
+# names what the *ancestor* provides; an addition is a spec of its own, and
+# says `available {jim 0.81-}`. They are in `jim-own-surface.tclspec` beside
+# this file. A `jim` document asks at two points, its own
+# family first and the `(tcl 8.6)` ancestry anchor second: the anchor is how
+# the shared core specs reach it, the own-family point is how a `Core(Jim)`
+# row does, and where both offer one command the Jim row is the one
+# selected. A Jim command with no spec is an unknown head, which is a hint.
 #
 # `binary` and `zlib` are on the roster unconditionally although a
 # `--minimal` build compiles both out: the build axis is real

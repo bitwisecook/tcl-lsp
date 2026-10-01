@@ -27,13 +27,17 @@ speclib eda_microchip 2.0 {
 display_name {Microchip Libero SoC}
 
 environment microchip-libero-eda-tcl {
-    display_name    {Microchip Libero EDA Tcl}
+    display_name    {Microchip Libero SoC}
+    short_name      {Libero}
+    kind            packages
     core            tcl 8.5
     version_ceiling 8.5
     editor_identity tcl-microchip
+    selecting_identity tcl-libero
+    ambient         libero keyed ToolVersion
     ambient         sdc keyed SdcVersion
     ambient         upf keyed UpfVersion
-    ambient         libero keyed ToolVersion
+    alias           libero
     help_terms      {microchip microsemi actel libero smartfusion igloo proasic}
 }
 

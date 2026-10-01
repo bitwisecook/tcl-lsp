@@ -16,9 +16,9 @@ or an explicit *not required* classification.
 | handler (native) | 177 |
 | stdlib | 11 |
 | not-required | 54 |
-| known-gap | 42 |
+| known-gap | 44 |
 | **UNCLASSIFIED** | 0 |
-| **total** | 389 |
+| **total** | 391 |
 
 | command | backing | note |
 | --- | --- | --- |
@@ -140,6 +140,7 @@ or an explicit *not required* classification.
 | `::tcl::mathop::~` | handler (native) | `::tcl::mathop::*` command, registered by cmd_mathop.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
 | `::tcl::process` | not-required | OS subprocess management; needs host processes |
 | `::tcl::unsupported::corotype` | handler |  |
+| `::tcl::unsupported::grapheme` | known-gap | Tcl 9.1.0 grapheme-cluster ensemble; needs UAX #29 segmentation tables not yet in runtime/rust |
 | `::tcl::zipfs` | known-gap | ZIP virtual filesystem — no runtime implementation yet; pre-existing gap, unrelated to issue #923 |
 | `<` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `<<` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
@@ -383,6 +384,7 @@ or an explicit *not required* classification.
 | `tcl::prefix` | handler |  |
 | `tcl::process` | not-required | OS subprocess management; needs host processes |
 | `tcl::unsupported::corotype` | handler |  |
+| `tcl::unsupported::grapheme` | known-gap | Tcl 9.1.0 grapheme-cluster ensemble; needs UAX #29 segmentation tables not yet in runtime/rust |
 | `tclLog` | stdlib | init.tcl |
 | `tclPkgSetup` | stdlib | package.tcl |
 | `tclPkgUnknown` | stdlib | package.tcl |

@@ -595,6 +595,7 @@ counted after the subcommand word.
 | `VarRead` | Variable read without modification |
 | `LoopVarList` | Loop variable *list* (`foreach` / `lmap`) -- several names in one word |
 | `ParamList` | Procedure parameter list |
+| `StaticVarList` | Procedure static-variable list (Jim's `proc name args statics body`) |
 | `Name` | Symbolic name (proc, namespace, class) |
 | `Pattern` | Pattern or regex argument |
 | `Option` | Option flag word |

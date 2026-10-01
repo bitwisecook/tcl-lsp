@@ -72,6 +72,11 @@ pub const REG_BOSONLY: i32 = 0o002000; // temporary kludge for BOS-only matches
 pub const REG_DUMP: i32 = 0o004000;
 pub const REG_FAKE: i32 = 0o010000;
 pub const REG_PROGRESS: i32 = 0o020000;
+/// Project-local: accept `\z` as a synonym for the `\Z` end-of-string anchor.
+/// C Tcl 9.1.0 accepts it unconditionally (`regc_lex.c`); earlier releases
+/// reject it as an invalid escape, so the one engine here gates it on a bit C
+/// never assigns.
+pub const REG_ZANCHOR: i32 = 0o040000;
 
 // execution flags (eflags) — regex.h
 

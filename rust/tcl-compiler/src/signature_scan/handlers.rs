@@ -161,22 +161,35 @@ pub(super) fn handle_proc(
     ns_prefix: &str,
     ctx: &mut ScanCtx,
 ) {
-    if texts.len() < 4 {
+    // The name, parameter list and body words are the definer's own role
+    // data (a definer that takes a static-variable list puts the body one
+    // word later). `texts` and `argv` carry the head at 0, so each index is
+    // one past the role's index over the words after the head.
+    let words = texts
+        .first()
+        .zip(ctx.registry)
+        .and_then(|(head, registry)| {
+            let arg_words: Vec<&str> = texts[1..].iter().map(String::as_str).collect();
+            registry.procedure_definition_words(head, &arg_words)
+        })
+        .unwrap_or(tcl_registry::ProcedureWords::TCL_PROC);
+    let (name_at, params_at, body_at) = (words.name + 1, words.params + 1, words.body + 1);
+    if texts.len() <= name_at.max(params_at).max(body_at) {
         return;
     }
-    let raw_name = &texts[1];
+    let raw_name = &texts[name_at];
     let qualified = qualify(ns_prefix, raw_name);
     let simple = qualified.rsplit("::").next().unwrap_or("").to_string();
-    let name_range = argv[1].span;
-    let body_range = argv[3].span;
+    let name_range = argv[name_at].span;
+    let body_range = argv[body_at].span;
     let params_computed = !super::params::param_word_is_literal(
-        argv[2].kind,
-        single_token_word.get(2).copied().unwrap_or(true),
+        argv[params_at].kind,
+        single_token_word.get(params_at).copied().unwrap_or(true),
     );
     let params = if params_computed {
         Vec::new()
     } else {
-        parse_param_list(&texts[2], ctx.rules)
+        parse_param_list(&texts[params_at], ctx.rules)
     };
     let param_names: Vec<String> = params.iter().map(|p| p.name.clone()).collect();
     ctx.result.procs.insert(
@@ -194,7 +207,7 @@ pub(super) fn handle_proc(
         Some((parent, _)) => parent.trim_start_matches(':').to_string(),
         None => String::new(),
     };
-    let body_text = texts[3].clone();
+    let body_text = texts[body_at].clone();
     ctx.proc_bodies.push(ProcBodyInfo {
         qname: qualified,
         params: param_names,
@@ -204,8 +217,8 @@ pub(super) fn handle_proc(
     // Walk the proc body for factory-wrapper candidate calls.
     // Only braced bodies can be statically scanned; substituted
     // bodies (`$body`, `[gen_body]`) cannot be re-segmented.
-    if argv[3].kind == TokenType::Str {
-        super::walker::scan_factory_candidates(&body_text, argv[3], &body_ns, ctx);
+    if argv[body_at].kind == TokenType::Str {
+        super::walker::scan_factory_candidates(&body_text, argv[body_at], &body_ns, ctx);
     }
 }
 
@@ -710,6 +723,21 @@ pub(super) fn handle_itcl_class(
         return;
     }
     emit_class(&texts[1], argv[1], argv[2], ns_prefix, result);
+}
+
+/// Record a Jim `class NAME ?BASES? VARS` as a class so `NAME new` types the
+/// receiving variable `OBJECT(NAME)`. The variable dictionary, which stands in
+/// for the body, is the last word.
+pub(super) fn handle_jim_class(
+    texts: &[String],
+    argv: &[Token],
+    ns_prefix: &str,
+    result: &mut SignatureScanResult,
+) {
+    if texts.len() < 3 || argv.len() != texts.len() {
+        return;
+    }
+    emit_class(&texts[1], argv[1], argv[argv.len() - 1], ns_prefix, result);
 }
 
 /// Record a snit type/widget/widgetadaptor as a class so its instance-creating

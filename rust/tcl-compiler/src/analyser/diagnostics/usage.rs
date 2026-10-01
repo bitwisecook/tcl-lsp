@@ -28,6 +28,7 @@
 //! encoding-mismatch text (W108, W311), invalid `binary format` modifiers
 //! (W200), and an invalid subnet mask literal (W121).
 
+use crate::optimiser::helpers::expr_simplify::eq_ne_compares_as_strings;
 use rustc_hash::FxHashSet;
 use tcl_core_types::DiagCode;
 use tcl_lexer::SourceMap;
@@ -1196,10 +1197,12 @@ literal text `({inner})`; did you mean `{corrected}` for array element access?"
     /// string comparison" hints on the EXPR-role argument of
     /// commands like `if`, `while`, `for`, `expr`.
     ///
-    /// Fires when at
-    /// least one operand of a `==` / `!=` comparison is a string
-    /// literal (`ExprString`, e.g. `"foo"`, `"1"`, `"true"`);
-    /// comparisons between variables (`$x == $y`) are left alone.
+    /// Fires only where the rewrite is proven to keep the result: in a
+    /// braced argument, a `==` / `!=` one of whose operands is a fixed string
+    /// that is not a number in any release, so Tcl already compares the two as
+    /// strings ([`eq_ne_compares_as_strings`]). `$x == "42"` is a numeric
+    /// compare when `x` is `42.0`, and `"$x" == 1` when `x` is `1.0`, so
+    /// neither draws the hint; `$x == "foo"` does.
     ///
     /// `expr_text` is the post-substitution body of the EXPR-role
     /// argument (already brace-stripped) — the caller is
@@ -1226,6 +1229,13 @@ literal text `({inner})`; did you mean `{corrected}` for array element access?"
         if matches!(parsed, ExprNode::Raw { .. }) {
             return;
         }
+        // Only a braced argument reaches `expr` as written; any other word is
+        // substituted first, so its operands are not the ones parsed here.
+        let braced = matches!(anchor, W110Anchor::ArgToken(tok)
+            if self.source.as_bytes().get(tok.span.start() as usize) == Some(&b'{'));
+        if !braced {
+            return;
+        }
         let matched_ops = find_string_eq_ne_ops(&parsed, trimmed);
         if matched_ops.is_empty() {
             return;
@@ -1244,26 +1254,11 @@ literal text `({inner})`; did you mean `{corrected}` for array element access?"
         let span = first_off
             .and_then(|off| self.w110_operator_span(anchor, trim_off + off as usize, op_text))
             .unwrap_or(diag_span);
-        // Only offer the regex-based code fix when every ``==``/
-        // ``!=`` in the expression has a string-literal operand;
-        // otherwise the blanket rewrite would incorrectly change
-        // non-string comparisons too.
-        let total = count_eq_ne_ops(&parsed);
+        // The fix rewrites exactly the proven operators, in place, and only
+        // when every one of them maps back to its source bytes.
         let mut fixes = Vec::new();
-        if matched_ops.len() >= total {
-            let rewritten = rewrite_string_compare_ops(expr_text);
-            if rewritten != expr_text {
-                fixes.push(super::types::CodeFix {
-                    span: diag_span,
-                    new_text: rewritten,
-                    description: format!("Use '{replacement}' for string comparison"),
-                    // W110: `eq` compares as strings where `==` coerces numerically —
-                    // `"1" == "01"` is true, `"1" eq "01"` is false. Removing the
-                    // coercion is the fix, and it changes results in exactly the cases
-                    // the diagnostic is about.
-                    safety: crate::irules_checks::FixSafety::BehaviourHardening,
-                });
-            }
+        if let Some(fix) = self.w110_operator_fix(anchor, trim_off, &matched_ops, replacement) {
+            fixes.push(fix);
         }
         let message = format!(
             "Use '{replacement}' instead of '{op_text}' for string \
@@ -1274,6 +1269,52 @@ numeric/string coercion."
             crate::analyser::types::Diagnostic::new(DiagCode::W110, span, message, Severity::Hint)
                 .with_fixes(fixes),
         );
+    }
+
+    /// One edit over the proven operators: each `==` / `!=` becomes `eq` /
+    /// `ne`, spaced from its neighbours, and every other byte stays as
+    /// written. Each rewritten operator compares as strings already
+    /// ([`eq_ne_compares_as_strings`]), so the rewrite keeps the result.
+    fn w110_operator_fix(
+        &self,
+        anchor: &W110Anchor<'_>,
+        trim_off: usize,
+        ops: &[(BinOp, Option<u32>)],
+        replacement: &str,
+    ) -> Option<super::types::CodeFix> {
+        let mut spans = Vec::with_capacity(ops.len());
+        for (op, off) in ops {
+            let (from, to) = match op {
+                BinOp::Eq => ("==", "eq"),
+                BinOp::Ne => ("!=", "ne"),
+                _ => return None,
+            };
+            let span = self.w110_operator_span(anchor, trim_off + (*off)? as usize, from)?;
+            spans.push((span.start() as usize, span.end() as usize, to));
+        }
+        spans.sort_unstable();
+        let (first, last) = (spans.first()?.0, spans.last()?.1);
+        let bytes = self.source.as_bytes();
+        let spaced = |i: usize| bytes.get(i).is_some_and(u8::is_ascii_whitespace);
+        let mut new_text = String::new();
+        let mut at = first;
+        for (start, end, to) in spans {
+            new_text.push_str(self.source.get(at..start)?);
+            if start > 0 && !spaced(start - 1) {
+                new_text.push(' ');
+            }
+            new_text.push_str(to);
+            if !spaced(end) {
+                new_text.push(' ');
+            }
+            at = end;
+        }
+        Some(super::types::CodeFix {
+            span: tcl_lexer::Span::new(u32::try_from(first).ok()?, u32::try_from(last).ok()?),
+            new_text,
+            description: format!("Use '{replacement}' for string comparison"),
+            safety: crate::irules_checks::FixSafety::SemanticsEquivalent,
+        })
     }
 
     /// Map a W110 operator offset (within the emitter's `expr_text`) to
@@ -1874,8 +1915,8 @@ fn is_safe_bare_word(text: &str) -> bool {
             .any(|c| c.is_whitespace() || matches!(c, '{' | '}' | '"' | '[' | ']' | '\\' | ';'))
 }
 
-/// Walk `node` and collect every `==`/`!=` operator whose at least
-/// one operand is a string literal ([`ExprNode::String`]), paired with
+/// Walk `node` and collect every `==`/`!=` operator that compares as strings
+/// whatever its other operand holds ([`eq_ne_compares_as_strings`]), paired with
 /// the operator's byte offset within `text` (the parsed expression
 /// source) when it can be located — `None` when an operand extent is
 /// unavailable (a `Raw` child) or the operator text is not found in the
@@ -1908,10 +1949,7 @@ fn walk_string_eq_ne(
         ExprNode::Binary { op, left, right } => {
             walk_string_eq_ne(left, text, found, depth + 1);
             walk_string_eq_ne(right, text, found, depth + 1);
-            if matches!(op, BinOp::Eq | BinOp::Ne)
-                && (matches!(**left, ExprNode::String { .. })
-                    || matches!(**right, ExprNode::String { .. }))
-            {
+            if matches!(op, BinOp::Eq | BinOp::Ne) && eq_ne_compares_as_strings(left, right) {
                 found.push((*op, op_offset_between(text, left, right, *op)));
             }
         }
@@ -1993,106 +2031,12 @@ fn op_offset_between(text: &str, left: &ExprNode, right: &ExprNode, op: BinOp) -
     u32::try_from(gap_start + rel).ok()
 }
 
-/// Count the total number of `==`/`!=` operators in the expression
-/// tree.
-fn count_eq_ne_ops(node: &ExprNode) -> usize {
-    // Entry point: the top of an expression tree is nesting depth 0 (the
-    // recursion cap lives in [`count_eq_ne_ops_at`]).
-    count_eq_ne_ops_at(node, 0)
-}
-
-fn count_eq_ne_ops_at(node: &ExprNode, depth: u32) -> usize {
-    // Native-stack safety net: walks the `ExprNode` tree, one
-    // native frame per level. Past the cap, stop counting (return 0 for the
-    // deeper sub-tree) — a conservative under-count only reachable past 256
-    // levels of expression nesting; never a crash.
-    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
-        return 0;
-    }
-    match node {
-        ExprNode::Binary { op, left, right } => {
-            let mut n = count_eq_ne_ops_at(left, depth + 1) + count_eq_ne_ops_at(right, depth + 1);
-            if matches!(op, BinOp::Eq | BinOp::Ne) {
-                n += 1;
-            }
-            n
-        }
-        ExprNode::Unary { operand, .. } => count_eq_ne_ops_at(operand, depth + 1),
-        ExprNode::Ternary {
-            condition,
-            true_branch,
-            false_branch,
-        } => {
-            count_eq_ne_ops_at(condition, depth + 1)
-                + count_eq_ne_ops_at(true_branch, depth + 1)
-                + count_eq_ne_ops_at(false_branch, depth + 1)
-        }
-        ExprNode::Call { args, .. } => args.iter().map(|a| count_eq_ne_ops_at(a, depth + 1)).sum(),
-        _ => 0,
-    }
-}
-
-/// Rewrite `==`/`!=` operators to ` eq `/` ne ` for use in a code
-/// fix's replacement text.
-///
-/// The rewrite rules are:
-/// * `(?<![=!])==(?!=)`  → ` eq `
-/// * `!=`                → ` ne `
-/// * `[ \t]{2,}`         → ` `  (collapse runs of 2+ ws)
-fn rewrite_string_compare_ops(text: &str) -> String {
-    let chars: Vec<char> = text.chars().collect();
-    let mut step1 = String::with_capacity(text.len() + 8);
-    let mut i = 0;
-    while i < chars.len() {
-        let c = chars[i];
-        // !=  →  " ne "
-        if c == '!' && i + 1 < chars.len() && chars[i + 1] == '=' {
-            step1.push_str(" ne ");
-            i += 2;
-            continue;
-        }
-        // ==  →  " eq "  (with negative look-around)
-        if c == '=' && i + 1 < chars.len() && chars[i + 1] == '=' {
-            let prev_ok = i == 0 || (chars[i - 1] != '=' && chars[i - 1] != '!');
-            let next_ok = i + 2 >= chars.len() || chars[i + 2] != '=';
-            if prev_ok && next_ok {
-                step1.push_str(" eq ");
-                i += 2;
-                continue;
-            }
-        }
-        step1.push(c);
-        i += 1;
-    }
-    // Collapse runs of 2+ space/tab into a single space.  Single
-    // whitespace characters are preserved.
-    let chars: Vec<char> = step1.chars().collect();
-    let mut out = String::with_capacity(step1.len());
-    let mut i = 0;
-    while i < chars.len() {
-        if (chars[i] == ' ' || chars[i] == '\t')
-            && i + 1 < chars.len()
-            && (chars[i + 1] == ' ' || chars[i + 1] == '\t')
-        {
-            out.push(' ');
-            while i < chars.len() && (chars[i] == ' ' || chars[i] == '\t') {
-                i += 1;
-            }
-            continue;
-        }
-        out.push(chars[i]);
-        i += 1;
-    }
-    out
-}
-
 #[cfg(test)]
 mod issue996_tests {
     use super::*;
     use crate::expr_ast::UnaryOp;
 
-    /// Depth coverage: `walk_string_eq_ne`, `node_extent` and
-    /// `count_eq_ne_ops` each recurse once per `ExprNode` level
+    /// Depth coverage: `walk_string_eq_ne` and `node_extent` each recurse once per `ExprNode` level
     /// (`walk_string_eq_ne` also drives `node_extent` via
     /// `op_offset_between`), so without a depth cap they overflow the native
     /// stack (SIGABRT) in the low thousands of levels on a 2 MiB thread.  A
@@ -2114,7 +2058,6 @@ mod issue996_tests {
             };
         }
         let _ = find_string_eq_ne_ops(&node, "");
-        let _ = count_eq_ne_ops(&node);
         let _ = node_extent(&node);
     }
 }

@@ -133,16 +133,19 @@ fn fp_w100_brace_fix_over_a_backslash_bearing_operand_is_not_equivalent() {
 // W110: numeric vs string comparison.
 
 #[test]
-fn fp_w110_eq_rewrite_is_never_equivalent() {
+fn fp_w110_offers_no_rewrite_that_changes_the_result() {
     // C Tcl 9.0.3: `expr {"1" == "01"}` is 1 (numeric), `expr {"1" eq "01"}`
-    // is 0 (string).  The rewrite changes the answer in precisely the
-    // coercion cases the diagnostic is about.
+    // is 0 (string). A compare the rewrite would change draws no fix at all.
     let classes = safety_for("puts [expr {\"1\" == \"01\"}]\n", "tcl9.0", DiagCode::W110);
-    assert!(!classes.is_empty(), "expected a W110 fix");
-    assert!(
-        classes.iter().all(|s| !s.is_bulk_applicable()),
-        "got {classes:?}"
-    );
+    assert!(classes.is_empty(), "got {classes:?}");
+}
+
+#[test]
+fn tp_w110_rewrite_of_a_proven_string_compare_is_equivalent() {
+    // `foo` is not a number in any release, so `==` already compares as
+    // strings and `eq` gives the same answer for every `x`.
+    let classes = safety_for("puts [expr {$x == \"foo\"}]\n", "tcl9.0", DiagCode::W110);
+    assert_eq!(classes, vec![FixSafety::SemanticsEquivalent]);
 }
 
 // W105: unbraced code block.

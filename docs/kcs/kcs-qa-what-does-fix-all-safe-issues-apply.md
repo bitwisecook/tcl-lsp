@@ -48,10 +48,11 @@ across a file. So `W100` is classified per occurrence: bracing
 `expr 1 + 2` is equivalent and is applied, bracing `expr $a + $b` is
 hardening and is not.
 
-`W110` is the same story. `expr {"1" == "01"}` is `1` (a numeric
-comparison) and `expr {"1" eq "01"}` is `0` (a string comparison), so
-swapping the operator changes the answer in exactly the cases the diagnostic
-is about.
+`W110` avoids the problem by firing only where swapping the operator keeps
+the answer. `expr {"1" == "01"}` is `1` (a numeric comparison) and
+`expr {"1" eq "01"}` is `0` (a string comparison), so that compare draws no
+`W110` at all. `$name == "admin"` is already a string comparison, because
+`admin` is not a number, so its `eq` fix is equivalent and is applied.
 
 Fixes that are not bulk-applicable are **not hidden**. Every one of them is
 still offered individually in the lightbulb menu, with its own title, so you

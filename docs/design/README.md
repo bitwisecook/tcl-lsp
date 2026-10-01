@@ -90,6 +90,9 @@ fails.
   owner of every pinned version, and the build entry points.
 - [dialect-detection.md](contracts/dialect-detection.md) — the dialect
   detection priority chain.
+- [environment-selection.md](contracts/environment-selection.md) — the one
+  vocabulary every dialect picker, setting, flag and directive enumerates,
+  the `Language` / `Packages` kind, and the server-owned notice.
 - [dialect-stubs.md](contracts/dialect-stubs.md) — dialect command stubs and
   inline stub blocks.
 - [differential-fuzzing.md](contracts/differential-fuzzing.md) — the

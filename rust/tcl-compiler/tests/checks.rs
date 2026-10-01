@@ -505,10 +505,67 @@ mod string_compare_in_expr {
     }
 
     #[test]
-    fn numeric_and_boolean_string_literals_warn() {
-        // The user wrote a quoted literal → still string-shaped.
-        assert_eq!(count("if {$x == \"42\"} {puts yes}", D, "W110"), 1);
-        assert_eq!(count("if {$x == \"true\"} {puts yes}", D, "W110"), 1);
+    fn fires_only_where_eq_keeps_the_result() {
+        // `==` compares numerically when both operands are numbers, so `eq`
+        // gives the same answer only when one operand is a fixed string that
+        // is not a number in any release. tclsh 8.4.20 through 9.1b0: `x` =
+        // `42.0` makes `$x == "42"` true and `$x eq "42"` false; `"$x" == 1`
+        // likewise at `1.0`; ` 1`, `nan`, `0x10`, `08` (9.0) and `1_0` (9.0)
+        // are numbers. A boolean word is not: `"true" == 1` is false.
+        for (src, fires) in [
+            ("if {$x == \"42\"} {puts yes}", false),
+            ("if {\"$x\" == 1} {puts yes}", false),
+            ("if {\"$x\" == \"$y\"} {puts yes}", false),
+            ("if {$x == \" 1\"} {puts yes}", false),
+            ("if {$x == \"nan\"} {puts yes}", false),
+            ("if {$x == \"0x10\"} {puts yes}", false),
+            ("if {$x == \"08\"} {puts yes}", false),
+            ("if {$x == \"1_0\"} {puts yes}", false),
+            ("if {$x == \"true\"} {puts yes}", true),
+            ("if {$x == \"\"} {puts yes}", true),
+            ("if {$x == {foo}} {puts yes}", true),
+            ("if {\"$x\" == \"foo\"} {puts yes}", true),
+            // Unbraced, the words are substituted before `expr` parses them,
+            // so nothing is proven about the operands it will see.
+            ("if \"\\$x == {foo}\" {puts yes}", false),
+        ] {
+            assert_eq!(count(src, D, "W110") == 1, fires, "{src}");
+        }
+    }
+
+    #[test]
+    fn the_fix_rewrites_only_the_operators() {
+        // The literal keeps its `==` and its spacing, the braces stay, and an
+        // unproven compare keeps its operator.
+        for (src, applied) in [
+            (
+                "if {$x == \"a  ==b\"} {puts yes}",
+                "if {$x eq \"a  ==b\"} {puts yes}",
+            ),
+            (
+                "while {$x==\"foo\"} {break}",
+                "while {$x eq \"foo\"} {break}",
+            ),
+            (
+                "if {$a == $b && $c != {x} || $d == \"\"} {puts yes}",
+                "if {$a == $b && $c ne {x} || $d eq \"\"} {puts yes}",
+            ),
+        ] {
+            let mut a = Analyser::new();
+            let r = a.analyse(src, D);
+            let fixes: Vec<_> = r
+                .diagnostics
+                .iter()
+                .filter(|d| d.code.to_string() == "W110")
+                .flat_map(|d| d.fixes.iter())
+                .collect();
+            assert_eq!(fixes.len(), 1, "{src}: {fixes:?}");
+            let (s, e) = (fixes[0].span.start() as usize, fixes[0].span.end() as usize);
+            assert_eq!(
+                format!("{}{}{}", &src[..s], fixes[0].new_text, &src[e..]),
+                applied
+            );
+        }
     }
 
     #[test]
@@ -518,11 +575,10 @@ mod string_compare_in_expr {
     }
 
     #[test]
-    fn mixed_ops_fire_without_blanket_fix() {
-        // One `==` has no string literal → the blanket rewrite is unsafe, so no fix.
+    fn mixed_ops_fix_only_the_proven_compare() {
         let ds = of_code("if {$a == $b || $x == \"foo\"} {puts y}", D, "W110");
         assert_eq!(ds.len(), 1);
-        assert_eq!(ds[0].2.len(), 0);
+        assert_eq!(ds[0].2.len(), 1);
     }
 }
 

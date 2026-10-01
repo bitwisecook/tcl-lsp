@@ -31,9 +31,8 @@
 //! (`detect_dialect_from_source`) does NOT live in the `tcl-registry` crate —
 //! it is implemented in `tcl-compiler` / `tcl-lsp-core`, which are out of
 //! scope for this crate's tests. The
-//! dialect-name surface that *is* in `tcl-registry` (`KNOWN_DIALECTS`,
-//! `available_dialects()`, `DialectProfile::find`, `tcl_dialect::DialectProfile::name_is_irules`)
-//! is covered below instead.
+//! dialect-name surface that *is* in `tcl-registry` (`DialectProfile::find`,
+//! `tcl_dialect::DialectProfile::name_is_irules`) is covered below instead.
 //!
 //! ## C-Tcl proof
 //! Facts observable in real Tcl (core-command existence, which switches a
@@ -52,8 +51,8 @@ use tcl_registry::events::EventRegistry;
 use tcl_registry::model::ingress::{static_context_for, static_document_context_for};
 use tcl_registry::profiles::ProfileRegistry;
 use tcl_registry::{
-    ArgRole, CommandRegistry, DataCollectionAction, KNOWN_DIALECTS, MethodDispatchKind,
-    PayloadCollectionRequirement, SideSwitchTarget, Traits, available_dialects,
+    ArgRole, CommandRegistry, DataCollectionAction, MethodDispatchKind,
+    PayloadCollectionRequirement, SideSwitchTarget, Traits,
 };
 
 // Helpers
@@ -1436,7 +1435,10 @@ fn detection_target_dialects_are_known() {
         "f5-irules",
         "expect",
     ] {
-        assert!(KNOWN_DIALECTS.contains(&d), "{d} should be a known dialect");
+        assert!(
+            tcl_dialect::DialectProfile::find(d).is_some(),
+            "{d} should be a known dialect"
+        );
     }
     // `tcl-dialect: unknown` has no parse — the analogue of returning `None`.
     assert!(
@@ -1444,21 +1446,6 @@ fn detection_target_dialects_are_known() {
             .map(tcl_dialect::DialectProfile::surface_query)
             .is_none()
     );
-}
-
-/// `available_dialects()` is the sorted catalogue backing the CLI `--dialect`
-/// choices; `KNOWN_DIALECTS` is its data. Sanity-check completeness + order.
-///
-/// registry-metadata.
-#[test]
-fn available_dialects_is_sorted_and_complete() {
-    let dialects = available_dialects();
-    assert_eq!(dialects, KNOWN_DIALECTS);
-    let mut sorted = dialects.to_vec();
-    sorted.sort_unstable();
-    assert_eq!(dialects, sorted.as_slice(), "dialects must be pre-sorted");
-    assert!(dialects.contains(&"f5-irules"));
-    assert!(dialects.contains(&"tcl9.0"));
 }
 
 /// `DialectProfile::find` round-trips the canonical names and rejects junk —
