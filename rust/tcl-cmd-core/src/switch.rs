@@ -266,7 +266,8 @@ where
                     nocase: opts.nocase,
                     ..RegexFlags::for_release(version)
                 };
-                let mut re = E::compile(pat.as_bytes(), flags).map_err(|d| compile_error(&d))?;
+                let mut re =
+                    E::compile(pat.as_bytes(), flags).map_err(|d| compile_error(version, &d))?;
                 let value_bytes = ops.as_bytes(value);
                 let (cps, byteoff) = decode_utf8(&value_bytes);
                 if let Some(m) = E::exec(&mut re, &cps, 0, false) {
@@ -385,9 +386,10 @@ fn mode_restriction(opt: &str) -> CmdError {
     CmdError::new(format!("{opt} option requires -regexp option"))
 }
 
-fn compile_error(detail: &[u8]) -> CmdError {
+fn compile_error(version: TclVersion, detail: &[u8]) -> CmdError {
     CmdError::new(format!(
-        "cannot compile regular expression pattern: {}",
+        "{}{}",
+        version.regex_compile_error_prefix(),
         String::from_utf8_lossy(detail)
     ))
 }
@@ -503,6 +505,58 @@ mod tests {
             _notbol: bool,
         ) -> Option<Vec<RegMatch>> {
             unreachable!()
+        }
+    }
+
+    /// An engine whose every pattern fails to compile.
+    enum RejectingEngine {}
+
+    impl RegexEngine for RejectingEngine {
+        type Regex = ();
+        fn compile(_pattern: &[u8], _flags: RegexFlags) -> Result<(), Vec<u8>> {
+            Err(b"invalid escape \\ sequence".to_vec())
+        }
+        fn nsub(_re: &()) -> usize {
+            unreachable!()
+        }
+        fn exec(
+            _re: &mut (),
+            _cps: &[i32],
+            _offset: usize,
+            _notbol: bool,
+        ) -> Option<Vec<RegMatch>> {
+            unreachable!()
+        }
+    }
+
+    #[test]
+    fn regexp_compile_error_prefix_follows_the_release() {
+        // tclsh 8.4.20 / 8.5.19 / 8.6.18 say `couldn't`, 9.0.4 / 9.1.0 `cannot`:
+        //   % switch -regexp xa {{a\q} {}}
+        //   couldn't compile regular expression pattern: invalid escape \ sequence
+        let opts = Options {
+            mode: Mode::Regexp,
+            ..exact_opts()
+        };
+        let value = String::from("xa");
+        let pats = vec![String::from(r"a\q")];
+        for (version, verb) in [
+            (TclVersion::V8_4, "couldn't"),
+            (TclVersion::V8_5, "couldn't"),
+            (TclVersion::V8_6, "couldn't"),
+            (TclVersion::V9_0, "cannot"),
+            (TclVersion::V9_1, "cannot"),
+        ] {
+            let Err(e) =
+                select::<_, RejectingEngine, _>(&mut StrOps, &opts, &value, &pats, version)
+            else {
+                panic!("{version:?}: a bad pattern must not compile")
+            };
+            assert_eq!(
+                e.message(),
+                format!(r"{verb} compile regular expression pattern: invalid escape \ sequence"),
+                "{version:?}"
+            );
         }
     }
 

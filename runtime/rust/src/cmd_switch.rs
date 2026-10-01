@@ -489,4 +489,29 @@ mod tests {
             i.eval_str(b"unset -nocomplain x");
         });
     }
+
+    /// Tcl 9.0 reworded the compile-error prefix; tclsh 8.4.20 / 8.5.19 /
+    /// 8.6.18 say `couldn't`, 9.0.4 / 9.1.0 `cannot`.
+    #[test]
+    fn regexp_compile_error_prefix_follows_the_release() {
+        use tcl_dialect::TclVersion;
+        for (version, verb) in [
+            (TclVersion::V8_4, "couldn't"),
+            (TclVersion::V8_5, "couldn't"),
+            (TclVersion::V8_6, "couldn't"),
+            (TclVersion::V9_0, "cannot"),
+            (TclVersion::V9_1, "cannot"),
+        ] {
+            leak_free(|i| {
+                i.set_runtime_version(version);
+                assert_eq!(
+                    String::from_utf8_lossy(&err(i, b"switch -regexp xa {( {set r hit}}")),
+                    format!(
+                        "{verb} compile regular expression pattern: parentheses () not balanced"
+                    ),
+                    "{version:?}"
+                );
+            });
+        }
+    }
 }

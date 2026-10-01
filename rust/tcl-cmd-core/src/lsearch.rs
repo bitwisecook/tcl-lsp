@@ -328,7 +328,7 @@ pub fn lsearch<O: ValueOps, E: RegexEngine>(
             ..RegexFlags::for_release(version)
         };
         Some(E::compile(&pattern, flags).map_err(|d| {
-            let mut m = b"cannot compile regular expression pattern: ".to_vec();
+            let mut m = version.regex_compile_error_prefix().as_bytes().to_vec();
             m.extend_from_slice(&d);
             LsearchError::msg(m)
         })?)
@@ -639,6 +639,7 @@ fn str_opt(b: &[u8]) -> Option<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::regex::RegMatch;
 
     /// `split_index` result as a `Vec<Vec<u8>>` (`LsearchError` has no Debug,
     /// so we can't `.unwrap()`).
@@ -710,6 +711,51 @@ mod tests {
             v: &String,
         ) -> Result<Vec<String>, tcl_syntax::value::ValueError> {
             Ok(v.split_whitespace().map(str::to_owned).collect())
+        }
+    }
+
+    /// An engine whose every pattern fails to compile.
+    enum RejectingEngine {}
+
+    impl RegexEngine for RejectingEngine {
+        type Regex = ();
+        fn compile(_pattern: &[u8], _flags: RegexFlags) -> Result<(), Vec<u8>> {
+            Err(b"parentheses () not balanced".to_vec())
+        }
+        fn nsub(_re: &()) -> usize {
+            unreachable!()
+        }
+        fn exec(
+            _re: &mut (),
+            _cps: &[i32],
+            _offset: usize,
+            _notbol: bool,
+        ) -> Option<Vec<RegMatch>> {
+            unreachable!()
+        }
+    }
+
+    #[test]
+    fn regexp_compile_error_prefix_follows_the_release() {
+        // tclsh 8.4.20 / 8.5.19 / 8.6.18 say `couldn't`, 9.0.4 / 9.1.0 `cannot`:
+        //   % lsearch -regexp {a b} (
+        //   couldn't compile regular expression pattern: parentheses () not balanced
+        for (version, verb) in [
+            (TclVersion::V8_4, "couldn't"),
+            (TclVersion::V8_5, "couldn't"),
+            (TclVersion::V8_6, "couldn't"),
+            (TclVersion::V9_0, "cannot"),
+            (TclVersion::V9_1, "cannot"),
+        ] {
+            let args = ["-regexp", "a b", "("].map(str::to_owned);
+            let Err(e) = lsearch::<StrOps, RejectingEngine>(&mut StrOps, &args, version) else {
+                panic!("{version:?}: a bad pattern must not compile")
+            };
+            assert_eq!(
+                String::from_utf8_lossy(&e.message),
+                format!("{verb} compile regular expression pattern: parentheses () not balanced"),
+                "{version:?}"
+            );
         }
     }
 
