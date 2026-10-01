@@ -350,6 +350,8 @@ fn compile_error_prefix_follows_the_release() {
         "lsearch -regexp {a b} (",
         "switch -regexp xa {( {set r hit}}",
         "proc p s {regexp {(} $s}; p x",
+        "set r [regexp {(} x]",
+        "proc q s {set r [regexp {(} $s]}; q x",
     ];
     for (version, verb) in [
         (TclVersion::V8_4, "couldn't"),

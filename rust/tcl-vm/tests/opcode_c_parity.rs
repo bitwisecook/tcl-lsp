@@ -1008,8 +1008,9 @@ fn irule_glob_and_regex_matching() {
 }
 
 /// An uncompilable regex is an error, not a silent `0` — the same engine
-/// message the compiled `regexp` opcode reports for the same pattern (both drive
-/// the shared ARE core).
+/// detail the compiled `regexp` opcode reports for the same pattern (both drive
+/// the shared ARE core). `Op::REGEXP` adds C's `CompileRegexp` prefix for the
+/// pinned release, as `INST_REGEXP` does.
 #[test]
 fn irule_matches_regex_rejects_a_bad_pattern() {
     let mut a = Asm::new();
@@ -1022,7 +1023,10 @@ fn irule_matches_regex_rejects_a_bad_pattern() {
     let mut a = Asm::new();
     a.push("[").push("foobar").op(Op::REGEXP, &[3]);
     let (_, regexp_op) = run_fresh(a);
-    assert_eq!(err_str(&regexp_op), err_str(&c));
+    assert_eq!(
+        err_str(&regexp_op),
+        format!("cannot compile regular expression pattern: {}", err_str(&c))
+    );
 }
 
 /// `and` / `or` reduce Tcl truthiness (the boolean words included) to `1`/`0`.

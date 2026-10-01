@@ -57,7 +57,8 @@ pub(crate) use tcl_regex::cmd_core::AreEngine as CrateEngine;
 
 /// Does `pattern` match anywhere in `subject` (ARE under `version`, optional
 /// `-nocase`)? A small boolean helper for the bytecode `MatchesRegex`-style
-/// opcode in `exec`.
+/// opcode in `exec`. A compile failure is the engine's bare detail; the caller
+/// adds whatever prefix its C counterpart reports.
 pub(crate) fn regexp_matches(
     pattern: &str,
     subject: &str,
