@@ -91,6 +91,43 @@ pub struct LockedPackage {
     pub provides: Vec<String>,
     pub license: String,
     pub dev: bool,
+    /// The hash of each `.tclspec` pack the package ships, in the order its
+    /// manifest's `spec` directive names them, as [`format_spec_integrity`]
+    /// writes them. `None` for a package that ships none. Each hash is the
+    /// content hash a compiled unit's claim on that pack carries, so the
+    /// lockfile and the artefact identify a pack by one value.
+    pub spec_integrity: Option<String>,
+}
+
+/// The prefix of one pack hash in a `spec_integrity` value.
+const SPEC_HASH_PREFIX: &str = "xxh3-";
+
+/// The `spec_integrity` text for the content hashes of a package's packs: each
+/// as `xxh3-` and sixteen lower-case hex digits, joined by commas, in the
+/// order given.
+#[must_use]
+pub fn format_spec_integrity(hashes: &[u64]) -> String {
+    hashes
+        .iter()
+        .map(|hash| format!("{SPEC_HASH_PREFIX}{hash:016x}"))
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+/// The content hashes a `spec_integrity` value records, or `None` when it is
+/// not one [`format_spec_integrity`] writes.
+#[must_use]
+pub fn parse_spec_integrity(text: &str) -> Option<Vec<u64>> {
+    text.split(',')
+        .map(|entry| {
+            let digits = entry.strip_prefix(SPEC_HASH_PREFIX)?;
+            (digits.len() == 16
+                && digits
+                    .bytes()
+                    .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')))
+            .then(|| u64::from_str_radix(digits, 16).ok())?
+        })
+        .collect()
 }
 
 impl LockedPackage {
@@ -109,7 +146,7 @@ impl LockedPackage {
         provides.sort();
         let mut requires = self.requires.clone();
         requires.sort();
-        json!({
+        let mut value = json!({
             "dev": self.dev,
             "integrity": self.integrity,
             "license": self.license,
@@ -119,7 +156,13 @@ impl LockedPackage {
             "size": self.size,
             "source": self.source.to_value(),
             "version": self.version,
-        })
+        });
+        // Written only for a package that ships packs, so every other entry
+        // keeps the bytes it always had.
+        if let Some(spec_integrity) = &self.spec_integrity {
+            value["spec_integrity"] = Value::String(spec_integrity.clone());
+        }
+        value
     }
 
     fn from_value(v: &Value) -> Self {
@@ -133,6 +176,10 @@ impl LockedPackage {
             provides: str_list(v, "provides"),
             license: str_field(v, "license", ""),
             dev: v.get("dev").and_then(Value::as_bool).unwrap_or(false),
+            spec_integrity: v
+                .get("spec_integrity")
+                .and_then(Value::as_str)
+                .map(ToString::to_string),
         }
     }
 }
@@ -363,6 +410,7 @@ mod tests {
             provides: vec![],
             license: "MIT".to_string(),
             dev: false,
+            spec_integrity: None,
         });
         lf
     }
@@ -398,6 +446,51 @@ mod tests {
     fn rejects_newer_schema() {
         let err = deserialise("{\"version\": 999}").unwrap_err();
         assert!(err.to_string().contains("newer than supported"));
+    }
+
+    /// A package that ships packs records their hashes, and one that ships
+    /// none writes no field at all.
+    #[test]
+    fn spec_integrity_round_trips_and_is_written_only_for_a_package_that_ships_packs() {
+        let plain = serialise(&sample());
+        assert!(!plain.contains("spec_integrity"), "{plain}");
+
+        let mut lf = sample();
+        lf.packages[0].spec_integrity = Some(format_spec_integrity(&[1, u64::MAX]));
+        let text = serialise(&lf);
+        assert!(
+            text.contains("\"spec_integrity\": \"xxh3-0000000000000001,xxh3-ffffffffffffffff\""),
+            "{text}"
+        );
+        let parsed = deserialise(&text).unwrap();
+        assert_eq!(parsed, lf);
+        assert_eq!(serialise(&parsed), text, "re-serialising is byte-stable");
+        // Alphabetical among its siblings: after `source`, before `version`.
+        let (source, spec, version) = (
+            text.find("\"source\"").unwrap(),
+            text.find("\"spec_integrity\"").unwrap(),
+            text.rfind("\"version\"").unwrap(),
+        );
+        assert!(source < spec && spec < version, "{text}");
+    }
+
+    #[test]
+    fn the_hashes_a_value_records_read_back_and_nothing_else_does() {
+        let hashes = [0, 0xdead_beef, u64::MAX];
+        let text = format_spec_integrity(&hashes);
+        assert_eq!(parse_spec_integrity(&text).as_deref(), Some(&hashes[..]));
+        assert_eq!(format_spec_integrity(&[]), "");
+        for bad in [
+            "",
+            "xxh3-1",
+            "xxh3-000000000000000G",
+            "xxh3-000000000000000A",
+            "sha256-0000000000000001",
+            "xxh3-0000000000000001,",
+            "xxh3-0000000000000001 xxh3-0000000000000002",
+        ] {
+            assert_eq!(parse_spec_integrity(bad), None, "{bad:?}");
+        }
     }
 
     #[test]

@@ -29,6 +29,10 @@
 //! The workspace's own package is the one tier this module does not decide,
 //! because it is a fact about where a directory sits, not about the graph:
 //! the caller that found the root manifest knows it is the root.
+//!
+//! A package's `spec` directive may ask for a tier of its own
+//! ([`crate::manifest::SpecDirective::requested_tier`]);
+//! [`clamp_requested`] says what the request comes to.
 
 use std::collections::BTreeSet;
 
@@ -65,6 +69,22 @@ pub fn dependency_tier(
         return Some(DependencyTier::Development);
     }
     Some(DependencyTier::Transitive)
+}
+
+/// The tier a dependency's packs install at: the tier its manifest asks for,
+/// never nearer than the tier `resolved` — its position in the graph — gives
+/// it. A manifest can ask for less than its position licenses and never for
+/// more.
+///
+/// A tier is nearer the root the earlier it sorts, so the clamp is the later
+/// of the two. The workspace's own package is not a dependency and takes no
+/// request: it stays the root.
+#[must_use]
+pub fn clamp_requested(requested: DependencyTier, resolved: DependencyTier) -> DependencyTier {
+    match resolved {
+        DependencyTier::Root => DependencyTier::Root,
+        _ => requested.max(resolved),
+    }
 }
 
 fn names(requirements: &[Requirement], package: &str) -> bool {
@@ -118,6 +138,7 @@ mod tests {
             provides: Vec::new(),
             license: String::new(),
             dev,
+            spec_integrity: None,
         }
     }
 
@@ -200,6 +221,39 @@ mod tests {
         assert_eq!(tier("stale"), Some(DependencyTier::Transitive));
         assert_eq!(tier("myapp"), None, "the root is not in its own lockfile");
         assert_eq!(tier("stranger"), None);
+    }
+
+    /// A manifest asks for a tier of its own and the graph decides how much
+    /// of it stands: the request is honoured when it is the same or further
+    /// from the root than the package's position, and never when it is
+    /// nearer.
+    #[test]
+    fn a_manifest_cannot_claim_a_nearer_tier() {
+        use DependencyTier::{Development, Direct, Root, Transitive};
+        for (requested, resolved, effective) in [
+            (Root, Transitive, Transitive),
+            (Direct, Transitive, Transitive),
+            (Root, Development, Development),
+            (Direct, Development, Development),
+            (Transitive, Development, Development),
+            (Transitive, Direct, Transitive),
+            (Development, Direct, Development),
+            (Direct, Direct, Direct),
+            (Root, Direct, Direct),
+        ] {
+            assert_eq!(
+                clamp_requested(requested, resolved),
+                effective,
+                "asked for {requested:?} at {resolved:?}"
+            );
+        }
+        for requested in [Root, Direct, Transitive, Development] {
+            assert_eq!(
+                clamp_requested(requested, Root),
+                Root,
+                "the workspace's own package takes no request"
+            );
+        }
     }
 
     /// A cycle in the lockfile's edges ends: each package is visited once.

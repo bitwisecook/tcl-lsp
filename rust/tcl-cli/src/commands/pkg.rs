@@ -56,6 +56,28 @@ enum FetchError {
     Fetch { source: SourceSpec, message: String },
 }
 
+/// What the lockfile records for the packs a stored package ships: the hash
+/// of each pack its `spec` directive names, by the rule a compiled unit's
+/// claim on that pack is stamped under. `Ok(None)` for a package that has no
+/// manifest or declares no packs; an error says which pack could not be read.
+fn package_spec_integrity(
+    cas: &ContentAddressableStore,
+    integrity: &str,
+) -> Result<Option<String>, String> {
+    let Ok(tree) = cas.tree_path(integrity) else {
+        return Ok(None);
+    };
+    let Some(directive) = load_manifest(tree.join("tclpkg.tcl"))
+        .ok()
+        .and_then(|manifest| manifest.spec)
+    else {
+        return Ok(None);
+    };
+    tcl_spectcl::package_specs::spec_integrity(&tcl_lsp_core::vfs::NativeStore, &tree, &directive)
+        .map(Some)
+        .map_err(|err| err.to_string())
+}
+
 /// Materialise a stored package into a throwaway directory and return its own
 /// (non-dev) `require` directives as `(ref, source_url)`, so the resolver can
 /// walk transitive dependencies and later fetch them. Best-effort: a
@@ -502,6 +524,7 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
             provides: Vec::new(),
             license: String::new(),
             dev: rp.dev,
+            spec_integrity: None,
         };
         if !offline {
             // Reuses the cached fetch performed during resolution.
@@ -522,6 +545,16 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
                     entry.size = result.size;
                     entry.provides = result.provides;
                     entry.license = result.license;
+                    match package_spec_integrity(&cas, &entry.integrity) {
+                        Ok(spec_integrity) => entry.spec_integrity = spec_integrity,
+                        Err(e) => println!(
+                            "{}",
+                            ui::warn(
+                                &format!("{name} {version}: its packs are not hashed: {e}"),
+                                colour
+                            )
+                        ),
+                    }
 
                     // Operator post-fetch hook (scanner / provenance / deny):
                     // a non-zero exit aborts the install.
@@ -1724,7 +1757,7 @@ fn locked_to_json(pkg: &LockedPackage) -> Value {
     provides.sort();
     let mut requires = pkg.requires.clone();
     requires.sort();
-    json!({
+    let mut value = json!({
         "dev": pkg.dev,
         "integrity": pkg.integrity,
         "license": pkg.license,
@@ -1739,7 +1772,11 @@ fn locked_to_json(pkg: &LockedPackage) -> Value {
             "rev": pkg.source.rev,
         },
         "version": pkg.version,
-    })
+    });
+    if let Some(spec_integrity) = &pkg.spec_integrity {
+        value["spec_integrity"] = json!(spec_integrity);
+    }
+    value
 }
 
 #[cfg(test)]

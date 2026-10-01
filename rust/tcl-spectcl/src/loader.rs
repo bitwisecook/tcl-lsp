@@ -181,7 +181,7 @@ pub use environment_block::{PackCore, PackEnvironment, PackEnvironmentTier};
 pub(crate) use eval::static_stmt;
 pub use eval::{
     EvalOptions, EvalSnapshotKey, LOADER_EVAL_VERSION, eval_snapshot_key, evaluate_pack,
-    evaluate_pack_in, evaluate_pack_with, provenance_violation,
+    evaluate_pack_in, evaluate_pack_with, pack_file_hash, provenance_violation,
 };
 pub use surface_roster::{PackRosterName, PackSurfaceRoster, family_named};
 pub use vocabulary_class::VocabularyClass;

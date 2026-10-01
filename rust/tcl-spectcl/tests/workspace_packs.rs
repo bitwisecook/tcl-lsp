@@ -611,6 +611,7 @@ fn stage_packages(name: &str, myapp_requires: &str) -> PathBuf {
             provides: Vec::new(),
             license: String::new(),
             dev,
+            spec_integrity: None,
         });
     }
     write(root.join("tclpkg.lock"), &serialise(&lock));

@@ -20,7 +20,7 @@ entirely.
    directly — no interpreter is instantiated.
 2. Only these directives are permitted: `package`, `version`, `description`,
    `license`, `author`, `homepage`, `tcl`, `require`, `dev-require`,
-   `replace`, `exclude`, `provides`, `entry`, `build`. Any other command is
+   `replace`, `exclude`, `provides`, `entry`, `build`, `spec`. Any other command is
    refused with `command not permitted in safe mode: <cmd>`, as a safe
    interpreter would. `manifest::directive_names()` is the canonical list,
    cross-checked
@@ -35,6 +35,12 @@ entirely.
    `build <script> ?-network?` is a *declaration*: the manifest parser never
    runs it, and `tcl pkg build` runs it deprivileged only when the operator
    has both enabled build scripts and trusted the package.
+   `spec { packs {FILE…} ?tier NAME? }` is a declaration too: key and value
+   words naming the `.tclspec` packs the package ships, each a relative path
+   inside the package, and the tier it asks for them at. The tier is held to
+   be no nearer the workspace root than the package's position in the
+   lockfile's graph (`tier::clamp_requested`); a manifest cannot claim a
+   nearer one.
 6. `replace` and `exclude` are honoured **from the root manifest only**;
    transitive occurrences are ignored.
 
@@ -63,7 +69,11 @@ entirely.
     **byte-identical** output; the `generated` timestamp is the only
     non-deterministic field, and `--frozen` preserves the existing one (and
     refuses any other change).
-14. `integrity` is `sha256-<base64url-no-pad>` (SRI-compatible).
+14. `integrity` is `sha256-<base64url-no-pad>` (SRI-compatible). A package
+    that ships packs also carries `spec_integrity`, the content hash of each
+    as `xxh3-<16 hex digits>` joined by commas in the manifest's order; the
+    hash is the one a compiled unit's claim on the pack carries, so the
+    lockfile and an artefact name a pack by one value.
 15. `version` (`LOCKFILE_VERSION`, currently 1) is bumped only on an
     incompatible change; a lockfile declaring a newer schema is refused with a
     `TclPkgError` carrying an upgrade hint.

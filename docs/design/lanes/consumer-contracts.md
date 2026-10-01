@@ -2065,6 +2065,67 @@ against the landed tree with evidence:
 - CC7.5: none. The campaign changed no file; the findings it made are in its row
   and in *CC7.5 — what the next items read*.
 
+## Step 8 — progress
+
+Item order follows § *Plan for steps 2–10* › *Step 8* § *Ordering and
+checkpoints*: CC8.4 first, independent of the runtimes; then CC8.1, CC8.3, and
+CC8.2 last, after slice 4 of the value-transfers lane, which has landed. The
+step 7 review's fixes were committed between CC8.4 and CC8.1.
+
+| Item | State | Checkpoint | Notes |
+|---|---|---|---|
+| CC8.4 the manifest `spec` directive, the lockfile hash, the container generator | landed | `wip(consumer-contracts): step 8 — the manifest spec directive` | **The directive.** `rust/tcl-pkg-model/src/manifest.rs` (the manifest moved out of `rust/tcl-pkg/src/` with D6.6): `SpecDirective { packs: Vec<String>, requested_tier: DependencyTier }` and `ManifestAst::spec: Option<SpecDirective>`, read from `spec { packs {FILE …} ?tier NAME? }` by `parse_spec` — one braced word read as key and value words through the list parser, never evaluated, a second `spec` an error, and `tier` defaulting to `direct` (D8.4). Each pack is a relative `.tclspec` path inside the package (no absolute or drive-qualified path, no `..`, no empty component, no repeat), so the join with the package directory cannot leave it. `DIRECTIVES` gains `spec` and `tcl-registry`'s `TCLPKG_MANIFEST_ENV` the matching `manifest_directive`; `manifest_env_drift.rs` stays as it was and holds the two equal. **The clamp.** `tier::clamp_requested(requested, resolved)` — the later of the two tiers, the workspace's own package taking no request — sits beside `dependency_tier` in `tcl-pkg-model`, not in `tcl-pkg`'s `resolver.rs` (D8.3). **The lockfile.** `LockedPackage::spec_integrity: Option<String>` (`xxh3-` and sixteen hex digits per pack, comma-joined in the manifest's order; written for a package that ships packs and for no other, so every other entry keeps its bytes), with `format_spec_integrity` and `parse_spec_integrity`. The hash is `loader::pack_file_hash` — the xxh3 of the file's bytes, folded with each `include` fragment, which is the value every command of that file carries into a `PackFactStamp` — and `tcl_spectcl::package_specs` (new) holds `pack_paths` and `spec_integrity` over it (D8.6). `tcl pkg install` records the value from the fetched package's content-addressed tree (`package_spec_integrity`, `rust/tcl-cli/src/commands/pkg.rs`) and `locked_to_json` shows it. **Discovery.** `discovery.rs`'s `collect_beside_manifests`: a manifest with a directive has exactly the packs it names, read even from a directory the scan skips, and a pack it names that is not there is still discovered, so the load reports `cannot read pack file` on it; a manifest without one keeps the scan, which no longer descends into a directory whose own manifest has a directive; a directive that does not read leaves the scan, as a manifest that does not read always did. `TierReader::tier_of_package` clamps the request against the graph's tier (D8.5). **The container generator.** `DockerfileSpec::native_extensions: Vec<String>` (`rust/tcl-pkg/src/docker.rs`, no registry type: D8.2) renders a comment and one `RUN printf … \| tclsh` that loads each with `package require` after the packages install and before `CMD`, so the build stops naming a missing extension; a name that is not spelt as a Tcl package name is an error. `tcl docker create` (`commands/docker.rs`) reads the project's workspace-tier packs, collects the `required_package` of every command whose `runtime_backing` is `host-native`, warns on standard error for one that names none, and shows the list in its report and its `--json`; `run_create` was split (`key_values`, `report_created`) to stay under the line limit (D8.7). Tests: `tcl-pkg-model`'s `manifest.rs` — `the_spec_directive_is_data_only` (a substitution is text, and a word that would have started `exec` is refused with nothing run), `a_spec_directive_names_packs_and_a_tier` (defaults, each tier, a name with a space) and `a_spec_directive_that_does_not_read_is_refused` (sixteen rows and a second directive); `tier.rs`'s `a_manifest_cannot_claim_a_nearer_tier` (nine positions and the root); `lockfile.rs`'s `spec_integrity_round_trips_and_is_written_only_for_a_package_that_ships_packs` and `the_hashes_a_value_records_read_back_and_nothing_else_does`; `tcl-spectcl`'s `discovery.rs` — `a_manifest_that_names_its_packs_loads_those_and_no_others` (with the same tree under no directive as its control), `a_listed_pack_that_is_missing_is_reported_by_the_load`, `a_directive_that_does_not_read_leaves_the_scan_in_place`, `a_dependencys_directive_decides_its_packs_whatever_the_manifest_above_scans` and `a_dependency_may_ask_for_a_further_tier_and_never_a_nearer_one` (a direct dependency asking for development, a transitive one asking for direct, the root asking for development); `tcl-spectcl/tests/package_specs.rs` (new binary, 4) — `the_lockfile_hash_and_the_artefact_stamp_are_one_value` (two packs, one that includes a fragment; the lockfile's entries equal `PackSet::fact_stamps`' content hashes in the manifest's order, and editing the fragment moves the including pack's value in both places and the other's in neither), `the_hashes_follow_the_order_the_manifest_names_the_packs`, `a_pack_that_cannot_be_read_is_named` and `discovery_finds_the_packs_the_hash_covers`; `tcl-pkg`'s `docker.rs` — `native_extensions_are_checked_once_everything_is_installed` (three families), `a_project_with_no_native_extensions_gains_no_check` and `an_extension_that_is_not_spelt_as_a_package_name_is_refused`; `tcl-cli`'s `pkg_verbs.rs` — `a_changed_pack_changes_the_lockfile` (through `tcl pkg install` with a local path source: the entry equals `format_spec_integrity` of `pack_file_hash`, an unchanged pack keeps it through a second install, a changed pack in the same release moves it, and a package that names no packs writes no field) and `docker_create_lists_a_host_native_commands_extension` (the Dockerfile line, the standard-error warning, the `--json` field, and nothing once the declaration goes). Mutation checks, each reverted and each failing the test that names it: the `..` component allowed in a pack path (`a_spec_directive_that_does_not_read_is_refused`), the `.tclspec` suffix rule off (`the_spec_directive_is_data_only`), the clamp answering the request (`a_manifest_cannot_claim_a_nearer_tier`, and `a_dependency_may_ask_for_a_further_tier_and_never_a_nearer_one` through discovery), the root taking its request (`a_manifest_cannot_claim_a_nearer_tier`), the directive ignored by discovery (`a_manifest_that_names_its_packs_loads_those_and_no_others`), the scan not stopping at a directory with its own directive (`a_dependencys_directive_decides_its_packs_whatever_the_manifest_above_scans`), a missing listed pack skipped (`a_listed_pack_that_is_missing_is_reported_by_the_load`), `pack_file_hash` ignoring fragments (`the_lockfile_hash_and_the_artefact_stamp_are_one_value`), the lockfile not writing the field (`spec_integrity_round_trips_…`), the Dockerfile block dropped (`native_extensions_are_checked_once_everything_is_installed`), `tcl pkg install` recording nothing (`a_changed_pack_changes_the_lockfile`) and the generator reading the commands that are not host-native (`docker_create_lists_a_host_native_commands_extension`). New binary: `tcl-spectcl::package_specs` in `scripts/dev/rust-test-binary-shards.tsv` (shard 3; the verifier proves 331 targets, was 330). Gates: `cargo test -p tcl-pkg-model` (lib 45, was 39), `-p tcl-pkg` (lib 56, was 53; `manifest_env_drift` 2), `-p tcl-spectcl` (lib 217, was 212; `package_specs` 4, new; `codegen_stamps` 8, `workspace_packs` 15, `golden_packs` 3 and every other binary), `-p tcl-cli` (lib 27, `cli` 50, `pkg_verbs` 15, was 13, `spec_verbs` 18, `compile_verbs` 11, `value_transfers_cli` 11, `explorer_gui` 3), `-p tcl-registry --lib` (965) and `-p tcl-compiler --lib manifest_` (5, the manifest environment's diagnostics); `cargo check --workspace --all-targets`; clippy (`--workspace --all-targets -- -D warnings`; two lints answered in the code, `chunks_exact` by `as_chunks` and `too_many_lines` by the split of `run_create`) and `cargo fmt --all` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389), `owner-resolution` (45), `retired-api-gate`, `runtime-stdlib`, `kcs-index-links` green, `dialect-drift` at its 8 sites. Docs: the design page's status box, its package row, the `SpecDirective` block and the lockfile paragraph; `spec-packs.md` (the `spec` bullet); `docs/design/tclpkg/architecture.md` (rules 2, 5a and 9 and the anchors) and `docs/design/contracts/tclpkg-contracts.md` (rules 2, 5 and 14); `docs/GLOSSARY.md` § *Dependency tier and codegen capability*; `kcs-feature-tcl-pkg.md`, `kcs-feature-tcl-docker.md` and `kcs-howto-containerise-a-tcl-project.md`. Deviations: the clamp's home (D8.3), the grammar and its default (D8.4), the load order and the missing pack (D8.5), the hash's text and what writes it (D8.6), the generator checks and does not install (D8.7), and the binding of a pack file to the lockfile's hash is not built (D8.8). D8.3–D8.8 |
+
+### CC8.4 — what the next items read
+
+- **For CC8.1 (reference bodies as code).** A pack a package ships names its files
+  in `ManifestAst::spec`, and `tcl_spectcl::package_specs::pack_paths(dir,
+  directive)` gives their paths under the package directory; a
+  `BodySource::PackageSource` path is relative to that same directory, so the
+  directory that holds the manifest beside the pack is the one to resolve it
+  against. `loader::pack_file_hash(path, source)` is the value a pack's
+  `PackFactStamp::content_hash` carries, and a `ReferenceBody` claim's `facts()`
+  stamp is the lockfile's entry for that pack by construction. A pack's tier
+  reaches the load as `PackCommand::dependency_tier`, already clamped by the
+  directive's request, so the capability matrix's `reference_body` field reads
+  the clamped tier.
+- **For CC8.3 (`tcl spec test`).** `tcl pkg install` leaves a package at
+  `lib/NAME-VERSION/` with its manifest; the packs `spec test` loads for a
+  package are `pack_paths` of that manifest's directive, and a package with no
+  directive has the scan of every pack beside it.
+- **For CC8.2.** Nothing: the directive reaches no registry type.
+- **For step 9.** The clamp is applied at discovery only
+  (`TierReader::tier_of_package`); a consumer that places a pack by another route
+  (the Studio, `spectcl_check`) sees no lockfile and reads no tier (the step 6
+  residue stands).
+- **Reported, not fixed.** The load does not compare a pack with the lockfile's
+  `spec_integrity`, nor do `tcl pkg verify` and `tcl pkg sync` (D8.8): D6.8's
+  residual — a dependency naming itself a package the lockfile does list takes
+  that package's tier — stays open. `tcl pkg install --offline` (and so
+  `--frozen`) never fetches, so it writes `spec_integrity` for no package; it
+  also writes an empty `integrity` for every package, which predates this item:
+  `tcl pkg add dep 1.0.0 --source ./dep && tcl pkg install && tcl pkg install
+  --offline` leaves `"integrity": ""` in `tclpkg.lock`
+  (`rust/tcl-cli/src/commands/pkg.rs`, the entry built before the `if !offline`
+  block).
+
+### Behavioural deltas accepted in step 8
+
+- CC8.4: a `tclpkg.tcl` may carry a `spec` directive. A manifest that has one has
+  exactly the packs it names beside it (a draft next to it is no longer a pack),
+  and one that has none keeps the scan of every `.tclspec` under its directory,
+  except under a directory whose own manifest has a directive. A manifest whose
+  directive does not read is read as having none.
+- CC8.4: a dependency may ask for a tier further from the root than its position
+  gives it; its packs install at that tier. A request for a nearer one changes
+  nothing.
+- CC8.4: a `tclpkg.lock` gains a `spec_integrity` field for each package whose
+  manifest has a `spec` directive, and no other entry changes.
+- CC8.4: `tcl docker create` lists the Tcl package behind each command the
+  project's packs declare `host-native`, ends the Dockerfile with a
+  `package require` check for each, and warns on standard error for one that
+  names no providing package.
+
 ## Plan for steps 2–10
 
 Steps 2 to 10 of [registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
@@ -5953,6 +6014,82 @@ everything else in this lane is independent of both.
   finding"; they are in the row and in *CC7.5 — what the next items read*.
 - **D8.1** `Engine::set_release` is slice 4's. **D8.2** `docker.rs` stays
   registry-free; `tcl docker create` computes native extensions.
+- **D8.3** The tier clamp is `tier::clamp_requested` in `tcl-pkg-model`'s
+  `tier.rs`, not in `tcl-pkg`'s `resolver.rs`. Discovery, in `tcl-spectcl`,
+  applies the clamp, and D6.6 fixed that `tcl-spectcl` reads the model crate
+  and never `tcl-pkg`; the MVS resolver chooses versions and has never held a
+  tier, which `tier::dependency_tier` already derives from the lockfile. The
+  clamp is the later of the requested and the resolved tier (a tier sorts
+  nearer the root the earlier it is), so a package may ask for less than its
+  position licenses and never more. The workspace's own package takes no
+  request, and a pack with no resolved tier (no lockfile) is not narrowed by
+  one: the directive says what the packs ask for "when this package is a
+  dependency", and without a graph nothing says it is.
+- **D8.4** The directive's grammar. `spec` takes one braced word read as key
+  and value words: `packs` (a list of `.tclspec` files, at least one) and
+  `tier` (`root`, `direct`, `transitive` or `development`). Omitted `tier` is
+  `direct`, the nearest a dependency can be, so the default changes nothing
+  once clamped. The plan's example `spec { packs {a.tclspec} tier direct }` is
+  the spelling. A pack is a file, never a directory: the lockfile records one
+  hash per file, and `tclLsp.specPacks` is the door for a directory. Unknown
+  or repeated keys, an odd number of words, a second `spec`, and a pack that
+  is empty, absolute, drive-qualified, has a `..` or empty component, repeats,
+  or does not end in `.tclspec` are errors in the manifest.
+- **D8.5** What discovery does with the directive. A manifest with a
+  directive has exactly the packs it names, read even from a directory the
+  scan skips; a manifest without one keeps the scan, except under a directory
+  whose own manifest has a directive, which decides its own packs, so a
+  dependency's draft cannot be loaded by the manifest above it; a manifest or
+  a directive that does not read leaves the scan, which is what an unreadable
+  manifest always did and which a directive can only narrow. A pack the
+  directive names that is not there is still discovered, so that the load's
+  `cannot read pack file` notice says so on the file rather than a misspelt
+  name loading nothing in silence. Packs load in sorted path order, as every
+  scan's do (`PackFile`'s order is the merge order): the order the manifest
+  names them is the order of the lockfile's `spec_integrity` entries and
+  nothing else, where the design page's comment said "in load order".
+- **D8.6** The lockfile hash. `loader::pack_file_hash` is the one function,
+  the value every command of the file carries as `PackCommand::content_hash`
+  (D4.16: the file's xxh3 folded with each fragment an `include` row brought
+  in), and `spec_integrity` is its text, `xxh3-` and sixteen lower-case hex
+  digits per pack, comma-joined in the manifest's order. The plan's "xxh3 of
+  each pack as hex, joined" is that; the `xxh3-` label says which hash it is,
+  as `sha256-` does for `integrity`. The hashing lives in `tcl-spectcl`
+  because the fold needs the loader (a fragment is found by evaluating the
+  pack), and `tcl-pkg-model` holds the text's format. A pack that declares no
+  command carries no hash on any command, so its entry is the bytes of the
+  file alone. `tcl pkg install` writes the field from the fetched package's
+  tree in the content-addressed store, only where it fetched: `--frozen` and
+  `--offline` never touch the tree and write none. The plan puts the unit
+  rows in `tcl-pkg`; the hash and its equality with the stamp are tested in
+  `tcl-spectcl` (`package_specs.rs`), and the install in `tcl-cli`
+  (`a_changed_pack_changes_the_lockfile`), where the loader and the installer
+  both are.
+- **D8.7** The generator checks and does not install. Which distribution
+  package, or which source build, provides an extension is not something
+  `rust/tcl-pkg/src/docker.rs` can know and not something a pack states
+  (`HostNative` carries no extension name), so `DockerfileSpec::native_extensions`
+  renders what can be stated truthfully: after everything the image installs,
+  one `RUN printf … | tclsh` loads each name with `package require` and exits
+  1 naming the one that is missing, with a comment that the author installs
+  each above it (`--extra-package`). The name of an extension is the
+  command's `required_package` — the pack's `provides` default reaches it —
+  read from the loaded workspace-tier packs of the current directory (the
+  user and bundled tiers never reach a project's image); a host-native command
+  that names no package is a warning on standard error and no line. The check
+  is verified against a real `tclsh` (exit 1 for an absent package, 0 for a
+  present one). A name must be spelt as a Tcl package name, so neither the
+  shell word nor the Tcl list needs quoting.
+- **D8.8** The load does not bind a pack file to the lockfile's hash. D6.8's
+  residual (a dependency that names itself a package the lockfile does list
+  takes that package's tier) is not closed by this item: `PackFile` carries
+  no expected hash, discovery never reads pack bytes, and a demotion or a
+  notice at load for a pack that does not match is a loader change the plan
+  does not list. The lockfile records the hash and `tcl pkg install` computes
+  it; a comparison at discovery or load, demoting a pack whose hash is not in
+  its package's recorded set to transitive, is the work that would close it,
+  and it needs a notice that names the cause, since the capability gate's
+  own warning would blame the tier.
 - **D9.1** Versioned stamps are `StampWindow<T>` slices mirroring
   `ArityWindow`. **D9.2** `DialectProfile::evaluation_point` is the
   evidence gate; `TclVersion::from_profile` delegates.

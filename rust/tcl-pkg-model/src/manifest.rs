@@ -18,7 +18,7 @@
 
 //! `tclpkg.tcl` manifest loader.
 //!
-//! The manifest is a tiny Tcl file evaluated under a whitelist of 14
+//! The manifest is a tiny Tcl file evaluated under a whitelist of
 //! directives; any other command is refused with `command not permitted in
 //! safe mode: <cmd>`, as in a safe Tcl interpreter. Because manifests are pure
 //! data (no variable/command substitution), the script is parsed into
@@ -30,7 +30,9 @@ use std::path::Path;
 use std::sync::LazyLock;
 
 use regex::Regex;
+use tcl_dialect::model::DependencyTier;
 use tcl_lexer::{Lexer, LexerConfig, Token, TokenType};
+use tcl_syntax::list::split_list;
 
 use crate::errors::TclPkgError;
 use crate::version::Version;
@@ -67,6 +69,7 @@ const DIRECTIVES: &[&str] = &[
     "provides",
     "entry",
     "build",
+    "spec",
 ];
 
 /// A single `require` / `dev-require` entry.
@@ -113,7 +116,29 @@ pub struct ManifestAst {
     /// Data only: declaring it never causes execution. It runs solely when an
     /// operator both enables build scripts and trusts the package.
     pub build: BuildDecl,
+    /// The `.tclspec` packs the package ships. Data only, like `build`:
+    /// declaring it never causes execution.
+    pub spec: Option<SpecDirective>,
     pub path: String,
+}
+
+/// The packs a package ships, from its `spec` directive:
+/// `spec { packs {a.tclspec b.tclspec} tier direct }`.
+///
+/// The directive is a statement about the package, never about the project
+/// that installs it: `requested_tier` is a request, and resolution clamps it
+/// to be no nearer than the tier the package's own position in the dependency
+/// graph gives it ([`crate::tier::clamp_requested`]), so a manifest cannot
+/// claim a nearer one.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpecDirective {
+    /// `.tclspec` files, relative to the manifest, in the order the manifest
+    /// names them. Each is a path inside the package directory.
+    pub packs: Vec<String>,
+    /// The tier the packs ask to install at when the package is a dependency;
+    /// `direct` — the nearest a dependency can be — when the directive says
+    /// nothing.
+    pub requested_tier: DependencyTier,
 }
 
 /// A declarative build-script declaration. The script path plus the (minimal)
@@ -144,6 +169,7 @@ impl Default for ManifestAst {
             provides: Vec::new(),
             entry: String::new(),
             build: BuildDecl::default(),
+            spec: None,
             path: String::new(),
         }
     }
@@ -324,9 +350,95 @@ fn dispatch(ast: &mut ManifestAst, name: &str, args: &[String]) -> Result<(), St
                 }
             }
         }
+        "spec" => {
+            if ast.spec.is_some() {
+                return Err("spec directive already set".to_string());
+            }
+            ast.spec = Some(parse_spec(args)?);
+        }
         _ => unreachable!("dispatch only called for whitelisted directives"),
     }
     Ok(())
+}
+
+/// Read `spec { packs {FILE …} ?tier NAME? }`: a list of key and value
+/// words, never evaluated.
+fn parse_spec(args: &[String]) -> Result<SpecDirective, String> {
+    require_arity("spec", args, 1, 1)?;
+    let words = split_list(&args[0]).map_err(|e| format!("spec: {}", e.message()))?;
+    if words.len() % 2 != 0 {
+        return Err("spec: expected key and value pairs: `packs {FILE …}` and `tier NAME`".into());
+    }
+    let mut packs: Option<Vec<String>> = None;
+    let mut requested_tier: Option<DependencyTier> = None;
+    for [key, value] in words.as_chunks::<2>().0 {
+        match key.as_ref() {
+            "packs" if packs.is_none() => packs = Some(parse_spec_packs(value)?),
+            "tier" if requested_tier.is_none() => {
+                requested_tier = Some(parse_spec_tier(value)?);
+            }
+            "packs" | "tier" => return Err(format!("spec: '{key}' given twice")),
+            other => {
+                return Err(format!(
+                    "spec: unknown key '{other}' (expected `packs` or `tier`)"
+                ));
+            }
+        }
+    }
+    let packs = packs
+        .filter(|packs| !packs.is_empty())
+        .ok_or_else(|| "spec: `packs` must name at least one .tclspec file".to_string())?;
+    Ok(SpecDirective {
+        packs,
+        requested_tier: requested_tier.unwrap_or(DependencyTier::Direct),
+    })
+}
+
+/// The files of a `packs` value: each a relative `.tclspec` path that stays
+/// inside the package directory.
+fn parse_spec_packs(value: &str) -> Result<Vec<String>, String> {
+    let files = split_list(value).map_err(|e| format!("spec: packs: {}", e.message()))?;
+    let mut packs: Vec<String> = Vec::with_capacity(files.len());
+    for file in files {
+        let file = file.as_ref();
+        if !is_package_relative(file) {
+            return Err(format!(
+                "spec: pack '{file}' must be a relative path inside the package"
+            ));
+        }
+        if !file.to_ascii_lowercase().ends_with(".tclspec") {
+            return Err(format!("spec: pack '{file}' is not a .tclspec file"));
+        }
+        if packs.iter().any(|seen| seen == file) {
+            return Err(format!("spec: pack '{file}' named twice"));
+        }
+        packs.push(file.to_owned());
+    }
+    Ok(packs)
+}
+
+/// Whether `path` stays under the directory it is relative to: not absolute,
+/// not drive- or UNC-qualified, no `..` component, and not empty.
+fn is_package_relative(path: &str) -> bool {
+    !path.is_empty()
+        && !path.starts_with(['/', '\\'])
+        && !path.contains(':')
+        && !path.contains('\0')
+        && path
+            .split(['/', '\\'])
+            .all(|part| !part.is_empty() && part != "..")
+}
+
+fn parse_spec_tier(word: &str) -> Result<DependencyTier, String> {
+    match word {
+        "root" => Ok(DependencyTier::Root),
+        "direct" => Ok(DependencyTier::Direct),
+        "transitive" => Ok(DependencyTier::Transitive),
+        "development" => Ok(DependencyTier::Development),
+        other => Err(format!(
+            "spec: tier '{other}' is not root, direct, transitive or development"
+        )),
+    }
 }
 
 fn require_arity(
@@ -674,6 +786,96 @@ description "$value [dangerous command]"
         )
         .unwrap();
         assert_eq!(ast.description, "$value [dangerous command]");
+    }
+
+    /// The directive is read as words and never run: a substitution in it is
+    /// text, and a word that would have started a command is a pack name the
+    /// directive refuses, with nothing executed.
+    #[test]
+    fn the_spec_directive_is_data_only() {
+        let ast = load(
+            "package a\nversion 1.0.0\n\
+             spec {packs {$vendor.tclspec [probe].tclspec} tier transitive}\n",
+        )
+        .unwrap();
+        let spec = ast.spec.expect("the directive reads");
+        assert_eq!(spec.packs, ["$vendor.tclspec", "[probe].tclspec"]);
+        assert_eq!(spec.requested_tier, DependencyTier::Transitive);
+
+        let marker = format!("tcl-pkg-model-spec-marker-{}", std::process::id());
+        let _ = std::fs::remove_file(&marker);
+        let script =
+            format!("package a\nversion 1.0.0\nspec \"packs {{[exec touch {marker}].tclspec}}\"\n");
+        let err = load(&script).unwrap_err();
+        assert!(err.to_string().contains("not a .tclspec file"), "{err}");
+        assert!(
+            !std::path::Path::new(&marker).exists(),
+            "the manifest executed a command"
+        );
+    }
+
+    #[test]
+    fn a_spec_directive_names_packs_and_a_tier() {
+        let ast = load(
+            "package a\nversion 1.0.0\nspec {\n    packs {vendor/a.tclspec b.tclspec}\n    tier development\n}\n",
+        )
+        .unwrap();
+        let spec = ast.spec.expect("the directive reads");
+        assert_eq!(spec.packs, ["vendor/a.tclspec", "b.tclspec"]);
+        assert_eq!(spec.requested_tier, DependencyTier::Development);
+
+        // No tier asks for the nearest a dependency can have; resolution
+        // clamps it to the package's own position.
+        let ast = load("package a\nversion 1.0.0\nspec {packs {a.tclspec}}\n").unwrap();
+        assert_eq!(ast.spec.unwrap().requested_tier, DependencyTier::Direct);
+
+        for (word, tier) in [
+            ("root", DependencyTier::Root),
+            ("direct", DependencyTier::Direct),
+            ("transitive", DependencyTier::Transitive),
+            ("development", DependencyTier::Development),
+        ] {
+            let ast = load(&format!(
+                "package a\nversion 1.0.0\nspec {{packs {{a.tclspec}} tier {word}}}\n"
+            ))
+            .unwrap();
+            assert_eq!(ast.spec.unwrap().requested_tier, tier, "{word}");
+        }
+        assert!(load("package a\nversion 1.0.0\n").unwrap().spec.is_none());
+
+        // A name with a space is one pack, quoted as a list element.
+        let ast = load("package a\nversion 1.0.0\nspec {packs {{my pack.tclspec}}}\n").unwrap();
+        assert_eq!(ast.spec.unwrap().packs, ["my pack.tclspec"]);
+    }
+
+    #[test]
+    fn a_spec_directive_that_does_not_read_is_refused() {
+        for (directive, message) in [
+            ("spec {}", "at least one .tclspec file"),
+            ("spec {packs {}}", "at least one .tclspec file"),
+            ("spec {tier direct}", "at least one .tclspec file"),
+            ("spec {packs {a.tclspec} wat 1}", "unknown key 'wat'"),
+            ("spec {packs {a.tclspec} tier}", "key and value pairs"),
+            ("spec {packs {a.tclspec} tier near}", "tier 'near'"),
+            ("spec {packs {a.tclspec} packs {b.tclspec}}", "given twice"),
+            ("spec {packs {a.tclspec a.tclspec}}", "named twice"),
+            ("spec {packs {notes.txt}}", "not a .tclspec file"),
+            ("spec {packs {/etc/a.tclspec}}", "relative path"),
+            ("spec {packs {../a.tclspec}}", "relative path"),
+            ("spec {packs {sub/../../a.tclspec}}", "relative path"),
+            ("spec {packs {C:/a.tclspec}}", "relative path"),
+            ("spec {packs {sub//a.tclspec}}", "relative path"),
+            ("spec {packs {a.tclspec}", "missing close-brace"),
+            ("spec a b", "wrong # args"),
+        ] {
+            let err =
+                load(&format!("package a\nversion 1.0.0\n{directive}\n")).expect_err(directive);
+            assert!(err.to_string().contains(message), "{directive}: {err}");
+        }
+        let err =
+            load("package a\nversion 1.0.0\nspec {packs {a.tclspec}}\nspec {packs {b.tclspec}}\n")
+                .unwrap_err();
+        assert!(err.to_string().contains("already set"), "{err}");
     }
 
     #[test]

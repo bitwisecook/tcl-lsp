@@ -568,6 +568,21 @@ message. See [W139](../../kcs/codes/kcs-diagnostic-w139-retired-at-resolved-vers
   read each leave it transitive, the least a package gets. The tier is part
   of the pack set's key, so a package moving in the lockfile's graph reloads
   what its packs may declare.
+- **A package names its packs with a `spec` directive.** A manifest that says
+  `spec { packs {rules.tclspec vendor/more.tclspec} tier direct }` names the
+  `.tclspec` files it ships, as paths relative to the manifest and inside the
+  package, and discovery loads exactly those beside it — a draft or a fixture
+  next to the manifest is not a pack — while a manifest without the directive
+  keeps the scan of every `.tclspec` under its directory. The directive is
+  data, as every manifest directive is: it names files and runs nothing.
+  `tier` is the tier the package asks for its packs when it is a dependency,
+  and it is a request: the load holds it no nearer the root than the position
+  the lockfile's graph gives the package, so a package may ask for less than
+  its position licenses and never more, and the workspace's own package takes
+  no request. A pack the directive names that is not there is reported on the
+  file by the load. `tcl pkg install` records a hash of each pack a fetched
+  package names in the lockfile (`spec_integrity`), the same content hash a
+  compiled unit's claim on the pack carries.
 - **Live reload of a pack outside the workspace needs a 3.17 client.** The
   session-wide watcher registration uses workspace-relative patterns, which a
   client matches only inside its workspace folders, so the user tier and any

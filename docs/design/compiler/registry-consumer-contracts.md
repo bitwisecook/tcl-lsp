@@ -149,12 +149,22 @@ slices proceed without deciding anything here.
 > the WASM link harness refuses a module whose ABI version or intrinsic table
 > disagrees with what the linked runtime's `tcl_runtime_identity` states.
 >
+> A package declares the packs it ships. `ManifestAst::spec`
+> (`tcl_pkg_model::manifest::SpecDirective`) is a data-only manifest
+> directive naming the `.tclspec` files the package ships and the tier it
+> asks for them at; discovery loads those beside the manifest and no others,
+> holds the requested tier no nearer the root than the package's position in
+> the lockfile's graph (`tier::clamp_requested`), and `LockedPackage` records
+> a hash of each pack that is the content hash a compiled unit's claim on it
+> carries. `tcl docker create` lists the Tcl package behind each command the
+> project's packs declare `HostNative`.
+>
 > The rest of the vocabulary is not built, and names nothing in the
 > workspace:
 >
 > - **Identity and backing** — the `ReferenceBody` and
 >   `ShippedImplementation` claims and `IdentityKind`.
-> - **Packages** — `SpecDirective` and the `tcl spec test` verb.
+> - **Packages** — the `tcl spec test` verb.
 >
 > `AnalysisContext`, `AnalysisInputs`, `PlanAnswer`, `OperandId`,
 > `TemplateWordPlan`, and `EvalAnswer` are the types
@@ -2092,20 +2102,26 @@ exists, and never a silent choice of one row.
 | package version windows | validated and dropped; nothing gates on a package release | carry name and version in `SurfaceQuery::packages` |
 | the shared compilation unit | `compilation_unit` resolves the overlay's registry, keyed on the analysis context, and abstains with no unit when the overlay is not installed; `BytecodeCompileService::for_profile_with_overlay` gives the compile service the same generation and declines to compile without it. No shipped host builds that service: the `tclvm` engine takes an owned registry and the language server compiles no bytecode | a host that runs code compiled against a workspace's packs takes the overlay by key through that door; delivering it is a prerequisite for every rung above zero *for emitted code* |
 | implemented in C, Tcl, or built in | no declaration anywhere | `RuntimeBacking` on the package placement row for the registry and on the manifest and lockfile for the package manager; evidence, not proof; consumed by the resolver's load edge, realm binding knowledge, and the container generator |
-| packages shipping specs | de facto beside a `tclpkg.tcl` manifest and in library installs, undeclared and unverified. Discovery places a pack beside a manifest by the lockfile's graph (`PackFile::dependency_tier`), and the load applies the capability matrix to its codegen-axis stamps, `alias_of` and `runtime_backing`; a package declares no pack and no tier of its own, and the lockfile holds no hash of a pack | the `spec` directive below, with its lockfile hash and its requested tier; the matrix extended to reference bodies; native-identity resolution for the body families; and `tcl spec test`, which runs the package's implementation under the package manager's sandbox policy, never at editor load |
+| packages shipping specs | beside a `tclpkg.tcl` manifest and in library installs. A manifest's `spec` directive names the packs it ships and the tier it asks for them at, and the lockfile records a hash of each; a manifest without one keeps the scan of every pack beside it. Discovery places a pack beside a manifest by the lockfile's graph (`PackFile::dependency_tier`), held to the tier the package's position gives it when the directive asks for a nearer one, and the load applies the capability matrix to its codegen-axis stamps, `alias_of` and `runtime_backing` | the matrix extended to reference bodies; native-identity resolution for the body families; and `tcl spec test`, which runs the package's implementation under the package manager's sandbox policy, never at editor load |
 
-The manifest side of that last row, in the shapes `rust/tcl-pkg` already
-uses — `ManifestAst` for the directive, `LockedPackage` for the hash:
+The manifest side of that last row, in the shapes `rust/tcl-pkg-model` holds
+— `ManifestAst` for the directive, `LockedPackage` for the hash:
 
 ```rust,ignore
-/// Proposed. `ManifestAst::spec`, a data-only directive: declaring it
-/// never causes execution, the same rule `BuildDecl` follows.
+/// `ManifestAst::spec`, a data-only directive —
+/// `spec { packs {a.tclspec b.tclspec} tier direct }` — built in
+/// `rust/tcl-pkg-model/src/manifest.rs`: declaring it never causes
+/// execution, the same rule `BuildDecl` follows.
 struct SpecDirective {
-    /// `.tclspec` paths relative to the manifest, in load order.
+    /// `.tclspec` paths relative to the manifest, each inside the package
+    /// directory, in the order the manifest names them. Discovery loads
+    /// the packs in path order, as it loads every other scan's.
     packs: Vec<String>,
-    /// The tier the packs install at when this package is a dependency.
-    /// Declared, and clamped at resolution to no more than the tier the
-    /// package's own position licenses.
+    /// The tier the packs ask to install at when this package is a
+    /// dependency (`direct` when the directive says nothing). Clamped to be
+    /// no nearer the root than the tier the package's own position gives it
+    /// (`tier::clamp_requested`); the workspace's own package takes no
+    /// request.
     requested_tier: DependencyTier,
 }
 
@@ -2152,17 +2168,24 @@ enum ReferenceBodies {
 }
 ```
 
-`LockedPackage` gains the packs' integrity hash beside its existing
-`integrity`, so a changed pack in an unchanged package release is a
-lockfile change; `PackFactStamp::content_hash` is the same value, which is
-what lets an artefact's rung-1 check and the package manager's install
-check agree without a second hashing rule. `Root` is the only tier with
-every capability; `Direct` may declare `runtime_backing` and `alias_of`
-but no codegen stamp; `Transitive` and `Development` may declare neither,
-so a package deep in a dependency graph cannot change what the workspace
-emits. The container generator (`rust/tcl-pkg/src/docker.rs`) reads
-`runtime_backing` for the same reason the resolver's load edge does: a
-`HostNative` command needs its extension in the image.
+`LockedPackage::spec_integrity` holds the packs' hash beside the existing
+`integrity`: the content hash of each pack the directive names, as `xxh3-`
+and sixteen hex digits, joined by commas in the manifest's order, written
+for a package that ships packs and for no other. A changed pack in an
+unchanged package release is a lockfile change, and the value is
+`PackFactStamp::content_hash` — one function,
+`tcl_spectcl::package_specs::pack_file_hash`, folds a pack's fragments in
+for both — which is what lets an artefact's rung-1 check and the package
+manager's install check agree without a second hashing rule. `Root` is the
+only tier with every capability; `Direct` may declare `runtime_backing` and
+`alias_of` but no codegen stamp; `Transitive` and `Development` may declare
+neither, so a package deep in a dependency graph cannot change what the
+workspace emits. The container generator reads `runtime_backing` for the
+same reason the resolver's load edge does: a `HostNative` command needs its
+extension in the image, so `tcl docker create` lists the Tcl package behind
+each one the project's packs declare and the Dockerfile checks that it
+loads (`DockerfileSpec::native_extensions`, in `rust/tcl-pkg/src/docker.rs`,
+which knows no registry type and receives package names).
 
 The two gates compose and do not overlap. The `Provenance` gate in
 § *The loader's stamp rejection rule* decides whether a pack from a
@@ -2189,8 +2212,9 @@ manifest and no lockfile is itself the outermost pair, becomes a root, and
 is not narrowed, which is what a pack with no tier is today. The gate does
 not bind a pack file to the package the lockfile lists: a manifest names its
 own package, so a dependency that names itself a package the lockfile does
-list takes that package's tier. The lockfile hash of each pack described
-below is what would bind the two, and it is not built.
+list takes that package's tier. The lockfile records the hash of each pack,
+which is what would bind the two, and nothing compares a loaded pack with it
+yet.
 
 ## C Tcl extensions
 

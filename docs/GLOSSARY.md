@@ -1797,7 +1797,9 @@ another package (transitive), or one named only in `dev-require`
 project's manifest, never from what a package's own manifest claims; a pack
 no package ships, and a pack in a project with no lockfile, have none, and
 below a project with a lockfile a package that file does not place is
-transitive. The capability —
+transitive. A manifest's `spec` directive may ask for a tier of its own, and
+the request is held no nearer the root than the package's position gives it
+(`tier::clamp_requested` in `rust/tcl-pkg-model/src/tier.rs`). The capability —
 `CodegenCapability::for_tier` in `rust/tcl-registry/src/model/capability.rs` —
 is the matrix over it: the root may declare everything, a direct dependency
 an `alias_of` and a [runtime backing](#runtime-backing) but no codegen-axis
