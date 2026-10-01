@@ -47,6 +47,10 @@ labelled `wip` commits that compile keep the state legible. A lane that
 concludes it cannot finish says so in its tracking document and leaves its last
 checkpoint compiling.
 
+## Resuming
+
+[handoff.md](handoff.md) is the orchestrator's resume point: where each lane stands, what is queued on the running implementers, what follows the lanes, and how the work is run. It is rewritten at every push.
+
 ## In flight
 
 - [value-transfers.md](value-transfers.md) — slices 2 to 13 of
