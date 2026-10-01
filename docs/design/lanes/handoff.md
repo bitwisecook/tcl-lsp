@@ -10,18 +10,20 @@ says where each lane stands, what is queued, and how the work is run.
 
 | Lane | Tracking document | Landed | In flight | Remaining |
 |---|---|---|---|---|
-| Value transfers | [value-transfers.md](value-transfers.md) | slices 1, 2, 3, 4, 5, 8, 6 (reviewed, reworked in three rounds, re-checked "land as is"); slice 9 items 9.1, 9.3, 9.4, 9.2, 9.5 and the slice 6 round-three review fixes | slice 9's landing item VT9.6, then its fable review and fixes | slices 10, 11, 12, 7a, 13, 7, in that order |
+| Value transfers | [value-transfers.md](value-transfers.md) | slices 1, 2, 3, 4, 5, 8, 6 (reviewed, reworked in three rounds, re-checked "land as is") and 9 (landed at `f06639de`) | slice 10 (completion paths), and the slice 9 fable review with its fixes | slices 11, 12, 7a, 13, 7, in that order |
 | Consumer contracts | [consumer-contracts.md](consumer-contracts.md) | steps 1 to 7, each reviewed with fixes landed; step 8 built, landed and in rework after its review | the step 8 rework (group 1, the inliner, is committed; groups 2 and 3 follow), then step 9 | step 9 (after the rework), step 10, the step 8 re-review |
 | Diagnostic policy | (landed; see the design page `docs/design/compiler/diagnostic-policy.md`) | complete | | |
 
 Branch heads at the last rewrite of this page: the main branch at the
-commit that adds this page (above `d256e8cc`, slice 9's witnesses);
-`cc-step5` at `e9aaa1de` (the inliner rework), which already contains the
-main branch up to the slice 6 round-two fixes (`c932864a`).
+commit that rewrites this page (above `f06639de`, slice 9's landing);
+`cc-step5` at `e9aaa1de` (the inliner rework, group 1 of three), which
+already contains the main branch up to the slice 6 round-two fixes
+(`c932864a`).
 
 ## Queued on the running implementers
 
-- Value transfers: nothing beyond VT9.6; the slice 9 review comes after it.
+- Value transfers: slice 10 is running; the slice 9 review's fixes, when it
+  reports, land on that implementer as one extra commit.
 - Consumer contracts: the step 8 rework groups 2 (derived implementations
   become an explicit author opt-in; prefix-matched ensemble words in the
   scan) and 3 (`tcl spec test`: a `SPEC-TEST done N` line required whatever
@@ -61,7 +63,7 @@ main branch up to the slice 6 round-two fixes (`c932864a`).
   findings land as "review fixes" commits (blocking ones before the next
   item), and pre-existing defects found in passing become GitHub issues
   (#2253 to #2272, #2291 to #2297, #2299 to #2303, #2305 to #2316, #2323
-  to #2328, #2330 to #2333 so far), never fixes on this branch.
+  to #2328, #2330 to #2335 so far), never fixes on this branch.
 - Implementers are sonnet, reviewers fable. Commit messages are
   `wip(<lane>): <slice or step> — <phrase>` with the session's two trailer
   lines; files outside this directory describe current state only.
