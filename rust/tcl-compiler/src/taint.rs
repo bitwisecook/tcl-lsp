@@ -8705,10 +8705,10 @@ mod tests {
     /// (`cfg_builder::cfg_lower::switch_subject_operand`), so an arm's
     /// coercion context is the one that `StrEq` gives its operands: none.
     ///
-    /// Every mode is covered because none of them is an exception. `switch`
-    /// compares as a string throughout — `-exact`, `-glob` and `-regexp` all
-    /// match text, and Tcl gives `switch` no numeric mode (`-integer` is
-    /// `lsearch`'s) — so there is no arm spelling the message would fit.
+    /// Every string mode is covered because none of them is an exception:
+    /// `-exact`, `-glob` and `-regexp` all match text, so there is no arm
+    /// spelling the message would fit. (Tcl 9.1's `-integer` is the one
+    /// numeric mode and is deliberately not exercised here.)
     ///
     /// tclsh 8.6.18 and 9.0.4 both print `other` for `set c 0x10; switch -- $c
     /// {16 {puts hex} default {puts other}}` — the subject is compared as the

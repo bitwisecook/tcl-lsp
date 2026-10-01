@@ -20,13 +20,13 @@
 //!
 //! `switch` is a stateful command (it evaluates a body script), so — like
 //! `lsort -command` — only its **decision** logic is shared here: the option
-//! table (`-exact`/`-glob`/`-regexp`/`-nocase`/`-indexvar`/`-matchvar`/`--`), the
-//! value/pattern selection across the three match modes (incl. `default`), and
-//! the TIP #75 `-matchvar`/`-indexvar` value construction. Each runtime keeps the
-//! per-target parts: extracting the pattern/body pairs (the inline vs. brace-list
-//! forms, with the runtime's `info frame` line tracking), resolving a `-`
-//! fall-through body, the trace-aware variable writes, and evaluating the chosen
-//! body as a transparent script.
+//! table (`-exact`/`-glob`/`-regexp`/`-nocase`/`-indexvar`/`-matchvar`/`--`, plus
+//! Tcl 9.1's `-integer`), the value/pattern selection across the four match modes
+//! (incl. `default`), and the TIP #75 `-matchvar`/`-indexvar` value construction.
+//! Each runtime keeps the per-target parts: extracting the pattern/body pairs
+//! (the inline vs. brace-list forms, with the runtime's `info frame` line
+//! tracking), resolving a `-` fall-through body, the trace-aware variable
+//! writes, and evaluating the chosen body as a transparent script.
 //!
 //! Mirrors C's `TclNRSwitchObjCmd` (`tclCmdMZ.c`). The regexp mode drives the
 //! shared [`RegexEngine`](crate::regex::RegexEngine) provider, exactly as
@@ -38,8 +38,10 @@
 #![allow(clippy::similar_names)]
 
 use tcl_dialect::TclVersion;
+use tcl_syntax::expr::errors::{IOVERFLOW_CODE, IOVERFLOW_MESSAGE};
 use tcl_syntax::glob::string_case_match;
-use tcl_syntax::value::ValueOps;
+use tcl_syntax::number::{Number, ParseFlags, parse_whole_with};
+use tcl_syntax::value::{ValueError, ValueOps};
 
 use crate::error::CmdError;
 use crate::prefix::OptionTable;
@@ -54,6 +56,21 @@ pub enum Mode {
     Glob,
     /// Tcl ARE regular expressions.
     Regexp,
+    /// Numeric equality of wide integers (TIP 730, Tcl 9.1+).
+    Integer,
+}
+
+impl Mode {
+    /// The canonical option naming this mode (C's `options[mode]`).
+    #[must_use]
+    pub const fn option_name(self) -> &'static str {
+        match self {
+            Mode::Exact => "-exact",
+            Mode::Glob => "-glob",
+            Mode::Regexp => "-regexp",
+            Mode::Integer => "-integer",
+        }
+    }
 }
 
 /// The parsed option state plus the index of the `string` argument.
@@ -70,15 +87,9 @@ pub struct Options<V> {
     pub value_index: usize,
 }
 
-// The option table — mirrors C's `options[]` so an "already found" error names
-// the canonical mode option.
-const OPT_EXACT: usize = 0;
-const OPT_GLOB: usize = 1;
-const OPT_INDEXV: usize = 2;
-const OPT_MATCHV: usize = 3;
-const OPT_NOCASE: usize = 4;
-const OPT_REGEXP: usize = 5;
-const OPT_LAST: usize = 6;
+// The option tables mirror C's `options[]`, whose order is the "bad option"
+// enumeration. Tcl 9.1 inserts `-integer` (TIP 730), which also makes `-i`/`-in`
+// ambiguous where 9.0 resolved them to `-indexvar`.
 const OPT_NAMES: [&str; 7] = [
     "-exact",
     "-glob",
@@ -88,9 +99,30 @@ const OPT_NAMES: [&str; 7] = [
     "-regexp",
     "--",
 ];
+const OPT_NAMES_9_1: [&str; 8] = [
+    "-exact",
+    "-glob",
+    "-indexvar",
+    "-integer",
+    "-matchvar",
+    "-nocase",
+    "-regexp",
+    "--",
+];
 // C resolves switch options with abbreviations allowed (flags 0), so `-gl`,
 // `-noc`, … work like tclsh.
 const OPTIONS: OptionTable<'static> = OptionTable::abbreviating("option", &OPT_NAMES);
+const OPTIONS_9_1: OptionTable<'static> = OptionTable::abbreviating("option", &OPT_NAMES_9_1);
+
+/// The `switch` option table for `version`.
+fn options(version: TclVersion) -> &'static OptionTable<'static> {
+    if version >= TclVersion::V9_1 {
+        &OPTIONS_9_1
+    } else {
+        &OPTIONS
+    }
+}
+
 const USAGE_INLINE: &str = "switch ?-option ...? string ?pattern body ...? ?default body?";
 
 /// Parse the leading options of `args` (the name-stripped argv: any options, then
@@ -100,15 +132,20 @@ const USAGE_INLINE: &str = "switch ?-option ...? string ?pattern body ...? ?defa
 ///
 /// # Errors
 /// A bad/ambiguous option, a repeated mode option, a missing `-matchvar`/
-/// `-indexvar` argument, `-matchvar`/`-indexvar` without `-regexp`, or too few
-/// arguments after the options.
-pub fn parse_options<O, V>(ops: &mut O, args: &[V]) -> Result<Options<V>, CmdError>
+/// `-indexvar` argument, `-matchvar`/`-indexvar` without `-regexp`, `-nocase`
+/// with `-integer`, or too few arguments after the options.
+pub fn parse_options<O, V>(
+    ops: &mut O,
+    args: &[V],
+    version: TclVersion,
+) -> Result<Options<V>, CmdError>
 where
     O: ValueOps<Value = V>,
     V: Clone,
 {
+    let table = options(version);
     let objc = args.len();
-    let mut mode = OPT_EXACT;
+    let mut mode = Mode::Exact;
     let mut found_mode = false;
     let mut nocase = false;
     let mut match_var: Option<V> = None;
@@ -121,39 +158,42 @@ where
         if !arg.starts_with('-') {
             break;
         }
-        let idx = OPTIONS.index_of_str(&arg)?;
-        match idx {
-            OPT_LAST => {
+        let name = table.names()[table.index_of_str(&arg)?];
+        let picked = match name {
+            "--" => {
                 i += 1;
                 break;
             }
-            OPT_NOCASE => nocase = true,
-            OPT_INDEXV | OPT_MATCHV => {
+            "-nocase" => {
+                nocase = true;
+                None
+            }
+            "-indexvar" | "-matchvar" => {
                 i += 1;
                 if i + 2 > objc {
-                    let name = if idx == OPT_INDEXV {
-                        "-indexvar"
-                    } else {
-                        "-matchvar"
-                    };
-                    return Err(CmdError::new(format!(
-                        "missing variable name argument to {name} option"
-                    )));
+                    return Err(CmdError::with_error_code(
+                        format!("missing variable name argument to {name} option"),
+                        "TCL OPERATION SWITCH NOVAR",
+                    ));
                 }
-                if idx == OPT_INDEXV {
+                if name == "-indexvar" {
                     index_var = Some(args[i].clone());
                 } else {
                     match_var = Some(args[i].clone());
                 }
+                None
             }
-            _ => {
-                // A mode option (`-exact`/`-glob`/`-regexp`).
-                if found_mode {
-                    return Err(double_option(&arg, OPT_NAMES[mode]));
-                }
-                found_mode = true;
-                mode = idx;
+            "-glob" => Some(Mode::Glob),
+            "-regexp" => Some(Mode::Regexp),
+            "-integer" => Some(Mode::Integer),
+            _ => Some(Mode::Exact),
+        };
+        if let Some(m) = picked {
+            if found_mode {
+                return Err(double_option(&arg, mode.option_name()));
             }
+            found_mode = true;
+            mode = m;
         }
         i += 1;
     }
@@ -161,19 +201,20 @@ where
     if i + 2 > objc {
         return Err(CmdError::wrong_args(USAGE_INLINE));
     }
-    if index_var.is_some() && mode != OPT_REGEXP {
-        return Err(mode_restriction("-indexvar"));
+    if index_var.is_some() && mode != Mode::Regexp {
+        return Err(mode_restriction("-indexvar option requires -regexp option"));
     }
-    if match_var.is_some() && mode != OPT_REGEXP {
-        return Err(mode_restriction("-matchvar"));
+    if match_var.is_some() && mode != Mode::Regexp {
+        return Err(mode_restriction("-matchvar option requires -regexp option"));
+    }
+    if nocase && mode == Mode::Integer {
+        return Err(mode_restriction(
+            "-nocase option cannot be used with -integer option",
+        ));
     }
 
     Ok(Options {
-        mode: match mode {
-            OPT_GLOB => Mode::Glob,
-            OPT_REGEXP => Mode::Regexp,
-            _ => Mode::Exact,
-        },
+        mode,
         nocase,
         match_var,
         index_var,
@@ -204,8 +245,12 @@ pub enum Selection<V> {
 /// pattern through the `E` provider and, on a match, builds the `-matchvar`/
 /// `-indexvar` values.
 ///
+/// The `-integer` mode coerces the value up front and each pattern as it is
+/// reached, so a non-integer pattern after the matching one goes unchecked.
+///
 /// # Errors
-/// A malformed `-regexp` pattern (the engine's compile error).
+/// A malformed `-regexp` pattern (the engine's compile error), or under
+/// `-integer` a value or reached pattern that is not a wide integer.
 pub fn select<O, E, V>(
     ops: &mut O,
     opts: &Options<V>,
@@ -226,6 +271,11 @@ where
         return Ok(Selection::NoMatch);
     }
     let val_str = ops.as_str(value);
+    let val_int = if opts.mode == Mode::Integer {
+        Some(wide_int(&val_str, version)?)
+    } else {
+        None
+    };
     for (p, pat_val) in patterns.iter().enumerate() {
         let pat = ops.as_str(pat_val);
         // `default` matches anything, but only as the final pattern.
@@ -272,6 +322,14 @@ where
                 if let Some(m) = E::exec(&mut re, &cps, 0, false) {
                     let writes = regexp_writes(ops, opts, &m, &value_bytes, &byteoff);
                     return Ok(Selection::Matched { index: p, writes });
+                }
+            }
+            Mode::Integer => {
+                if val_int == Some(wide_int(&pat, version)?) {
+                    return Ok(Selection::Matched {
+                        index: p,
+                        writes: Vec::new(),
+                    });
                 }
             }
         }
@@ -376,13 +434,34 @@ where
 // drift from the other option tables)
 
 fn double_option(arg: &str, found_name: &str) -> CmdError {
-    CmdError::new(format!(
-        "bad option \"{arg}\": {found_name} option already found"
-    ))
+    CmdError::with_error_code(
+        format!("bad option \"{arg}\": {found_name} option already found"),
+        "TCL OPERATION SWITCH DOUBLEOPT",
+    )
 }
 
-fn mode_restriction(opt: &str) -> CmdError {
-    CmdError::new(format!("{opt} option requires -regexp option"))
+fn mode_restriction(message: &str) -> CmdError {
+    CmdError::with_error_code(message, "TCL OPERATION SWITCH MODERESTRICTION")
+}
+
+/// `Tcl_GetWideIntFromObj` for the `-integer` mode: the release's integer
+/// grammar, with an out-of-range integer reported as an overflow rather than a
+/// non-integer (C refuses bignums here; it never compares them).
+fn wide_int(text: &str, version: TclVersion) -> Result<i64, CmdError> {
+    let flags = ParseFlags {
+        integer_only: true,
+        ..ParseFlags::for_syntax(version.number_syntax())
+    };
+    match parse_whole_with(text, flags) {
+        Some(Number::Int(n)) => Ok(n),
+        Some(Number::Big { .. }) => {
+            Err(CmdError::with_error_code(IOVERFLOW_MESSAGE, IOVERFLOW_CODE))
+        }
+        _ => Err(CmdError::with_error_code(
+            ValueError::NotInteger(text.to_owned()).message(),
+            "TCL VALUE NUMBER",
+        )),
+    }
 }
 
 fn compile_error(detail: &[u8]) -> CmdError {
@@ -587,5 +666,194 @@ mod tests {
         assert!(!hit(&mut ops, "ab", "abc"));
         // And ASCII keeps working.
         assert!(hit(&mut ops, "AbC", "aBc"));
+    }
+
+    fn parse_at(version: TclVersion, args: &[&str]) -> Result<Options<String>, CmdError> {
+        let args: Vec<String> = args.iter().map(|&a| a.to_owned()).collect();
+        parse_options(&mut StrOps, &args, version)
+    }
+
+    fn select_int(value: &str, pats: &[&str]) -> Result<Option<usize>, CmdError> {
+        let opts = Options {
+            mode: Mode::Integer,
+            ..exact_opts()
+        };
+        let pats: Vec<String> = pats.iter().map(|&p| p.to_owned()).collect();
+        let sel = select::<_, NoEngine, _>(
+            &mut StrOps,
+            &opts,
+            &value.to_owned(),
+            &pats,
+            TclVersion::V9_1,
+        )?;
+        Ok(match sel {
+            Selection::Matched { index, .. } => Some(index),
+            Selection::NoMatch => None,
+        })
+    }
+
+    #[test]
+    fn integer_option_exists_only_from_tcl91() {
+        // tclsh 9.0.4:
+        //   % switch -integer 1 {1 {}}
+        //   bad option "-integer": must be -exact, -glob, -indexvar, -matchvar, -nocase, -regexp, or --
+        for v in [
+            TclVersion::V8_4,
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+        ] {
+            let Err(e) = parse_at(v, &["-integer", "1", "{1 {}}"]) else {
+                panic!("-integer must be refused on {v:?}");
+            };
+            assert_eq!(
+                e.message(),
+                "bad option \"-integer\": must be -exact, -glob, -indexvar, \
+                 -matchvar, -nocase, -regexp, or --"
+            );
+            // Before 9.1 `-i` is a unique prefix of `-indexvar`.
+            assert_eq!(
+                e.error_code(),
+                Some("TCL LOOKUP INDEX option -integer"),
+                "{v:?}"
+            );
+            assert!(parse_at(v, &["-regexp", "-i", "x", "1", "{1 {}}"]).is_ok());
+        }
+        let opts = parse_at(TclVersion::V9_1, &["-int", "1", "{1 {}}"]).unwrap();
+        assert!(opts.mode == Mode::Integer);
+        assert_eq!(opts.value_index, 1);
+    }
+
+    #[test]
+    fn tcl91_option_table_lists_integer_and_makes_i_ambiguous() {
+        // tclsh 9.1.0:
+        //   % switch -bad 1 {1 {}}
+        //   bad option "-bad": must be -exact, -glob, -indexvar, -integer, -matchvar, -nocase, -regexp, or --
+        //   % switch -in 1 {1 {}}
+        //   ambiguous option "-in": must be -exact, -glob, -indexvar, -integer, -matchvar, -nocase, -regexp, or --
+        let choices = "must be -exact, -glob, -indexvar, -integer, -matchvar, \
+                       -nocase, -regexp, or --";
+        let Err(e) = parse_at(TclVersion::V9_1, &["-bad", "1", "{1 {}}"]) else {
+            panic!("-bad must not resolve");
+        };
+        assert_eq!(e.message(), format!("bad option \"-bad\": {choices}"));
+        for word in ["-i", "-in"] {
+            let Err(e) = parse_at(TclVersion::V9_1, &[word, "1", "{1 {}}"]) else {
+                panic!("{word} must be ambiguous on 9.1");
+            };
+            assert_eq!(
+                e.message(),
+                format!("ambiguous option \"{word}\": {choices}")
+            );
+        }
+    }
+
+    #[test]
+    fn integer_mode_option_conflicts_match_c() {
+        // tclsh 9.1.0:
+        //   % switch -integer -nocase 1 {1 {}}
+        //   -nocase option cannot be used with -integer option
+        //   % switch -glob -integer 1 {1 {}}
+        //   bad option "-integer": -glob option already found
+        //   % switch -integer -glob 1 {1 {}}
+        //   bad option "-glob": -integer option already found
+        //   % switch -integer -matchvar x 1 {1 {}}
+        //   -matchvar option requires -regexp option
+        let v = TclVersion::V9_1;
+        for args in [
+            &["-integer", "-nocase", "1", "{1 {}}"][..],
+            &["-nocase", "-integer", "1", "{1 {}}"][..],
+        ] {
+            let Err(e) = parse_at(v, args) else {
+                panic!("{args:?} must be refused");
+            };
+            assert_eq!(
+                e.message(),
+                "-nocase option cannot be used with -integer option"
+            );
+            assert_eq!(e.error_code(), Some("TCL OPERATION SWITCH MODERESTRICTION"));
+        }
+        let Err(e) = parse_at(v, &["-glob", "-integer", "1", "{1 {}}"]) else {
+            panic!("double mode must be refused");
+        };
+        assert_eq!(
+            e.message(),
+            "bad option \"-integer\": -glob option already found"
+        );
+        assert_eq!(e.error_code(), Some("TCL OPERATION SWITCH DOUBLEOPT"));
+        let Err(e) = parse_at(v, &["-integer", "-glob", "1", "{1 {}}"]) else {
+            panic!("double mode must be refused");
+        };
+        assert_eq!(
+            e.message(),
+            "bad option \"-glob\": -integer option already found"
+        );
+        // `-matchvar` is checked before the `-nocase` conflict.
+        let Err(e) = parse_at(v, &["-integer", "-nocase", "-matchvar", "x", "1", "{1 {}}"]) else {
+            panic!("-matchvar without -regexp must be refused");
+        };
+        assert_eq!(e.message(), "-matchvar option requires -regexp option");
+    }
+
+    #[test]
+    fn integer_mode_compares_numerically() {
+        // tclsh 9.1.0: `switch -integer 010 {8 {puts a} 10 {puts b}}` prints `b`
+        // (Tcl 9 reads `010` as decimal), and every radix/separator/whitespace
+        // spelling `Tcl_GetWideIntFromObj` accepts compares by value.
+        assert_eq!(select_int("010", &["8", "10"]).unwrap(), Some(1));
+        assert_eq!(select_int("0x10", &["16"]).unwrap(), Some(0));
+        assert_eq!(select_int(" 16 ", &["0x10"]).unwrap(), Some(0));
+        assert_eq!(select_int("1_000", &["1000"]).unwrap(), Some(0));
+        assert_eq!(select_int("0b11", &["0o3"]).unwrap(), Some(0));
+        assert_eq!(
+            select_int("-9223372036854775808", &["-0x8000000000000000"]).unwrap(),
+            Some(0)
+        );
+        assert_eq!(select_int("2", &["1", "3"]).unwrap(), None);
+        // A trailing `default` matches without being coerced.
+        assert_eq!(select_int("2", &["1", "default"]).unwrap(), Some(1));
+        // C coerces only the patterns it reaches: one after the match is unchecked.
+        assert_eq!(select_int("1", &["1", "abc"]).unwrap(), Some(0));
+    }
+
+    #[test]
+    fn integer_mode_coercion_errors_match_c() {
+        // tclsh 9.1.0:
+        //   % switch -integer abc {1 {}}            ;# also with only `default`
+        //   expected integer but got "abc"          (TCL VALUE NUMBER)
+        //   % switch -integer 2 {1 {} abc {} default {}}
+        //   expected integer but got "abc"
+        //   % switch -integer 2 {default {} 2 {}}
+        //   expected integer but got "default"
+        //   % switch -integer 99999999999999999999 {1 {}}
+        //   integer value too large to represent    (ARITH IOVERFLOW ...)
+        let not_int = |value: &str, pats: &[&str], bad: &str| {
+            let Err(e) = select_int(value, pats) else {
+                panic!("{value} {pats:?} must be refused");
+            };
+            assert_eq!(e.message(), format!("expected integer but got \"{bad}\""));
+            assert_eq!(e.error_code(), Some("TCL VALUE NUMBER"));
+        };
+        not_int("abc", &["1"], "abc");
+        not_int("abc", &["default"], "abc");
+        not_int("", &["1"], "");
+        not_int("1.0", &["1"], "1.0");
+        not_int("2", &["1", "abc", "default"], "abc");
+        not_int("2", &["default", "2"], "default");
+        for (value, pats) in [
+            ("99999999999999999999", &["1"][..]),
+            ("1", &["99999999999999999999"][..]),
+            ("18446744073709551615", &["-1"][..]),
+            ("9223372036854775808", &["1"][..]),
+        ] {
+            let Err(e) = select_int(value, pats) else {
+                panic!("{value} {pats:?} must overflow");
+            };
+            assert_eq!(e.message(), "integer value too large to represent");
+            assert_eq!(
+                e.error_code(),
+                Some("ARITH IOVERFLOW {integer value too large to represent}")
+            );
+        }
     }
 }

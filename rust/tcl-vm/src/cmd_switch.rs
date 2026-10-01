@@ -16,8 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The `switch` builtin. Option parsing and pattern selection (exact/glob/regexp
-//! incl. `default` and the TIP #75 `-matchvar`/`-indexvar` side-channel) are the
+//! The `switch` builtin. Option parsing and pattern selection (exact/glob/regexp,
+//! and Tcl 9.1's `-integer`, incl. `default` and the TIP #75 `-matchvar`/`-indexvar` side-channel) are the
 //! shared [`tcl_cmd_core::switch`] core, over `ValueOps` + the `regex`-crate
 //! engine. The VM owns the per-target parts: extracting the pattern/body pairs
 //! (inline or brace-list), resolving a `-` fall-through, the variable writes, and
@@ -26,7 +26,7 @@
 //!
 //! `-regexp` switches match through the engine; exact switches still use the
 //! `JUMP_TABLE` opcode, so this runtime form
-//! is invoked for `-glob`/`-regexp`/`-nocase`/dynamic cases.
+//! is invoked for `-glob`/`-regexp`/`-integer`/`-nocase`/dynamic cases.
 
 use tcl_cmd_core::switch::{self as core_switch, Selection};
 use tcl_runtime_api::Completion;
@@ -45,7 +45,8 @@ const USAGE_LIST: &str = "switch ?-option ...? string {?pattern body ...? ?defau
 
 fn cmd_switch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // Options + the `string` index are shared (the VM's argv is name-stripped).
-    let opts = match core_switch::parse_options(vm, args) {
+    let version = vm.runtime_version();
+    let opts = match core_switch::parse_options(vm, args, version) {
         Ok(o) => o,
         Err(e) => return crate::command::completion_from_cmd_error(e),
     };
@@ -91,7 +92,6 @@ fn cmd_switch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 
     let patterns: Vec<Value> = pairs.iter().map(|(p, _)| p.clone()).collect();
-    let version = vm.runtime_version();
     let sel = match core_switch::select::<Vm, CrateEngine, Value>(
         vm, &opts, &value, &patterns, version,
     ) {
