@@ -88,6 +88,7 @@ use rustc_hash::FxHashMap;
 
 use tcl_dialect::model::{
     DialectPoint, EnvironmentDefinition, EnvironmentIdentity, EnvironmentRegistry,
+    LENIENT_ENVIRONMENT_ID,
 };
 use tcl_dialect::{DialectProfile, LexerGrammar, LibraryVersionOverrides};
 
@@ -105,6 +106,17 @@ use crate::model::context::{KeyedVersions, ResolvedContext};
 #[must_use]
 pub fn environments() -> Arc<EnvironmentRegistry> {
     crate::model::registration::live_environments()
+}
+
+/// The environments a user can select, read from the **live** registry: every
+/// environment except the lenient sink, languages before tool shells, canonical
+/// id ascending within a kind
+/// ([`EnvironmentRegistry::selectable`]). The list every runtime picker and
+/// status payload is built from, so an environment a pack registers appears
+/// in it with no second wiring.
+#[must_use]
+pub fn selectable_environments() -> Vec<Arc<EnvironmentDefinition>> {
+    environments().selectable()
 }
 
 /// One resolved document environment: the definition plus the identity
@@ -126,7 +138,7 @@ pub fn resolve_environment(name: &str) -> DocumentEnvironment {
     let registry = environments();
     let definition = registry.resolve(name).unwrap_or_else(|| {
         registry
-            .resolve("tcl")
+            .resolve(LENIENT_ENVIRONMENT_ID)
             .expect("the compiled catalogue seeds the lenient `tcl` environment")
     });
     let identity = registry.identity_of(&definition);
@@ -151,6 +163,22 @@ pub fn is_known_environment_name(name: &str) -> bool {
 #[must_use]
 pub fn resolve_known_environment(name: &str) -> Option<DocumentEnvironment> {
     is_known_environment_name(name).then(|| resolve_environment(name))
+}
+
+/// Resolve a client's `languageId` to the environment it names: a canonical
+/// id, a contributed editor identity, or a contributed language id the
+/// environment lists among its
+/// [`EnvironmentDefinition::selecting_identities`]. `None` when it names
+/// none.
+///
+/// A plain alias is not a language id. `irules` resolves through
+/// [`resolve_known_environment`] wherever a dialect *name* is accepted, but no
+/// editor contributes it, and taking it here would let a client select an
+/// environment through a spelling the contribution manifest never declares.
+#[must_use]
+pub fn resolve_language_id(language_id: &str) -> Option<DocumentEnvironment> {
+    resolve_known_environment(language_id)
+        .filter(|environment| environment.is_contributed_identity(language_id))
 }
 
 impl DocumentEnvironment {
@@ -275,8 +303,9 @@ impl DocumentEnvironment {
     }
 
     /// Whether `name` is one of this environment's **contributed
-    /// identities** — its canonical id or its editor language id — as
-    /// opposed to a legacy alias it also answers to.
+    /// identities** — its canonical id, its editor language id or a language
+    /// id it lists as selecting it — as opposed to an alias it also answers
+    /// to.
     ///
     /// The editor-side ingress (an LSP `languageId`, a contributed file
     /// association) is a claim about a *contributed identity*, under the
@@ -291,7 +320,9 @@ impl DocumentEnvironment {
             || self
                 .definition
                 .editor_identity
-                .is_some_and(|identity| identity.as_str() == name)
+                .into_iter()
+                .chain(self.definition.selecting_identities.iter().copied())
+                .any(|identity| identity.as_str() == name)
     }
 
     /// The **catalogue** profile this environment has, `None` when it has
@@ -318,7 +349,7 @@ impl DocumentEnvironment {
     /// document states nothing" asks here (see [`Self::stated_profile`]).
     #[must_use]
     pub fn is_lenient(&self) -> bool {
-        self.definition.id.as_str() == "tcl"
+        self.definition.id.as_str() == LENIENT_ENVIRONMENT_ID
     }
 
     /// The profile a **stated** dialect names — `None` when the name stated
@@ -398,9 +429,10 @@ pub fn context_for_profile(profile: &DialectProfile) -> Arc<ContextRegistry> {
     resolve_environment(profile.name).default_context_registry()
 }
 
-/// The promotion key: the environment's canonical id and both generation
-/// axes an un-overlaid assembly answers under.
-type PromotionKey = (String, u64, u64);
+/// The promotion key: the environment's canonical id and the three
+/// generation axes an un-overlaid assembly answers under — the environment
+/// registry's, the surface rosters', and the core-surface specs'.
+type PromotionKey = (String, u64, u64, u64);
 
 /// The surface-roster generation `environment`'s answers move with — `0`
 /// for an environment no roster can reach.
@@ -445,8 +477,8 @@ static LEAKED_GENERATIONS: OnceLock<Mutex<FxHashMap<PromotionKey, &'static Conte
 ///
 /// The key is therefore the whole of what an un-overlaid assembly
 /// answers under: [`crate::model::assembly`]'s generation key minus the
-/// keyed versions and the overlay, which are fixed here. Both axes only
-/// move on a real change, so the promotion still leaks a clone of the
+/// keyed versions and the overlay, which are fixed here. Every axis only
+/// moves on a real change, so the promotion still leaks a clone of the
 /// generation's `Arc` — eight bytes — never a copy of the assembly.
 ///
 /// This is what lets the LSP providers keep their `&'static` registry
@@ -461,6 +493,7 @@ pub fn static_context_for(name: &str) -> &'static ContextRegistry {
         environment.id().to_owned(),
         environment.identity.generation,
         roster_axis_of(&environment),
+        crate::cache::core_surface_generation(),
     );
     let leaked = LEAKED_GENERATIONS.get_or_init(|| Mutex::new(FxHashMap::default()));
     if let Some(view) = leaked
@@ -522,6 +555,36 @@ pub fn irules_context() -> Arc<ContextRegistry> {
 mod tests {
 
     use super::*;
+
+    /// A language id names an environment by its canonical id, its contributed
+    /// editor identity, or a selecting spelling — and never by a plain alias.
+    #[test]
+    fn a_language_id_is_an_identity_or_a_selecting_spelling_never_an_alias() {
+        let selects =
+            |language_id: &str| resolve_language_id(language_id).map(|e| e.id().to_owned());
+        for (language_id, environment) in [
+            ("jim", "jim"),
+            ("tcl-jim", "jim"),
+            ("tcl-irule", "f5-irules"),
+            ("f5-irules", "f5-irules"),
+            ("tcl90", "tcl9.0"),
+            ("tcl-xilinx", "xilinx-eda-tcl"),
+            ("tk", "tk"),
+            ("tcl-apl", "f5-iapps"),
+            ("tcl-bpf", "bpf"),
+            ("tcl-libero", "microchip-libero-eda-tcl"),
+            ("tcl-spec", "spectcl"),
+        ] {
+            assert_eq!(
+                selects(language_id).as_deref(),
+                Some(environment),
+                "{language_id}"
+            );
+        }
+        for alias in ["irules", "vivado", "jimsh", "wish", "plaintext", ""] {
+            assert_eq!(selects(alias), None, "`{alias}` is not a language id");
+        }
+    }
 
     /// The VM's pin and the point must name the same release. `tk` had them
     /// split — its profile grammar and core said 8.6 while

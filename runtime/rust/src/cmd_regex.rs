@@ -66,7 +66,8 @@ pub fn install(interp: &mut Interp) {
 fn regexp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let args: Vec<Vec<u8>> = argv[1..].iter().map(|&a| obj_bytes(a)).collect();
     let refs: Vec<&[u8]> = args.iter().map(Vec::as_slice).collect();
-    match core_re::regexp::<Interp, AreEngine>(interp, &refs) {
+    let version = interp.runtime_version();
+    match core_re::regexp::<Interp, AreEngine>(interp, &refs, version) {
         Ok(RegexpResult::Inline(v)) => {
             interp.set_result(v);
             Code::Ok
@@ -460,6 +461,37 @@ mod tests {
                 i.set_runtime_version(version);
                 assert_eq!(i.eval_str(SRC), Code::Ok, "for {version:?}");
                 assert_eq!(i.result_bytes(), b"Abc", "for {version:?}");
+            });
+        }
+    }
+
+    /// `\z` is an end-of-string anchor from Tcl 9.1.0 on, through every
+    /// command that compiles an ARE; 9.0.4 rejects it. Verified on tclsh
+    /// 9.1.0 and 9.0.4.
+    #[test]
+    fn z_anchor_is_a_9_1_escape() {
+        use tcl_dialect::TclVersion;
+        const CASES: &[(&[u8], &[u8])] = &[
+            (br"regexp {a\z} xa", b"1"),
+            (br"regsub {a\z} xaa b", b"xab"),
+            (br"lsearch -regexp {ab xa} {a\z}", b"1"),
+            (
+                br"switch -regexp xa {{a\z} {set r hit} default {set r miss}}",
+                b"hit",
+            ),
+        ];
+        for &(src, want) in CASES {
+            leak_free(|i| {
+                i.set_runtime_version(TclVersion::V9_1);
+                assert_eq!(ok(i, src), want);
+            });
+            leak_free(|i| {
+                i.set_runtime_version(TclVersion::V9_0);
+                assert_eq!(i.eval_str(src), Code::Error);
+                assert_eq!(
+                    String::from_utf8_lossy(&i.result_bytes()),
+                    r"cannot compile regular expression pattern: invalid escape \ sequence"
+                );
             });
         }
     }

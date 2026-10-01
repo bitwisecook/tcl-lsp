@@ -103,21 +103,23 @@ fn switch_inline_form(
     }
     // The pattern objects are the inline body args at even indices (borrowed argv).
     let patterns: Vec<*mut TclObj> = (0..npairs).map(|p| words[p * 2]).collect();
+    let version = interp.runtime_version();
     interp.begin_control_options(ControlOptionPolicy::FRESH_FORWARDED);
-    let matched = match core_switch::select::<Interp, AreEngine, _>(interp, opts, &value, &patterns)
-    {
-        Ok(Selection::Matched { index, writes }) => {
-            if !apply_writes(interp, writes) {
-                return Code::Error;
+    let matched =
+        match core_switch::select::<Interp, AreEngine, _>(interp, opts, &value, &patterns, version)
+        {
+            Ok(Selection::Matched { index, writes }) => {
+                if !apply_writes(interp, writes) {
+                    return Code::Error;
+                }
+                index
             }
-            index
-        }
-        Ok(Selection::NoMatch) => {
-            interp.set_result_bytes(b"");
-            return Code::Ok;
-        }
-        Err(e) => return interp.report_cmd_error(e),
-    };
+            Ok(Selection::NoMatch) => {
+                interp.set_result_bytes(b"");
+                return Code::Ok;
+            }
+            Err(e) => return interp.report_cmd_error(e),
+        };
     // Resolve a `-` fall-through to the next non-`-` body (guaranteed to exist).
     let mut b = matched;
     while obj_bytes(words[b * 2 + 1]).as_slice() == b"-" {
@@ -180,8 +182,10 @@ fn switch_list_form(
     // own), so mint temporary objects for the shared `select`, then free them — it
     // only reads them, and the result never references a pattern.
     let pat_objs: Vec<*mut TclObj> = pat_bytes.iter().map(|b| new_string(b)).collect();
+    let version = interp.runtime_version();
     interp.begin_control_options(ControlOptionPolicy::FRESH_FORWARDED);
-    let outcome = core_switch::select::<Interp, AreEngine, _>(interp, opts, &value, &pat_objs);
+    let outcome =
+        core_switch::select::<Interp, AreEngine, _>(interp, opts, &value, &pat_objs, version);
     for &o in &pat_objs {
         drop_fresh(o);
     }

@@ -54,7 +54,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 use tcl_dialect::DialectProfile;
-use tcl_dialect::model::{EnvironmentDefinition, EnvironmentIdentity};
+use tcl_dialect::model::{EnvironmentDefinition, EnvironmentIdentity, surface_nearness};
 
 use crate::model::context::{ContextQueries, KeyedVersions, ResolvedContext, specificity_breadth};
 use crate::model::surface::{SurfaceDeclaration, declarations_for_spec};
@@ -194,9 +194,11 @@ impl ContextRegistry {
     ///
     /// **Selection, then the package conjunct** — mirroring the old
     /// `get_for_surface → is_available` layering: among the specs with a
-    /// declaration admitted for selection, the winner has the **narrowest
-    /// total applicability breadth** ([`specificity_breadth`]; the
-    /// documented tiebreaks are: a scoped spec beats the universal
+    /// declaration admitted for selection, the winner comes from the
+    /// **nearest core point** of the context's authoring query (a `jim`
+    /// document's own family before its Tcl ancestry anchor), then has the
+    /// **narrowest total applicability breadth** ([`specificity_breadth`];
+    /// the documented tiebreaks are: a scoped spec beats the universal
     /// `surface: None` translation because the universal breadth of 22
     /// exceeds every explicit gate's maximum of 13, and among equal
     /// breadths the **last-registered** spec wins so curated overrides
@@ -214,6 +216,21 @@ impl ContextRegistry {
             name.strip_prefix("::")
                 .and_then(|bare| self.entries.get(bare))
         })?;
+        // A name with one candidate has nothing to rank. A query with one core
+        // point ranks every admitted spec alike; with several, a spec from a
+        // nearer point (a document's own family over its ancestry anchor)
+        // wins before breadth is compared, the order
+        // `CommandRegistry::get_for_surface` selects in.
+        let ranking_query = (candidates.len() > 1)
+            .then(|| self.context.authoring_query())
+            .filter(|query| query.core.len() > 1);
+        let nearness = |entry: &SpecEntry| -> usize {
+            ranking_query.map_or(0, |query| {
+                entry.spec.surface.map_or(usize::MAX, |rows| {
+                    surface_nearness(rows, &query).unwrap_or(usize::MAX)
+                })
+            })
+        };
         let winner = candidates
             .iter()
             .enumerate()
@@ -223,7 +240,7 @@ impl ContextRegistry {
                     .iter()
                     .any(|declaration| self.context.admits_for_selection(declaration))
             })
-            .max_by_key(|&(index, entry)| (Reverse(entry.breadth), index))
+            .max_by_key(|&(index, entry)| (Reverse(nearness(entry)), Reverse(entry.breadth), index))
             .map(|(_, entry)| entry)?;
         self.context
             .is_available(&winner.declarations)
@@ -256,14 +273,15 @@ impl std::fmt::Debug for ContextRegistry {
 
 /// The generation cache key: the environment's resolved identity
 /// (id, registry generation, overlay hash), the keyed-versions hash, the
-/// pack-overlay content key, and the **surface-roster** generation.
+/// pack-overlay content key, the **surface-roster** generation and the
+/// **core-surface** generation.
 ///
-/// The last component is Q6's: a pack that declares only an `include
-/// from` roster changes what a generation admits without changing any
-/// environment, so the environment registry's own generation would not
-/// move and a cached generation would answer from the surface the roster
-/// just replaced.
-type GenerationKey = (EnvironmentIdentity, u64, u64, u64);
+/// The last two move without any environment changing: a pack that declares
+/// only an `include from` roster changes what a generation admits, and a
+/// family's compiled-in own-surface specs change what its store holds, so
+/// the environment registry's own generation would not move and a cached
+/// generation would answer from the surface just replaced.
+type GenerationKey = (EnvironmentIdentity, u64, u64, u64, u64);
 
 /// The interned catalogue profile whose command store backs
 /// `environment_id`'s generations — the interop seam: the
@@ -287,8 +305,18 @@ fn store_profile(environment_id: &str) -> &'static DialectProfile {
 /// only** — its contents come from a loader closure only `tcl-spectcl`
 /// can write, so a miss returns `None` and the caller falls back to the
 /// un-overlaid generation, exactly as the analyser always has.
-fn command_store(environment_id: &str, overlay: u64) -> Option<Arc<CommandRegistry>> {
-    crate::cache::registry_for_profile_if_built(store_profile(environment_id), overlay)
+fn command_store(
+    environment: &EnvironmentDefinition,
+    overlay: u64,
+) -> Option<Arc<CommandRegistry>> {
+    let profile = store_profile(environment.id.as_str());
+    let base = crate::cache::registry_for_profile_if_built(profile, overlay)?;
+    Some(match environment.core {
+        // A family's own compiled-in commands sit over the shared store for
+        // that family's documents only.
+        Some(core) => crate::cache::registry_with_core_surface(base, profile, overlay, core.family),
+        None => base,
+    })
 }
 
 /// The per-context registry for `environment`, assembled on first use and
@@ -334,6 +362,7 @@ pub fn registry_for_environment_if_built(
         keyed.content_hash(),
         overlay,
         tcl_dialect::model::inherited_surface_generation(),
+        crate::cache::core_surface_generation(),
     );
     if let Some(generation) = cache
         .lock()
@@ -346,7 +375,7 @@ pub fn registry_for_environment_if_built(
     // dropped in favour of the first published entry. The store lookup
     // stays outside too: an overlay miss must not park a `None` in the
     // cache — the packs may be installed a moment later.
-    let commands = command_store(environment.id.as_str(), overlay)?;
+    let commands = command_store(environment, overlay)?;
     let assembled = Arc::new(ContextRegistry::assemble(
         ResolvedContext::resolve(Arc::clone(environment), keyed),
         commands,
@@ -367,7 +396,7 @@ fn prune_overlaid_generations(
 ) {
     const GENERATION_LIMIT: usize = 64;
     if map.len() >= GENERATION_LIMIT {
-        map.retain(|&(_, _, overlay, _), _| overlay == 0 || overlay == current);
+        map.retain(|&(_, _, overlay, _, _), _| overlay == 0 || overlay == current);
     }
 }
 
@@ -922,6 +951,54 @@ pub(crate) mod tests {
                 "`{name}` must share the old cache's store"
             );
         }
+    }
+
+    /// Where a `jim` document's own family and its Tcl ancestry anchor both
+    /// offer one command, the assembled generation selects the row from the
+    /// nearer core point — even when the inherited row is registered later
+    /// and has the narrower surface, the two orders a breadth-then-registration
+    /// rule would prefer. A Tcl document over the same store still gets the
+    /// Tcl row.
+    #[test]
+    fn an_assembled_generation_selects_the_nearest_core_point_before_breadth() {
+        use tcl_dialect::model::{Family, SpecSurface};
+
+        const JIM_ROW: &[SpecSurface] = &[SpecSurface::core(Family::Jim)];
+        const TCL_ROW: &[SpecSurface] =
+            &[SpecSurface::core_in(Family::Tcl, &[("8.6", Some("9.0"))])];
+        let mut store = CommandRegistry::build_default();
+        for surface in [JIM_ROW, TCL_ROW] {
+            store.insert(CommandSpec {
+                name: "nearest-probe",
+                surface: Some(surface),
+                ..CommandSpec::DEFAULT
+            });
+        }
+        let store = Arc::new(store);
+        let environments = EnvironmentRegistry::compiled();
+        let keyed = KeyedVersions::default();
+        let assemble = |name: &str| {
+            let definition = environments.resolve(name).expect(name);
+            ContextRegistry::assemble(
+                ResolvedContext::resolve(definition, &keyed),
+                Arc::clone(&store),
+            )
+        };
+
+        assert_eq!(
+            assemble("jim")
+                .resolve_command("nearest-probe")
+                .and_then(|spec| spec.surface),
+            Some(JIM_ROW),
+            "a jim document selects its own family's row"
+        );
+        assert_eq!(
+            assemble("tcl8.6")
+                .resolve_command("nearest-probe")
+                .and_then(|spec| spec.surface),
+            Some(TCL_ROW),
+            "a Tcl document never sees the jim row"
+        );
     }
 
     /// The pack-overlay door mirrors `registry_for_profile_if_built`: an

@@ -44,11 +44,9 @@ pub fn known_profile_for_dialect(name: &str) -> Option<&'static DialectProfile> 
 ///
 /// The `&'static` comes from the promoted document context, which the
 /// generation cache retains for the process by design — the same promotion
-/// [`context_for_dialect`] relies on. It replaces the manual
-/// `KNOWN_DIALECTS` membership scan the session-dialect plumbing relies on
-/// to recover a `&'static` spelling, and folds aliases to the canonical id
-/// on the way (the session already holds a canonical id, so no shipped
-/// path changes answer).
+/// [`context_for_dialect`] relies on. It gives the session-dialect plumbing a
+/// `&'static` spelling, and folds aliases to the canonical id on the way (the
+/// session already holds a canonical id).
 pub fn canonical_id_for_dialect(name: &str) -> Option<&'static str> {
     tcl_registry::model::is_known_environment_name(name)
         .then(|| context_for_dialect(name).environment.id.as_str())

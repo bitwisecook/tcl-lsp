@@ -31,6 +31,7 @@ use std::process::ExitCode;
 use anyhow::{Context, Result};
 use serde_json::{Value, json};
 use tcl_core_types::{DiagCode, DocRow, OptCategory};
+use tcl_dialect::model::{DEFAULT_ENVIRONMENT_ID, EnvironmentRegistry};
 
 use crate::util::{repo_root, write_if_changed};
 
@@ -38,11 +39,9 @@ const DIAGNOSTICS_JSON: &str = "ai/shared/diagnostics.json";
 /// The native MCP binary packages the same catalogue inside its crate. It is
 /// generated from the identical content so category membership cannot drift.
 const MCP_DIAGNOSTICS_JSON: &str = "rust/tcl-mcp/diagnostics.json";
-/// Which prompt fragment covers which dialect. Hand-maintained (a fragment's
-/// audience is an editorial choice), gated below against the profile catalogue.
-const PROMPT_MANIFEST: &str = "ai/prompts/manifest.json";
-/// The VS Code chat surfaces' dialect table, projected from the profile
-/// catalogue so `/help` names every dialect the server accepts.
+/// The VS Code chat surfaces' dialect table, projected from the selectable
+/// environments so `/help` and the status bar name every dialect the server
+/// accepts.
 const VSCODE_DIALECT_CATALOG: &str = "editors/vscode/src/chat/dialectCatalog.ts";
 
 /// AI prompt/skill templates: `(template, output)` relative paths.
@@ -396,80 +395,79 @@ fn render_template(template: &str, ctx: &AiContext) -> String {
 
 // Dialect catalogue projections
 
-/// Dialects that deliberately reach no prompt fragment, each with the reason.
-/// Empty today: a new profile either joins a fragment's `dialects` array or is
-/// listed here, so `manifest.json` cannot silently forget one.
-const PROMPT_EXEMPT_DIALECTS: &[(&str, &str)] = &[];
+/// The print width the extension's Prettier configuration formats to.
+const TS_PRINT_WIDTH: usize = 100;
 
-/// The canonical dialect names no prompt fragment claims and no exemption
-/// covers — the [`prompt_manifest_gaps`] gate's finding.
-fn prompt_manifest_gaps() -> Result<Vec<&'static str>> {
-    let path = repo_root().join(PROMPT_MANIFEST);
-    let text =
-        std::fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
-    let manifest: Value =
-        serde_json::from_str(&text).with_context(|| format!("parsing {}", path.display()))?;
-    let covered: Vec<&str> = manifest["prompts"]
-        .as_array()
-        .with_context(|| format!("{PROMPT_MANIFEST} must hold a `prompts` array"))?
-        .iter()
-        .flat_map(|entry| entry["dialects"].as_array().into_iter().flatten())
-        .filter_map(Value::as_str)
-        .collect();
-    Ok(tcl_dialect::DialectProfile::all()
-        .iter()
-        .map(|profile| profile.name)
-        .filter(|name| {
-            !covered.contains(name) && !PROMPT_EXEMPT_DIALECTS.iter().any(|(d, _)| d == name)
-        })
-        .collect())
+/// `text` as a double-quoted TypeScript string literal.
+fn ts_string(text: &str) -> String {
+    format!("\"{}\"", text.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
-/// The VS Code chat dialect table: canonical name, display label, and the file
-/// extensions the profile owns.
+/// The VS Code dialect table: canonical name, display label, compact label,
+/// kind, one-line description, and the file extensions the environment owns —
+/// one row per selectable environment, in selectable order.
 fn vscode_dialect_catalog() -> String {
     let mut rows = String::new();
-    for profile in tcl_dialect::DialectProfile::all() {
-        let extensions: Vec<String> = profile
+    for environment in EnvironmentRegistry::compiled_selectable() {
+        let extensions: Vec<String> = environment
+            .server_detection
             .file_extensions
             .iter()
-            .map(|ext| format!("\"{}\"", ext.extension))
+            .map(|claim| ts_string(&claim.extension))
             .collect();
-        let fields = [
-            format!("name: \"{}\"", profile.name),
-            format!("label: \"{}\"", profile.display_name),
-            format!("extensions: [{}]", extensions.join(", ")),
-        ];
-        let inline = format!("  {{ {} }},", fields.join(", "));
-        // Prettier's `printWidth: 100`: emit the row already expanded when the
-        // one-line form would not fit, so the committed file is formatted.
-        if inline.len() <= 100 {
-            let _ = writeln!(rows, "{inline}");
-        } else {
-            let _ = writeln!(rows, "  {{");
-            for field in &fields {
-                let _ = writeln!(rows, "    {field},");
+        // Every row is emitted expanded: Prettier keeps an object literal
+        // expanded when its first key starts on a new line, so the committed
+        // file is formatted whatever the row's width.
+        let _ = writeln!(rows, "  {{");
+        for (key, literal) in [
+            ("name", ts_string(environment.id.as_str())),
+            ("label", ts_string(&environment.display_name)),
+            ("shortLabel", ts_string(&environment.short_name)),
+            ("kind", ts_string(environment.kind.word())),
+            ("description", ts_string(&environment.description())),
+            ("extensions", format!("[{}]", extensions.join(", "))),
+        ] {
+            let line = format!("    {key}: {literal},");
+            // Prettier moves a value that overflows its print width onto the
+            // next line; a string cannot be broken any other way.
+            if line.chars().count() > TS_PRINT_WIDTH {
+                let _ = writeln!(rows, "    {key}:\n      {literal},");
+            } else {
+                let _ = writeln!(rows, "{line}");
             }
-            let _ = writeln!(rows, "  }},");
         }
+        let _ = writeln!(rows, "  }},");
     }
     format!(
-        r"{LICENSE_HEADER}
+        r#"{LICENSE_HEADER}
 /**
- * Every dialect the server accepts, projected from
- * `tcl_dialect::DialectProfile::all()`.
+ * Every dialect the server accepts, projected from the selectable
+ * environments of `tcl_dialect::model::EnvironmentRegistry`.
  *
- * Generated by `cargo xtask gen-ai-diagnostics` — edit the profile catalogue,
- * not this file. Kept free of `vscode` imports (the `../languageIds` pattern)
- * so chat modules and their unit tests can name dialects without the language
- * client.
+ * Generated by `cargo xtask gen-ai-diagnostics` — edit the environment
+ * registry, not this file. It is the offline copy of what the server's
+ * `tcl-lsp.listDialects` command answers, for a host with no running server
+ * (the browser entry before its worker has started, the chat help text), and
+ * the fallback the status bar reads until the server has said which dialect a
+ * document is analysed under. Kept free of `vscode` imports (the
+ * `../languageIds` pattern) so chat modules and their unit tests can name
+ * dialects without the language client.
  */
+
+/** `language`: the thing written is this language. `packages`: a Tcl release with library packages loaded. */
+export type DialectKind = "language" | "packages";
 
 export interface DialectEntry {{
   /** Canonical dialect name — the string the server and `set_dialect` take. */
   readonly name: string;
   /** Human-facing display name. */
   readonly label: string;
+  /** Compact name for the status bar. */
+  readonly shortLabel: string;
+  /** The group a picker files the dialect under. */
+  readonly kind: DialectKind;
+  /** One line saying what the dialect is: its name, or a Tcl release plus packages. */
+  readonly description: string;
   /** File extensions this dialect owns, without the leading dot. */
   readonly extensions: readonly string[];
 }}
@@ -481,7 +479,10 @@ export const DIALECT_CATALOG: readonly DialectEntry[] = [
 export const DIALECT_LABELS: Readonly<Record<string, string>> = Object.fromEntries(
   DIALECT_CATALOG.map((dialect) => [dialect.name, dialect.label]),
 );
-"
+
+/** The dialect a document is analysed under when nothing selects another. */
+export const DEFAULT_DIALECT = "{DEFAULT_ENVIRONMENT_ID}";
+"#
     )
 }
 
@@ -527,18 +528,6 @@ fn artifacts() -> Result<Vec<(String, String)>> {
 /// Write (or, with `check`, verify) the shared catalogues and prompt/skill files.
 pub fn run(check: bool) -> Result<ExitCode> {
     let root = repo_root();
-    let gaps = prompt_manifest_gaps()?;
-    if !gaps.is_empty() {
-        eprintln!(
-            "{PROMPT_MANIFEST}: {} dialect(s) reach no prompt fragment — add each to a fragment's \
-             `dialects` array or to PROMPT_EXEMPT_DIALECTS with its reason:",
-            gaps.len()
-        );
-        for name in &gaps {
-            eprintln!("  - {name}");
-        }
-        return Ok(ExitCode::from(1));
-    }
     let mut drift = Vec::new();
     for (rel, content) in artifacts()? {
         let path = root.join(&rel);
@@ -608,34 +597,6 @@ mod tests {
                 .map(|(_, content)| content)
                 .expect("Claude prompt-copy artifact");
             assert_eq!(copy, canonical, "{copy_path} must match {canonical_path}");
-        }
-    }
-
-    #[test]
-    fn every_catalogued_dialect_reaches_a_prompt_fragment() {
-        let gaps = prompt_manifest_gaps().expect("read prompt manifest");
-        assert!(
-            gaps.is_empty(),
-            "{PROMPT_MANIFEST} covers no prompt for {gaps:?} — add them to a fragment or to \
-             PROMPT_EXEMPT_DIALECTS"
-        );
-    }
-
-    #[test]
-    fn prompt_manifest_names_only_catalogued_dialects() {
-        let path = repo_root().join(PROMPT_MANIFEST);
-        let manifest: Value = serde_json::from_str(&std::fs::read_to_string(path).expect("read"))
-            .expect("parse manifest");
-        for entry in manifest["prompts"].as_array().expect("prompts array") {
-            for dialect in entry["dialects"].as_array().expect("dialects array") {
-                let name = dialect.as_str().expect("dialect name");
-                assert!(
-                    tcl_registry::model::resolve_environment(name)
-                        .catalogue_profile()
-                        .is_some(),
-                    "{PROMPT_MANIFEST}: `{name}` is not a catalogued dialect"
-                );
-            }
         }
     }
 

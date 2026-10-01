@@ -158,6 +158,48 @@ pub fn write_if_changed(path: &Path, contents: impl AsRef<[u8]>) -> Result<bool>
     Ok(true)
 }
 
+/// Replace the lines between the line holding `begin` and the line holding
+/// `end`, keeping both marker lines as they are.
+///
+/// The end marker keeps its indentation: `find(end)` lands on the marker
+/// itself, so replacing from there would pull an indented marker to column
+/// zero.
+///
+/// # Errors
+/// When either marker is missing, or the begin marker line is unterminated.
+pub fn replace_marked_block(text: &str, begin: &str, end: &str, body: &str) -> Result<String> {
+    let start = text
+        .find(begin)
+        .with_context(|| format!("missing {begin:?}"))?;
+    let body_start = text[start..]
+        .find('\n')
+        .map(|n| start + n + 1)
+        .with_context(|| format!("{begin:?} must end in a newline"))?;
+    let end_tag_start = text[body_start..]
+        .find(end)
+        .map(|n| body_start + n)
+        .with_context(|| format!("missing {end:?} after {begin:?}"))?;
+    let end_line_start = text[..end_tag_start].rfind('\n').map_or(0, |n| n + 1);
+    Ok(format!(
+        "{}{}{}",
+        &text[..body_start],
+        body,
+        &text[end_line_start..]
+    ))
+}
+
+/// Replace the body of the generated region called `name`: the lines between
+/// the one holding `<generated: name>` and the next one holding
+/// `</generated>`. Both marker lines stay, in whatever comment syntax the
+/// file gives them, so prose around a region survives a regeneration.
+///
+/// # Errors
+/// When the region's markers are missing.
+pub fn replace_generated_region(text: &str, name: &str, body: &str) -> Result<String> {
+    let begin = format!("<generated: {name}>");
+    replace_marked_block(text, &begin, "</generated>", body)
+}
+
 /// Placeholder registry entry (`irules_disabled.rs`) marking a command as
 /// unavailable in iRules — never a real command name to project into a
 /// generated editor grammar/query. Shared by every generator that walks
@@ -229,6 +271,28 @@ mod tests {
         // Real commands that merely start with "test" as a substring of a
         // longer unrelated word, or are exactly "test", must survive.
         assert!(!is_internal_or_test_harness_noise("test"));
+    }
+
+    #[test]
+    fn a_marked_block_keeps_both_markers_and_the_end_indent() {
+        let text = "a\n    // begin x\n    old\n    // end x\nb\n";
+        assert_eq!(
+            replace_marked_block(text, "// begin x", "// end x", "    new\n").unwrap(),
+            "a\n    // begin x\n    new\n    // end x\nb\n"
+        );
+        assert!(replace_marked_block(text, "// begin y", "// end x", "").is_err());
+        assert!(replace_marked_block(text, "// begin x", "// end y", "").is_err());
+    }
+
+    #[test]
+    fn a_generated_region_is_found_by_name_in_any_comment_syntax() {
+        let text =
+            "; <generated: one>\nold\n; </generated>\n-- <generated: two>\nkept\n-- </generated>\n";
+        assert_eq!(
+            replace_generated_region(text, "one", "new\n").unwrap(),
+            "; <generated: one>\nnew\n; </generated>\n-- <generated: two>\nkept\n-- </generated>\n"
+        );
+        assert!(replace_generated_region(text, "three", "").is_err());
     }
 
     #[test]
