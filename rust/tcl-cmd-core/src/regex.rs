@@ -273,9 +273,9 @@ fn wrong_args(usage: &[u8]) -> RegexError {
     RegexError(m)
 }
 
-/// Wrap a provider compile-error detail in Tcl's standard prefix.
-fn compile_error(detail: &[u8]) -> RegexError {
-    let mut m = b"cannot compile regular expression pattern: ".to_vec();
+/// Wrap a provider compile-error detail in `version`'s standard prefix.
+fn compile_error(version: TclVersion, detail: &[u8]) -> RegexError {
+    let mut m = version.regex_compile_error_prefix().as_bytes().to_vec();
     m.extend_from_slice(detail);
     RegexError(m)
 }
@@ -395,7 +395,7 @@ pub fn regexp<O: ValueOps, E: RegexEngine>(
         // command runs: no subject decode, no `-start`, no match loop, and
         // `-indices`/`-all` are simply ignored (all tclsh-verified, 8.4.20
         // through 9.1b0).
-        let re = E::compile(pattern, c.flags).map_err(|d| compile_error(&d))?;
+        let re = E::compile(pattern, c.flags).map_err(|d| compile_error(version, &d))?;
         let nsubs = i64::try_from(E::nsub(&re)).unwrap_or(i64::MAX);
         let count = ops.new_int(nsubs);
         let flags: Vec<O::Value> = E::info_names(&re)
@@ -414,7 +414,7 @@ pub fn regexp<O: ValueOps, E: RegexEngine>(
     let char_len = cps.len();
     let match_vars = &rest[2..];
 
-    let mut re = E::compile(pattern, c.flags).map_err(|d| compile_error(&d))?;
+    let mut re = E::compile(pattern, c.flags).map_err(|d| compile_error(version, &d))?;
     let nsubs = E::nsub(&re);
 
     let mut offset = c
@@ -756,7 +756,7 @@ pub fn regsub_eval<E: RegexEngine, Err>(
     let (cps, byteoff) = decode_utf8(str_bytes);
     let char_len = cps.len();
 
-    let mut re = E::compile(pattern, c.flags).map_err(|d| compile_error(&d))?;
+    let mut re = E::compile(pattern, c.flags).map_err(|d| compile_error(version, &d))?;
     let nsubs = E::nsub(&re);
 
     let mut offset = c
@@ -1206,6 +1206,37 @@ mod tests {
             "wrong # args: should be \"regexp ?-option ...? exp string \
              ?matchVar? ?subMatchVar ...?\""
         );
+    }
+
+    #[test]
+    fn compile_error_prefix_follows_the_release() {
+        // tclsh 8.4.20 / 8.5.19 / 8.6.18 vs 9.0.4 / 9.1.0:
+        //   % regexp {[a} b
+        //   couldn't compile regular expression pattern: brackets [] not balanced
+        //   cannot compile regular expression pattern: brackets [] not balanced
+        for (version, verb) in [
+            (TclVersion::V8_4, "couldn't"),
+            (TclVersion::V8_5, "couldn't"),
+            (TclVersion::V8_6, "couldn't"),
+            (TclVersion::V9_0, "cannot"),
+            (TclVersion::V9_1, "cannot"),
+        ] {
+            let want =
+                format!("{verb} compile regular expression pattern: brackets [] not balanced");
+            for args in [&[b"!bad".as_slice(), b"x"][..], &[b"-about", b"!bad"]] {
+                let mut ops = ListOps;
+                let Err(RegexError(m)) = regexp::<ListOps, LiteralEngine>(&mut ops, args, version)
+                else {
+                    panic!("{version:?}: a bad pattern must not compile")
+                };
+                assert_eq!(String::from_utf8_lossy(&m), want, "{version:?}");
+            }
+            assert_eq!(
+                regsub_at(version, &[b"!bad", b"x", b"y"]).unwrap_err(),
+                want,
+                "{version:?}"
+            );
+        }
     }
 
     fn regsub_at(version: TclVersion, args: &[&[u8]]) -> Result<(String, i64), String> {

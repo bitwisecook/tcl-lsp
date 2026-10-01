@@ -495,4 +495,39 @@ mod tests {
             });
         }
     }
+
+    /// Tcl 9.0 reworded the compile-error prefix from `couldn't` to `cannot`,
+    /// for every command that compiles an ARE. Verified on tclsh 8.4.20,
+    /// 8.5.19, 8.6.18, 9.0.4 and 9.1.0.
+    #[test]
+    fn compile_error_prefix_follows_the_release() {
+        use tcl_dialect::TclVersion;
+        const CASES: &[&[u8]] = &[
+            b"regexp {(} x",
+            b"regexp -about {(}",
+            b"regsub {(} x y",
+            b"lsearch -regexp {a b} (",
+            b"switch -regexp xa {( {set r hit}}",
+        ];
+        for (version, verb) in [
+            (TclVersion::V8_4, "couldn't"),
+            (TclVersion::V8_5, "couldn't"),
+            (TclVersion::V8_6, "couldn't"),
+            (TclVersion::V9_0, "cannot"),
+            (TclVersion::V9_1, "cannot"),
+        ] {
+            for &src in CASES {
+                leak_free(|i| {
+                    i.set_runtime_version(version);
+                    assert_eq!(i.eval_str(src), Code::Error);
+                    assert_eq!(
+                        String::from_utf8_lossy(&i.result_bytes()),
+                        format!("{verb} compile regular expression pattern: parentheses () not balanced"),
+                        "{version:?} `{}`",
+                        String::from_utf8_lossy(src)
+                    );
+                });
+            }
+        }
+    }
 }

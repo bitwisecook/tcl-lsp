@@ -449,6 +449,17 @@ impl TclVersion {
         matches!(self, Self::V9_1)
     }
 
+    /// The prefix `CompileRegexp` (`tclRegexp.c`) puts before a regex compile
+    /// error's detail. Tcl 9.0 reworded it: tclsh 8.4.20, 8.5.19 and 8.6.18
+    /// say `couldn't compile …`, 9.0.4 and 9.1.0 say `cannot compile …`.
+    #[must_use]
+    pub const fn regex_compile_error_prefix(self) -> &'static str {
+        match self {
+            Self::V8_4 | Self::V8_5 | Self::V8_6 => "couldn't compile regular expression pattern: ",
+            Self::V9_0 | Self::V9_1 => "cannot compile regular expression pattern: ",
+        }
+    }
+
     /// The release-defined conversion used when a string is consumed as raw
     /// binary data. See [`ByteStringEncoding`] for the Tcl 8/Tcl 9 split.
     #[must_use]
@@ -1327,6 +1338,22 @@ mod tests {
         RequirementValidationError, StringCharacterModel, TclVersion, Ternary, exact_requirement,
         validate_requirement, validate_version,
     };
+
+    #[test]
+    fn regex_compile_error_prefix_is_reworded_in_9_0() {
+        for v in [TclVersion::V8_4, TclVersion::V8_5, TclVersion::V8_6] {
+            assert_eq!(
+                v.regex_compile_error_prefix(),
+                "couldn't compile regular expression pattern: "
+            );
+        }
+        for v in [TclVersion::V9_0, TclVersion::V9_1] {
+            assert_eq!(
+                v.regex_compile_error_prefix(),
+                "cannot compile regular expression pattern: "
+            );
+        }
+    }
 
     #[test]
     fn package_validation_reuses_the_version_parser() {
