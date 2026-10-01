@@ -90,7 +90,7 @@ checkpoint compiling.
   `Unavailable`) have landed; slice 6, branch integration and optional
   rewrites, is in progress, item by item in the tracking document's §
   *Plan for slices 2–13*.
-- [consumer-contracts.md](consumer-contracts.md) — steps 1 to 6 of
+- [consumer-contracts.md](consumer-contracts.md) — steps 1 to 7 of
   [registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
   § *Build order*: step 1 (the four rulings taken as decided, and the
   documents whose stated rule they replace repaired), step 2 (the
@@ -115,7 +115,7 @@ checkpoint compiling.
   binding, so a definition, rename, alias or profile pin of another command
   no longer costs every guarded intrinsic its fast path; and every premise
   the sealed native i64 addition rejects recorded on the plan and shown by
-  the Explorer's new `aot` view) and step 6 (the take-shipped floor over a
+  the Explorer's new `aot` view), step 6 (the take-shipped floor over a
   shipped command's whole codegen and dispatch axis; the dependency-tier
   capability matrix, under which a pack a transitive or development
   dependency ships loses its `alias_of`, its `runtime_backing` and its
@@ -123,11 +123,17 @@ checkpoint compiling.
   reaching the compile service, with an overlay nothing installed an error
   each consumer answers for itself — the compile service declines, the
   compilation unit is not built — and no longer the plain registry under
-  another name) have landed, item by item in the tracking document's §
-  *Step 2 — progress* (with the review's fixes applied after it), § *Step 3
-  — progress*, § *Step 4 — progress*, § *Step 5 — progress* and § *Step 6 —
-  progress*, planned in its § *Plan for steps 2–10*. Step 7 (identities from
-  the pinned generation, `runtime_backing`, the intrinsic families, the
-  manifest, the runtime context) is in progress, in § *Step 7 — progress*:
-  `runtime_backing` on the spec, declared on every core command, has
-  landed.
+  another name) and step 7 (identities attached from the pinned generation
+  and the runtimes' backing query — `runtime_backing` on the spec, declared on
+  every core command and held by one gate to what the WASM runtime registers;
+  the intrinsic table split by family, with a guard request that must cover
+  its member's family's domains; `ArtefactIdentityManifest` on every compiled
+  module and as a WASM custom section, the runtime pinned to a
+  `RuntimeContext` resolved through the ingress the compiler uses, and the VM
+  refusing, per rung, the functions that rest on a field that disagrees; and a
+  fuzz campaign over the two runtimes as the exit) have landed, item by item
+  in the tracking document's § *Step 2 — progress* (with the review's fixes
+  applied after it), § *Step 3 — progress*, § *Step 4 — progress*, § *Step 5
+  — progress*, § *Step 6 — progress* and § *Step 7 — progress*, planned in its
+  § *Plan for steps 2–10*. Step 8 (reference bodies, `tcl spec test`, the
+  manifest `spec` directive) is next.

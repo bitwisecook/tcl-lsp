@@ -1686,7 +1686,7 @@ One claim per specialised site, and the rung is the variant. Rung 0
 records nothing because there is nothing a generic dispatch can get wrong:
 a unit with no claims is the rung-0 case, and no variant stands for it.
 
-Rungs 1 and 2 are built (step 4). `SiteClaim` and `PackFactStamp` live in
+Rungs 1 and 2 are built. `SiteClaim` and `PackFactStamp` live in
 `rust/tcl-runtime-api/src/site_claim.rs`, and `FunctionAsm::site_claims`
 carries a function's claims beside its `command_bindings`. Codegen records
 `PackFacts` where a spec an installed pack supplied answered a constant
@@ -1696,7 +1696,9 @@ answered the target). `rust/tcl-compiler/src/site_claims.rs` builds both
 from the origin the installer records beside each spec it inserts
 (`CommandRegistry::pack_origin`, `rust/tcl-registry/src/pack_origin.rs`),
 the registry's overlay generation, and the compiling thread's evaluator
-revision. Rung 3's variant is step 8's and rung 4's is step 7's; `RuntimeBacking` and `BodySource`, which rung 4's variant will carry, are built (step 7) and ride on the spec rather than in the artefact.
+revision. The claim variants of rungs 3 and 4 are not built. `RuntimeBacking`
+and `BodySource`, which rung 4's variant will carry, are built and ride on the
+spec rather than in the artefact.
 
 ```rust,ignore
 /// What a specialised site carries in the artefact. Rungs 1 and 2 are
