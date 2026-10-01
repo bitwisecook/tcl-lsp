@@ -281,6 +281,7 @@ const ROW_WORDS: &[&str] = &[
     "taint_interp_eval_subcommands",
     "taint_network_sink_args",
     "taint_code_sink_args",
+    "taint_numeric_coercion",
     "callback_taint_inputs",
     "credential_options",
     "sensitive_headers",

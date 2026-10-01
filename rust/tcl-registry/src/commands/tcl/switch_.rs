@@ -243,6 +243,10 @@ pub fn spec() -> CommandSpec {
         // scan the same words the C implementation scans.
         reserved_trailing_words: 2,
         case_list: Some(&CaseListSpec::SWITCH),
+        // `-integer` reads the subject and any inline patterns as wide
+        // integers, so a tainted one is a T100 numeric-coercion sink; the
+        // option's own TCL91 surface keeps earlier releases silent.
+        taint_numeric_coercion: Some(TaintNumericCoercion::IntegerModeOperands),
         analyser_hook: Some(crate::hooks::AnalyserHookId::Switch),
         ..CommandSpec::DEFAULT
     }

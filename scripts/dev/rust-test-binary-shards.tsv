@@ -96,6 +96,7 @@
 2	tcl-vm::numeric_tower_e2e	test	tcl-vm	numeric_tower_e2e
 2	tcl-vm::opcode_dispatch_coverage	test	tcl-vm	opcode_dispatch_coverage
 2	tcl-vm::regexp_e2e	test	tcl-vm	regexp_e2e
+2	tcl-vm::switch_integer_e2e	test	tcl-vm	switch_integer_e2e
 2	tcl-vm::wasm_coro_e2e	test	tcl-vm	wasm_coro_e2e
 2	tcl-vm::word_parts_owner_e2e	test	tcl-vm	word_parts_owner_e2e
 3	bigip-report-gen-rust::apm	test	bigip-report-gen-rust	apm

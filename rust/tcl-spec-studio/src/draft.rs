@@ -1762,6 +1762,11 @@ fn command_taint(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         spec.taint_code_sink_args.map_or(Value::Null, index_list),
     );
     d.insert(
+        "taint_numeric_coercion".into(),
+        spec.taint_numeric_coercion
+            .map_or(Value::Null, |c| json!(catalogue::variant_name(&c))),
+    );
+    d.insert(
         "taint_interp_eval_subcommands".into(),
         str_list(spec.taint_interp_eval_subcommands),
     );

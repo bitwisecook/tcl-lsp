@@ -218,6 +218,13 @@ pub const TAINT_TRANSFORM_CONDITIONS: &[Variant] = &[v(
     "the call's braced mapping provably deletes every CR and LF (`string map`)",
 )];
 
+/// [`TaintNumericCoercion`] — which of a call's argument words the command
+/// reads as numbers (a T100 numeric-coercion sink).
+pub const TAINT_NUMERIC_COERCIONS: &[Variant] = &[v(
+    "IntegerModeOperands",
+    "with `-integer`, the subject and inline patterns are wide integers (`switch -integer`)",
+)];
+
 /// [`FormatType`] — the format-string language a format argument uses.
 pub const FORMAT_TYPES: &[Variant] = &[
     v("Sprintf", "printf-style template (`format`, `scan`)"),
@@ -575,7 +582,7 @@ mod tests {
     use tcl_registry::patterns::{FormatType, PatternType};
     use tcl_registry::side_effects::{ConnectionSide, SideEffectTarget, StorageType};
     use tcl_registry::symbol_def::DefinedSymbolKind;
-    use tcl_registry::taint::TaintTransformCondition;
+    use tcl_registry::taint::{TaintNumericCoercion, TaintTransformCondition};
     use tcl_registry::types::TclType;
 
     /// Witness that [`ARG_ROLES`] covers every [`ArgRole`].
@@ -729,6 +736,11 @@ mod tests {
                 TaintTransformCondition::MappingDeletesCrlf => true,
             }
         }
+        fn numeric_coercion(k: TaintNumericCoercion) -> bool {
+            match k {
+                TaintNumericCoercion::IntegerModeOperands => true,
+            }
+        }
         fn format(k: FormatType) -> bool {
             match k {
                 FormatType::Sprintf
@@ -767,6 +779,7 @@ mod tests {
             && command_table(CommandTableEffect::DefinesProcedure)
             && pattern(PatternType::Glob)
             && transform_condition(TaintTransformCondition::MappingDeletesCrlf)
+            && numeric_coercion(TaintNumericCoercion::IntegerModeOperands)
             && format(FormatType::Sprintf)
             && form(FormKind::Default)
             && symbol(DefinedSymbolKind::Test)
@@ -930,6 +943,7 @@ mod tests {
             COMMAND_TABLE_EFFECTS,
             PATTERN_TYPES,
             TAINT_TRANSFORM_CONDITIONS,
+            TAINT_NUMERIC_COERCIONS,
             FORMAT_TYPES,
             FORM_KINDS,
             DEFINED_SYMBOL_KINDS,
