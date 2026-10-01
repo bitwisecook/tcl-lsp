@@ -7,8 +7,8 @@ names are the executable truth.
 ## Prerequisites
 
 - **Rust** — the floating `stable` channel pinned in `rust-toolchain.toml`;
-  `Cargo.toml`'s `rust-version` tracks it (currently 1.98.1, released
-  2026-09-03). CI resolves `stable` at run time, so a fresh release can fail
+  `Cargo.toml`'s `rust-version` tracks it (currently 1.99.0, released
+  2026-10-01). CI resolves `stable` at run time, so a fresh release can fail
   `pr-gate`'s `cargo clippy -D warnings` on untouched code the day it lands:
   `rustup update` before debugging a clippy failure you cannot reproduce.
 - **Node.js 24+** with npm for the VS Code extension. npm is pinned to v12 via
