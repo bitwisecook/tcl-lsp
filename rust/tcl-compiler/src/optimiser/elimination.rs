@@ -2385,16 +2385,17 @@ mod tests {
         );
 
         // From 8.5 `lassign` really does write `a`, so its value at the `puts`
-        // is unknown and nothing may be forwarded; the store is dead on its own
-        // and the program still prints `new`.
+        // is unknown and nothing may be forwarded. The body stops at its first
+        // error, so what it writes is a may-definition and the store before it
+        // stays: the program still prints `new`.
         let late = codes("tcl8.6");
         assert!(
             !late.contains(&DiagCode::O102),
             "8.6 must not forward a value lassign overwrites: {late:?}",
         );
         assert!(
-            late.contains(&DiagCode::O109),
-            "but the store is still dead there: {late:?}",
+            !late.contains(&DiagCode::O109),
+            "and a write the body may not reach leaves the store before it live: {late:?}",
         );
     }
 

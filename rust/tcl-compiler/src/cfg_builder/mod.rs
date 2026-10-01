@@ -39,7 +39,6 @@ use crate::cfg::{Block, BlockId, CfgModule, Function, LoopNode, Terminator};
 use crate::command_binding::ModuleCommandBindings;
 use crate::expr_ast::ExprNode;
 use crate::ir::{CommandBindingSite, CommandTokens, Module, Script, Statement};
-use crate::ir_helpers::defs_from_ir_script;
 use crate::naming::normalise_var_name;
 use crate::var_refs::{VarReferenceScanner, VarScanOptions};
 
@@ -667,7 +666,7 @@ impl<'a> CfgBuilder<'a> {
     /// see: its head is a literal spelling that is neither a command the
     /// registry ships for the dialect nor one the module binds
     /// ([`ModuleCommandBindings::may_dispatch_unresolved`]), or it sources a
-    /// file ([`Traits::SOURCES_FILE`]).
+    /// file ([`Traits::SOURCES_FILE`]), or it is computed.
     ///
     /// A plain name in the top-level script is the global `::name`, and the
     /// code such a call reaches can write, unset or read it with nothing in
@@ -675,20 +674,28 @@ impl<'a> CfgBuilder<'a> {
     /// ([`Self::unseen_call_marker`]). A procedure body's plain names are
     /// locals no callee reaches, so a callee it cannot see marks nothing; a
     /// sourced file runs in the frame of the call, and marks there too. A
-    /// computed head is left to the dynamic-command handling it already has.
+    /// computed head names whatever its value does, so outside a procedure
+    /// body it is unseen as a literal one the module cannot resolve is.
     fn call_is_unseen(&self, stmt: &Statement) -> bool {
-        if !statement_has_literal_head(stmt) {
-            return false;
-        }
         let Statement::Call {
             command,
             canonical_command,
             args,
+            tokens,
             ..
         } = stmt
         else {
             return false;
         };
+        if tokens
+            .as_ref()
+            .is_some_and(|tokens| tokens.synthetic.is_some())
+        {
+            return false;
+        }
+        if !statement_has_literal_head(stmt) {
+            return !self.is_proc_body;
+        }
         let head = canonical_command.as_deref().unwrap_or(command.as_str());
         let spellings: Vec<&str> = args.iter().map(String::as_str).collect();
         self.runs_unseen_code(head, &spellings)
@@ -703,42 +710,72 @@ impl<'a> CfgBuilder<'a> {
             || (!self.is_proc_body && self.head_is_unseen(head))
     }
 
-    /// Whether any command in `commands` — those a statement's `[…]`
-    /// substitutions run — has a literal head that runs code the module
-    /// cannot see ([`Self::runs_unseen_code`]).
+    /// Whether any command in `embedded` — those a statement's `[…]`
+    /// substitutions run — runs code the module cannot see
+    /// ([`Self::command_reaches_unseen`]).
     fn substitutions_reach_unseen(
         &self,
         embedded: &crate::ir_helpers::EvaluatedCommandSubstitutions,
     ) -> bool {
-        embedded.all_commands().any(|words| {
-            let Some(head) = words
-                .first()
-                .and_then(crate::ir_helpers::CommandWord::literal)
-            else {
-                return false;
-            };
-            let spellings: Vec<&str> = words
+        embedded
+            .all_commands()
+            .any(|words| self.command_reaches_unseen(words, 0))
+    }
+
+    /// Whether the command `words`, or a script it runs in this frame — the
+    /// body of a `catch` a substitution holds, a computed one included — runs
+    /// code the module cannot see: a literal head that
+    /// [`Self::runs_unseen_code`] says does, or a computed head outside a
+    /// procedure body.
+    fn command_reaches_unseen(&self, words: &[crate::ir_helpers::CommandWord], depth: u32) -> bool {
+        let Some(head) = words
+            .first()
+            .and_then(crate::ir_helpers::CommandWord::literal)
+        else {
+            return !self.is_proc_body;
+        };
+        let spellings: Vec<&str> = words
+            .iter()
+            .skip(1)
+            .map(|word| word.literal().unwrap_or_default())
+            .collect();
+        if self.runs_unseen_code(head, &spellings) {
+            return true;
+        }
+        // Past the cap the text is not read, so it is taken to run anything.
+        if crate::depth_guard::MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
+            return true;
+        }
+        let reaches = |text: &str| {
+            crate::ir_helpers::tokenise_command_words(text, self.config)
                 .iter()
-                .skip(1)
-                .map(|word| word.literal().unwrap_or_default())
-                .collect();
-            self.runs_unseen_code(head, &spellings)
-        })
+                .any(|inner| self.command_reaches_unseen(inner, depth + 1))
+        };
+        // A script's own substitutions are not among the commands recovered
+        // from the statement, whose words are the only ones scanned for them.
+        if depth > 0
+            && words.iter().filter(|word| word.substituted).any(|word| {
+                crate::var_refs::command_subst_texts_with_config(&word.raw, self.config)
+                    .iter()
+                    .any(|inner| reaches(inner))
+            })
+        {
+            return true;
+        }
+        self.registry
+            .plain_body_arg_indices(head, &spellings)
+            .into_iter()
+            .any(|index| match words.get(index + 1) {
+                Some(word) if !word.substituted => reaches(&word.text),
+                Some(_) => !self.is_proc_body,
+                None => false,
+            })
     }
 
     /// What the commands the arms of the opaque `switch` `stmt` run do to this
     /// frame, beyond the writes the SSA reads off the statement itself
-    /// ([`crate::ssa::switch_may_defs`]), as the statements that follow it.
-    ///
-    /// The arms stay inside the statement, so the scans of the statements the
-    /// graph lowers never reach a command in one. Each is asked what the graph
-    /// would have put beside it had it lowered the arm
-    /// ([`Self::apply_upvar_invalidation`], whose function-level facts this
-    /// records too): the names a callee writes into this frame, which become
-    /// the statement's may-definitions ([`crate::ir::SyntheticMarker::ArmWrites`]);
-    /// a barrier for a command that may write any name (`namespace eval`,
-    /// `dict with`, `eval $script`, a callee that aliases a computed name); and
-    /// a marker where code the module cannot see runs.
+    /// ([`crate::ssa::switch_may_defs`]), as the statements that follow it
+    /// ([`Self::opaque_script_effects`]).
     fn opaque_arm_effects(&mut self, stmt: &Statement) -> Vec<Statement> {
         let Statement::Switch {
             arms, default_body, ..
@@ -746,22 +783,55 @@ impl<'a> CfgBuilder<'a> {
         else {
             return Vec::new();
         };
-        let mut names: BTreeSet<String> = BTreeSet::new();
-        let (mut barrier, mut unseen) = (false, false);
-        for body in arms
+        let bodies: Vec<&Script> = arms
             .iter()
             .filter_map(|arm| arm.body.as_ref())
             .chain(default_body.as_ref())
-        {
-            crate::ir::for_each_statement(body, &mut |inner| {
+            .collect();
+        self.opaque_script_effects(
+            stmt.span(),
+            &bodies,
+            BTreeSet::new(),
+            true,
+            "a command an arm of the switch runs may write any name",
+        )
+    }
+
+    /// What the commands of the scripts a statement keeps inside itself do to
+    /// this frame, as the statements to put beside it.
+    ///
+    /// The scripts stay inside the statement, so the scans of the statements the
+    /// graph lowers never reach a command in one. Each is asked what the graph
+    /// would have put beside it had it lowered the script
+    /// ([`Self::apply_upvar_invalidation`], whose function-level facts this
+    /// records too): the names a callee writes into this frame, which join
+    /// `written` as the statement's may-definitions
+    /// ([`crate::ir::SyntheticMarker::ArmWrites`]); a barrier for a command that
+    /// may write any name (`namespace eval`, `dict with`, `eval $script`, a
+    /// callee that aliases a computed name), unless the command leaves the
+    /// procedure and `leaves_the_procedure` says that leaving is no resumption
+    /// after the statement (an error inside a `catch` or a `try` resumes
+    /// there); and a marker where code the module cannot see runs.
+    fn opaque_script_effects(
+        &mut self,
+        span: Span,
+        scripts: &[&Script],
+        mut written: BTreeSet<String>,
+        leaves_the_procedure: bool,
+        barrier_reason: &str,
+    ) -> Vec<Statement> {
+        let (mut barrier, mut unseen) = (false, false);
+        for script in scripts {
+            crate::ir::for_each_statement(script, &mut |inner| {
                 let own: &[String] = match inner {
                     Statement::Call { defs, .. } => defs,
                     _ => &[],
                 };
                 // A command that leaves the procedure (`exit`, `error`) writes
-                // nothing the code after the `switch` can read.
-                let exits = flow_facts_stmt_with_classes(inner, &self.command_classes).1
-                    == Completion::ProcExit;
+                // nothing the code after the statement can read.
+                let exits = leaves_the_procedure
+                    && flow_facts_stmt_with_classes(inner, &self.command_classes).1
+                        == Completion::ProcExit;
                 for produced in self.apply_upvar_invalidation(inner.clone()) {
                     match &produced {
                         _ if crate::ssa::is_unseen_call_marker(&produced) => unseen = true,
@@ -769,41 +839,43 @@ impl<'a> CfgBuilder<'a> {
                             barrier |= !exits;
                         }
                         Statement::Call { defs, .. } => {
-                            names.extend(defs.iter().filter(|name| !own.contains(name)).cloned());
+                            written.extend(defs.iter().filter(|name| !own.contains(name)).cloned());
                         }
                         _ => {}
                     }
                 }
             });
         }
-        let span = stmt.span();
         let mut effects = Vec::new();
-        if !names.is_empty() {
-            effects.push(Statement::Call {
-                span,
-                command: "<arm-writes>".to_owned(),
-                canonical_command: None,
-                args: Vec::new(),
-                defs: names.into_iter().collect(),
-                reads: Vec::new(),
-                reads_own_defs: false,
-                safe_on_uninit: false,
-                tokens: Some(crate::ir::CommandTokens::marker(
-                    crate::ir::SyntheticMarker::ArmWrites,
-                )),
-                foreach_groups: None,
-            });
+        if !written.is_empty() {
+            effects.push(Self::arm_writes_marker(span, written));
         }
         if barrier {
-            effects.push(Self::caller_frame_opaque(
-                span,
-                "a command an arm of the switch runs may write any name".to_owned(),
-            ));
+            effects.push(Self::caller_frame_opaque(span, barrier_reason.to_owned()));
         }
         if unseen {
             effects.push(Self::unseen_call_marker(span));
         }
         effects
+    }
+
+    /// The statement that states the names a statement keeps its scripts in
+    /// may write ([`crate::ir::SyntheticMarker::ArmWrites`]).
+    fn arm_writes_marker(span: Span, names: BTreeSet<String>) -> Statement {
+        Statement::Call {
+            span,
+            command: "<arm-writes>".to_owned(),
+            canonical_command: None,
+            args: Vec::new(),
+            defs: names.into_iter().collect(),
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: Some(crate::ir::CommandTokens::marker(
+                crate::ir::SyntheticMarker::ArmWrites,
+            )),
+            foreach_groups: None,
+        }
     }
 
     /// A widening *effect*, not a command to run: every tracked value is
@@ -822,8 +894,9 @@ impl<'a> CfgBuilder<'a> {
     }
 
     /// The statement standing where code the module cannot see runs: it
-    /// defines and reads nothing, and tells the SSA which version each name
-    /// holds there ([`crate::ir::SyntheticMarker::UnseenCall`]).
+    /// carries no name, and tells the SSA which version each name holds there
+    /// ([`crate::ir::SyntheticMarker::UnseenCall`]). Where it follows a call,
+    /// the SSA states the names the call's words read on it.
     fn unseen_call_marker(span: Span) -> Statement {
         Statement::Call {
             span,
@@ -914,7 +987,9 @@ impl<'a> CfgBuilder<'a> {
         let (mut out, substitution_unseen) = self.upvar_effect_statements(stmt);
         // An embedded command runs while the host's words are still being
         // evaluated, so its marker goes ahead of the host's own reads; the
-        // call's own head runs after its words are, so its marker follows.
+        // call's own head runs after its words are, so its marker follows, and
+        // the SSA states the names those words read on it
+        // ([`crate::ssa::SsaFunction::is_observed_by_unseen_call`]).
         if substitution_unseen {
             out.insert(0, Self::unseen_call_marker(span));
         }
@@ -2253,7 +2328,12 @@ impl<'a> CfgBuilder<'a> {
         })
     }
 
-    /// Emit an opaque `catch` call with defs for modified variables.
+    /// Emit an opaque `catch` call, with the effects of its body ahead of it.
+    ///
+    /// The body runs inside the statement and stops at its first error, so every
+    /// name it writes is a may-definition, and what its commands do to the frame
+    /// ([`Self::opaque_script_effects`]) goes ahead of the call, which assigns
+    /// its result and options variables once the body has finished.
     fn emit_opaque_catch(&mut self, stmt: &Statement, current: &str) {
         let Statement::Catch {
             body,
@@ -2268,13 +2348,18 @@ impl<'a> CfgBuilder<'a> {
             unreachable!();
         };
 
-        let mut catch_defs = defs_from_ir_script(body);
-        if let Some(rv) = result_var {
-            catch_defs.push(rv.clone());
+        let mut written = BTreeSet::new();
+        crate::ssa::nested_writes(body, self.registry, &mut written);
+        for effect in self.opaque_script_effects(
+            *span,
+            &[body],
+            written,
+            false,
+            "a command the catch body runs may write any name",
+        ) {
+            self.block_mut(current).statements.push(effect);
         }
-        if let Some(ov) = options_var {
-            catch_defs.push(ov.clone());
-        }
+        let mut catch_defs: Vec<String> = result_var.iter().chain(options_var).cloned().collect();
         dedup_preserve_order(&mut catch_defs);
         // Preserve ``tokens`` on the synthetic ``Statement::Call``
         // so the codegen's eval-fallback can detect the braced
@@ -2316,26 +2401,36 @@ impl<'a> CfgBuilder<'a> {
             && (!handlers.is_empty() || finally_body.is_none());
 
         if defer {
-            let mut try_defs = defs_from_ir_script(body);
+            // As an opaque `catch`: what the body, the handlers and the
+            // `finally` script write is a may-definition, since each stops at
+            // its first error, and a handler's variables are set only when it
+            // runs.
+            let mut written = BTreeSet::new();
+            let mut scripts: Vec<&Script> = vec![body];
             for handler in handlers {
-                if let Some(vn) = &handler.var_name {
-                    try_defs.push(vn.clone());
-                }
-                if let Some(ov) = &handler.options_var {
-                    try_defs.push(ov.clone());
-                }
-                try_defs.extend(defs_from_ir_script(&handler.body));
+                written.extend(handler.var_name.iter().cloned());
+                written.extend(handler.options_var.iter().cloned());
+                scripts.push(&handler.body);
             }
-            if let Some(fb) = finally_body {
-                try_defs.extend(defs_from_ir_script(fb));
+            scripts.extend(finally_body.as_ref());
+            for script in &scripts {
+                crate::ssa::nested_writes(script, self.registry, &mut written);
             }
-            dedup_preserve_order(&mut try_defs);
+            for effect in self.opaque_script_effects(
+                *span,
+                &scripts,
+                written,
+                false,
+                "a command the try body or its handlers run may write any name",
+            ) {
+                self.block_mut(current).statements.push(effect);
+            }
             self.block_mut(current).statements.push(Statement::Call {
                 span: *span,
                 command: "try".into(),
                 canonical_command: None,
                 args: raw_args.clone(),
-                defs: try_defs,
+                defs: Vec::new(),
                 reads: vec![],
                 reads_own_defs: false,
                 safe_on_uninit: false,
@@ -5063,6 +5158,218 @@ mod tests {
             assert!(defs.iter().any(|name| name == place), "{body}: {defs:?}");
             assert!(!reads.iter().any(|name| name == place), "{body}: {reads:?}");
         }
+    }
+
+    /// The `(command, defs)` of every call in `func`'s blocks, in order.
+    fn calls_in_order(func: &Function) -> Vec<(&str, &[String])> {
+        func.blocks
+            .values()
+            .flat_map(|block| &block.statements)
+            .filter_map(|stmt| match stmt {
+                Statement::Call { command, defs, .. } => Some((command.as_str(), defs.as_slice())),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn position_of(calls: &[(&str, &[String])], command: &str) -> usize {
+        calls
+            .iter()
+            .position(|(name, _)| *name == command)
+            .unwrap_or_else(|| panic!("no {command} in {calls:?}"))
+    }
+
+    /// An opaque `catch` keeps its body inside the statement and stops at the
+    /// body's first error, so what the body writes is a may-definition stated
+    /// ahead of the call, and only the result and options variables the call
+    /// assigns once the body has finished are its own definitions.
+    #[test]
+    fn an_opaque_catch_states_what_its_body_writes_as_may_definitions_ahead_of_the_call() {
+        let module =
+            lower_module("set g 5\ncatch { if {[gets stdin] eq {q}} { set g 0 } } msg opts\n");
+        let cfg = build_cfg(&module, false);
+        let calls = calls_in_order(&cfg.top_level);
+        let marker = position_of(&calls, "<arm-writes>");
+        let catch = position_of(&calls, "catch");
+        assert!(marker < catch, "{calls:?}");
+        assert_eq!(calls[marker].1, ["g"]);
+        assert_eq!(calls[catch].1, ["msg", "opts"]);
+    }
+
+    /// A callee an opaque `catch` body calls writes the caller's name through
+    /// `upvar`, as it would at a call the graph lowers: the name joins the
+    /// may-definitions.
+    #[test]
+    fn a_callee_an_opaque_catch_body_calls_may_define_the_name_it_writes() {
+        let module = lower_module(
+            "proc zero {v} {upvar 1 $v x; set x 0}\n\
+             proc p {} {\n set go 1\n catch { if {1} { zero go } }\n puts $go\n}\n",
+        );
+        let cfg = build_cfg(&module, false);
+        let p = cfg.procedures.get("::p").expect("::p CFG");
+        let calls = calls_in_order(p);
+        assert_eq!(calls[position_of(&calls, "<arm-writes>")].1, ["go"]);
+    }
+
+    /// The marker for where code the module cannot see runs, and the barrier
+    /// for a command that may write any name, stand ahead of the opaque
+    /// `catch` call whose body runs it: at the top level a plain name is the
+    /// global the code reaches, and a sourced file runs in the frame of the call
+    /// in a procedure too.
+    #[test]
+    fn an_opaque_catch_marks_the_unseen_code_and_the_barrier_its_body_runs() {
+        let has_marker = |func: &Function, marker: crate::ir::SyntheticMarker| {
+            func.blocks
+                .values()
+                .flat_map(|block| &block.statements)
+                .any(|stmt| {
+                    matches!(
+                        stmt,
+                        Statement::Call { tokens: Some(tokens), .. }
+                            | Statement::Barrier { tokens: Some(tokens), .. }
+                            if tokens.synthetic == Some(marker)
+                    )
+                })
+        };
+        let top = |src: &str| build_cfg(&lower_module(src), false).top_level;
+        let in_proc = |src: &str| {
+            let module = lower_module(&format!("proc p {{}} {{\n{src}\n}}"));
+            build_cfg(&module, false).procedures["::p"].clone()
+        };
+        for src in [
+            "catch {foo}",
+            "catch {foo} msg",
+            "catch { if {1} { foo } }",
+            "catch { puts [foo] }",
+            "catch { source other.tcl }",
+            "if {[catch {foo}]} { puts bad }",
+            "set rc [catch {foo} msg]",
+            "puts [catch { puts [foo] }]",
+            "while {[catch {if {1} {foo}}]} { break }",
+            "set rc [catch $script]",
+        ] {
+            let func = top(src);
+            assert!(
+                has_marker(&func, crate::ir::SyntheticMarker::UnseenCall),
+                "{src}"
+            );
+        }
+        // A procedure's local is out of every callee's reach; a sourced file
+        // runs in its frame.
+        assert!(!has_marker(
+            &in_proc("catch { if {1} { foo } }"),
+            crate::ir::SyntheticMarker::UnseenCall
+        ));
+        for src in [
+            "if {[catch {foo}]} { puts bad }",
+            "set rc [catch {foo} msg]",
+            "puts [catch { puts [foo] }]",
+        ] {
+            assert!(
+                !has_marker(&in_proc(src), crate::ir::SyntheticMarker::UnseenCall),
+                "proc: {src}"
+            );
+        }
+        assert!(has_marker(
+            &in_proc("if {[catch {source other.tcl}]} { puts bad }"),
+            crate::ir::SyntheticMarker::UnseenCall
+        ));
+        assert!(has_marker(
+            &in_proc("catch { if {1} { source other.tcl } }"),
+            crate::ir::SyntheticMarker::UnseenCall
+        ));
+        for (func, src) in [
+            (top("catch { namespace eval :: {set go 0} }"), "top"),
+            (
+                in_proc("catch { if {1} { namespace eval :: {set go 0} } }"),
+                "proc",
+            ),
+            (
+                in_proc("catch { if {1} { dict with d { set go 0 } } }"),
+                "dict with",
+            ),
+        ] {
+            assert!(
+                has_marker(&func, crate::ir::SyntheticMarker::CallerFrameOpaque),
+                "{src}"
+            );
+        }
+        // A body that writes another name and runs only commands the module
+        // knows states no marker.
+        let func = top("catch { if {1} { set other 1 } }");
+        assert!(!has_marker(&func, crate::ir::SyntheticMarker::UnseenCall));
+        assert!(!has_marker(
+            &func,
+            crate::ir::SyntheticMarker::CallerFrameOpaque
+        ));
+    }
+
+    /// The marker for a call whose own head runs code the module cannot see
+    /// follows the call and carries nothing: the names the call's words read,
+    /// which may be rewritten as it runs, are the SSA's to state.
+    #[test]
+    fn the_marker_for_a_call_follows_it_and_states_no_name() {
+        for (src, host) in [
+            ("set cmd puts\n$cmd hi", "${cmd}"),
+            ("set suffix _hi\nfoo$suffix", "foo${suffix}"),
+            ("set a 1\nget $a", "get"),
+            ("set f x.tcl\nsource $f", "source"),
+        ] {
+            let cfg = build_cfg(&lower_module(src), false);
+            let calls = calls_in_order(&cfg.top_level);
+            assert_eq!(
+                calls,
+                [(host, &[][..]), ("<unseen-call>", &[][..])],
+                "{src}"
+            );
+        }
+    }
+
+    /// A computed head runs whatever its value names, so outside a procedure
+    /// body it is code the module cannot see, as a literal head it does not
+    /// define is.
+    #[test]
+    fn a_computed_head_outside_a_procedure_body_is_an_unseen_call() {
+        let unseen = |func: &Function| {
+            calls_in_order(func)
+                .iter()
+                .any(|(command, _)| *command == "<unseen-call>")
+        };
+        for src in [
+            "$cmd",
+            "$cmd arg",
+            "puts [$cmd]",
+            "set x [$cmd]",
+            "if {[$cmd]} { puts a }",
+        ] {
+            assert!(
+                unseen(&build_cfg(&lower_module(src), false).top_level),
+                "{src}"
+            );
+        }
+        for src in ["$cmd", "puts [$cmd]", "set x [$cmd]"] {
+            let module = lower_module(&format!("proc p {{}} {{\n{src}\n}}"));
+            let cfg = build_cfg(&module, false);
+            assert!(!unseen(&cfg.procedures["::p"]), "proc: {src}");
+        }
+    }
+
+    /// A `try` the codegen shape keeps as one call states what its body, its
+    /// handlers and its `finally` script write as may-definitions, and the
+    /// variables its handlers bind are among them: a handler runs only when it
+    /// is selected.
+    #[test]
+    fn a_deferred_try_states_what_its_scripts_write_as_may_definitions() {
+        let module =
+            lower_module("try { foo } on error {msg opts} { set a 1 } finally { set b 2 }\n");
+        let cfg = build_cfg(&module, true);
+        let calls = calls_in_order(&cfg.top_level);
+        let marker = position_of(&calls, "<arm-writes>");
+        let call = position_of(&calls, "try");
+        assert!(marker < call, "{calls:?}");
+        assert_eq!(calls[marker].1, ["a", "b", "msg", "opts"]);
+        assert!(calls[call].1.is_empty(), "{calls:?}");
+        assert!(calls.iter().any(|(command, _)| *command == "<unseen-call>"));
     }
 
     #[test]

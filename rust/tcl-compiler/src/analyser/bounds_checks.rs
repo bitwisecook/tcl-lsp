@@ -2576,4 +2576,74 @@ mod tests {
             &["W241"],
         );
     }
+
+    /// A command the module cannot see inside the body of a `catch` the flow
+    /// graph keeps as one statement runs at the top level as one outside it
+    /// does, and a computed head is a command the module cannot see: either
+    /// may end the loop as a write to `::go` does. A procedure's local is out
+    /// of every callee's reach, a procedure the module defines is seen, and a
+    /// body that writes another name leaves the verdict.
+    #[test]
+    fn a_catch_body_or_a_computed_head_the_module_cannot_see_keeps_a_top_level_loop_silent() {
+        for src in [
+            "set go 1\ncatch {foo}\nwhile {$go} {puts x}\n",
+            "set go 1\ncatch {foo} msg\nwhile {$go} {puts x}\n",
+            "set go 1\ncatch {if {1} {foo}}\nwhile {$go} {puts x}\n",
+            "set go 1\ncatch {puts [foo]}\nwhile {$go} {puts x}\n",
+            "set go 1\ncatch {source other.tcl}\nwhile {$go} {puts x}\n",
+            "set go 1\nif {[catch {foo}]} {puts bad}\nwhile {$go} {puts x}\n",
+            "set go 1\nset rc [catch {foo} msg]\nwhile {$go} {puts x}\n",
+            "set go 1\nwhile {$go} { if {[catch {foo}]} {puts bad} }\n",
+            "set go 1\ncatch { namespace eval :: {set go 0} }\nwhile {$go} {puts x}\n",
+            "set go 1\ncatch { if {[gets stdin] eq {q}} { set go 0 } }\nwhile {$go} {puts x}\n",
+            "set go 1\n$cmd\nwhile {$go} {puts x}\n",
+            "set go 1\nputs [$cmd]\nwhile {$go} {puts x}\n",
+            "set go 1\nwhile {$go} { $cmd }\n",
+            "proc p {} {\n set go 1\n catch { if {1} { source other.tcl } }\n while {$go} {puts x}\n}\n",
+        ] {
+            assert_undecided(src);
+        }
+        for src in [
+            "proc p {} {\n set go 1\n catch { if {1} { foo } }\n while {$go} {puts x}\n}\n",
+            "proc p {} {\n set go 1\n $cmd\n while {$go} {puts x}\n}\n",
+            "proc p {} {\n set go 1\n if {[catch {foo}]} {puts bad}\n while {$go} {puts x}\n}\n",
+            "proc foo {} { puts hi }\nset go 1\ncatch { if {1} { foo } }\nwhile {$go} {puts x}\n",
+            "set go 1\ncatch { if {[gets stdin] eq {q}} { set other 0 } }\nwhile {$go} {puts x}\n",
+        ] {
+            assert_verdicts(src, &["W241"]);
+        }
+    }
+
+    /// A callback the scan cannot read may write the loop's variable, so it
+    /// ends no verdict it could have drawn: a script spelled as several words
+    /// is read as the one they make, and a word the run time computes, a
+    /// substitution of any other command, an expansion and a command the module
+    /// cannot see are not. A callback that is only cancelled, or stores a
+    /// script that writes another name, leaves the loop alone.
+    #[test]
+    fn a_callback_the_scan_cannot_read_keeps_w241_silent() {
+        for src in [
+            "set done 0\nafter 100 set done 1\nwhile {!$done} { update }\n",
+            "set done 0\nafter idle set done 1\nwhile {!$done} { update }\n",
+            "set done 0\nafter 100 incr done\nwhile {!$done} { update }\n",
+            "set done 0\nafter 100 $script\nwhile {!$done} { update }\n",
+            "set done 0\nafter 100 finish\nwhile {!$done} { update }\n",
+            "set done 0\ninterp alias {} fin {} set done 1\nafter 100 fin\nwhile {!$done} { update }\n",
+            "set done 0\nafter 100 {*}[list set done 1]\nwhile {!$done} { update }\n",
+            "set done 0\nafter 100 [build]\nwhile {!$done} { update }\n",
+            "set done 0\nafter 100 {finish now}\nwhile {!$done} { update }\n",
+            "proc p {} {\n set done 0\n after 100 $script\n while {!$done} { update }\n}\n",
+        ] {
+            assert_undecided(src);
+        }
+        for src in [
+            "set done 0\nafter cancel {set done 1}\nwhile {!$done} { update }\n",
+            "set done 0\nafter cancel $id\nwhile {!$done} { update }\n",
+            "set done 0\nafter 100 {puts hi}\nwhile {!$done} { update }\n",
+            "set done 0\nafter 100 set other 1\nwhile {!$done} { update }\n",
+            "proc tick {} { puts hi }\nset done 0\nafter 100 tick\nwhile {!$done} { update }\n",
+        ] {
+            assert_verdicts(src, &["W241"]);
+        }
+    }
 }

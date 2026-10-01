@@ -1978,22 +1978,22 @@ mod tests {
 
     #[test]
     fn unannotated_multi_def_call_stays_overdefined_not_return_type() {
-        // A call that writes SEVERAL variables
-        // under the default `ReturnValue` typing must not broadcast its
-        // return type onto all of them. The synthetic `catch {body} resultVar
-        // optionsVar` call `emit_opaque_catch` builds carries the body's
-        // writes plus the result/options vars as defs, while `catch` returns
-        // an Int status code and declares no `VarWriteTyping` override — typing
-        // `msg`/`result`/`opts` as that Int would wrongly fire S100/W126. The
-        // default arm's multi-def guard keeps them OVERDEFINED.
+        // A call that writes SEVERAL variables under the default `ReturnValue`
+        // typing must not broadcast its return type onto all of them: a `try`
+        // returns what its body returns, not the message and options its
+        // handlers bind, and typing `msg`/`result`/`opts` alike would wrongly
+        // fire S100/W126. The default arm's multi-def guard keeps them
+        // OVERDEFINED.
         let stmt = Statement::Call {
             span: Span::new(0, 0),
-            command: "catch".to_owned(),
+            command: "try".to_owned(),
             canonical_command: None,
             args: vec![
                 "{set msg hello}".to_owned(),
-                "result".to_owned(),
-                "opts".to_owned(),
+                "on".to_owned(),
+                "error".to_owned(),
+                "{result opts}".to_owned(),
+                "{}".to_owned(),
             ],
             defs: vec!["msg".to_owned(), "result".to_owned(), "opts".to_owned()],
             reads: Vec::new(),
@@ -2005,6 +2005,34 @@ mod tests {
         let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
         let t = eval_def(&stmt, &registry(), &ssa, "__def__");
         assert_eq!(t, TypeLattice::overdefined());
+    }
+
+    /// The variables `catch` writes hold the script's result and its options
+    /// dictionary, not the integer completion code it returns: its registry
+    /// entry declares them destructured, so a call that writes only the result
+    /// variable types it as nothing known either.
+    #[test]
+    fn a_catch_result_variable_is_overdefined_not_the_completion_code() {
+        for (args, defs) in [
+            (vec!["{foo}", "msg"], vec!["msg"]),
+            (vec!["{foo}", "msg", "opts"], vec!["msg", "opts"]),
+        ] {
+            let stmt = Statement::Call {
+                span: Span::new(0, 0),
+                command: "catch".to_owned(),
+                canonical_command: None,
+                args: args.into_iter().map(str::to_owned).collect(),
+                defs: defs.into_iter().map(str::to_owned).collect(),
+                reads: Vec::new(),
+                reads_own_defs: false,
+                safe_on_uninit: false,
+                tokens: None,
+                foreach_groups: None,
+            };
+            let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
+            let t = eval_def(&stmt, &registry(), &ssa, "__def__");
+            assert_eq!(t, TypeLattice::overdefined(), "{stmt:?}");
+        }
     }
 
     /// End-to-end lattice checks for the registry-driven `VarWriteTyping`:

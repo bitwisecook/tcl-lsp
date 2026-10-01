@@ -3738,3 +3738,168 @@ fn a_store_a_nested_write_overwrites_unread_is_still_dead() {
     prints_under_every_release(overwritten, "2\n2\n");
     prints_under_every_release(loop_variable, "0\n");
 }
+
+/// A command the module cannot see — here `foo`, defined at run time from a
+/// file the program writes and sources — writes a plain top-level name as it
+/// writes `::g` when it runs inside the body of a `catch` the flow graph
+/// keeps as one statement, or through a computed head: tclsh 8.4 to 9.1 print
+/// `six` and `6` for each program, where taking `5` across the call printed
+/// `other` and `5` and a rewrite followed.
+#[test]
+fn a_write_a_catch_body_or_a_computed_head_runs_is_never_folded_away() {
+    let define = "set f [file join [file dirname [info script]] vt-unseen-[pid].tcl]\n\
+                  set fh [open $f w]\nputs $fh {proc foo {} {set ::g 6}}\nclose $fh\n\
+                  source $f\nfile delete $f\n";
+    for tail in [
+        "set g 5\ncatch {foo}\nif {$g == 6} {puts six} else {puts other}\nputs $g\n",
+        "set g 5\ncatch {foo} msg\nif {$g == 6} {puts six} else {puts other}\nputs $g\n",
+        "set g 5\ncatch {if {1} {foo}}\nif {$g == 6} {puts six} else {puts other}\nputs $g\n",
+        "set ::g 5\ncatch {foo}\nif {$::g == 6} {puts six} else {puts other}\nputs $::g\n",
+        "set g 5\nif {[catch {foo}]} {puts bad}\nif {$g == 6} {puts six} else {puts other}\nputs $g\n",
+        "set cmd foo\nset g 5\n$cmd\nif {$g == 6} {puts six} else {puts other}\nputs $g\n",
+        "set cmd foo\nset g 5\nwhile {[$cmd] != 7} {break}\nif {$g == 6} {puts six} else {puts other}\nputs $g\n",
+    ] {
+        prints_under_every_release(&format!("{define}{tail}"), "six\n6\n");
+    }
+    for tail in [
+        "set g 5\ncatch {puts [foo]}\nif {$g == 6} {puts six} else {puts other}\nputs $g\n",
+        "set cmd foo\nset g 5\nputs [$cmd]\nif {$g == 6} {puts six} else {puts other}\nputs $g\n",
+    ] {
+        prints_under_every_release(&format!("{define}{tail}"), "6\nsix\n6\n");
+    }
+    // A command in the body that may write any name.
+    for program in [
+        "set go 1\ncatch { namespace eval :: {set go 0} }\nif {$go} {puts a} else {puts b}\n",
+        "set go 1\nset script {set go 0}\ncatch { eval $script }\nif {$go} {puts a} else {puts b}\n",
+    ] {
+        prints_under_every_release(program, "b\n");
+    }
+}
+
+/// A name the body of a `catch` writes on one path only keeps the value it
+/// held before, so the store before the `catch` is read: tclsh prints `5` for
+/// each program, where taking the body's write as the one every path makes
+/// deleted `set g 5` and the read raised `can't read "g"`.
+#[test]
+fn a_store_a_catch_body_may_leave_untouched_is_not_dead() {
+    let top = "set g 5\ncatch { if {[expr {[clock seconds] < 0}]} { set g 0 } }\nputs $g\n";
+    let in_proc = "proc p {} {\n set g 5\n catch { if {[expr {[clock seconds] < 0}]} { set g 0 } }\n puts $g\n}\np\n";
+    let with_result =
+        "set g 5\ncatch { if {[expr {[clock seconds] < 0}]} { set g 0 } } msg\nputs $g\n";
+    for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+        for source in [top, in_proc, with_result] {
+            assert!(
+                !removes_store(source, dialect, "set g 5"),
+                "{dialect}: {source}"
+            );
+        }
+    }
+    for source in [top, in_proc, with_result] {
+        prints_under_every_release(source, "5\n");
+    }
+}
+
+/// A call to a command the module cannot see reads its words before its head
+/// runs and may read or write any global afterwards: `foo` here is defined at
+/// run time, reads `g` and sets `g` and `m`, and tclsh 8.4 to 9.1 print what each
+/// program says. The operand keeps the value it read; the store the callee reads
+/// stays, whether a later read follows it or a later store overwrites it —
+/// deleting it made the callee raise `can't read "g"`; and a read after the
+/// call is never taken for the value before it, of the name the call's words
+/// read or of one they do not.
+#[test]
+fn a_call_the_module_cannot_see_reads_its_words_first_and_may_read_and_write_after() {
+    let define = "set f [file join [file dirname [info script]] vt-unseen-[pid].tcl]\n\
+                  set fh [open $f w]\nputs $fh {proc foo {n} {global g; puts \"n=$n g=$g\"; set ::g 6; set ::m 4}}\n\
+                  close $fh\nsource $f\nfile delete $f\n";
+    for (tail, expected) in [
+        ("set g 5\nfoo $g\nputs $g\n", "n=5 g=5\n6\n"),
+        ("set g 5\nset cmd foo\n$cmd $g\nputs $g\n", "n=5 g=5\n6\n"),
+        (
+            "set cmd foo\nset g 5\n$cmd $g\nputs [expr {$g + 0}]\n",
+            "n=5 g=5\n6\n",
+        ),
+        (
+            "set g 5\nset m 3\nfoo $g\nputs $g\nputs $m\n",
+            "n=5 g=5\n6\n4\n",
+        ),
+        ("set g 5\nfoo 1\nputs $g\n", "n=1 g=5\n6\n"),
+        ("set cmd foo\nset g 5\n$cmd 1\nputs $g\n", "n=1 g=5\n6\n"),
+        ("set g 5\nfoo 1\nset g 7\nputs $g\n", "n=1 g=5\n7\n"),
+        (
+            "set cmd foo\nset g 5\n$cmd 1\nset g 7\nputs $g\n",
+            "n=1 g=5\n7\n",
+        ),
+    ] {
+        prints_under_every_release(&format!("{define}{tail}"), expected);
+    }
+}
+
+/// A callback spelled as several words, which `after` joins as `concat` does,
+/// or one the scan cannot read — a computed script, a command the module never
+/// defines, an alias, an expansion — writes the variable a loop waits on, or
+/// the one a later read folds: tclsh prints `1` for each program, where
+/// taking `0` across the `update` printed `0`. A callback that only cancels,
+/// or stores a script that writes another name, leaves the value alone.
+#[test]
+fn a_write_a_callback_the_scan_could_not_read_makes_is_never_folded_away() {
+    let define = "set f [file join [file dirname [info script]] vt-callback-[pid].tcl]\n\
+                  set fh [open $f w]\nputs $fh {proc finish {} {set ::done 1}}\nclose $fh\n\
+                  source $f\nfile delete $f\n";
+    // Two rounds, so a callback that stores another still runs.
+    let wait = "after 30\nupdate\nafter 30\nupdate\nputs $done\n";
+    for head in [
+        "after 10 set done 1",
+        "after idle set done 1",
+        "after 10 incr done",
+        "after 10 {set done} 1",
+        "set script {set done 1}\nafter 10 $script",
+        "after 10 finish",
+        "interp alias {} fin {} set done 1\nafter 10 fin",
+        "proc build {} {return {set done 1}}\nafter 10 [build]",
+        "after 10 {after 10 set done 1}",
+    ] {
+        prints_under_every_release(&format!("{define}set done 0\n{head}\n{wait}"), "1\n");
+    }
+    prints_under_releases_from(
+        &format!("set done 0\nafter 10 {{*}}[list set done 1]\n{wait}"),
+        "1\n",
+        "8.5",
+    );
+    for head in [
+        "after 10 {set done 1}\nafter cancel {set done 1}",
+        "set id [after 10 {set done 1}]\nafter cancel $id",
+        "after 10 {set other 1}",
+        "after 10 set other 1",
+    ] {
+        prints_under_every_release(&format!("set done 0\n{head}\n{wait}"), "0\n");
+    }
+}
+
+/// A braced arm list is a list: a bare or quoted element's escapes collapse
+/// under the release's grammar, and before 8.6 a `\x` takes every hex digit
+/// that follows and keeps the last two, so `a\x41b` is not `aAb` there. tclsh
+/// prints `miss` from 8.4 and 8.5 and `hit` from 8.6 for each program, before
+/// and after the optimiser, which folded the arm to `hit` under all of them.
+#[test]
+fn a_braced_arm_list_decodes_its_elements_under_the_releases_escapes() {
+    for (series, tclsh) in releases_on_path() {
+        let expected = if series < "8.6" { "miss\n" } else { "hit\n" };
+        for source in [
+            r#"switch -- aAb {"a\x41b" {puts hit} default {puts miss}}"#,
+            r"switch -- aAb {a\x41b {puts hit} default {puts miss}}",
+            r#"switch -glob -- aAb {"a\x41b" {puts hit} default {puts miss}}"#,
+            r"switch -glob -- aAb {a\x41b {puts hit} default {puts miss}}",
+        ] {
+            let dialect = dialect_of(series);
+            let (rewritten, _) = optimised(source, &dialect);
+            for program in [source, rewritten.as_str()] {
+                assert_eq!(
+                    run_script(&tclsh, program),
+                    Some((true, expected.to_owned())),
+                    "tclsh{series}:\n{program}"
+                );
+            }
+        }
+    }
+}

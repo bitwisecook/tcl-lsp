@@ -101,6 +101,10 @@ pub fn spec() -> CommandSpec {
         lowering_hook: Some(crate::hooks::LoweringHookId::Catch),
         inline_codegen_hook: Some(crate::hooks::InlineCodegenHookId::Catch),
         return_type: Some(TclType::Int),
+        // The result variable holds what the script returned and the options
+        // variable a dictionary: neither is the integer completion code
+        // `catch` itself returns.
+        var_write_typing: VarWriteTyping::Destructured,
         hover: Some(HoverSnippet {
             summary: "Evaluate script and trap exceptional returns",
             synopsis: &["catch script ?resultVarName? ?optionsVarName?"],

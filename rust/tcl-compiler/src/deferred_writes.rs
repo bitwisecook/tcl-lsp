@@ -39,12 +39,17 @@
 //!
 //! A callback word that is one `[…]` substitution of a command the registry
 //! states builds a command prefix (`after 100 [list tick $n]`, `-command [list
-//! set done 1]`) is read as the command it builds. What it does not read: a
-//! callback word that is otherwise computed (`after 100 $script`), a callback
-//! spelled as several words, which the registry states no script position for
-//! (`after 100 set done 1`), or one whose command head is computed
-//! (`after 100 {$cmd x}`). The text is unknown here, as a call to a procedure
-//! the module cannot see is.
+//! set done 1]`) is read as the command it builds, and a callback spelled as
+//! several words, which the registry names no position for (`after 100 set
+//! done 1`), is read as the one script they concatenate into.
+//!
+//! A callback the scan cannot read may write any variable, as a trace on a
+//! computed name may ([`DeferredWrites::any`]): a word the run time computes
+//! (`after 100 $script`), a substitution of any other command (`after 100
+//! [build]`), a `{*}` expansion, a command whose head is computed
+//! (`after 100 {$cmd x}`), and a command that is neither a procedure of the
+//! module nor one of the registry (`after 100 finish`, an `interp alias`),
+//! whose code the module does not contain.
 
 use std::cell::OnceCell;
 use std::collections::HashMap;
@@ -59,6 +64,7 @@ use tcl_syntax::word_rules::WordValueRules;
 use crate::cfg_builder::global_write_info::{
     GlobalWriteInfo, detect_global_write_procs_with_registry,
 };
+use crate::command_binding::ModuleCommandBindings;
 use crate::depth_guard::MAX_BRACKET_TEXT_DEPTH;
 use crate::ir::{DeferredWrites, Module, Script, Statement, WordExpr};
 use crate::ir_helpers::{CommandWord, evaluated_command_substitutions, tokenise_command_words};
@@ -77,6 +83,7 @@ pub(crate) fn scan_module(module: &Module, registry: &CommandRegistry) -> Deferr
         registry,
         config: LexerConfig::for_profile(registry.profile()),
         procedure_writes: OnceCell::new(),
+        bindings: OnceCell::new(),
         out: DeferredWrites::default(),
     };
     let procedures = module.procedures.values().map(|proc| &proc.body);
@@ -109,6 +116,24 @@ enum Arg {
     Dynamic,
 }
 
+/// The text of each word that has one, and nothing for the rest.
+fn spellings_of(args: &[Arg]) -> Vec<&str> {
+    args.iter()
+        .map(|arg| arg.literal().unwrap_or_default())
+        .collect()
+}
+
+/// `concat`: each word trimmed of surrounding white space, the empty ones
+/// dropped, the rest joined with one space.
+fn concat_words(words: &[&str]) -> String {
+    words
+        .iter()
+        .map(|word| word.trim_matches([' ', '\t', '\n', '\u{b}', '\u{c}', '\r']))
+        .filter(|word| !word.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 impl Arg {
     fn literal(&self) -> Option<&str> {
         match self {
@@ -132,6 +157,9 @@ struct Scan<'r> {
     /// What each procedure of the module writes in the global frame, taken
     /// the first time a callback names one.
     procedure_writes: OnceCell<HashMap<String, GlobalWriteInfo>>,
+    /// What the module binds each command name to, taken the first time a
+    /// callback command that is no procedure of the module needs placing.
+    bindings: OnceCell<ModuleCommandBindings>,
     out: DeferredWrites,
 }
 
@@ -248,22 +276,96 @@ impl Scan<'_> {
     /// no position of the invocation can be told from another.
     fn registration(&mut self, head: &str, words: &[Option<Arg>]) {
         let Some(args) = words.iter().cloned().collect::<Option<Vec<Arg>>>() else {
+            self.expanded_registration(head, words);
             return;
         };
-        let spellings: Vec<&str> = args
-            .iter()
-            .map(|arg| arg.literal().unwrap_or_default())
-            .collect();
-        for index in self.registry.callback_script_indices(
+        self.callbacks(head, &args, 0);
+    }
+
+    /// The callbacks the invocation `head args` stores, read, and the
+    /// positions they sit at. A word the run time computes is a callback the
+    /// scan cannot read.
+    fn callbacks(&mut self, head: &str, args: &[Arg], depth: u32) -> Vec<usize> {
+        let spellings = spellings_of(args);
+        let indices = self.registry.callback_script_indices(
             head,
             &spellings,
             self.registry.own_surface_query(),
-        ) {
+        );
+        for &index in &indices {
             match args.get(index) {
-                Some(Arg::Literal(text)) => self.script(text, 0),
-                Some(Arg::Substitution(inner)) => self.command_prefix(inner, 0),
-                Some(Arg::Dynamic) | None => {}
+                Some(Arg::Literal(text)) => self.script(text, depth),
+                Some(Arg::Substitution(inner)) => self.command_prefix(inner, depth),
+                Some(Arg::Dynamic) => self.out.any = true,
+                None => {}
             }
+        }
+        if indices.is_empty() {
+            self.concatenated_callback(head, args, &spellings, depth);
+        }
+        indices
+    }
+
+    /// An invocation with a `{*}` expansion stores any script it is given when
+    /// its command can store one at all: which word is which is unknown.
+    fn expanded_registration(&mut self, head: &str, words: &[Option<Arg>]) {
+        let known: Vec<Arg> = words.iter().map_while(Option::clone).collect();
+        let spellings = spellings_of(&known);
+        let Some(call) =
+            self.registry
+                .resolve_call(head, &spellings, self.registry.own_surface_query())
+        else {
+            return;
+        };
+        let stores = |traits: Traits| {
+            traits.contains(Traits::DEFERS_BODY) && !traits.contains(Traits::BODY_RUNS_IN_OWN_FRAME)
+        };
+        let may_store = match call.sub {
+            Some(sub) => stores(call.spec.traits | sub.traits),
+            None => {
+                stores(call.spec.traits)
+                    || call
+                        .spec
+                        .subcommands
+                        .iter()
+                        .any(|sub| stores(call.spec.traits | sub.traits))
+            }
+        };
+        self.out.any |= may_store;
+    }
+
+    /// A script a command stores spelled as several words, which it joins as
+    /// `concat` does (`after 100 set done 1`), has no position of its own in
+    /// the registry, which names the callback of the form that has one word for
+    /// it. The words from the first position at which that form names one are
+    /// joined and read as that word is. No such position, and the invocation
+    /// stores nothing (`after cancel …`, `after info`, a delay alone).
+    fn concatenated_callback(&mut self, head: &str, args: &[Arg], spellings: &[&str], depth: u32) {
+        let traits =
+            self.registry
+                .invocation_traits(head, spellings, self.registry.own_surface_query());
+        if !traits.contains(Traits::DEFERS_BODY) || traits.contains(Traits::BODY_RUNS_IN_OWN_FRAME)
+        {
+            return;
+        }
+        for first in 0..args.len() {
+            let words: Option<Vec<&str>> = args[first..].iter().map(Arg::literal).collect();
+            let joined = words.as_deref().map(concat_words).unwrap_or_default();
+            let mut probe = spellings[..first].to_vec();
+            probe.push(&joined);
+            if !self
+                .registry
+                .callback_script_indices(head, &probe, self.registry.own_surface_query())
+                .contains(&first)
+            {
+                continue;
+            }
+            if words.is_some() {
+                self.script(&joined, depth);
+            } else {
+                self.out.any = true;
+            }
+            return;
         }
     }
 
@@ -273,26 +375,28 @@ impl Scan<'_> {
     fn command_prefix(&mut self, text: &str, depth: u32) {
         let commands = tokenise_command_words(text, self.config);
         let [words] = commands.as_slice() else {
+            self.out.any = true;
             return;
         };
         let Some(builder) = words.first().and_then(CommandWord::literal) else {
+            self.out.any = true;
             return;
         };
-        if words.iter().skip(1).any(|word| word.expanded) {
-            return;
-        }
         let spellings: Vec<&str> = words
             .iter()
             .skip(1)
             .map(|word| word.literal().unwrap_or_default())
             .collect();
-        if self
-            .registry
-            .invocation_traits(builder, &spellings, self.registry.own_surface_query())
-            .contains(Traits::BUILDS_COMMAND_PREFIX)
+        if words.iter().skip(1).any(|word| word.expanded)
+            || !self
+                .registry
+                .invocation_traits(builder, &spellings, self.registry.own_surface_query())
+                .contains(Traits::BUILDS_COMMAND_PREFIX)
         {
-            self.command(&words[1..], depth);
+            self.out.any = true;
+            return;
         }
+        self.command(&words[1..], depth);
     }
 
     /// The names every command of `text`, run as a script, writes.
@@ -316,39 +420,44 @@ impl Scan<'_> {
             }
         }
         let Some(head) = words.first().and_then(CommandWord::literal) else {
+            // A computed command is any command at all.
+            self.out.any = true;
             return;
         };
         self.procedure(head);
         if words.iter().skip(1).any(|word| word.expanded) {
+            // Which word is which is unknown, so any variable may be written.
+            self.out.any = true;
             return;
         }
         let args: Vec<Arg> = words
             .iter()
             .skip(1)
-            .map(|word| {
-                word.literal()
-                    .map_or(Arg::Dynamic, |text| Arg::Literal(text.to_owned()))
-            })
+            .map(|word| self.substitution_word(word).unwrap_or(Arg::Dynamic))
             .collect();
-        let spellings: Vec<&str> = args
-            .iter()
-            .map(|arg| arg.literal().unwrap_or_default())
-            .collect();
+        let spellings = spellings_of(&args);
         let inputs: Vec<InvocationWord<'_>> = args.iter().map(Arg::registry_word).collect();
         self.variable_targets(head, &args, &spellings, &inputs);
         self.aliases(head, &inputs);
         // A definition's body runs in a frame of its own, whose plain names
-        // are its locals; anything else in this script runs where it does.
+        // are its locals; anything else in this script runs where it does, and
+        // a callback it stores runs later, read as a registration is.
         let invocation =
             self.registry
                 .invocation_traits(head, &spellings, self.registry.own_surface_query());
         if !invocation.contains(Traits::BODY_RUNS_IN_OWN_FRAME) {
+            let stored = self.callbacks(head, &args, depth + 1);
             for index in self
                 .registry
                 .arg_indices_for_role(head, &spellings, ArgRole::Body)
             {
-                if let Some(body) = args.get(index).and_then(Arg::literal) {
-                    self.script(body, depth + 1);
+                if stored.contains(&index) {
+                    continue;
+                }
+                match args.get(index) {
+                    Some(Arg::Literal(body)) => self.script(body, depth + 1),
+                    Some(Arg::Substitution(_) | Arg::Dynamic) => self.out.any = true,
+                    None => {}
                 }
             }
         }
@@ -364,6 +473,9 @@ impl Scan<'_> {
                 .any(|key| key == head)
         });
         if !is_procedure {
+            // What a command that is neither a procedure of the module nor a
+            // command of the registry runs is code the module does not contain.
+            self.out.any |= !self.is_unbound_registry_command(head);
             return;
         }
         let writes = self
@@ -377,6 +489,26 @@ impl Scan<'_> {
         for name in &names {
             self.note(name);
         }
+    }
+
+    /// Whether `head`, run at the global level, is a command of the registry
+    /// the module leaves as it ships: the one target its bindings give it is
+    /// the registry's own descriptor of that spelling, with no argument an
+    /// `interp alias` prepends.
+    fn is_unbound_registry_command(&self, head: &str) -> bool {
+        let bindings = self
+            .bindings
+            .get_or_init(|| ModuleCommandBindings::analyse(self.module, self.registry));
+        if bindings.target_resolution_may_be_unknown(head, "::") {
+            return false;
+        }
+        let mut targets = bindings.targets(head, "::").into_iter();
+        let (Some(target), None) = (targets.next(), targets.next()) else {
+            return false;
+        };
+        target.registry_backed
+            && target.prepended.is_empty()
+            && target.command.trim_start_matches("::") == head.trim_start_matches("::")
     }
 
     /// The variables the registry says a command writes, destroys, binds or
@@ -546,7 +678,10 @@ mod tests {
         assert!(writes("after 1 { puts $x }").is_clear());
         assert!(writes("catch { set x 1 }").is_clear());
         assert!(writes("trace remove variable x write cb").is_clear());
-        assert!(writes("set script {set x 1}; after 1 $script").is_clear());
+        assert!(writes("after cancel {set done 1}").is_clear());
+        assert!(writes("after info").is_clear());
+        assert!(writes("after 100").is_clear());
+        assert!(writes("after 100 {puts [clock seconds]}").is_clear());
     }
 
     /// A callback that names a procedure of the module writes what the
@@ -576,8 +711,7 @@ mod tests {
 
     /// A callback spelled as a quoted word with no substitution, or as one
     /// `[…]` substitution of a command the registry states builds a command
-    /// prefix, is read as the script it is; a word computed some other way, or
-    /// a callback spelled as several words, is not.
+    /// prefix, is read as the script it is.
     #[test]
     fn a_quoted_callback_and_a_built_command_prefix_are_read() {
         for source in [
@@ -594,12 +728,85 @@ mod tests {
             names("proc tick {n} { set ::done $n }\nafter 100 [list tick $n]"),
             ["done"]
         );
+    }
+
+    /// A callback spelled as several words, which `after` concatenates like
+    /// `concat`, is read as the script they make: the tclsh 8.4 to 9.1 output of
+    /// each is the callback's `done`.
+    #[test]
+    fn a_callback_spelled_as_several_words_is_read_as_one_script() {
+        for source in [
+            "after 100 set done 1",
+            "after idle set done 1",
+            "after 100 incr done",
+            "after 100 {set done} 1",
+            "after 100 { set done 1 } { }",
+            "set id [after 100 set done 1]",
+            "proc p {} { after 100 set done 1 }",
+            "after 1 {after 1 set done 1}",
+        ] {
+            assert_eq!(names(source), ["done"], "{source}");
+        }
+        assert_eq!(
+            names("proc tick {} { set ::done 1 }\nafter 100 tick extra"),
+            ["done"]
+        );
+    }
+
+    /// A callback the scan cannot read may write any variable: a word the run
+    /// time computes, a substitution of a command that builds no command
+    /// prefix, a `{*}` expansion, a computed command head and a command the
+    /// module cannot name.
+    #[test]
+    fn a_callback_the_scan_cannot_read_may_write_any_variable() {
         for source in [
             "after 100 $script",
+            "after idle $script",
             "after 100 [build $n]",
-            "after 100 set done 1",
+            "after 100 set done $v $w",
+            "after 100 {*}[list set done 1]",
+            "after 100 {*}$words",
+            "after 100 {$cmd x}",
+            "after 100 [list $cmd x]",
+            "after 100 {eval $script}",
+            "after 100 {eval [build]}",
+            "after 1 {after 1 $script}",
+            "after 100 finish",
+            "after 100 {finish now}",
+            "interp alias {} fin {} set done 1\nafter 100 fin",
+            "trace add variable x write $callback",
+            "fileevent stdin readable $handler",
+            "bind . <Key> $handler",
+            "button .b -command $command",
+            "after 100 {set {*}$pair}",
         ] {
-            assert!(writes(source).is_clear(), "{source}");
+            assert!(writes(source).any, "{source}");
+        }
+    }
+
+    /// What it can name leaves the rest alone: a command of the registry or a
+    /// procedure of the module, a callback that stores nothing, and a script
+    /// that is only read.
+    #[test]
+    fn a_callback_it_can_read_leaves_every_other_variable_alone() {
+        for source in [
+            "after 100 update",
+            "after 100 {puts hi}",
+            "proc tick {} { puts hi }\nafter 100 tick",
+            "proc tick {} { puts hi }\nafter 100 [list tick $n]",
+            "namespace eval ns { proc tick {} { puts hi }; after 100 tick }",
+            "after cancel $script",
+            "after cancel {set done 1}",
+            "after info",
+            "after 100",
+            "after $delay",
+            "trace remove variable x write $callback",
+            "trace info variable x",
+            "bind . <Key>",
+            "fileevent stdin readable",
+            "puts {*}$words",
+        ] {
+            assert!(writes(source).is_clear(), "{source}: {:?}", writes(source));
         }
     }
 

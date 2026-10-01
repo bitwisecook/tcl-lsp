@@ -1130,7 +1130,7 @@ and every specialisation inherits them:
 | a word is not an exact value at this use (multi-token, `{*}`, unresolvable variable, JimTcl `$(…)`) | the driver | decline (`NotExact`) |
 | the head's binding is suspect: renamed, aliased to an unknown target, redefined, or in an opaque namespace (`ModuleCommandMutations::trusts`, `trusts_proc_binding`, `redefined_procedures`, `opaque_namespaces`) | binding validity — not an author-trust check | decline (`RebindingSuspected`); a consumer with no whole-module view uses `distrust_all()` |
 | the invocation has no semantics declaration, or declares a route of none (`evaluate none`) | the resolver, at step 1 | decline (`NoSemantics`, or `NoRoute` with the evaluation page's `NoRouteReason`); the generic conservative transfer applies, and a declared plan or transfer still answers its own domain |
-| the place is `::`-qualified, escaping, or the function has a dynamic trace (`is_externally_mutable` over the `var_observability` escaping set), or the version is one a call to a command the module cannot see, or a call that sources a file, holds (`SsaFunction::is_observed_by_unseen_call`) | the solver, before any transfer runs | the def is `Overdefined` and no transfer re-narrows it (`EscapingPlace`) |
+| the place is `::`-qualified, escaping, or the function has a dynamic trace (`is_externally_mutable` over the `var_observability` escaping set), or the version is one a call to a command the module cannot see (a head it does not define, a computed head, one inside the body of a `catch` kept as one statement), or a call that sources a file, holds, the versions its own words read excepted (`SsaFunction::is_observed_by_unseen_call`) | the solver, before any transfer runs | the def is `Overdefined` and no transfer re-narrows it (`EscapingPlace`) |
 | the place is named in `Module::traced_variables` or `Module::deferred_writes` (`TraceInputs`) | the solver | same (`TracedPlace`) |
 | the target is an array-element base write, or the targets overlap, or a target is trace-visible | the driver | decline (`OverlappingTargets`), stated as a precision limit |
 | a dynamic key (`incr a($i)`) | `DynamicNameBarrier` | decline (`DynamicName`), not pending: the miss is permanent and `join(prev, Unknown) = prev` would launder a stale element constant |
@@ -1144,7 +1144,7 @@ and every specialisation inherits them:
 | a resource cap is hit: output bytes, allocation before it happens, fuel, depth, request budget, cancellation | the route and the budget | decline (`Budget`), distinct from an unsupported case (`Unsupported`) and from a transient host failure (`Transient`), and never an exact negative |
 | a regexp search was cut short or a capture is approximate | the regexp owner | decline (`Approximate`), never "no match" |
 | the answer fails validation | the driver | decline (`MalformedAnswer`) with a load or evaluation notice; the generic conservative result is kept |
-| the statement is a `Barrier` or `UpFrame`, or follows an opaque `switch` whose arm runs a command that may write any name | the solver | every tracked value widens, as today |
+| the statement is a `Barrier` or `UpFrame`, or follows an opaque `switch`, `catch` or `try` whose script runs a command that may write any name | the solver | every tracked value widens, as today |
 
 The names in `Module::deferred_writes` come from the scripts a command stores
 to run after it returns — the words the registry states as callbacks
@@ -1156,10 +1156,19 @@ it can be a variable the registering code holds, and every name it writes,
 destroys or binds is externally mutable in every function. A quoted word with
 no substitution is read as the script it is, and a word that is one `[…]`
 substitution of a command the registry states builds a command prefix
-(`list`) is read as the command it builds. A callback word computed some other
-way (`after 100 $script`) or spelled as several words (`after 100 set done 1`,
-for which the registry states no script position) is not read, so a write it
-makes stays invisible to the solver.
+(`list`) is read as the command it builds. A callback spelled as several words
+(`after 100 set done 1`), for which the registry states no script position, is
+read as the one script its words concatenate into, the way `concat` joins
+them: the registry names the position of the form that has one word for it,
+and the scan asks again with the words from the first position that names one
+joined into that word. A callback the scan cannot read may write any
+variable, and `DeferredWrites::any` makes every name externally mutable, as a
+trace on a computed name does: a word the run time computes (`after 100
+$script`), a substitution of a command that builds no command prefix, a `{*}`
+expansion of a command that stores a script, a computed command head, a
+script that runs a computed script, and a command that is neither a procedure
+of the module nor one of the registry (`after 100 finish`, an `interp alias`),
+whose code the module does not contain.
 
 `incr` of `010` is the release row in one line: it answers 11 under
 Tcl 9.1 and 9.0 and 9 under 8.6, 8.5, and 8.4, so a profile that names no
@@ -2026,9 +2035,16 @@ the same selection facts from its `.tclspec`, as data.
 ### `catch`, `try`, and completion
 
 A `catch` body is one opaque `Call` in the default CFG build
-(`emit_opaque_catch` in `cfg_builder/mod.rs`: the body's defs, the result
-variable, and the options variable become the call's defs), a `try` with
-handlers is deferred the same way (`lower_try_dispatch`), and only the
+(`emit_opaque_catch` in `cfg_builder/mod.rs`): the call defines its result
+variable and its options variable, and what the body writes is a
+may-definition of a marker ahead of the call (`SyntheticMarker::ArmWrites`),
+since the body stops at its first error. What the commands of the body do to
+the frame goes ahead of the call as it does after an opaque `switch`
+(`opaque_script_effects`): the names a callee writes through `upvar`, the
+caller-frame barrier for a command that may write any name, and the marker
+for code the module cannot see. A `try` with handlers is deferred the same
+way (`lower_try_dispatch`), its handlers' variables among the may-definitions,
+and only the
 faithful-exceptions build (`with_faithful_exceptions`, `lower_try`,
 `push_try_handler_exception_edges`) gives handlers blocks and exception
 edges. The interface does not change which build a tier uses; it gives

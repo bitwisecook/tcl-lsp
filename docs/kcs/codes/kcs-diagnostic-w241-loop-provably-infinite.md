@@ -49,8 +49,11 @@ variable an arm of a `switch` in the loop sets (`-glob`, `-regexp`,
 sets the caller's variable with `upvar`), one a callback script stored
 anywhere in the file sets (`after`, `fileevent`, `bind`, a variable trace's
 callback, a procedure named as a callback, a command prefix built with
-`list`), and — at the top level — one a call to a command the file does not
-define may set, as it may set `$::go`.
+`list`, a script spelled as several words), one a callback the analyser cannot
+read may set (`after 100 $script`, a command the file does not define), and —
+at the top level — one a call to a command the file does not define, a call
+whose command is computed and a call inside a `catch` body may set, as it may
+set `$::go`.
 In a procedure a local is out of every callee's reach, so `while {$go} { foo
 }` over a local `go` is still reported; a `source` in the loop runs its file in
 the procedure's frame, so it is not.

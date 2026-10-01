@@ -1730,9 +1730,10 @@ const PROVEN_ROWS: [ProvenRow; 13] = [
     (
         DiagCode::W146,
         "tcl8.6",
-        "proc p {} {\n    set ops {read rename write}\n    \
+        "proc logChange {args} {}\nproc p {} {\n    set ops {read rename write}\n    \
              trace add variable ::config(port) $ops logChange\n}\n",
-        "proc p {ops} {\n    trace add variable ::config(port) $ops logChange\n}\n",
+        "proc logChange {args} {}\nproc p {ops} {\n    \
+             trace add variable ::config(port) $ops logChange\n}\n",
         "$ops",
     ),
     (
@@ -15694,4 +15695,129 @@ fn a_read_after_an_opaque_switch_only_an_arm_sets_draws_w210() {
     let found = lifecycle_findings(src);
     assert_eq!(found.len(), 1, "{src}: {found:?}");
     assert_eq!(found[0].0, DiagCode::W210, "{src}");
+}
+
+/// A call to a command the module cannot see inside the body of a top-level
+/// `catch`, or through a computed head, may write a plain top-level name as
+/// it may `::g`, and what the body writes on some path is a name the
+/// statement may leave as it was: tclsh prints `b` where the `foo` of a
+/// sourced file sets `g` to 0, and `5` where the body writes nothing.
+#[test]
+fn i230_never_reports_a_condition_across_a_catch_body_or_a_computed_head() {
+    assert_no_i230(&[
+        "set g 5\ncatch {foo}\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\ncatch {foo} msg\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\ncatch {if {1} {foo}}\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\ncatch {puts [foo]}\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\ncatch {source other.tcl}\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nif {[catch {foo}]} {puts bad}\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nset rc [catch {foo} msg]\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nwhile {[catch {if {1} {foo}}]} {break}\nif {$g} {puts a} else {puts b}\n",
+        "set ::g 5\ncatch {foo}\nif {$::g} {puts a} else {puts b}\n",
+        "set g 5\n$cmd\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nputs [$cmd]\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nwhile {[$cmd]} {puts x}\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\ncatch { if {[gets stdin] eq {q}} { set g 0 } }\nif {$g} {puts a} else {puts b}\n",
+        "set go 1\ncatch { namespace eval :: {set go 0} }\nif {$go} {puts a} else {puts b}\n",
+        "proc zero {v} {upvar 1 $v x; set x 0}\nproc p {} {\n set go 1\n catch { if {1} { zero go } }\n if {$go} {puts a} else {puts b}\n}\n",
+        "proc p {c} {\n catch { if {$c} { set x 1 } }\n if {[info exists x]} {puts yes} else {puts no}\n}\n",
+    ]);
+    for src in [
+        "proc p {} {\n set g 5\n catch { if {1} {foo} }\n if {$g} {puts a} else {puts b}\n}\n",
+        "proc p {} {\n set g 5\n $cmd\n if {$g} {puts a} else {puts b}\n}\n",
+        "proc p {} {\n set g 5\n if {[catch {foo}]} {puts bad}\n if {$g} {puts a} else {puts b}\n}\n",
+        "proc foo {} { puts hi }\nset g 5\ncatch {foo}\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\ncatch { set other 1 }\nif {$g} {puts a} else {puts b}\n",
+    ] {
+        let (whole, per_item) = i230_on_both_paths(src);
+        assert_eq!(whole.len(), 1, "{src}: {whole:?}");
+        assert!(whole[0].contains("always true"), "{src}: {whole:?}");
+        assert_eq!(per_item, whole, "{src}");
+    }
+}
+
+/// A name only the body of an opaque `catch` sets may be unset after it, so
+/// the read draws W210 — as it does after an inlined `catch`, whose exception
+/// edge leaves from before the body — and a name set before it draws none.
+#[test]
+fn a_read_after_an_opaque_catch_only_its_body_sets_draws_w210() {
+    let src = "proc p {c} {\n catch { if {$c} { set x 1 } }\n puts $x\n}\n";
+    let found = lifecycle_findings(src);
+    assert_eq!(found.len(), 1, "{src}: {found:?}");
+    assert_eq!(found[0].0, DiagCode::W210, "{src}");
+    let found =
+        lifecycle_findings("proc p {c} {\n set x 0\n catch { if {$c} { set x 1 } }\n puts $x\n}\n");
+    assert!(found.is_empty(), "{found:?}");
+    // The result variable the call assigns however the body ends is defined.
+    let found =
+        lifecycle_findings("proc p {c} {\n catch { if {$c} { set x 1 } } msg\n puts $msg\n}\n");
+    assert!(found.is_empty(), "{found:?}");
+}
+
+/// The `(code, message)` of each W220 and W211 hint a program draws.
+type Hints = Vec<(DiagCode, String)>;
+
+/// The W220 and W211 hints a program draws on the whole-file path and on the
+/// per-item path.
+fn dead_store_hints_on_both_paths(src: &str) -> (Hints, Hints) {
+    let hints = |per_item: bool| -> Hints {
+        let mut a = Analyser::new();
+        let result = if per_item {
+            a.analyse_per_item(src, "tcl8.6")
+        } else {
+            a.analyse(src, "tcl8.6")
+        };
+        result
+            .diagnostics
+            .into_iter()
+            .filter(|d| matches!(d.code, DiagCode::W220 | DiagCode::W211))
+            .map(|d| (d.code, d.message))
+            .collect()
+    };
+    (hints(false), hints(true))
+}
+
+/// A call to a command the module cannot see may read a name the store before
+/// it leaves, as it may read `::g`, so the store is no dead one (W220) and the
+/// name no unused one (W211): the optimiser's O109 and O126 already said so.
+/// A procedure's local is out of every callee's reach, a procedure the module
+/// defines is seen, and a store nothing reads before the next is still dead.
+#[test]
+fn a_store_a_call_the_module_cannot_see_may_read_draws_neither_w220_nor_w211() {
+    for src in [
+        "set g 5\nfoo\nset g 6\nputs $g\n",
+        "set g 5\n$cmd\nset g 6\nputs $g\n",
+        "set g 5\ncatch {foo}\nset g 6\nputs $g\n",
+        "set g 5\nputs [foo]\nset g 6\nputs $g\n",
+        "set h 6\nsource other.tcl\n",
+        "set h 6\nputs [foo]\n",
+        "proc p {} {\n set h 6\n source other.tcl\n}\n",
+    ] {
+        let (whole, per_item) = dead_store_hints_on_both_paths(src);
+        assert!(whole.is_empty(), "whole file: {src}\n{whole:?}");
+        assert_eq!(per_item, whole, "per item: {src}");
+    }
+    for (src, code) in [
+        (
+            "proc p {} {\n set g 5\n foo\n set g 6\n return $g\n}\n",
+            DiagCode::W220,
+        ),
+        (
+            "proc foo {} { puts hi }\nset g 5\nfoo\nset g 6\nputs $g\n",
+            DiagCode::W220,
+        ),
+        ("set g 5\nset g 6\nputs $g\n", DiagCode::W220),
+        // The store after the last such call has no call to read it.
+        ("set h 6\nfoo\nset h 7\n", DiagCode::W220),
+        ("proc p {} {\n set h 6\n}\n", DiagCode::W211),
+        ("proc foo {} { puts hi }\nset h 6\nfoo\n", DiagCode::W211),
+    ] {
+        let (whole, per_item) = dead_store_hints_on_both_paths(src);
+        assert_eq!(
+            whole.iter().map(|(found, _)| *found).collect::<Vec<_>>(),
+            [code],
+            "{src}: {whole:?}"
+        );
+        assert_eq!(per_item, whole, "per item: {src}");
+    }
 }

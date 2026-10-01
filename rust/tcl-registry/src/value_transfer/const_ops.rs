@@ -810,7 +810,15 @@ impl ValueOps for ConstOps<'_> {
     fn list_elements(&mut self, v: &ConstValue) -> Result<Vec<ConstValue>, ValueError> {
         self.require(Needs::LIST_RENDERING);
         let text = self.as_str(v);
-        let elements = tcl_syntax::list::split_list(&text)
+        // A bare or quoted element's backslashes collapse under the target
+        // release's escape grammar, as the lexer reads the same bytes in a word.
+        let escapes = self
+            .target
+            .profile
+            .map_or_else(tcl_dialect::EscapeSyntax::default, |profile| {
+                profile.grammar.escapes
+            });
+        let elements = tcl_syntax::list::split_list_in(&text, escapes)
             .map_err(|e| ValueError::BadList(e.message().to_owned()))?;
         let _ = self.charge(u64::try_from(elements.len()).unwrap_or(u64::MAX));
         Ok(elements
