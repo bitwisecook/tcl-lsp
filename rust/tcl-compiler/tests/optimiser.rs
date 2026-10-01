@@ -2837,6 +2837,33 @@ fn a_dead_assignment_whose_value_can_raise_is_kept() {
     }
 }
 
+/// Bound reads alone do not prove an element read or a startup name: an
+/// element read raises when its base is a scalar, and only the top level
+/// itself starts with `argv` bound.
+#[test]
+fn a_dead_element_or_startup_read_that_can_raise_is_kept() {
+    for (why, src, kept) in [
+        (
+            "an element of a scalar parameter, by a dynamic index",
+            "proc p {a i} {\n    set dead $a($i)\n    puts hi\n}\n",
+            "set dead $a($i)",
+        ),
+        (
+            "an element of a scalar parameter, by a literal index",
+            "proc p {a} {\n    set dead $a(k)\n    puts hi\n}\n",
+            "set dead $a(k)",
+        ),
+        (
+            "a startup name in a procedure that shares the top level's `::top` name",
+            "proc ::top {} {\n    set dead $argv\n    puts hi\n}\n",
+            "set dead $argv",
+        ),
+    ] {
+        let out = optimised(src, TCL);
+        assert!(out.contains(kept), "{why}: the statement stays: {out}");
+    }
+}
+
 /// Precision for the rule above: a value that cannot raise is still deleted.
 #[test]
 fn a_dead_assignment_whose_value_cannot_raise_is_still_deleted() {

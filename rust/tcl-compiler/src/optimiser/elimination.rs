@@ -318,8 +318,15 @@ enum DefSite {
 }
 
 impl<'a> RaiseProof<'a> {
-    /// `enclosing_class` is set only for a `TclOO` method unit.
-    fn new(ctx: &PassContext<'a>, fu: &'a FunctionUnit, enclosing_class: Option<&str>) -> Self {
+    /// `enclosing_class` is set only for a `TclOO` method unit, and
+    /// `top_level` only for the module's own top-level unit (a procedure may
+    /// share its `::top` name).
+    fn new(
+        ctx: &PassContext<'a>,
+        fu: &'a FunctionUnit,
+        enclosing_class: Option<&str>,
+        top_level: bool,
+    ) -> Self {
         // Alias recognition is registry-driven; a registry-less context (unit
         // tests) falls back to the cached default.
         let registry = ctx.registry.unwrap_or_else(|| {
@@ -378,7 +385,7 @@ impl<'a> RaiseProof<'a> {
         Self {
             fu,
             params,
-            startup: (fu.name == "::top")
+            startup: top_level
                 .then(|| tcl_registry::special_vars::surface_query_for_profile(ctx.dialect)),
             scope_aliases: scan_scope_aliases(&fu.cfg, registry),
             module_traced: ctx.ir_module.map(|m| &m.traced_variables),
@@ -422,7 +429,12 @@ impl<'a> RaiseProof<'a> {
         };
         match stmt {
             Statement::AssignConst { .. } => true,
-            Statement::AssignValue { .. } => folded() || self.reads_are_set(block, idx),
+            // An element read (`$a(k)`, `$a($i)`) raises when its base is a
+            // scalar or lacks the element, which the reads' definedness
+            // cannot show.
+            Statement::AssignValue { value, .. } => {
+                folded() || (!has_element_substitution(value) && self.reads_are_set(block, idx))
+            }
             _ => folded(),
         }
     }
@@ -480,6 +492,33 @@ impl<'a> RaiseProof<'a> {
             None => false,
         }
     }
+}
+
+/// Whether a word substitutes an array element: an unescaped `$name(`. A
+/// braced `${a(k)}` names a scalar and is not one; a false positive only
+/// keeps a store.
+fn has_element_substitution(word: &str) -> bool {
+    let bytes = word.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'\\' => i += 2,
+            b'$' if bytes.get(i + 1) != Some(&b'{') => {
+                let mut j = i + 1;
+                while j < bytes.len()
+                    && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'_' || bytes[j] == b':')
+                {
+                    j += 1;
+                }
+                if j > i + 1 && bytes.get(j) == Some(&b'(') {
+                    return true;
+                }
+                i = j.max(i + 1);
+            }
+            _ => i += 1,
+        }
+    }
+    false
 }
 
 /// Whether a word may run a command substitution: any unescaped `[`. The
@@ -628,15 +667,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             None,
             &proc_index,
         );
-        emit_adce(
-            ctx,
-            &cu.top_level,
-            &baseline,
-            &interproc_pure,
-            &pure_methods,
-            None,
-            None,
-        );
+        emit_adce(ctx, &cu.top_level, &baseline, purity, None, true);
     }
 
     // `manager::build_pass_context` populates this shared safety fact once,
@@ -662,15 +693,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             config: tcl_lexer::LexerConfig::for_profile(ctx.dialect),
         };
         let baseline = emit_dead_stores_and_unused(ctx, fu, false, purity, None, &proc_index);
-        emit_adce(
-            ctx,
-            fu,
-            &baseline,
-            &interproc_pure,
-            &pure_methods,
-            None,
-            None,
-        );
+        emit_adce(ctx, fu, &baseline, purity, None, false);
     }
     ctx.cross_event_vars = saved_proc_cross;
 
@@ -703,15 +726,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         };
         let baseline =
             emit_dead_stores_and_unused(ctx, fu, false, purity, execution_namespace, &proc_index);
-        emit_adce(
-            ctx,
-            fu,
-            &baseline,
-            &interproc_pure,
-            &pure_methods,
-            enclosing_class,
-            execution_namespace,
-        );
+        emit_adce(ctx, fu, &baseline, purity, execution_namespace, false);
     }
     ctx.cross_event_vars = saved_cross;
 }
@@ -850,7 +865,7 @@ fn emit_dead_stores_and_unused(
         .registry
         .unwrap_or_else(|| tcl_registry::model::ingress::static_context_for("tcl8.6").commands());
     let scope_aliases = scan_scope_aliases(&fu.cfg, scan_registry);
-    let raise_proof = RaiseProof::new(ctx, fu, purity.enclosing_class);
+    let raise_proof = RaiseProof::new(ctx, fu, purity.enclosing_class, is_top_level);
     // Caller-locals this function passes by name to an
     // upvar callee — not dead/unused even when the name-level SSA sees
     // no read (the callee reads/writes it through the alias).
@@ -1070,21 +1085,13 @@ fn emit_adce(
     ctx: &mut PassContext<'_>,
     fu: &FunctionUnit,
     baseline: &HashSet<(String, u32)>,
-    interproc_pure: &HashSet<String>,
-    pure_methods: &HashSet<String>,
-    enclosing_class: Option<&str>,
+    purity: PurityCtx<'_>,
     execution_namespace: Option<&crate::ir::ExecutionNamespace>,
+    top_level: bool,
 ) {
-    let purity = PurityCtx {
-        registry: ctx.registry,
-        interproc_pure,
-        pure_methods,
-        enclosing_class,
-        config: tcl_lexer::LexerConfig::for_profile(ctx.dialect),
-    };
     let (consumer_stmt_keys, keep_forever) = build_adce_consumers(fu);
     let stmt_to_defs = build_stmt_to_defs(fu);
-    let raise_proof = RaiseProof::new(ctx, fu, enclosing_class);
+    let raise_proof = RaiseProof::new(ctx, fu, purity.enclosing_class, top_level);
     let removed = run_adce_fixpoint(
         fu,
         baseline,
