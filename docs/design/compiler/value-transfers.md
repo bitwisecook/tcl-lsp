@@ -1719,9 +1719,10 @@ exhausted, and when a nested query would need the lattice being computed
 (`Cycle`). What the state is not: the mutable analyser, the program's
 interpreter, or a store that outlives the evaluation. Tests:
 `short_circuit_logical` in `rust/tcl-syntax/src/expr/eval.rs` pins the
-walker's ordering; `command_substitution_is_none` in `tcl_expr_eval.rs`
-pins today's refusal and flips when the `nested` service lands; the seven
-witnesses above are the fixed additions. Migration: `EffectFreeOnly`
+walker's ordering; `command_substitution_evaluates_through_the_nested_service`
+in `tcl_expr_eval.rs` pins the service's answer for `[incr x] + 1` under each
+policy and the decline of a command that reads the wall clock under both; the
+seven witnesses above are the fixed additions. Migration: `EffectFreeOnly`
 lands in slice 3; `LocalWrites` is slice 9, sequenced after slices 3 and
 5, whose exit criterion is the seven witnesses through `tcl opt` and the
 memoised path.
@@ -2740,7 +2741,7 @@ unit-level lattice evaluates.
 - `rust/tcl-compiler/src/sccp.rs` — `existence_fold_abstains_*`, `upframe_body_models_*`, `sccp_folds_post_loop_branch_via_static_summary`
 - `rust/tcl-compiler/src/static_loops.rs` — `summarise_*`: today's bounded `for` simulation, the enumeration's baseline
 - `rust/tcl-syntax/src/expr/eval.rs` — `short_circuit_logical`: the walker's ordering the evaluation state relies on
-- `rust/tcl-compiler/src/tcl_expr_eval.rs` — `command_substitution_is_none`: today's refusal of a nested script
+- `rust/tcl-compiler/src/tcl_expr_eval.rs` — `command_substitution_evaluates_through_the_nested_service`: a nested command's answer under each nested policy
 - `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs` — `try_finally_creates_finally_block`, `try_with_handler`: the faithful-exceptions shape
 - `rust/tcl-registry/src/substitution.rs` — `tp_*`, `fp_*`: the kinds oracle
 - `rust/tcl-compiler/src/lowering/mod.rs`, `specialise_factories.rs`, `rust/tcl-lsp-core/src/refactor/extract_proc.rs` — `proc_subst_nocommands_*`, `detects_*`, `rejects_factory_with_computed_subst_switch`, `tp_a_substituting_call_can_switch_its_variable_reads_off`, `tp_a_substituted_bracket_*`: the four template consumers

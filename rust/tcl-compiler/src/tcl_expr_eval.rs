@@ -2684,10 +2684,55 @@ mod tests {
         assert_eq!(eval_str_env("$undef + 1", &env), None);
     }
 
+    /// A command substitution an expression evaluates is the nested
+    /// service's to run, not the evaluator's: on its own the evaluator has no
+    /// service to ask and answers neither program. With the service at
+    /// `LocalWrites` and `x` holding 1, `[incr x] + 1` is 3 and the state
+    /// holds the write that makes `x` 2; under `EffectFreeOnly` the write is
+    /// `StatefulNested`. A command that reads the wall clock has no answer
+    /// under any policy, and makes no write.
     #[test]
-    fn command_substitution_is_none() {
-        // Raw text `[foo]` is parsed as an ExprCommand, which is opaque.
+    fn command_substitution_evaluates_through_the_nested_service() {
+        use crate::value_transfer::evaluate_over_x;
+        use tcl_registry::value_transfer::{
+            DeclineReason, ExactValueOrUnavailable, LiftedAnswer, NestedPolicy, StoreOutcome,
+        };
+        assert_eq!(eval_str("[incr x] + 1"), None);
         assert_eq!(eval_str("[clock seconds] + 1"), None);
+
+        let LiftedAnswer::Evaluated(outcomes) =
+            evaluate_over_x("[incr x] + 1", NestedPolicy::LocalWrites)
+        else {
+            panic!("the nested service evaluates `[incr x] + 1` under `LocalWrites`");
+        };
+        let [outcome] = outcomes.as_slice() else {
+            panic!("one outcome: {outcomes:?}");
+        };
+        let ExactValueOrUnavailable::Exact(result) = &outcome.result else {
+            panic!("an exact result: {outcome:?}");
+        };
+        assert_eq!(result.bytes, b"3");
+        let [(place, StoreOutcome::Write { value, .. })] = outcome.nested_writes.as_slice() else {
+            panic!("one write: {:?}", outcome.nested_writes);
+        };
+        assert_eq!(
+            (place.name.as_str(), value.bytes.as_slice()),
+            ("x", &b"2"[..])
+        );
+
+        assert!(matches!(
+            evaluate_over_x("[incr x] + 1", NestedPolicy::EffectFreeOnly),
+            LiftedAnswer::Declined(DeclineReason::StatefulNested)
+        ));
+        for nested in [NestedPolicy::EffectFreeOnly, NestedPolicy::LocalWrites] {
+            assert!(
+                matches!(
+                    evaluate_over_x("[clock seconds] + 1", nested),
+                    LiftedAnswer::Declined(_)
+                ),
+                "{nested:?}"
+            );
+        }
     }
 
     #[test]

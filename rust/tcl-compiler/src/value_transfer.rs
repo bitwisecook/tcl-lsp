@@ -4736,6 +4736,43 @@ pub(crate) fn lattice_const_text<S1: std::hash::BuildHasher, S2: std::hash::Buil
     }
 }
 
+/// `text` over a frame where `x` holds 1 and `::g` is a global the
+/// function names, evaluated under `nested` by a detached driver that
+/// trusts every builtin: the nested service's answer, as the tests of
+/// the evaluation read it.
+#[cfg(test)]
+pub(crate) fn evaluate_over_x(text: &str, nested: NestedPolicy) -> LiftedAnswer {
+    let registry = CommandRegistry::build_default();
+    let mutations = crate::command_binding::ModuleCommandMutations::default();
+    let driver = LatticeDriver::detached(
+        Some(BuiltinFoldInputs {
+            registry: &registry,
+            mutations: &mutations,
+            dialect: None,
+            defining_class: None,
+            registry_engine: false,
+            trust: crate::sccp::FoldTrust::ObservedBindings,
+        }),
+        FoldPolicy::default(),
+    );
+    let node = crate::expr_parser::parse_expr_for_profile(text, None);
+    let expression = ExpressionEvaluation {
+        expression: Expression::Parsed(&node),
+        policy: FoldPolicy::default(),
+        nested,
+        head: None,
+    };
+    let mut ssa = SsaFunction::trivial("::p", crate::cfg::BlockId(0), vec!["entry".into()]);
+    let x = ssa.intern_var("x");
+    let g = ssa.intern_var("::g");
+    let uses: HashMap<Symbol, Version> = HashMap::from([(x, 1), (g, 1)]);
+    let values: HashMap<ValueKey, LatticeValue> = HashMap::from([
+        ((x, 1), LatticeValue::Const(ConstValue::Int(1))),
+        ((g, 1), LatticeValue::Const(ConstValue::Int(5))),
+    ]);
+    driver.evaluate_expression_at(&expression, &uses, &values, &ssa)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -5499,41 +5536,6 @@ mod tests {
                 ("abs", "::tcl::mathfunc::abs")
             ]
         );
-    }
-
-    /// `text` over a frame where `x` holds 1 and `::g` is a global the
-    /// function names, evaluated under `nested` by a detached driver that
-    /// trusts every builtin.
-    fn evaluate_over_x(text: &str, nested: NestedPolicy) -> LiftedAnswer {
-        let registry = CommandRegistry::build_default();
-        let mutations = crate::command_binding::ModuleCommandMutations::default();
-        let driver = LatticeDriver::detached(
-            Some(BuiltinFoldInputs {
-                registry: &registry,
-                mutations: &mutations,
-                dialect: None,
-                defining_class: None,
-                registry_engine: false,
-                trust: crate::sccp::FoldTrust::ObservedBindings,
-            }),
-            FoldPolicy::default(),
-        );
-        let node = crate::expr_parser::parse_expr_for_profile(text, None);
-        let expression = ExpressionEvaluation {
-            expression: Expression::Parsed(&node),
-            policy: FoldPolicy::default(),
-            nested,
-            head: None,
-        };
-        let mut ssa = SsaFunction::trivial("::p", crate::cfg::BlockId(0), vec!["entry".into()]);
-        let x = ssa.intern_var("x");
-        let g = ssa.intern_var("::g");
-        let uses: HashMap<Symbol, Version> = HashMap::from([(x, 1), (g, 1)]);
-        let values: HashMap<ValueKey, LatticeValue> = HashMap::from([
-            ((x, 1), LatticeValue::Const(ConstValue::Int(1))),
-            ((g, 1), LatticeValue::Const(ConstValue::Int(5))),
-        ]);
-        driver.evaluate_expression_at(&expression, &uses, &values, &ssa)
     }
 
     /// Each nested write of an outcome as `(place, value)`, in order.
