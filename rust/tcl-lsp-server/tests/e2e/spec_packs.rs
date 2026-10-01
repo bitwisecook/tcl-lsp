@@ -856,8 +856,7 @@ fn constant_conditions(diags: &[Value]) -> Vec<String> {
         .collect()
 }
 
-/// A pack reload after an edit yields the new answer on the memoised path
-/// (`docs/design/lanes/value-transfers.md`, D104).
+/// A pack reload after an edit yields the new answer on the memoised path.
 ///
 /// `check`'s condition folds through the pack's declared implementation, and
 /// an edit that leaves the procedure alone re-analyses the document with its
@@ -867,7 +866,7 @@ fn constant_conditions(diags: &[Value]) -> Vec<String> {
 /// document with no edit of its own. The published condition turns from
 /// always true to always false — the new body's answer, not the memoised
 /// one's. A content edit moves the pack key as well, which alone re-keys the
-/// lattices (D97); the half only the epoch covers, a hook quarantined on a
+/// lattices; the half only the epoch covers, a hook quarantined on a
 /// worker, is the server's own
 /// `the_pass_after_a_quarantine_takes_the_evaluator_epoch`.
 #[test]

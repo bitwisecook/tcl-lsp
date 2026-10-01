@@ -1417,7 +1417,7 @@ fn semantic_type_word(semantic: SemanticType) -> String {
 /// one level up) and round-trips in full, *except* a declared implementation's
 /// body — carried only by the loader's pack-hook table, never on `CommandSpec`
 /// — and an option-level `-evaluate` decline, not yet carried back onto its
-/// option row (`docs/design/lanes/value-transfers.md`'s slice-4 record).
+/// option row.
 /// Those two shapes stay `lost`, exactly as a shipped, compiled-in
 /// specialisation — nameable by [`tcl_registry::value_transfer::CommandSemantics::identity`],
 /// never reconstructable — already was.

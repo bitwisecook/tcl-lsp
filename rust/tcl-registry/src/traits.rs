@@ -1188,6 +1188,27 @@ declare_traits! {
     /// keeps the abstaining behaviour a pack author never has to think
     /// about.
     DefersBody => DEFERS_BODY, ControlFlow, "stores its script argument instead of running it; unset means the body is treated as executed";
+    /// The script this command stores becomes the body of a **definition** —
+    /// a procedure, method, macro or lambda — that runs later in a call frame
+    /// of its own, never in the global frame or in the frame of the code that
+    /// registered it (`proc name params body`, an iRules `when EVENT body`,
+    /// `snit::method`, `lambda`).
+    ///
+    /// Orthogonal to [`Traits::DEFERS_BODY`], which says the body is dormant
+    /// now. A **callback** — `after`, `fileevent`, `bind`, a trace — is
+    /// dormant too, but runs at the global level or in the frame of whatever
+    /// fires it, where a plain variable name can denote a variable the
+    /// registering code holds. A definition's plain names are its own frame's
+    /// locals, and reach a variable outside it only through `global`,
+    /// `upvar`, `variable` or a qualified name.
+    ///
+    /// So a consumer asking "may a script this command stores write a name my
+    /// frame can see?" reads [`Traits::DEFERS_BODY`] *without* this trait
+    /// ([`crate::registry::CommandRegistry::callback_script_indices`]). An
+    /// unset flag keeps the abstaining answer — the stored script is treated
+    /// as a callback — so a pack declaring its own definer states this to opt
+    /// out, and never has to state it to stay safe.
+    BodyRunsInOwnFrame => BODY_RUNS_IN_OWN_FRAME, ControlFlow, "the script it stores is a definition body that runs in a frame of its own, not a callback";
     /// The word is legal **only** inside a definition body that names it as a
     /// member — it is never a command an author may write at an open command
     /// position.
@@ -1335,6 +1356,7 @@ declare_trait_examples! {
     DeclaresNamespace => flow!("namespace eval ::app::model { set ready 1 }\nputs $::app::model::ready"; (0, "namespace"); (0, "namespace eval ::app::model", "creates missing parent and target namespaces"), (0, "set ready 1", "defines state inside the namespace"), (1, "$::app::model::ready", "observes the declaration"));
     TkGeometryManager => flow!("frame .panel\nlabel .panel.name -text Name\npack .panel.name\nputs [winfo manager .panel.name]"; (2, "pack"); (0, ".panel", "creates a container"), (2, "pack .panel.name", "places it with a geometry manager"), (3, "winfo manager", "observes pack"));
     DefersBody => flow!("set body {puts later}\nproc runLater {} $body\nputs registered\nrunLater"; (1, "proc"); (0, "{puts later}", "contains the script"), (1, "proc runLater {} $body", "stores it without running it"), (2, "puts registered", "runs before the deferred body"), (3, "runLater", "runs the body later"));
+    BodyRunsInOwnFrame => flow!("set count 1\nproc bump {} { set count 2 }\nafter idle { set count 3 }\nbump\nputs $count"; (1, "proc"); (1, "proc bump {} { set count 2 }", "stores a definition body, which runs in a frame of its own"), (1, "set count 2", "writes the procedure's local, never the global"), (2, "after idle { set count 3 }", "stores a callback, whose plain name is the global"), (4, "$count", "reads the global, which only the callback can change"));
 }
 
 /// Every trait that widens a file's caller set beyond the file itself — the

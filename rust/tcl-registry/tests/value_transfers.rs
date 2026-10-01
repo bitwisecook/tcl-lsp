@@ -873,7 +873,7 @@ fn format_runs_the_shared_core() {
 /// of 2147483648 is itself up to 8.6 and wraps to -2147483648 from 9.0;
 /// `%#o 8` is `010` against `0o10` and `%#d 5` is `5` against `0d5`; and
 /// `%.0d 0` is empty under 8.4, which formats through C's `printf`, and `0`
-/// from 8.5 (D57).
+/// from 8.5.
 #[test]
 fn format_answers_per_release() {
     let error = Err(DeclineReason::WrongRepresentation);
@@ -1290,7 +1290,7 @@ fn destroys_variable_derives_an_unbind_transfer() {
     );
 }
 
-/// The may-write declarations (VT5.14, and the slice 5 review's S1): each
+/// The may-write declarations: each
 /// answers a may-bind of its `VarWrite` operand on the normal path, as the
 /// kind the command binds — an array for `file stat` and `file lstat`, a
 /// scalar for `file tempfile`'s name variable, `gets`, `chan gets` and
@@ -1394,7 +1394,7 @@ fn each_may_write_declaration_answers_a_may_bind_of_its_target() {
     }
 }
 
-/// A consumer with no SSA reads no existence (VT8.7): literal-word inputs
+/// A consumer with no SSA reads no existence: literal-word inputs
 /// answer every existence read — a variable, a prior store, an operand —
 /// `Unavailable` at the structure tier, which is neither bound nor unbound,
 /// and a variable's exact value `NotExact`.
@@ -1418,7 +1418,7 @@ fn literal_inputs_answer_existence_unavailable() {
     );
 }
 
-/// `const` (VT8.8) binds only an absent place: over an unbound place it
+/// `const` binds only an absent place: over an unbound place it
 /// writes the value and returns the empty string; over any other place it
 /// declines, since an existing variable raises and an existing constant
 /// keeps its value (tclsh 9.0 and 9.1: `const c 5; const c 7; set c` is 5,
@@ -1484,7 +1484,7 @@ fn const_binds_only_an_absent_place() {
     }
 }
 
-/// `array unset` (VT8.8): without a pattern it unbinds an array and keeps
+/// `array unset`: without a pattern it unbinds an array and keeps
 /// a scalar or an absent name, which it leaves alone without raising
 /// (tclsh 8.4 to 9.1: `set s 1; array unset s` leaves `s`); a place that
 /// may be either keeps the generic widening. With a pattern the array
@@ -1737,7 +1737,7 @@ fn route_stamps_match_the_pinned_set() {
 /// Slice 4's exit — "shipped builtins stay on the direct route"
 /// (`docs/design/compiler/value-transfers-migration.md`): a workspace pack
 /// declaring evaluators of its own moves no shipped route. Installing the
-/// value-transfer lane's executable example (VT4.13) over every loadable
+/// value-transfer design's executable example over every loadable
 /// dialect and the shipped packs adds exactly its three spellings, each on
 /// the implementation route; every shipped stamp is still the pinned set's,
 /// and every direct route is still the registry's own.
@@ -2416,6 +2416,7 @@ fn validate_outcome_rejects_a_store_to_a_non_target() {
     };
     let outcome = |stores: Vec<StoreOutcome>| InvocationOutcome {
         completion: CompletionOutcome::Normal,
+        nested_writes: Vec::new(),
         result: ExactValueOrUnavailable::Exact(ExactValue::int(1)),
         ordered_stores: stores,
         types: TypeFacts::default(),
@@ -2494,6 +2495,114 @@ fn validate_outcome_rejects_a_store_to_a_non_target() {
         validate_outcome(&plan, &declared, &failed),
         Err(DeclineReason::MalformedAnswer)
     );
+
+    // The count runs across the writes its substitutions made and then its
+    // own stores.
+    failed.nested_writes = vec![(PlaceRef::scalar("n"), write(0))];
+    assert_eq!(validate_outcome(&plan, &declared, &failed), Ok(()));
+    failed.completion = CompletionOutcome::Error {
+        written: 3,
+        message: ExactValueOrUnavailable::Exact(ExactValue::text("boom")),
+        error_code: ExactValueOrUnavailable::Exact(ExactValue::text("NONE")),
+    };
+    assert_eq!(
+        validate_outcome(&plan, &declared, &failed),
+        Err(DeclineReason::MalformedAnswer)
+    );
+}
+
+/// The ordered evaluation state's read rule (`docs/design/compiler/
+/// value-transfers.md` § `expr`): the last write naming a place decides what
+/// a read of it holds, a preserve changes nothing, a write that only shares
+/// storage with the place (an element of the array a read names, or the array
+/// of the element it names) leaves it unknown, a may-write or an unbind
+/// leaves no value, and a place no write reaches is the program point's.
+#[test]
+fn the_ordered_state_reads_its_own_writes_first() {
+    use tcl_registry::value_transfer::{FactBounds, NestedPolicy, WrittenPlace, written_in};
+    let target = TargetId(OperandId(0));
+    let write = |value: &str| StoreOutcome::Write {
+        target,
+        value: ExactValue::text(value),
+    };
+    let mut state = EvaluationState::new(NestedPolicy::LocalWrites);
+    assert_eq!(state.written("x"), WrittenPlace::Untouched);
+
+    state.writes.push((PlaceRef::scalar("x"), write("1")));
+    state.writes.push((PlaceRef::scalar("y"), write("9")));
+    state.writes.push((PlaceRef::scalar("x"), write("2")));
+    assert_eq!(
+        state.written("x"),
+        WrittenPlace::Exact(ExactValue::text("2")),
+        "the last write decides"
+    );
+    assert_eq!(
+        state.written("y"),
+        WrittenPlace::Exact(ExactValue::text("9"))
+    );
+    assert_eq!(
+        state.written("z"),
+        WrittenPlace::Untouched,
+        "a place no write reaches"
+    );
+
+    state
+        .writes
+        .push((PlaceRef::scalar("x"), StoreOutcome::Preserve { target }));
+    assert_eq!(
+        state.written("x"),
+        WrittenPlace::Exact(ExactValue::text("2")),
+        "a preserve changes nothing"
+    );
+
+    state.writes.push((
+        PlaceRef::scalar("x"),
+        StoreOutcome::MayWrite {
+            target,
+            facts: FactBounds {
+                existence: tcl_registry::value_transfer::Existence::MayBound,
+                intrep: None,
+                shape: None,
+                segments: None,
+                taint: None,
+            },
+        },
+    ));
+    assert_eq!(state.written("x"), WrittenPlace::Unknown, "a may-write");
+    state.writes.push((PlaceRef::scalar("x"), write("3")));
+    assert_eq!(
+        state.written("x"),
+        WrittenPlace::Exact(ExactValue::text("3")),
+        "a later write decides again"
+    );
+    state
+        .writes
+        .push((PlaceRef::scalar("x"), StoreOutcome::Unbind { target }));
+    assert_eq!(state.written("x"), WrittenPlace::Unknown, "an unbind");
+
+    // An element and its array share storage: a write to one leaves a read
+    // of the other unknown, and a read of another element untouched.
+    let element = |key: &str| PlaceRef {
+        name: format!("a({key})"),
+        kind: tcl_registry::value_transfer::PlaceKind::Element {
+            base: "a".to_owned(),
+            key: key.to_owned(),
+        },
+    };
+    let writes = vec![(
+        element("k"),
+        StoreOutcome::WriteElement {
+            target,
+            key: "k".to_owned(),
+            value: ExactValue::text("v"),
+        },
+    )];
+    assert_eq!(
+        written_in(&writes, "a(k)"),
+        WrittenPlace::Exact(ExactValue::text("v"))
+    );
+    assert_eq!(written_in(&writes, "a"), WrittenPlace::Unknown);
+    assert_eq!(written_in(&writes, "a(j)"), WrittenPlace::Untouched);
 }
 
 /// The regexp owner's route for `command words…` over literal operands,
@@ -2552,7 +2661,7 @@ fn regex_stores(answer: &EvalAnswer) -> (String, Vec<(usize, Option<String>)>) {
     )
 }
 
-/// `regexp` writes or preserves its match variables (VT5.4; the Storage
+/// `regexp` writes or preserves its match variables (the Storage
 /// row's "`regexp` no-match" and the Regexp row): a match writes one value
 /// per match variable — an unmatched subgroup the empty string, or `-1 -1`
 /// with `-indices` — and answers the count; a completed no-match preserves
@@ -2848,7 +2957,7 @@ fn answered(result: &str, stores: &[&str]) -> (String, Vec<String>) {
     )
 }
 
-/// The destructuring writers run the shared cores (VT5.5; the Storage row's
+/// The destructuring writers run the shared cores (the Storage row's
 /// "partial `scan`; … repeated targets; array and base overlap"): a
 /// converted field writes its variable and a field the input did not reach
 /// preserves it (`scan {12 nope} {%d %d} a b` is 1, `a` 12, `b` as it was);
@@ -2998,7 +3107,7 @@ fn the_byte_and_array_writers_run_the_shared_cores() {
     );
 }
 
-/// The loops' source layout answers an iteration plan (VT5.7): one binder
+/// The loops' source layout answers an iteration plan: one binder
 /// per name of the var-list word, padded past the list's end, over the one
 /// list, the body in the caller's frame with `break` and `continue`
 /// absorbed, and nothing bound on the zero-iteration path. Several var-list
@@ -3128,7 +3237,7 @@ fn dict_body_plan(
     semantics.structure(&inputs)
 }
 
-/// `dict with` and `dict update` are structural plans (VT5.7), under both
+/// `dict with` and `dict update` are structural plans, under both
 /// spellings: the binders are a projection on body entry — the proven keys
 /// of the dictionary for `dict with` (`set d {a 1}; dict with d {incr a;
 /// set result done}` binds `a`; tclsh 8.5 to 9.1 answer `done` and leave
@@ -3466,7 +3575,7 @@ fn template_witnesses(dialect: &str) -> Vec<(PlanAnswer, PlanAnswer)> {
     ]
 }
 
-/// `subst`'s template-word plan (VT5.8) answers the page's fourteen
+/// `subst`'s template-word plan answers the page's fourteen
 /// programs (`docs/design/compiler/value-transfers.md` § *The template-word
 /// plan*): the kinds its switches run, read over their proven values, and
 /// the braced template's script regions, variable reads and escapes under
@@ -3521,7 +3630,7 @@ fn the_template_plan_answers_the_fourteen_witnesses() {
     );
 }
 
-/// The 9.1 positive family (VT5.8): it answers under a 9.1 profile, is the
+/// The 9.1 positive family: it answers under a 9.1 profile, is the
 /// command's error below it (`bad switch "-variables"` on tclsh 8.4 and
 /// 8.5, `bad option` on 8.6 and 9.0), and declines as release-ambiguous
 /// under a profile that spans both, while a question with no profile reads
@@ -3583,7 +3692,7 @@ fn the_positive_switches_are_9_1s() {
     );
 }
 
-/// A finite set of switch values joins per member (VT5.8), a raising member
+/// A finite set of switch values joins per member, a raising member
 /// contributing nothing; an unproven switch runs every kind; a call without
 /// its template, or a template holding a construct `subst` rejects, is the
 /// command's error; and an array index substitutes
@@ -3905,8 +4014,8 @@ fn from_85_the_captures_and_nocase_select(dialect: &str) {
     );
 }
 
-/// `switch` declares its selection contract (VT6.2; § *`switch`*, step 2):
-/// the case-list plan its `CaseListSpec` reads — each arm a pair of words,
+/// `switch` declares its selection contract (§ *`switch`* of the interface
+/// page): the case-list plan its `CaseListSpec` reads — each arm a pair of words,
 /// or the elements of one clause-list word — and, per member of a proven
 /// subject, the arm the shared core selects: ordered first match, the final
 /// `default` (a non-final one is a literal pattern), a `-` arm supplying
@@ -3955,7 +4064,7 @@ fn switch_selection_runs_the_shared_core() {
 }
 
 /// 9.1b0's byte-compiled `switch` reads only a bare `-` as the fall-through
-/// body, its interpreted path the word's value (D179): measured on tclsh
+/// body, its interpreted path the word's value: measured on tclsh
 /// 9.1b0, `switch -glob -- a a "-" b {…}` runs `-` as a command inside a
 /// procedure and falls through at a script's top level, where 8.4.20 to
 /// 9.0.4 fall through on both paths. So under a profile that may be 9.1 a
@@ -4045,7 +4154,7 @@ fn a_delimited_fallthrough_body_reads_two_ways_under_91() {
     );
 }
 
-/// `case` declares its own selection contract (D180): no options, glob
+/// `case` declares its own selection contract: no options, glob
 /// matching, a pattern word holding whitespace or a backslash a list of
 /// patterns, a `default` fallback wherever it stands and still matched
 /// literally, the first match winning, and no fall-through body. Each

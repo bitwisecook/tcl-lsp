@@ -54,8 +54,9 @@ pub fn spec() -> CommandSpec {
         // runs when a report applies that style, not at the definition.
         // tclsh 8.6.16 / 9.0.4, byte-identical: `proc p {} {
         // report::defstyle s {} {error stop}; set ::reached 1 }` sets
-        // `::reached`.
-        traits: Traits::DEFERS_BODY,
+        // `::reached`. The script is a definition, and runs in a frame of
+        // its own.
+        traits: Traits::DEFERS_BODY.union(Traits::BODY_RUNS_IN_OWN_FRAME),
         hover: Some(HoverSnippet {
             summary: "Defines the new style styleName.",
             synopsis: &["report::defstyle styleName arguments script"],

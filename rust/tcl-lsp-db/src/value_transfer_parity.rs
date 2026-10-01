@@ -524,7 +524,7 @@ fn a_pool_thread_with_a_stale_host_answers_with_the_new_plan() {
     tcl_spectcl::hooks::publish(&tcl_spectcl::PackSet::default());
 }
 
-/// The evaluator epoch re-keys the memoised lattices (D104). `p` folds
+/// The evaluator epoch re-keys the memoised lattices. `p` folds
 /// `[tenant::label acme]` and its lattice is memoised; `q`'s argument makes
 /// the body spin past its `-commands` budget, so this worker's host
 /// quarantines the body and the process's epoch moves. The database cannot
@@ -594,12 +594,12 @@ fn an_evaluator_epoch_re_keys_the_memoised_lattices() {
     tcl_spectcl::hooks::publish(&tcl_spectcl::PackSet::default());
 }
 
-/// VT5.19: slice 5's destructuring writers — `regexp`'s no-match preserve,
+/// The destructuring writers — `regexp`'s no-match preserve,
 /// `scan`'s partial conversion, and `lassign` — answer alike on the
 /// memoised editor path and a direct build, value for value, under a
 /// release (`tcl8.6`) and a release with its own numeral grammar
 /// (`tcl9.0`). `array set arr {k v}` runs beside them so the element-write
-/// outcome the container harvesters read (VT5.18) is part of the parity
+/// outcome the container harvesters read is part of the parity
 /// too, even though `arr` itself carries no scalar lattice value.
 #[test]
 fn destructuring_agrees_on_both_paths() {
@@ -656,7 +656,7 @@ fn destructuring_agrees_on_both_paths() {
     }
 }
 
-/// The existence rung agrees on both paths (VT8.10): `x` decides
+/// The existence rung agrees on both paths: `x` decides
 /// `Unbound` after `unset x`, and `n` binds on `incr n`'s normal path,
 /// value for value with the direct build, under a release, a vendor
 /// dialect declaring its base (`f5-irules`, 8.4's), and the lenient `tcl`

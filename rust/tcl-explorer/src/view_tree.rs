@@ -417,18 +417,22 @@ fn build_cfg(funcs: &[Value], post: bool) -> Vec<ViewNode> {
             let a = &f["analysis"];
             let mut asub = Vec::new();
             for br in arr(a, "constantBranches") {
-                asub.push(ViewNode::leaf(
-                    format!(
-                        "const branch {}: always {}",
-                        s(br, "block"),
-                        pystr(&br["value"])
-                    ),
-                    vec![
-                        det("condition", s(br, "condition")),
-                        det("take", s(br, "takenTarget")),
-                    ],
-                    Some("blue"),
-                ));
+                asub.push(if s(br, "kind") == "selected" {
+                    unreached_arm_leaf(br)
+                } else {
+                    ViewNode::leaf(
+                        format!(
+                            "const branch {}: always {}",
+                            s(br, "block"),
+                            pystr(&br["value"])
+                        ),
+                        vec![
+                            det("condition", s(br, "condition")),
+                            det("take", s(br, "takenTarget")),
+                        ],
+                        Some("blue"),
+                    )
+                });
             }
             for ds in arr(a, "deadStores") {
                 asub.push(ViewNode::leaf(
@@ -524,7 +528,7 @@ fn build_dominators(d: &Value) -> Vec<ViewNode> {
     }
 }
 
-/// One selection record's leaf (VT6.3): the arm each member selects, the
+/// One selection record's leaf: the arm each member selects, the
 /// arm whose body runs, and the statement's line.
 fn selection_leaf(selection: &Value) -> ViewNode {
     ViewNode::leaf(
@@ -538,6 +542,17 @@ fn selection_leaf(selection: &Value) -> ViewNode {
                     .map_or_else(|| "?".to_owned(), |line| (line + 1).to_string()),
             ),
         ],
+        Some("blue"),
+    )
+}
+
+/// The leaf of a `Selected` branch fact: an arm of an opaque `switch` whose
+/// body no member of the subject runs — the pattern, and the block holding
+/// the statement.
+fn unreached_arm_leaf(fact: &Value) -> ViewNode {
+    ViewNode::leaf(
+        format!("arm never selected: {}", s(fact, "condition")),
+        vec![det("block", s(fact, "block"))],
         Some("blue"),
     )
 }
@@ -588,14 +603,18 @@ fn build_sccp(d: &Value) -> Vec<ViewNode> {
             Some("cyan"),
         ));
         for branch in arr(f, "constantBranches") {
-            children.push(ViewNode::leaf(
-                format!("branch {}: {}", s(branch, "block"), pystr(&branch["value"])),
-                vec![
-                    det("condition", s(branch, "condition")),
-                    det("take", s(branch, "takenTarget")),
-                ],
-                Some("blue"),
-            ));
+            children.push(if s(branch, "kind") == "selected" {
+                unreached_arm_leaf(branch)
+            } else {
+                ViewNode::leaf(
+                    format!("branch {}: {}", s(branch, "block"), pystr(&branch["value"])),
+                    vec![
+                        det("condition", s(branch, "condition")),
+                        det("take", s(branch, "takenTarget")),
+                    ],
+                    Some("blue"),
+                )
+            });
         }
         children.extend(arr(f, "selections").iter().map(selection_leaf));
         for route in arr(f, "routes") {

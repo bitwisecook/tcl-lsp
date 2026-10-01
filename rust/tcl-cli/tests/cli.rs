@@ -1333,9 +1333,12 @@ fn diag_suppressed_rows(out: &[u8]) -> Vec<serde_json::Value> {
         .collect()
 }
 
-/// A `while` whose counter the body never touches: W242, the one code the
-/// catalogue declares default-off.
-const UNPROVABLE_LOOP: &str = "set i 0\nwhile {$i < 3} {\n    puts $i\n}\n";
+/// A `while` whose counter the body never touches, against a bound the
+/// solver cannot decide (a parameter, so no header fact settles it): W242,
+/// the one code the catalogue declares default-off. Against a literal bound
+/// the header is decided true at every test and the loop draws W241 instead.
+const UNPROVABLE_LOOP: &str =
+    "proc p {n} {\n    set i 0\n    while {$i < $n} {\n        puts $i\n    }\n}\n";
 
 /// An abstaining document keeps the codes its bytes justify — the integrity
 /// code and a bidirectional control, W305, which reads the decoded text as

@@ -4073,8 +4073,7 @@ fn with_pack_hooks<R>(work: impl FnOnce() -> R) -> R {
     work()
 }
 
-/// Take the process's evaluator epoch into the query database
-/// (`docs/design/lanes/value-transfers.md`, D104).
+/// Take the process's evaluator epoch into the query database.
 ///
 /// The memoised lattices are shared by every worker while each worker's hook
 /// host is its own ([`with_pack_hooks`]), so a hook quarantined on whichever
@@ -4797,12 +4796,12 @@ async fn refresh_cross_file_evidence(
     // computed under the pre-sync oracle are corrected by the peers' own next
     // refresh, which the reschedule has already scheduled.
     //
-    // First, the evaluator epoch (D104): a hook quarantined during the pass
+    // First, the evaluator epoch: a hook quarantined during the pass
     // moved it on the worker that ran the pass, and this is where the server
     // first sees that. Taken before the evidence snapshot, whose revision the
     // write below must still match, so the next analysis keys its lattices by
     // the evaluators as they now stand. Nothing is rescheduled for it: a
-    // quarantine is no verdict on the answers already published (D98), and a
+    // quarantine is no verdict on the answers already published, and a
     // pass on another worker would only run the crashing body again.
     sync_evaluator_epoch(&handles.db).await;
     let evidence_changes = sync_cross_file_evidence(handles).await;
@@ -21354,7 +21353,7 @@ impl Backend {
             // The publish above moved the process's evaluator epoch, whether
             // or not the new set is empty: take it before anything
             // re-analyses, so no memoised lattice outlives the plan whose
-            // hosts computed it (D104).
+            // hosts computed it.
             sync_evaluator_epoch(&self.db).await;
             // The new set decides `registry_for_dialect`, and every cached
             // `DiagInputs` holds a registry handle resolved from the old one.
@@ -37545,7 +37544,7 @@ mod tests {
     }
 
     /// The evaluator epoch reaches the query database after a diagnostics
-    /// pass (D104). A hook quarantined on a worker thread moves the process's
+    /// pass. A hook quarantined on a worker thread moves the process's
     /// epoch, and nothing a query reads says so; the refresh that follows the
     /// pass takes it, compare-then-set, and reschedules nothing for it. That
     /// the input re-keys the memoised lattices is `tcl-lsp-db`'s
@@ -52020,8 +52019,8 @@ proc p {} {
     }
 
     /// The viewport's enriched tier reads the unit under the workspace's pack
-    /// overlay, so it colours exactly what the full-document query colours
-    /// (the review of slice 4, finding 7). `mylib::put pat` is a pack command
+    /// overlay, so it colours exactly what the full-document query colours.
+    /// `mylib::put pat` is a pack command
     /// that writes `pat` (`arg 0 -role VarWrite`): under the overlay the
     /// `regexp` reads the version `mylib::put` wrote, so `set pat`'s literal is
     /// not the pattern's source. A unit built without the overlay sees an

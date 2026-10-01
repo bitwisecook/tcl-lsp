@@ -448,6 +448,11 @@ pub struct ModuleTraceFacts<'a> {
     pub traced_variables: &'a BTreeSet<String>,
     /// [`crate::ir::Module::has_dynamic_variable_trace`].
     pub has_dynamic_variable_trace: bool,
+    /// [`crate::ir::Module::deferred_writes`]: the names the module's
+    /// callback scripts write. The value lattices read it beside the traced
+    /// names; the taint lattice does not, since a callback's write is no
+    /// trace's read of tainted data.
+    pub deferred_writes: &'a crate::ir::DeferredWrites,
 }
 
 /// The whole-module facts a per-procedure build runs under: the variable
@@ -547,7 +552,8 @@ impl<'a> FunctionBuildInputs<'a> {
                 .analysis_context
                 .map(|key| &key.connection_scoped)
                 .filter(|_| name.starts_with(WHEN_HANDLER_PREFIX)),
-            dynamic_trace: self.trace_facts.has_dynamic_variable_trace,
+            dynamic_trace: self.trace_facts.has_dynamic_variable_trace
+                || self.trace_facts.deferred_writes.any,
             config: self.config,
         }
     }
@@ -565,6 +571,7 @@ impl ModuleTraceFacts<'_> {
         Self {
             traced_variables: EMPTY.get_or_init(BTreeSet::new),
             has_dynamic_variable_trace: false,
+            deferred_writes: &crate::ir::NO_DEFERRED_WRITES,
         }
     }
 }
@@ -879,6 +886,7 @@ impl FunctionUnit {
                 has_dynamic_variable_trace: trace_facts.has_dynamic_variable_trace
                     || dynamic_names.writes
                     || dynamic_names.destroys,
+                deferred_writes: trace_facts.deferred_writes,
                 analysis_context,
                 existence: (tier == AnalysisTier::Deep).then_some(existence),
             },
@@ -1880,10 +1888,12 @@ impl CompilationUnit {
         // lattice in this build — memoised or not — is keyed and run under.
         // The names an iRules handler may find bound on entry ride on it,
         // so a handler's memoised lattice re-keys when another handler binds
-        // a new name.
+        // a new name, and every lattice when a callback script of the module
+        // writes one.
         let analysis_context =
             crate::value_transfer::AnalysisContextKey::for_module(&command_mutations, registry)
-                .with_connection_scoped(connection_scoped_names(&cfg_module, registry, options));
+                .with_connection_scoped(connection_scoped_names(&cfg_module, registry, options))
+                .with_deferred_writes(ir_module.deferred_writes.clone());
         // Module-wide upvar/param context — the CFG-determining context a
         // procedure body is rebuilt under.  Computed once and shared by every
         // memoised request, the methods/body-units below, and the call-site
@@ -1909,6 +1919,7 @@ impl CompilationUnit {
         let trace_facts = ModuleTraceFacts {
             traced_variables: &ir_module.traced_variables,
             has_dynamic_variable_trace: ir_module.has_dynamic_variable_trace,
+            deferred_writes: &ir_module.deferred_writes,
         };
         let semantic_context = semantic_context(dialect);
         let top_level = FunctionUnit::build_top_level(
@@ -2830,7 +2841,7 @@ mod tests {
         assert!(has_const, "expected `safe_const` to still fold to a Const");
     }
 
-    /// Existence is a deep-tier fact (VT8.7): a procedure lattice requested
+    /// Existence is a deep-tier fact: a procedure lattice requested
     /// at the fast tier runs no rung, so every read of it answers
     /// `Unavailable(Fast)` — neither bound nor unbound — and W210 and W213
     /// stay silent where the deep build reports both; a unit over the

@@ -18,7 +18,7 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 
 | Axis | Until | Site | Waiver | Reason |
 |---|---|---|---|---|
-| irreducible | never | `rust/tcl-compiler/src/analyser/handlers.rs:1966` | site | the variadic `args` formal is Tcl's proc grammar (`VAR_IS_ARGS` on the last formal, `tclProc.c`), no registry fact |
+| irreducible | never | `rust/tcl-compiler/src/analyser/handlers.rs:1968` | site | the variadic `args` formal is Tcl's proc grammar (`VAR_IS_ARGS` on the last formal, `tclProc.c`), no registry fact |
 | irreducible | never | `rust/tcl-compiler/src/analyser/recovery.rs:273` | site | this whole function is a switch-specific parser-repair heuristic (splicing orphaned pattern/body segments into a switch's argv when the source is missing its opening brace); no registry fact picks which command's *malformed* source this repair applies to more abstractly than its own name, and every other command's malformed source is left unrepaired |
 | irreducible | never | `rust/tcl-lsp-core/src/formatting/config.rs:91` | site | an editor-settings spelling for `tclLsp.formatting.docstringStyle` (a stub-placement choice), not a Tcl clause-grammar keyword; "body" here coincides with the registry's `ArgRole::Body` word by English spelling only |
 | irreducible | never | `rust/tcl-lsp-core/src/formatting/docstring.rs:247` | site | `args` here is a proc's own *formal parameter* name (Tcl's variadic-last-parameter convention, checked against the signature this stub is generated from), not a call to `info args`; the spelling coincides with `info`'s subcommand by coincidence only |

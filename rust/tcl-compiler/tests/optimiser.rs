@@ -647,12 +647,16 @@ fn structure_elimination_switch() {
     assert!(optimised(gdef, TCL).contains("set z 3"));
     assert!(opt_fires(gdef, TCL, "O112"));
 
-    // -regexp is NOT statically eliminated.
-    assert!(!opt_fires(
-        "switch -regexp abc {\n    ^a { set x 1 }\n    default { set y 2 }\n}",
-        TCL,
-        "O112"
-    ));
+    // -regexp folds through the regexp engine: `^a` matches abc (first arm),
+    // `^b` does not (default). tclsh 8.6: arm 1 and arm 2 respectively.
+    let re = "switch -regexp abc {\n    ^a { set x 1 }\n    default { set y 2 }\n}";
+    assert!(optimised(re, TCL).contains("set x 1"));
+    assert!(!optimised(re, TCL).contains("set y 2"));
+    assert!(!optimised(re, TCL).contains("switch"));
+    assert!(opt_fires(re, TCL, "O112"));
+    let rdef = "switch -regexp abc {\n    ^b { set x 1 }\n    default { set y 2 }\n}";
+    assert!(!optimised(rdef, TCL).contains("set x 1"));
+    assert!(optimised(rdef, TCL).contains("set y 2"));
 
     // -glob fallthrough (`a* -` then `z* {body}`) selects the next body.
     // tclsh: switch -glob abc {a* - z* {1} default {2}} ⇒ 1.
@@ -2241,7 +2245,7 @@ fn a_braced_expr_word_with_no_nested_write_still_folds() {
 /// prints `2`, matching the originals.
 ///
 /// The write chain folds through the lattice's proven `$x` too (O104 / O130
-/// over a lattice operand — the value-transfer lane's slice 2), so the
+/// over a lattice operand), so the
 /// forwarded read and the store it extends become the one store
 /// `set x {1 1}`; tclsh 8.4.20 – 9.1b0 print `1 1` for both programs.
 #[test]
@@ -2342,7 +2346,7 @@ fn a_structural_body_is_not_the_enclosing_statements_surface() {
 /// writes at all, so the store was deleted *and* the stale literal forwarded
 /// into the loop body.
 ///
-/// Since value-transfers slice 8 the existence rung decides `[info exists
+/// The existence rung decides `[info exists
 /// x]` inside the fixed point, so the first program's condition folds to `1`
 /// (O101) — a sound rewrite that still prints `yes` — and the store it read
 /// stays.
@@ -2491,7 +2495,7 @@ fn a_conditional_writer_does_not_kill_the_store_it_may_preserve() {
         // Asserted on the stores rather than byte-identity: the `binary scan`
         // row also gets a legitimate O100, specialising its one call site's
         // `$d` to `AB`, and the `regexp` row's proven no-match keeps both
-        // values in the lattice (VT5.4), so its `puts` reads them as the
+        // values in the lattice, so its `puts` reads them as the
         // constants they are — both unrelated and correct.
         let out = optimised(src, TCL);
         for store in src

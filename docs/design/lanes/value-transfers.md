@@ -697,6 +697,145 @@ but found by the same audit (its own "Open" entry).
 
 Closes #2133. Pins #2132 (closed on rust by #2220).
 
+## Status (2026-09-30): slice 6 landed
+
+The first three items landed as their own checkpoints before this
+sequence began: VT6.1 (`15930d1d`, the whole-variable `Raw` subject),
+VT6.2 (`2383550c`, `switch` declares its selection contract) and VT6.3
+(`7b9b4064`, the selection record), with D175 to D182. One implementer then
+ran the rest in the order VT6.4, VT6.5, VT6.7, VT6.6, VT6.8 — the two
+consumers of the one selection first, then the loop header's branch fact,
+then the iRules checks, then the witnesses — each its own checkpoint:
+`9d44d4c1` (VT6.4), `cb96bc04` (VT6.5), `2c9d802b` (VT6.7), `a59316ec`
+(VT6.6) and `6ee592d0` (VT6.8), and this docs commit,
+`wip(value-transfers): slice 6 — branch integration and optional rewrites`
+(VT6.9, the landing). The decisions are D183 to D187 in § *Decisions taken*,
+the records § *Plan for slices 2–13* › *Slice 6* › *Record (2026-09-24): the
+opus items of slice 6*.
+
+Behaviour changes, as the plan's landing message states them: program (4)
+gives O112 and I231 in every form of `switch` and O107 in the flattened
+one; IRULE1201 ignores a respond in a dead arm; a constant `while` condition
+gives W240 or W241 instead of W242. Beyond them: I231 reports the arms of
+every opaque form the solver proves unselected, an arm passing its body on
+with `-` judged by the body it leads to (D185); a `switch` the solver never
+analysed — inside an opaque `catch` body — is no longer folded by O112, which
+had read it through a flow-insensitive projection (D183); a `for` whose
+first test fails is W240 and one whose counter never moves is W241 (D186);
+IRULE4004 reports one finding more where the only other write of a variable
+is dead (D187); and a quoted or braced `-` body under a profile that may be
+9.1 records no selection (D179).
+
+Two things the plan did not say. The plan's review checklist item R6 asks
+that "every O112 test" stay byte-identical, and four could not: the plan's
+own item makes O112 fire for `-glob`, `-regexp`, `-nocase` and fall-through
+forms, where `switch_regexp_mode_is_skipped`,
+`structure_elimination_switch` and
+`computed_creation_switch_supports_registry_modes_and_fallthrough` asserted
+it did not, and `the_flattened_form_yields_o107` had to read O107 from the
+passes' raw findings beside O112, which subsumes its rewrite once the
+findings are applied together; each moved against the mandate its row names
+in VT6.4's record, and `switch_dispatch_branches_are_skipped` is unchanged.
+And a `Selected` fact stored beside a branch is a soundness hazard for
+every consumer that reads the stored facts by their block: branch folding,
+which keys a fact by the block holding the statement — the block that also
+ends in the next `if`'s branch — would have rewritten that `if`'s condition
+to the fact's `false`. `a_selection_fact_folds_no_condition_beside_it`
+witnesses it (the O101 it draws without the skip), and D185 lists the
+consumers audited.
+
+Green at the landing, the review checklist's suite plus every standing gate,
+run after VT6.9's docs (VT6.9's own Green paragraph above has the counts):
+
+- `cargo check --workspace --all-targets`: clean;
+- `cargo test -p tcl-registry -p tcl-compiler -p tcl-explorer -p tcl-cli`,
+  with `-p tcl-lsp-db -p xtask` beside them: `tcl-compiler` 9831 passed
+  across 67 binaries, 6 ignored, and 7 doctests; `tcl-registry` 1275 and a
+  doctest; `tcl-explorer` 105; `tcl-cli` 132; `tcl-lsp-db` 129, 5
+  ignored; `xtask` 237 — no failure; and, in addition, since the slice's
+  consumers reach every diagnostic and code action, `tcl-lsp-core` 3575 and 3
+  doctests, `tcl-lsp-server` 2238 and `tcl-mcp` 114 at VT6.6's run, whose one
+  transient failure, `workspace_symbol_waits_out_the_startup_scan` in the
+  server's `e2e` binary, passed when rerun alone and is not this slice's (a
+  startup-scan timing test run while the machine was loaded);
+- pedantic clippy (`--workspace --all-targets -D warnings`) after every
+  item, no `#[allow]` added anywhere in the slice — the functions the new
+  lines pushed past the line limit were split instead — and `cargo fmt`;
+- `cargo xtask value-transfers --check`: 22 files clean, 19 sites waived, 83
+  pinned across 34 ratcheted files, 6607 inventory rows, the report
+  regenerated once (VT6.7's line-number moves in `bounds_checks.rs`);
+- `cargo xtask registry-axes --check`: 7831 vocabulary words, 16 files
+  clean, 36 sites waived, 893 pinned across 147 ratcheted files, the report
+  regenerated once (VT6.4's one moved line) — `LANDED` gaining `"slice 6"`
+  expires no `until slice N` waiver, so the counts do not move;
+- `cargo xtask pack-goldens`: 25 packs, 0 rewritten;
+- `cargo xtask kcs-index-links`: "KCS docs checks passed";
+- `cargo xtask owner-resolution`: OK, 45 owner rows;
+- `cargo xtask retired-api-gate`: OK;
+- `cargo xtask dialect-drift`: 8 sites, the eight pre-existing upstream ones,
+  none new;
+- `scripts/dev/verify-nextest-binary-shards.py --metadata-only`: the shard
+  manifest covers the workspace's 328 test targets (the slice adds none).
+
+R1: no non-test consumer matches `"switch"` or a mode spelling — searched in
+`structure_elimination.rs`, `static_loops.rs`, `handlers.rs`,
+`value_transfer.rs` and `sccp.rs`; the selection goes through
+`tcl_cmd_core::switch` behind `SwitchSemantics`; no file is newly ratcheted
+(`selection.rs` and `case.rs` are clean by rule). R7: a selection is never
+applied reachability without a real edge (`an_unreached_arm_is_a_selected_branch_fact`
+asserts every block stays executable), an approximate regexp match never
+selects (a malformed pattern declines, in `switch_selection_runs_the_shared_core`),
+and a `ConstSet` subject keeps every member's arm.
+
+Left to later slices: bounded-loop enumeration (slice 12) still owes
+`static_loops.rs` its arithmetic and `resolve_switch_subject`, and seeds
+W240–W242's `for` counter check from the plan's bound and step in place of
+the `set v INT` text scan; predicate refinement (slice 11) and the rest are
+as the plan has them. Arm-deletion edits stay unreserved until the ordered-
+matching, completion, source-edit mapping and proof contracts exist.
+
+Found and left, outside this slice's scope: the incremental path
+(`analyse_per_item`) loses every literal-only check that reads a proven word
+inside a procedure body, because `BodyFragment`
+(`rust/tcl-compiler/src/analyser/per_item.rs`) carries no
+`Analyser::proven_sites` — VT5.16's queue, which the walk records and the
+per-function pass replays. `proc p {} {set l {a b c}; lindex $l 9}` reports
+W230 from `Analyser::analyse` and nothing from `analyse_per_item`, and `proc
+p {input} {set re {(a+)+$}; regexp $re $input}` drops its W303 the same way;
+the top-level program `set re {(a+)+$}; regexp $re abc` agrees on both.
+`loop_verdicts_agree_across_the_whole_file_and_per_item_walks` covers the
+loop queue this slice added, and the same carry — the field, its capture in
+`analyse_proc_body_isolated`, the graft, the rebase — is the fix.
+
+Review (2026-09-30). The landing's review found three holes in the lattice
+that made a solver fact at a condition unsound — W240 and W241 turned any
+`Applied` fact at a loop header into a verdict, and I230, O100, O102 and O112
+read the same values — a flattened `switch` that compared a word by its
+spelling, and four smaller faults. Three commits repair them, recorded in §
+*Plan for slices 2–13* › *Slice 6* › *Record (2026-09-30): review fixes for
+slice 6*. The first, `wip(value-transfers): slice 6 — review fixes: the lattice
+states what opaque switches, callbacks and unseen calls write`, closes the
+three holes (D193 to D196): an opaque `switch` defines every name its arms may
+write, a callback script's writes escape as a trace's do, and a top-level name
+and its `::` spelling agree across a call the module cannot see; the iRules
+checks follow. The second, `wip(value-transfers): slice 6 — review fixes: the
+flattened switch compares the values of its words and leaves a subject an
+option scan may read to its record`, repairs the flattened chain (D197, D198):
+its operands are the values of the statement's words, read by the one decoder
+the selection reads its arguments by, and a whole-variable subject that the
+option scan may read as an option — on a release before 8.5, or with the arms
+as pattern and body words — stays one statement, which the selection record
+decides. The third, `wip(value-transfers): slice 6 — review fixes: the comments
+and pages state the rules, the Explorer words the branch facts, I231 names its
+command`, closes the rest (D199 to D201): every code and test comment that cited
+a decision, a plan item or a slice states its rule in words, the interface page
+describes the tree it is about, the Explorer's post-SSA card words a `selected`
+fact as an arm never selected and lists the selection records, and I231 names
+the command a `case` statement spells. The review's findings are closed: B1 and
+B2 by the first commit, B3 and S1 by the second, S2, S3, S4 and N1 by the third.
+
+Closes #2056. Closes #2057.
+
 ## Plan for slices 2–13
 
 The delivery plan for the rest of
@@ -5809,6 +5948,238 @@ with the commit, then 0); `retired-api-gate`, `owner-resolution` (45
 rows) and `kcs-index-links` pass; `dialect-drift` 8 sites, none new;
 `cargo check --workspace --all-targets` clean.
 
+| Item | Commit | What landed | Its tests |
+|---|---|---|---|
+| VT6.4 | `wip(value-transfers): slice 6 — O112, the selected body and the loop simulator read one selection` | O112 (`structure_elimination.rs`) folds a `switch` only from what the solver decided (D183): an opaque form reads the unit's selection record by the statement's span (`record_decision`), the flattened exact form the `Applied` branches of its dispatch chain (`chain_decision`), the walk carrying the function unit beside the `Env` the `if`, `while` and `for` conditions still read (`Facts`); `resolve_subject`, `pattern_matches` and `SwitchInfo` are gone, and `cfg_builder::switch_is_flattened` is the one predicate lowering and O112 share for which form a statement is. The record's arm indices read through the default-index rule (an index one past the arms is the final `default`), every member must run one body, and the message gains a wording for members that match different patterns sharing a body. `value_transfer.rs` gains the consumer-side query (D184): `literal_selection` runs the command's declared `Selection` transfer over `LiteralInputs` for words a caller proves, each with how it was written (`WordForm`, so the delimited `-` body rule applies), and `statement_selection` reads a lowered `Statement::Switch`'s recorded words through it, only where the plan reads the statement's own subject and clause count. `exec_switch` (`static_loops.rs`) asks it over the simulator's environment for the statement's own command, so the mode, `-nocase` and fall-through it ignored are honoured; the analyser's `switch_body_is_selected` (`handlers.rs`, split into itself, `switch_words` and `switch_clause_bodies`) asks it for the clause whose body runs, regexp mode included, and reads a braced word as its own text. Beyond the item's three files: `value_transfer.rs`, `cfg_builder/mod.rs` and `cfg_lower.rs` (the predicate), `lowering/structured.rs` (`braced_word_flags` and `quoted_word_flags` are `pub(crate)`, the delimiters the analyser reads) | `opaque_modes_fold_to_the_arm_the_command_selects`, `the_selection_reads_the_subject_at_the_statement`, `a_finite_subject_folds_only_where_its_members_agree`, `case_folds_through_its_own_selection`, `a_declined_selection_leaves_the_switch_alone` (`structure_elimination.rs`, new: every opaque mode, a subject with three versions, members that agree and members that part, `case` from 8.4 to 8.6 and none from 9.0, a malformed pattern, a quoted `-` body under 9.1 and the unnamed profile, an unknown subject and a `default`-only statement left alone); `a_literal_call_selects_through_the_registry`, `a_delimited_fallthrough_word_declines_only_where_it_may_be_91`, `a_literal_case_call_selects_its_glob_arm` and `a_lowered_statement_selects_over_its_recorded_words` (`value_transfer.rs`, new); `summarise_honours_the_mode_of_a_switch` and `summarise_bails_where_the_selection_is_not_made` (`static_loops.rs`, new); `computed_creation_declines_a_delimited_fallthrough_body_on_91` (analyser tests, new); `program_four_folds_in_every_form` (compiler witnesses, new: program (4)'s exact, `-glob`, `-regexp`, `-nocase` and fall-through forms each leave `puts always` under every analysed dialect that has the form, and print `always` before and after the optimiser under tclsh 8.4 to 9.1, `-nocase` from 8.5). Moved by the mandate (§ *`switch`*, step 2; the O112 row; the item's "O112 fires for `-glob`, `-regexp`, `-nocase` and fall-through forms"): `switch_regexp_mode_is_skipped` becomes `switch_regexp_mode_selects_through_the_owner`; `structure_elimination_switch` (optimiser tests) folds `-regexp` where it asserted no O112; `computed_creation_switch_supports_registry_modes_and_fallthrough` (analyser tests) reads `switch -regexp -- Dialect {D* - …}` as selecting the creating body, as tclsh 9.0 does, where it asserted the selection abstains, and gains a malformed-pattern abstention; `the_flattened_form_yields_o107` (compiler witnesses) reads O107 from the passes' raw findings beside O112, which subsumes its rewrite once the findings are applied together, and asserts the applied program keeps neither the arm nor the `switch`. Completed, not moved: `mode_switch` (`static_loops.rs`) states the words the lowering records; the three tests of the removed `resolve_subject` and `pattern_matches` go with them |
+
+Green at VT6.4: `tcl-compiler` 9818 passed, 6 ignored across its 67
+binaries, and 7 doctests; `tcl-explorer` 104; `tcl-cli` 129 across its
+binaries (`cli` 50, `value_transfers_cli` 8); `tcl-lsp-db` 129 (103 in
+the library, 26 across its integration binaries); workspace clippy
+(`--all-targets -D warnings`), no `#[allow]` added, and `cargo fmt
+--check`; `value-transfers --check` (22 clean, 19 waived, 83 pinned
+across 34 files, 6607 rows) and `registry-axes --check` (893 pinned
+across 147 files, 36 waived, 16 clean; the ledger regenerated for one
+line shift, `handlers.rs` 1966 → 1968), both unchanged in count;
+`pack-goldens` (25 packs, 0 rewritten), `retired-api-gate`,
+`owner-resolution` (45 rows) and `kcs-index-links` pass; `dialect-drift`
+8 sites, none new; `cargo check --workspace --all-targets` clean.
+
+| Item | Commit | What landed | Its tests |
+|---|---|---|---|
+| VT6.5 | `wip(value-transfers): slice 6 — I231 on an opaque form` | The selection post-pass (`LatticeDriver::selection_facts`, which replaces `selection_records`; its per-statement half is `selection_of`) states, beside each record, a `Selected` `ConstantBranch` for every arm no member of the subject runs the body of (`unreached_arm_facts`, D185), appended to `SccpResult::constant_branches`: the block holding the statement, the pattern's span and text, `value` `false`, no target — nothing is applied to `executable_blocks`, so no block is dropped and O107 does not fire. `emit_selected_arm_diagnostics` (`analyser/diagnostics/dataflow.rs`, called after `emit_constant_branch_diagnostics`) reports I231 for each at its pattern: "Switch arm '<pattern>' is never selected; this arm is unreachable". An arm passing its body on with `-` is judged by the body it leads to, and the final `default`, which has no pattern span, is never reported. The consumers that read every stored fact read its kind: `function_nontaint_checks` (`compiler_checks.rs`) hints O100 only at a branch, and branch folding (`branch_folding.rs`) neither counts a `Selected` fact's block among the folded ones nor folds a condition by it — the statement's block also ends in the next `if`'s branch, which a fact keyed by that block would have rewritten. The Explorer's `constantBranches` state each fact's `kind` (`BranchFactKind::label`), its annotation says the arm is never selected, and its text views print `arm never selected: <pattern>`. Beyond the item's two files: `sccp.rs` (the label, the field docs, the result's assembly), `value_transfer.rs`, `branch_folding.rs`, `analyser/diagnostics.rs` (the call), and `tcl-explorer`'s `serialise.rs` and `view_tree.rs` | `program_four_folds_in_every_form` becomes the plan's `program_four_yields_o112_and_i231_for_every_form` (compiler witnesses: the exact, `-glob`, `-regexp`, `-nocase` and shared-body forms of program (4) each report I231 on `baz`'s pattern — and on `qux`'s in the shared form — leave `puts always`, and print `always` before and after the optimiser under tclsh 8.4 to 9.1, `-nocase` from 8.5; the flattened form alone has O107 among the passes' raw findings, and an opaque form drops no block and draws no O100; a profile that may be 8.4 makes no `-nocase` selection at all); `an_opaque_switch_reports_the_arms_it_never_selects` (analyser diagnostics tests, new: the selected arm, the default, a `-` group that runs and one that does not, a finite subject, `case` under 8.6 and 9.0, a parameter subject, dead code, and the quoted `-` body under 9.0 and 9.1); `an_unreached_arm_is_a_selected_branch_fact` (`value_transfer.rs`, new: the fact's fields, and every block stays executable); `a_selection_fact_folds_no_condition_beside_it` (compiler witnesses, new: fails with the O101 the fact would draw when branch folding does not skip it; tclsh 8.4 to 9.1 print `A`, `X`, `A`); `serialise::tests::sccp_reports_the_unreached_arms` (Explorer, new). No existing test moved |
+
+Green at VT6.5: `tcl-compiler` 9821 passed, 6 ignored across its 67
+binaries, and 7 doctests; `tcl-explorer` 105; `tcl-cli` 129 across its
+binaries (`cli` 50, `value_transfers_cli` 8); `tcl-lsp-db` 129 (103 in
+the library, 26 across its integration binaries); workspace clippy
+(`--all-targets -D warnings`), no `#[allow]` added — two functions the
+new lines pushed past the line limit were split instead
+(`sccp_with_builtin_folds` gave up `escaping_names`,
+`emit_cfg_ssa_diagnostics_for_function_full` calls
+`emit_branch_fact_diagnostics`) — and `cargo fmt --check`;
+`value-transfers --check` (22 clean, 19 waived, 83 pinned across 34
+files, 6607 rows) and `registry-axes --check` (893 pinned across 147
+files, 36 waived, 16 clean), both unchanged; `pack-goldens` (25 packs, 0
+rewritten), `retired-api-gate`, `owner-resolution` (45 rows) and
+`kcs-index-links` pass; `dialect-drift` 8 sites, none new; `cargo check
+--workspace --all-targets` clean.
+
+| Item | Commit | What landed | Its tests |
+|---|---|---|---|
+| VT6.7 | `wip(value-transfers): slice 6 — W240 and W241 from the loop header's branch fact` | The walk queues each conditional loop it examines instead of reporting it (D186): `loop_termination_candidate` (`bounds_checks.rs`; `loop_termination_diagnostics` stays as a test-only wrapper over the text's verdict) yields a `LoopTerminationCandidate { cmd_name, condition_span, lexical, body_may_exit }`, `lexical` a `LexicalVerdict` (`Dead`, `Infinite(reason)`, `Unprovable(variable)`, `Silent`), and `emit_bounds_family_diagnostics` (`commands.rs`) pushes it on `Analyser::loop_candidates` (`state.rs`, cleared with the run's other queues). The per-function pass resolves the queue in `emit_branch_fact_diagnostics` (`analyser/diagnostics/dataflow.rs`, beside I230 and I231; `resolve_loop_terminations`): `header_fact` reads the unit's `Applied` branch fact at the condition word's span — false is `HeaderFact::Never`, true is `Always { exits }`, `exits` from `loop_exit_is_executable` (the loop's end block executable, which a `break` makes so, or an executable path from the body's first block to a `return` terminator) — and `LoopTerminationCandidate::resolve` reports W240 for `Never`, W241 for `Always { exits: false }` when the body's text holds no exit command either (`body_may_exit`, for the `break` inside a `catch` body the CFG does not lower), and nothing for any other `Always`; each decided verdict replaces the lexical W242. A loop no unit decides stays queued and `flush_loop_terminations`, called after `emit_cfg_ssa_diagnostics` in `run_diagnostic_emitters`, reports it as its text says, so a parameter bound, a stub-declared loop the CFG keeps as a call, a loop inside an opaque `catch` body and a complexity-guarded body draw what they drew. The incremental path carries the queue: `BodyFragment.loop_candidates` (`per_item.rs`) is captured by `analyse_proc_body_isolated`, shifted by `rebase_fragment_pending` and extended onto the shell by `graft_fragment_pending`. Deltas: `set n 0; while {$n} {puts x}` W240 (was W242); `set go 1; while {$go} {puts x}` W241 (was W242); `for {set i 0} {$i < 10} {} {puts hi}` W241 (was W242); `for {set i 0} {$i < 0} {incr i} {puts hi}` W240 (was silent); a variable header true with an exit on some path is silent (was W242). Deviations: the plan's `loop_span` is not recorded (D186); `Infinite` and `Unprovable` carry the reason and the variable, and `body_may_exit` is added, for the text's half of the exit question; beyond the item's three files, `dataflow.rs` holds the resolution where the plan named `diagnostics.rs`, whose call site (`emit_branch_fact_diagnostics`) needed no change, and `state.rs` and `per_item.rs` carry the queue. The generated inventory's nine `bounds_checks.rs` `arg_roles` line numbers moved | `w240_and_w241_read_the_branch_fact` (`bounds_checks.rs`, new: `while {$n}` over `set n 0` W240 and `while {$go}` over `set go 1` W241, at the top level and in a procedure; a `for` whose counter never moves W241 and one whose first test fails W240; the literal forms with their own messages; a `break`, a `return`, an `error` and a `break` inside a `catch` body each keep a true header silent; negative: a parameter bound, an unset variable, keep W242 and a counter the body advances is silent); `loop_verdicts_agree_across_the_whole_file_and_per_item_walks` (new: two decided loops, an undecided one and a top-level one report the same codes at the same offsets from `analyse` and `analyse_per_item`; it fails when `graft_fragment_pending` does not extend the queue). Moved by the mandate (#2057: W240 to W242 read the branch fact, and a decided verdict suppresses W242): `w242_counter_not_modified`'s `for` case keeps its empty step but bounds the loop by `$n`, which nothing decides, where a literal bound is now W241; the `UNPROVABLE_LOOP` fixture of `diag_seeds_the_default_off_codes_like_the_editor` (`tcl-cli/tests/cli.rs`) and of the default-off test in `tcl-mcp/src/tools.rs` (`set i 0; while {$i < 3} {puts $i}` is a loop the solver proves infinite, W241) becomes a procedure looping `$i < $n` over its parameter. Every other loop test unchanged (the rest of `bounds_checks.rs`, `stub_arg_roles.rs`'s loop-declaration test, the e2e W241 cases) |
+
+Green at VT6.7: `tcl-compiler` 9823 passed, 6 ignored across its 67
+binaries, and 7 doctests; `tcl-explorer` 105; `tcl-cli` 129 across its
+binaries (`cli` 50, `value_transfers_cli` 8); `tcl-lsp-db` 129 (103 in
+the library, 26 across its integration binaries); `tcl-mcp` 114;
+`tcl-lsp-core` 3575 across its 34 binaries (2350 in the library) and 3
+doctests; `tcl-lsp-server` 2238 (its `e2e` binary failed one test,
+`workspace_symbol_waits_out_the_startup_scan`, once while the other
+lane's build loaded the machine, and passed when rerun alone); workspace
+clippy (`--all-targets -D warnings`), no `#[allow]` added, and `cargo fmt
+--check`; `value-transfers --check` (22 clean, 19 waived, 83 pinned across
+34 files, 6607 rows) and `registry-axes --check` (893 pinned across 147
+files, 36 waived, 16 clean), the second unchanged; `pack-goldens` (25
+packs, 0 rewritten), `retired-api-gate`, `owner-resolution` (45 rows) and
+`kcs-index-links` pass; `dialect-drift` 8 sites, none new; `cargo check
+--workspace --all-targets` clean.
+
+| Item | Commit | What landed | Its tests |
+|---|---|---|---|
+| VT6.6 | `wip(value-transfers): slice 6 — the iRules flow checks read applied reachability` | The iRules checks read the solver's reachability wherever they walk (D187), all in `irules_checks.rs`. IRULE1201 and IRULE1202 (`find_http_flow_warnings`) and IRULE5002 and IRULE5004 (`find_unguarded_drop_warnings`) walk a `::when::` procedure's structured IR body, so each takes `unreached_statements(fu)` — the spans of the statements only non-executable blocks hold — into its `FlowDispatch`, and `flow_step` leaves the path states as they were for such a statement: a respond, redirect, drop or `DNS::return` that never runs commits and leaves nothing. IRULE4002 (`find_generic_static_name_warnings`) skips non-executable blocks. IRULE4004's write counts (`find_hoistable_set_warnings`) count only the blocks a solved event proves reachable, a complexity-guarded event, which has no solver run, counting all of its blocks as before. The collect-flow scan's side-switch descent (`scan_side_switch_body`, IRULE1005 to IRULE1008 through a `clientside`, `serverside` or `peer` body) builds a `FunctionUnit` over the body's lowering and skips the blocks it proves unreachable; the event-level scan and IRULE3102 already did. Deltas: `when HTTP_REQUEST {if {0} {HTTP::respond 200}; HTTP::header insert X-Custom val}` and its `set flag 0` form report no IRULE1201 (was one), nor does a `while {0}` body, a `switch` arm the subject rules out, or a header command after an `if {1} {return}`; a second `HTTP::respond` in a dead arm reports no IRULE1202; a `drop`, `reject`, `discard` or `DNS::return` in a dead arm no IRULE5002 or IRULE5004; a `set static::debug` in a dead arm no IRULE4002, the warning landing on the write that runs; a `TCP::collect` in a dead arm of a `clientside` body no IRULE1007; and IRULE4004 reports one finding more where the only other write of a variable is in an arm the solver proves dead (`set svc foo; if {0} {set svc bar}`). Deviations: the two structured walks read reachability by statement span, not by block, because they walk the IR (D187); the side-switch bodies, which had no solver run, get one; a path is not pruned where the solver decided its branch, so `drop; if {1} {event disable all}` still warns through the condition-false path, as it did | `irule1201_ignores_a_respond_in_a_dead_arm` (`irules_checks.rs`, new: the literal `if {0}`, the `set flag 0` variant, a dead `redirect`, a dead `else`, a `while {0}` body, a `switch` arm the subject rules out and a header command after an `if {1} {return}` report nothing; negative: a respond in an `if {1}`, in an `if {$x}`, behind a `set flag 1`, in the `else` of an `if {0}` and in the arm a `switch` subject selects each still report IRULE1201); `irule1202_ignores_a_respond_in_a_dead_arm` (new: a dead second respond, a dead first one and a dead `HTTP::redirect` report nothing; a live `if {1}` and `if {$x}` second respond report IRULE1202); `irule5002_ignores_a_drop_in_a_dead_arm` (new: a `drop`, `reject` or `discard` in `if {0}`, in an `if {$flag}` after `set flag 0` and in a `while {0}` body reports nothing, in an `if {1}` or `if {$x}` it reports IRULE5002) and `irule5004_ignores_a_dns_return_in_a_dead_arm` (new: a `DNS::return` in `if {0}` reports nothing, in `if {$x}` IRULE5004); `irule4002_ignores_a_static_in_a_dead_arm` (new: the dead write reports nothing, the live one does, and with a dead write first the warning lands on the write that runs); `irule4004_counts_only_the_writes_that_run` (new: a second write in a dead arm, in the same event or another, leaves the first hoistable; a live one, `if {1}` or `if {$x}`, does not); `irule1007_ignores_a_collect_in_a_dead_side_switch_arm` (new: a `TCP::collect` in `clientside {if {$x} {…}}` reports IRULE1007, in `if {0}` none, and a `TCP::payload` in a dead arm of a `serverside` body no IRULE1006). All seven fail before the change. No existing test moved |
+
+Green at VT6.6: `tcl-compiler` 9830 passed, 6 ignored across its 67
+binaries, and 7 doctests; `tcl-explorer` 105; `tcl-cli` 129 across its
+binaries (`cli` 50, `value_transfers_cli` 8); `tcl-lsp-db` 129 (103 in
+the library, 26 across its integration binaries); `tcl-mcp` 114;
+`tcl-lsp-core` 3575 across its 34 binaries (2350 in the library) and 3
+doctests; `tcl-lsp-server` 2238 (594 in the library, 1600 in `e2e`);
+workspace clippy (`--all-targets -D warnings`), no `#[allow]` added, and
+`cargo fmt --check`; `value-transfers --check` (22 clean, 19 waived, 83
+pinned across 34 files, 6607 rows) and `registry-axes --check` (893
+pinned across 147 files, 36 waived, 16 clean), both unchanged;
+`pack-goldens` (25 packs, 0 rewritten), `retired-api-gate`,
+`owner-resolution` (45 rows) and `kcs-index-links` pass; `dialect-drift`
+8 sites, none new; `cargo check --workspace --all-targets` clean.
+
+| Item | Commit | What landed | Its tests |
+|---|---|---|---|
+| VT6.8 | `wip(value-transfers): slice 6 — the slice's witnesses` | Tests only; no source file moves. `value_transfers_cli.rs` gains program (4) through the shipped binary, the selection line, and the two consumers the slice's behavioural-delta table names, with a small `tclsh` oracle of its own (`run_tclsh`, `tclshs_from`: a release from the form's first on that has a `tclsh<series>` on `PATH`, reported on stderr when none is) and `diagnostics_at`, which reads `tcl diag --json` under either of its exit statuses — it exits 1 when it reports a warning or an error. `value_transfer_witnesses.rs` gains the loop witness. Program (4)'s fall-through form spells its `-` bare, the one spelling every release reads alike (D179). Deviations: beyond the plan's two tests, the loop and iRules consumers' CLI witness and the compiler-level loop witness, which no other test drives through the binary or under every dialect | `program_four_reaches_diag_and_opt_in_every_form` (`value_transfers_cli.rs`, new: for the exact, `-glob`, `-regexp`, `-nocase` and shared-body forms `tcl diag --json --dialect tcl8.6` reports I231 at `baz`'s pattern — line 3, and `qux`'s at line 4 in the shared form — and `tcl opt --profile full --dialect tcl8.6` leaves `puts always`, no `switch` and O112 among its rewrites; the original and the optimised program each print `always` under every tclsh release from the form's first on, 8.4 for all but `-nocase`, 8.5's; negative: under `tcl8.4` and `tk`, which may be 8.4, `-nocase` reports no arm and `tcl opt` keeps the statement, and tclsh 8.4 raises on the option); `explore_sccp_prints_the_selection` (new: over program (4)'s `-glob` form the text view prints `selection: default`, `bodies: default` and `arm never selected: baz`; a matching subject prints `selection: arm 0`, a two-member subject `selection: arm 1, arm 0`, a `-` group `selection: arm 0` with `bodies: arm 1`; a parameter subject prints no selection, and a braced `-` body in the separate-words form prints one under `tcl8.6` and `tcl9.0` and none under `tcl9.1` and `tk`); `diag_reads_the_decided_loop_header_and_the_dead_respond` (new: `while {$n}` over `set n 0` is W240 and `while {$go}` over `set go 1` W241, neither drawing W242, which a loop over a parameter still does under `--enable W242`; an iRule's `HTTP::header` after an `if {0}` respond reports no IRULE1201 through `--dialect f5-irules`, after a live respond one); `a_decided_loop_header_gives_w240_or_w241` (compiler witnesses, new: four W240 programs — at the top level, in a procedure, a `for` whose first test fails, a literal `while 0` — report W240 alone under every analysed dialect and print `done` under tclsh 8.4 to 9.1, before and after the optimiser; four W241 programs report W241 alone; a parameter bound keeps W242 and a header with a reachable `break` reports none). No existing test moved |
+
+Green at VT6.8: `tcl-compiler` 9831 passed, 6 ignored across its 67
+binaries, and 7 doctests; `tcl-explorer` 105; `tcl-cli` 132 across its
+binaries (`cli` 50, `value_transfers_cli` 11); `tcl-lsp-db` 129 (103 in
+the library, 26 across its integration binaries); workspace clippy
+(`--all-targets -D warnings`), no `#[allow]` added, and `cargo fmt
+--check`; `value-transfers --check` (22 clean, 19 waived, 83 pinned across
+34 files, 6607 rows) and `registry-axes --check` (893 pinned across 147
+files, 36 waived, 16 clean), both unchanged; `pack-goldens` (25 packs, 0
+rewritten), `retired-api-gate`, `owner-resolution` (45 rows) and
+`kcs-index-links` pass; `dialect-drift` 8 sites, none new; `cargo check
+--workspace --all-targets` clean.
+
+| Item | Commit | What landed | Its tests |
+|---|---|---|---|
+| VT6.9 | `wip(value-transfers): slice 6 — branch integration and optional rewrites` (landing) | Docs and one constant; no test binary is added. `LANDED` (`rust/xtask/src/registry_axes.rs`) gains `"slice 6"`; no waiver names slice 6, so none expires and `docs/generated/registry-axes.md` is unchanged. The design pages describe the code as it is, in current-state prose, per the owner's ruling for every file outside this directory: `sccp-core-analyses.md` — the `BranchFactKind` paragraph is rewritten for the kinds each producer states and each reader takes, and § *Loop headers* and § *Selection records* are new; `optimisation-passes.md` — O107 and O112 in § *Pass ownership* and the O107–O109 / O112 row; `pass-fact-ownership-matrix.md` — a row for the selection post-pass, a row for the loop-termination candidates, and the `irules_checks.rs` row; `value-transfers.md` § *`switch`* — its form table said `Raw` never decides and `-regexp` never folds, so the table, the diagram and the delivery-order list are rewritten to what the code does; `value-transfers-migration.md` — the slice's entry, the `sccp.rs`, `static_loops.rs`, O107, O112, I230 / I231, IRULE and W240–W242 rows, and four anchors, its ledger and ratchet table unchanged since slice 6 retires no handler and pins no file; `data-structure-reference.md`'s `SccpResult` row. KCS notes: I231's gains § *Every form of `switch`*, W240, W241 and W242's the decided-header cases, and IRULE1201, IRULE1202, IRULE4002, IRULE4004, IRULE5002 and IRULE5004's a dead-arm limit. `docs/design/lanes/README.md`'s in-flight paragraph moves slice 6 to the landed list, and this document gains § *Status (2026-09-30): slice 6 landed*. The rows drafted for the diagnostic-policy lane's owner documents (B-DP4) follow this table. Deviations: none from the plan's file list beyond `data-structure-reference.md` and the four KCS notes for the iRules codes VT6.6 changed | none (docs and one constant); G1 (`value-transfers --check`, unchanged), G5, G6 and the shard manifest proof (`verify-nextest-binary-shards.py --metadata-only`, 328 targets) green; G3 (no new test binary) and G4 (no catalogue text changed) not triggered |
+
+Rows for the diagnostic-policy lane's owner documents (B-DP4), drafted here
+and committed after that lane's slice 10:
+
+- `diagnostics-calculation.md`, § *Deep tier*, the compiler-checks row
+  (slice 6): the same lattice's branch facts carry a kind — the `Applied`
+  facts I230, and I231 for a flattened `switch`, read; the `Selected` facts
+  the solver's selection records give an opaque `switch` (`-glob`,
+  `-regexp`, `-nocase`, a fall-through arm, `case`), which I231 reports the
+  unselected arms of and which drop no block; and the loop header's
+  `Applied` fact, which W240 and W241 read in place of the condition's text,
+  either replacing W242 — and the iRules flow checks read the blocks and
+  statements the same run proves reachable.
+- `diagnostics-integration.md`, § *Failure modes*: "a per-function pass that
+  resolves a queue the analyser's walk records (the loop-termination
+  candidates) missing from the incremental path — `BodyFragment` carries
+  each such queue and `rebase_fragment_pending` and `graft_fragment_pending`
+  move it, and `loop_verdicts_agree_across_the_whole_file_and_per_item_walks`
+  pins the two paths' agreement"; § *Anchors*:
+  `rust/tcl-compiler/src/analyser/per_item.rs`.
+
+Green at VT6.9, run after the docs: `tcl-registry` 1275 passed and a
+doctest across its binaries, and `xtask` 237, both run for the landing;
+`tcl-compiler` 9831 passed, 6 ignored across its 67 binaries, and 7
+doctests, `tcl-explorer` 105, `tcl-cli` 132 (`cli` 50, `value_transfers_cli`
+11) and `tcl-lsp-db` 129 as VT6.8's run left them — no Rust source of
+theirs changes in this commit — and `tcl-mcp` 114, `tcl-lsp-core` 3575
+across its 34 binaries and 3 doctests, and `tcl-lsp-server` 2238 as VT6.6's
+run left them; workspace clippy (`--all-targets -D warnings`), no `#[allow]`
+added anywhere in the slice, and `cargo fmt --check`; `value-transfers
+--check` (22 clean, 19 waived, 83 pinned across 34 files, 6607 rows) and
+`registry-axes --check` (893 pinned across 147 files, 36 waived, 16 clean),
+both unchanged from the slice's start; `pack-goldens` (25 packs, 0
+rewritten), `retired-api-gate`, `owner-resolution` (45 rows) and
+`kcs-index-links` pass; `dialect-drift` 8 sites, none new; `cargo check
+--workspace --all-targets` clean.
+
+#### Record (2026-09-30): review fixes for slice 6
+
+The review of the slice 6 landing (`15930d1d` to `b77f2a9e`) returned three
+blocking findings — B1, false W240 and W241 verdicts and false folds over a
+variable a `switch` arm, a callback script or a command the file never defines
+writes; B2, iRules checks blind to a write in an opaque `switch` arm; B3, a
+flattened `switch` comparing a backslash word by its spelling — and S1 to S4
+and N1 beside them. Three commits, each `wip(value-transfers): slice 6 —
+review fixes: …`, hold every fix, applied on the branch after slice 9's VT9.1
+paused; each behavioural test was run against tclsh 8.4 to 9.1 where it is a
+program's output, and each was mutation-checked (the rule reverted, the test
+fails, the rule restored). The decisions are D193 onward in § *Decisions
+taken*. The first commit is B1 and B2, the lattice's three rules; the second
+is B3 and S1, the flattened chain; the third is S2 to S4, N1 and the prose.
+
+| Item | Commit | What landed | Its tests |
+|---|---|---|---|
+| Review fixes, 1 of 3 | `wip(value-transfers): slice 6 — review fixes: the lattice states what opaque switches, callbacks and unseen calls write` | **B1, in the lattice, not the consumers.** (1) An opaque `switch` defines what its arms write (D193): `ssa::switch_may_defs` and `nested_writes` return every name an arm, the default or any command they nest writes, destroys or binds, less what every path defines; `rename_statement` gives each a may-definition that reads its prior version as a `Quoted` use (`SsaStatement::may_defs`), so the solver joins the two and existence is unknown afterwards; the same set reaches the alias lattice (`var_observability::stmt_gen`, through `stmt_gen_direct`), the taint join (`taint::propagate_statement_taints`) and W210's walk (`helpers.rs`: `MayDefMap`, `UndefIndexMaps`, `UndefWalk`, `PhiUndefCtx::may_defs`, a may-def read as a one-operand φ). What a command an arm runs does to the frame beyond its own writes follows the statement as it follows a command the graph lowers (`CfgBuilder::opaque_arm_effects`, which asks `apply_upvar_invalidation` of each nested statement): the names a callee writes into the frame through `upvar` become the may-definitions of a marker after the `switch` (`SyntheticMarker::ArmWrites`; `ssa::is_arm_writes_marker`, `has_arm_may_defs`; skipped by codegen, `unit_scope` and the wasm plan through `is_effect_marker`), and a command that may write any name (`namespace eval`, `dict with`, `eval $script`, a callee that aliases a computed name) adds the `CallerFrameOpaque` barrier (`caller_frame_opaque`, factored out of `opaque_call_barrier`) unless it leaves the procedure. (2) A callback script's writes escape as a trace's do (D194): the registry gains `Traits::BODY_RUNS_IN_OWN_FRAME` (`traits.rs`; stamped on `proc`, iRules `proc` and `when`, `snit::method`, `snit::typemethod`, the snit macro, `optproc`, `lambda`, `lambda@` and `report::defstyle`; a row in `fields.md`, regenerated by `UPDATE_REFERENCE=1 cargo test -p tcl-spec-studio --test reference_doc`, which reproduces the committed file byte for byte) and `CommandRegistry::callback_script_indices`, the words `script_timing` calls `Deferred` less a definer's; `deferred_writes.rs` (new) scans the lowered module for what those words write — a literal script, a quoted one, and a `[…]` word of a command the registry states builds a command prefix (`Traits::BUILDS_COMMAND_PREFIX`: `after 100 [list tick $n]`) — filling `Module.deferred_writes` (`finish_module`), and the names join `TraceInputs`' escaping names (`sccp::escaping_names`, `extend_module_escaping`, `writes_any_variable`), O102, the type pass's escape set, the existence rung's `dynamic_trace`, the per-procedure memo key (`AnalysisContextKey::deferred_writes`) and `ModuleTraceFacts` (`tcl-lsp-db`'s `lib.rs` builds them from the key and `module_has_trace_facts` counts them). (3) A top-level name and its `::` spelling agree across a call the module cannot see (D195): `ModuleCommandBindings::may_dispatch_unresolved`; `CfgBuilder::{call_is_unseen, runs_unseen_code, substitutions_reach_unseen, unseen_call_marker}` emit a `SyntheticMarker::UnseenCall` statement where such a call runs outside a procedure body, and where a file is sourced (`Traits::SOURCES_FILE`) in a procedure body too, which the sourced file runs in; `SsaFunction::unseen_call_versions` records the versions live there; `sccp` makes a recorded definition or φ `Overdefined` (`sccp_process_phis` and `record_phi_folded_types` take the SSA now) and its `statement_clobber` touches every place for the marker; O102 (`propagation.rs`) and O109 (`elimination.rs`, `store_is_seen_elsewhere`) skip a recorded version; `unit_scope`'s call-site scan and the wasm backend's fact loop skip the marker. A first design widened every top-level name function-wide behind a flag; it widened types and O125's motion too and failed 27 tests, so it was replaced by this flow-sensitive record. **B2** (D196): `find_hoistable_set_warnings` counts the writes inside a `Statement::Switch`'s arms (`count_statement_writes`); IRULE1201 and IRULE5002 needed no edit, their flag no longer being a constant. Moved, with the reason: `sccp_env_extraction_promotes_single_const` (`structure_elimination.rs`) called `ok`, a command the file never defines, between the `set` and the `if` it expects folded — the call is an unseen call now, so the source says `puts ok` and the companion `sccp_env_extraction_leaves_out_a_name_an_unseen_call_may_write` pins the other reading; no other expectation moved. | Compiler, library: `an_opaque_switch_defines_every_name_its_arms_write`, `an_unseen_call_records_the_versions_live_where_it_sits`, `a_sourced_file_records_the_versions_live_where_it_sits_in_a_procedure_too`, `an_opaque_switch_arm_that_calls_a_writer_may_define_the_name_it_writes` and `an_opaque_switch_arm_that_may_write_any_name_is_followed_by_a_barrier` (`ssa.rs`, new); `an_opaque_switch_arm_leaves_what_it_writes_without_a_constant_or_a_settled_existence`, `an_opaque_switch_arm_that_runs_a_writer_or_a_barrier_leaves_the_name_unsettled`, `the_names_a_callback_writes_are_never_constant`, `an_unseen_call_widens_the_versions_it_holds_and_no_later_one`, `a_phi_an_unseen_call_holds_is_overdefined` and `an_unseen_call_leaves_no_top_level_name_with_a_settled_existence` (`sccp.rs`, new); six in `deferred_writes.rs` (new: a callback script's writes through every shape of command, a quoted callback and a built command prefix, a procedure named as a callback, a computed name setting `any`, a definition, a read and a script run now writing nothing); the reproductions, each on the whole-file path and on `analyse_per_item` — `a_switch_arm_that_ends_the_loop_keeps_w241_silent` (`-glob`, `-nocase`, `-regexp`, a fall-through arm, the default arm, `case`, a `for` header, a procedure, each kind of write — `set`, `incr`, `lappend`, `unset`, a write inside a nested command — and a `global` binding in an arm), `a_command_an_arm_runs_that_ends_the_loop_keeps_w241_silent` (a callee writing the caller's variable through `upvar`, `namespace eval`, `dict with`; a global writer leaves a local loop W241), `a_switch_arm_that_starts_the_loop_keeps_w240_silent` (a `while` and a `for`, at the top level and in a procedure) and `a_switch_arm_that_writes_another_name_leaves_the_verdict` (the control: W240 and W241 are still reported), `a_callback_that_writes_the_loop_variable_keeps_w241_silent` (`after`, `after idle`, a trace, `fileevent`, `chan event`, `bind`, a procedure named as a callback, a quoted script, `[list …]`) and `a_call_the_module_cannot_see_keeps_a_top_level_loop_silent` (`bounds_checks.rs`; `while {$go} { foo }` over a procedure's local is still W241, a sourced file in a procedure is not), and, in `diagnostics/tests.rs`, `i230_never_reports_a_condition_over_a_name_a_switch_arm_may_write`, `i230_never_reports_a_condition_over_a_name_a_callback_writes`, `i230_never_reports_a_top_level_condition_across_a_call_the_module_cannot_see` (`set g 5; foo` and `set ::g 5; foo` alike), `i230_never_reports_a_condition_across_a_sourced_file` and `a_read_after_an_opaque_switch_only_an_arm_sets_draws_w210` (also through a callee); the folds — `o112_leaves_a_condition_over_a_name_the_lattice_cannot_pin` and `sccp_env_extraction_leaves_out_a_name_an_unseen_call_may_write` (`structure_elimination.rs`), `o100_and_o102_never_forward_a_literal_a_hidden_write_may_have_replaced` and its control `o100_and_o102_still_forward_a_literal_no_hidden_write_can_replace` (`propagation.rs`), `o109_keeps_a_top_level_store_a_call_the_module_cannot_see_may_read` (`elimination.rs`); `a_global_bound_in_an_opaque_switch_arm_marks_the_name` (`var_observability.rs`) and `a_tainted_name_an_opaque_switch_arm_may_overwrite_stays_tainted` (`taint.rs`); B2: `irule1201_reads_a_flag_a_switch_arm_sets`, `irule5002_reads_a_flag_a_switch_arm_sets` and `irule4004_counts_the_writes_a_switch_arm_makes` (`irules_checks.rs`, the review's three programs, each with a control). Registry: `callback_scripts_are_the_deferred_words_of_a_command_that_stores_no_definition` (`registry.rs`). Witness binary, tclsh 8.4 to 9.1 before and after the optimiser (`-nocase` from 8.5, `dict with` from 8.5): `a_write_an_opaque_switch_arm_makes_is_never_folded_away`, `a_write_a_command_an_opaque_switch_arm_runs_is_never_folded_away`, `a_write_a_callback_script_makes_is_never_folded_away`, `a_write_a_command_the_module_cannot_see_makes_is_never_folded_away` and `a_write_a_sourced_file_makes_is_never_folded_away` (`foo` is defined at run time, from a file the program writes and sources, so no analysis can see it). `tcl-lsp-db`: `compiler_check_memo_matches_uncached_for_hidden_writes` and `compiler_check_memo_matches_uncached_for_irules_flow_checks` — the memoised compiler-check answer equals the uncached one over every program above. Mutation checks, each the rule reverted and the tests named failing, then restored, run against the final tree: `switch_may_defs` walking nothing fails `an_opaque_switch_defines_every_name_its_arms_write`, `an_opaque_switch_arm_leaves_what_it_writes_…`, the two opaque-arm loop tests, the opaque-arm I230 test, `o100_and_o102_never_forward_…`, `o112_leaves_…`, `irule1201_…`, `irule5002_…` and the opaque-arm witness; `scan_module` recording nothing fails the five `deferred_writes` tests that state names and the computed-name one, `the_names_a_callback_writes_are_never_constant`, the callback loop test, the callback I230 test, `o100_and_o102_never_forward_…`, `o112_leaves_…` and the callback witness; the builder running no unseen code (`runs_unseen_code` false) fails `an_unseen_call_records_…`, `a_sourced_file_records_…`, `an_unseen_call_widens_…`, the unseen loop test, both unseen I230 tests, `o109_keeps_…`, `o100_and_o102_never_forward_…`, `o112_leaves_…`, `sccp_env_extraction_leaves_out_…` and the unseen and sourced witnesses; `opaque_arm_effects` emitting no callee-writes marker fails the ssa, sccp, loop, I230, O100 and O102 tests and the witness that name a callee, and emitting no barrier fails `an_opaque_switch_arm_that_may_write_any_name_is_followed_by_a_barrier` and the same set for `namespace eval` and `dict with`; a quoted callback read as dynamic, and a command prefix left unread, each fail `a_quoted_callback_and_a_built_command_prefix_are_read`, the callback loop test and the callback witness; the `SOURCES_FILE` trait ignored fails the five tests that name a sourced file; and each of these alone fails the test that names it — O102's skip (`o100_and_o102_never_forward_…` and the unseen and sourced witnesses), O109's skip (`o109_keeps_…`), the φ widening (`a_phi_an_unseen_call_holds_is_overdefined`), the existence clobber (`an_unseen_call_leaves_no_top_level_name_with_a_settled_existence`), the taint join (`a_tainted_name_an_opaque_switch_arm_may_overwrite_stays_tainted`), the alias descent (`a_global_bound_in_an_opaque_switch_arm_marks_the_name`), W210's may-definition φ and its `has_arm_may_defs` reach (`a_read_after_an_opaque_switch_only_an_arm_sets_draws_w210`), the IRULE4004 arm count (`irule4004_counts_the_writes_a_switch_arm_makes`) and `callback_script_indices` reading the trait (`callback_scripts_are_the_deferred_words_of_a_command_that_stores_no_definition`, `a_definition_a_read_and_a_script_run_now_are_no_callback_write` and `a_callback_that_names_a_procedure_writes_what_the_procedure_writes_globally`). |
+| Review fixes, 2 of 3 | `wip(value-transfers): slice 6 — review fixes: the flattened switch compares the values of its words and leaves a subject an option scan may read to its record` | **B3, one decoder** (D197). The flattened chain compared a spelling where `ExprNode::CompiledWord` is documented as a value: `switch -- a\nb {"a\nb" {puts hit} default {puts miss}}` drew I231 "arm always false" and O112 rewrote it to `puts miss`, where tclsh 8.4 to 9.1 print `hit`; so did `"a\tb"` against `a\tb`, `"a\\b"` against `{a\b}` and a braced newline pattern, and, found beside them, a braced subject's line continuation, the separate-words form's bare and quoted patterns, and `a\$b` and `a\[b`. The bytecode compared the spelling too — `push_word_value` pushes the text of an unbraced `CompiledWord` as a finished value, and the program above prints `miss` from the VM with the spelling as the operand. `value_transfer::recorded_word_value` is the one decoder — a braced word's content with its continuations collapsed under the document's word rules, a bare or quoted word with no live substitution (`substitutes`: a `$` or `[` no backslash escapes, where the textual test it replaces took any `$` or `[` for one) its escapes decoded under the document's grammar, none for a word that substitutes; `switch_arguments` reads the selection's words through it (source kinds unchanged) and `cfg_lower::word_operand` builds the chain's operands from it, a braced `CompiledWord` of the value where it differs from the spelling and the spelling where the word substitutes; `switch_subject_operand` takes the lexer config; the `subject` and `pattern` field docs of `Statement::Switch` and `SwitchArm` say *spelling*, which they had said *value*. **S1** (D198). `cfg_builder::switch_is_flattened(stmt, registry, config)` asks `cfg_lower::subject_may_scan_as_option`, the selection transfer's rule (`bounded_scan`, `--`, and the core's own scan for the arms as words): a registry with no profile reads no release and keeps the chain; a profile whose release is at least 8.5 keeps it where the arms are one braced list (`patterns_braced`); under any other (`tcl8.4`, the iRules base, a profile that declares none — `tk`, `f5-bigip`, the lenient `tcl` a module with no dialect takes from `build_cfg`), or with the arms as pattern and body words on any release, where the 8.5 scan leaves a pattern and its body and so reaches the subject (`set x -glob; switch $x a {puts A} default {puts D}` is `extra switch pattern with no body` from 8.4 to 9.1), a whole-variable subject, or a literal whose decoded value starts with `-`, with no `--` before it, lowers as one opaque statement, which the selection record decides (a value not starting with `-` folds through it, one that does is declined); `--` is read from the one option parser, `parse_switch_options`, which now reports whether it closed the options. `structure_elimination::decided` reads the chain's `Applied` facts and then the record, without the predicate: a statement has only one, and the pass does not see the registry that lowered the unit. Moved, with the reason: five tests built their graph through `build_cfg` or `build_cfg_codegen`, which name no dialect and take the lenient `tcl` profile, which declares no release, and compiled `switch -exact $x {…}` over a variable with no `--` — now one statement where the chain would pick the arm the subject spells. `cfg::switch_creates_dispatch_branches`, `codegen::{switch_with_return_in_arms, switch_many_arms, while_with_nested_switch}` and `codegen_depth::switch_exact_return_arms_jump_table` each end the options with `--` and keep their expectation, and a companion beside them pins the new reading of the bare form (one statement, no dispatch branch, one generic invoke). No other expectation moved. Docs: `value-transfers.md` § `switch` (the option scan and its window, the decoder, the table), `value-evaluation.md` (the `switch` row), `value-transfers-examples.md` (the `switch` example takes `--`, and the paragraph beside it and its `switch` program state what the tool reports and where the option scan reads the subject; the page's `today:` wording for those two programs, which S3 names, is rewritten in the same hunk), the I231 KCS note and the lanes README. | Compiler, library: `a_recorded_word_has_the_value_tcl_substitutes` (`value_transfer.rs`: escapes decoded, `a\$b` and `a\[b` data, a braced word's continuation collapsed and nothing else decoded, a live substitution — `a${x}b`, `a[b]`, `\\$x` — no value); `the_chain_compares_the_values_of_a_switch_words`, `a_subject_a_release_may_read_as_an_option_stays_one_statement` and `a_registry_with_no_profile_reads_no_release_for_the_option_scan` (`cfg_lower.rs`: the operands of the first dispatch branch, and whether the statement is flattened, under `tcl8.4`, `f5-irules`, `tk`, `tcl8.5`, `tcl8.6`, `tcl9.0` and a registry with no profile, for a variable subject with and without `--` and `-exact`, a literal, a command substitution, a braced `{$x}` and `\x2dglob`, and with the arms as words, where the variable subject and `\x2dglob` are one statement under every profile and `--`, a literal and a command substitution keep the chain); `i231_reads_a_switch_words_by_their_values` and `i231_never_reports_a_switch_over_a_subject_a_release_may_read_as_an_option` (`analyser/diagnostics/tests.rs`, each program at the top level and in a procedure through `analyse` and `analyse_per_item`, which must draw alike: the fifteen spellings draw one "always true here" under `tcl8.4`, `tcl8.6` and `tcl9.0`, a variable subject the same from 8.6, the `-glob` twin no "always false"; the option-scan program draws nothing under `tcl8.4`, `f5-irules` and `tk` and one claim from `tcl8.5`, `--` one under every profile, `\x2dglob` none under 8.4, and `set x a` the arm `b` never selected under `tcl8.4` and `tk`; with the arms as words the program draws nothing under any of the six profiles and `set x a` the arm `b` never selected under every one); `a_switch_is_selected_by_the_values_of_its_words` and `a_subject_a_release_may_read_as_an_option_is_left_alone_before_8_5` (`structure_elimination.rs`: the O112 replacement is `puts hit` for each of seventeen programs under `tcl8.4`, `tcl8.6` and `tcl9.0`; no O112 over the option-scan subjects under `tcl8.4`, `f5-irules` and `tk`, `puts G` from `tcl8.5`; `--` and a value that does not start with `-` fold under `tcl8.4`, `tcl8.6` and `tk`), and `a_subject_inside_the_scan_of_the_arms_as_words_is_left_alone_on_every_release` (the same program with the arms as words: no O112 under `tcl8.4`, `f5-irules`, `tk`, `tcl8.5`, `tcl8.6` and `tcl9.0`; `set x a` folds through the record under each, and `--` with the `-glob` pattern folds). Integration: `switch_subject_a_release_may_read_as_an_option_stays_opaque` (`cfg.rs`, new) and `switch_a_release_may_scan_as_an_option_routes_through_generic_invoke` (`codegen.rs`, new). Witness binary, tclsh 8.4 to 9.1 before and after the optimiser: `a_switch_compares_the_values_of_its_words_however_they_are_spelled` (eighteen programs, each printing `hit` under every release, the rewrite ending in `puts hit` with no `switch` and no `miss` under `tcl8.4`, `tcl8.6` and `tcl9.0`, and no O107 rewrite over the arm that runs) and `a_subject_a_release_may_read_as_an_option_is_not_folded_before_8_5` (`set x -glob; switch $x {-glob …}` and `switch \x2dglob {-glob …}` print nothing and fail with `bad option` on 8.4 and print `G` from 8.5, and are rewritten only from 8.5 and not under `tk`; the `--` form prints `G` everywhere and folds under `tcl8.4`, `tcl8.6` and `tk`; `set x a` prints `A` everywhere and folds under `tcl8.4`, `tk` and `tcl9.0`) and `a_subject_inside_the_scan_of_the_arms_as_words_is_not_folded_on_any_release` (`set x -glob; switch $x a {puts A} default {puts D}` fails on every release before and after the optimiser, and the statement stays under each release's profile and under `tk`). `tcl-vm`: `switch_compares_the_values_of_its_words` (`language_e2e.rs`: the same eighteen programs compiled to bytecode and run, each printing `hit`). Mutation checks, thirteen rules each reverted, the tests named failing and no other, then the file restored byte for byte, run against the final tree: `recorded_word_value` decoding no bare or quoted word fails the unit test, the chain test, both I231 tests, both O112 tests, `a_subject_a_release_may_read_as_an_option_stays_one_statement` (the literal `\x2dglob` is an option only once decoded), the first two witnesses and the VM test; `word_operand` ignoring the value and keeping the spelling fails the chain test, `i231_reads_a_switch_words_by_their_values`, both O112 tests, the first two witnesses and the VM test (`switch -- a\nb {"a\nb" {puts hit} default {puts miss}}` prints `miss` in the bytecode); the old textual test for a substitution (`substitutes` without the backslash skip) and the braced collapse removed each fail the unit test, the chain test, `i231_reads_…`, `a_switch_is_selected_by_the_values_of_its_words` and the first witness; `subject_may_scan_as_option` always false fails `a_subject_…stays_one_statement`, `i231_never_reports_…`, `…is_left_alone_before_8_5`, the second witness, both tests of the arms as words and both companions; `--` not read fails `a_subject_…stays_one_statement`, `i231_never_reports_…` and the five tests moved to `--`; 8.5 read as unbounded fails the first two of those; the literal's decoded value not read fails `a_subject_…stays_one_statement`, `i231_never_reports_…`, `…is_left_alone_before_8_5` and the second witness; a profile with no release read as bounded fails those four and both companions; a registry with no profile not exempt fails `a_registry_with_no_profile_reads_no_release_for_the_option_scan`; the arms as words read like the braced list, the subject outside the scan from 8.5, fails `a_subject_…stays_one_statement`, `i231_never_reports_…` and both tests of the arms as words; `decided` reading only the chain fails `…is_left_alone_before_8_5`, the arms-as-words O112 test, `opaque_modes_fold_to_the_arm_the_command_selects` and `the_selection_reads_the_subject_at_the_statement`. One mutation survives and is recorded as such: `switch_arguments` decoding by its own copy of the old rule gives every program the same answer, because the selection's substituted-word path re-reads an escaped `$` itself, so the decoder is shared by construction and no program tells the two apart. |
+| Review fixes, 3 of 3 | `wip(value-transfers): slice 6 — review fixes: the comments and pages state the rules, the Explorer words the branch facts, I231 names its command` | **S2, the comments** (D201). `grep -nE 'D1[5-9][0-9]|VT[0-9]\.[0-9]|slice [0-9]' rust/` found 229 lines in 47 files, certificate data aside, each a code or test comment, a test's expectation text or a fixture header citing a decision, a plan item or a slice; 189 are rewritten in words. The files: the registry's `selection.rs`, `answers.rs`, `builtins.rs`, `cell_update.rs`, `registry.rs` and `pack_hooks.rs`; the compiler's `value_transfer.rs`, `sccp.rs`, `lowering/structured.rs`, `cfg_builder/cfg_lower.rs`, `cfg_builder/mod.rs`, `type_infer.rs`, `dynamic_names.rs`, `compilation_unit.rs`, `ir_helpers.rs`, `irules_checks.rs`, `deferred_writes.rs` and `signature_scan/walker.rs`, the analyser's `dataflow.rs`, `helpers.rs`, `handlers.rs`, `commands.rs`, `state.rs`, `fp/rbs.rs` and its `tests.rs`, the optimiser's `elimination.rs` and `chain_fold.rs`; the Explorer's `serialise.rs` and `view_tree.rs`; `tcl-lsp-core`'s `hover.rs`, `inlay_hints.rs` and `semantic_tokens.rs`; `tcl-lsp-db`'s `lib.rs` and `value_transfer_parity.rs`; `tcl-lsp-server`'s `lib.rs` and its `spec_packs.rs` test; the spec studio's `draft.rs`, `render_spectcl.rs` and `spectcl_ports.rs`; `xtask`'s module doc; and the tests beside them (`value_transfer_witnesses.rs`, `differential_fold.rs`, `value_transfers.rs`, `core_analyses.rs`, `optimiser.rs`, `taint.rs`, `analyser.rs`, `compiler_analysis_residual.rs`, `analyser_hooks.rs`, `value_transfers_cli.rs`, `containment_e2e.rs`) with the `tenant.tclspec` fixture's header. Comments the grep does not match but that named the lane document or an earlier decision went the same way (D48, D57, D60, D64, D97, D98, D104, D155, D157, D160, D165, D166, "the plan's five first"), because the landing removes the file they point at. The 40 survivors are what a gate or a syntax needs in that form: 29 lines of `xtask`'s ledger (`slice N —` reasons, which `value-transfers --check` compares), the `registry-axis-ok … until slice N` waiver syntax with its `LANDED` list (3 lines of `registry_axes.rs`), the registry test's label for the owner a `retires_in_slice: 3` names, a hex constant and the `RIPEMD160` command names. Two `spectcl_ports.rs` reasons told of a SpecTcl spelling that a later slice would land, which has shipped; they now say only that the port does not transcribe the declaration. **S3, the pages.** `value-transfers.md`: the Status block states what is built (the interface in the registry's `value_transfer` module, the driver that applies it, `folded_types`) and what is not (`TransferSummary`, `ParamRole`, `LoopEnumeration`, and `EdgeRefinement` beyond existence), each name checked against the tree; the motivating table is rewritten to the tree, all four rows and not only row (4), because rows (1) to (3) described the tree before the direct routes and were as false, each program run through `tcl explore --show sccp`, `tcl opt --profile full` and `tcl diag` (the lattice holds `barb`, `ABCDEF` typed a byte array that no rewrite writes as a literal, `4`, and `foobar` with `${acc} eq {baz}` decided false; O100 and O109 act on the first and third programs, I230 on a condition over `$n`, and O112 folds the fourth to `puts always` with I231 on `baz`'s arm); § Branch facts states the three kinds as the tree produces them (`Applied`, `Selected`, and `Proven`, which nothing produces); and the passages that said "until slice 5" or "since slice 8 (VT8.x)" for behaviour that is built (the correlated-set witness, the read projection, the O108, O109 and S100 readings, the existence read, the `Set` hook, the evaluator generation's decisions) lose their dates. The `Migration: slice N` lines, which are the migration plan's, stay. `value-transfers-examples.md`: its two passages the review names were rewritten with commit 2's docs, in the hunk that states the option scan; their programs are run again for this commit with `tcl diag` and `tcl opt --profile full` under `tcl8.6`, `tcl8.4` and `f5-irules` (I231 and O112 as the comments say, the O107 removals subsumed by O112's rewrite), and the page needs no change. **S4** (D200). The post-SSA card in `rust/tcl-cli/gui/explorer-core.js` worded every `constantBranches` entry `block: condition is always value (take takenTarget)`, which says of an arm no member of the subject selects that a condition is decided and names a target that does not exist, and rendered no `selections`. `renderConstantBranch` words a `selected` fact as the Rust text view does (`arm never selected: b* in entry_1`) and a decided one as before; `renderSelections` lists the records of the function's SCCP row (`selection:` the arms the members select, `bodies:` the arms whose body runs, each linked to its source range) under a `selections:` heading, and only under the compiled view, since a record describes the compiled source and the optimised view is the CFG of the rewritten program. The contract is `serialise.rs`'s, unchanged. **N1** (D199). I231 on a `case` statement said `Switch arm '…' is never selected`. `case_list_command` (`analyser/diagnostics/dataflow.rs`) reads the `command` the statement records, found by the arm's pattern span in the block the `Selected` fact names, less a leading `::`, capitalised: `Case arm 'b*' is never selected; this arm is unreachable`, and a `switch` statement's text is unchanged; the KCS note says so. No expectation moved. | N1: `i231_names_the_command_of_the_case_list` (`analyser/diagnostics/tests.rs`, new: a `switch` statement under `tcl8.6` reports `Switch arm 'b*' …`, a `case` statement under `tcl8.4`, `tcl8.6` and `f5-irules` reports `Case arm 'b*' …`, and `::case` and `::switch` read as the commands they name, each through `analyse` and `analyse_per_item`, which must draw alike). S4: `post_ssa_card_words_selected_facts_and_lists_selections` (`tcl-cli`'s `explorer_gui.rs`, new, with the Node driver `tests/gui/explorer-core-facts.mjs`: the shipped `explorer-core.js` runs in a `vm` context over the payload `serialise_result` produces for a `-glob` switch and an `if {$c}` over a constant; the compiled view words the `selected` fact `arm never selected: b* in entry_1` and never `b* is always`, lists `selections: selection: arm 0 bodies: arm 0 [3:5]` and keeps `$c is always true (take if_then_3)`, and the optimised view lists no selection; it needs `node` and no browser, and the Chromium smoke test beside it, which runs on this machine, passes). S2 and S3 change no behaviour, so the suites below are their check. Mutation checks, each the rule reverted and the tests named failing, then restored, run against the final tree: the message's command replaced by the literal `Switch` fails the test's first `case` assertion (the `tcl8.4` row); the leading `::` not trimmed fails the qualified spelling (`::case arm …`); the capital taken as a lower-case letter fails the first assertion (`switch arm …`); the containment test shortened to the statement's start, so the first case-list statement of a block holds every arm, fails the qualified program's second message (`Case` for the `::switch` statement's arm); the renderer ignoring `kind` fails the first assertion, the old card reading `entry_1: b* is always false (take )`; the selection records never rendered fails the third; and the guard of the optimised view removed fails the last. |
+
+Green at review fix 1: `tcl-compiler` 9884 passed, 6 ignored across its 67
+binaries, and 7 doctests (the library 6598, `value_transfer_witnesses` 72);
+`tcl-registry` and `tcl-cmd-core` 1412 (the registry library 947,
+`value_transfers` 45, the core 133); `tcl-explorer` 105 and `tcl-cli` 132
+across its binaries (`cli` 50, `value_transfers_cli` 11); `tcl-lsp-db` 131, 5
+ignored (103 in the library, `compiler_check_corpus` 5) and `tcl-mcp` 114;
+`tcl-lsp-core --lib` 2350; `tcl-spec-studio` and `tcl-spectcl` together 640, 1
+ignored, including `reference_doc`, which reproduces `fields.md` byte for byte;
+workspace clippy (`--all-targets -D warnings`), no `#[allow]` added — the
+wasm backend's fact loop reads the two markers through one helper, which keeps
+`function_facts` inside the line limit — and `cargo fmt --check`;
+`value-transfers --check` (22 clean, 19 waived, 83 pinned across 34 files,
+6607 rows) and `registry-axes --check` (7831 vocabulary words, 16 clean, 36
+waived, 893 pinned across 147 files), both unchanged, with no ledger moved;
+`pack-goldens` (25 packs), `retired-api-gate`, `owner-resolution` (45 rows),
+`callback-inventory --check`, `number-drift`, `segmentation-drift`,
+`resolution-drift` and `kcs-index-links` pass; `dialect-drift` 8 sites, the
+eight pre-existing ones, none new; `cargo check --workspace --all-targets`
+clean. Found and left, outside this change: `proc p {} {set go 1; upvar 0 go
+alias; set alias 0; if {$go} {puts a} else {puts b}}` draws I230 (tclsh prints
+`b`) — a same-frame `upvar 0` alias is not a write of its target; `set go 1;
+catch { namespace eval :: {set go 0} }; if {$go} {puts a} else {puts b}` draws
+I230 — a barrier inside an opaque `catch` body is invisible (`emit_opaque_catch`);
+and a callback spelled as several words (`after 100 set done 1`) or computed
+(`after 100 $script`) is not read, because the registry states no script
+position for it.
+
+Green at review fix 2: `tcl-compiler` 9898 passed, 6 ignored across its 67
+binaries, and 7 doctests (the library 6607, `value_transfer_witnesses` 75,
+`cfg` 18, `codegen` 165); `tcl-registry` and `tcl-cmd-core` 1412 (the registry
+library 947, `value_transfers` 45, the core 133), unchanged; `tcl-explorer`
+105 and `tcl-cli` 132 across its binaries (`cli` 50, `value_transfers_cli`
+11), unchanged; `tcl-vm --test language_e2e` 38, one more than before; workspace
+clippy (`--all-targets -D warnings`), no `#[allow]` added, and `cargo fmt
+--check`; `value-transfers --check` (22 clean, 19 waived, 83 pinned across 34
+files, 6607 rows) and `registry-axes --check` (7831 vocabulary words, 16
+clean, 36 waived, 893 pinned across 147 files), both unchanged, with no ledger
+moved; `pack-goldens` (25 packs), `retired-api-gate`, `owner-resolution` (45
+rows), `callback-inventory --check`, `number-drift`, `segmentation-drift`,
+`resolution-drift` and `kcs-index-links` pass; `dialect-drift` 8 sites, the
+eight pre-existing ones, none new; `cargo check --workspace --all-targets`
+clean.
+
+Green at review fix 3: `tcl-compiler` 9899 passed, 6 ignored across its 67
+binaries, and 7 doctests (the library 6608, `value_transfer_witnesses` 75, `cfg`
+18, `codegen` 165); `tcl-registry` and `tcl-cmd-core` 1412 (the registry library
+947, `value_transfers` 45, the core 133), unchanged; `tcl-explorer` 105;
+`tcl-cli` 133 across its binaries (`cli` 50, `value_transfers_cli` 11,
+`explorer_gui` 3, the Chromium smoke test run under `TCL_EXPLORER_GUI_TEST=1`,
+which fails where it would skip); `tcl-vm --test language_e2e` 38; `tcl-lsp-core
+--lib` 2350; `tcl-lsp-db` 131, 5 ignored; `tcl-spec-studio` 295 and
+`tcl-spec-hooks` 48; `tcl-lsp-server --lib` 594 and the `spec_packs` tests of
+its `e2e` binary 31, which load the `tenant.tclspec` fixture; workspace clippy
+(`--all-targets -D warnings`), no `#[allow]` added, and `cargo fmt --check`;
+`value-transfers --check` (22 clean, 19 waived, 83 pinned across 34 files, 6607
+rows) and `registry-axes --check` (7831 vocabulary words, 16 clean, 36 waived,
+893 pinned across 147 files), both unchanged, so no ledger or generated report
+moved; `pack-goldens` (25 packs), `retired-api-gate`, `owner-resolution` (45
+rows), `callback-inventory --check`, `number-drift`, `segmentation-drift`,
+`resolution-drift` and `kcs-index-links` pass; `dialect-drift` 8 sites, the
+eight pre-existing ones, none new; `cargo check --workspace --all-targets`
+clean. Found and left, outside this change: the review named two passages of the
+examples page and the interface page's status, table and branch-facts passages,
+and those are rewritten; the interface page's sections for designs not yet
+built, and its existence section, still say "today" of the state before the
+existence rung (the dynamic-name barrier, the guard walk), and
+`value-evaluation.md`, `sccp-core-analyses.md`, `diagnostic-policy.md`,
+`precision-limitations.md`, `pass-fact-ownership-matrix.md`,
+`registry-consumer-contracts.md`, `optimisation-passes.md`,
+`constant-folding-type-inference.md` and one KCS note still cite decisions, plan
+items and slices of the earlier slices (about forty lines), as does the examples
+page's own status block; other lanes' vocabulary stays in code comments too
+(`docs/design/lanes/consumer-contracts.md` D4.1 in `registry_sweep.rs`, "the
+`one-loader` lane" in `tcl-mcp` and `tcl-spectcl`, "slice-1", "slice-2b" and
+"slice-3" of the incremental-analysis work in `file_decls_corpus.rs`,
+`per_item_corpus.rs` and `tcl-lsp-db`). No gate enforces the rule that outside
+the lanes directory a page or a comment names no slice, decision or plan item;
+the grep that found S2 is the check.
+
+
 ### Slice 9 — nested writes in expressions
 
 #### Goal and exit
@@ -5984,6 +6355,143 @@ Pins #2141 (closed on rust by #2215).
 | nested `incr` / `set` inside `expr` fold, with their writes | the exit; the Expressions row |
 | O100 / O102 forward the nested store's value past the expression | #2141's contract point |
 | `command_substitution_is_none` becomes `command_substitution_evaluates_through_the_nested_service` | the exit ("flips"); Q2 |
+
+#### Record (2026-09-30): slice 9
+
+One implementer runs slice 9 item by item, each its own commit, in the order
+the plan's checkpoints group them — VT9.1, VT9.3, VT9.4, then VT9.2, VT9.5
+and VT9.6, the landing — and not in numeric order: VT9.2 lets the lattice
+hold a value for the definition a nested write makes, and VT9.3 must already
+keep every consumer from forwarding that value into a read the same
+statement's write precedes. The decisions are D188 onward in § *Decisions
+taken*. The run stopped after VT9.1 at the coordinator's request, for the
+slice 6 review's rework, which changes `ssa.rs` and `sccp.rs`; § *The state
+the next items start from* below is what the run found and drafted before it
+stopped.
+
+| Item | Commit | What landed | Its tests |
+|---|---|---|---|
+| VT9.1 | ``wip(value-transfers): slice 9 — the ordered state admits local writes`` | registry: `EvaluationState::written` and `written_in` over a new `WrittenPlace` (`inputs.rs`) — the last write naming a place decides its value, a preserve changes nothing, and a write that shares storage without naming it (an element beside its array), a may-write and an unbind leave it unknown (D189); `InvocationOutcome::nested_writes` (`answers.rs`), the state's writes as resolved `(place, store)` pairs applied ahead of `ordered_stores`, which `has_stores` counts and `validate_outcome`'s error prefix counts first (D188; the eleven construction sites gained `nested_writes: Vec::new()`). compiler: `ExprServices::var` reads the state's writes before the inputs, and `command` ends the evaluation at a nested outcome that did not complete normally (`ExprStop::Ended`, `ExprAnswer::Ended`, D191), which `ExpressionEvaluation` — it gains `nested: NestedPolicy` — turns into an outcome whose completion is `Error { written }` with the state's writes as `nested_writes`; `LatticeInputs` gains `prior_writes`, read by `named_fact`, `prior_store` and the existence reads, so a nested command sees the writes made before it; `LatticeDriver::nested_answer` applies a nested outcome's writes to the state under `LocalWrites` (`admitted_writes`, `state_owns`; D190) and answers under `EffectFreeOnly` exactly as before; `run_script` takes the enclosing writes and the policy and places each outcome's writes (`placed_answer`, with `placed_stores` factored out of `apply_outcome` and `route_answer` out of `run_script`); an existence query declines once the evaluation has written its place. No caller passes `LocalWrites` yet, so every answer is `EffectFreeOnly`'s and no existing test moved | `local_writes_apply_in_order` (`value_transfer.rs`, new: over `x` = 1, `$x + [incr x] + $x` is 5 with `x` written 2, `0 && [incr x]` is 0 with no write, `$x + [set x 10] + $x` is 21, `[incr x] + [incr x]` is 5 with `x` written 2 then 3, the ternary evaluates its taken arm only, and a quoted operand substitutes its variable and command in order); `a_nested_write_outside_the_state_declines` (new: `EffectFreeOnly` declines the writing programs `StatefulNested`, `0 && [incr x]` still answers, and `$x + [incr ::g]` declines under both policies); `an_error_completion_ends_the_evaluation_with_the_writes_so_far` (new, over a scripted nested service, because no route yields an error completion yet: the outcome is `Error { written: 1 }` with `x` written 2 and no exact result); `the_ordered_state_reads_its_own_writes_first` (`tests/value_transfers.rs`, new); `validate_outcome_rejects_a_store_to_a_non_target` extended with the error prefix counted across the nested writes. Mutation checks, each reverted: `ExprServices::var` ignoring the state, `nested_answer` applying no write, `state_owns` admitting every place, `command` not ending on an error completion, `written_in` ignoring shared storage, and the error prefix not counting nested writes each fail the test that names them |
+
+Green at VT9.1: `tcl-registry` 1276 passed across its binaries and a
+doctest (`value_transfers` 45); `tcl-compiler` 9834 passed, 6 ignored across
+its 67 binaries, and 7 doctests (the lib 6560, `value_transfer_witnesses`
+67) — no existing test moved; workspace clippy (`--all-targets -D
+warnings`), no `#[allow]` added, and `cargo fmt --check`;
+`value-transfers --check` (22 clean, 19 waived, 83 pinned across 34 files,
+6607 rows) and `registry-axes --check` (893 pinned across 147 files, 36
+waived, 16 clean), both unchanged; `pack-goldens`, `retired-api-gate`,
+`owner-resolution` (45 rows) and `kcs-index-links` pass; `dialect-drift` 8
+sites, none new.
+
+##### The state the next items start from
+
+What the run read and drafted after VT9.1, none of it built or committed
+(the drafts are `vt93_apply.py` and `vt92_apply.py` in the run's scratchpad,
+written against this tree; the rework moves their anchors, so they are notes,
+not patches):
+
+- **The shapes.** A statement that embeds a command which writes the frame
+  gets a synthetic `<upvar-invalidate>` call ahead of it, defining the
+  written names and reading the read-before-write ones
+  (`cfg_builder/mod.rs`: `embedded_subst_extras`, `upvar_invalidated`,
+  `push_embedded_control_effects`); a `Call` host holds them in its own
+  `defs` and `reads` instead, with no call of its own. `expr {…}` alone is
+  an `ExprEval`, `set r [expr {…}]` an `AssignExpr`, `set r [expr "…"]` an
+  `AssignValue`, `expr "…"` and `puts [expr {…}]` are `Call`s, `return [expr
+  {…}]` a `Return` whose call is the block's last statement, and a condition
+  gets a `<cond>` call. The call and its host share one span and are
+  adjacent.
+- **VT9.3's gap, reproduced.** Under `tcl opt --profile full`, 8.4 to 9.1,
+  O109 deletes `set x 1` and the optimised program raises `can't read "x"`
+  in `puts [expr {$x + [set x 10] + $x}]`, in the `set r […]` form, in `if
+  {$x + [set x 10] > 3}`, in `return [expr {$x + [set x 10]}]` and in `incr
+  x [expr {$x + [set x 10]}]` (the examples page's `puts` program is the
+  first). A `Call` host loses the read to the final def filter of
+  `uses_of_classified` (`x` is among its merged defs and is not read before
+  written), and any other host reads `x` at the version after its call's
+  definition, so nothing reads the version before it. An older bug of the
+  same family, found on the way: `proc foo {a b c} {puts "$a $b $c"}; set x
+  1; foo $x [incr x] $x` prints `1 2 2` and, optimised, `1 2 1`, because
+  O102 forwards `x`'s constant into both `$x` argv words.
+- **VT9.3's plan.** `uses_of_classified` reclassifies a read of a place the
+  statement's own nested commands write (the registry's write projection over
+  `evaluated_command_substitutions`) as a by-name use, kept through the def
+  filter, so no pass rewrites it and its store stays live; the synthetic call
+  (and a `<cond>` call, from the condition's variables) reads those names
+  too, for the version before the write. Both `p` and `q` already print
+  right; the test is `a_braced_expr_read_keeps_its_store`, with the forms
+  above and the `foo` program beside it.
+- **VT9.2's plan.** The solver evaluates the pair once, at the call
+  (`sccp_process_statements` keeps the host's answer for the next statement),
+  from `host.uses` and `call.uses` with each place the call defines set to
+  `prior_version` (an unseeded root read is dropped, not waited for); the
+  host is found by adjacency and span (D192, the plan's carried index
+  departed from). The call's definitions take the state's last write per
+  place and `Preserve` for a place no write reached, so `0 && [incr x]`
+  leaves `x#2` the value of `x#1` (`SccpResult::preserved`); a write to a
+  place the call does not define declines. `AssignExpr` and `ExprEval` run
+  the parsed expression under `LocalWrites`; an `AssignValue` that is one
+  `[expr …]` runs `run_script` under it. A quoted or multi-word `expr`
+  operand needs the words evaluated once, in order, under one state: the
+  draft gives `LatticeInputs` a `Words::Ordered` memo, `AnalysisInputs` a
+  defaulted `word_state`, and `ExpressionEvaluation` starts its state from
+  it, because `assemble` reads an operand more than once. Everything else —
+  conditions, `Return`, a `Call` host, value-position substitutions other
+  than `expr` — keeps `EffectFreeOnly`.
+- **Left for the sonnet items.** `a_nested_write_outside_the_state_declines`
+  exists at the driver; at program level an escaping global's read fails
+  first (`not-exact`), so the witness asserts the statement is not folded and
+  the optimised program prints as the original.
+
+##### What the slice 6 rework changed under these notes
+
+The three review-fix commits of slice 6 landed on the tree these notes describe.
+The shapes above hold; five things moved under them, and the comments around
+them were rewritten:
+
+- **Markers sit among the statements.** `CfgBuilder::unseen_call_marker` puts a
+  `SyntheticMarker::UnseenCall` call where a command the module cannot see runs
+  — at the top level, and in a procedure where a file is sourced — ahead of a
+  statement and its synthetic `<upvar-invalidate>` call when a `[…]` word runs
+  such a command, after it when the statement's own head does
+  (`upvar_invalidated`). `opaque_arm_effects` puts an `ArmWrites` marker, and
+  where an arm may write any name a `CallerFrameOpaque` barrier, after an opaque
+  `switch`. A host and its synthetic call stay adjacent, but anything that reads
+  "the statement before or after" — VT9.2's host and call pairing, a `Return`
+  host whose call is the block's last statement — skips what
+  `ssa::is_effect_marker` says, as `unit_scope`'s call-site scan, codegen and
+  the wasm plan do.
+- **An opaque `switch` has definitions.** `ssa::switch_may_defs` gives it a new
+  version, in `SsaStatement::defs` and marked in `may_defs`, of every name an
+  arm may write, each reading its prior version as a `Quoted` use, so a
+  `Statement::Switch` is no statement without defs. Code that keys on a host's
+  defs, such as `uses_of_classified`'s final-def filter, sees them.
+- **A callback's writes escape.** `Module::deferred_writes`
+  (`deferred_writes.rs`) names what the scripts a command stores to run later
+  write; `TraceInputs::extend_module_escaping` adds them to the escaping set
+  (`writes_any_variable` covers a callback that writes a computed name), and
+  `LatticeDriver::is_escaping`, which `state_owns` asks, reads that set, so
+  `LocalWrites` answers `StatefulNested` for a nested write to such a name as it
+  does for a traced one.
+- **A top-level name survives no call the module cannot see.**
+  `SsaFunction::unseen_call_versions` records the versions live at each
+  `UnseenCall`; the solver makes a recorded definition or φ `Overdefined`
+  (`sccp_process_phis` and `record_phi_folded_types` take the SSA for it) and
+  O102 and O109 skip it, so a value VT9.2 gives a top-level definition is
+  forwarded across no such call, and VT9.3's O109 and O102 guards are in
+  addition to this rule, not in place of it.
+- **`upvar_invalidated` is shared.** The arms of an opaque `switch` ask
+  `apply_upvar_invalidation` of each nested statement, so a change VT9.3 makes
+  to what a statement's embedded commands write or read
+  (`embedded_subst_extras`, `upvar_effect_statements`) changes what an arm
+  contributes to the `ArmWrites` marker;
+  `an_opaque_switch_arm_that_calls_a_writer_may_define_the_name_it_writes`
+  (`ssa.rs`) and the opaque-arm witnesses pin it.
+- **Anchors.** The comment rewrite of the third commit changed the text of
+  comments in `value_transfer.rs`, `sccp.rs`, `dataflow.rs` and the tests: a
+  draft that anchors on a comment (`VT8.2`, `D166`, "since slice 8") must anchor
+  on the code beside it.
 
 ### Slice 10 — completion paths
 
@@ -9263,6 +9771,477 @@ has the witnesses):
   the list owner — is the statement's arms plus its default. `-matchvar`
   and `-indexvar` never reach a `Statement::Switch` (the lowering makes
   them a barrier), so a record's `writes` are empty today.
+- **D183 — O112 folds a `switch` only from what the solver decided**
+  (VT6.4). An opaque form (`-glob`, `-regexp`, `-nocase`, a fall-through
+  arm, `case`) reads the unit's selection record by the statement's span
+  (`record_decision`): every member of every record at that span must run
+  one body, the record must state the statement's own arms (its pattern
+  spans, in order, are the statement's), and a record that writes is not
+  folded. The flattened exact form has no record and reads its dispatch
+  chain (`chain_decision`): the `Applied` constant branch at each arm's
+  pattern span, the first decided true with every earlier one decided false
+  the arm, all false the default, an undecided arm leaving it open; a
+  statement with no arm has no chain, so `switch [gets stdin] {default
+  {…}}` is left alone (nothing states its subject is read).
+  `cfg_builder::switch_is_flattened` is the one predicate lowering and O112
+  share for which form a statement is. `resolve_subject`, `pattern_matches`
+  and `SwitchInfo` are gone with the flow-insensitive `Env` projection they
+  read for a `switch`: a record is per statement, at the versions the
+  statement reads, so program (4)'s `acc` (three versions, `foobar` at the
+  switch) folds where the projection, which needs every version to agree,
+  saw none. The message keeps its three wordings and adds a fourth for
+  members that match different patterns sharing a body through fall-through
+  ("always runs the body of pattern …"). Delta: a `switch` the solver never
+  reached — one inside an opaque `catch` body, which the CFG keeps as one
+  call when the body holds control flow — has neither a record nor a chain,
+  so O112 leaves it; it had folded through the projection where the
+  subject's variable held one constant in the whole function. The plan's
+  "first-unfoldable-clause and `catch`-descent limits go" names limits of
+  the old pass this reading cannot tie to code — `try_eliminate_if` still
+  stops at its first undecided clause (the item leaves `if`, `while` and
+  `for` on the expression route over the `Env`) and the walk still
+  descends into `catch` bodies — so what the item removes is the private
+  matcher, and the one behaviour it loses is the fold in a region the
+  solver never analysed.
+- **D184 — a consumer holding words asks the registry for the selection**
+  (VT6.4). `literal_selection` and `statement_selection`
+  (`value_transfer.rs`) run the command's declared `Selection` transfer
+  over `LiteralInputs`: the words as the caller states them, each with how
+  it was written (`WordForm`: bare, quoted, braced, unproven), so D179's
+  rule about a delimited `-` body applies, and an unproven word declines
+  the whole fact; the one subject value the caller proves stands in for a
+  word the call spells as a variable. `exec_switch` (the loop simulator)
+  asks it for the statement's own command over the words the lowering
+  recorded, only where the plan reads the statement's own subject and
+  clause count (D182's condition), so the mode, `-nocase` and fall-through
+  it ignored are honoured, a `-glob` pattern matches as a glob, and a
+  statement whose words were not recorded (a hand-built one) or whose
+  pattern the command would substitute ends the simulation. The analyser's
+  `switch_body_is_selected` keeps the registry's layout query
+  (`case_invocation`) for where the subject, patterns and clause list sit,
+  states the subject and the inline patterns through `static_word_value`,
+  reads every other word as written, and asks the same transfer for the
+  clause whose body runs; a braced word is its own text (`static_word_value`
+  had substituted a braced inline pattern from the environment), a word
+  left to substitute that is neither subject nor pattern is unproven, and
+  the selection must read the layout's own subject and the walk's own
+  clause count or the arm is not decided. Regexp mode is decided too: the
+  old walk abstained on it. `Statement::Switch::command`, the spelling the
+  statement was written with, is the head the query resolves.
+- **D185 — an arm's `Selected` fact is judged by the body it leads to**
+  (VT6.5). The post-pass that makes the selection record states, beside
+  it, one `Selected` `ConstantBranch` for each arm no member of the subject
+  runs the body of (`unreached_arm_facts`): `block` the block holding the
+  statement, `span` the arm's pattern, `condition` its text, `value`
+  `false`, both targets empty — no block stands for an arm, so nothing is
+  applied to `executable_blocks` and O107 has nothing to drop. An arm that
+  passes its body on with `-` is judged by the body it leads to (the first
+  arm from it on that has one, or the final `default`), not by its own
+  pattern: `a1 - a2 {S}` over `a2` runs `S`, so `a1`, an alternate of a
+  running body, is not reported. That refines the hand-off's rule ("flag an
+  arm only if no member's `selected` or `bodies` names it") to a subset of
+  what it flags: the plain rule reports `a1` there, and reports `b` of `a -
+  b - c {S}` over `a` or `c` but not over `b`, an asymmetry between the
+  alternates of one body that the group rule does not have; every arm the
+  group rule reports is one the plain rule reports too. The final
+  `default` has no pattern span and is never reported. Because `constant_branches` also feeds consumers that read a
+  fact as a branch, each reads the kind: `function_nontaint_checks` hints
+  O100 only at an `Applied` (or `Proven`) branch; branch folding skips a
+  `Selected` fact in both its `folded` block set and its fold loop, without
+  which the block's own terminator — the `if` a statement before it shares
+  the block with — would be rewritten by the fact's `false` (the witness
+  `a_selection_fact_folds_no_condition_beside_it` fails without it); the
+  Explorer states the kind (`kind`) and prints `arm never selected:
+  <pattern>` where it printed a branch. I231 for a decided flattened arm
+  stays the `Applied` fact's (`emit_constant_branch_diagnostics`); a new
+  emitter, `emit_selected_arm_diagnostics`, reports the `Selected` ones.
+
+- **D186 — a loop's termination verdicts wait for the header's branch
+  fact** (VT6.7). The walk no longer reports W240, W241 or W242 where it
+  meets a conditional loop: `loop_termination_candidate`
+  (`bounds_checks.rs`) yields a `LoopTerminationCandidate` — the command,
+  the condition word's span, what the text says (`LexicalVerdict`: `Dead`
+  for a constant-false literal, `Infinite` for a constant-true literal whose
+  body never leaves the loop or for a `for` counter that never reaches its
+  bound, `Unprovable` for a counter nothing modifies, `Silent`) and whether
+  the body holds, in command position, a command that leaves the loop
+  (`body_may_exit`) — and `emit_bounds_family_diagnostics` queues it on
+  `Analyser::loop_candidates`. The plan's `loop_span` is not recorded: the
+  header's `Applied` branch fact is keyed by the condition word's span, and
+  whether the loop can be left is answered by reachability, so a second
+  span names nothing the resolution reads. The per-function pass resolves
+  the queue where it reads the unit's other branch facts
+  (`emit_branch_fact_diagnostics`, beside I230 and I231):
+  `header_fact` finds the `Applied` fact at the condition's span, false is
+  W240, and true is W241 when no exit is executable — the loop's end block
+  is (a `break` reaches it, the header's own false edge being the one that
+  is never taken) or an executable path from the body reaches a `return`
+  terminator (`return`, `error`, `exit`, `throw`) — *and* the body's text
+  holds no exit either, the second half being the one path the graph
+  cannot see: a `break` inside a `catch` body it does not lower. A decided
+  verdict replaces W242, which says the solver could not prove the loop
+  ends; a header true at every test with an exit reachable draws nothing,
+  where the text's counter check would have drawn W242 for a counter the
+  loop never advances. What no unit decides stays queued and
+  `flush_loop_terminations` — after `emit_cfg_ssa_diagnostics` in
+  `run_diagnostic_emitters`, before the disabled-code filter, the dedupe
+  and the sort — reports it as its text says, so a parameter bound, a
+  loop the solver never reached (inside an opaque `catch` body), a guarded
+  body, and a stub-declared loop command the CFG keeps as a call draw what
+  they drew before. The per-item path carries the queue as it carries
+  every other walk-recorded one: `BodyFragment` holds a body's candidates,
+  `rebase_fragment_pending` shifts their spans and
+  `graft_fragment_pending` extends the shell's queue, without which a loop
+  inside a proc body was resolved by no unit and reported nothing on the
+  incremental path. Deltas: `set n 0; while {$n} {puts x}` reports W240
+  where W242 was (the counter `n` is never modified, which the text said);
+  `set go 1; while {$go} {puts x}` reports W241 where W242 was;
+  `for {set i 0} {$i < 10} {} {puts hi}` reports W241 where W242 was; and
+  `for {set i 0} {$i < 0} {incr i} {puts hi}` reports W240 where nothing
+  was, the step modifying the counter.
+
+- **D187 — the iRules flow checks read applied reachability, by
+  statement where they walk the IR** (VT6.6). Two walks read the structured
+  IR body of a `::when::` procedure, not the CFG's blocks — IRULE1201 and
+  IRULE1202 (`find_http_flow_warnings`) and IRULE5002 and IRULE5004
+  (`find_unguarded_drop_warnings`) — so neither can skip a block. Each
+  takes the unit's `unreached_statements`: the spans of the statements only
+  blocks the solver proved unreachable hold (a statement any executable
+  block holds is reached, and one the graph does not hold at all — a body
+  it keeps as one call — is not listed), and a step over such a statement
+  leaves the path states as they were (`FlowDispatch::unreached`). The
+  branch shapes are untouched: an `if` keeps its condition-false path and a
+  loop its zero-iteration path, so a walk states the same paths minus the
+  effects of statements that never run. A path is not pruned where the
+  solver decided the branch — `if {1} {event disable all}` after a `drop`
+  still leaves a condition-false path with the drop unguarded — which is a
+  precision these walks never had and no item asked for. The walks over the
+  CFG's blocks read `executable_blocks` as the IRULE3102 and collect walks
+  already do: IRULE4002 skips a block the solver proves unreachable, and
+  IRULE4004's write counts, which take every write of every event so that a
+  second write anywhere disqualifies the first, count only the blocks a
+  solved event proves reachable, a complexity-guarded event — with no
+  solver run to prove anything — still counting all of its blocks. A
+  `clientside`, `serverside` or `peer` body is a script the collect-flow
+  scan lowers on its own (`scan_side_switch_body`); it now builds a
+  `FunctionUnit` over that lowering and skips the blocks the unit proves
+  unreachable, so IRULE1005 to IRULE1008 read the reachability inside the
+  body as they read it in the event around it. Deltas: `if {0} {HTTP::respond
+  200}; HTTP::header insert X-Custom val` reports no IRULE1201, nor does the
+  `set flag 0` form, a `while {0}` body, a dead `switch` arm, or a header
+  command after an `if {1} {return}`; a second `HTTP::respond` in a dead arm
+  reports no IRULE1202; a `drop` or `DNS::return` in a dead arm no IRULE5002
+  or IRULE5004; a `set static::debug` in a dead arm no IRULE4002, the
+  warning landing on the write that runs; a `TCP::collect` in a dead arm of a
+  `clientside` body no IRULE1007. IRULE4004 reports one finding more where
+  the only other write of a variable sits in an arm the solver proves dead
+  (`set svc foo; if {0} {set svc bar}`), because that write never runs; the
+  migration page's "fewer findings in dead arms" does not say so, and the
+  write counts are among the walks the item names.
+
+Taken while slice 9 was executed (§ *Slice 9* › *Record (2026-09-30):
+slice 9* has the witnesses):
+
+- **D188 — Nested writes ride on the outcome as resolved places** (VT9.1).
+  The page says the state's writes become the invocation's ordered stores,
+  but a `StoreOutcome` names its place by a `TargetId`, an operand of the
+  invocation that ran it, and the write of a nested `[incr x]` names an
+  operand of `incr`, not of the `expr` around it: a consumer that resolved
+  it through the outer inputs would read another word. So
+  `InvocationOutcome` gains `nested_writes: Vec<(PlaceRef, StoreOutcome)>` —
+  the pairs `EvaluationState::writes` already holds — applied ahead of
+  `ordered_stores`; `has_stores` counts them, and an error completion's
+  `written` counts across them and then the ordered stores, which
+  `validate_outcome` checks. The stores' types are not carried: a definition
+  a nested write makes states no folded type.
+- **D189 — The read rule is the registry's, and `variable` keeps its
+  program-point meaning** (VT9.1). `AnalysisInputs::variable` has no state
+  parameter, so "`variable` consults `writes` first" is
+  `EvaluationState::written` / `written_in` (`inputs.rs`), one function with
+  two readers: `ExprServices::var`, state first and then the inputs, and the
+  lattice inputs' overlay (`LatticeInputs::prior_writes`, read by
+  `named_fact`, `prior_store` and the existence reads), which is how a nested
+  command sees the writes made before it. The last write naming a place
+  decides; a preserve changes nothing; a write that only shares storage with
+  it (an element beside its array), a may-write and an unbind leave it
+  unknown, which declines.
+- **D190 — What `LocalWrites` admits** (VT9.1). A nested outcome's writes are
+  applied when every one is a preserve, of any place, or a `Write` or
+  `WriteElement` to a place the state owns (`LatticeDriver::state_owns`: not
+  traced, not escaping, and not an element of an array that is); an error
+  completion applies the first `written` of them. A may-write, an unbind, a
+  completion code that is not an error, a store to a place no resolver can
+  name (a computed name, an element beside its array) and a traced or
+  escaping place are `StatefulNested` — placement failures map to it rather
+  than keep their own reason, as the page's "any other outcome" reads. The
+  policy admits every outcome `EffectFreeOnly` does, a preserve being
+  admitted whatever it names. An existence query declines once the
+  evaluation has touched its place (`[info exists x]` after `[set x 1]` is
+  `StatefulNested`), and the enclosing writes' existence reads answer
+  `Bound(Scalar)` for a write. The members of a finite input must agree on
+  result, completion and writes, or the answer is `CorrelatedSets`, as
+  before.
+- **D191 — An ended evaluation is an answer, not a decline** (VT9.1). A
+  nested outcome that did not complete normally ends the evaluation at that
+  command (`ExprStop::Ended`, `ExprAnswer::Ended`), and `ExpressionEvaluation`
+  turns an error into an outcome whose completion is `Error { written }`,
+  with the state's writes and no exact result. No route in the tree yields an
+  error completion (`error` has no semantics; VT10.1 makes a core's
+  `CmdError` one), so the path is pinned with a scripted nested service, and
+  the driver still publishes nothing for it: `apply_outcome` declines any
+  non-normal completion (D107) until slice 10 publishes per path.
+- **D192 — The host of an embedded call is found by adjacency and span**
+  (VT9.2, decided while reading, not yet built). The plan has the synthetic
+  call carry its host's index. The builder emits the call immediately before
+  its host and gives both the host's span, which is what D169 already
+  identifies them by, and an index recorded at build time is stale the moment
+  anything is inserted between them, so the solver reads the pair off the
+  block instead: a call with the marker, followed by a statement that is not a
+  call of that kind and has the same span. `SyntheticMarker` and the IR stay
+  as they are.
+
+Taken in the review of slice 6 (§ *Slice 6* › *Record (2026-09-30): review
+fixes for slice 6* has the witnesses):
+
+- **D193 — An opaque `switch` defines every name its arms may write**
+  (review fix 1, B1). A `-glob`, `-regexp`, `-nocase`, fall-through or `case`
+  statement stays one statement of the CFG with its arm bodies inline, so no
+  block held a write inside one, and every reader of the lattice saw
+  `set go 1; switch -glob -- [gets stdin] { q* { set go 0 } }` leave `go` at
+  1: W241 on `while {$go} {…}`, W240 on the twin that starts `go` at 0, an
+  O102 fold of `puts $go` to `puts 1`, an I230 that `if {$go}` is always
+  true, an O112 fold, and iRules flow checks that never reached a `respond`
+  under `if {$is_api}`. The hole is closed where the lattice is built, not in
+  its consumers. `ssa::switch_may_defs` (beside `defs_of_with_registry`)
+  walks every arm, the default and every command they nest — a statement's
+  own writes, the variable a `regexp` or `scan` fills, a `global`, `upvar` or
+  `variable` binding, the commands of a `[…]` substitution in a word — and
+  returns each name any of them may write that the statement does not define
+  on every path. Each is a *may*-def: `rename_statement` gives it a version
+  whose prior one is recorded as a use, so the solver joins the version from
+  before the statement with one that has no value, the merged value is not
+  constant, and the existence rung reads it as unknown afterwards — for a
+  place unbound before the switch too. The same set reaches the analyses
+  that walked the graph's blocks: the taint join (`propagate_statement_taints`
+  keeps the taint a name held when no arm runs), the alias lattice
+  (`stmt_gen` applies a `global`, `upvar` or `variable` inside an arm as if it
+  had run, a union, which is the may-alias answer) and W210's undefined-read
+  walk (`MayDefMap`, `UndefIndexMaps` and `UndefWalk` read a may-def as a
+  one-operand phi, so `switch -glob $x { a* { set v 1 } }; puts $v` still
+  reports `v` possibly unset). The CFG builder asks what it would have put
+  beside each command an arm runs had it lowered the arm
+  (`CfgBuilder::opaque_arm_effects`, through `apply_upvar_invalidation`, which
+  records the function-level facts too): the names a callee writes into the
+  frame (`proc zero {v} {upvar 1 $v x; set x 0}` called as `zero go` in an
+  arm) become the may-definitions of a marker statement after the `switch`
+  (`SyntheticMarker::ArmWrites`, read by `switch_may_defs` as the `switch`'s
+  own writes are, and skipped by codegen and the wasm plan); a command that may
+  write any name (`namespace eval`, `dict with`, `eval $script`, a callee that
+  aliases a computed name) adds the caller-frame barrier the graph puts after
+  such a command it lowers, unless the command leaves the procedure. Where the
+  selection record proves which body runs, the write could be exact; that
+  precision is not built, and the answer is the may-def's.
+- **D194 — A callback script's writes escape as a trace's do** (review fix
+  1, B1). `after 100 { set done 1 }`, `after idle { set ::go 0 }`, `bind`,
+  `fileevent` and `chan event`, `interp bgerror` and the script of a
+  `trace add` run after the registering command returns, at the global level
+  or in the frame of whatever fires them, so the name they write is one the
+  registering code holds and nothing in its text shows the write: `set done
+  0; after 100 { set done 1 }; while {!$done} { update }` drew W240, and the
+  `::go` twin W241. The registry states which stored scripts are callbacks
+  and the compiler names no command. `Traits::BODY_RUNS_IN_OWN_FRAME` (new;
+  `fields.md` lists it) marks the definers — `proc`, an iRules `when`,
+  `snit::method`, `snit::typemethod`, the snit macro, `optproc`, `lambda`,
+  `report::defstyle` — whose stored script is dormant like a callback's
+  (`DEFERS_BODY`) but runs in a frame of its own, and
+  `CommandRegistry::callback_script_indices(name, args, dialect)` returns
+  the words `script_timing` calls `Deferred`, less those of a command
+  carrying it. An unset flag keeps the abstaining answer, a callback, so a
+  pack's own definer states the trait to opt out and is sound without it.
+  `deferred_writes::scan_module` (one pass over the lowered module, filling
+  `Module.deferred_writes`, a `DeferredWrites { names, any }`) reads each
+  registration's callback words: a literal script is lowered and every name
+  its statements may write is recorded (a plain name with `::` stripped, an
+  array's base name, a `global`, `upvar` or `variable` binding, the writes of
+  a nested substitution); a word naming a procedure of the module adds the
+  global names that procedure writes; a write whose name the callback
+  computes (`set $n 1`), or a procedure that writes through a frame it cannot
+  name, sets `any`, which reads every variable as written. A quoted word with
+  no substitution is read as the script it is, and a word that is one `[…]`
+  substitution of a command the registry states builds a command prefix
+  (`Traits::BUILDS_COMMAND_PREFIX`: `list`) is read as the command it builds
+  (`after 100 [list tick $n]`, `-command [list set done 1]`). A callback word
+  that is otherwise computed (`after 100 $script`), spelled as several words
+  (`after 100 set done 1`, where the registry states no script position) or
+  expanded is not read: the text is unknown, so a write it makes stays
+  invisible, a limit the design page states. The names join the escaping
+  names exactly as `traced_variables` do — `sccp::escaping_names` through
+  `TraceInputs::deferred_writes`, O102's `extend_module_escaping`, the type
+  pass's escape set, the existence rung's `dynamic_trace` — and stay a fact
+  of their own because the taint lattice
+  reads `traced_variables` as tainted everywhere. They reach the
+  per-procedure memo identity (`AnalysisContextKey::deferred_writes`) and the
+  database's `ModuleTraceFacts`, so editing a callback invalidates the checks
+  that read it; `compiler_check_memo_matches_uncached_for_hidden_writes` pins
+  the memoised and uncached answers equal.
+- **D195 — A top-level name and its `::` spelling agree across a call the
+  module cannot see** (review fix 1, B1). `set g 5; foo; if {$g} {…}`
+  folded the `if` and drew I230 where `set ::g 5; foo; if {$g} {…}` did not:
+  a qualified global was externally mutable, a plain name at the top level
+  was refined, although that name *is* the global and `foo`, which the module
+  cannot see (`ModuleCommandBindings::may_dispatch_unresolved`: a literal
+  head neither in the registry for the dialect nor bound by the module), may
+  write it. The CFG builder marks such a call — its own head, a `[…]`
+  substitution in one of its words, in a condition, or in an arm of an opaque
+  `switch` — with a synthetic statement carrying
+  `SyntheticMarker::UnseenCall`, only outside a procedure body, where a plain
+  name is a local no callee reaches. The SSA rename records, where the marker
+  stands, each version live there (`SsaFunction::unseen_call_versions`,
+  `is_observed_by_unseen_call`). The solver treats the definition of a
+  recorded version as possibly replaced — `Overdefined`, and so a phi over
+  one — the existence rung's clobber for a marker touches every place
+  (`statement_clobber`), and O102 forwards no value of a recorded version and
+  O109 removes no store to one (the callee may read it). A version defined
+  after the marker is not recorded, so a write the call cannot have replaced
+  still folds. The marker defines and reads nothing; its identity is the
+  typed `CommandTokens::synthetic`, never its spelling, and `unit_scope`'s
+  call-site scan and the wasm backend's fact loop skip it. A first design
+  widened every top-level name function-wide behind a flag; it made
+  `propagate_types` and O125 widen values nothing had written, failed 27
+  existing tests and was replaced by this flow-sensitive record. The
+  widening is per version: a use before the call of a recorded version is
+  undecided as well, which costs precision, not soundness. A call that
+  sources a file (the registry's `Traits::SOURCES_FILE`) runs the file in the
+  frame of the call, so it is marked in a procedure as well as at the top
+  level, where a procedure's locals are otherwise out of every callee's
+  reach; `set g 5; source other.tcl; if {$g} {…}` drew I230 before. A `load`
+  and a command with a computed head are not treated as unseen and keep the
+  handling they had.
+- **D196 — IRULE4004 counts the writes of a `switch` arm the graph keeps
+  whole** (review fix 1, B2). `find_hoistable_set_warnings` counts every write
+  of every event, so that a second write anywhere disqualifies the first, and
+  it counted the statements of the graph's blocks. The arms of an opaque
+  `switch` are no block's statements, so `set svc foo; switch -glob
+  [HTTP::uri] { /a* { set svc bar } }; pool $svc` drew IRULE4004 on `set svc
+  foo` as if it were the only write. The walk adds the names
+  `defs_from_ir_script` finds in each arm and the default body of a
+  `Statement::Switch`. IRULE1201 and IRULE5002 needed no edit of their own:
+  their flag is no constant once D193 holds, so the `respond` or `drop` under
+  `if {$is_api}` is reachable again; the review's three programs are tests.
+- **D197 — The flattened chain compares the values of a `switch`'s words**
+  (review fix 2, B3). The statement records each word as a spelling with its
+  delimiter flags, and the chain's operands took the spelling for the value:
+  `ExprNode::CompiledWord` is documented as a word already reduced to its
+  value, and `switch a\nb {"a\nb" {puts hit} default {puts miss}}` compared
+  the four characters `a\nb` to the decoded three, so I231 called the arm
+  every release runs unreachable and O112 rewrote the program to `puts miss`
+  where tclsh 8.4 to 9.1 print `hit`. The review's four spellings (`a\nb`
+  against `"a\nb"`, `"a\tb"` against `a\tb`, `"a\\b"` against `{a\b}`, a braced
+  newline pattern) are each tests, and six more were found beside them: a
+  braced subject's line continuation (`{a\<newline>b}` is `a b`), the
+  separate-words form's bare and quoted patterns, `a\$b` and `a\[b`, and the
+  opaque `-glob` form's `a\$b`. One decoder states the value,
+  `value_transfer::recorded_word_value`: a braced word's content with its line
+  continuations collapsed under the document's word rules, a bare or quoted
+  word with no live substitution — no `$` or `[` a backslash does not escape —
+  its escapes decoded under the document's grammar, and none for a word that
+  substitutes. `switch_arguments` reads the selection's words through it
+  (their source kinds are unchanged) and `cfg_lower::word_operand` builds the
+  chain's operands from it: a braced `CompiledWord` of the value where it
+  differs from the spelling, so no later stage decodes it again and codegen
+  pushes it as it is, and the spelling as before where the word substitutes
+  (which the evaluators decline to fold) or needs no decoding. The textual test
+  the decoder replaces took any `$` or `[` for a substitution, which sent
+  `a\$b` to the selection's substituted-word path, which re-reads the spelling
+  and was right, and left it a spelling on the chain, which was not; one test
+  now reads an escaped `$` or `[` as data for both. The `subject` and `pattern`
+  field docs of `Statement::Switch` and `SwitchArm` say *spelling*; they said
+  *value*, which was the source of the defect.
+- **D198 — A subject an option scan may read is not flattened** (review fix
+  2, S1). Before 8.5 `Tcl_SwitchObjCmd` scans every leading word that starts
+  with `-` as an option, however many words follow; from 8.5 it stops with two
+  left. So `set x -glob; switch $x {-glob {puts G} default {puts D}}` raises
+  `bad option` on 8.4 and prints `G` from 8.5, and the chain, deciding
+  `StrEq(-glob, -glob)`, folded it to `puts G` and drew I231 under `tcl8.4`,
+  where the registry's selection transfer declined a member that starts with `-`
+  unless `--` ended the run (`bounded_scan`). The two words the 8.5 scan leaves
+  are a pattern and its body when the arms are words, so the subject is inside
+  the scan on every release there — `set x -glob; switch $x a {puts A} default
+  {puts D}` is `extra switch pattern with no body` from 8.4 to 9.1 — and only
+  the one-word arm list leaves it outside from 8.5. The transfer reads that
+  through the core's own option scan (`parse_options`, which must find the
+  subject where the plan put it), so it already declined the words form on every
+  release; the chain did not. The rule is stated once for the chain in
+  `cfg_lower::subject_may_scan_as_option`, which `cfg_builder::switch_is_flattened`
+  now takes with the statement, the registry and the lexer config: a registry
+  with no profile declares no target and keeps the chain (the many tests and
+  embedders that build one without a profile are unchanged); where the subject
+  is outside the scan — a profile whose release is at least 8.5 and the arms one
+  braced list (`Statement::Switch`'s `patterns_braced`) — the chain is kept;
+  under any other — `tcl8.4`, the iRules base, a profile that declares no
+  release (`tk`, `f5-bigip`, the lenient `tcl` a module with no dialect takes
+  from `build_cfg`), where unanimity decides (ruling 7), or the arms as words on
+  any release — a whole-variable subject, the only non-literal subject the chain
+  can decide, or a literal whose decoded value starts with `-` (`\x2dglob`),
+  with no `--` before it, lowers as one opaque statement. `--` is read from the
+  one option parser (`parse_switch_options`, which now reports whether `--`
+  closed the options). The selection record then decides the statement: a value
+  that does not start with `-` folds through it (O112 and the arms never
+  selected, I231; not the chain's "subsequent arms are unreachable" or O107), a
+  value that does is declined. The optimiser's `decided` no longer asks the
+  predicate: it reads the chain's `Applied` facts and, where there are none, the
+  record — a statement has only one of the two, and the pass does not see the
+  registry that lowered the unit. Five tests built their graph through
+  `build_cfg`, which names no dialect and takes the lenient `tcl` profile, and
+  moved (listed in the row). Found and left: a subject the chain cannot state —
+  a command substitution, say — may hold a `-` word at run time, and the
+  compiled chain then compares it where a release before 8.5 would read an
+  option; for such a subject the chain is runtime code and no analysis folds
+  it, so the unsoundness the review found is closed and this difference in the
+  generated code is not.
+- **D199 — I231 names the command its statement spells** (review fix 3, N1). The
+  message opened `Switch arm '…' is never selected` for every case-list
+  statement, and a `case` statement is another command, with its own contract
+  and gone from 9.0. `Statement::Switch` records the source's spelling in
+  `command`; the diagnostic finds the statement in the block the `Selected` fact
+  names, by the arm's pattern span — an opaque arm's body is no block's
+  statement, so the span lies in one statement only — and capitalises that
+  spelling less a leading `::`, so `case abc in a* {…} b* {…}` reports `Case arm
+  'b*' is never selected; this arm is unreachable`, `::case` the same, and a
+  `switch` statement's text is unchanged. The fact itself carries no command:
+  the Explorer serialises it, and a field there would be a contract change for a
+  word the diagnostic can read from the graph it already holds.
+- **D200 — The Explorer's post-SSA card words a branch fact by its kind and
+  lists the selection records** (review fix 3, S4). `renderCfgPost` worded every
+  `constantBranches` entry `block: condition is always value (take target)`,
+  which says of an arm no member of the subject selects that a condition is
+  decided and names a target that does not exist, and never rendered the
+  `selections` array of the SCCP view. `renderConstantBranch` words a `selected`
+  fact as the Rust text view does (`arm never selected: b* in entry_1`) and a
+  decided one as before; `renderSelections` lists the records of the function's
+  SCCP row (`selection:` the arms the members select, `bodies:` the arms whose
+  body runs, linked to the source range) under a `selections:` heading, and only
+  under the compiled view: a record describes the compiled source, and the
+  optimised view is the CFG of the rewritten program, which holds no such
+  statement. The contract is `serialise.rs`'s, unchanged. The test runs the
+  shipped script in a `vm` context over a payload the real serialiser produced,
+  so it needs `node` and no browser, where the Chromium smoke test skips without
+  one.
+- **D201 — Code, test and design-page text states the rule, not the lane's
+  bookkeeping** (review fix 3, S2 and S3). A comment that cites a decision, an
+  item or a slice — `D104`, `VT5.19`, "slice 8", "the plan's five first" — or
+  the lane document names a record the landing removes, so the code would point
+  at nothing. Each line `grep -nE 'D1[5-9][0-9]|VT[0-9]\.[0-9]|slice [0-9]'
+  rust/` found says what the code does in words, as do the comments that cited
+  the lane document or an earlier decision by number, except what a gate or a
+  syntax needs in that form: the `registry-axis-ok … until slice N` waiver
+  syntax and its `LANDED` list, the migration ledger's `slice N —` reasons and
+  `retires_in_slice` labels (`cargo xtask value-transfers --check` compares
+  them), the one test label that names the `retires_in_slice` value it checks, a
+  hex constant and the `RIPEMD160` command names. The design pages state the
+  design as it is: a passage that dated built behaviour by the slice that built
+  it ("until slice 5", "since slice 8 (VT8.5)") is in the present tense, and the
+  `Migration: slice N` lines, which are the migration plan's own, stay.
 
 ### Open questions for the owner
 

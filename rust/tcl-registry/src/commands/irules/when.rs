@@ -70,7 +70,9 @@ pub const fn spec() -> CommandSpec {
             .union(Traits::IRULES_TOP_LEVEL_ONLY)
             // Registering a handler stores its body for the dispatcher to
             // run on a later event; nothing in it executes at this call.
-            .union(Traits::DEFERS_BODY),
+            .union(Traits::DEFERS_BODY)
+            // Each firing runs the body in a frame of its own, the event's.
+            .union(Traits::BODY_RUNS_IN_OWN_FRAME),
         surface: Some(SpecSurface::IRULES),
         event_handler_priority: Some(BIGIP_EVENT_HANDLER_PRIORITY),
         arity: Arity::new(2, 6),

@@ -51,6 +51,12 @@ Both words come *after* the `drop`: `event disable all` stops the remaining
 iRules, `return` stops the rest of this one. The editor offers **Add 'event
 disable all' + 'return'** as a code action.
 
+## Limits
+
+A `drop`, `reject` or `discard` in a branch the analyser proves never runs
+leaves nothing unguarded and is not reported; one in a branch that might run
+still is.
+
 ## How to suppress
 
 Add `# noqa: IRULE5002` on the line **above** the offending command.

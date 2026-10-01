@@ -815,7 +815,7 @@ fn deeply_nested_if() {
 
 #[test]
 fn while_with_nested_switch() {
-    let src = "proc dispatch {items} { set i 0; set result {}; while {$i < 10} { switch -exact $i { 0 { set result \"zero\" } 1 { set result \"one\" } default { set result \"other\" } }; incr i }; return $result }";
+    let src = "proc dispatch {items} { set i 0; set result {}; while {$i < 10} { switch -exact -- $i { 0 { set result \"zero\" } 1 { set result \"one\" } default { set result \"other\" } }; incr i }; return $result }";
     let ir = ir_for(src);
     let cfg = build_cfg(&ir, false);
     let proc_cfg = &cfg.procedures["::dispatch"];
@@ -1021,7 +1021,7 @@ fn switch_many_arms() {
         .collect::<Vec<_>>()
         .join(" ");
     let src = format!(
-        "proc big_switch {{x}} {{ switch -exact $x {{ {arms} default {{ set r -1 }} }}; return $r }}"
+        "proc big_switch {{x}} {{ switch -exact -- $x {{ {arms} default {{ set r -1 }} }}; return $r }}"
     );
     let ops = opcodes(&proc_asm(&src, "::big_switch"));
     assert!(ops.contains(&Op::DONE));
@@ -1038,9 +1038,29 @@ fn switch_many_arms() {
 
 #[test]
 fn switch_with_return_in_arms() {
-    let src = "proc dispatch {cmd} { switch -exact $cmd { add { return 1 } sub { return 2 } mul { return 3 } default { return 0 } } }";
+    let src = "proc dispatch {cmd} { switch -exact -- $cmd { add { return 1 } sub { return 2 } mul { return 3 } default { return 0 } } }";
     let ops = opcodes(&proc_asm(src, "::dispatch"));
     assert!(ops.contains(&Op::JUMP_TABLE) || has_cond_jump(&ops));
+}
+
+// `asm_for` builds its CFG without naming a dialect, so it takes the lenient
+// `tcl` profile, which declares no release. Before 8.5 `switch` reads every
+// leading word that starts with `-` as an option, so a variable subject with no
+// `--` before it may be one: the statement stays one generic invoke, where a
+// dispatch chain would select the arm the subject spells. `--` ends the options
+// and keeps the jump table (`switch_with_return_in_arms`).
+#[test]
+fn switch_a_release_may_scan_as_an_option_routes_through_generic_invoke() {
+    let src = "proc dispatch {cmd} { switch -exact $cmd { add { return 1 } sub { return 2 } mul { return 3 } default { return 0 } } }";
+    let ops = opcodes(&proc_asm(src, "::dispatch"));
+    assert!(
+        !ops.contains(&Op::JUMP_TABLE) && !has_cond_jump(&ops),
+        "no dispatch chain: {ops:?}"
+    );
+    assert!(
+        ops.contains(&Op::INVOKE_STK1) || ops.contains(&Op::INVOKE_STK4),
+        "one generic invoke: {ops:?}"
+    );
 }
 
 // Loop control flow

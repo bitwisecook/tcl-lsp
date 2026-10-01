@@ -148,7 +148,7 @@ fn word_is_braced(arg_tokens: &[tcl_lexer::Token], arg_single: &[bool], index: u
 }
 
 /// [`word_is_braced`] for every argument, for the generic-invoke fallback.
-fn braced_word_flags(
+pub(crate) fn braced_word_flags(
     arg_tokens: &[tcl_lexer::Token],
     arg_single: &[bool],
     len: usize,
@@ -161,7 +161,7 @@ fn braced_word_flags(
 /// Per argument, whether the word was double-quoted: its representative
 /// token opens at the `"` (a quoted-opening `Esc` token counts the quote as
 /// a delimiter byte) or runs inside the quotes.
-fn quoted_word_flags(arg_tokens: &[tcl_lexer::Token], len: usize) -> Vec<bool> {
+pub(crate) fn quoted_word_flags(arg_tokens: &[tcl_lexer::Token], len: usize) -> Vec<bool> {
     (0..len)
         .map(|i| {
             arg_tokens.get(i).is_some_and(|token| {
@@ -198,7 +198,7 @@ fn case_list_head(
             switch_mode_of(case.default_mode).ok_or("case list with a specialised comparison")?;
         return Ok((0, mode, false));
     }
-    let (i, mode, nocase, unknown) = parse_switch_options(args);
+    let (i, mode, nocase, unknown, _) = parse_switch_options(args);
     // An unrecognised / arg-taking option (`-foo`, `-matchvar`, …): bail to
     // the runtime `switch`, which validates options and does the var writes.
     if unknown {
@@ -235,25 +235,29 @@ fn case_list_unrepresentable(case: &CaseListSpec, pairs: &[SwitchPair]) -> Optio
 }
 
 /// Parse switch options, returning `(first_non_option_index, mode, nocase,
-/// unknown)`. `unknown` is set when a leading `-word` is not one of the options
-/// the compiler inlines (`-exact`/`-glob`/`-regexp`/`-nocase`/`--`) — an
-/// arg-taking `-indexvar`/`-matchvar`, or an invalid option such as `-foo`. The
-/// caller bails the whole switch to the runtime command, which validates the
-/// option set (tclsh rejects `-foo`) and handles the side-channel writes.
+/// unknown, ended)`. `unknown` is set when a leading `-word` is not one of the
+/// options the compiler inlines (`-exact`/`-glob`/`-regexp`/`-nocase`/`--`) —
+/// an arg-taking `-indexvar`/`-matchvar`, or an invalid option such as `-foo`.
+/// The caller bails the whole switch to the runtime command, which validates
+/// the option set (tclsh rejects `-foo`) and handles the side-channel writes.
+/// `ended` is set when `--` closed the options, so the next word is the
+/// subject whatever it spells.
 ///
-/// `pub(crate)` so the opaque-switch emitter can ask the same question this
-/// answers for lowering — which argument the subject is — rather than keeping
-/// a second copy of the option rule. There is one owner of "where do the
-/// options end", and this is it.
-pub(crate) fn parse_switch_options(args: &[String]) -> (usize, SwitchMode, bool, bool) {
+/// `pub(crate)` so the dispatch chain's lowering can ask the same question
+/// this answers for this lowering — which argument the subject is, and whether
+/// `--` stands before it — rather than keeping a second copy of the option
+/// rule. There is one owner of "where do the options end", and this is it.
+pub(crate) fn parse_switch_options(args: &[String]) -> (usize, SwitchMode, bool, bool, bool) {
     let mut i = 0;
     let mut mode = SwitchMode::Exact;
     let mut nocase = false;
     let mut unknown = false;
+    let mut ended = false;
     while i < args.len() && args[i].starts_with('-') {
         match args[i].as_str() {
             "--" => {
                 i += 1;
+                ended = true;
                 break;
             }
             "-exact" => mode = SwitchMode::Exact,
@@ -267,7 +271,7 @@ pub(crate) fn parse_switch_options(args: &[String]) -> (usize, SwitchMode, bool,
         }
         i += 1;
     }
-    (i, mode, nocase, unknown)
+    (i, mode, nocase, unknown, ended)
 }
 
 /// The pattern/body pairs of `switch`'s multi-word form, from word `start`
@@ -1535,7 +1539,7 @@ mod tests {
         }
     }
 
-    /// `case` lowers through the switch hook on its own descriptor (D180):
+    /// `case` lowers through the switch hook on its own descriptor:
     /// no word is an option, the `in` word is skipped, and every clause is
     /// a glob comparison — an opaque glob `Statement::Switch` naming `case`
     /// in each form, its final `default` the default body.
@@ -1597,7 +1601,7 @@ mod tests {
         }
     }
 
-    /// From 9.0 there is no `case` command, so nothing lowers it (D180).
+    /// From 9.0 there is no `case` command, so nothing lowers it.
     #[test]
     fn case_does_not_lower_under_9() {
         let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
@@ -1618,7 +1622,7 @@ mod tests {
 
     /// Each word's delimiters reach the statement: per word, whether it was
     /// braced (`raw_arg_braced`) or double-quoted (`raw_arg_quoted`), so a
-    /// bare `-` body is told apart from a quoted or braced one (D179).
+    /// bare `-` body is told apart from a quoted or braced one.
     #[test]
     fn a_switch_records_how_each_word_was_delimited() {
         let m = lower_to_ir("switch -glob -- $x a \"-\" b - c {-} d {puts d}", &reg());

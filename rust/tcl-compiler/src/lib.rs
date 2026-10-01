@@ -101,6 +101,7 @@ pub mod const_subst;
 pub mod dataflow_graph;
 pub mod dead_stores;
 pub mod def_use;
+mod deferred_writes;
 mod depth_guard;
 pub mod dispatch_proof;
 pub mod dynamic_names;

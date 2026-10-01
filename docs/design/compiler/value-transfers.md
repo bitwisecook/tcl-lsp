@@ -22,30 +22,19 @@ delivery slices, the gate, and what changes for every pass and diagnostic.
 value axis among the other axes and holds the runtime, package, and
 C-extension contracts, none of which this one waits for.
 
-> **Status — a proposal, not a description of what is built.** The
-> `CommandSemantics` interface and every shape in § The interface —
-> `AnalysisInputs`, `ResolvedInvocationView`, `OperandId`, `PlaceRef`,
-> `TargetId`, `FactView`, `FactDomain`, `DomainFact`, `WordStructure`,
-> `BodyRegion`, `EvaluationState`, `NestedPolicy`, `PlanAnswer`,
-> `Binder`, `BodyPlan`, `Reconcile`, `CompletionProtocol`,
-> `HandlerPlan`, `IterationPlan`, `IterableKind`, `ExitRule`,
-> `SelectionContract`, `TemplateWordPlan`, `ScriptRegion`,
-> `VariableRead`, `TransferAnswer`, `ExistenceTransfer`,
-> `CompletionPath`, `ExistenceOutcome`, `Existence`, `BindingKind`,
-> `RangeModel`, `SegmentFacts`, `TaintTransfer`, `SelectionFact`,
-> `EvalAnswer`, `InvocationOutcome`, `CompletionOutcome`,
-> `StoreOutcome`, `ExactValue`, `ExactValueOrUnavailable`,
-> `RepresentationEvidence`, `ValueShape`, `TypeFacts`, `FactBounds`,
-> `DependencyEvidence`, `RouteIdentity`, `AnalysisContext`, `Budget`,
-> `BudgetLimit`, `AnalysisTier`, `DeclineReason` (whose `Axis` and
-> `NoRouteReason` payloads the evaluation page defines) — and the
-> section-local shapes `EdgeRefinement`, `TransferSummary`, `ParamRole`, and
-> `LoopEnumeration`, with the migration plan's `folded_types` side map,
-> name nothing in the workspace today; every Rust shape
-> on this page is a sketch of capabilities and answer shapes, not
-> compilable signatures. Every *existing* identifier cited here was
-> checked against the tree at the revision named in the migration plan.
-> The observed Tcl behaviours quoted below were run under Tcl 9.1b0,
+> **Status — the interface is built; three designs on this page are not.**
+> `CommandSemantics` and the shapes of § The interface are defined in
+> `rust/tcl-registry/src/value_transfer/` (`inputs.rs`, `answers.rs`,
+> `context.rs`, `decline.rs`), and the compiler's `LatticeDriver`
+> (`rust/tcl-compiler/src/value_transfer.rs`) applies them for every consumer,
+> keeping each definition's type facts in `SccpResult::folded_types`. The code
+> blocks on this page sketch capabilities and answer shapes; where one differs
+> from its definition in the source, the source is the contract. Three shapes
+> name nothing in the workspace — `TransferSummary` and `ParamRole`
+> (§ Proc-level transfer summaries) and `LoopEnumeration` (§ Bounded-loop
+> enumeration) — and `EdgeRefinement` exists for the existence domain alone
+> (`rust/tcl-compiler/src/sccp.rs`; § Predicate refinement describes its other
+> domains). The observed Tcl behaviours quoted below were run under Tcl 9.1b0,
 > 9.0.4, 8.6.18, 8.5.19, and 8.4.20; a line names releases only where they
 > differ, or where one of them lacks the feature.
 
@@ -100,15 +89,16 @@ These are the owner's decisions, and every section below fits inside them.
 
 ## The four motivating programs
 
-Each of these is legal, common Tcl. What the compiler knows about it today
-depends on which of the tree's independent constant evaluators —
-[value-transfers-migration.md](value-transfers-migration.md) § *Where
-per-command knowledge lives today* inventories them — happens to be
-asked, and the answer is different for each consumer.
+Each of these is legal, common Tcl, and each has one answer: the registry's
+declaration of its command computes the value once, and every consumer — the
+optimiser, the diagnostics, the editor features and the Explorer — reads it
+from the one lattice. [value-transfers-migration.md](value-transfers-migration.md)
+§ *Where per-command knowledge lives today* inventories the private evaluators
+that still answer from their own reading.
 
 ```tcl
 set s [string range foobarbaz 3 6]      ;# (1) a pure result: barb
-set h [binary format H* 414243444546]   ;# (2) a pure result with no evaluator: ABCDEF
+set h [binary format H* 414243444546]   ;# (2) a pure result: ABCDEF, a byte array
 set n 1; incr n; incr n 2               ;# (3) a read-modify-write chain: 4
 set acc ""; append acc foo; append acc bar
 switch -- $acc {                        ;# (4) a switch whose subject is known
@@ -117,14 +107,14 @@ switch -- $acc {                        ;# (4) a switch whose subject is known
 }
 ```
 
-| Program | Optimiser (O-codes) | Shared lattice the diagnostics read | Why they differ |
+| Program | Shared lattice | Optimiser (O-codes) | Diagnostics |
 |---|---|---|---|
-| (1) `string range` | O129 fires: `string range` carries `const_fold: Some(fold_range)` (`rust/tcl-registry/src/commands/tcl/string_.rs`) and the propagation pass re-runs SCCP with `BuiltinFoldInputs` | `s` is `Overdefined` — `FunctionUnit::build` calls `sccp_with_extra_escaping` with `folds = None` (`rust/tcl-compiler/src/compilation_unit.rs`) | the shared lattice's memo key does not carry the command-binding fact (`rust/tcl-compiler/src/sccp.rs`, the `BuiltinFoldInputs` doc) |
-| (2) `binary format` | nothing: `rust/tcl-registry/src/commands/tcl/binary_.rs` declares `pure: true` on the `format` subcommand and no evaluator | `Overdefined` | the registry can say *whether* a command is pure but not *what* it computes; `tcl_cmd_core::binary::format` exists and the registry already depends on `tcl-cmd-core` |
-| (3) `incr` chain | O100 forwards `4` into a subsequent `$n` (`sccp_value_literal`); the `Statement::Incr` arm of `evaluate_def_with_folds` does the arithmetic | `4` — the same arm runs in both lattices | `incr` is the one read-modify-write command with a typed IR node and a hand-written transfer; `append acc …` hits `_ => LatticeValue::Overdefined` and `acc` is unknown everywhere |
-| (4) `switch -- $acc` | O112 would fire if `acc` were constant (`structure_elimination.rs` resolves `$acc` by name from its own `Env`); it is not, because of (3) | no `ConstantBranch`, no I231, no O107 — even with a constant subject, `switch_subject_operand` lowers a whole-variable subject to `ExprNode::Raw`, which the expression evaluator rejects before consulting the environment | three implementations of `switch` semantics (`cfg_lower.rs`, `structure_elimination.rs`, `analyser/handlers.rs`) with two notions of subject resolution |
+| (1) `string range` | `s` is `barb`, typed a string the route constructed, from the registry's direct route `string-range` | O100 writes `barb` into every later read of `s` and O109 removes the store that leaves | the literal-only checks, hover and inlay hints read the same value where they would otherwise see a variable |
+| (2) `binary format` | `h` is `ABCDEF`, typed a byte array by construction, from the direct route `binary-format` | no rewrite writes a byte array into source as a literal (`SccpResult::materialises`), so the call stays | S100 and S110 report no conversion for it; the analyses read its value |
+| (3) `incr` chain | `n` is `1`, `2`, then `4`, one definition per statement, from the direct route `cell-increment` | O100 forwards `4` into the later `$n` | the same values decide later conditions, so a condition over `$n` draws I230 |
+| (4) `switch -- $acc` | `acc` is `""`, `foo`, then `foobar`, from the direct route `cell-append`; the dispatch chain's branch `${acc} eq {baz}` is decided false, an applied fact | O112 folds the statement to `puts always`, which subsumes the O107 removal of `baz`'s body, no edge reaching it | I231 reports `baz`'s arm; the decided branch leaves that body outside `executable_blocks` |
 
-The contract below makes one answer per program, computed once through the
+The contract below gives one answer per program, computed once through the
 registry's declaration, visible to every consumer, and reachable by a pack
 for a command the registry has never heard of. The completion test is
 stated at the end: a command that fits an existing analyser interface
@@ -133,7 +123,7 @@ evaluator or shared core, and never SCCP, the analyser walk, a diagnostic,
 or the optimiser. These four are the shortest cases;
 [value-transfers-examples.md](value-transfers-examples.md) has one program
 for every optimisation and diagnostic the design touches, with the tool's
-observed behaviour today and the declarations behind each in Rust and in
+observed behaviour and the declarations behind each in Rust and in
 `.tclspec`.
 
 ## Vocabulary
@@ -289,9 +279,9 @@ command bindings and namespace context, the target semantic profile and
 grammar overrides, trace and escape facts, seeds, and any evaluator or
 implementation revision not already fixed by the registry identity. It is
 carried unchanged through lowering, unit construction, per-function
-queries, optimiser consumers, and evaluator calls. As built (slice 4,
-[value-evaluation.md](value-evaluation.md) § *The evaluator generation*,
-decisions D96, D97, D104): `compilation_unit` and `proc_taint_solve` take
+queries, optimiser consumers, and evaluator calls. As built
+([value-evaluation.md](value-evaluation.md) § *The evaluator generation*):
+`compilation_unit` and `proc_taint_solve` take
 the overlay (`AnalyserConfig::spec_pack_key`) as an argument, resolved by
 `unit_registry`; `function_lattice`, `function_checks`,
 `function_optimisations`, `taint_cascade`, and `proc_summary_cascade`
@@ -985,14 +975,12 @@ Both loops give `a` the set `{1, 2}` and `b` the set `{10, 20}`. Pairing
 members by position answers `{10, 10}` for either loop, where the real
 quotients of the second are `20` and `5`; the cartesian product
 `{5, 10, 20}` is sound for both and exact for neither; only ordered
-enumeration answers `20` and `25`. The rule is in force from slice 2, the
-first slice that evaluates over lattice inputs. Slice 3's
-`the_mirror_pairs_decline_as_correlated` pins the outcome — neither loop
-folds `x`, and neither post-loop branch decides — but not yet this reason:
-until slice 5 lowers the two-binder `foreach` source, `a` and `b` are
-overdefined from the loop header, so `expr {$b / $a}` declines `not-exact`
-before the limit is reached. The witness gains its `CorrelatedSets` reason
-once the two-binder `foreach` source is lowered.
+enumeration answers `20` and `25`. The rule is in force for every evaluation
+over lattice inputs. `the_mirror_pairs_decline_as_correlated` pins the
+outcome: the loop header answers each binder of the two-binder `foreach`
+source with the elements it takes, so each `expr {$b / $a}` declines
+`CorrelatedSets`, neither loop folds `x`, and neither post-loop branch
+decides.
 
 ### Bounded-loop enumeration
 
@@ -1142,8 +1130,8 @@ and every specialisation inherits them:
 | a word is not an exact value at this use (multi-token, `{*}`, unresolvable variable, JimTcl `$(…)`) | the driver | decline (`NotExact`) |
 | the head's binding is suspect: renamed, aliased to an unknown target, redefined, or in an opaque namespace (`ModuleCommandMutations::trusts`, `trusts_proc_binding`, `redefined_procedures`, `opaque_namespaces`) | binding validity — not an author-trust check | decline (`RebindingSuspected`); a consumer with no whole-module view uses `distrust_all()` |
 | the invocation has no semantics declaration, or declares a route of none (`evaluate none`) | the resolver, at step 1 | decline (`NoSemantics`, or `NoRoute` with the evaluation page's `NoRouteReason`); the generic conservative transfer applies, and a declared plan or transfer still answers its own domain |
-| the place is `::`-qualified, escaping, or the function has a dynamic trace (`is_externally_mutable` over the `var_observability` escaping set) | the solver, before any transfer runs | the def is `Overdefined` and no transfer re-narrows it (`EscapingPlace`) |
-| the place is named in `Module::traced_variables` (`TraceInputs`) | the solver | same (`TracedPlace`) |
+| the place is `::`-qualified, escaping, or the function has a dynamic trace (`is_externally_mutable` over the `var_observability` escaping set), or the version is one a call to a command the module cannot see, or a call that sources a file, holds (`SsaFunction::is_observed_by_unseen_call`) | the solver, before any transfer runs | the def is `Overdefined` and no transfer re-narrows it (`EscapingPlace`) |
+| the place is named in `Module::traced_variables` or `Module::deferred_writes` (`TraceInputs`) | the solver | same (`TracedPlace`) |
 | the target is an array-element base write, or the targets overlap, or a target is trace-visible | the driver | decline (`OverlappingTargets`), stated as a precision limit |
 | a dynamic key (`incr a($i)`) | `DynamicNameBarrier` | decline (`DynamicName`), not pending: the miss is permanent and `join(prev, Unknown) = prev` would launder a stale element constant |
 | the prior value has the wrong intrep for the operation, or the place is unbound and the release's uninitialised behaviour is not proven | the evaluator | decline (`WrongRepresentation`, `UnboundPlace`) — the program errors at run time, and an error is never a value; the error is a completion fact (§ `catch`, `try`, and completion) |
@@ -1156,7 +1144,22 @@ and every specialisation inherits them:
 | a resource cap is hit: output bytes, allocation before it happens, fuel, depth, request budget, cancellation | the route and the budget | decline (`Budget`), distinct from an unsupported case (`Unsupported`) and from a transient host failure (`Transient`), and never an exact negative |
 | a regexp search was cut short or a capture is approximate | the regexp owner | decline (`Approximate`), never "no match" |
 | the answer fails validation | the driver | decline (`MalformedAnswer`) with a load or evaluation notice; the generic conservative result is kept |
-| the statement is a `Barrier` or `UpFrame` | the solver | every tracked value widens, as today |
+| the statement is a `Barrier` or `UpFrame`, or follows an opaque `switch` whose arm runs a command that may write any name | the solver | every tracked value widens, as today |
+
+The names in `Module::deferred_writes` come from the scripts a command stores
+to run after it returns — the words the registry states as callbacks
+(`CommandRegistry::callback_script_indices`: `after`, `fileevent`, `bind`, a
+variable trace's script, never the body of a definition, which runs in a frame
+of its own and is marked `Traits::BODY_RUNS_IN_OWN_FRAME`). Such a script runs
+at the global level or in the frame of whatever fires it, so a plain name in
+it can be a variable the registering code holds, and every name it writes,
+destroys or binds is externally mutable in every function. A quoted word with
+no substitution is read as the script it is, and a word that is one `[…]`
+substitution of a command the registry states builds a command prefix
+(`list`) is read as the command it builds. A callback word computed some other
+way (`after 100 $script`) or spelled as several words (`after 100 set done 1`,
+for which the registry states no script position) is not read, so a write it
+makes stays invisible to the solver.
 
 `incr` of `010` is the release row in one line: it answers 11 under
 Tcl 9.1 and 9.0 and 9 under 8.6, 8.5, and 8.4, so a profile that names no
@@ -1311,7 +1314,11 @@ document's initial global frame a registry special variable enters
 variable (`ConnectionScope::cross_event_defs`) as `MayBound`, which is
 the rule `drop_cross_event_existence_folds` applies to the post-pass's
 output today. A `Barrier` or `UpFrame` statement sets every place to
-`MayBound`, as it sets every value to `Overdefined`. The dynamic-name
+`MayBound`, as it sets every value to `Overdefined`. A call in the top-level
+script to a command the module cannot see (`SyntheticMarker::UnseenCall`)
+sets every place `MayBound` from there on, and the version each name holds
+there `Overdefined`, because a plain top-level name is the global `::name`.
+The dynamic-name
 barrier is flow-sensitive here: a dynamic write
 (`DynamicNameBarrier::writes`) turns every `Unbound` place `MayBound`
 from that statement on, and a dynamic destroy (`destroys`) turns every
@@ -1379,8 +1386,8 @@ dominance and which stays byte-identical in effect.
   existence guards, and the preserved definitions are all readings of
   this one fact: no match is a `Preserve`, so the prior fact stands —
   `SccpResult::preserved` names the version a preserved definition holds
-  and the undef trace reads through it, which retired the private
-  `regexp` / `scan` no-match prover in slice 5. A use
+  and the undef trace reads through it, so no private `regexp` / `scan`
+  no-match prover remains. A use
   that safely initialises (`use_site_safe_initialises`) is a cell update
   whose `creates_absent` admits the release.
 - **W213** (the `command == "unset"` site in `record_chain_w210_uses`):
@@ -1394,7 +1401,7 @@ dominance and which stays byte-identical in effect.
   `proc p {} { set x 1; if {[info exists x]} { puts yes } }` reported W211
   on `set x 1`, and `tcl opt --profile full` deleted the store, so the
   optimised procedure printed nothing where the original prints `yes`.
-  Since slice 8 (VT8.5) the registry's read projection
+  The registry's read projection
   (`CommandRegistry::variable_read_projection`) names a destroyer's
   targets beside its `VarRead` words, so a nested `[unset x]` — in an
   argument, a value word, a condition or a `return` — is a use too, and
@@ -1402,8 +1409,8 @@ dominance and which stays byte-identical in effect.
 - **O108 and O109** (`elimination.rs`): a store is removable only when
   no value read *and no existence read* of its version remains; an
   unbind statement is never removed, because the error on an absent
-  place and the binding's disappearance are its effects. Since slice 8
-  (VT8.5) every existence read the lowering can place is an SSA use of
+  place and the binding's disappearance are its effects. Every existence
+  read the lowering can place is an SSA use of
   the version it observes — a statement's, a condition's (`<cond>`), a
   value word's and a `return` word's (`<upvar-invalidate>`) — and
   `array unset` is a conditional write (`Traits::CONDITIONAL_VARIABLE_WRITE`),
@@ -1418,7 +1425,7 @@ dominance and which stays byte-identical in effect.
   `FunctionUnit::build` and its cross-event retention retire with it.
 - **S100** (`shimmer/`): an unbind is not a typed value, so a phi that
   merges a bound version with an unbound one is not a representation
-  merge. Since slice 8 (VT8.6) a whole-variable kill is typed the type
+  merge. A whole-variable kill is typed the type
   lattice's bottom and the merge classification skips an arm whose
   existence is `Unbound`, so `set x 1; if {$c} { unset x }; puts $x`
   keeps its W210 and reports no S100.
@@ -1427,8 +1434,8 @@ dominance and which stays byte-identical in effect.
 request, a function over the complexity ceiling (`FunctionUnit`'s
 trivial lattices), and a consumer without SSA read
 `FactView::Top(DeclineReason::Unavailable)`, which is neither `Unbound`
-nor `MayBound`: every consumer above stays silent on it. Since slice 8
-(VT8.7) the read is `FunctionUnit::existence(symbol, ExistencePoint)`,
+nor `MayBound`: every consumer above stays silent on it. The read is
+`FunctionUnit::existence(symbol, ExistencePoint)`,
 typed by the tier the unit's lattices ran at (`FunctionUnit::tier`): a
 unit built under a context key below the deep tier
 (`AnalysisContextKey::at_tier`) runs no rung and answers
@@ -1669,7 +1676,7 @@ struct EvaluationState {
 
 enum NestedPolicy {
     /// Only effect-free nested invocations (`string length`, a pure
-    /// route): the policy of a branch condition and of slice 3.
+    /// route): the policy of a branch condition.
     EffectFreeOnly,
     /// Nested invocations whose ordered stores name only places the
     /// state can own — local, not escaping, not traced, not dynamic —
@@ -1818,17 +1825,15 @@ flowchart LR
     A -. reachability .-> R["O107 · W210 · taint · shimmer"]
 ```
 
-`FunctionUnit::build` appends existence-derived constant branches to
-`sccp.constant_branches`, and those post-pass facts do not update
-`executable_blocks`. Until slice 5 `emit_existence_constant_branch_diagnostics`
-called the same semantic helper again to learn which kind it had, and the
-two drifted: an iRules fold the unit dropped for a cross-event variable was
-still reported. The stored fact now says which of the three it is
-(`BranchFactKind` on `ConstantBranch` in `rust/tcl-compiler/src/sccp.rs`:
-the solver's decided branches `Applied`, the post-pass's `Proven`), and
-emission never reruns the proof. With the existence rung (§ Existence) the existence
-condition decides inside the fixed point, so the post-pass and its second
-run retire and the three kinds are the only distinction left.
+Each branch fact the solver stores says which of the three it is
+(`BranchFactKind` on `ConstantBranch` in `rust/tcl-compiler/src/sccp.rs`). A
+decided branch is `Applied` and updates `executable_blocks`; an existence
+condition is one, decided inside the fixed point (§ Existence). A `Selected`
+fact names an arm of an opaque `switch` or `case` that no member of the subject
+runs the body of: the CFG has no edge for the arm, so the fact applies no
+reachability and drops no block. `Proven` names a condition proven with no
+reachability applied, and no producer states it. A consumer reads the stored
+kind and never reruns the proof.
 
 ### `if`, `elseif`, `while`, `for`
 
@@ -1859,48 +1864,84 @@ same target rules.
 ### `switch`
 
 The CFG builder flattens only an exact, case-sensitive, no-fall-through
-`switch` into a dispatch chain of `StrEq` branches; glob, regexp,
-`-nocase`, and any fall-through arm stay one opaque `Statement::Switch`,
-and `lower_opaque_switch` stores that structured statement in one block —
-it creates no CFG block per arm. Even in the flattened form a
-whole-variable subject lowers to `ExprNode::Raw`, deliberately, because
-`Raw` is the only operand that preserves a backslash-bearing `${…}` name
-under both 8.x and 9.x close rules, and `Raw` cannot be evaluated.
+`switch` whose subject no option scan of the target release may read into a
+dispatch chain of `StrEq` branches (`cfg_builder::switch_is_flattened`);
+glob, regexp, `-nocase`, any fall-through arm, and such a subject stay one
+opaque `Statement::Switch`, and `lower_opaque_switch` stores that structured
+statement in one block — it creates no CFG block per arm. A flattened form's
+whole-variable subject lowers to `ExprNode::Raw`, deliberately, because `Raw`
+is the only operand that preserves a backslash-bearing `${…}` name under both
+8.x and 9.x close rules.
 
-| Form | O112 (structured IR) | O107 / I231 (CFG) |
-|---|---|---|
-| exact, literal subject | fires | fires |
-| exact, `$var` subject | fires when `var` is constant | never — `Raw` |
-| exact + `-nocase`, or a fall-through arm | fires | never — opaque |
-| `-glob` | fires (`pattern_matches` is glob-aware) | never — opaque |
-| `-regexp` | never (bails) | never |
+Before 8.5 `switch` scans every leading word that starts with `-` as an
+option, however many words follow (`for (i = 1; i < objc; i++)`); from 8.5 the
+scan stops with two words left (`i < objc - 2`). A subject whose value starts
+with `-` is an option — a mode, or `bad option` — unless `--` ended the run,
+wherever the subject is inside the scan: before 8.5 always, and from 8.5
+whenever the arms are pattern and body words, since the two words the scan
+leaves are then a pattern and its body and the subject is not one of them.
+`set x -glob; switch $x {-glob {puts G} default {puts D}}` is an error on 8.4
+and prints `G` from 8.5, and `set x -glob; switch $x a {puts A} default {puts
+D}` is `extra switch pattern with no body` from 8.4 to 9.1. The chain cannot
+state a variable's value, so where the subject may be inside the scan — the
+arms are words, or the profile does not declare a release from 8.5 (`tcl8.4`,
+the iRules base, and a profile that declares none, the reading the selection
+transfer makes of it: `bounded_scan` in `selection.rs`, and the core's own
+option scan for the arms as words) — a whole-variable subject with no `--`
+before it, or a literal whose escape decodes to `-`, stays opaque, and the
+statement's selection record, which declines a member the scan reads as an
+option, decides it: O112 and the arms never selected (I231) survive, the
+chain's "subsequent arms are unreachable" and O107 do not. A registry with no
+profile declares no target and keeps the chain.
+
+The chain compares values. The statement records each word as a spelling with
+its delimiter flags, and one decoder, `value_transfer::recorded_word_value`,
+says what it is: a braced word's content with line continuations collapsed,
+a bare or quoted word with no live substitution — no `$` or `[` a backslash
+does not escape — its escapes decoded under the document's grammar, and none
+for a word that substitutes. The selection (`switch_arguments`) and the
+chain (`cfg_lower::word_operand`) both read it, so `a\nb`, `"a\nb"` and an
+arm-list element holding a newline compare equal as they do in tclsh, and
+`a\$b` is the three characters `a$b`. The chain carries the value as a braced
+`CompiledWord`, which no later stage decodes again; a word that substitutes
+keeps its spelling, which the evaluators decline to fold.
+
+| Form | Decided through | O112 | I231 | O107 |
+|---|---|---|---|---|
+| exact, a literal subject, or a `$var` subject the option scan cannot read | the dispatch chain's `Applied` branches, one per arm | fires | fires | fires on a dead arm's body |
+| `-glob`, `-regexp`, `-nocase`, a fall-through arm, `case`, a `$var` subject the option scan may read | the selection record at the statement | fires | fires, from a `Selected` fact | never — no block stands for an arm |
+
+Each needs a subject the solver proves — a `Const`, or a `ConstSet` every
+member of which the selection can decide. A subject it does not prove is
+left alone by all three, and O101 stays suppressed on the synthetic
+dispatch chain.
 
 ```mermaid
 flowchart LR
-    SRC["set x b<br/>switch $x { a {A} b {B} default {D} }"] -->|lowers| C1["StrEq(Raw $x, &quot;a&quot;)<br/>Raw: unevaluable today"]
-    C1 -->|true| A["arm A<br/>I231 · O107 after step 1"]
-    C1 -->|false| C2["StrEq(Raw $x, &quot;b&quot;)<br/>→ Const(&quot;b&quot;) after step 1"]
+    SRC["set x b<br/>switch $x { a {A} b {B} default {D} }"] -->|lowers| C1["StrEq(Raw $x, &quot;a&quot;)<br/>Raw read from the lattice as one variable"]
+    C1 -->|true| A["arm A<br/>dead · I231 · O107"]
+    C1 -->|false| C2["StrEq(Raw $x, &quot;b&quot;)<br/>Const(&quot;b&quot;)"]
     C2 -->|true| B["arm B · taken"]
-    C2 -->|false| D["default body D<br/>not taken · O107"]
-    OP["opaque forms: -glob · -regexp · -nocase · a - body<br/>Statement::Switch, one block today"] -->|subject Const or ConstSet| SEL["step 2 · selection facts<br/>tcl_cmd_core::switch::select over the arms:<br/>ordered first match, fall-through, default,<br/>captures, option parsing, match errors"]
-    SEL --> CONS["consumers of one selected-edge fact<br/>O112 · analyser switch_body_is_selected ·<br/>static_loops::exec_switch · I231"]
-    SEL -. only with real lowering or explicit arm blocks .-> CFG["step 3 · applied reachability<br/>executable_blocks · O107"]
+    C2 -->|false| D["default body D<br/>dead · O107"]
+    OP["opaque forms: -glob · -regexp · -nocase · a - body · case<br/>Statement::Switch, one block"] -->|subject Const or ConstSet| SEL["selection record<br/>tcl_cmd_core::switch::select over the arms:<br/>ordered first match, fall-through, default,<br/>captures, option parsing, match errors"]
+    SEL --> CONS["consumers of one selected-arm fact<br/>O112 · analyser switch_body_is_selected ·<br/>static_loops::exec_switch · I231"]
+    SEL -. no block stands for an arm .-> NOCFG["no applied reachability<br/>no O107 · no arm deletion"]
 ```
 
-The order of delivery, each step with its own contract:
+The contract has four parts:
 
 1. **The exact whole-variable case.** `evaluate_branch` resolves a `Raw`
    operand from the lattice only when the existing word and variable-name
-   owners prove the operand is exactly one variable reference; arbitrary
-   `Raw` text never becomes executable because one synthetic operand uses
-   that variant. The flattened form then decides per arm for a constant
-   subject, `executable_blocks` drops the dead arm bodies, O107 and I231
-   fire, and O101 stays suppressed on the synthetic chain as today.
+   owners prove the operand is exactly one variable reference
+   (`whole_variable_operand`); arbitrary `Raw` text never becomes executable
+   because one synthetic operand uses that variant. The flattened form then
+   decides per arm for a constant subject, `executable_blocks` drops the dead
+   arm bodies, and O107 and I231 fire.
 2. **Selection facts for opaque forms.** For a `Statement::Switch` whose
    subject is `Const` or a `ConstSet`, arm selection is computed by the
    existing owner — `tcl_cmd_core::switch::{parse_options, select}` in
-   `rust/tcl-cmd-core/src/switch.rs`, which already implements exact, glob,
-   and regexp selection and capture construction over `RegexEngine` — and
+   `rust/tcl-cmd-core/src/switch.rs`, which implements exact, glob, and
+   regexp selection and capture construction over `RegexEngine` — and
    recorded as a structured-arm fact against the arm's `pattern_span`. The
    registry-declared selection semantics include ordered first-match
    behaviour, the final-default rule, fall-through to a following body, regexp
@@ -1911,17 +1952,44 @@ The order of delivery, each step with its own contract:
    writes across every member and retains error possibilities when a
    pattern cannot be evaluated. O112, the analyser's
    `switch_body_is_selected`, and `static_loops::exec_switch` consume that
-   one fact instead of three private matchers; the runtime adapters'
-   remaining steps — fall-through body resolution and body execution — are
-   modelled by the analysis adapter too.
-3. **CFG integration and edits.** Applied reachability for an opaque form
-   needs either real lowering support or explicit arm blocks; a post-pass
-   cannot remove blocks that do not exist. Source edits that delete an arm
-   are optional presentation work after the semantics are established, and
-   no optimisation code is reserved for them until the ordered-matching,
+   one fact instead of private matchers, a consumer that holds words rather
+   than a lattice asking the same transfer through
+   `value_transfer::literal_selection`; the runtime adapters' remaining steps
+   — fall-through body resolution and body execution — are modelled by the
+   analysis adapter too.
+3. **No applied reachability, no edits.** Applied reachability for an opaque
+   form needs either real lowering support or explicit arm blocks, and a
+   post-pass cannot remove blocks that do not exist, so a selection is stated
+   beside the block and applies nothing. Source edits that delete an arm are
+   optional presentation work after the semantics are established, and no
+   optimisation code is reserved for them until the ordered-matching,
    completion, source-edit mapping, and proof contracts are implemented.
+4. **What an opaque form defines.** The arms stay inside the one statement,
+   so a write made in one is in no block of the CFG. The SSA gives the
+   statement a may-definition of every name an arm writes or binds — the
+   default arm's and a fall-through arm's included, through every nested
+   command and substitution, `incr`, `append`, `lappend`, `lset`, `dict set`,
+   `array set`, `unset` and the `global`, `upvar` and `variable` bindings
+   (`ssa::switch_may_defs`, the same walk `collapsed_extra_defs` makes). The
+   statement also uses the version each name held before it, as a quoted
+   use — real for liveness, so the store feeding it stays, and never a read
+   for read-before-set — and the solver's value is the join of that version
+   and the written one, which no transfer states: `Overdefined`. A place
+   only an arm binds is may-bound afterwards, a binding an arm makes marks its
+   name in the alias lattice (`var_observability::stmt_gen`), taint keeps
+   what the name held before, and W210 reads the may-definition as a φ with
+   one operand, so a name only an arm sets is still reported where it is
+   read. What a command in an arm does to the frame beyond its own writes
+   follows the statement as it follows a command the graph lowers: the names a
+   callee writes into the frame through `upvar` are may-definitions of a
+   marker statement after the `switch` (`SyntheticMarker::ArmWrites`), and a
+   command that may write any name — `namespace eval`, `dict with`,
+   `eval $script` — adds the caller-frame barrier, which widens every value
+   (a command that leaves the procedure adds none). A selection record does
+   not refine the writes: the statement stays a may-definition even where the
+   record proves which arm runs.
 
-Step 2's fact is recorded once per statement: `SccpResult::selections`
+The selection fact is recorded once per statement: `SccpResult::selections`
 (`rust/tcl-compiler/src/sccp.rs`) holds a `SelectionRecord { span,
 arm_pattern_spans, fact }` for each executable opaque `Statement::Switch`
 whose command — the identity the lowering records at the statement's span
@@ -2363,7 +2431,7 @@ Three producers move onto the interface in the first slices:
   per-form semantics. The owner is the registry transfer's *preserve*
   outcome plus the existence rung (§ Existence): no match preserves, so
   the prior cell fact is necessary, and W210 consumes the resulting proof.
-  Slice 5 retired it: SCCP records each preserved definition with the
+  The private prover is gone: SCCP records each preserved definition with the
   version it holds (`SccpResult::preserved`, a condition's substitutions
   included when the shared engine decided the condition), and the
   read-before-set pass reads through it. This is the end-to-end acceptance
@@ -2592,8 +2660,8 @@ optional string.
 `AnalyserHookId` is scope and definition structure — what a `proc`, a
 `namespace eval`, or a `dict for` *declares* — and is the structural plan
 in the table above. Its constant-string store (`Analyser::const_strings`)
-is a consumer of constants, not a producer of transfers: since slice 8
-(VT8.9) the `Set` hook is retired, and the store reads a direct
+is a consumer of constants, not a producer of transfers: there is no `Set`
+hook, and the store reads a direct
 one-target write's `CellWrite` evaluation over its literal words
 (`Analyser::bind_value_word_assignment`, for any invocation whose
 resolved semantics `writes_value_word`), with the written name bound by

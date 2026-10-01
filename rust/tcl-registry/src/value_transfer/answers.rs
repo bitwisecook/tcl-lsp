@@ -256,7 +256,7 @@ pub enum CompletionProtocol {
 /// Where a case list's arms are written. The page's shape,
 /// `Vec<(OperandId, Option<OperandId>)>`, is the inline form's alone: the
 /// one-word form's patterns and bodies are elements of a single operand
-/// that no `OperandId` names (VT6.2).
+/// that no `OperandId` names.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CaseArms {
     /// Each pattern and body its own word, in order: `(pattern, body)`, a
@@ -375,9 +375,8 @@ pub struct SelectionFact {
     pub selected: Vec<Option<usize>>,
     /// The arm whose body runs: the selected arm's, or through a
     /// fall-through body the next arm's that has one; `None` with
-    /// `selected`. VT6.2 adds it beside the page's `selected`, because a
-    /// pattern that never matches can still supply the body a preceding
-    /// `-` arm reaches.
+    /// `selected`. It is recorded beside `selected` because a pattern that
+    /// never matches can still supply the body a preceding `-` arm reaches.
     pub bodies: Vec<Option<usize>>,
     /// The writes the selection makes before its body runs — the
     /// `-indexvar` value, then the `-matchvar` one, each a `Write` of its
@@ -767,8 +766,16 @@ pub struct InvocationOutcome {
     pub completion: CompletionOutcome,
     /// The command result on that path.
     pub result: ExactValueOrUnavailable,
+    /// The stores the invocation's own substitutions made before it
+    /// completed — the ordered evaluation state's writes (§ `expr`), in
+    /// execution order, each already resolved to its place, because a
+    /// store's target names an operand of the invocation that ran it and
+    /// these ran in others. Applied ahead of [`Self::ordered_stores`]; empty
+    /// unless the evaluation admitted nested writes.
+    pub nested_writes: Vec<(PlaceRef, StoreOutcome)>,
     /// In execution order, over validated targets, aliases reconciled; on
-    /// an error completion only the first `written` ran.
+    /// an error completion only the first `written` ran, counted across
+    /// [`Self::nested_writes`] and then these.
     pub ordered_stores: Vec<StoreOutcome>,
     /// Semantic type and shape facts for the result and each written place.
     pub types: TypeFacts,
@@ -777,11 +784,13 @@ pub struct InvocationOutcome {
 }
 
 impl InvocationOutcome {
-    /// Whether the outcome writes, unbinds, or may write any place.
+    /// Whether the outcome writes, unbinds, or may write any place, its
+    /// substitutions' writes included.
     #[must_use]
     pub fn has_stores(&self) -> bool {
         self.ordered_stores
             .iter()
+            .chain(self.nested_writes.iter().map(|(_, store)| store))
             .any(|store| !matches!(store, StoreOutcome::Preserve { .. }))
     }
 }
@@ -835,7 +844,7 @@ pub fn validate_outcome(
         }
     }
     if let CompletionOutcome::Error { written, .. } = outcome.completion
-        && written > outcome.ordered_stores.len()
+        && written > outcome.nested_writes.len() + outcome.ordered_stores.len()
     {
         return Err(DeclineReason::MalformedAnswer);
     }

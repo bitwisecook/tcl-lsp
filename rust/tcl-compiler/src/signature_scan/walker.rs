@@ -286,7 +286,7 @@ fn dispatch_signature_handler(
         {
             handlers::handle_auto_path(texts, argv, &mut ctx.result);
         }
-        // `set` (value-transfers VT8.9) carries no analyser hook either: a
+        // `set` carries no analyser hook either: a
         // command whose declared semantics stores its value word into the
         // variable it names assigns the search path, the registry fact the
         // full analyser's `bind_value_word_assignment` reads.

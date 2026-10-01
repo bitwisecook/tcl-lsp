@@ -1132,15 +1132,15 @@ Every reviewed site the source lint found, with the waiver that names the axis i
 
 | Axis | Site | Waiver | Reason |
 |---|---|---|---|
-| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:677` | site | the W230–W232 index positions await an index-argument role on the registry |
-| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:695` | site | the W230–W232 index positions await an index-argument role on the registry |
-| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:702` | site | the W230–W232 index positions await an index-argument role on the registry |
-| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:724` | site | the W230–W232 index positions await an index-argument role on the registry |
-| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:795` | site | the W230–W232 index positions await an index-argument role on the registry |
-| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1115` | site | the W230–W232 index positions await an index-argument role on the registry |
-| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1148` | site | the W230–W232 index positions await an index-argument role on the registry |
-| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1181` | site | the W230–W232 index positions await an index-argument role on the registry |
-| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1217` | site | the W230–W232 index positions await an index-argument role on the registry |
+| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:799` | site | the W230–W232 index positions await an index-argument role on the registry |
+| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:817` | site | the W230–W232 index positions await an index-argument role on the registry |
+| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:824` | site | the W230–W232 index positions await an index-argument role on the registry |
+| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:846` | site | the W230–W232 index positions await an index-argument role on the registry |
+| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:917` | site | the W230–W232 index positions await an index-argument role on the registry |
+| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1237` | site | the W230–W232 index positions await an index-argument role on the registry |
+| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1270` | site | the W230–W232 index positions await an index-argument role on the registry |
+| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1303` | site | the W230–W232 index positions await an index-argument role on the registry |
+| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1339` | site | the W230–W232 index positions await an index-argument role on the registry |
 | dataflow | `rust/tcl-compiler/src/analyser/diagnostics/var_command.rs:2587` | site | needs each value's token span, which no outcome carries |
 | dataflow | `rust/tcl-compiler/src/analyser/diagnostics/var_command.rs:2596` | site | needs each value's token span, which no outcome carries |
 | dataflow | `rust/tcl-compiler/src/analyser/diagnostics/var_command.rs:2620` | site | needs each value's token span, which no outcome carries |

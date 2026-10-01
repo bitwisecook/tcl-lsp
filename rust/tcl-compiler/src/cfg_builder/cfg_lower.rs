@@ -23,12 +23,17 @@
 //! with terminators, returning the name of the "continuation" block
 //! (or `None` if control doesn't fall through).
 
-use tcl_lexer::Span;
+use tcl_lexer::{LexerConfig, Span};
 
 use crate::cfg::{LoopNode, Terminator};
 use crate::expr_ast::{BinOp, ExprNode};
-use crate::ir::{Statement, SwitchMode};
+use crate::ir::Statement;
 use crate::ir_helpers::expr_has_command;
+use crate::lowering::structured::parse_switch_options;
+use crate::value_transfer::recorded_word_value;
+use tcl_dialect::TclVersion;
+use tcl_registry::CommandRegistry;
+use tcl_registry::value_transfer::TargetSemantics;
 
 use super::CfgBuilder;
 
@@ -121,7 +126,7 @@ fn literal_true_expr() -> ExprNode {
 /// where the variable-name owner proves the text is exactly one reference
 /// under the document's `${…}` close rule with none of `{`, `}` or `\` in
 /// the name (`sccp::with_whole_variable_operands` over
-/// `value_transfer::whole_variable_operand`, VT6.1): the dispatch then
+/// `value_transfer::whole_variable_operand`): the dispatch then
 /// decides per arm from the lattice, so a dead arm draws I231 and O107
 /// removes its unreachable body. Any other `Raw` text stays undecided.
 ///
@@ -131,7 +136,7 @@ fn literal_true_expr() -> ExprNode {
 /// `fold_const_branch` only folds a whole-condition literal, never a `Binary`.
 /// So an unsubstituted subject word can never be compared as if it were its
 /// own literal text.
-fn switch_subject_operand(subject: &str, braced: bool) -> ExprNode {
+fn switch_subject_operand(subject: &str, braced: bool, config: &LexerConfig) -> ExprNode {
     // A braced subject is a literal: its `$` and `[` are data. `ExprNode::String`
     // carries *source text including delimiters* — that is its documented
     // contract — so the braces go back on and `emit_expr_string` recognises the
@@ -154,9 +159,72 @@ fn switch_subject_operand(subject: &str, braced: bool) -> ExprNode {
             text: subject.to_owned(),
         };
     }
-    ExprNode::CompiledWord {
-        text: subject.to_owned(),
-        braced,
+    word_operand(subject, braced, config)
+}
+
+/// A `switch` word, the subject or a pattern, as an operand of the flattened
+/// dispatch: by its value where the statement states one
+/// ([`recorded_word_value`], the decoder the selection reads its arguments
+/// by), braced so nothing reads it a second time, and by its spelling where
+/// the word substitutes, which the evaluators decline to fold. The recorded
+/// text is a spelling, not a value: a bare or quoted `a\nb` is a letter, a
+/// newline and a letter, which is what a braced arm list's element holding a
+/// newline compares against. A word whose value is its spelling keeps the
+/// operand it always had.
+fn word_operand(text: &str, braced: bool, config: &LexerConfig) -> ExprNode {
+    match recorded_word_value(text, braced, config) {
+        Some(value) if braced || value != text => ExprNode::CompiledWord {
+            text: value.into_owned(),
+            braced: true,
+        },
+        _ => ExprNode::CompiledWord {
+            text: text.to_owned(),
+            braced,
+        },
+    }
+}
+
+/// Whether the subject of the exact `switch` `stmt` may be read as an option
+/// by the release that runs it. Before 8.5 `switch` scans every leading word
+/// that starts with `-`, however many words follow; from 8.5 the scan stops
+/// with two words left, which leaves the subject outside it only where the
+/// arms are one list word — with pattern and body words the subject is inside
+/// it on every release. A subject whose value starts with `-` is then an
+/// option — a mode, or an error — unless `--` ended the run. The registry's
+/// selection reads the same rule (`tcl_registry::value_transfer::selection`)
+/// and leaves such a subject to the runtime. The chain cannot state a
+/// whole-variable subject's value, so that subject stays one opaque statement,
+/// whose selection does; a literal one is decided by its decoded value. A
+/// release the registry's profile does not declare is as if before 8.5, and a
+/// registry with no profile reads no release at all.
+pub(super) fn subject_may_scan_as_option(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    config: &LexerConfig,
+) -> bool {
+    let Some(profile) = registry.profile() else {
+        return false;
+    };
+    let bounded = TargetSemantics::of(Some(profile))
+        .release
+        .is_some_and(|release| release >= TclVersion::V8_5);
+    let Statement::Switch {
+        subject,
+        subject_braced,
+        raw_args,
+        patterns_braced,
+        ..
+    } = stmt
+    else {
+        return false;
+    };
+    let (.., ended) = parse_switch_options(raw_args);
+    if (bounded && *patterns_braced) || ended {
+        return false;
+    }
+    match recorded_word_value(subject, *subject_braced, config) {
+        Some(value) => value.starts_with('-'),
+        None => is_whole_var_ref(subject),
     }
 }
 
@@ -645,6 +713,11 @@ impl CfgBuilder<'_> {
     fn lower_opaque_switch(&mut self, stmt: &Statement, block_name: &str) -> String {
         use crate::cfg_builder::Completion;
         self.block_mut(block_name).statements.push(stmt.clone());
+        // A command an arm runs is inside the statement, so the scans of the
+        // statements the graph lowers never reach it.
+        for effect in self.opaque_arm_effects(stmt) {
+            self.block_mut(block_name).statements.push(effect);
+        }
         if !self.faithful_exceptions {
             return block_name.to_owned();
         }
@@ -759,8 +832,6 @@ impl CfgBuilder<'_> {
             arms,
             default_body,
             default_span,
-            mode,
-            nocase,
             ..
         } = stmt
         else {
@@ -783,12 +854,15 @@ impl CfgBuilder<'_> {
         // generically rather than compiling a jump table; codegen emits a
         // generic `switch` invoke for the opaque statement. SSA reads of the
         // subject + arm/default bodies are recovered by `ssa::uses_of`'s
-        // `Statement::Switch` arm; the switch contributes no defs.
+        // `Statement::Switch` arm, and what they write by
+        // `ssa::switch_may_defs` and the statements `opaque_arm_effects` puts
+        // after the switch.
         // A `-nocase` exact switch must also stay opaque: the flattened form
         // builds a `STR_EQ`/JUMP_TABLE dispatch that is case-sensitive, so the
         // case-insensitive match has to run through the generic `switch`
-        // command (the VM/runtime `cmd_switch`).
-        if *mode != SwitchMode::Exact || *nocase || arms.iter().any(|arm| arm.fallthrough) {
+        // command (the VM/runtime `cmd_switch`). So must one whose subject a
+        // release's option scan may read (`switch_is_flattened`).
+        if !super::switch_is_flattened(stmt, self.registry, &self.config) {
             return self.lower_opaque_switch(stmt, block_name);
         }
 
@@ -829,7 +903,11 @@ impl CfgBuilder<'_> {
             // table.
             let cond = ExprNode::Binary {
                 op: BinOp::StrEq,
-                left: Box::new(switch_subject_operand(subject, *subject_braced)),
+                left: Box::new(switch_subject_operand(
+                    subject,
+                    *subject_braced,
+                    &self.config,
+                )),
                 // The pattern is a *word value* too — the arm list's decoded
                 // element — so it takes the same operand shape as the subject.
                 // A `Literal` slot would read its text back as expression
@@ -839,10 +917,7 @@ impl CfgBuilder<'_> {
                 // Per arm, not per switch: a single braced arm list holds
                 // literal elements, but the multi-word form is a word each,
                 // where `{${x}}` is literal and a bare `$pat` substitutes.
-                right: Box::new(ExprNode::CompiledWord {
-                    text: arm.pattern.clone(),
-                    braced: arm.pattern_braced,
-                }),
+                right: Box::new(word_operand(&arm.pattern, arm.pattern_braced, &self.config)),
             };
             let true_id = self.bid(&final_targets[i]);
             let false_id = self.bid(&next_dispatch);
@@ -1229,7 +1304,7 @@ impl CfgBuilder<'_> {
 mod tests {
     use super::*;
     use crate::cfg_builder::build_cfg_function as build_cfg_function_for_registry;
-    use crate::ir::{ForeachIterator, Script, SwitchArm, TryHandler};
+    use crate::ir::{ForeachIterator, Script, SwitchArm, SwitchMode, TryHandler};
     use tcl_lexer::Span;
     use tcl_registry::CommandRegistry;
 
@@ -1473,6 +1548,160 @@ mod tests {
             ),
             "exact non-fall-through switch still expands to a branch dispatch"
         );
+    }
+
+    /// The operands of the first dispatch branch of the `switch` in `source`,
+    /// lowered and built under `dialect`'s own registry; `None` where the
+    /// statement stayed one opaque statement.
+    fn dispatch_operands(source: &str, dialect: &str) -> Option<(ExprNode, ExprNode)> {
+        use tcl_registry::model::ingress::{resolve_environment, static_context_for};
+        let registry = static_context_for(dialect).commands();
+        let profile = resolve_environment(dialect).analyser_profile();
+        let module = crate::lowering::lower_to_ir_with_dialect(
+            source,
+            registry,
+            LexerConfig::for_profile(registry.profile()),
+            Some(profile),
+        );
+        let func =
+            build_cfg_function_for_registry("::test", &module.top_level, false, registry, false);
+        match &func.blocks[&func.entry].terminator {
+            Some(Terminator::Branch {
+                condition:
+                    ExprNode::Binary {
+                        op: BinOp::StrEq,
+                        left,
+                        right,
+                    },
+                ..
+            }) => Some(((**left).clone(), (**right).clone())),
+            _ => None,
+        }
+    }
+
+    /// The chain compares the values of a `switch`'s words, carried braced so
+    /// nothing reads them again: a bare or quoted word is its escapes decoded,
+    /// a braced one its content with the continuation collapsed, and an escaped
+    /// `$` is data. A word that substitutes stays its spelling, which no
+    /// evaluator folds, and a word whose value is its spelling keeps the
+    /// operand it always had.
+    #[test]
+    fn the_chain_compares_the_values_of_a_switch_words() {
+        let value = |text: &str| ExprNode::CompiledWord {
+            text: text.into(),
+            braced: true,
+        };
+        for (source, subject, pattern) in [
+            (r#"switch a\nb {"a\nb" {puts hit}}"#, "a\nb", "a\nb"),
+            (r#"switch "a\tb" a\tb {puts hit}"#, "a\tb", "a\tb"),
+            (r#"switch {a\b} {"a\\b" {puts hit}}"#, r"a\b", r"a\b"),
+            ("switch {a\\\nb} {{a b} {puts hit}}", "a b", "a b"),
+            (r"switch a\$b {a\$b {puts hit}}", "a$b", "a$b"),
+        ] {
+            let (left, right) = dispatch_operands(source, "tcl8.6").expect("a dispatch chain");
+            assert_eq!((left, right), (value(subject), value(pattern)), "{source}");
+        }
+        let (left, right) =
+            dispatch_operands("switch a${x} {abc {puts hit}}", "tcl8.6").expect("a dispatch chain");
+        assert_eq!(
+            left,
+            ExprNode::CompiledWord {
+                text: "a${x}".into(),
+                braced: false
+            }
+        );
+        assert_eq!(right, value("abc"));
+        let (left, _) =
+            dispatch_operands("switch abc {abc {puts hit}}", "tcl8.6").expect("a dispatch chain");
+        assert_eq!(
+            left,
+            ExprNode::CompiledWord {
+                text: "abc".into(),
+                braced: false
+            }
+        );
+    }
+
+    /// Before 8.5 `switch` reads every leading word that starts with `-` as an
+    /// option, however many words follow, so a subject whose value may start
+    /// that way — a variable, or a literal whose escape decodes to `-` — is not
+    /// flattened under a release that may be before 8.5, unless `--` ended the
+    /// run; any other subject is, and so is every subject from 8.5. From 8.5
+    /// the scan stops with two words left, which a pattern and its body fill,
+    /// so with the arms as words the subject is inside it on every release. A
+    /// profile that names no release is read as one that may be 8.4.
+    #[test]
+    fn a_subject_a_release_may_read_as_an_option_stays_one_statement() {
+        for (dialect, chained) in [
+            ("tcl8.4", false),
+            ("f5-irules", false),
+            ("tk", false),
+            ("tcl8.5", true),
+            ("tcl8.6", true),
+            ("tcl9.0", true),
+        ] {
+            for source in [
+                "switch $x {a {puts A}}",
+                "switch -exact $x {a {puts A}}",
+                r"switch \x2dglob {a {puts A}}",
+            ] {
+                assert_eq!(
+                    dispatch_operands(source, dialect).is_some(),
+                    chained,
+                    "{dialect}: {source}"
+                );
+            }
+        }
+        for dialect in ["tcl8.4", "f5-irules", "tk", "tcl8.5", "tcl8.6", "tcl9.0"] {
+            for source in [
+                "switch $x a {puts A} b {puts B}",
+                "switch -exact $x a {puts A}",
+                r"switch \x2dglob a {puts A} b {puts B}",
+            ] {
+                assert!(
+                    dispatch_operands(source, dialect).is_none(),
+                    "{dialect}: {source}"
+                );
+            }
+            for source in [
+                "switch -- $x a {puts A} b {puts B}",
+                "switch abc a {puts A} b {puts B}",
+                "switch [gets stdin] a {puts A} b {puts B}",
+            ] {
+                assert!(
+                    dispatch_operands(source, dialect).is_some(),
+                    "{dialect}: {source}"
+                );
+            }
+        }
+        for dialect in ["tcl8.4", "f5-irules", "tk", "tcl8.6"] {
+            for source in [
+                "switch -- $x {a {puts A}}",
+                "switch -exact -- $x {a {puts A}}",
+                "switch abc {a {puts A}}",
+                "switch [gets stdin] {a {puts A}}",
+                "switch {$x} {a {puts A}}",
+            ] {
+                assert!(
+                    dispatch_operands(source, dialect).is_some(),
+                    "{dialect}: {source}"
+                );
+            }
+        }
+    }
+
+    /// A registry with no profile declares no target at all, so the rule reads
+    /// no release there and the statement is flattened.
+    #[test]
+    fn a_registry_with_no_profile_reads_no_release_for_the_option_scan() {
+        let registry = CommandRegistry::build_default();
+        let module = crate::lowering::lower_to_ir("switch $x {a {puts A}}", &registry);
+        let func =
+            build_cfg_function_for_registry("::test", &module.top_level, false, &registry, false);
+        assert!(matches!(
+            func.blocks[&func.entry].terminator,
+            Some(Terminator::Branch { .. })
+        ));
     }
 
     #[test]

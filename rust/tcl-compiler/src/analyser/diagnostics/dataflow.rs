@@ -41,12 +41,74 @@ use super::helpers::{
     collect_existence_guards, find_dotted_quads, is_ident_continue, is_word_byte, phi_can_undef,
     source_slice,
 };
+use crate::analyser::bounds_checks::HeaderFact;
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
 use crate::analyser::utils::param_name_spans;
 use crate::compilation_unit::ExistencePoint;
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::ExprNode;
+
+/// The solver's decision at the loop header whose condition word spans
+/// `span` in `fu`, from its `Applied` branch fact: `None` where the unit did
+/// not decide it (the header is not reached, or its condition varies).
+fn header_fact(
+    fu: &crate::compilation_unit::FunctionUnit,
+    span: tcl_lexer::Span,
+) -> Option<HeaderFact> {
+    let branch = fu.sccp.constant_branches.iter().find(|branch| {
+        branch.kind == crate::sccp::BranchFactKind::Applied
+            && branch.span.map(|found| fu.abs_span(found)) == Some(span)
+    })?;
+    if !branch.value {
+        return Some(HeaderFact::Never);
+    }
+    Some(HeaderFact::Always {
+        exits: loop_exit_is_executable(fu, &branch.taken_target, &branch.not_taken_target),
+    })
+}
+
+/// Whether an executable path leaves the loop whose body starts at block
+/// `body` and whose exit is block `end`: a `break` reaches `end` (the
+/// header's own false edge is never taken, the branch being decided), or a
+/// block of the loop ends the procedure — a `return`, `error`, `exit` or
+/// `throw`. A block the graph cannot name is taken to exit.
+fn loop_exit_is_executable(
+    fu: &crate::compilation_unit::FunctionUnit,
+    body: &str,
+    end: &str,
+) -> bool {
+    let (Some(start), Some(end)) = (fu.cfg.block_id(body), fu.cfg.block_id(end)) else {
+        return true;
+    };
+    if fu.sccp.executable_blocks.contains(&end) {
+        return true;
+    }
+    let mut successors: std::collections::HashMap<crate::cfg::BlockId, Vec<crate::cfg::BlockId>> =
+        std::collections::HashMap::new();
+    for &(from, to) in &fu.sccp.executable_edges {
+        successors.entry(from).or_default().push(to);
+    }
+    let mut seen = HashSet::from([start]);
+    let mut pending = vec![start];
+    while let Some(block) = pending.pop() {
+        let ends_the_procedure = fu.cfg.blocks.get(&block).is_some_and(|block| {
+            matches!(
+                block.terminator,
+                Some(crate::cfg::Terminator::Return { .. })
+            )
+        });
+        if ends_the_procedure {
+            return true;
+        }
+        for &next in successors.get(&block).into_iter().flatten() {
+            if seen.insert(next) {
+                pending.push(next);
+            }
+        }
+    }
+    false
+}
 
 /// The read-only name/guard/suppression context for the `return`-value
 /// phi-from-undef W210 pass ([`Analyser::emit_return_phi_undef_w210`]):
@@ -60,6 +122,7 @@ struct PhiUndefIndex<'a> {
     phi_def: &'a super::helpers::PhiDefMap,
     phi_block: &'a super::helpers::PhiBlockMap,
     killed: &'a FxHashSet<(String, crate::ssa::Version)>,
+    may_defs: &'a super::helpers::MayDefMap,
 }
 
 /// The read-only scope and suppression facts for the version-0 / statement
@@ -79,7 +142,7 @@ pub(super) struct ReturnUndefCtx<'a> {
     /// variable, so a `return` read of one of them adds nothing.
     pub already_reported: &'a HashSet<String>,
     /// The analyser's registry, whose special-variable faces answer the
-    /// startup facts, pack rows included (D157).
+    /// startup facts, pack rows included.
     pub registry: &'a tcl_registry::CommandRegistry,
     pub initial_global: bool,
     pub global_aliases: &'a HashSet<String>,
@@ -123,10 +186,40 @@ fn startup_read_facts(
     }
 }
 
-/// The existence fact the read at `index` of `block` finds at `var`'s place
-/// (VT8.4): the statement's own read, or — for the terminator, `index` -1
+/// The command of the case-list statement that holds the `Selected` fact
+/// `arm`, as the source spells it, less a leading `::`, and capitalised to
+/// open a message: `Switch`, or `Case` for the statement a `case` spells.
+fn case_list_command(
+    fu: &crate::compilation_unit::FunctionUnit,
+    arm: &crate::sccp::ConstantBranch,
+) -> String {
+    let command = arm
+        .span
+        .zip(fu.cfg.block_by_name(&arm.block))
+        .and_then(|(pattern, block)| {
+            block
+                .statements
+                .iter()
+                .find_map(|statement| match statement {
+                    crate::ir::Statement::Switch { span, command, .. }
+                        if span.start() <= pattern.start() && pattern.end() <= span.end() =>
+                    {
+                        Some(command.as_str())
+                    }
+                    _ => None,
+                })
+        })
+        .unwrap_or("switch");
+    let mut letters = command.trim_start_matches(':').chars();
+    letters.next().map_or_else(String::new, |first| {
+        first.to_uppercase().chain(letters).collect()
+    })
+}
+
+/// The existence fact the read at `index` of `block` finds at `var`'s place:
+/// the statement's own read, or — for the terminator, `index` -1
 /// — the block's exit, as the unit's typed view
-/// ([`crate::compilation_unit::FunctionUnit::existence`], VT8.7): `Pending`
+/// ([`crate::compilation_unit::FunctionUnit::existence`]): `Pending`
 /// where the run never reached it, and `Unavailable` below the deep tier or
 /// past the complexity ceiling, neither of which is bound or unbound.
 fn place_fact(
@@ -148,7 +241,7 @@ fn place_fact(
 /// The existence fact a W210 or W213 read reports on: an unbound or a
 /// may-bound place. A bound one, one the run never reached, and one it
 /// computed nothing for — `Unavailable` below the deep tier or past the
-/// complexity ceiling (VT8.7) — report nothing.
+/// complexity ceiling — report nothing.
 fn reportable(fact: &FactView) -> Option<Existence> {
     match fact {
         FactView::Domain(DomainFact::Existence(
@@ -640,7 +733,7 @@ file; this call falls through to the 'unknown' handler."
 
     /// Whether the runtime reads `var` when the script does not — a special
     /// variable such as `auto_path`, whose write the host observes — under
-    /// the analyser's registry, pack-declared rows included (D157).
+    /// the analyser's registry, pack-declared rows included.
     fn externally_read(&self, var: &str) -> bool {
         self.registry
             .as_deref()
@@ -1459,7 +1552,7 @@ file; this call falls through to the 'unknown' handler."
             }
             // An unbind of the place — a command the registry declares
             // `DESTROYS_VARIABLE`, under the spelling the source uses —
-            // reads the existence fact where it runs (VT8.4): W213 is
+            // reads the existence fact where it runs: W213 is
             // definite on an unbound place, "may not exist" on a may-bound
             // one, and nothing on a bound one or where the run computed no
             // fact. The `-nocomplain` form raises nothing, so it reports
@@ -1541,7 +1634,7 @@ file; this call falls through to the 'unknown' handler."
             if ctx.startup.readable {
                 continue;
             }
-            // The existence rung has the last word (VT8.4): a read at a place
+            // The existence rung has the last word: a read at a place
             // bound there, or where the run computed no fact, is no
             // read-before-set.
             if reportable(&place_fact(
@@ -1590,12 +1683,12 @@ file; this call falls through to the 'unknown' handler."
             return;
         };
 
-        let (phi_def, phi_block, killed) =
-            build_phi_undef_index(&fu.ssa, considered, Some(registry));
+        let maps = build_phi_undef_index(&fu.ssa, considered, Some(registry));
         let phi_idx = PhiUndefIndex {
-            phi_def: &phi_def,
-            phi_block: &phi_block,
-            killed: &killed,
+            phi_def: &maps.phi_def,
+            phi_block: &maps.phi_block,
+            killed: &maps.killed,
+            may_defs: &maps.may_defs,
         };
         // Every `return_read_fires_w210` call below traces the same phi graph
         // with the same context, so they share one memo (issue #2021).
@@ -1673,7 +1766,7 @@ file; this call falls through to the 'unknown' handler."
                 if !Self::return_read_fires_w210(fu, &name, ver, bn, &phi_idx, ctx, &mut memo) {
                     continue;
                 }
-                // The existence rung has the last word here too (VT8.4).
+                // The existence rung has the last word here too.
                 let fact = fu
                     .ssa
                     .var_symbol(&name)
@@ -1728,6 +1821,7 @@ file; this call falls through to the 'unknown' handler."
             phi_def: phi_idx.phi_def,
             phi_block: phi_idx.phi_block,
             killed: phi_idx.killed,
+            may_defs: phi_idx.may_defs,
             considered: ctx.considered,
             executable_edges: &fu.sccp.executable_edges,
             exists_guards: ctx.exists_guards,
@@ -1796,8 +1890,8 @@ file; this call falls through to the 'unknown' handler."
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
     ) {
-        // The solver's decided branches — an existence query among them
-        // since slice 8, decided inside the fixed point.
+        // The solver's decided branches — an existence query among them,
+        // decided inside the fixed point.
         for branch in fu
             .sccp
             .constant_branches
@@ -1890,6 +1984,83 @@ file; this call falls through to the 'unknown' handler."
                     code,
                     span,
                     message,
+                    // I230/I231 are observational (LSP `Information`).
+                    Severity::Info,
+                ));
+        }
+    }
+
+    /// I230, I231 and the loop-termination verdicts from the unit's stored
+    /// branch facts: the decided branches
+    /// ([`Self::emit_constant_branch_diagnostics`]), the arms of an opaque
+    /// `switch` no member of the subject runs
+    /// ([`Self::emit_selected_arm_diagnostics`]), and each loop's header
+    /// ([`Self::resolve_loop_terminations`]).
+    pub(super) fn emit_branch_fact_diagnostics(
+        &mut self,
+        fu: &crate::compilation_unit::FunctionUnit,
+    ) {
+        self.emit_constant_branch_diagnostics(fu);
+        self.emit_selected_arm_diagnostics(fu);
+        self.resolve_loop_terminations(fu);
+    }
+
+    /// Resolve each loop the walk examined that `fu` decides against the
+    /// unit's branch fact at its condition span
+    /// ([`crate::analyser::bounds_checks::LoopTerminationCandidate::resolve`]).
+    /// A header false at entry is W240, one true at every test with no
+    /// executable exit is W241, and either suppresses W242. A loop the unit
+    /// does not decide stays queued for another unit, or for
+    /// [`Self::flush_loop_terminations`].
+    pub(super) fn resolve_loop_terminations(&mut self, fu: &crate::compilation_unit::FunctionUnit) {
+        for candidate in std::mem::take(&mut self.loop_candidates) {
+            match header_fact(fu, candidate.condition_span) {
+                Some(header) => self
+                    .result
+                    .diagnostics
+                    .extend(candidate.resolve(Some(header))),
+                None => self.loop_candidates.push(candidate),
+            }
+        }
+    }
+
+    /// Report every loop no unit decided as its text says: a constant-false
+    /// literal, a constant-true one whose body never leaves the loop, a
+    /// `for` counter that never terminates, or a counter nothing modifies.
+    pub(in crate::analyser) fn flush_loop_terminations(&mut self) {
+        for candidate in std::mem::take(&mut self.loop_candidates) {
+            self.result.diagnostics.extend(candidate.resolve(None));
+        }
+    }
+
+    /// I231 for each arm of an opaque `switch` the solver's selection never
+    /// runs the body of — the `Selected` branch facts. The arms have no
+    /// blocks of their own, so nothing is dropped and no reachability is
+    /// applied: the statement stays one call, and only the pattern that can
+    /// never be the one selected is reported, at its span.
+    pub(super) fn emit_selected_arm_diagnostics(
+        &mut self,
+        fu: &crate::compilation_unit::FunctionUnit,
+    ) {
+        for arm in fu
+            .sccp
+            .constant_branches
+            .iter()
+            .filter(|branch| branch.kind == crate::sccp::BranchFactKind::Selected)
+        {
+            let Some(span) = arm.span else {
+                continue;
+            };
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::I231,
+                    fu.abs_span(span),
+                    format!(
+                        "{} arm '{}' is never selected; this arm is unreachable",
+                        case_list_command(fu, arm),
+                        arm.condition,
+                    ),
                     // I230/I231 are observational (LSP `Information`).
                     Severity::Info,
                 ));

@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The value-transfer witnesses, program by program
-//! (`docs/design/lanes/value-transfers.md` § *Plan for slices 2–13*).
+//! (`docs/design/compiler/value-transfers-examples.md`).
 //!
 //! Each test drives the compiler the way a user reaches it — the shared
 //! lattice through `CompilationUnit::build`, the rewrites through the
@@ -36,7 +36,9 @@ use tcl_compiler::intervals::{Interval, compute_intervals_with, numbers_for_dial
 use tcl_compiler::ir::Statement;
 use tcl_compiler::lowering::lower_to_ir_with_dialect;
 use tcl_compiler::optimiser::Optimisation;
-use tcl_compiler::optimiser::manager::{optimise_source_multipass, optimise_with_dialect};
+use tcl_compiler::optimiser::manager::{
+    optimise_raw, optimise_source_multipass, optimise_with_dialect,
+};
 use tcl_compiler::static_loops::{
     DEFAULT_MAX_STATIC_LOOP_ITERS, LoopSemantics, StaticEnv, StaticValue, parse_literal_value,
     summarise_for_statement,
@@ -174,7 +176,16 @@ fn text(value: &str) -> LatticeValue {
 /// Every release on `PATH` prints `expected` for `source` and for its
 /// optimised form under that release's dialect.
 fn prints_under_every_release(source: &str, expected: &str) {
+    prints_under_releases_from(source, expected, "8.4");
+}
+
+/// [`prints_under_every_release`] for the releases from `first` on: a
+/// program using an option a release lacks runs only where it exists.
+fn prints_under_releases_from(source: &str, expected: &str, first: &str) {
     for (series, tclsh) in releases_on_path() {
+        if series < first {
+            continue;
+        }
         let (rewritten, _) = optimised(source, &dialect_of(series));
         for program in [source, rewritten.as_str()] {
             assert_eq!(
@@ -361,10 +372,9 @@ fn a_store_a_global_writing_callee_reads_is_kept() {
     prints_under_every_release(source, "15\n");
 }
 
-/// A callee that only reads a global keeps the store it reads: the
-/// slice-two record said O109 deleted `set hits 0` ahead of `show`, and it
-/// does not — the rewrite keeps both stores, and tclsh 8.4 to 9.1 print 0
-/// then 1 for both programs.
+/// A callee that only reads a global keeps the store it reads: O109 does not
+/// delete `set hits 0` ahead of `show` — the rewrite keeps both stores, and
+/// tclsh 8.4 to 9.1 print 0 then 1 for both programs.
 #[test]
 fn a_store_a_global_reading_callee_observes_is_kept() {
     let source = "set hits 0\nproc show {} {global hits; puts $hits}\nshow\nset hits 1\nshow\n";
@@ -1222,8 +1232,7 @@ fn route_entries_are_counted_per_family() {
 /// The interface contract's `expr` acceptance list: multi-argument forms,
 /// braced versus quoted arguments, short-circuit operators and ternaries,
 /// strings that look like code, nested pure substitutions, errors,
-/// bignums, and target release ambiguity
-/// (`docs/design/compiler/value-transfers-migration.md`, slice 3's exit).
+/// bignums, and target release ambiguity.
 /// Each case is `proc p {} {<prelude>; set r [<expr call>]}`, oracle
 /// values checked against `tclsh8.4` to `tclsh9.1` directly.
 /// `expression_witnesses_match_every_release_on_path` re-runs the same
@@ -1231,7 +1240,7 @@ fn route_entries_are_counted_per_family() {
 /// beyond-wide from 8.5: `tclsh8.4` raises for the first (`**` is not an
 /// 8.4 operator) and wraps to 0 for the second, so both decline under
 /// `tcl8.4` (`WrongRepresentation`) and under `f5-irules`, whose runtime
-/// base is 8.4's (D48); `"010" + 0` reads the leading zero as octal up to
+/// base is 8.4's; `"010" + 0` reads the leading zero as octal up to
 /// 8.6, `f5-irules` included, and as decimal from 9.0. The lenient profile
 /// declares no release, so all three release-dependent cases decline there.
 #[test]
@@ -1344,13 +1353,13 @@ fn the_square_of_one_finite_input_stays_correlated() {
 /// finite-set limit*): `a` and `b` are the loop's two binders, so pairing
 /// them by position or taking their cartesian product would both be
 /// unsound, and neither post-loop branch decides — `x` is 20 and `y` is
-/// 25 in every release, but only ordered enumeration (slice 12) answers
+/// 25 in every release, but only ordered enumeration answers
 /// that, never the finite-set lift.
 ///
-/// Since VT5.7 the loop header answers each binder of the two-binder
+/// The loop header answers each binder of the two-binder
 /// source with the elements it takes (`a` is `{1 2}`, `b` is `{10 20}`),
 /// so each quotient sees the page's two distinct `Finite` identities and
-/// declines `CorrelatedSets`, the reason D64 deferred to this slice; `x`
+/// declines `CorrelatedSets`; `x`
 /// and `y` never fold and neither branch decides.
 #[test]
 fn the_mirror_pairs_decline_as_correlated() {
@@ -1388,7 +1397,7 @@ fn the_mirror_pairs_decline_as_correlated() {
                 function.sccp.constant_branches
             );
         }
-        // The two-binder source is lowered (VT5.7): `a` and `b` are two
+        // The two-binder source is lowered: `a` and `b` are two
         // distinct finite inputs, so each quotient declines as correlated.
         let answers = answers_for(&unit, "::p", "expr");
         assert_eq!(
@@ -1776,7 +1785,7 @@ fn a_declared_implementation_folds_through_the_driver() {
     );
 }
 
-/// The value-transfer lane's executable example (VT4.13): a private command
+/// The value-transfer design's executable example: a private command
 /// a workspace pack declares under its own name, a second name, and a
 /// subcommand form whose operand sits one word later.
 const TENANT_PACK: &str = include_str!("fixtures/value_transfers/tenant.tclspec");
@@ -1827,7 +1836,7 @@ fn tenant_workspace() -> tcl_spectcl::PackSet {
     pack_workspace("tenant", TENANT_PACK)
 }
 
-/// Program (2) of the interface page (VT5.6): `binary format` declares a
+/// Program (2) of the interface page: `binary format` declares a
 /// registry-owned route, so `set h [binary format H* 414243444546]` is
 /// `ABCDEF` in the shared lattice under every profile, typed a byte array by
 /// construction, and neither S100 nor S110 reports a conversion for it. A
@@ -1886,7 +1895,7 @@ fn folded_at(
     function.sccp.folded_types.get(&(symbol, version)).cloned()
 }
 
-/// VT5.2: the shared lattice keeps what each evaluation states of its
+/// The shared lattice keeps what each evaluation states of its
 /// value's type beside the value itself (`SccpResult::folded_types`). A
 /// result and a write carry the type facts and the representation the route
 /// constructed — `string length` and `incr` build an int, `list` a list,
@@ -2231,7 +2240,7 @@ fn a_pack_write_through_an_incoming_target_reaches_the_driver() {
     tcl_spectcl::hooks::publish(&tcl_spectcl::PackSet::default());
 }
 
-/// The no-match preserve (VT5.11, #2051's program): a `regexp` that cannot
+/// The no-match preserve (#2051's program): a `regexp` that cannot
 /// match leaves its match variables as they were, so the store feeding one
 /// stays — no O109 deletes it, no W220 calls it unread, no W210 reports the
 /// read — and the original and optimised programs print `before` under
@@ -2287,7 +2296,7 @@ fn a_no_match_keeps_the_store_it_preserves() {
 }
 
 /// A pack command's declared preserve is a preserved definition like a
-/// builtin's (VT5.11): `keep::miss VAR PIECE` declares `write_or_preserve`
+/// builtin's: `keep::miss VAR PIECE` declares `write_or_preserve`
 /// on its target and its body preserves it, so the definition holds the
 /// version before the call — the undefined root in `p`, the `set` in `q` —
 /// which is what W210 reads, though the command carries no trait that
@@ -2332,7 +2341,7 @@ fn a_pack_declared_preserve_holds_the_prior_version() {
 }
 
 /// A materialised child carries the span of the factory call that produced
-/// it (VT5.9, #2143): `Configure port 8080 {the port}` materialises `proc
+/// it (#2143): `Configure port 8080 {the port}` materialises `proc
 /// port {x} {return 8080}`, and the child's W214 for `x` anchors at that
 /// call — line 4 — where, with no span of its own, it anchored at 1:1. The
 /// factory's template is read through its template-word plan, and `port
@@ -2355,8 +2364,8 @@ fn a_materialised_child_carries_its_factory_call_span() {
     prints_under_every_release(&format!("{source}puts [port ignored]\n"), "8080\n");
 }
 
-/// A computed template that runs commands can read any variable (VT5.10,
-/// D155): `subst -novariables $t` over `[set x]` reads `x`, so the store
+/// A computed template that runs commands can read any variable:
+/// `subst -novariables $t` over `[set x]` reads `x`, so the store
 /// before it stays — the original and optimised programs print `1` under
 /// tclsh 8.4 to 9.1, where dropping `set x 1` as unused made them raise.
 #[test]
@@ -2370,7 +2379,7 @@ fn a_computed_template_that_runs_commands_keeps_the_stores_it_reads() {
     prints_under_every_release(source, "1\n");
 }
 
-// VT5.19: the slice's exit witnesses (the interface page's § *Test
+// The interface page's exit witnesses (its § *Test
 // anchors*, "fixed witnesses to add"), each read off the shared lattice
 // through the memoised unit and checked against `tcl opt`'s rewritten
 // program, printed under every release on `PATH`.
@@ -2421,7 +2430,7 @@ fn the_partial_scan_witness() {
     prints_under_every_release(source, "12 before\n");
 }
 
-/// The conversion-count witness (the slice 5 review, B1): `%n` is a
+/// The conversion-count witness: `%n` is a
 /// conversion for `scan`'s underflow, as C's `nconversions` counts it, so
 /// `scan "" %n%d n a` is 1 and writes `n` the characters consumed, 0, on
 /// every release. The route had answered the underflow's -1 and preserved
@@ -2458,7 +2467,7 @@ fn the_percent_n_count_witness() {
     prints_under_every_release(bound, "0\n");
 }
 
-/// `const` writes only an absent place (VT8.8): the first `const c 5`
+/// `const` writes only an absent place: the first `const c 5`
 /// writes 5 into the absent `c` and the second keeps it — tclsh 9.0 and
 /// 9.1 print 5 twice — so the lattice holds 5 after the first and no value
 /// after the second, and `tcl opt` never prints 7. `set x 1; const x 2`
@@ -2704,7 +2713,8 @@ fn the_increment_split(releases: &[(&'static str, String)]) {
 
 /// The page's release table for an absent cell
 /// (`docs/design/compiler/value-transfers.md` § *Existence*), every line but
-/// the `unset p nosuch q` prefix line, which is slice 10's: each place's
+/// the `unset p nosuch q` prefix line, whose stores an error leaves behind
+/// are not modelled: each place's
 /// existence after the line, and the value a cell update leaves, under
 /// each release's dialect and the `tcl` profile that spans them all. An
 /// `incr` of an absent place binds from 8.5 and declines under 8.4 and
@@ -2732,7 +2742,7 @@ fn removes_store(source: &str, dialect: &str, store: &str) -> bool {
     })
 }
 
-/// O109 keeps a store an existence read observes (VT8.5, #2132): while the
+/// O109 keeps a store an existence read observes (#2132): while the
 /// read stands, no pass deletes the store behind it — the item's two
 /// programs keep `set x 1` and `incr n` behind `[info exists …]`, and an
 /// existence read in a bare statement, a `catch` body, a value word, a
@@ -2806,7 +2816,7 @@ fn o109_keeps_a_store_an_existence_read_observes() {
     prints_under_every_release(positions, "1 1 1 1 1 yes 0 1 0 0 0 0 {} 1 1\n");
 }
 
-/// The entry rule for a parameter and a never-assigned local (VT8.10, the
+/// The entry rule for a parameter and a never-assigned local (the
 /// Existence row): a parameter enters `Bound(Scalar)`, so `[info exists
 /// a]` decides true, and a local nothing ever assigns enters `Unbound`, so
 /// `[info exists b]` decides false — both inside the fixed point, so
@@ -2884,7 +2894,7 @@ fn a_scope_alias_enters_maybound() {
     prints_under_every_release(source, "no\n");
 }
 
-/// A cross-event iRules variable enters `MayBound` (D160, a superset of
+/// A cross-event iRules variable enters `MayBound` (a superset of
 /// `ConnectionScope::cross_event_defs`): `y` is bound in `CLIENT_ACCEPTED`
 /// and read at `HTTP_REQUEST`'s own entry, so the guard there never
 /// decides either — no oracle here, since `when` is not a command a plain
@@ -2986,11 +2996,11 @@ fn reports(source: &str, dialect: &str, code: DiagCode) -> bool {
         .any(|diagnostic| diagnostic.code == code)
 }
 
-/// An externally mutable place is never refined (D166, the slice 8
-/// review's B1): a call the module cannot see — here a computed head —
+/// An externally mutable place is never refined: a call the
+/// module cannot see — here a computed head —
 /// sets or unsets a global between the guard and the inner query, with no
 /// barrier in between, so the inner `info exists` decides nothing. tclsh
-/// 8.4 to 9.1 print `yes yes gone`; the refinement had folded the inner
+/// 8.4 to 9.1 print `yes yes gone`; a refinement would fold the inner
 /// conditions to `no no still`, with three false I230s.
 #[test]
 fn an_unseen_call_ends_no_refinement_because_none_is_made() {
@@ -3037,8 +3047,8 @@ p; unset ::x; q; r
     prints_under_every_release(source, "yes\nyes\ngone\n");
 }
 
-/// The absent-start chain anchor reads the fact at the statement (the
-/// slice 8 review's B2): after a non-lowered `switch` whose arm may bind
+/// The absent-start chain anchor reads the fact at the statement: after a
+/// non-lowered `switch` whose arm may bind
 /// `l`, the per-version fact of `l`'s version 0 is still `Unbound`, but
 /// the fact at `lappend l a` is `MayBound` — the arm's clobber — so no
 /// chain anchors there. tclsh 8.4 to 9.1 print `z a b` and `a b`, before
@@ -3056,8 +3066,8 @@ fn an_absent_start_anchor_reads_the_fact_at_the_statement() {
     prints_under_every_release(source, "z a b\na b\n");
 }
 
-/// A failing dead `incr` on a may-bound place is retained under 8.4 (the
-/// slice 8 review's S2): `incr n` after `if {$c} {set n 1}` raises `can't
+/// A failing dead `incr` on a may-bound place is retained under 8.4:
+/// `incr n` after `if {$c} {set n 1}` raises `can't
 /// read "n"` under 8.4 when `c` is false, so removing it would silence a
 /// raising program there; a profile whose every release creates the cell
 /// still removes it. tclsh 8.4 prints `1` (the call raised) and 8.5 to 9.1
@@ -3085,10 +3095,10 @@ fn a_failing_dead_incr_on_a_maybound_place_is_retained_under_84() {
     }
 }
 
-/// A script body nested in a substitution clobbers what it may unset (the
-/// slice 8 review's S3, #2231's consequence): `[catch {unset x}]` in a
+/// A script body nested in a substitution clobbers what it may unset
+/// (#2231's consequence): `[catch {unset x}]` in a
 /// condition leaves `x` may-bound, so the later `[info exists x]` decides
-/// nothing — it had folded to `1` with an I230. tclsh 8.4 to 9.1 print
+/// nothing — a fold would give `1` with an I230. tclsh 8.4 to 9.1 print
 /// `no`, before and after the optimiser.
 #[test]
 fn a_substituted_body_clobbers_what_it_unsets() {
@@ -3104,11 +3114,14 @@ fn a_substituted_body_clobbers_what_it_unsets() {
     prints_under_every_release(source, "no\n");
 }
 
-/// A whole-variable `switch` subject resolves from the lattice (VT6.1; §
-/// `switch`, step 1), so program (4)'s flattened form decides per arm: I231
-/// on the dead arm's pattern and O107 on its body, the optimised program
-/// printing `always` under 8.4 to 9.1. A `${…}` subject whose name carries
-/// a backslash stays `Raw` and decides nothing — no I231 and no O107 — and
+/// A whole-variable `switch` subject resolves from the lattice (§ `switch`
+/// of the interface page), so program (4)'s flattened form decides per arm: I231
+/// on the dead arm's pattern and O107 on its body, beside O112 on the whole
+/// statement, which subsumes O107's rewrite when the findings are applied
+/// together — so O107 is read from the passes' raw findings and the
+/// applied program keeps neither the arm nor the `switch`, printing
+/// `always` under 8.4 to 9.1. A `${…}` subject whose name carries a
+/// backslash stays `Raw` and decides nothing — no I231 and no O107 — and
 /// tclsh prints `hit` before and after the optimiser.
 #[test]
 fn the_flattened_form_yields_o107() {
@@ -3124,10 +3137,18 @@ fn the_flattened_form_yields_o107() {
                 .any(|d| d.code == DiagCode::I231 && d.span.start() == pattern),
             "{dialect}: I231 on the dead arm's pattern: {diagnostics:#?}"
         );
+        let registry = static_context_for(dialect).commands();
+        let raw = optimise_raw(source, registry, Some(dialect));
+        for code in [DiagCode::O107, DiagCode::O112] {
+            assert!(
+                raw.iter().any(|o| o.code == code),
+                "{dialect}: {code:?} is a finding:\n{raw:#?}"
+            );
+        }
         let (rewritten, rewrites) = optimised(source, dialect);
         assert!(
-            rewrites.iter().any(|o| o.code == DiagCode::O107) && !rewritten.contains("puts never"),
-            "{dialect}: O107 removes the dead arm's body:\n{rewritten}\n{rewrites:#?}"
+            !rewritten.contains("puts never") && !rewritten.contains("switch"),
+            "{dialect}: the applied program keeps neither the arm nor the switch:\n{rewritten}\n{rewrites:#?}"
         );
     }
     prints_under_every_release(source, "always\n");
@@ -3144,15 +3165,183 @@ fn the_flattened_form_yields_o107() {
     prints_under_every_release(negative, "hit\n");
 }
 
-/// `case` lowers as an opaque glob selection over its own contract (D180),
-/// where it had lowered as an exact-mode `switch` that never skipped `in`:
-/// the one-word form compared `a*` as a string — I231 on the arm that runs
-/// and O112 keeping the default — and the separate-words form with `in`
-/// was a barrier. Now `a*` and a literal pattern each select the first arm
-/// — the selection record says so under 8.4, 8.6 and the iRules profile —
-/// no I231 claims the live arm is dead, and the optimiser leaves `puts yes`,
-/// which tclsh 8.4 to 8.6 print before and after it. From 9.0 there is no
-/// `case`: nothing lowers it, so nothing is recorded or folded.
+/// Program (4) — `switch` over the string two appends build — yields O112
+/// and I231 on the dead arm in every form. The exact form decides through its
+/// dispatch chain, which also drops the arm's body (O107); the `-glob`,
+/// `-regexp`, `-nocase` and fall-through forms decide through the selection
+/// record the solver makes at the statement, where the subject has the version
+/// the statement reads, and report the arm as a selection fact: no block is
+/// dropped, O107 does not fire and no O100 hints at a branch. `-nocase` is
+/// 8.5's, so a profile that may be 8.4 leaves it alone. The optimised program
+/// prints `always` under tclsh 8.4 to 9.1 (`-nocase` from 8.5).
+#[test]
+fn program_four_yields_o112_and_i231_for_every_form() {
+    let build = "set acc \"\"; append acc foo; append acc bar\n";
+    let arms = "{\n    baz     { puts never }\n    default { puts always }\n}\n";
+    // `baz -` shares `qux`'s body; the `-` is spelled bare, the one spelling
+    // every release reads alike.
+    let shared = "{\n    baz     -\n    qux     { puts never }\n    default { puts always }\n}\n";
+    let forms = [
+        (format!("{build}switch -- $acc {arms}"), "8.4", true),
+        (format!("{build}switch -glob -- $acc {arms}"), "8.4", false),
+        (
+            format!("{build}switch -regexp -- $acc {arms}"),
+            "8.4",
+            false,
+        ),
+        (
+            format!("{build}switch -nocase -- $acc {arms}"),
+            "8.5",
+            false,
+        ),
+        (format!("{build}switch -- $acc {shared}"), "8.4", false),
+    ];
+    for (source, first, flattened) in forms {
+        let dead = |word: &str| u32::try_from(source.find(word).expect("an arm")).expect("offset");
+        let mut dead_arms = vec![dead("baz")];
+        if source.contains("qux") {
+            dead_arms.push(dead("qux"));
+        }
+        for dialect in DIALECTS {
+            let has_the_form = first == "8.4" || !matches!(dialect, "tcl8.4" | "f5-irules" | "tcl");
+            let diagnostics = tcl_compiler::analyser::Analyser::new()
+                .analyse(&source, dialect)
+                .diagnostics;
+            let registry = static_context_for(dialect).commands();
+            let raw = optimise_raw(&source, registry, Some(dialect));
+            if !has_the_form {
+                assert!(
+                    !raw.iter().any(|o| o.code == DiagCode::O112)
+                        && !diagnostics.iter().any(|d| d.code == DiagCode::I231),
+                    "{dialect}: no selection is made\n{source}"
+                );
+                continue;
+            }
+            for &arm in &dead_arms {
+                assert!(
+                    diagnostics
+                        .iter()
+                        .any(|d| d.code == DiagCode::I231 && d.span.start() == arm),
+                    "{dialect}: I231 on the dead arm at {arm}\n{source}\n{diagnostics:#?}"
+                );
+            }
+            let (rewritten, rewrites) = optimised(&source, dialect);
+            assert!(
+                rewrites.iter().any(|o| o.code == DiagCode::O112)
+                    && !rewritten.contains("puts never")
+                    && !rewritten.contains("switch"),
+                "{dialect}: O112 leaves `puts always`\n{source}\n{rewritten}\n{rewrites:#?}"
+            );
+            assert_eq!(
+                raw.iter().any(|o| o.code == DiagCode::O107),
+                flattened,
+                "{dialect}: O107 on the dead body only where the CFG has the arm's block\n{source}\n{raw:#?}"
+            );
+            if !flattened {
+                let unit = unit_of(&source, dialect);
+                let top = &unit.top_level;
+                assert_eq!(
+                    top.sccp.executable_blocks.len(),
+                    top.cfg.blocks.len(),
+                    "{dialect}: no block is dropped\n{source}"
+                );
+                let profile = resolve_environment(dialect).analyser_profile();
+                let checks =
+                    tcl_compiler::compiler_checks::run_all_checks(&unit, registry, Some(profile));
+                assert!(
+                    checks.iter().all(|check| check.code != DiagCode::O100),
+                    "{dialect}: a selection fact hints at no branch\n{source}\n{checks:#?}"
+                );
+            }
+        }
+        prints_under_releases_from(&source, "always\n", first);
+    }
+}
+
+/// A selection fact names an arm no branch leads to, so it folds no
+/// condition: the statement's block also ends in the `if`'s branch, and a
+/// fact keyed by that block had rewritten `if {$x}` to `if {0}`. The procedure
+/// is called with both a true and a false argument, so `x` is no constant.
+/// tclsh 8.4 to 9.1 print `A`, `X` and `A` for the program, before and after
+/// the optimiser.
+#[test]
+fn a_selection_fact_folds_no_condition_beside_it() {
+    let source = "proc p {x} {\n    set s abc\n    switch -glob -- $s {a* {puts A} b* {puts B}}\n    if {$x} {puts X}\n}\np 1\np 0\n";
+    for dialect in DIALECTS {
+        let registry = static_context_for(dialect).commands();
+        let raw = optimise_raw(source, registry, Some(dialect));
+        assert!(
+            !raw.iter().any(|o| o.code == DiagCode::O101),
+            "{dialect}: no condition folds\n{raw:#?}"
+        );
+        let (rewritten, _) = optimised(source, dialect);
+        assert!(
+            rewritten.contains("if {$x}") && !rewritten.contains("switch"),
+            "{dialect}: the switch folds, the condition stays\n{rewritten}"
+        );
+    }
+    prints_under_every_release(source, "A\nX\nA\n");
+}
+
+/// A loop whose header the solver decides is reported from that fact: W240
+/// where the header is false at entry, W241 where it is true at every test
+/// and nothing leaves the loop, and either replaces W242's hint that a
+/// counter is never modified. Each W240 program prints only `done` under
+/// tclsh 8.4 to 9.1, before and after the optimiser: the body never runs.
+/// The infinite loops are not run. A header nothing decides keeps W242, and
+/// one with an exit the flow graph or the body's text finds draws none.
+#[test]
+fn a_decided_loop_header_gives_w240_or_w241() {
+    let codes = |source: &str, dialect: &str| -> Vec<String> {
+        let mut found: Vec<String> = tcl_compiler::analyser::Analyser::new()
+            .analyse(source, dialect)
+            .diagnostics
+            .iter()
+            .map(|d| d.code.to_string())
+            .filter(|code| matches!(code.as_str(), "W240" | "W241" | "W242"))
+            .collect();
+        found.sort();
+        found
+    };
+    let never = [
+        "set n 0\nwhile {$n} {puts never}\nputs done\n",
+        "proc p {} {set n 0; while {$n} {puts never}; return done}\nputs [p]\n",
+        "for {set i 0} {$i < 0} {incr i} {puts never}\nputs done\n",
+        "set n 0\nwhile 0 {puts never}\nputs done\n",
+    ];
+    for source in never {
+        for dialect in DIALECTS {
+            assert_eq!(codes(source, dialect), ["W240"], "{dialect}\n{source}");
+        }
+        prints_under_every_release(source, "done\n");
+    }
+    let infinite = [
+        "set go 1\nwhile {$go} {puts x}\n",
+        "proc p {} {set go 1; while {$go} {puts x}}\n",
+        "for {set i 0} {$i < 10} {} {puts hi}\n",
+        "while 1 {puts x}\n",
+    ];
+    for source in infinite {
+        for dialect in DIALECTS {
+            assert_eq!(codes(source, dialect), ["W241"], "{dialect}\n{source}");
+        }
+    }
+    let undecided = "proc p {n} {\n    while {$n} {puts x}\n}\n";
+    let left =
+        "proc p {} {\n    set go 1\n    while {$go} {if {[gets stdin] eq \"q\"} {break}}\n}\n";
+    for dialect in DIALECTS {
+        assert_eq!(codes(undecided, dialect), ["W242"], "{dialect}");
+        assert!(codes(left, dialect).is_empty(), "{dialect}");
+    }
+}
+
+/// `case` lowers as an opaque glob selection over its own contract: `a*` and
+/// a literal pattern each select the first arm, in the one-word form and in
+/// the separate-words form with `in` alike — the selection record says so
+/// under 8.4, 8.6 and the iRules profile — no I231 claims the live arm is
+/// dead, and the optimiser leaves `puts yes`, which tclsh 8.4 to 8.6 print
+/// before and after it. From 9.0 there is no `case`: nothing lowers it, so
+/// nothing is recorded or folded.
 #[test]
 fn case_selects_its_glob_arm() {
     for clauses in [
@@ -3207,4 +3396,257 @@ fn case_selects_its_glob_arm() {
             }
         }
     }
+}
+
+/// A write an arm of a `switch` the flow graph keeps as one statement makes
+/// is never folded away: tclsh 8.4 to 9.1 print `b` and `0` for each of these
+/// programs, before and after the optimiser, where taking the earlier `go` as
+/// the value after the switch printed `a` and `1`. `-nocase` is from 8.5.
+#[test]
+fn a_write_an_opaque_switch_arm_makes_is_never_folded_away() {
+    for (arm, first) in [
+        ("-glob -- $s { q* { set go 0 } }", "8.4"),
+        ("-nocase -- $s { Q1 { set go 0 } }", "8.5"),
+        ("-regexp -- $s { {^q} { set go 0 } }", "8.4"),
+        ("-glob -- $s { x - q* { set go 0 } }", "8.4"),
+        (
+            "-glob -- $s { z* { set other 1 } default { set go 0 } }",
+            "8.4",
+        ),
+    ] {
+        let source = format!(
+            "set go 1\nset s [string tolower Q1]\nswitch {arm}\nif {{$go}} {{puts a}} else {{puts b}}\nputs $go\n"
+        );
+        prints_under_releases_from(&source, "b\n0\n", first);
+        let in_proc = format!(
+            "proc p {{}} {{\n set go 1\n set s [string tolower Q1]\n switch {arm}\n if {{$go}} {{puts a}} else {{puts b}}\n puts $go\n}}\np\n"
+        );
+        prints_under_releases_from(&in_proc, "b\n0\n", first);
+    }
+}
+
+/// What a command an arm of such a `switch` runs does to the frame is never
+/// folded away either: a callee that writes the caller's `go` through `upvar`,
+/// `namespace eval` at the global level and `dict with` (8.5 on) each leave
+/// `b` and `0` at the top level, where the earlier `go` printed `a` and `1`;
+/// in a procedure `namespace eval ::` writes the global, and the local keeps
+/// its value before and after the optimiser.
+#[test]
+fn a_write_a_command_an_opaque_switch_arm_runs_is_never_folded_away() {
+    for (arm, first, in_proc) in [
+        ("zero go", "8.4", "b\n0\n"),
+        ("namespace eval :: {set go 0}", "8.4", "a\n1\n"),
+        ("set d {}; dict with d {set go 0}", "8.5", "b\n0\n"),
+    ] {
+        let source = format!(
+            "proc zero {{v}} {{upvar 1 $v x; set x 0}}\nset go 1\nset s [string tolower Q1]\n\
+             switch -glob -- $s {{ q* {{ {arm} }} }}\nif {{$go}} {{puts a}} else {{puts b}}\nputs $go\n"
+        );
+        prints_under_releases_from(&source, "b\n0\n", first);
+        let in_proc_source = format!(
+            "proc zero {{v}} {{upvar 1 $v x; set x 0}}\nproc p {{}} {{\n set go 1\n set s [string tolower Q1]\n \
+             switch -glob -- $s {{ q* {{ {arm} }} }}\n if {{$go}} {{puts a}} else {{puts b}}\n puts $go\n}}\np\n"
+        );
+        prints_under_releases_from(&in_proc_source, in_proc, first);
+    }
+}
+
+/// A write a callback script makes — an `after` handler, a variable trace's
+/// callback, a procedure named as a callback — is never folded away either:
+/// each program prints the callback's value, `1` and `b`, under every
+/// release, before and after the optimiser.
+#[test]
+fn a_write_a_callback_script_makes_is_never_folded_away() {
+    for source in [
+        "set done 0\nafter 10 { set done 1 }\nafter 50\nupdate\nputs $done\n",
+        "proc tick {} { set ::done 1 }\nset done 0\nafter 10 tick\nafter 50\nupdate\nputs $done\n",
+        "set done 0\nafter 10 { set ::done 1 }\nafter 50\nupdate\nif {$done} {puts 1} else {puts 0}\n",
+        "set done 0\nafter 10 \"set ::done 1\"\nafter 50\nupdate\nputs $done\n",
+        "set done 0\nafter 10 [list set ::done 1]\nafter 50\nupdate\nputs $done\n",
+        "proc tick {n} { set ::done $n }\nset done 0\nafter 10 [list tick 1]\nafter 50\nupdate\nputs $done\n",
+    ] {
+        prints_under_every_release(source, "1\n");
+    }
+    prints_under_every_release(
+        "set go 1\ntrace add variable x write { set ::go 0 ;# }\nset x 1\nif {$go} {puts a} else {puts b}\n",
+        "b\n",
+    );
+}
+
+/// A command the module cannot see may write a plain top-level name as it
+/// writes `::g`, so the name is never folded across the call: `foo` here is
+/// defined at run time, from a file the program writes and sources, and sets
+/// the global — tclsh 8.4 to 9.1 print `six` and `6`, where taking `5` across
+/// the call printed `other` and `5`.
+#[test]
+fn a_write_a_command_the_module_cannot_see_makes_is_never_folded_away() {
+    let define = "set f [file join [file dirname [info script]] vt-unseen-[pid].tcl]\n\
+                  set fh [open $f w]\nputs $fh {proc foo {} {set ::g 6}}\nclose $fh\n\
+                  source $f\nfile delete $f\n";
+    for tail in [
+        "set g 5\nfoo\nif {$g == 6} {puts six} else {puts other}\nputs $g\n",
+        "set ::g 5\nfoo\nif {$::g == 6} {puts six} else {puts other}\nputs $::g\n",
+        "set g 5\nwhile {$g != 6} { foo }\nputs six\nputs $g\n",
+    ] {
+        prints_under_every_release(&format!("{define}{tail}"), "six\n6\n");
+    }
+}
+
+/// A sourced file runs in the frame of the call, so it writes a procedure's
+/// local as well as a global: the file here sets `g` to 6, and tclsh 8.4 to 9.1
+/// print `six` and `6` at the top level and in a procedure, where taking `5`
+/// across the `source` printed `other` and `5`.
+#[test]
+fn a_write_a_sourced_file_makes_is_never_folded_away() {
+    let write_file = "set f [file join [file dirname [info script]] vt-sourced-[pid].tcl]\n\
+                      set fh [open $f w]\nputs $fh {set g 6}\nclose $fh\n";
+    let top = format!(
+        "{write_file}set g 5\nsource $f\nfile delete $f\nif {{$g == 6}} {{puts six}} else {{puts other}}\nputs $g\n"
+    );
+    prints_under_every_release(&top, "six\n6\n");
+    let in_proc = format!(
+        "proc p {{f}} {{\n set g 5\n source $f\n if {{$g == 6}} {{puts six}} else {{puts other}}\n puts $g\n}}\n{write_file}p $f\nfile delete $f\n"
+    );
+    prints_under_every_release(&in_proc, "six\n6\n");
+}
+
+/// Each program selects its `hit` arm of a `switch` whose subject and pattern
+/// are the same characters spelled two ways: a bare or quoted word is its
+/// escapes decoded, a braced word its content, and an element of a braced arm
+/// list either. The flattened dispatch compared the subject's spelling — `a\nb`
+/// is four characters there — to the decoded pattern, so the analyser called
+/// the `hit` arm unreachable (I231) and the optimiser rewrote the program to
+/// its `miss` default, where tclsh 8.4 to 9.1 print `hit`.
+const SAME_CHARACTERS: [&str; 18] = [
+    r#"switch -- a\nb {"a\nb" {puts hit} default {puts miss}}"#,
+    r#"switch -exact -- "a\tb" {a\tb {puts hit} default {puts miss}}"#,
+    r#"switch a\nb {"a\nb" {puts hit} default {puts miss}}"#,
+    r#"switch "a\nb" {a\nb {puts hit} default {puts miss}}"#,
+    r#"switch "a\tb" {a\tb {puts hit} default {puts miss}}"#,
+    r#"switch a\tb {"a\tb" {puts hit} default {puts miss}}"#,
+    r#"switch "a\\b" {{a\b} {puts hit} default {puts miss}}"#,
+    r#"switch {a\b} {"a\\b" {puts hit} default {puts miss}}"#,
+    "switch \"a\\nb\" {{a\nb} {puts hit} default {puts miss}}",
+    "switch {a\nb} {\"a\\nb\" {puts hit} default {puts miss}}",
+    "switch {a\\\nb} {{a b} {puts hit} default {puts miss}}",
+    r#"switch "a\tb" a\tb {puts hit} default {puts miss}"#,
+    r#"switch a\tb "a\tb" {puts hit} default {puts miss}"#,
+    r"switch a\$b {a\$b {puts hit} default {puts miss}}",
+    r"switch a\[b {a\[b {puts hit} default {puts miss}}",
+    "set s \"a\\nb\"\nswitch $s {a\\nb {puts hit} default {puts miss}}",
+    r#"switch -glob -- a\nb {"a\nb" {puts hit} default {puts miss}}"#,
+    r"switch -glob -- a\$b {a\$b {puts hit} default {puts miss}}",
+];
+
+/// A `switch` compares the values of its words however they are spelled: every
+/// program of [`SAME_CHARACTERS`] prints `hit` under every release, before and
+/// after the optimiser, which keeps the matching arm and nothing else, and no
+/// O107 rewrite removes the arm that runs.
+#[test]
+fn a_switch_compares_the_values_of_its_words_however_they_are_spelled() {
+    for source in SAME_CHARACTERS {
+        for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+            let (rewritten, _) = optimised(source, dialect);
+            assert!(
+                rewritten.trim().ends_with("puts hit")
+                    && !rewritten.contains("switch")
+                    && !rewritten.contains("miss"),
+                "{dialect}: {source}\n{rewritten}"
+            );
+            for dead in rewrites_of(source, dialect)
+                .iter()
+                .filter(|rewrite| rewrite.code == DiagCode::O107)
+            {
+                let removed = &source[dead.span.start() as usize..dead.span.end() as usize];
+                assert!(
+                    !removed.contains("hit"),
+                    "{dialect}: O107 removes the arm that runs: {source}\n{removed}"
+                );
+            }
+        }
+        prints_under_every_release(source, "hit\n");
+    }
+}
+
+/// Before 8.5 `switch` reads every leading word that starts with `-` as an
+/// option, however many words follow, so a subject holding `-glob` is one:
+/// tclsh 8.4 rejects the program with `bad option`, where 8.5 to 9.1 select
+/// the `-glob` arm and print `G`. A release that may be 8.4 — `tcl8.4`, a
+/// profile that names none — keeps the statement as it is, and from 8.5 the
+/// optimiser keeps the arm. `--` ends the run, so the subject is one under
+/// every release and the statement folds under all of them; a subject that
+/// does not start with `-` is selected through the statement's own record
+/// where the flattened chain is not built; and a literal subject is read by
+/// its decoded value, so `\x2dglob` is an option as `-glob` is.
+#[test]
+fn a_subject_a_release_may_read_as_an_option_is_not_folded_before_8_5() {
+    let bare = "set x -glob\nswitch $x {-glob {puts G} default {puts D}}\n";
+    let escaped = "switch \\x2dglob {-glob {puts G} default {puts D}}\n";
+    for source in [bare, escaped] {
+        for (series, tclsh) in releases_on_path() {
+            let before_85 = series == "8.4";
+            let expected = if before_85 {
+                (false, String::new())
+            } else {
+                (true, "G\n".to_owned())
+            };
+            let (rewritten, _) = optimised(source, &dialect_of(series));
+            for program in [source, rewritten.as_str()] {
+                assert_eq!(
+                    run_script(&tclsh, program),
+                    Some(expected.clone()),
+                    "tclsh{series}:\n{program}"
+                );
+            }
+            assert_eq!(
+                rewritten.contains("switch"),
+                before_85,
+                "{series}: {rewritten}"
+            );
+        }
+        let (kept, _) = optimised(source, "tk");
+        assert!(kept.contains("switch"), "a profile with no release: {kept}");
+    }
+    let ended = "set x -glob\nswitch -- $x {-glob {puts G} default {puts D}}\n";
+    for dialect in ["tcl8.4", "tcl8.6", "tk"] {
+        let (rewritten, _) = optimised(ended, dialect);
+        assert!(
+            rewritten.contains("puts G") && !rewritten.contains("switch"),
+            "{dialect}: {rewritten}"
+        );
+    }
+    prints_under_every_release(ended, "G\n");
+    let plain = "set x a\nswitch $x {a {puts A} default {puts D}}\n";
+    for dialect in ["tcl8.4", "tk", "tcl9.0"] {
+        let (rewritten, _) = optimised(plain, dialect);
+        assert!(
+            rewritten.contains("puts A") && !rewritten.contains("switch"),
+            "{dialect}: {rewritten}"
+        );
+    }
+    prints_under_every_release(plain, "A\n");
+}
+
+/// With pattern and body words the subject is inside the option scan on every
+/// release — 8.5 to 9.1 stop the scan with two words left, and a pattern and
+/// its body are two words — so a variable holding `-glob` is an option there
+/// too: every tclsh rejects the program below with `extra switch pattern with
+/// no body`, where the default arm would print `D`. The statement is kept
+/// under every release's profile and under one that names none.
+#[test]
+fn a_subject_inside_the_scan_of_the_arms_as_words_is_not_folded_on_any_release() {
+    let source = "set x -glob\nswitch $x a {puts A} default {puts D}\n";
+    for (series, tclsh) in releases_on_path() {
+        let (rewritten, _) = optimised(source, &dialect_of(series));
+        for program in [source, rewritten.as_str()] {
+            assert_eq!(
+                run_script(&tclsh, program),
+                Some((false, String::new())),
+                "tclsh{series}:\n{program}"
+            );
+        }
+        assert!(rewritten.contains("switch"), "{series}: {rewritten}");
+    }
+    let (kept, _) = optimised(source, "tk");
+    assert!(kept.contains("switch"), "a profile with no release: {kept}");
 }

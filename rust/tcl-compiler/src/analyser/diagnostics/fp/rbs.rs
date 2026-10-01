@@ -1746,9 +1746,9 @@ emitted: {:?}",
 /// the second store, so it draws no `W220` in either spelling, and the first
 /// store — overwritten before anything reads it — draws the one `W220` in
 /// both (tclsh 8.4.20 to 9.1b0 return 2 with or without it, and O109 deletes
-/// it). Until value-transfers slice 8 (VT8.5) the return word's `[set n]` was
-/// a name-level hidden read that silenced both stores; the SSA records it
-/// now, as a use of the second store's version alone.
+/// it). The SSA records the return word's `[set n]` as a use of the second
+/// store's version alone, where a name-level hidden read would silence both
+/// stores.
 #[test]
 fn issue_1078_braced_double_store_matches_the_plain_control() {
     let braced = "proc f {} { set {$n} 1; set {$n} 2; return [set {$n}] }\n";

@@ -976,7 +976,7 @@ impl Analyser {
                 supp: &supp,
             },
         );
-        self.emit_constant_branch_diagnostics(function_unit);
+        self.emit_branch_fact_diagnostics(function_unit);
         self.emit_invalid_ip_diagnostics(function_unit);
         self.emit_w233_divide_by_zero(function_unit);
         self.emit_interval_bounds_diagnostics(function_unit);

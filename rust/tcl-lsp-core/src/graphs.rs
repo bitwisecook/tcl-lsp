@@ -824,6 +824,7 @@ pub fn dataflow_graph(
     let module_traces = tcl_compiler::compilation_unit::ModuleTraceFacts {
         traced_variables: &cu.ir_module.traced_variables,
         has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+        deferred_writes: &cu.ir_module.deferred_writes,
     };
     let taint_ctx = TaintWarnCtx {
         registry,

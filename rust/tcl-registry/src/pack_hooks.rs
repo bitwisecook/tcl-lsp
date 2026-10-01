@@ -1220,8 +1220,7 @@ static EVALUATOR_EPOCH: AtomicU64 = AtomicU64::new(0);
 /// The process's evaluator epoch. A thread's own
 /// [`evaluator_generation`] keys what it computes; this is the one number a
 /// memo shared by every thread — the language server's query database —
-/// takes as an input, so a plan reload or a quarantine anywhere re-keys it
-/// (`docs/design/lanes/value-transfers.md`, D104).
+/// takes as an input, so a plan reload or a quarantine anywhere re-keys it.
 #[must_use]
 pub fn evaluator_epoch() -> u64 {
     EVALUATOR_EPOCH.load(Ordering::Relaxed)

@@ -147,6 +147,46 @@ that really runs would change the program.
 
 Spell the name out to get the fold (and the diagnostic) back.
 
+## Where a write the analyser cannot place stops the fold
+
+A condition is folded only over a value no write the analyser cannot place can
+have replaced. Three kinds of write leave the variable undecided, and no
+`I230` is reported:
+
+```tcl
+set go 1
+switch -glob -- [gets stdin] { q* { set go 0 } }   ;# an arm may run
+if {$go} { puts a } else { puts b }                ;# no I230
+
+set go 1
+trace add variable x write { set ::go 0 ;# }       ;# a callback writes it
+set x 1
+if {$go} { puts a } else { puts b }                ;# no I230 (tclsh prints b)
+
+set g 5
+foo                                                ;# a command the file never defines
+if {$g} { puts a } else { puts b }                 ;# no I230, as for $::g
+```
+
+- An arm of a `switch` the flow graph keeps as one statement (`-glob`,
+  `-regexp`, `-nocase`, a fall-through arm, `case`) defines every name it
+  writes or binds, or that a command it runs writes into the same frame (a
+  procedure that sets the caller's variable through `upvar`, `namespace eval`,
+  `dict with`); the name holds its earlier value only on the paths where no
+  arm runs.
+- A callback script stored anywhere in the file (`after`, `fileevent`,
+  `bind`, a variable trace's callback, a procedure named as one, a command
+  prefix built with `list`) runs outside the registering code, so a name it
+  writes is never a constant, in the top-level script or in any procedure. A
+  callback the analyser cannot read, such as `after 100 $script`, is not
+  covered.
+- A plain name in the top-level script is the global `::name`. A call there to
+  a command the file does not define may write, unset or read it, so the
+  versions the name holds at that call are undecided, as a `$::g` is. A
+  procedure's own local is out of every callee's reach and is still folded;
+  a `source` runs its file in the frame of the call, so a local is not safe
+  across one.
+
 ## Fix
 
 To remember a value across calls, give it real cross-call storage instead of a

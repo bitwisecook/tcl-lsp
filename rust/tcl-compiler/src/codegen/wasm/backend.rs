@@ -1441,6 +1441,12 @@ fn function_facts(
             continue;
         };
         for (stmt_idx, statement) in cfg_block.statements.iter().enumerate() {
+            // An analysis marker shares its host's span and is no command to
+            // plan: counted as a second sighting of that span it would send
+            // the host back to the source-span fallback.
+            if crate::ssa::is_effect_marker(statement) {
+                continue;
+            }
             if let Statement::AssignConst {
                 span,
                 name,

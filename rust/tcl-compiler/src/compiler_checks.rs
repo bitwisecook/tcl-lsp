@@ -39,7 +39,7 @@ use crate::irules_checks::{
     find_hoistable_set_warnings, find_http_flow_warnings, find_unguarded_drop_warnings,
 };
 use crate::path_concat::{PathConcatWarning, find_path_concat_warnings};
-use crate::sccp::ConstantBranch;
+use crate::sccp::{BranchFactKind, ConstantBranch};
 use crate::shimmer::{
     SharingWarning, ShimmerWarning, ThunkingWarning, find_byte_array_warnings,
     find_sharing_warnings, find_shimmer_warnings, find_thunking_warnings,
@@ -352,7 +352,14 @@ pub fn function_nontaint_checks<S: std::hash::BuildHasher>(
     instance_vars: Option<&std::collections::HashSet<String, S>>,
 ) -> Vec<Diagnostic> {
     let mut out: Vec<Diagnostic> = Vec::new();
-    for cb in &fu.sccp.constant_branches {
+    // A `Selected` fact names an arm no branch leads to: it is I231's, from
+    // the analyser, and no folded condition to hint at.
+    for cb in fu
+        .sccp
+        .constant_branches
+        .iter()
+        .filter(|cb| cb.kind != BranchFactKind::Selected)
+    {
         out.push(Diagnostic::from_constant_branch(cb));
     }
     for r in find_redundancies_for_function(registry, fu, dialect) {
@@ -448,6 +455,7 @@ pub fn push_taint_and_module_checks(
     let module_traces = crate::compilation_unit::ModuleTraceFacts {
         traced_variables: &cu.ir_module.traced_variables,
         has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+        deferred_writes: &cu.ir_module.deferred_writes,
     };
     // `analysable_body_function_units` (not `analysable_functions`) so a sink
     // inside a TclOO method body — or an `apply` lambda / `namespace eval`

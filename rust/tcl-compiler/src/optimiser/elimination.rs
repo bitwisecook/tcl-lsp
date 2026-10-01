@@ -35,15 +35,15 @@
 //!   for scope-alias commands (`global` / `variable` / `upvar`).
 //!
 //! A store is removable only when no value read and no existence read of
-//! its version remains (value-transfers slice 8): `[info exists x]`,
+//! its version remains: `[info exists x]`,
 //! `[array exists x]` and an unbind — `unset x`, `array unset x` — read the
 //! version they observe as an SSA use wherever they run, a statement, a
 //! condition, a nested word or a `return` word, so the store they observe
 //! stays. An unbind statement is never removed: the error on an absent
 //! place and the binding's disappearance are its effects. A dead `incr` is
 //! removable only when its own outcome is a total `Write` under every
-//! release its target profile spans (value-transfers slice 8's totality
-//! proof, permission 3): the release rule's `UnboundPlace` decline —
+//! release its target profile spans (a totality proof): the release
+//! rule's `UnboundPlace` decline —
 //! recorded on the statement's own [`crate::value_transfer::RouteExplanation`]
 //! — means a release that does not create the cell may raise instead, so
 //! "the write is the whole observable effect" does not hold and the
@@ -291,7 +291,7 @@ pub(crate) fn assignment_safe_to_delete(
 }
 
 /// Whether the dead `incr` of the place `name` at `site` completes on
-/// every release the profile names (the slice 8 review's S2): every such
+/// every release the profile names: every such
 /// release creates an absent cell (8.5 onwards), or the existence rung
 /// proves the place bound where the statement reads it. Under a profile
 /// spanning 8.4, where `incr` of an absent place raises `can't read`, a
@@ -698,21 +698,11 @@ fn emit_dead_stores_and_unused(
         )) {
             continue;
         }
-        // Skip if the variable is a scope alias — writes through
-        // global / upvar are visible in other scopes. Policy sets hold
-        // *base* names, so an element symbol (`a(k)`) checks its base too.
+        // Skip a store another scope or a call the module cannot see may
+        // observe: writes through global / upvar are visible elsewhere.
         let (var, _) = &chain.key;
-        // A synthetic may-def (base refresh / element fan) is not a write
-        // the user made — never an O109/O126 candidate.
-        if fu.ssa.is_synthetic_def(
-            &chain.definition.block,
-            chain.definition.statement_index,
-            var,
-        ) {
-            continue;
-        }
         let var_base = crate::naming::normalise_var_name(var);
-        if scope_aliases.contains(var) || scope_aliases.contains(var_base) {
+        if store_is_seen_elsewhere(fu, chain, &scope_aliases) {
             continue;
         }
         // Traced anywhere in the module, under the canonical `::`-stripped
@@ -766,6 +756,28 @@ fn emit_dead_stores_and_unused(
     }
 
     emit_dse_entries(ctx, fu, entries)
+}
+
+/// Whether the store `chain` defines is one the name-level SSA cannot call
+/// dead: a synthetic may-def (base refresh / element fan) is no write the user
+/// made; a scope alias is visible in other scopes (policy sets hold *base*
+/// names, so an element symbol `a(k)` checks its base too); and a call to a
+/// command the module cannot see may read the name the store leaves, as it may
+/// read a `::`-qualified one.
+fn store_is_seen_elsewhere(
+    fu: &FunctionUnit,
+    chain: &crate::def_use::DefUseChain,
+    scope_aliases: &HashSet<String>,
+) -> bool {
+    let (var, version) = &chain.key;
+    let var_base = crate::naming::normalise_var_name(var);
+    fu.ssa.is_synthetic_def(
+        &chain.definition.block,
+        chain.definition.statement_index,
+        var,
+    ) || scope_aliases.contains(var)
+        || scope_aliases.contains(var_base)
+        || fu.ssa.name_is_observed_by_unseen_call(var, *version)
 }
 
 /// Classify one dead def-use chain as O109 (dead store) or O126 (unused
@@ -1276,7 +1288,7 @@ pub(crate) fn collect_textual_var_references(
 /// variable.
 ///
 /// Computed as the deep RMW scan minus the shallow scan, less every name the
-/// SSA records where the word runs (value-transfers slice 8): a nested cell
+/// SSA records where the word runs: a nested cell
 /// update (`lappend r [incr i $j]` reads `i`), a `VarRead` role and an
 /// existence read — `[info exists x]`, `[array exists x]`, a nested `[unset
 /// x]` — are uses of the version they read, which keep exactly that store
@@ -1678,8 +1690,8 @@ mod tests {
         ctx.optimisations
     }
 
-    /// The hidden-read scan keeps only what the SSA does not record
-    /// (value-transfers slice 8): an existence read, a `VarRead` role and a
+    /// The hidden-read scan keeps only what the SSA does not record:
+    /// an existence read, a `VarRead` role and a
     /// nested cell update in a statement's words, or in a `return` word, are
     /// uses of the version they read — on the statement itself or on the
     /// synthetic one the lowering pushes ahead of it under the same span —
@@ -2384,5 +2396,25 @@ mod tests {
             late.contains(&DiagCode::O109),
             "but the store is still dead there: {late:?}",
         );
+    }
+
+    /// A call to a command the module cannot see may read a top-level name as
+    /// it may read `::x`, so the store it can observe is no dead store; a store
+    /// overwritten before any such call, and a procedure's local, are still
+    /// dead.
+    #[test]
+    fn o109_keeps_a_top_level_store_a_call_the_module_cannot_see_may_read() {
+        let dead = |src: &str| run_pass(src).iter().any(|o| o.code == DiagCode::O109);
+        assert!(!dead("set x 1\nfoo\nset x 2\nputs $x\n"));
+        assert!(!dead("set ::x 1\nfoo\nset ::x 2\nputs $::x\n"));
+        assert!(!dead("set x 1\nsource other.tcl\nset x 2\nputs $x\n"));
+        assert!(!dead(
+            "proc p {} {\n set x 1\n source other.tcl\n set x 2\n puts $x\n}\n"
+        ));
+        assert!(dead("set x 1\nset x 2\nfoo\nputs $x\n"));
+        assert!(dead("proc p {} {\n set x 1\n foo\n set x 2\n puts $x\n}\n"));
+        assert!(dead(
+            "proc foo {} { puts hi }\nset x 1\nfoo\nset x 2\nputs $x\n"
+        ));
     }
 }

@@ -430,7 +430,7 @@ pub fn take_overlay_misses() -> Vec<OverlayMiss> {
 /// that input, and the smallest one that does it: [`compilation_unit`] and
 /// [`proc_taint_solve`] read it, and every per-procedure
 /// [`ValueTransferContext`] carries it, so a new epoch re-keys every
-/// memoised lattice (`docs/design/lanes/value-transfers.md`, D104). The
+/// memoised lattice. The
 /// language server sets it with [`set_evaluator_epoch`] where it reloads
 /// packs and after each diagnostics pass, which is where it first sees a
 /// quarantine on the worker that ran the pass.
@@ -778,15 +778,15 @@ pub fn file_analysis(
     Arc::new(analyser.analyse(file.text(db), file.dialect(db)))
 }
 
-/// Offset-stable item tree — the per-item firewall's foundation (slice 1 of
-/// `docs/design/rust/incremental-analysis.md`). One item per declaration, keyed
+/// Offset-stable item tree — the per-item firewall's foundation
+/// (`docs/design/rust/incremental-analysis.md`). One item per declaration, keyed
 /// by stable name + kind so a shifted-but-unedited proc keeps its identity.
 ///
-/// **Slice-1 anchor.** `ensemble_namespaces` lives on the `Analyser`, not the
+/// **Anchor.** `ensemble_namespaces` lives on the `Analyser`, not the
 /// returned `AnalysisResult`, so this query runs `analyse` directly and reads
 /// the ensemble set off the instance rather than reusing [`file_analysis`]. The
-/// item set therefore *cannot* diverge from `analyse`. Slices 2–3 re-home this
-/// onto a cheap, independent CST extractor — guarded by the `file_decls` corpus
+/// item set therefore *cannot* diverge from `analyse`; it is guarded by the
+/// `file_decls` corpus
 /// gate + the `incremental == fresh` differential fuzzer + the full-rebuild
 /// fallback (item detection is config-independent, hence no `AnalyserConfig`;
 /// the one cross-file input it does read, `SourceFile::workspace_class_factories`,
@@ -2060,6 +2060,7 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
     let trace_facts = ModuleTraceFacts {
         traced_variables: &traced_variables,
         has_dynamic_variable_trace: key.has_dynamic_variable_trace(db),
+        deferred_writes: &key.analysis_context(db).key(db).deferred_writes,
     };
     Arc::new(
         FunctionUnit::build_with_param_constants_and_classes_under(
@@ -3204,6 +3205,7 @@ pub fn function_optimisations<'db>(
         has_dynamic_trace: false,
         traced_variables: BTreeSet::new(),
         has_dynamic_variable_trace: false,
+        deferred_writes: tcl_compiler::ir::DeferredWrites::default(),
     };
     let empty_cfg = tcl_compiler::cfg::Function::new("::", "entry");
     let top_fu = FunctionUnit::build(
@@ -3250,7 +3252,8 @@ pub fn function_optimisations<'db>(
 
 /// Whether `module` carries any whole-module trace fact (execution *or*
 /// variable — `Module::traced_commands` / `has_dynamic_trace` /
-/// `traced_variables` / `has_dynamic_variable_trace`).
+/// `traced_variables` / `has_dynamic_variable_trace`) or any callback script
+/// that writes a variable (`Module::deferred_writes`).
 ///
 /// The single-proc offset-0 `Module` [`function_optimisations`] builds has
 /// no way to reconstruct these — its `OptDepsKey` threads `proc_names` /
@@ -3267,6 +3270,7 @@ fn module_has_trace_facts(module: &tcl_compiler::ir::Module) -> bool {
         || module.has_dynamic_trace
         || !module.traced_variables.is_empty()
         || module.has_dynamic_variable_trace
+        || !module.deferred_writes.is_clear()
 }
 
 /// Assemble a document's optimisations from the per-procedure memo (Task 4).
@@ -3425,6 +3429,7 @@ fn top_level_only_unit(
             has_dynamic_trace: cu.ir_module.has_dynamic_trace,
             traced_variables: cu.ir_module.traced_variables.clone(),
             has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+            deferred_writes: cu.ir_module.deferred_writes.clone(),
         },
         cfg_module: tcl_compiler::cfg::CfgModule {
             top_level: cu.cfg_module.top_level.clone(),

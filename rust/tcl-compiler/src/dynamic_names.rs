@@ -1096,7 +1096,7 @@ mod tests {
         assert!(b.reads, "`subst $t` can dereference any name");
     }
 
-    /// The barrier reads the call's template-word plan (VT5.10): a computed
+    /// The barrier reads the call's template-word plan: a computed
     /// template reads any name only when variable or command substitution
     /// runs over it, so `subst -nocommands -novariables $t` no longer blinds
     /// every read, while `subst -novariables $t` still does — its `[set x]`

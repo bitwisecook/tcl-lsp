@@ -100,10 +100,9 @@ const PORTS: &[Port] = &[
                 "__unrenderable",
                 "the shipped spec declares its value-transfer `semantics` (the \
                  explicit iteration declaration of \
-                 `docs/design/compiler/value-transfers.md`); SpecTcl has no \
-                 surface for it until slice 4 of the migration lands the \
-                 spelling, so it stays on the unrenderable list and the port \
-                 does not transcribe it. Every field the port does carry matches",
+                 `docs/design/compiler/value-transfers.md`); the port does \
+                 not transcribe it, so it stays on the unrenderable list. \
+                 Every field the port does carry matches",
             )],
             unequal_subcommand: NO_SUBS,
             subcommand_subset: ALL_SUBS,
@@ -261,11 +260,9 @@ const PORTS: &[Port] = &[
                     "the shipped `string range` declares its value-transfer \
                      `semantics` (the direct string-range route) and folds \
                      through that route in `const_fold_versioned` beside \
-                     `const_fold`; SpecTcl has no surface for `semantics` \
-                     until slice 4 of the migration lands the spelling, and \
-                     the port transcribes neither, so both stay on the \
-                     unrenderable list. Every field the port does carry \
-                     matches",
+                     `const_fold`; the port transcribes neither, so both \
+                     stay on the unrenderable list. Every field the port \
+                     does carry matches",
                 ),
             ],
             subcommand_subset: &["length", "is", "map", "range"],

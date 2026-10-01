@@ -83,7 +83,8 @@ pub use decline::{AnalysisTier, Axis, BudgetLimit, DeclineReason, NoRouteReason}
 pub use inputs::{
     AnalysisInputs, BodyRegion, DomainFact, EvaluationState, FactDomain, FactView,
     InvocationLayout, NestedPolicy, OperandId, OperandView, PlaceKind, PlaceRef,
-    ResolvedInvocationView, TargetId, ValueIdentity, WordPart, WordStructure,
+    ResolvedInvocationView, TargetId, ValueIdentity, WordPart, WordStructure, WrittenPlace,
+    written_in,
 };
 pub use lift::{LiftedAnswer, PinnedInputs, evaluate_lifted, finite_inputs};
 pub use literal::{LiteralInputs, evaluate_literal};

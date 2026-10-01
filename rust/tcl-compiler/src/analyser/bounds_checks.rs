@@ -178,61 +178,149 @@ fn conditional_loop_shape(
     })
 }
 
-/// W240 (constant-false condition → dead body) / W241 (constant-true
-/// condition whose body never leaves the loop → provably infinite) for every
-/// conditional loop the document's command surface declares — catalogued or
-/// stub-declared, see [`loop_shape`].  The loop-exit set is the catalogue's —
-/// see [`is_loop_exit_command`].  `args` / `arg_tokens` exclude the command
-/// name.
-pub(crate) fn loop_termination_diagnostics(
-    cmd_name: &str,
+/// What the text of a conditional loop says about its termination — the
+/// verdict the walk reaches before any solver fact is known.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum LexicalVerdict {
+    /// The condition is a constant-false literal: the body never executes.
+    Dead,
+    /// The loop never terminates by its text: a constant-true literal
+    /// condition over a body that never leaves the loop (`None`), or a `for`
+    /// counter that never reaches its bound (the reason it gives).
+    Infinite(Option<String>),
+    /// A variable the condition reads is never modified by the step or body.
+    Unprovable(String),
+    /// The text says nothing.
+    Silent,
+}
+
+/// A loop whose termination the walk examined. The per-function pass
+/// resolves it against the unit's branch fact at its condition span
+/// ([`Self::resolve`]); a loop no unit decides keeps its lexical verdict.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct LoopTerminationCandidate {
+    /// The loop command as the document spells it.
+    pub cmd_name: String,
+    /// The condition word's span — where every verdict is reported, and the
+    /// key of the branch fact.
+    pub condition_span: tcl_lexer::Span,
+    /// What the loop's text says.
+    pub lexical: LexicalVerdict,
+    /// Whether the body holds, in command position, a command that leaves
+    /// the loop ([`is_loop_exit_command`]) — a path the flow graph cannot see
+    /// inside a script it does not lower.
+    pub body_may_exit: bool,
+}
+
+/// What the solver decided about a loop's header condition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum HeaderFact {
+    /// False at entry: the body never runs.
+    Never,
+    /// True at every test; `exits` says whether an executable path leaves
+    /// the loop.
+    Always {
+        /// An executable `break`, `return` or other exit is reachable.
+        exits: bool,
+    },
+}
+
+impl LoopTerminationCandidate {
+    fn diagnostic(&self, code: DiagCode, message: String, severity: Severity) -> Diagnostic {
+        crate::analyser::types::Diagnostic::new(code, self.condition_span, message, severity)
+    }
+
+    /// W240: the body never executes.
+    fn dead(&self) -> Diagnostic {
+        self.diagnostic(
+            DiagCode::W240,
+            format!(
+                "{} condition is constant false; body never executes.",
+                self.cmd_name
+            ),
+            Severity::Warning,
+        )
+    }
+
+    /// W241: the loop never terminates, for the reason a `for` counter gives
+    /// or because the condition is constant true and the body never leaves.
+    fn infinite(&self, reason: Option<&str>) -> Diagnostic {
+        let message = reason.map_or_else(
+            || {
+                format!(
+                    "{} is provably infinite: condition is constant true and the body \
+                     never leaves the loop (no break/return/error/exit/throw/tailcall).",
+                    self.cmd_name
+                )
+            },
+            |reason| format!("for loop is provably infinite: {reason}"),
+        );
+        self.diagnostic(DiagCode::W241, message, Severity::Warning)
+    }
+
+    /// W242 (default-off): a counter variable appears in the condition but
+    /// neither the step nor the body provably modifies it. The analyser
+    /// always emits it; the default-off opt-in is applied by the consuming
+    /// LSP/config layer.
+    fn unprovable(&self, var: &str) -> Diagnostic {
+        self.diagnostic(
+            DiagCode::W242,
+            format!(
+                "{} termination cannot be proven: variable '{var}' in the \
+                 condition is never modified by the step or body.",
+                self.cmd_name
+            ),
+            Severity::Hint,
+        )
+    }
+
+    /// What the loop's text alone says.
+    pub(crate) fn lexical_diagnostic(&self) -> Option<Diagnostic> {
+        match &self.lexical {
+            LexicalVerdict::Dead => Some(self.dead()),
+            LexicalVerdict::Infinite(reason) => Some(self.infinite(reason.as_deref())),
+            LexicalVerdict::Unprovable(var) => Some(self.unprovable(var)),
+            LexicalVerdict::Silent => None,
+        }
+    }
+
+    /// What the loop draws once the solver's header fact is known: a header
+    /// decided false at entry is W240, one decided true with no exit the
+    /// flow graph or the body's text finds is W241, and either suppresses
+    /// W242; a header the solver did not decide keeps the lexical verdict.
+    pub(crate) fn resolve(&self, header: Option<HeaderFact>) -> Option<Diagnostic> {
+        match header {
+            None => self.lexical_diagnostic(),
+            Some(HeaderFact::Never) => Some(self.dead()),
+            Some(HeaderFact::Always { exits: false }) if !self.body_may_exit => {
+                let reason = match &self.lexical {
+                    LexicalVerdict::Infinite(reason) => reason.as_deref(),
+                    _ => None,
+                };
+                Some(self.infinite(reason))
+            }
+            Some(HeaderFact::Always { .. }) => None,
+        }
+    }
+}
+
+/// The lexical verdict of a loop whose condition is not a constant literal:
+/// a `for` counter that never terminates, else a counter the loop never
+/// modifies, else nothing.
+fn dynamic_verdict(
+    shape: &LoopShape,
     args: &[String],
-    arg_tokens: &[Token],
-    surface: Option<&tcl_registry::model::DocumentCommandSurface<'_>>,
+    registry: Option<&tcl_registry::CommandRegistry>,
     lexer_config: tcl_lexer::LexerConfig,
     grammar: &tcl_dialect::LexerGrammar,
-) -> Vec<Diagnostic> {
-    let Some(shape) = loop_shape(cmd_name, args, surface) else {
-        return Vec::new();
-    };
-    let registry = surface.map(tcl_registry::model::DocumentCommandSurface::commands);
-    // An under-applied call is an arity diagnostic, not a termination one.
-    if args.len() <= shape.body || arg_tokens.len() <= shape.body {
-        return Vec::new();
-    }
+) -> LexicalVerdict {
     let word = |index: Option<usize>| index.map_or("", |i| args[i].as_str());
-    let (init_text, cond_text, step_text, body_text, cond_tok) = (
+    let (init_text, cond_text, step_text, body_text) = (
         word(shape.init),
         args[shape.cond].as_str(),
         word(shape.step),
         args[shape.body].as_str(),
-        &arg_tokens[shape.cond],
     );
-
-    match condition_constant(cond_text) {
-        Some(false) => {
-            return vec![crate::analyser::types::Diagnostic::new(
-                DiagCode::W240,
-                cond_tok.span,
-                format!("{cmd_name} condition is constant false; body never executes."),
-                Severity::Warning,
-            )];
-        }
-        Some(true) if !body_may_exit(body_text, registry, lexer_config) => {
-            return vec![crate::analyser::types::Diagnostic::new(
-                DiagCode::W241,
-                cond_tok.span,
-                format!(
-                    "{cmd_name} is provably infinite: condition is constant true and the body \
-                     never leaves the loop (no break/return/error/exit/throw/tailcall)."
-                ),
-                Severity::Warning,
-            )];
-        }
-        Some(true) => return Vec::new(),
-        None => {}
-    }
-
     // `for {init} {cond} {step} body` provably-infinite counter shape — only a
     // loop that declares both an init and a step script has a counter to walk.
     if shape.init.is_some()
@@ -247,33 +335,67 @@ pub(crate) fn loop_termination_diagnostics(
             grammar,
         )
     {
-        return vec![crate::analyser::types::Diagnostic::new(
-            DiagCode::W241,
-            cond_tok.span,
-            format!("for loop is provably infinite: {reason}"),
-            Severity::Warning,
-        )];
+        return LexicalVerdict::Infinite(Some(reason));
     }
+    match extract_counter_name(cond_text, grammar) {
+        Some(var) if !loop_modifies_var(&var, step_text, body_text, registry, lexer_config) => {
+            LexicalVerdict::Unprovable(var)
+        }
+        _ => LexicalVerdict::Silent,
+    }
+}
 
-    // W242 (default-off): a counter variable appears in the condition but
-    // neither the step nor the body provably modifies it.  Reported on
-    // the condition token, like W240/W241.  The analyser always emits
-    // W242; the default-off opt-in is applied by the consuming LSP/config
-    // layer.
-    if let Some(var) = extract_counter_name(cond_text, grammar)
-        && !loop_modifies_var(&var, step_text, body_text, registry, lexer_config)
-    {
-        return vec![crate::analyser::types::Diagnostic::new(
-            DiagCode::W242,
-            cond_tok.span,
-            format!(
-                "{cmd_name} termination cannot be proven: variable '{var}' in the \
-                     condition is never modified by the step or body."
-            ),
-            Severity::Hint,
-        )];
+/// The loop-termination candidate of every conditional loop the document's
+/// command surface declares — catalogued or stub-declared, see
+/// [`loop_shape`] — with what its text says: W240 for a constant-false
+/// condition, W241 for a constant-true one whose body never leaves the loop
+/// or a `for` counter that never terminates, W242 for a counter nothing
+/// modifies. The loop-exit set is the catalogue's — see
+/// [`is_loop_exit_command`]. `args` / `arg_tokens` exclude the command name.
+pub(crate) fn loop_termination_candidate(
+    cmd_name: &str,
+    args: &[String],
+    arg_tokens: &[Token],
+    surface: Option<&tcl_registry::model::DocumentCommandSurface<'_>>,
+    lexer_config: tcl_lexer::LexerConfig,
+    grammar: &tcl_dialect::LexerGrammar,
+) -> Option<LoopTerminationCandidate> {
+    let shape = loop_shape(cmd_name, args, surface)?;
+    let registry = surface.map(tcl_registry::model::DocumentCommandSurface::commands);
+    // An under-applied call is an arity diagnostic, not a termination one.
+    if args.len() <= shape.body || arg_tokens.len() <= shape.body {
+        return None;
     }
-    Vec::new()
+    let may_exit = body_may_exit(args[shape.body].as_str(), registry, lexer_config);
+    let lexical = match condition_constant(args[shape.cond].as_str()) {
+        Some(false) => LexicalVerdict::Dead,
+        Some(true) if !may_exit => LexicalVerdict::Infinite(None),
+        Some(true) => LexicalVerdict::Silent,
+        None => dynamic_verdict(&shape, args, registry, lexer_config, grammar),
+    };
+    Some(LoopTerminationCandidate {
+        cmd_name: cmd_name.to_owned(),
+        condition_span: arg_tokens[shape.cond].span,
+        lexical,
+        body_may_exit: may_exit,
+    })
+}
+
+/// The lexical loop-termination diagnostics of one command — what the text
+/// alone says, with no solver fact.
+#[cfg(test)]
+pub(crate) fn loop_termination_diagnostics(
+    cmd_name: &str,
+    args: &[String],
+    arg_tokens: &[Token],
+    surface: Option<&tcl_registry::model::DocumentCommandSurface<'_>>,
+    lexer_config: tcl_lexer::LexerConfig,
+    grammar: &tcl_dialect::LexerGrammar,
+) -> Vec<Diagnostic> {
+    loop_termination_candidate(cmd_name, args, arg_tokens, surface, lexer_config, grammar)
+        .and_then(|candidate| candidate.lexical_diagnostic())
+        .into_iter()
+        .collect()
 }
 
 /// Return the scalar name of the first variable referenced by a
@@ -1445,6 +1567,111 @@ mod tests {
         assert_eq!(codes("while 1 {continue}\n"), vec!["W241"]);
     }
 
+    /// Every loop-termination verdict (W240, W241, W242) `src` draws, in
+    /// source order.
+    fn loop_verdicts(src: &str) -> Vec<String> {
+        let mut a = Analyser::new();
+        let mut found: Vec<(u32, String)> = a
+            .analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| matches!(d.code.as_str(), "W240" | "W241" | "W242"))
+            .map(|d| (d.span.start(), d.code.to_string()))
+            .collect();
+        found.sort();
+        found.into_iter().map(|(_, code)| code).collect()
+    }
+
+    /// W240 and W241 read the loop header's branch fact instead of the
+    /// condition's text: a header the solver decides false at entry is W240,
+    /// one it decides true at every test with no executable exit is W241, and
+    /// either suppresses W242 — where the text alone can say nothing but the
+    /// hint a counter nothing modifies draws. A header it does not decide keeps
+    /// the text's verdict, and an exit anywhere the flow graph or the body's
+    /// text finds keeps a true header silent.
+    #[test]
+    fn w240_and_w241_read_the_branch_fact() {
+        // `n` is 0 at every test and `go` is 1: the branch fact decides.
+        assert_eq!(
+            loop_verdicts("set n 0\nwhile {$n} {puts \"never runs\"}\n"),
+            ["W240"]
+        );
+        assert_eq!(loop_verdicts("set go 1\nwhile {$go} {puts x}\n"), ["W241"]);
+        assert_eq!(
+            loop_verdicts("proc p {} {\n set n 0\n while {$n} {puts x}\n}\n"),
+            ["W240"]
+        );
+        assert_eq!(
+            loop_verdicts("proc p {} {\n set go 1\n while {$go} {puts x}\n}\n"),
+            ["W241"]
+        );
+        // A `for` whose counter never moves is infinite whatever its bound
+        // says; one whose first test fails never runs.
+        assert_eq!(
+            loop_verdicts("for {set i 0} {$i < 10} {} {puts hi}\n"),
+            ["W241"]
+        );
+        assert_eq!(
+            loop_verdicts("for {set i 0} {$i < 0} {incr i} {puts hi}\n"),
+            ["W240"]
+        );
+        // The literal forms decide too, with the text's own message.
+        assert_eq!(loop_verdicts("while 0 {puts hi}\n"), ["W240"]);
+        assert_eq!(loop_verdicts("while 1 {puts hi}\n"), ["W241"]);
+        // An exit the flow graph finds keeps a true header silent: `break`,
+        // `return`, `error`; and so does one it cannot see, inside a `catch`
+        // body the graph does not lower.
+        for body in ["break", "return", "error boom", "catch {break}"] {
+            assert!(
+                loop_verdicts(&format!(
+                    "proc p {{}} {{\n set go 1\n while {{$go}} {{{body}}}\n}}\n"
+                ))
+                .is_empty(),
+                "{body}"
+            );
+        }
+        // Nothing decides a parameter or an unset variable: the text's
+        // verdict stands, W242's hint for a counter nothing modifies.
+        assert_eq!(
+            loop_verdicts("proc p {n} {\n while {$n} {puts x}\n}\n"),
+            ["W242"]
+        );
+        assert_eq!(loop_verdicts("while {$x < 10} {puts hi}\n"), ["W242"]);
+        // A counter the body advances is never proven either way.
+        assert!(loop_verdicts("proc p {} {\n set i 0\n while {$i < 3} {incr i}\n}\n").is_empty());
+    }
+
+    /// A loop inside a proc body reaches the same verdict on the per-item
+    /// path, which walks each body in isolation and grafts the candidates
+    /// back at their real positions.
+    #[test]
+    fn loop_verdicts_agree_across_the_whole_file_and_per_item_walks() {
+        let src = "proc a {} {\n set n 0\n while {$n} {puts x}\n}\n\
+                   proc b {} {\n set go 1\n while {$go} {puts y}\n}\n\
+                   proc c {n} {\n while {$n} {puts z}\n}\n\
+                   set m 0\nwhile {$m} {puts top}\n";
+        let verdicts = |per_item: bool| -> Vec<(u32, String)> {
+            let mut a = Analyser::new();
+            let result = if per_item {
+                a.analyse_per_item(src, "tcl8.6")
+            } else {
+                a.analyse(src, "tcl8.6")
+            };
+            let mut found: Vec<(u32, String)> = result
+                .diagnostics
+                .iter()
+                .filter(|d| matches!(d.code.as_str(), "W240" | "W241" | "W242"))
+                .map(|d| (d.span.start(), d.code.to_string()))
+                .collect();
+            found.sort();
+            found
+        };
+        let whole = verdicts(false);
+        let codes: Vec<&str> = whole.iter().map(|(_, code)| code.as_str()).collect();
+        assert_eq!(codes, ["W240", "W241", "W242", "W240"], "{whole:?}");
+        assert_eq!(verdicts(true), whole);
+    }
+
     /// A registry whose loop vocabulary is not Tcl's: `spin` loops, `peek`
     /// has the identical argument shape and does not.
     fn registry_with_a_declared_loop() -> tcl_registry::CommandRegistry {
@@ -1997,9 +2224,10 @@ mod tests {
             m[0].contains("variable 'x' in the condition is never modified"),
             "{m:?}"
         );
-        // `for` with an empty step and a body that ignores the counter.
+        // `for` with an empty step and a body that ignores the counter, over a
+        // bound nothing proves: the condition does not decide.
         assert_eq!(
-            code_msgs("for {set i 0} {$i < 10} {} {puts hi}\n", "W242").len(),
+            code_msgs("for {set i 0} {$i < $n} {} {puts hi}\n", "W242").len(),
             1
         );
     }
@@ -2179,5 +2407,173 @@ mod tests {
         // are ordinary words to the segmenter, though neither matches
         // `(?:^|\\n)\\s*set\\s+(\\w+)\\s+(\\{[^{}]*\\})`.
         assert_eq!(w231("puts hi; set l {a {b c} d}\nlset l 9 X\n"), 1);
+    }
+
+    /// The loop-termination verdicts (W240, W241, W242) `src` draws on the
+    /// whole-file walk and on the per-item walk, each in source order.
+    fn verdicts_on_both_paths(src: &str) -> (Vec<String>, Vec<String>) {
+        let verdicts = |per_item: bool| -> Vec<String> {
+            let mut a = Analyser::new();
+            let result = if per_item {
+                a.analyse_per_item(src, "tcl8.6")
+            } else {
+                a.analyse(src, "tcl8.6")
+            };
+            let mut found: Vec<(u32, String)> = result
+                .diagnostics
+                .iter()
+                .filter(|d| matches!(d.code.as_str(), "W240" | "W241" | "W242"))
+                .map(|d| (d.span.start(), d.code.to_string()))
+                .collect();
+            found.sort();
+            found.into_iter().map(|(_, code)| code).collect()
+        };
+        (verdicts(false), verdicts(true))
+    }
+
+    /// `src` draws exactly `expected` on both paths.
+    fn assert_verdicts(src: &str, expected: &[&str]) {
+        let (whole, per_item) = verdicts_on_both_paths(src);
+        assert_eq!(whole, expected, "whole file: {src}");
+        assert_eq!(per_item, expected, "per item: {src}");
+    }
+
+    /// `src` draws neither W240 nor W241 on either path: the header is left
+    /// undecided, and the text may still draw W242's hint that nothing in the
+    /// loop modifies its counter.
+    fn assert_undecided(src: &str) {
+        let (whole, per_item) = verdicts_on_both_paths(src);
+        for (path, found) in [("whole file", &whole), ("per item", &per_item)] {
+            assert!(
+                found.iter().all(|code| code == "W242"),
+                "{path}: {src}\n{found:?}"
+            );
+        }
+        assert_eq!(per_item, whole, "{src}");
+    }
+
+    /// A `switch` the flow graph keeps as one statement — `-glob`, `-regexp`,
+    /// `-nocase`, a fall-through arm, `case` — defines every name its arms
+    /// write, so a loop an arm can end is no infinite loop. tclsh 8.4 to 9.1
+    /// with input `q`: `set go 1; while {$go} { switch -glob -- [gets stdin]
+    /// { q* { set go 0 } } }; puts done` prints `done`.
+    #[test]
+    fn a_switch_arm_that_ends_the_loop_keeps_w241_silent() {
+        for src in [
+            "set go 1; while {$go} { switch -glob -- [gets stdin] { q* { set go 0 } } }; puts done\n",
+            "set go 1\nwhile {$go} {\n switch -nocase -- [gets stdin] {\n  q { set go 0 }\n }\n}\n",
+            "set go 1\nwhile {$go} {\n switch -regexp -- [gets stdin] {\n  {^q} { set go 0 }\n }\n}\n",
+            "set go 1\nwhile {$go} {\n switch -glob -- [gets stdin] {\n  x - q* { set go 0 }\n }\n}\n",
+            "set go 1\nwhile {$go} {\n switch -glob -- [gets stdin] {\n  a* {}\n  default { set go 0 }\n }\n}\n",
+            "set go 1\nwhile {$go} {\n case [gets stdin] in {\n  q* { set go 0 }\n }\n}\n",
+            "set go 1\nfor {} {$go} {} {\n switch -glob -- [gets stdin] { q* { set go 0 } }\n}\n",
+            "proc p {} {\n set go 1\n while {$go} {\n  switch -glob -- [gets stdin] { q* { set go 0 } }\n }\n}\n",
+            // A write buried in a command the arm runs, and each kind of write.
+            "set go 1\nwhile {$go} {\n switch -glob -- [gets stdin] { q* { if {[llength {a}]} { set go 0 } } }\n}\n",
+            "set n 3\nwhile {$n} {\n switch -glob -- [gets stdin] { q* { incr n -1 } }\n}\n",
+            "set l {}\nwhile {[llength $l] < 1} {\n switch -glob -- [gets stdin] { q* { lappend l x } }\n}\n",
+            "set go 1\nwhile {[info exists go]} {\n switch -glob -- [gets stdin] { q* { unset go } }\n}\n",
+            // A `global` binding an arm makes, then writes through.
+            "proc p {} {\n set go 1\n while {$go} {\n  switch -glob -- [gets stdin] { q* { global go; set go 0 } }\n }\n}\n",
+        ] {
+            assert_verdicts(src, &[]);
+        }
+    }
+
+    /// What a command an arm runs does to the frame ends the loop as a write
+    /// the arm makes itself would: a callee that writes the caller's name
+    /// through `upvar`, and a command that may write any name (`namespace
+    /// eval`, `dict with`). A callee that writes only a global leaves a local
+    /// loop alone.
+    #[test]
+    fn a_command_an_arm_runs_that_ends_the_loop_keeps_w241_silent() {
+        for src in [
+            "proc zero {v} {upvar 1 $v x; set x 0}\nproc p {} {\n set go 1\n while {$go} {\n  switch -glob -- [gets stdin] { q* { zero go } }\n }\n}\n",
+            "proc zero {v} {upvar 1 $v x; set x 0}\nset go 1\nwhile {$go} {\n switch -glob -- [gets stdin] { q* { zero go } }\n}\n",
+            "set go 1\nwhile {$go} {\n switch -glob -- [gets stdin] { q* { namespace eval :: {set go 0} } }\n}\n",
+            "proc p {} {\n set go 1\n while {$go} {\n  switch -glob -- [gets stdin] { q* { dict with d { set go 0 } } }\n }\n}\n",
+        ] {
+            assert_undecided(src);
+        }
+        assert_verdicts(
+            "proc hit {} {global hits; incr hits}\nproc p {} {\n set go 1\n while {$go} {\n  switch -glob -- [gets stdin] { q* { hit } }\n }\n}\n",
+            &["W241"],
+        );
+    }
+
+    /// The same statement leaves a loop no arm writes for alone: only a name
+    /// an arm writes stops being decided.
+    #[test]
+    fn a_switch_arm_that_writes_another_name_leaves_the_verdict() {
+        assert_verdicts(
+            "set go 1\nwhile {$go} {\n switch -glob -- [gets stdin] { q* { set other 0 } }\n}\n",
+            &["W241"],
+        );
+        assert_verdicts(
+            "proc p {} {\n set go 1\n while {$go} {\n  switch -glob -- [gets stdin] { q* { set other 0 } }\n }\n}\n",
+            &["W241"],
+        );
+    }
+
+    /// A loop nothing else sets is dead until an arm sets it: no W240 for
+    /// `set go 0; switch -glob -- [gets stdin] { q* { set go 1 } }; while
+    /// {$go} { … }`, which tclsh runs once for input `q`.
+    #[test]
+    fn a_switch_arm_that_starts_the_loop_keeps_w240_silent() {
+        for src in [
+            "set go 0\nswitch -glob -- [gets stdin] { q* { set go 1 } }\nwhile {$go} { puts x; set go 0 }\n",
+            "set go 0\nswitch -glob -- [gets stdin] { q* { set go 1 } }\nfor {} {$go} {} { puts x; set go 0 }\n",
+            "proc p {} {\n set go 0\n switch -glob -- [gets stdin] { q* { set go 1 } }\n while {$go} { puts x; set go 0 }\n}\n",
+        ] {
+            assert_verdicts(src, &[]);
+        }
+        assert_verdicts(
+            "set n 0\nswitch -glob -- [gets stdin] { q* { set other 1 } }\nwhile {$n} {puts x}\n",
+            &["W240"],
+        );
+    }
+
+    /// A callback script the module stores writes the loop's variable
+    /// without any statement of the loop saying so: `after`, `after idle`, a
+    /// variable trace, `fileevent`, `chan event`, `bind`, and a callback that
+    /// names a procedure writing the name through `::`.
+    #[test]
+    fn a_callback_that_writes_the_loop_variable_keeps_w241_silent() {
+        for src in [
+            "set done 0\nafter 100 { set done 1 }\nwhile {!$done} { update }\n",
+            "set go 1\nafter idle {set ::go 0}\nwhile {$go} {update}\n",
+            "set go 1\ntrace add variable x write { set ::go 0 ;# }\nwhile {$go} { set x 1 }\nputs done\n",
+            "set go 1\nfileevent stdin readable { set go 0 }\nwhile {$go} { update }\n",
+            "set go 1\nchan event stdin readable { set go 0 }\nwhile {$go} { update }\n",
+            "set go 1\nbind . <Key> { set go 0 }\nwhile {$go} { update }\n",
+            "proc tick {} { set ::done 1 }\nset done 0\nafter 100 tick\nwhile {!$done} { update }\n",
+            // A quoted script, and a command prefix built with `list`.
+            "set done 0\nafter 100 \"set done 1\"\nwhile {!$done} { update }\n",
+            "set done 0\nafter 100 [list set done 1]\nwhile {!$done} { update }\n",
+            "proc tick {n} { set ::done $n }\nset done 0\nafter 100 [list tick 1]\nwhile {!$done} { update }\n",
+        ] {
+            assert_undecided(src);
+        }
+    }
+
+    /// A plain top-level name is the global name, so a call to a command the
+    /// module cannot see may end the loop as it may one over `::go`; a
+    /// procedure's local is out of every callee's reach, and a procedure the
+    /// module defines writes no global.
+    #[test]
+    fn a_call_the_module_cannot_see_keeps_a_top_level_loop_silent() {
+        assert_undecided("set go 1\nwhile {$go} { foo }\n");
+        assert_undecided("set ::go 1\nwhile {$::go} { foo }\n");
+        // A sourced file runs in the frame of the call, a procedure's too.
+        assert_undecided("set go 1\nwhile {$go} { source other.tcl }\n");
+        assert_undecided("proc p {} {\n set go 1\n while {$go} { source other.tcl }\n}\n");
+        assert_verdicts(
+            "proc p {} {\n set go 1\n while {$go} { foo }\n}\n",
+            &["W241"],
+        );
+        assert_verdicts(
+            "proc foo {} { puts hi }\nset go 1\nwhile {$go} { foo }\n",
+            &["W241"],
+        );
     }
 }

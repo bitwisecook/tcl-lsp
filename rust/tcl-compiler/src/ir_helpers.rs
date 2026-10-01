@@ -972,8 +972,7 @@ pub(crate) struct VariableReadEffects {
 /// the same reason: a store observed only by an existence query looked unread,
 /// so `proc p {} {set x 1; if {[info exists x]} {puts yes}}` had `set x 1`
 /// removed and stopped printing `yes` (#2132), and one observed only by a
-/// nested `[unset x]` was removed until the unset raised (value-transfers
-/// slice 8).
+/// nested `[unset x]` was removed until the unset raised.
 #[must_use]
 pub(crate) fn variable_read_effects_from_commands<'a>(
     commands: impl IntoIterator<Item = &'a Vec<CommandWord>>,

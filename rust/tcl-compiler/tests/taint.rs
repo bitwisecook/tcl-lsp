@@ -2380,7 +2380,7 @@ mod setter_constraints {
 
     /// #2055: a path the lattice proves at the setter is checked as a
     /// literal is — `set p /a; HTTP::path $p` is clean — and a proven value
-    /// without the `/` still warns (VT5.16).
+    /// without the `/` still warns.
     #[test]
     fn irule3101_reads_the_proven_path() {
         assert!(of_code("set p /a\nHTTP::path $p", IR, "IRULE3101").is_empty());
@@ -2389,7 +2389,7 @@ mod setter_constraints {
         assert_eq!(ws[0].variable, "p");
     }
 
-    /// A computed operand reads as the constant the lattice proves (VT5.16):
+    /// A computed operand reads as the constant the lattice proves:
     /// `[HTTP::uri] starts_with $p` over `set p [string range /api/v1 0 3]`
     /// is IRULE3103, as the literal `/api` is, and the same test over a
     /// header value is not.

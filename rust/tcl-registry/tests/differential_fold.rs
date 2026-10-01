@@ -988,8 +988,8 @@ fn storage_oracle(
 }
 
 /// The regexp owner's witnesses, each measured identical on tclsh 8.4.20,
-/// 8.5.19, 8.6.18, 9.0.4 and 9.1b0 except where noted: the plan's five
-/// first.
+/// 8.5.19, 8.6.18, 9.0.4 and 9.1b0 except where noted; every release
+/// answers the first five.
 const REGEX_WITNESSES: &[RegexWitness] = &[
     (
         "regexp",
@@ -1061,7 +1061,7 @@ const REGEX_WITNESSES: &[RegexWitness] = &[
     ),
 ];
 
-/// The regexp owner's witnesses (VT5.4), per release found on `PATH`, each
+/// The regexp owner's witnesses, per release found on `PATH`, each
 /// under that release's profile against the real `tclsh`: a no-match leaves
 /// its match variables as they were, a match writes them — an unmatched
 /// subgroup the empty string, or `-1 -1` with `-indices` — `-inline`
@@ -1070,10 +1070,10 @@ const REGEX_WITNESSES: &[RegexWitness] = &[
 /// matched. When the route answers it must match; when `tclsh` raises the
 /// route must decline; a decline where `tclsh` answers is allowed (`-start
 /// 010` is 8 up to 8.6 and 10 from 9.0, the `-command` callback form), but
-/// the plan's five witnesses answer under every release.
+/// the first five witnesses answer under every release.
 #[test]
 fn regexp_witnesses_match_every_release_on_path() {
-    // The plan's witnesses, which every release answers.
+    // The first five witnesses, which every release answers.
     const REQUIRED: [usize; 5] = [0, 1, 2, 3, 4];
     let reg = CommandRegistry::build_default();
     let mut releases = 0usize;
@@ -1126,10 +1126,10 @@ fn regexp_witnesses_match_every_release_on_path() {
     }
 }
 
-/// The destructuring writers' witnesses: the plan's four first — `scan`'s
+/// The destructuring writers' witnesses: the first four are `scan`'s
 /// partial conversion, `lassign`'s repeated variable, `binary scan`'s two
-/// fields, `array set`'s two elements — then the forms each route reads
-/// and the ones it declines.
+/// fields and `array set`'s two elements, then come the forms each route
+/// reads and the ones it declines.
 const DESTRUCTURE_WITNESSES: &[StorageWitness] = &[
     (
         "scan",
@@ -1334,7 +1334,7 @@ const DESTRUCTURE_WITNESSES: &[StorageWitness] = &[
     ("array", Some("set"), &["arr", ""], &[], &[]),
 ];
 
-/// `scan`'s conversion count (the slice 5 review, B1): a `%n` and a
+/// `scan`'s conversion count: a `%n` and a
 /// suppressed success are conversions, as C's `nconversions` counts them,
 /// so an input that runs out after one is not the underflow. Measured
 /// alike on tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0: `scan {} %n%d
@@ -1365,7 +1365,7 @@ const SCAN_COUNT_WITNESSES: &[StorageWitness] = &[
     ("scan", None, &["", "%*d%d"], &[], &[]),
 ];
 
-/// The destructuring writers' witnesses (VT5.5), per release found on
+/// The destructuring writers' witnesses, per release found on
 /// `PATH`, each under that release's profile against the real `tclsh`
 /// (8.5 on for `lassign`, which 8.4 lacks): a converted field writes its
 /// variable and one the input did not reach keeps its value, a repeated
@@ -1373,7 +1373,7 @@ const SCAN_COUNT_WITNESSES: &[StorageWitness] = &[
 /// route answers it must match; when `tclsh` raises the route must
 /// decline; a decline where `tclsh` answers is allowed — a 32-bit overflow,
 /// a positional conversion, a float or `0x` spelling 8.4 reads another way,
-/// a field a release lacks — but the plan's four and the conversion count's
+/// a field a release lacks — but the first four and the conversion count's
 /// witnesses answer on every release that has the command.
 #[test]
 fn destructuring_witnesses_match_every_release_on_path() {
@@ -1542,8 +1542,8 @@ fn binary_format_oracle(tclsh: &str, witness: &[&str]) -> Option<String> {
     }
 }
 
-/// Program (2) of the interface page and the `binary format` witnesses
-/// (VT5.6), per release found on `PATH`, each under that release's profile
+/// Program (2) of the interface page and the `binary format` witnesses,
+/// per release found on `PATH`, each under that release's profile
 /// against the real `tclsh`: when the route answers it packs the bytes
 /// `tclsh` packs, a byte array by construction; when `tclsh` raises the
 /// route declines; a decline where `tclsh` answers is allowed only past the
@@ -1589,7 +1589,7 @@ fn binary_format_witnesses_match_every_release_on_path() {
     }
 }
 
-/// `dict with`'s key projection against the real `tclsh` (VT5.7), from 8.5,
+/// `dict with`'s key projection against the real `tclsh`, from 8.5,
 /// the release `dict` arrives in: the variables a body sees on entry, beyond
 /// the dictionary variable, are the plan's binders — every key of the
 /// dictionary, a repeated key once, or of the nested one a key path names —
@@ -1882,7 +1882,7 @@ fn template_rebuilt(
     Some(out)
 }
 
-/// `subst`'s template-word plan against the real `tclsh` (VT5.8), per
+/// `subst`'s template-word plan against the real `tclsh`, per
 /// release on `PATH` and under that release's profile, over the page's
 /// fourteen programs (`docs/design/compiler/value-transfers.md` § *The
 /// template-word plan*; the two procedure programs as the templates they
@@ -1976,9 +1976,9 @@ type SwitchWitness = (
     &'static [&'static str],
 );
 
-/// The selection witnesses (VT6.2), the plan's five first — ordered
-/// patterns, the final default, a `-` arm whose next pattern never matches
-/// supplying its body, regexp captures, a malformed regexp — each measured
+/// The selection witnesses — the first five are ordered patterns, the final
+/// default, a `-` arm whose next pattern never matches supplying its body,
+/// regexp captures and a malformed regexp — each measured
 /// on tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0: the captures and
 /// `-nocase` raise `bad option` on 8.4, and a subject spelled like an
 /// option is one there.
@@ -2200,10 +2200,10 @@ fn switch_oracle(tclsh: &str, witness: SwitchWitness) -> Option<Vec<String>> {
     }
 }
 
-/// `switch`'s selection (VT6.2), per release found on `PATH`, each under
+/// `switch`'s selection, per release found on `PATH`, each under
 /// that release's profile against the real `tclsh`: when the selection
 /// answers, the body it names runs and the variables it writes hold what
-/// it wrote; when `tclsh` raises, the selection declines; the plan's
+/// it wrote; when `tclsh` raises, the selection declines; the first five
 /// witnesses answer under every release that runs them, the captures from
 /// 8.5.
 #[test]
@@ -2286,7 +2286,7 @@ fn run_tcl_file(tclsh: &str, script: &str) -> Option<(bool, String)> {
 }
 
 /// A fall-through body spelled `-` reads two ways on 9.1b0 when it is
-/// quoted (D179): its byte-compiled `switch` — here inside a procedure —
+/// quoted: its byte-compiled `switch` — here inside a procedure —
 /// recognises only a bare `-` (`IsFallthroughToken` in `tclCompCmdsSZ.c`
 /// measures the word with its quotes) and runs a quoted one as a command,
 /// where its interpreted path — a script file's own top level — reads the
@@ -2376,7 +2376,7 @@ fn a_quoted_fallthrough_body_reads_two_ways_on_91() {
 /// clauses are one list word, and whether the final pattern has no body.
 type CaseWitness = (&'static str, bool, &'static [&'static str], bool, bool);
 
-/// The `case` witnesses (D180), each measured on tclsh 8.4.20, 8.5.19 and
+/// The `case` witnesses, each measured on tclsh 8.4.20, 8.5.19 and
 /// 8.6.18, which answer every one alike: glob patterns, the `in` word and
 /// the one-word form, a literal pattern, pattern lists and a backslash that
 /// makes a pattern one, `default` wherever it stands and matched literally,
@@ -2493,11 +2493,11 @@ fn case_oracle(tclsh: &str, witness: CaseWitness) -> Option<String> {
     }
 }
 
-/// `case`'s selection (D180) against the real `tclsh` of each release that
+/// `case`'s selection against the real `tclsh` of each release that
 /// has the command — 8.4, 8.5 and 8.6, each under its own profile, and the
 /// iRules profile on its 8.4 base (ruling 8): where tclsh answers, the
 /// selection names the body tclsh runs, or abstains on the two witnesses
-/// the plan's layout does not read; where tclsh raises, the selection
+/// the layout its plan does not read; where tclsh raises, the selection
 /// declines. From 9.0 there is no `case` to select with.
 #[test]
 fn case_witnesses_match_every_release_on_path() {

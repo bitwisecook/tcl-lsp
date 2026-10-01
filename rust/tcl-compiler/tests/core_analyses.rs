@@ -1030,8 +1030,8 @@ mod provably_absent_folds_false {
 
     #[test]
     fn lazy_init_reuse_branch_is_dead_for_local() {
-        // The existence rung decides the query where it runs (value-transfers
-        // slice 8): H is unbound at the check — the `else` arm's `set H 1`
+        // The existence rung decides the query where it runs: H is unbound
+        // at the check — the `else` arm's `set H 1`
         // runs after it — so the guard folds always false and the reuse arm
         // is dead. tclsh 8.4.20 to 9.1b0: `info exists H` of an unset local
         // → 0.
@@ -1071,8 +1071,8 @@ mod provably_present_folds_true {
 
     #[test]
     fn set_before_check_folds_true() {
-        // The existence rung carries the `set` to the check (value-transfers
-        // slice 8): X is bound there, so the guard folds always true.
+        // The existence rung carries the `set` to the check: X is bound
+        // there, so the guard folds always true.
         // tclsh 8.4.20 to 9.1b0: `set X 1; info exists X` → 1.
         let src = "proc p {} { set X 1; if {[info exists X]} { puts ok } else { puts dead } }";
         assert!(
@@ -1201,8 +1201,8 @@ mod array_exists_parameter_is_false {
     #[test]
     fn unset_parameter_follows_the_rung() {
         // `unset a` removes the scalar binding, after which `array set a`
-        // legitimately makes `a` an array: the existence rung follows both
-        // (value-transfers slice 8), so the parameter's entry "scalar" never
+        // legitimately makes `a` an array: the existence rung follows both,
+        // so the parameter's entry "scalar" never
         // decides here. tclsh 8.4.20 to 9.1b0 print 1 for the first body and
         // 0 for the second.
         for (src, value) in [
@@ -1398,7 +1398,7 @@ mod flow_sensitive_narrowing {
 
     #[test]
     fn and_pure_right_keeps_both_facts() {
-        // The existence guard refines through `&&` (value-transfers slice 8):
+        // The existence guard refines through `&&`:
         // with X and Y set on one path, `[info exists X] && [info exists Y]`
         // binds both on its true edge, so neither read is flagged — tclsh
         // reads both only when both exist. With neither ever set the guard
@@ -1422,8 +1422,8 @@ mod flow_sensitive_narrowing {
     fn and_impure_right_drops_left_fact() {
         // An impure right operand could mutate X before the branch, so the left
         // `info exists X` fact must not narrow the body → X stays flagged. X
-        // is set on one path, so the guard decides nothing (value-transfers
-        // slice 8: a never-set X makes the arm dead, where no read reports).
+        // is set on one path, so the guard decides nothing (a never-set X
+        // makes the arm dead, where no read reports).
         assert!(
             flagged(
                 "if {[string length $cmd]} { set X 1 }\n\

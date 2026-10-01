@@ -1070,6 +1070,7 @@ impl Analyser {
         // rule when it replays the call sites it deferred.
         // `rebase_fragment_pending` has already shifted them.
         self.ensemble_record_offsets.extend(frag.ensemble_offsets);
+        self.loop_candidates.extend(frag.loop_candidates);
         // Replay the body's qualified global reads against the shell's real
         // global scope (rebased to the body's position): a `$::g` read lands as
         // a reference on the enclosing `::g` exactly as a whole-file walk would.
@@ -1320,6 +1321,11 @@ pub struct BodyFragment {
     /// the whole-file DFS's "declaration precedes the call site" visibility
     /// rule to an ensemble created inside a proc body.
     ensemble_offsets: std::collections::HashMap<String, u32>,
+    /// The conditional loops the body's walk examined
+    /// ([`super::state::Analyser::loop_candidates`]), body-relative until the
+    /// graft rebases them, so the shell's CFG/SSA pass resolves a loop inside
+    /// a proc body against its unit's branch fact as the whole-file walk does.
+    loop_candidates: Vec<super::bounds_checks::LoopTerminationCandidate>,
     /// Every offset-keyed synthetic identity the isolated pass minted
     /// (`@dynns@<off>` / `@dynclass@<off>` / `@autoname@<off>`), with
     /// **body-relative** offsets — the whole fragment is body-relative, so
@@ -1520,6 +1526,7 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
         widget_sites: a.widget_dispatch_sites,
         var_literal_checks: a.pending_var_literal_checks,
         ensemble_offsets: a.ensemble_record_offsets,
+        loop_candidates: a.loop_candidates,
         minted_synthetics: a.minted_synthetic_names,
     }
 }
@@ -2082,6 +2089,9 @@ fn rebase_fragment_pending(frag: &mut BodyFragment, d: u32) {
     }
     for off in frag.ensemble_offsets.values_mut() {
         *off += d;
+    }
+    for candidate in &mut frag.loop_candidates {
+        candidate.condition_span = shift(candidate.condition_span, d);
     }
     for off in frag.walk_alias_offsets.values_mut() {
         *off += d;

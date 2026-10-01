@@ -1684,7 +1684,7 @@ pub fn serialise_dominators(result: &ExplorerResult) -> Value {
     )
 }
 
-/// One selection record of the SCCP view (VT6.3): the statement's range,
+/// One selection record of the SCCP view: the statement's range,
 /// each kept arm's pattern range, and per member the arm selected and the
 /// arm whose body runs — the final `default` pair by that name, since the
 /// statement keeps it as its default body — with the count of its writes.
@@ -1769,6 +1769,7 @@ pub fn serialise_sccp(result: &ExplorerResult, li: &LineIndex, source: &str) -> 
                     .iter()
                     .map(|branch| json!({
                         "block": branch.block,
+                        "kind": branch.kind.label(),
                         "condition": preview(&branch.condition, 80),
                         "value": branch.value,
                         "takenTarget": branch.taken_target,
@@ -2120,6 +2121,7 @@ fn post_ssa_analysis(
         .map(|b| {
             json!({
                 "block": b.block,
+                "kind": b.kind.label(),
                 "condition": preview(&b.condition, 60),
                 "value": b.value,
                 "takenTarget": b.taken_target,
@@ -3107,12 +3109,20 @@ fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) 
         for branch in &snap.unit.sccp.constant_branches {
             if let Some(span) = branch.span {
                 let dir = if branch.value { "true" } else { "false" };
-                anns.push(Ann {
-                    span,
-                    label: format!(
+                let label = if branch.kind == tcl_compiler::sccp::BranchFactKind::Selected {
+                    format!(
+                        "{}: arm '{}' is never selected",
+                        snap.name, branch.condition
+                    )
+                } else {
+                    format!(
                         "{}: branch is always {dir}; takes {}",
                         snap.name, branch.taken_target
-                    ),
+                    )
+                };
+                anns.push(Ann {
+                    span,
+                    label,
                     kind: "constantBranch",
                     severity: "info",
                     priority: 0,
@@ -4341,8 +4351,8 @@ mod tests {
         assert_eq!(tally["implementation"], 0);
     }
 
-    /// The SCCP view carries each opaque case-list statement's selection
-    /// (VT6.3): program (4)'s `-glob` form selects its final `default`,
+    /// The SCCP view carries each opaque case-list statement's selection:
+    /// program (4)'s `-glob` form selects its final `default`,
     /// which the view names as such, against the one pattern span the
     /// statement keeps — `baz`'s.
     #[test]
@@ -4369,6 +4379,33 @@ mod tests {
         assert_eq!(patterns.len(), 1);
         assert_eq!(patterns[0]["startLine"], 3);
         assert_eq!(patterns[0]["startCol"], 8);
+    }
+
+    /// The SCCP view states each branch fact's kind, and an arm of an opaque
+    /// `switch` no member runs the body of is a `selected` fact: no target,
+    /// `false`, its pattern as the condition and its own range.
+    #[test]
+    fn sccp_reports_the_unreached_arms() {
+        let source = "proc p {} {\n    set acc \"\"; append acc foo; append acc bar\n    \
+                      switch -glob -- $acc {\n        baz     { puts never }\n        \
+                      default { puts always }\n    }\n}\n";
+        let result = run_pipeline(source, "tcl8.6");
+        let sccp = serialise_result(&result)["sccp"].clone();
+        let proc_view = sccp
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|f| f["name"] == "::p")
+            .expect("the procedure's view");
+        let branches = proc_view["constantBranches"].as_array().expect("branches");
+        assert_eq!(branches.len(), 1, "{proc_view:#}");
+        let arm = &branches[0];
+        assert_eq!(arm["kind"], "selected");
+        assert_eq!(arm["condition"], "baz");
+        assert_eq!(arm["value"], false);
+        assert_eq!(arm["takenTarget"], "");
+        assert_eq!(arm["range"]["startLine"], 3);
+        assert_eq!(arm["range"]["startCol"], 8);
     }
 
     /// Each value the SCCP view lists carries the folded type the

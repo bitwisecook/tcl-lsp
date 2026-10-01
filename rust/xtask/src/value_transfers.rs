@@ -39,8 +39,8 @@
 //!    lint is a warning mechanism: a renamed binding or a helper table can
 //!    evade it, so the registry's contract tests and ownership review are
 //!    the gate's other half. Every scanned file is held to one of two
-//!    rules. A *clean* file — each file slice 1 of the migration touched,
-//!    and each file a later slice adds — has every site waived or gone.
+//!    rules. A *clean* file — each file the migration's first delivery
+//!    touched, and each file added since — has every site waived or gone.
 //!    Every other file is *ratcheted*: its count of unwaived sites is
 //!    pinned here, `--check` fails when the count rises, and the pin is
 //!    lowered beside the review that removes or waives the file's sites,

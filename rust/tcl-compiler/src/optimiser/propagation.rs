@@ -147,6 +147,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             registry,
             traced_variables: &cu.ir_module.traced_variables,
             has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+            deferred_writes: &cu.ir_module.deferred_writes,
             analysis_context: None,
             existence: None,
         };
@@ -237,7 +238,9 @@ fn statement_may_have_untracked_effects(
 ///   [`crate::var_observability::scan_module_global_names`] result, or an
 ///   empty set for an ordinary procedure — plus `trace.traced_variables`,
 ///   the registry-driven whole-module [`crate::ir::Module::traced_variables`]
-///   fact) via [`crate::sccp::is_externally_mutable`] — the same guard SCCP
+///   fact, and the names a callback script writes,
+///   [`crate::ir::Module::deferred_writes`]) via
+///   [`crate::sccp::is_externally_mutable`] — the same guard SCCP
 ///   applies to its own lattice, so O102 (independent of the SCCP lattice)
 ///   stays consistent with it.
 /// - [`has_intervening_barrier`] — a `Statement::Barrier`/`UpFrame`
@@ -271,14 +274,21 @@ fn run_load_forwarding(
     let mut escaping = crate::var_observability::analyse_var_observability(&fu.cfg, trace.registry)
         .escaping_var_names();
     escaping.extend(extra_escaping.iter().cloned());
-    escaping.extend(trace.traced_variables.iter().cloned());
+    trace.extend_module_escaping(&mut escaping);
 
     for chain in fu.def_use.chains.values() {
         if chain.definition.kind != DefKind::Statement {
             continue;
         }
         let var_name = chain.key.0.as_str();
-        if crate::sccp::is_externally_mutable(var_name, &escaping, trace.has_dynamic_variable_trace)
+        if crate::sccp::is_externally_mutable(var_name, &escaping, trace.writes_any_variable()) {
+            continue;
+        }
+        // A call to a command the module cannot see may rewrite the name
+        // between this definition and the use.
+        if fu
+            .ssa
+            .name_is_observed_by_unseen_call(var_name, chain.key.1)
         {
             continue;
         }
@@ -1103,6 +1113,7 @@ fn oo_method_constants(
             registry,
             traced_variables: &cu.ir_module.traced_variables,
             has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+            deferred_writes: &cu.ir_module.deferred_writes,
             analysis_context: None,
             existence: None,
         },
@@ -1416,6 +1427,7 @@ fn constants_with_builtin_folds(
             registry,
             traced_variables: &cu.ir_module.traced_variables,
             has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+            deferred_writes: &cu.ir_module.deferred_writes,
             analysis_context: None,
             existence: None,
         },
@@ -1626,9 +1638,13 @@ fn evaluate_proc_with_constants(
         .registry
         .unwrap_or_else(|| tcl_registry::default_registry());
     let empty_traced = std::collections::BTreeSet::new();
-    let (traced_variables, has_dynamic_variable_trace) = match ctx.ir_module {
-        Some(m) => (&m.traced_variables, m.has_dynamic_variable_trace),
-        None => (&empty_traced, false),
+    let (traced_variables, has_dynamic_variable_trace, deferred_writes) = match ctx.ir_module {
+        Some(m) => (
+            &m.traced_variables,
+            m.has_dynamic_variable_trace,
+            &m.deferred_writes,
+        ),
+        None => (&empty_traced, false, &crate::ir::NO_DEFERRED_WRITES),
     };
     let result = crate::sccp::sccp_with_builtin_folds(
         &callee.cfg,
@@ -1640,6 +1656,7 @@ fn evaluate_proc_with_constants(
             registry,
             traced_variables,
             has_dynamic_variable_trace,
+            deferred_writes,
             analysis_context: None,
             existence: None,
         },
@@ -4933,5 +4950,85 @@ mod tests {
             "expected O100 via run_passes, got {:?}",
             ctx.optimisations,
         );
+    }
+
+    /// A literal a write the statements do not show may have replaced is
+    /// never forwarded: an arm of a `switch` the flow graph keeps as one
+    /// statement, a callback script, or a command the module cannot see.
+    #[test]
+    fn o100_and_o102_never_forward_a_literal_a_hidden_write_may_have_replaced() {
+        for (src, stale) in [
+            (
+                "set go 1\nset s q1\nswitch -glob -- $s { q* { set go 0 } }\nputs $go",
+                "1",
+            ),
+            (
+                "set go 1\nswitch -nocase -- [gets stdin] { q { set go 0 } }\nputs $go",
+                "1",
+            ),
+            (
+                "proc p {s} {\n set go 1\n switch -glob -- $s { q* { set go 0 } }\n puts $go\n}",
+                "1",
+            ),
+            (
+                "set go 1\ntrace add variable x write { set ::go 0 ;# }\nset x 1\nputs $go",
+                "1",
+            ),
+            (
+                "set done 0\nafter 10 { set done 1 }\nafter 50\nupdate\nputs $done",
+                "0",
+            ),
+            (
+                "proc tick {} { set ::done 1 }\nset done 0\nafter 10 tick\nafter 50\nupdate\nputs $done",
+                "0",
+            ),
+            ("set g 5\nfoo\nputs $g", "5"),
+            ("set ::g 5\nfoo\nputs $::g", "5"),
+            ("set g 5\nsource other.tcl\nputs $g", "5"),
+            ("proc p {} {\n set g 5\n source other.tcl\n puts $g\n}", "5"),
+            (
+                "proc zero {v} {upvar 1 $v x; set x 0}\nproc p {s} {\n set line 5\n switch -glob -- $s { g* { zero line } }\n puts $line\n}",
+                "5",
+            ),
+            (
+                "set go 1\nswitch -glob -- [gets stdin] { q* { namespace eval :: {set go 0} } }\nputs $go",
+                "1",
+            ),
+        ] {
+            let opts = run_pass(src);
+            assert!(
+                opts.iter()
+                    .all(|o| !(matches!(o.code, DiagCode::O100 | DiagCode::O102)
+                        && o.replacement == stale)),
+                "{src}: {opts:?}"
+            );
+        }
+    }
+
+    /// The controls: a procedure's local, a name the hidden writes never
+    /// name, and a name assigned after the call the module cannot see still
+    /// forward.
+    #[test]
+    fn o100_and_o102_still_forward_a_literal_no_hidden_write_can_replace() {
+        for (src, literal) in [
+            ("proc p {} {\n set g 5\n foo\n puts $g\n}", "5"),
+            (
+                "set go 1\nswitch -glob -- [gets stdin] { q* { set other 0 } }\nputs $go",
+                "1",
+            ),
+            ("foo\nset g 5\nputs $g", "5"),
+            (
+                "proc hit {} {global hits; incr hits}\nproc p {s} {\n set n 5\n switch -glob -- $s { g* { hit } }\n puts $n\n}",
+                "5",
+            ),
+        ] {
+            let opts = run_pass(src);
+            assert!(
+                opts.iter()
+                    .any(|o| matches!(o.code, DiagCode::O100 | DiagCode::O102)
+                        && o.replacement == literal),
+                "{src}: {opts:?}"
+            );
+        }
     }
 }

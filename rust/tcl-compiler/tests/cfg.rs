@@ -166,8 +166,10 @@ fn switch_creates_dispatch_branches() {
     // A non-fallthrough EXACT switch is expanded (not opaque) into a dispatch
     // chain — one Branch per arm — so ≥2 blocks end in a Branch. STRUCTURAL (the
     // exact/expanded vs. glob/regexp/fallthrough/opaque split is a CFG-builder
-    // decision).
-    let module = cfg("switch $x {a {set y 1} b {set y 2}}");
+    // decision). `--` ends the options, so no release reads the subject as one;
+    // see `switch_subject_a_release_may_read_as_an_option_stays_opaque` for the
+    // bare form.
+    let module = cfg("switch -- $x {a {set y 1} b {set y 2}}");
     let func = top(&module);
     let branch_count = terminators(func)
         .iter()
@@ -176,6 +178,31 @@ fn switch_creates_dispatch_branches() {
     assert!(
         branch_count >= 2,
         "expected ≥2 dispatch branches, got {branch_count}"
+    );
+}
+
+#[test]
+fn switch_subject_a_release_may_read_as_an_option_stays_opaque() {
+    // `build_cfg` names no dialect, so it builds under the lenient `tcl` profile,
+    // which declares no release. Before 8.5 `switch` reads every leading word
+    // that starts with `-` as an option, so a variable subject with no `--`
+    // before it may be one: the statement is kept whole for the runtime command,
+    // where a dispatch chain would select the arm the subject spells.
+    // STRUCTURAL.
+    let module = cfg("switch $x {a {set y 1} b {set y 2}}");
+    let func = top(&module);
+    let switch_count = func
+        .blocks
+        .values()
+        .flat_map(|b| b.statements.iter())
+        .filter(|s| matches!(s, Statement::Switch { .. }))
+        .count();
+    assert_eq!(switch_count, 1, "the statement stays one opaque switch");
+    assert!(
+        !terminators(func)
+            .iter()
+            .any(|t| matches!(t, Terminator::Branch { .. })),
+        "no dispatch branch"
     );
 }
 

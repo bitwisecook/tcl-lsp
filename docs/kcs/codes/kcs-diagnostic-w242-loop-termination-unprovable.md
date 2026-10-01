@@ -29,6 +29,11 @@ visibly assigned by the step or body.
 It is reported at hint severity. Turn it on when you want every loop
 whose termination is not obvious from the surrounding source flagged.
 
+A loop whose condition the analyser can decide is reported as W240 (the
+condition is false when the loop is reached) or W241 (it is true at every
+test and nothing leaves the loop) instead, so W242 is for the conditions it
+cannot decide — a parameter, a value read from elsewhere.
+
 ## Example that triggers it
 
 ```tcl

@@ -1263,8 +1263,7 @@ impl Analyser {
         // A direct one-target write of a value word (`set name value`) binds
         // its name to that word — the constant-string environment, a
         // created interpreter's key and the search-path record — from the
-        // registry's `CellWrite` declaration, not the command's spelling
-        // (value-transfers VT8.9 retired the `Set` analyser hook).
+        // registry's `CellWrite` declaration, not the command's spelling.
         self.bind_value_word_assignment(cmd_name, args, arg_tokens, arg_single, scope_path);
         // Registry symbol-definer commands (`tcltest::test NAME …`) contribute a
         // lightweight named definition to the outline.  Void handler — it only
@@ -1790,8 +1789,10 @@ impl Analyser {
             site.scope_path,
         );
     }
-    /// The bounds family for one dispatch site: W240 / W241 loop termination,
-    /// W230 / W232 index bounds, W231 `lset` bounds, and W232 string indices.
+    /// The bounds family for one dispatch site: the loop-termination
+    /// candidate (W240 / W241 / W242, resolved once the CFG/SSA pass has the
+    /// solver's branch facts), W230 / W232 index bounds, W231 `lset` bounds,
+    /// and W232 string indices.
     ///
     /// Grouped so the shared per-command dispatch stays readable; each check
     /// is independent and every one of them takes the registry rather than
@@ -1806,14 +1807,16 @@ impl Analyser {
         let registry = self.registry.as_deref();
         let grammar = self.grammar();
         let surface = registry.map(|registry| self.command_surface(registry));
-        let loop_diags = super::bounds_checks::loop_termination_diagnostics(
+        if let Some(candidate) = super::bounds_checks::loop_termination_candidate(
             cmd_name,
             args,
             arg_tokens,
             surface.as_ref(),
             self.lexer_config(),
             &grammar,
-        );
+        ) {
+            self.loop_candidates.push(candidate);
+        }
         let numbers = grammar.numbers;
         let idx_diags = super::bounds_checks::list_index_diagnostics(
             cmd_name,
@@ -1833,7 +1836,6 @@ impl Analyser {
         );
         let str_diags =
             super::bounds_checks::string_index_diagnostics(cmd_name, args, arg_tokens, numbers);
-        self.result.diagnostics.extend(loop_diags);
         self.result.diagnostics.extend(idx_diags);
         self.result.diagnostics.extend(lset_diags);
         self.result.diagnostics.extend(str_diags);
@@ -4706,8 +4708,8 @@ impl Analyser {
     /// layout whose class source is a construction value
     /// ([`tcl_registry::handle_binding::HandleClassSource::ConstructionValue`],
     /// `set NAME [TYPE …]`), resolved over the call's words, so a rooted
-    /// `::set` binds as the bare spelling does and no command is named here
-    /// (value-transfers VT8.9). `None` for any other call.
+    /// `::set` binds as the bare spelling does and no command is named here.
+    /// `None` for any other call.
     fn construction_value_binding<'a>(
         &self,
         cmd_name: &str,
