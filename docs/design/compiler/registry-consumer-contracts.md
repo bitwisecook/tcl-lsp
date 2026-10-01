@@ -181,6 +181,17 @@ slices proceed without deciding anything here.
 > declared `pure` writes a global; it prints one row per divergence and exits 1
 > on any. It is a CLI verb, and nothing the editor runs executes a package.
 >
+> A reference body the sandbox can express is also the command's declared
+> implementation. `reference_body::derive`
+> (`rust/tcl-registry/src/value_transfer/reference_body.rs`) reads the `proc`
+> against the hook host's command whitelist and admits only a body that is a
+> function of its parameters; the loader
+> (`rust/tcl-spectcl/src/loader/reference.rs`) gives the command the declaration
+> and the hook body that run it, and the analyser's answer to a call whose
+> arguments it knows is the body's, under the target release. `infer_from_body`
+> (`rust/tcl-spec-studio/src/infer.rs`) reads a body's purity, effects, return
+> type and callbacks for an import's drafts.
+>
 > The rest of the vocabulary is not built, and names nothing in the
 > workspace: the `ShippedImplementation` claim and `IdentityKind`.
 >
@@ -1965,11 +1976,23 @@ Rules 1 to 4 are built.
   site.
 - **Rung 3** has the most leverage. As an evaluator, a reference body is
   the declared-implementation route of the evaluation contract: it runs in
-  the bounded engine under the target release, which needs the release
-  setter the `Engine` trait in `rust/tcl-engine-api/src/lib.rs` lacks, with
-  per-evaluation state isolation, and only value-position bodies the
-  sandbox can express qualify; this route is not built. As code, a reference
-  body is built. `procedure_binding_matches` in `rust/tcl-vm/src/interp.rs`
+  the bounded engine under the target release, with per-evaluation state
+  isolation, and only value-position bodies the sandbox can express
+  qualify. The registry decides which: its scan admits one `proc` with
+  required parameters whose body is a script of commands the hook host's
+  whitelist names, followed through every nested script and expression, and
+  declines whatever it cannot read to the end — a command off the list, a name
+  or script argument the body computes, a callback, a namespace-qualified
+  variable, an expression function off its list, a `return` that is not the
+  last statement (`rust/tcl-registry/src/value_transfer/reference_body.rs`).
+  The loader gives an admitted body's command the declaration and the hook
+  body that runs it (`rust/tcl-spectcl/src/loader/reference.rs`), after the
+  capability gate and the read of the package's files, so it derives from the
+  bodies in force; a command whose author stated its evaluation keeps it, and
+  a command with subcommands or forms, with arity windows, or whose arity is
+  not exactly the body's parameters has none, which one information notice on
+  its row says, as it says why a body was refused. As code, a reference body
+  is built. `procedure_binding_matches` in `rust/tcl-vm/src/interp.rs`
   compares creation name, parameters, and body text against the live proc, and
   the definition the compiler inlines comes from the spec's backing: from
   `BodySource::PackageSource`, a pointer into the package's own installed
@@ -1986,9 +2009,11 @@ Rules 1 to 4 are built.
   admits a model of a C command. Only a pack's commands are inlined: a
   `TclBody` command the shipped registry declares has no pack facts for a claim
   to carry. As a derivation source, analysing the body yields purity, effects,
-  return type, callback slots, and the transfer — the facts
-  `ai/claude/skills/spec-author/SKILL.md` still leaves to the author; that
-  derivation is not built.
+  return type, callback slots, and the transfer: the transfer is the declared
+  implementation above, and the rest are `infer_from_body`'s proposals for an
+  import's drafts (`rust/tcl-spec-studio/src/infer.rs`), each with its line of
+  evidence. What `ai/claude/skills/spec-author/SKILL.md` still leaves to the
+  author is taint, version history, and a proposal the body cannot settle.
 - **Rung 4** is `RuntimeBacking` per command, and codegen picks the
   `IdentityKind` from it. The iRules test harness is an existing
   miniature: `rust/xtask/src/gen_irule_test_data.rs` generates Tcl mocks

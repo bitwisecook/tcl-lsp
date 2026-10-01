@@ -1420,7 +1420,8 @@ fn semantic_type_word(semantic: SemanticType) -> String {
 /// option row.
 /// Those two shapes stay `lost`, exactly as a shipped, compiled-in
 /// specialisation — nameable by [`tcl_registry::value_transfer::CommandSemantics::identity`],
-/// never reconstructable — already was.
+/// never reconstructable — already was. An implementation derived from the
+/// command's reference body is neither: the body is on the `runtime_backing` row.
 fn semantics_value(declaration: SemanticsDeclaration, lost: &mut Unrecovered) -> Value {
     let declared = match declaration {
         SemanticsDeclaration::Inherited => return Value::Null,
@@ -1437,6 +1438,15 @@ fn semantics_value(declaration: SemanticsDeclaration, lost: &mut Unrecovered) ->
         DeclaredEvaluation::Implementation(_)
             | DeclaredEvaluation::Route(EvalRoute::Implementation(_))
     );
+    // An implementation the registry derived from the command's reference body
+    // is not the draft's to carry: the `runtime_backing` row holds the body it
+    // came from, and the next load derives it again.
+    if has_body
+        && declared.option_declines.is_empty()
+        && tcl_registry::value_transfer::reference_body::is_derived(declared)
+    {
+        return Value::Null;
+    }
     if has_body || !declared.option_declines.is_empty() {
         lost.note("semantics");
         return Value::Null;
@@ -2480,6 +2490,43 @@ mod tests {
         });
         assert_eq!(draft["semantics"], Value::Null);
         assert_eq!(draft[UNRENDERABLE_KEY], json!(["semantics"]));
+    }
+
+    /// An implementation the registry derived from a command's reference body is
+    /// not a field the draft loses: the body is on the `runtime_backing` row,
+    /// which the draft carries, and the next load derives it again. The test
+    /// above is the control: one a pack wrote stays lost.
+    #[test]
+    fn a_derived_implementation_is_not_lost_in_a_draft() {
+        use tcl_registry::value_transfer::SemanticsDeclaration;
+
+        let source = "speclib vendor 2.0 {\n    command vendor::double {\n        arity 1\n        \
+                      runtime_backing tcl-body {-pack-text {proc vendor::double {x} {expr {$x * 2}}}}\n    }\n}\n";
+        let set = tcl_spectcl::pack::load_in_memory(vec![(
+            tcl_spectcl::PackFile {
+                tier: tcl_spectcl::Tier::Workspace,
+                path: std::path::PathBuf::from("vendor.tclspec"),
+                origin: tcl_spectcl::discovery::Origin::Setting,
+                dependency_tier: None,
+            },
+            source.to_owned(),
+        )]);
+        let spec = set.packs[0].commands[0].spec;
+        assert!(
+            matches!(spec.semantics, SemanticsDeclaration::Declared(_)),
+            "the load derives an implementation: {:?}",
+            spec.semantics
+        );
+        let draft = from_command_spec(spec);
+        assert_eq!(draft["semantics"], Value::Null);
+        assert_eq!(draft[UNRENDERABLE_KEY], json!([]), "{draft:?}");
+        assert!(
+            draft["runtime_backing"]
+                .to_string()
+                .contains("proc vendor::double"),
+            "the body is on the row the draft carries: {}",
+            draft["runtime_backing"]
+        );
     }
 
     #[test]

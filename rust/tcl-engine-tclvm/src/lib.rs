@@ -131,6 +131,14 @@ fn define_host_command(
     host_commands.borrow_mut().push(name.to_owned());
 }
 
+/// Whether `name` is the direct form of a subcommand of an ensemble `allowed`
+/// names: `tcl::ENSEMBLE::SUBCOMMAND`, in the VM's canonical unrooted spelling.
+fn is_subcommand_of_allowed(name: &str, allowed: &[&str]) -> bool {
+    name.strip_prefix("tcl::")
+        .and_then(|rest| rest.split_once("::"))
+        .is_some_and(|(ensemble, _)| allowed.contains(&ensemble))
+}
+
 fn remove_host_command(vm: &mut Vm, host_commands: &HostCommandNames, name: &str) -> bool {
     host_commands.borrow_mut().retain(|command| command != name);
     vm.remove_command(name)
@@ -357,7 +365,9 @@ impl Engine for TclVmEngine {
     /// pinned to 8.4, whose functions are builtins, and decline under every
     /// later one. `rand` and `srand` go: their seed is interpreter state
     /// one invocation would leave for the next (a confined VM refuses them
-    /// under 8.4 as well).
+    /// under 8.4 as well). An allowed ensemble keeps its subcommands: the
+    /// compiler lowers `string trim` to a call of `::tcl::string::trim`, so
+    /// naming `string` names them too.
     fn restrict_commands(&mut self, allowed: &[&str]) -> Result<(), EngineError> {
         let host_commands = self.host_commands.borrow().clone();
         let unit_commands = self.unit_commands.clone();
@@ -370,6 +380,7 @@ impl Engine for TclVmEngine {
                     && name
                         .strip_prefix("tcl::mathfunc::")
                         .is_some_and(|function| !matches!(function, "rand" | "srand")))
+                || is_subcommand_of_allowed(name, allowed)
         });
         Ok(())
     }
@@ -708,6 +719,47 @@ mod tests {
                 if message.contains("invalid command name")),
             "{error:?}"
         );
+    }
+
+    /// The compiler lowers `string trim` — and every other subcommand of an
+    /// ensemble the VM knows — to a direct call of `::tcl::string::trim`, so a
+    /// whitelist that names `string` has to keep those, or the same body runs when
+    /// the call is the argument of a host command and fails when it is anywhere
+    /// else. An ensemble the whitelist does not name keeps none of its own.
+    #[test]
+    fn a_whitelisted_ensembles_subcommands_run_wherever_they_are_called() {
+        let arguments = [Value::list([]), Value::dict_of::<&str>([])];
+        let mut engine = TclVmEngine::new();
+        engine
+            .restrict_commands(&["set", "return", "string", "dict"])
+            .expect("restricts");
+        for (body, expected) in [
+            ("set r [string cat a - b]\nreturn $r", "a-b"),
+            ("return [string toupper [string trim { x }]]", "X"),
+            ("set d [dict create k v]\nreturn [dict get $d k]", "v"),
+            ("return [string map {a b} [string cat a c]]", "bc"),
+        ] {
+            let handle = engine.compile(unit(body)).expect("compiles");
+            let answer = engine.invoke(&handle, &arguments);
+            assert_eq!(
+                answer.as_ref().map(|value| value.as_str()),
+                Ok(Some(expected)),
+                "{body}"
+            );
+        }
+
+        // Naming `dict` does not name `string`'s subcommands, spelt out or not.
+        let mut dicts_only = TclVmEngine::new();
+        dicts_only
+            .restrict_commands(&["set", "return", "dict"])
+            .expect("restricts");
+        for body in [
+            "return [::tcl::string::trim { x }]",
+            "return [string trim { x }]",
+        ] {
+            let handle = dicts_only.compile(unit(body)).expect("compiles");
+            assert!(dicts_only.invoke(&handle, &arguments).is_err(), "{body}");
+        }
     }
 
     #[test]

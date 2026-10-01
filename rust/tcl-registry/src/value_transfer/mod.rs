@@ -54,6 +54,7 @@ pub mod keyed_update;
 pub mod lift;
 pub mod literal;
 mod publication;
+pub mod reference_body;
 pub mod regex;
 pub mod route;
 pub mod selection;

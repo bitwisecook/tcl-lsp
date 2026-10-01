@@ -1002,6 +1002,19 @@ the site back to ordinary dispatch ([../compiler/registry-consumer-contracts.md]
 library upgrade makes diverge silently, is reported at load as an information
 notice on the command's row. A command backed any other way is never inlined.
 
+When the body is also one the bounded host can run — one `proc` with required
+parameters, every command on the hook host's whitelist, nothing reaching for the
+frame, a channel, a process or the world, `return` only as the last statement —
+the load derives the command's declared implementation from it, as an `evaluate
+-implementation` written beside the body would, and the analyser evaluates a call
+whose arguments it knows by running the body
+([../compiler/value-evaluation.md](../compiler/value-evaluation.md) § *The
+declared-implementation route*). That needs the command's `arity` to be exactly
+the body's parameters. A command whose author wrote its `semantics` or `evaluate`
+is left as written; one with subcommands or forms, one with arity windows and one
+with another arity are left without, and so is a body the scan refuses, each with
+an information notice on the command's row that says why.
+
 How far the package that ships a pack sits from the workspace root narrows
 what the pack may declare, beside the gate above: a declaration must pass
 both. The workspace's own package may declare everything, a direct

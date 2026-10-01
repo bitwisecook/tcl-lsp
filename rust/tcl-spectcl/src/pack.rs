@@ -531,6 +531,7 @@ pub(crate) fn load_sources(
             provisioned.update(&digest.to_le_bytes());
             read_any = true;
         }
+        crate::loader::derive_implementations(&mut merged.commands, &mut notices);
         say_pack_text_backings(&merged, &mut notices);
         // The execution half of the trust ruling, said where the author
         // looks: each body an untrusted workspace holds dormant, on its own

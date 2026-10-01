@@ -92,6 +92,15 @@ loads, so a library edit reaches the compiler at the next load without any
 change to the pack, and a path that cannot be read draws a warning on the
 command's line. A call at the top level of a script is not inlined.
 
+When the body is plain value-position Tcl — commands a hook body may call (`set`,
+`expr`, `if`, `string`, `dict` and the like), no `upvar`, `uplevel`, `global`,
+`variable`, channel or `exec`, no namespace-qualified variable, `return` only as
+the last statement, and parameters with no defaults — the analyser also evaluates
+a call whose arguments it knows by running the body, so give the command an
+`arity` that is exactly its parameters and leave `semantics` and `evaluate` off
+it. A body the analyser cannot run draws an information notice on the command's
+line that names the reason, and the call is compiled as it was.
+
 ### Validating a pack
 
 Run it through `mcp__tcl-lsp__spectcl_check` — the spec-author Claude Code

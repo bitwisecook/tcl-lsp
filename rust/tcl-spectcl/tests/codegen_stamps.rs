@@ -1017,6 +1017,43 @@ fn a_package_source_that_cannot_be_read_is_said_and_not_inlined() {
     assert_eq!(unshipped.key, in_memory.key);
 }
 
+/// The text a package source names is run as the command's declared
+/// implementation too: the load reads the file and derives the hook from it as it
+/// does from a pack-text body, and a file the load could not read, or a direct
+/// dependency's body, which the gate has dropped, supplies none to derive from.
+#[test]
+fn a_package_source_body_is_a_declared_implementation_too() {
+    use tcl_registry::value_transfer::SemanticsDeclaration;
+
+    let definition = "proc vdouble {x} {expr {$x * 2}}";
+    let dir = package_on_disk("package-implementation", "lib/double.tcl", Some(definition));
+    let own = load_package_pack(&dir, Some(DependencyTier::Root));
+    let command = own.packs[0].command("vdouble").expect("declared");
+    assert!(
+        matches!(command.spec.semantics, SemanticsDeclaration::Declared(_)),
+        "{:?}",
+        command.spec.semantics
+    );
+    assert_eq!(command.hooks.len(), 1, "{:?}", command.hooks);
+
+    let unread = package_on_disk("package-implementation-unread", "lib/double.tcl", None);
+    let set = load_package_pack(&unread, Some(DependencyTier::Root));
+    let command = set.packs[0].command("vdouble").expect("declared");
+    assert!(matches!(
+        command.spec.semantics,
+        SemanticsDeclaration::Inherited
+    ));
+    assert!(command.hooks.is_empty());
+
+    let dependency = load_package_pack(&dir, Some(DependencyTier::Direct));
+    let command = dependency.packs[0].command("vdouble").expect("declared");
+    assert!(matches!(
+        command.spec.semantics,
+        SemanticsDeclaration::Inherited
+    ));
+    assert!(command.hooks.is_empty());
+}
+
 /// The capability matrix's reference-body row at the load: the workspace's own
 /// package's body is inlined; a direct dependency's pack loses the backing, with
 /// a warning that says why, and nothing of it is inlined; a pack no package

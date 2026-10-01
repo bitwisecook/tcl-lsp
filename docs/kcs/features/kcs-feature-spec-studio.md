@@ -621,7 +621,12 @@ proc mypkg::with_var {varName script {mode fast}} {
 the studio infers arity `2..3`, an argument role of `VarWrite` on `varName`
 and `Body` on `script`, the `EVALUATES_CODE` and `CREATES_SCOPE_ALIAS` traits,
 and a `package require mypkg` gate — reporting, for each, the line of
-reasoning that produced it.
+reasoning that produced it. It also reads what each body states and proposes it,
+with its evidence: `PURE` when the compiler finds no write outside the frame and
+no call it cannot read, a `side_effects` row for state outside the frame the body
+writes or reads through a command, the `return_type` every path answers, and which
+parameters the body invokes as commands. Keep a proposal only when it holds for the
+command's contract and not merely for today's body.
 
 ## See also
 

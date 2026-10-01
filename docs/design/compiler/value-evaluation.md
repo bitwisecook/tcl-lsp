@@ -885,7 +885,8 @@ vulnerability.
 (`rust/tcl-spec-hooks/src/host.rs`), compiles each hook body once to a
 proc, whitelists twenty-nine commands (`SANDBOX_COMMANDS` in
 `rust/tcl-spec-hooks/src/sandbox.rs` — among them `set`, `incr`,
-`lappend`, `foreach`, `while`) plus the `foldlist` host builtin, and
+`lappend`, `foreach`, `while`; an ensemble among them, `string` or `dict`,
+keeps its subcommands) plus the `foldlist` host builtin, and
 enforces a budget of 100,000 commands and 250 ms of wall clock per
 invocation with a 16 MiB cap on any value (`HostConfig::default`); an
 error is an abstention, a budget overrun quarantines the hook, and a
@@ -902,6 +903,24 @@ implementation, builds a `Vm` with the default registry at the default
 release, and exposes no release setter although the VM has one. The host
 reaches the compiler through the per-thread `pack_hooks` installer
 (`set_installer`, `install_host`), which is how the crate cycle is broken.
+
+A command a pack backs with a Tcl body is one more source of a declared
+implementation, and the pack writes nothing beside the body. The registry's
+scan (`rust/tcl-registry/src/value_transfer/reference_body.rs`) reads the body:
+exactly one `proc` that defines the command, with required parameters and a body
+of commands on the hook host's whitelist, none reaching for the frame, a
+channel, a process or the world, no namespace-qualified variable, `return` only
+as the last statement. The list is a whitelist the host's own list is held equal
+to, so a command the host gains is a decision made in both places; a body the
+scan cannot read to the end derives nothing. The loader
+(`rust/tcl-spectcl/src/loader/reference.rs`) gives the command a declaration —
+identity `COMMAND.reference` with the body's content hash, one exact operand
+input per parameter, `depends {tcl_profile implementation_identity}`, normal
+completion — and the `evaluate` hook body `fold [ BODY ]`, a final `return V`
+standing as a `set` of `V`, so the host plan, the driver and the dormant-hook
+notice for an untrusted workspace treat it as one the pack wrote. A command
+whose author stated its `semantics` or `evaluate` keeps them, and the derivation
+needs the command's `arity` to be exactly the body's parameters.
 
 ### Per-evaluation state: writes outside the activation are denied
 
@@ -2020,12 +2039,15 @@ once, and `spectcl_check` is where an author sees it before a user does.
 ### Inference
 
 `ai/claude/skills/spec-author/SKILL.md` infers arity, roles, traits, hover,
-and packages from a library's sources. For a private command implemented
-in loop-free Tcl over whitelisted commands, the skill can propose the body
-as a declared implementation, but purity inferred from a summary is
-classification only: the route, its dependencies, and its budget are still
-authored, and the pack's differential corpus proves the implementation
-against the library's real behaviour.
+and packages from a library's sources, and `infer::infer_from_body` reads what a
+body states — whether it is side-effect free, the state it touches outside its
+frame, the type it answers and the parameters it calls — as proposals with their
+evidence. For a command implemented in value-position Tcl over whitelisted
+commands, a pack need not author the declared implementation: a `runtime_backing
+tcl-body` that carries the body derives one (§ *The declared-implementation
+route*), keyed by the target release and its own identity. Purity inferred from
+a summary is classification only, and the pack's differential corpus proves an
+implementation against the library's real behaviour.
 
 ## Where each part lands
 
@@ -2069,6 +2091,7 @@ onward.
 - `rust/tcl-compiler/src/type_infer.rs` — `expr_call_type`, the duplicate math return-type table
 - `rust/tcl-regex/src/lib.rs`, `exec.rs`, `cmd_core.rs` — `Regex::exec`, `MATCH_FUEL`, `MAX_BT_DEPTH`, `MAX_DISSECT_DEPTH`, `Matcher::spend_fuel`, `AreEngine`
 - `rust/tcl-spec-hooks/src/host.rs`, `sandbox.rs`, `emit.rs`, `pack_eval.rs`, `program.rs` — `HookHost`, `HostConfig`, `SANDBOX_COMMANDS`, `builtins`, `answer_of`, `verbs_for`, `HookProgram`
+- `rust/tcl-registry/src/value_transfer/reference_body.rs`, `rust/tcl-spectcl/src/loader/reference.rs` — the scan of a reference body (`SANDBOX_WORDS`, `derive`, `Inexpressible`, `is_derived`) and the loader pass that installs what it derives
 - `rust/tcl-registry/src/pack_hooks.rs` — `HookFamily`, `HookInputs`, `CacheMode`, `ShapeKey`, `content_hash`, `install_host`, `clear_host`, `clear_cache`, `const_fold_fn`, `DialectScope`
 - `rust/tcl-engine-api/src/lib.rs`, `rust/tcl-engine-tclvm/src/lib.rs` — `Engine`, `Budget`, `BudgetKind`, `EngineError`, and the one implementation
 - `rust/tcl-vm/src/interp.rs` — `Interp::set_dialect_profile`, what `Engine::set_release` wraps
@@ -2088,6 +2111,7 @@ onward.
 - `rust/tcl-spec-hooks/tests/containment_e2e.rs` — the budget, quarantine, and poison paths the route's isolation rule extends
 - `rust/tcl-spectcl/tests/spec_corpus.rs` — every shipped pack's hooks through the sandboxed host at budget: a loading and containment gate, not a value oracle
 - `rust/tcl-spectcl/src/loader.rs` — `native_hook_tables_cover_their_catalogues`, `value_tables_cover_their_catalogues`
+- `rust/tcl-registry/src/value_transfer/reference_body.rs` — `every_command_the_registry_knows_is_refused_unless_the_whitelist_lists_it`, the scan's refusals; `rust/tcl-spectcl/src/loader/reference.rs` — `the_scans_whitelist_is_the_hosts`; `rust/tcl-spectcl/tests/pack_source_e2e.rs` — `a_reference_body_answers_through_the_host_as_the_procedure_does`, the parity of a derived body with the procedure it came from; `rust/tcl-engine-tclvm/src/lib.rs` — `a_whitelisted_ensembles_subcommands_run_wherever_they_are_called`
 - `rust/tcl-spec-studio/tests/spectcl_roundtrip.rs` — the four-surface round trip
 - `rust/tcl-spec-studio/tests/reference_doc.rs` — the generated field reference
 - `rust/tcl-vm/tests/dict_canonicalisation_parity.rs` — the list-rendering parity the folders depend on

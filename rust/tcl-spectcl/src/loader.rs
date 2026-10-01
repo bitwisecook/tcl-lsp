@@ -171,6 +171,7 @@ mod available;
 mod dialect_block;
 mod environment_block;
 mod eval;
+mod reference;
 mod semantics;
 mod surface_roster;
 mod vocabulary_class;
@@ -183,6 +184,7 @@ pub use eval::{
     EvalOptions, EvalSnapshotKey, LOADER_EVAL_VERSION, eval_snapshot_key, evaluate_pack,
     evaluate_pack_in, evaluate_pack_with, pack_file_hash, provenance_violation,
 };
+pub(crate) use reference::derive_implementations;
 pub use surface_roster::{PackRosterName, PackSurfaceRoster, family_named};
 pub use vocabulary_class::VocabularyClass;
 
