@@ -471,12 +471,28 @@ impl<'a> RaiseProof<'a> {
     }
 }
 
+/// Whether a word may run a command substitution: any unescaped `[`. The
+/// word's quoting is gone by now, so braces cannot be trusted to suppress
+/// one; a false positive only drops a target, keeping a store.
+fn has_command_substitution(word: &str) -> bool {
+    let mut chars = word.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' => {
+                chars.next();
+            }
+            '[' => return true,
+            _ => {}
+        }
+    }
+    false
+}
+
 /// The variable targets of a command statement, split by how the registry
 /// says the invocation writes them. The targets are the call's `defs` that
-/// one of its own words names: lowering resolved those defs against the
-/// effective argument vector, so an `interp alias` that prepends words still
-/// finds them, while a def taken from a script argument (`catch {set a 1} x`
-/// defining `a`) is named by no word and is in neither.
+/// sit at the invocation's own `VarWrite` positions (see
+/// [`command_write_targets`]); a def taken from a script argument
+/// (`catch {set a 1} x` defining `a`) or a nested substitution is in neither.
 #[derive(Default)]
 struct CommandWriteTargets<'s> {
     /// Written whenever the command completes (`UNCONDITIONAL_VARIABLE_WRITE`).
@@ -512,12 +528,28 @@ fn command_write_targets<'s>(
     if !always && !maybe {
         return CommandWriteTargets::default();
     }
-    // A target is spelled by one of the call's own words; a name a script
-    // argument assigns is buried inside that script word instead.
+    // `defs` also carries names a nested substitution or a script argument
+    // assigns, so a target must be the word at one of the invocation's own
+    // `VarWrite` positions: `regsub x [regexp z a -> x] y out` targets `out`,
+    // not the inner `regexp`'s `x` that the pattern word happens to spell.
+    // An alias's prepended words are not kept on the call, so its positions
+    // are known only when no word substitutes a command that could define a
+    // name of its own.
+    let words: Vec<&str> = if canonical_command.is_none() {
+        registry
+            .arg_indices_for_role(lookup, &arg_strs, tcl_registry::ArgRole::VarWrite)
+            .into_iter()
+            .filter_map(|i| arg_strs.get(i).copied())
+            .collect()
+    } else if args.iter().any(|word| has_command_substitution(word)) {
+        Vec::new()
+    } else {
+        arg_strs.clone()
+    };
     let names: Vec<&str> = defs
         .iter()
         .map(String::as_str)
-        .filter(|name| args.iter().any(|word| word == name))
+        .filter(|name| words.contains(name))
         .collect();
     if always {
         CommandWriteTargets {

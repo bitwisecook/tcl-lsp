@@ -2822,6 +2822,11 @@ fn a_dead_assignment_whose_value_can_raise_is_kept() {
             "set y $a",
         ),
         (
+            "a nested writer's target that an outer word happens to spell",
+            "proc p {} {\n    regsub x [regexp z a -> x] y out\n    set dead $x\n    puts hi\n}\n",
+            "set dead $x",
+        ),
+        (
             "an overwritten store of an unset variable (O109)",
             "proc p {} {\n    set y $x\n    set y 1\n    return $y\n}\n",
             "set y $x",
