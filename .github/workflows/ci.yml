@@ -6,11 +6,11 @@ on:
     tags: ["v*"]
   pull_request:
     branches: [rust]
-  # Manual escape hatch: if a PR's initial `pull_request: opened` webhook
-  # is ever dropped by GitHub (rare, but has happened — no runs show up
-  # for the branch at all, not even a queued/pending one), this lets a
-  # maintainer kick off the same CI graph from the Actions tab instead of
-  # having to push a throwaway commit just to re-send the event.
+  # Manual dispatch runs the same CI graph as an independent validation proof.
+  # GitHub does not count workflow_dispatch job checks toward required PR checks;
+  # merging still requires an eligible pull_request run. Runner-policy changes
+  # already prove themselves on hosted capacity through that eligible event.
+  # https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks#checks-from-some-workflow-jobs-are-not-evaluated
   #
   # NOTE: workflow_dispatch lets you pick any ref, tags included. Release and
   # publish jobs are gated on `startsWith(github.ref, 'refs/tags/v')`; the one
