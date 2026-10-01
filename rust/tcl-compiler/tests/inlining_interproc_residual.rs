@@ -396,10 +396,10 @@ fn rewrite_recurses_into_switch_arm_and_default() {
 }
 
 #[test]
-fn rewrite_recurses_into_upframe_body() {
-    // `uplevel 1 { noop }` — the UpFrame body recurses. (The wrapper proc is a
-    // plain empty-body noop, which is frame-independent, so inlining it inside
-    // an uplevel body is sound.)
+fn rewrite_leaves_an_upframe_body_as_written() {
+    // `uplevel 1 { noop }` — the body runs in another frame and the bytecode
+    // backend emits it from its text, so a splice made in the lowered copy would
+    // be discarded and would record a requirement of code that never runs.
     let out = inlined("proc noop {} {}\nuplevel 1 { noop }\n");
     let uf = out
         .top_level
@@ -410,7 +410,7 @@ fn rewrite_recurses_into_upframe_body() {
     let Statement::UpFrame { body, .. } = uf else {
         unreachable!()
     };
-    assert_eq!(calls_to(&body.statements, "noop"), 0);
+    assert_eq!(calls_to(&body.statements, "noop"), 1);
 }
 
 #[test]

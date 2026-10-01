@@ -1103,3 +1103,600 @@ fn a_direct_dependencys_reference_body_is_dropped_at_load() {
     assert!(inlined);
     assert_eq!(refusal, None);
 }
+
+// The splice, run.
+//
+// The tests above prove the claim a site makes. These prove the code the claim
+// admits: each runs a caller the compile service inlined a pack's bodies into, in a
+// VM that holds the pack's facts and the live definitions, and holds it to what the
+// definitions answer when called as procedures.
+
+/// A pack whose commands each say a Tcl body defines them: `(name, arity,
+/// definition)`.
+fn bodies_pack(commands: &[(&str, usize, &str)]) -> String {
+    use std::fmt::Write as _;
+
+    let mut pack = String::from("speclib vendor 2.0 {\n");
+    for (name, arity, definition) in commands {
+        let _ = write!(pack, "    command {name} {{\n        arity {arity}\n");
+        for index in 0..*arity {
+            let _ = writeln!(pack, "        arg {index} -role Value");
+        }
+        let _ = write!(
+            pack,
+            "        runtime_backing tcl-body {{-pack-text {{{definition}}}}}\n    }}\n"
+        );
+    }
+    pack.push_str("}\n");
+    pack
+}
+
+/// What a script answered, and how many plain recompiles the VM asked for: none
+/// when the inlined function ran as compiled.
+#[derive(Debug, PartialEq, Eq)]
+struct Outcome {
+    code: Code,
+    answer: String,
+    plain: usize,
+}
+
+/// A pack of procedure-backed commands, loaded.
+struct Spliced {
+    set: PackSet,
+    definitions: Vec<String>,
+}
+
+impl Spliced {
+    fn new(name: &str, commands: &[(&str, usize, &str)]) -> Self {
+        let (set, _registry) = bundled_source(name, &bodies_pack(commands));
+        Self {
+            set,
+            definitions: commands
+                .iter()
+                .map(|(_, _, definition)| (*definition).to_owned())
+                .collect(),
+        }
+    }
+
+    /// `script` after `setup`, run by a VM whose compile service inlines the pack's
+    /// bodies and which holds the pack's facts.
+    fn inlined(&self, setup: &[&str], script: &str) -> Outcome {
+        let mut vm = vm_for_overlay();
+        let plain = PlainCounting::installed_with(&mut vm, service_for(&self.set), None);
+        vm.set_pack_facts(facts(&self.set));
+        self.drive(&mut vm, &plain, setup, script)
+    }
+
+    /// The same run with nothing inlined: what the call means.
+    fn reference(&self, setup: &[&str], script: &str) -> Outcome {
+        let mut vm = vm_for_overlay();
+        let plain = PlainCounting::installed_on(&mut vm);
+        self.drive(&mut vm, &plain, setup, script)
+    }
+
+    fn drive(&self, vm: &mut Vm, plain: &Rc<Cell<usize>>, setup: &[&str], script: &str) -> Outcome {
+        for source in self
+            .definitions
+            .iter()
+            .map(String::as_str)
+            .chain(setup.iter().copied())
+        {
+            let completion = vm.eval_source(source).expect("compiles");
+            assert_eq!(
+                completion.code,
+                Code::Ok,
+                "{source}: {}",
+                completion.result.to_str()
+            );
+        }
+        let completion = vm.eval_source(script).expect("compiles");
+        Outcome {
+            code: completion.code,
+            answer: completion.result.to_str().to_string(),
+            plain: plain.get(),
+        }
+    }
+
+    /// How many pack commands `source` compiled with a definition spliced in:
+    /// the procedure bindings of the procedure `name`.
+    fn bindings(&self, source: &str, name: &str) -> usize {
+        service_for(&self.set)
+            .compile_for_profile(source, tcl9())
+            .expect("compiles")
+            .procedures[name]
+            .procedure_bindings
+            .len()
+    }
+}
+
+/// A body with a `return` before its end, spliced where its value is the
+/// procedure's own, answers the value it returned.
+#[test]
+fn a_body_with_a_return_before_its_end_answers_through_the_splice() {
+    let pack = Spliced::new(
+        "splice-early-return",
+        &[(
+            "vabs",
+            1,
+            "proc vabs {x} {if {$x < 0} {return [expr {-$x}]}; return $x}",
+        )],
+    );
+    let caller = "proc caller {n} {vabs $n}";
+    let branch = "proc caller3 {n} {if {$n != 0} {vabs $n} else {return zero}}";
+    assert_eq!(pack.bindings(caller, "::caller"), 1, "inlined");
+    assert_eq!(pack.bindings(branch, "::caller3"), 1, "inlined");
+    for (script, answer) in [
+        ("caller -5", "5"),
+        ("caller 7", "7"),
+        ("caller3 -5", "5"),
+        ("caller3 0", "zero"),
+    ] {
+        assert_eq!(
+            pack.inlined(&[caller, branch], script),
+            Outcome {
+                code: Code::Ok,
+                answer: answer.to_owned(),
+                plain: 0
+            },
+            "{script}"
+        );
+    }
+}
+
+/// A body that ends in a `return`, spliced into a static `eval` that is the
+/// procedure's last command, still hands its value out: the block's value is its
+/// last command's, and the procedure's is the block's.
+#[test]
+fn an_inlined_body_inside_a_static_eval_keeps_its_value() {
+    let pack = Spliced::new(
+        "splice-eval",
+        &[("vdouble", 1, "proc vdouble {x} {return [expr {$x * 2}]}")],
+    );
+    let caller = "proc caller {n} {eval {vdouble $n}}";
+    let after = "proc after {n} {eval {vdouble $n}; return tail}";
+    assert_eq!(pack.bindings(caller, "::caller"), 1, "inlined");
+    for (script, answer) in [("caller 21", "42"), ("after 21", "tail")] {
+        assert_eq!(
+            pack.inlined(&[caller, after], script),
+            Outcome {
+                code: Code::Ok,
+                answer: answer.to_owned(),
+                plain: 0
+            },
+            "{script}"
+        );
+    }
+}
+
+/// An unqualified command in an inlined body is the one the definition's own
+/// namespace resolves it to, not whatever the caller's namespace makes of the
+/// name: a caller in `app` that defines its own `string` does not turn the pack's
+/// `string length` into that.
+#[test]
+fn an_inlined_body_resolves_the_commands_it_calls_as_its_definition_did() {
+    let pack = Spliced::new(
+        "splice-namespace",
+        &[("vlen", 1, "proc vlen {s} {string length $s}")],
+    );
+    let setup = [
+        "namespace eval app {}",
+        "proc app::string {args} {return shadowed}",
+        "proc app::caller {n} {vlen $n}",
+    ];
+    assert_eq!(
+        pack.inlined(&setup, "app::caller abc"),
+        Outcome {
+            code: Code::Ok,
+            answer: "3".to_owned(),
+            plain: 0
+        }
+    );
+    // The shadow is made after the caller was compiled, which no compile can see.
+    let late = [
+        "namespace eval app {}",
+        "proc app::caller {n} {vlen $n}",
+        "app::caller abc",
+        "proc app::string {args} {return shadowed}",
+    ];
+    let outcome = pack.inlined(&late, "app::caller abc");
+    assert_eq!(outcome.answer, "3", "{outcome:?}");
+}
+
+/// A command a word substitutes is text to the compiler, which cannot spell it
+/// from the global namespace as it does a call: a body that runs one stays a call
+/// in another namespace and answers what its definition does, and is spliced
+/// where nothing needs spelling.
+#[test]
+fn a_body_that_substitutes_a_command_is_not_given_the_callers_namespace_to_resolve_it_in() {
+    let pack = Spliced::new(
+        "splice-namespace-substitution",
+        &[
+            ("vjoin", 1, "proc vjoin {l} {return [join $l ,]}"),
+            (
+                "vquoted",
+                1,
+                "proc vquoted {s} {set n \"[string length $s]x\"; return $n}",
+            ),
+            (
+                "vformat",
+                1,
+                "proc vformat {x} {return [format %d-%s $x $x]}",
+            ),
+            ("vdouble", 1, "proc vdouble {x} {return [expr {$x * 2}]}"),
+        ],
+    );
+    for (name, shadow, argument, answer) in [
+        ("vjoin", "join", "{a b}", "a,b"),
+        ("vquoted", "string", "abc", "3x"),
+        ("vformat", "format", "5", "5-5"),
+        // The `expr` it substitutes is the statement's own, bound to the live command.
+        ("vdouble", "string", "4", "8"),
+    ] {
+        let setup = [
+            "namespace eval app {}".to_owned(),
+            format!("proc app::{shadow} {{args}} {{return shadowed}}"),
+            format!("proc app::caller {{n}} {{{name} $n}}"),
+        ];
+        let setup: Vec<&str> = setup.iter().map(String::as_str).collect();
+        assert_eq!(
+            pack.inlined(&setup, &format!("app::caller {argument}")),
+            Outcome {
+                code: Code::Ok,
+                answer: answer.to_owned(),
+                plain: 0
+            },
+            "{name}"
+        );
+        let global = format!("proc caller {{n}} {{{name} $n}}");
+        let namespaced = format!("namespace eval app {{}}\nproc app::caller {{n}} {{{name} $n}}");
+        assert_eq!(pack.bindings(&global, "::caller"), 1, "{name}: global");
+        assert_eq!(
+            pack.bindings(&namespaced, "::app::caller"),
+            usize::from(name == "vdouble"),
+            "{name}: another namespace"
+        );
+    }
+}
+
+/// A body reads what its definition binds, and nothing of the caller's: a name it
+/// never sets is unset in the definition's frame, and a name it sets only on one
+/// path is unset on the other, whatever the caller holds of the same spelling.
+#[test]
+fn an_inlined_body_reads_only_what_its_definition_binds() {
+    let pack = Spliced::new(
+        "splice-frame",
+        &[
+            ("vgreet", 0, "proc vgreet {} {return \"hello $name\"}"),
+            (
+                "vpick",
+                1,
+                "proc vpick {flag} {if {$flag} {set v 1}; return $v}",
+            ),
+        ],
+    );
+    let greet = "proc greet {n} {set name bob; vgreet}";
+    let choose = "proc choose {n} {vpick $n}";
+    for (script, code, answer) in [
+        (
+            "greet 1",
+            Code::Error,
+            "can't read \"name\": no such variable",
+        ),
+        (
+            "choose 0",
+            Code::Error,
+            "can't read \"v\": no such variable",
+        ),
+        ("choose 1", Code::Ok, "1"),
+    ] {
+        assert_eq!(
+            pack.inlined(&[greet, choose], script),
+            Outcome {
+                code,
+                answer: answer.to_owned(),
+                plain: 0
+            },
+            "{script}"
+        );
+    }
+}
+
+/// A braced word is literal: `$x` in one is the two characters, and the splice
+/// leaves it as the definition has it, in a call's word, a return's value and the
+/// text of a command a word substitutes.
+#[test]
+fn a_braced_word_in_an_inlined_body_stays_literal() {
+    let pack = Spliced::new(
+        "splice-braced",
+        &[
+            ("vlit", 1, "proc vlit {x} {string length {$x}}"),
+            ("vbrace", 1, "proc vbrace {x} {return {$x}}"),
+            (
+                "vnested",
+                1,
+                "proc vnested {x} {return [string length {$x}]}",
+            ),
+        ],
+    );
+    for (name, answer, inlined) in [("vlit", "2", 1), ("vbrace", "$x", 1), ("vnested", "2", 0)] {
+        let caller = format!("proc caller {{n}} {{{name} $n}}");
+        assert_eq!(pack.bindings(&caller, "::caller"), inlined, "{name}");
+        assert_eq!(
+            pack.inlined(&[&caller], "caller abc"),
+            Outcome {
+                code: Code::Ok,
+                answer: answer.to_owned(),
+                plain: 0
+            },
+            "{name}"
+        );
+    }
+}
+
+/// A body that reads a parameter through an operand the compiler keeps as text — a
+/// command an expression substitutes, a quoted operand, a loop condition that is a
+/// command — is not rewritten for the caller's frame, so it stays a call and
+/// answers what its definition does.
+#[test]
+fn a_body_that_reads_through_an_operand_kept_as_text_stays_a_call() {
+    let pack = Spliced::new(
+        "splice-text-operands",
+        &[
+            (
+                "vcommand",
+                1,
+                "proc vcommand {x} {expr {[string length $x] + 1}}",
+            ),
+            ("vquote", 1, "proc vquote {x} {expr {\"$x\" eq \"abc\"}}"),
+            (
+                "vwhile",
+                1,
+                "proc vwhile {x} {set i 0; while {[expr {$i < $x}]} {incr i}; return $i}",
+            ),
+        ],
+    );
+    for (name, argument, answer) in [
+        ("vcommand", "abc", "4"),
+        ("vquote", "abc", "1"),
+        ("vwhile", "4", "4"),
+    ] {
+        let caller = format!("proc caller {{n}} {{{name} $n}}");
+        assert_eq!(pack.bindings(&caller, "::caller"), 0, "{name}");
+        assert_eq!(
+            pack.inlined(&[&caller], &format!("caller {argument}")),
+            Outcome {
+                code: Code::Ok,
+                answer: answer.to_owned(),
+                plain: 0
+            },
+            "{name}"
+        );
+    }
+}
+
+/// A function claims the procedure it inlined and no other: where codegen emits a
+/// body from the source text of the command that carries it — a `catch`, a `try`,
+/// an `uplevel` — a splice made in the lowered copy is never emitted, so the
+/// function keeps its call and records no binding for it.
+#[test]
+fn a_function_claims_a_splice_only_where_it_emits_it() {
+    let pack = Spliced::new(
+        "splice-claims",
+        &[
+            ("vdouble", 1, "proc vdouble {x} {expr {$x * 2}}"),
+            (
+                "vearly",
+                1,
+                "proc vearly {x} {if {$x < 0} {return neg}; expr {$x * 2}}",
+            ),
+            (
+                "vlocal",
+                1,
+                "proc vlocal {x} {set y [expr {$x + 1}]; return $y}",
+            ),
+        ],
+    );
+    let mut emitted = 0;
+    for call in ["vdouble $n", "vearly $n", "vlocal $n"] {
+        for (name, template) in [
+            ("plain", "proc caller {n} {@CALL@}"),
+            ("catch", "proc caller {n} {catch {@CALL@} r; return $r}"),
+            (
+                "catch twice",
+                "proc caller {n} {catch {@CALL@; @CALL@} r; return $r}",
+            ),
+            (
+                "try",
+                "proc caller {n} {try {@CALL@} on error {e} {return err}}",
+            ),
+            (
+                "try handler",
+                "proc caller {n} {try {error x} on error {e} {@CALL@}}",
+            ),
+            (
+                "try finally",
+                "proc caller {n} {try {set k 1} finally {@CALL@}}",
+            ),
+            ("uplevel", "proc caller {n} {uplevel 0 {@CALL@}}"),
+            (
+                "catch in a loop",
+                "proc caller {n} {foreach i {1 2} {catch {@CALL@}}; return done}",
+            ),
+        ] {
+            let source = template.replace("@CALL@", call);
+            let module = service_for(&pack.set)
+                .compile_for_profile(&source, tcl9())
+                .expect("compiles");
+            let caller = &module.procedures["::caller"];
+            assert_eq!(
+                !caller.procedure_bindings.is_empty(),
+                !calls_a_command(caller),
+                "{call} in {name}: bindings {:?}, instructions {:#?}",
+                caller.procedure_bindings,
+                caller.instructions
+            );
+            assert_eq!(
+                caller.site_claims.is_empty(),
+                caller.procedure_bindings.is_empty(),
+                "{call} in {name}: a binding is claimed with the pack's facts, and only then"
+            );
+            emitted += caller.procedure_bindings.len();
+        }
+    }
+    assert!(emitted > 0, "nothing was spliced, so nothing was compared");
+}
+
+/// The bodies a pack gives its commands, one for each shape the splice has a path
+/// for: `(name, arity, definition)`.
+const SPLICED_SHAPES: &[(&str, usize, &str)] = &[
+    // A trailing `return`.
+    ("vdouble", 1, "proc vdouble {x} {return [expr {$x * 2}]}"),
+    // No `return`: the last command's value.
+    ("vtail", 1, "proc vtail {x} {expr {$x * 2}}"),
+    // A `return` before the end, and a trailing one.
+    (
+        "vabs",
+        1,
+        "proc vabs {x} {if {$x < 0} {return [expr {-$x}]}; return $x}",
+    ),
+    // A `return` before the end, and a last command's value.
+    (
+        "vsign",
+        1,
+        "proc vsign {x} {if {$x < 0} {return neg}; set r pos}",
+    ),
+    ("vconst", 0, "proc vconst {} {return fixed}"),
+    (
+        "vlocal",
+        1,
+        "proc vlocal {x} {set y [expr {$x + 1}]; return $y}",
+    ),
+    ("vinc", 1, "proc vinc {x} {set y $x; incr y; return $y}"),
+    ("vnoop", 0, "proc vnoop {} {}"),
+    ("vpair", 2, "proc vpair {a b} {return \"$a-$b\"}"),
+    // A braced word, which is literal.
+    ("vlit", 1, "proc vlit {x} {string length {$x}}"),
+    ("vbrace", 1, "proc vbrace {x} {return {$x}}"),
+    // A command a word substitutes.
+    (
+        "vsubst",
+        1,
+        "proc vsubst {x} {set n [string length $x]; return \"$n-$x\"}",
+    ),
+];
+
+/// The places a call can stand, `@CALL@` the call: where its value is the
+/// procedure's, where nothing reads it, and where a command around it does.
+///
+/// An `if` inside an `if` is not among them: the plain compile of a procedure
+/// whose value comes from the inner one answers the empty string where Tcl
+/// answers the value, so it is no reference for the splice.
+const SPLICE_SITES: &[(&str, &str)] = &[
+    ("terminal", "proc caller {n} {@CALL@}"),
+    ("after a set", "proc caller {n} {set a 5; @CALL@}"),
+    (
+        "dropped before a return",
+        "proc caller {n} {@CALL@; set k 1; return $k}",
+    ),
+    (
+        "dropped before a last set",
+        "proc caller {n} {@CALL@; set k 1}",
+    ),
+    (
+        "then arm",
+        "proc caller {n} {if {$n != 0} {@CALL@} else {return zero}}",
+    ),
+    (
+        "else arm",
+        "proc caller {n} {if {$n == 0} {return zero} else {@CALL@}}",
+    ),
+    (
+        "switch arm",
+        "proc caller {n} {switch -- $n {0 {return zero} default {@CALL@}}}",
+    ),
+    ("static eval", "proc caller {n} {eval {@CALL@}}"),
+    (
+        "static eval, then more",
+        "proc caller {n} {eval {@CALL@}; return after}",
+    ),
+    (
+        "catch result",
+        "proc caller {n} {catch {@CALL@} r; return $r}",
+    ),
+    (
+        "catch code",
+        "proc caller {n} {set c [catch {@CALL@}]; return $c}",
+    ),
+    (
+        "try ok",
+        "proc caller {n} {try {@CALL@} on ok {r} {return $r}}",
+    ),
+    (
+        "try terminal",
+        "proc caller {n} {try {@CALL@} on error {e} {return err}}",
+    ),
+    (
+        "try handler",
+        "proc caller {n} {try {error x} on error {e} {@CALL@}}",
+    ),
+    ("uplevel", "proc caller {n} {uplevel 0 {@CALL@}}"),
+    (
+        "loop body",
+        "proc caller {n} {foreach i {1 2} {@CALL@}; return done}",
+    ),
+    (
+        "while body",
+        "proc caller {n} {while {1} {@CALL@; break}; return done}",
+    ),
+    ("twice", "proc caller {n} {@CALL@; @CALL@}"),
+    (
+        "in a substitution",
+        "proc caller {n} {set y [@CALL@]; return $y}",
+    ),
+];
+
+/// Every body, at every site, answers what its definition answers when it is
+/// called as a procedure — for a value, a zero and a negative — and the VM takes
+/// the function as compiled. The matrix is a comparison, so it needs no list of
+/// expected answers; it asks only that the splice is the call it replaced, and
+/// that the plain shapes are spliced at all, so the comparison is not of a
+/// call with itself.
+#[test]
+fn every_shape_of_inlined_body_answers_as_its_definition_does_at_every_site() {
+    let pack = Spliced::new("splice-matrix", SPLICED_SHAPES);
+    let mut disagreements = Vec::new();
+    let mut spliced = 0usize;
+    for (name, arity, _) in SPLICED_SHAPES {
+        let call = if *arity == 0 {
+            (*name).to_owned()
+        } else {
+            format!("{name} {}", vec!["$n"; *arity].join(" "))
+        };
+        for (site, template) in SPLICE_SITES {
+            let source = template.replace("@CALL@", &call);
+            spliced += pack.bindings(&source, "::caller");
+            for n in ["-5", "0", "7"] {
+                let script = format!("caller {n}");
+                let want = pack.reference(&[&source], &script);
+                let got = pack.inlined(&[&source], &script);
+                if got.code != want.code || got.answer != want.answer || got.plain != 0 {
+                    disagreements.push(format!(
+                        "{name} at `{site}` ({script}): the definition answers {:?} {:?}, the \
+                         splice {:?} {:?} after {} plain recompile(s)\n    {source}",
+                        want.code, want.answer, got.code, got.answer, got.plain
+                    ));
+                }
+            }
+        }
+    }
+    assert!(
+        disagreements.is_empty(),
+        "{} disagreement(s):\n{}",
+        disagreements.len(),
+        disagreements.join("\n")
+    );
+    assert!(
+        spliced >= SPLICED_SHAPES.len() * 6,
+        "the comparison is of a call with itself: only {spliced} splice(s) were made"
+    );
+}

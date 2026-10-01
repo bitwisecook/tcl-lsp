@@ -63,7 +63,20 @@
 //! v3 declines a proc whose `return` sits inside a loop / `catch` / `try`
 //! / `uplevel` body (where our `break`-based early-return lowering would
 //! be trapped) and any call site using `{*}` expansion (runtime arity).
+//!
+//! Three more conditions keep a splice the call it replaced. The body reads only
+//! what its own frame binds, through operands the rename reaches ([`frame`]), for a
+//! name it never bound would be the caller's variable. It names its commands as
+//! its own namespace does ([`heads`]): spliced into a third namespace each call is
+//! spelled from the global one, and a body that substitutes a command there stays a
+//! call. And what replaces the call is the value the call had, where anything
+//! reads it ([`Tail`]): a `return` stays one only where the value is the
+//! procedure's, is wrapped where nothing reads it, and where a `catch` or a `try`
+//! holds the value the call stays a call. An `uplevel` body is never rewritten:
+//! it is emitted from its text.
 
+mod frame;
+mod heads;
 pub(crate) mod reference;
 mod rename;
 
@@ -717,6 +730,13 @@ fn build_inlinable_map(
             continue;
         };
 
+        // A body runs in a frame of its own. Spliced into a caller's, a name it
+        // reads without having bound it would answer the caller's variable of
+        // that spelling, so such a body stays a call.
+        if !frame::reads_only_bound_names(proc, registry) {
+            continue;
+        }
+
         // v0 — empty body.
         if proc.body.statements.is_empty() {
             map.insert(qname.clone(), InlineSpec::Empty(definition));
@@ -833,6 +853,36 @@ impl Inlining<'_> {
     }
 }
 
+/// What becomes of the value of the command a call stands in, which decides what
+/// replaces the call.
+///
+/// A procedure's value is its last command's, so the value of a call is
+/// somebody's only where the call is the last command of its script and the
+/// script's own value is somebody's in turn.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Tail {
+    /// Nothing reads it: a command that is not the last of its script, or the
+    /// body of a loop.
+    Dropped,
+    /// It is the procedure's own value, so a `return` in its place ends the
+    /// procedure as the callee's would have ended the callee.
+    Returned,
+    /// A command around the call reads it and a `return` would not end the
+    /// procedure — a `catch` or a `try` holds it. Only a replacement that is
+    /// itself the value will do.
+    Captured,
+}
+
+/// Where a call stands in its script.
+#[derive(Debug, Clone, Copy)]
+struct Site {
+    /// What becomes of the call's value.
+    tail: Tail,
+    /// Whether nothing of the rewritten script stands before the call, so that
+    /// no earlier command can be mistaken for its value once it is gone.
+    first: bool,
+}
+
 fn inline_procedures(
     mut module: Module,
     registry: &CommandRegistry,
@@ -854,7 +904,7 @@ fn inline_procedures(
             &inlinable,
             &summaries,
             &mut counter,
-            true,
+            Tail::Returned,
             may_be_global_frame,
         );
         module.top_level = new_top;
@@ -871,7 +921,7 @@ fn inline_procedures(
             &inlinable,
             &summaries,
             &mut counter,
-            true,
+            Tail::Returned,
             false,
         );
         if changed {
@@ -882,11 +932,10 @@ fn inline_procedures(
     module
 }
 
-/// Rewrite a script, returning `(new_script, changed)`. `parent_is_terminal`
-/// is true only when this script sits in terminal position of its own
-/// enclosing structure (a proc body / the top-level script); it propagates
-/// to the LAST statement so a v3 inline of a proc with a trailing `return`
-/// can keep the return intact.
+/// Rewrite a script, returning `(new_script, changed)`. `tail` is what becomes
+/// of the script's own value; it is the last statement's, so a v3 inline of a
+/// proc with a trailing `return` keeps the return where the value is the
+/// procedure's and wraps it where nothing reads the value.
 ///
 /// `caller_may_be_global_frame` distinguishes a module script from a procedure
 /// body without encoding that fact in a synthetic procedure name. A module's
@@ -902,7 +951,7 @@ fn rewrite_script(
     inlinable: &HashMap<String, InlineSpec>,
     summaries: &HashMap<String, ProcEscapeSummary>,
     counter: &mut usize,
-    parent_is_terminal: bool,
+    tail: Tail,
     caller_may_be_global_frame: bool,
 ) -> (Script, bool) {
     let mut out: Vec<Statement> = Vec::with_capacity(script.statements.len());
@@ -916,14 +965,17 @@ fn rewrite_script(
     let mut changed = false;
     let n = script.statements.len();
     for (i, stmt) in script.statements.iter().enumerate() {
-        let is_terminal = parent_is_terminal && i == n - 1;
+        let site = Site {
+            tail: if i + 1 == n { tail } else { Tail::Dropped },
+            first: out.is_empty(),
+        };
         match rewrite_stmt(
             stmt,
             caller_qname,
             inlinable,
             summaries,
             counter,
-            is_terminal,
+            site,
             caller_may_be_global_frame,
         ) {
             None => out.push(stmt.clone()),
@@ -943,16 +995,17 @@ fn rewrite_script(
 
 /// Return a replacement expansion, or `None` to keep `stmt`. An empty
 /// statement list drops the statement (v0); a non-empty list substitutes
-/// the inlined body. Recursion into nested control flow uses
-/// `parent_is_terminal = false` (terminality applies only at a body's
-/// direct top level).
+/// the inlined body. A body nested in the statement is rewritten for the value
+/// the statement gives it: a branch of an `if` or `switch`, and the body of a
+/// block, are the statement's own tail; a `catch` or `try` holds the value of
+/// its body; a loop reads none.
 fn rewrite_stmt(
     stmt: &Statement,
     caller_qname: &str,
     inlinable: &HashMap<String, InlineSpec>,
     summaries: &HashMap<String, ProcEscapeSummary>,
     counter: &mut usize,
-    is_terminal: bool,
+    site: Site,
     caller_may_be_global_frame: bool,
 ) -> Option<InlineExpansion> {
     match stmt {
@@ -972,13 +1025,7 @@ fn rewrite_stmt(
                 return None;
             }
             let spec = inlinable.get(&target)?;
-            splice_call_site(
-                stmt,
-                spec,
-                &root_namespace_of(caller_qname),
-                counter,
-                is_terminal,
-            )
+            splice_call_site(stmt, spec, &root_namespace_of(caller_qname), counter, site)
         }
         Statement::Block { .. } => rewrite_block_stmt(
             stmt,
@@ -986,6 +1033,7 @@ fn rewrite_stmt(
             inlinable,
             summaries,
             counter,
+            site.tail,
             caller_may_be_global_frame,
         )
         .map(InlineExpansion::without_bindings),
@@ -995,7 +1043,7 @@ fn rewrite_stmt(
             inlinable,
             summaries,
             counter,
-            is_terminal,
+            site.tail,
             caller_may_be_global_frame,
         )
         .map(InlineExpansion::without_bindings),
@@ -1019,15 +1067,6 @@ fn rewrite_stmt(
             )
             .map(InlineExpansion::without_bindings)
         }
-        Statement::UpFrame { .. } => rewrite_upframe_stmt(
-            stmt,
-            caller_qname,
-            inlinable,
-            summaries,
-            counter,
-            caller_may_be_global_frame,
-        )
-        .map(InlineExpansion::without_bindings),
         Statement::Try { .. } => rewrite_try_stmt(
             stmt,
             caller_qname,
@@ -1043,22 +1082,28 @@ fn rewrite_stmt(
             inlinable,
             summaries,
             counter,
-            is_terminal,
+            site.tail,
             caller_may_be_global_frame,
         )
         .map(InlineExpansion::without_bindings),
+        // An `uplevel` body is not lowered into the function: the statement is
+        // emitted from its source text, so a splice made in the copy would be
+        // discarded, and what it recorded would be a requirement of code that
+        // never runs. Nothing else holds a body.
         _ => None,
     }
 }
 
 /// `Block`: recurse into the body under the block's (possibly namespaced)
-/// caller name.
+/// caller name. The block's value is its last command's, so the body's tail is
+/// the block's own.
 fn rewrite_block_stmt(
     stmt: &Statement,
     caller_qname: &str,
     inlinable: &HashMap<String, InlineSpec>,
     summaries: &HashMap<String, ProcEscapeSummary>,
     counter: &mut usize,
+    tail: Tail,
     caller_may_be_global_frame: bool,
 ) -> Option<Vec<Statement>> {
     let Statement::Block {
@@ -1082,7 +1127,7 @@ fn rewrite_block_stmt(
         inlinable,
         summaries,
         counter,
-        false,
+        tail,
         caller_may_be_global_frame,
     );
     changed.then(|| {
@@ -1096,15 +1141,15 @@ fn rewrite_block_stmt(
     })
 }
 
-/// `If`: recurse into each clause body and the else body, propagating
-/// `is_terminal` (a taken branch is itself a tail position).
+/// `If`: recurse into each clause body and the else body, propagating `tail`
+/// (the taken branch's value is the `if`'s).
 fn rewrite_if_stmt(
     stmt: &Statement,
     caller_qname: &str,
     inlinable: &HashMap<String, InlineSpec>,
     summaries: &HashMap<String, ProcEscapeSummary>,
     counter: &mut usize,
-    is_terminal: bool,
+    tail: Tail,
     caller_may_be_global_frame: bool,
 ) -> Option<Vec<Statement>> {
     let Statement::If {
@@ -1125,7 +1170,7 @@ fn rewrite_if_stmt(
             inlinable,
             summaries,
             counter,
-            is_terminal,
+            tail,
             caller_may_be_global_frame,
         );
         if ch {
@@ -1149,7 +1194,7 @@ fn rewrite_if_stmt(
                 inlinable,
                 summaries,
                 counter,
-                is_terminal,
+                tail,
                 caller_may_be_global_frame,
             );
             if ch {
@@ -1169,8 +1214,8 @@ fn rewrite_if_stmt(
     })
 }
 
-/// `For`: recurse into the init / next / body sub-scripts (none is a tail
-/// position).
+/// `For`: recurse into the init / next / body sub-scripts (a loop reads the
+/// value of none).
 fn rewrite_for_stmt(
     stmt: &Statement,
     caller_qname: &str,
@@ -1202,7 +1247,7 @@ fn rewrite_for_stmt(
         inlinable,
         summaries,
         counter,
-        false,
+        Tail::Dropped,
         caller_may_be_global_frame,
     );
     let (new_next, c2) = rewrite_script(
@@ -1211,7 +1256,7 @@ fn rewrite_for_stmt(
         inlinable,
         summaries,
         counter,
-        false,
+        Tail::Dropped,
         caller_may_be_global_frame,
     );
     let (new_body, c3) = rewrite_script(
@@ -1220,7 +1265,7 @@ fn rewrite_for_stmt(
         inlinable,
         summaries,
         counter,
-        false,
+        Tail::Dropped,
         caller_may_be_global_frame,
     );
     (c1 || c2 || c3).then(|| {
@@ -1241,8 +1286,9 @@ fn rewrite_for_stmt(
     })
 }
 
-/// `While` / `Foreach` / `Catch`: recurse into the single
-/// (non-tail) body, rebuilding the statement when it changed.
+/// `While` / `Foreach` / `Catch`: recurse into the single body, rebuilding the
+/// statement when it changed. A loop reads no value of its body; a `catch`
+/// holds the value of its body for its result variable.
 fn rewrite_single_body_stmt(
     stmt: &Statement,
     caller_qname: &str,
@@ -1268,7 +1314,7 @@ fn rewrite_single_body_stmt(
                 inlinable,
                 summaries,
                 counter,
-                false,
+                Tail::Dropped,
                 caller_may_be_global_frame,
             );
             ch.then(|| {
@@ -1301,7 +1347,7 @@ fn rewrite_single_body_stmt(
                 inlinable,
                 summaries,
                 counter,
-                false,
+                Tail::Dropped,
                 caller_may_be_global_frame,
             );
             ch.then(|| {
@@ -1333,7 +1379,7 @@ fn rewrite_single_body_stmt(
                 inlinable,
                 summaries,
                 counter,
-                false,
+                Tail::Captured,
                 caller_may_be_global_frame,
             );
             ch.then(|| {
@@ -1352,48 +1398,9 @@ fn rewrite_single_body_stmt(
     }
 }
 
-/// `UpFrame`: recurse into the single non-tail body while retaining the
-/// registry-lowered frame selection carried by the statement.
-fn rewrite_upframe_stmt(
-    stmt: &Statement,
-    caller_qname: &str,
-    inlinable: &HashMap<String, InlineSpec>,
-    summaries: &HashMap<String, ProcEscapeSummary>,
-    counter: &mut usize,
-    caller_may_be_global_frame: bool,
-) -> Option<Vec<Statement>> {
-    let Statement::UpFrame {
-        span,
-        frame_shift,
-        absolute,
-        body,
-        tokens,
-    } = stmt
-    else {
-        return None;
-    };
-    let (new_body, changed) = rewrite_script(
-        body,
-        caller_qname,
-        inlinable,
-        summaries,
-        counter,
-        false,
-        caller_may_be_global_frame,
-    );
-    changed.then(|| {
-        vec![Statement::UpFrame {
-            span: *span,
-            frame_shift: *frame_shift,
-            absolute: *absolute,
-            body: new_body,
-            tokens: tokens.clone(),
-        }]
-    })
-}
-
-/// `Try`: recurse into the body, each handler body, and the finally body
-/// (none is a tail position).
+/// `Try`: recurse into the body, each handler body, and the finally body. The
+/// value of a `try` is its body's or the handler's that ran, which its handlers
+/// and the caller of the `try` may read; the `finally` body's is read by none.
 fn rewrite_try_stmt(
     stmt: &Statement,
     caller_qname: &str,
@@ -1420,7 +1427,7 @@ fn rewrite_try_stmt(
         inlinable,
         summaries,
         counter,
-        false,
+        Tail::Captured,
         caller_may_be_global_frame,
     );
     let mut new_handlers = Vec::with_capacity(handlers.len());
@@ -1431,7 +1438,7 @@ fn rewrite_try_stmt(
             inlinable,
             summaries,
             counter,
-            false,
+            Tail::Captured,
             caller_may_be_global_frame,
         );
         if ch {
@@ -1458,7 +1465,7 @@ fn rewrite_try_stmt(
                 inlinable,
                 summaries,
                 counter,
-                false,
+                Tail::Dropped,
                 caller_may_be_global_frame,
             );
             if ch {
@@ -1481,15 +1488,15 @@ fn rewrite_try_stmt(
     })
 }
 
-/// `Switch`: recurse into each arm / default body, propagating
-/// `is_terminal` (the matched arm is a tail position, like `if`).
+/// `Switch`: recurse into each arm / default body, propagating `tail` (the
+/// matched arm's value is the `switch`'s, like `if`).
 fn rewrite_switch_stmt(
     stmt: &Statement,
     caller_qname: &str,
     inlinable: &HashMap<String, InlineSpec>,
     summaries: &HashMap<String, ProcEscapeSummary>,
     counter: &mut usize,
-    is_terminal: bool,
+    tail: Tail,
     caller_may_be_global_frame: bool,
 ) -> Option<Vec<Statement>> {
     let Statement::Switch {
@@ -1522,7 +1529,7 @@ fn rewrite_switch_stmt(
                     inlinable,
                     summaries,
                     counter,
-                    is_terminal,
+                    tail,
                     caller_may_be_global_frame,
                 );
                 if ch {
@@ -1550,7 +1557,7 @@ fn rewrite_switch_stmt(
                 inlinable,
                 summaries,
                 counter,
-                is_terminal,
+                tail,
                 caller_may_be_global_frame,
             );
             if ch {
@@ -1614,12 +1621,15 @@ impl InlineExpansion {
 
 /// Produce the inlined statements and their script-owned metadata for a single
 /// call site, or `None` to decline (keep the call).
+///
+/// `resolution_namespace` is the namespace the call resolved its command in,
+/// and the one the spliced statements now run in.
 fn splice_call_site(
     call: &Statement,
     spec: &InlineSpec,
     resolution_namespace: &str,
     counter: &mut usize,
-    is_terminal: bool,
+    site: Site,
 ) -> Option<InlineExpansion> {
     let Statement::Call {
         command,
@@ -1634,6 +1644,12 @@ fn splice_call_site(
     let mut expansion = match spec {
         InlineSpec::Empty(_) => {
             if !args.is_empty() {
+                return None;
+            }
+            // An empty body's value is the empty string. Where the value is
+            // read, the call can vanish only when nothing stands before it to
+            // be mistaken for it: `set a 5; noop` is "", and `set a 5` is not.
+            if site.tail != Tail::Dropped && !site.first {
                 return None;
             }
             Some(InlineExpansion::without_bindings(Vec::new()))
@@ -1661,11 +1677,15 @@ fn splice_call_site(
                     .collect(),
             })
         }
-        InlineSpec::Parameterised(proc, rules) => {
-            splice_v3(call, proc, *rules, counter, is_terminal)
-        }
+        InlineSpec::Parameterised(proc, rules) => splice_v3(call, proc, *rules, counter, site.tail),
     }?;
     let definition = spec.definition();
+    // The definition resolved each command it names from its own namespace. A
+    // caller in another namespace would resolve the same spelling from its own
+    // first, and a command of that name defined there would answer in its place.
+    if resolution_namespace != "::" && resolution_namespace != root_namespace_of(&definition.name) {
+        expansion.statements = heads::root(std::mem::take(&mut expansion.statements))?;
+    }
     expansion.procedure_bindings.push(
         tcl_runtime_api::ProcedureBindingIdentity::in_rooted_namespace(
             resolution_namespace,
@@ -1685,18 +1705,9 @@ fn splice_v3(
     proc: &Procedure,
     rules: WordValueRules,
     counter: &mut usize,
-    is_terminal: bool,
+    tail: Tail,
 ) -> Option<InlineExpansion> {
     let span = call.span();
-    let (cid, mut rename, bindings) = build_param_bindings(call, proc, rules, counter)?;
-
-    // Mangle every locally-written variable too.
-    for name in collect_local_names(&proc.body) {
-        rename
-            .entry(name.clone())
-            .or_insert_with(|| format!("__inline_{cid}__{name}"));
-    }
-
     let body_stmts = &proc.body.statements;
     let body_has_trailing_return = body_stmts
         .last()
@@ -1707,6 +1718,22 @@ fn splice_v3(
         .skip(1)
         .any(|s| matches!(s, Statement::Return { .. }))
         || has_nested_irreturn(&proc.body);
+
+    // A `catch` or a `try` reads the value of the call and a `return` in its
+    // place would not end the procedure, so only a body with no `return` — whose
+    // last command's value is the body's — can stand there.
+    if tail == Tail::Captured && (body_has_trailing_return || body_has_non_trailing_return) {
+        return None;
+    }
+
+    let (cid, mut rename, bindings) = build_param_bindings(call, proc, rules, counter)?;
+
+    // Mangle every locally-written variable too.
+    for name in collect_local_names(&proc.body) {
+        rename
+            .entry(name.clone())
+            .or_insert_with(|| format!("__inline_{cid}__{name}"));
+    }
 
     let renamed_body = rename::rewrite_script(&proc.body, &rename);
 
@@ -1720,10 +1747,13 @@ fn splice_v3(
         }
         let result_var = format!("__inline_{cid}__RESULT");
         let mut wrapped = wrap_with_irreturn_loop(&renamed_body, &result_var, span, implicit);
-        if is_terminal {
+        if tail == Tail::Returned {
+            // The value is the result's, which is read as the lowering spells a
+            // whole-word variable reference: the emitter substitutes `${name}`
+            // and pushes `$name` as the text it is.
             wrapped.push(Statement::Return {
                 span,
-                value: Some(format!("${result_var}")),
+                value: Some(format!("${{{result_var}}}")),
                 value_word: None,
                 expr: None,
                 command_binding: None,
@@ -1734,9 +1764,9 @@ fn splice_v3(
         return Some(InlineExpansion::without_bindings(out));
     }
 
-    if body_has_trailing_return && !is_terminal {
-        // Trailing return at a non-terminal site — wrap so it doesn't
-        // short-circuit the rest of the caller's body.
+    if body_has_trailing_return && tail != Tail::Returned {
+        // Trailing return where the value is not the procedure's — wrap so it
+        // doesn't short-circuit the rest of the caller's body.
         let result_var = format!("__inline_{cid}__RESULT");
         out.extend(wrap_with_irreturn_loop(
             &renamed_body,
@@ -1747,7 +1777,8 @@ fn splice_v3(
         return Some(InlineExpansion::without_bindings(out));
     }
 
-    // No return, or a trailing return at a terminal call site — flat splice.
+    // No return, or a trailing return where the value is the procedure's — flat
+    // splice.
     let expansion = InlineExpansion::from_script(renamed_body);
     out.extend(expansion.statements);
     Some(InlineExpansion {
