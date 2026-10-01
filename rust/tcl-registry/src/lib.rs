@@ -187,7 +187,7 @@ pub mod prelude {
         OptionArity, OptionSpec, OptionValue, OptionValueHook, OptionValueOutcome, ScriptTiming,
         VariableScope, first_positional_index, leading_option_specs,
     };
-    pub use crate::intrinsic::IntrinsicId;
+    pub use crate::intrinsic::{IntrinsicFamily, IntrinsicId};
     pub use crate::invocation_words::{CommandPrefixArguments, InvocationArguments};
     pub use crate::lifecycle::{Lifecycle, LifecycleState};
     pub use crate::literal_validation::{
@@ -258,7 +258,9 @@ pub use arity::Arity;
 pub use bigip::{BigipObjectSpec, BigipPropertySpec, BigipRegistry, ValueKind};
 pub use body_kind::{BodyInterpreter, BodyKind};
 pub use byte_array_effect::ByteArrayEffect;
-pub use cache::{default_registry, registry_for_profile_with_overlay, safe_interp_hidden_commands};
+pub use cache::{
+    default_registry, overlay_epoch, registry_for_profile_with_overlay, safe_interp_hidden_commands,
+};
 pub use clause_grammar::{
     ClauseAbstention, ClauseGrammarSpec, ClauseKeyword, ClausePlan, ClauseRow, ClauseRowId,
     ClauseRowShape, ClauseSelection, ClauseSlot, ClauseTiming, DefaultClause, LoopPhase,
@@ -289,7 +291,7 @@ pub use handle_binding::{
     BoundHandle, HandleBindingSpec, HandleClassSource, HandleKeyword, HandleName,
 };
 pub use hover::{ArgValue, CallbackTaintInput, ScriptTiming, VariableScope};
-pub use intrinsic::IntrinsicId;
+pub use intrinsic::{IntrinsicFamily, IntrinsicId, intrinsic_table_hash};
 pub use invocation_words::{
     CommandPrefixArguments, InvocationArgument, InvocationArguments, InvocationWord,
     InvocationWordKind, InvocationWords, VariableReadProjection, VariableWriteProjection,

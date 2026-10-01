@@ -72,6 +72,12 @@ Every `imports[].typeIdx` indexes into this list.
     "semanticDecline": null,   // typed reason object after a decline
     "regionPlanStatus": "available",
     "regionPlanDecline": null,
+    "nativeDeclines": [{
+      "premise": "sealed-program",
+      "reason": "hosted-environment",
+      "detail": {},
+      "sites": []
+    }],
     "regions": [{
       "node": [0],
       "selectedKind": "generic-prebuilt-argv",
@@ -135,6 +141,28 @@ only when all five required semantic passes are explicitly enabled and exact
 four-statement coverage succeeds; a missing pass, hosted environment, extra
 statement, mutation, trace, unsupported formal list, or non-i64 range returns
 the ordinary generic/general evidence instead.
+
+That evidence carries `nativeDeclines` (empty when the add was selected): one
+entry for every premise the composition evaluated and found wanting, in
+evaluation order. `premise` is one of `semantic-plans`, `packaging`,
+`sealed-program`, `pass`, `coverage`, `direct-call`, `direct-body`,
+`closed-program`, `frame`, `actuals`, `boundary`, `native-integer` and
+`operands`; `reason` is the typed reason's stable spelling; `detail` holds what
+the spelling does not (`{"pass": "native-integer"}` for a `pass` premise, the
+excluded `surfaces`, an arity's `expected` and `actual`, the `operation` of an
+untrusted or traced body operation); and `sites` names each direct call site
+the premise was rejected at (`function`, `block`, `statementIndex`,
+`nestedArgument`), empty for a premise about the options or the unit. The
+premises are evaluated independently, so the list names every obstacle, not the
+first; a premise whose input another premise rejects is not evaluated. While
+none of the five passes is enabled the add has not been asked for and the list
+holds the options' premises alone. The Explorer always compiles hosted, so
+`sealed-program: hosted-environment` is always present there.
+
+`data.aot` is that `codegenPlan` on its own, and the `aot` view
+(`AOT Plan`, a tree view) renders it: the plan kind and semantic decline, each
+region with the guarded candidates it considered, and the add's selection or its
+rejected premises. `tcl explore --show aot --text` prints it.
 
 ## Optimisation passes
 

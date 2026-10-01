@@ -4091,6 +4091,31 @@ async fn sync_evaluator_epoch(db: &TrackedMutex<tcl_lsp_db::TclDatabase>) {
     tcl_lsp_db::set_evaluator_epoch(&mut db, epoch);
 }
 
+/// Install `packs` as the overlay of every registry key the ingress can ask
+/// for: each catalogue profile and the permissive sink that `tk`, the lenient
+/// `tcl` and a pack-declared environment read their store from
+/// ([`tcl_registry::model::store_profiles`]). An environment left out would
+/// answer every compile query with an overlay miss for the life of the
+/// session.
+fn install_pack_overlays(packs: &tcl_spectcl::PackSet) {
+    for profile in tcl_registry::model::store_profiles() {
+        let _ = tcl_spectcl::install::registry_with_packs(profile, packs);
+    }
+}
+
+/// Make the registry cache's overlay epoch the salsa input
+/// `tcl_lsp_db::OverlayEpoch`, which every query that resolves a pack overlay
+/// reads. The cache is process-wide state the database cannot see change, so
+/// a unit memoised while a workspace's packs were not installed — or against a
+/// generation the cache has since retired — is asked again once the epoch
+/// moves. Compare-then-set, like [`sync_evaluator_epoch`]: a sync that finds
+/// the overlays unchanged writes nothing.
+async fn sync_overlay_epoch(db: &TrackedMutex<tcl_lsp_db::TclDatabase>) {
+    let epoch = tcl_registry::overlay_epoch();
+    let mut db = db.lock().await;
+    tcl_lsp_db::set_overlay_epoch(&mut db, epoch);
+}
+
 /// Base analysis: the cancellable salsa `file_analysis_incremental` query, off
 /// the LSP event loop — the whole-file per-item walk that dominates the deep
 /// pass and feeds *both* the workspace-independent fast tier and the deep tier.
@@ -4482,6 +4507,25 @@ async fn compute_project_diags(
     }
 }
 
+/// Say once, on the server's log, that a workspace's packs are not installed
+/// where a query needed them: the compiler checks and the optimiser's rewrites
+/// wait for the packs, and analysis and highlighting read the plain registry
+/// meanwhile. Each distinct miss the database has recorded is reported one
+/// time, however many queries hit it.
+fn report_overlay_misses() {
+    for miss in tcl_lsp_db::take_overlay_misses() {
+        eprintln!("{}", overlay_miss_message(&miss));
+    }
+}
+
+/// The log line for one overlay miss: which overlay, and what waits for it.
+fn overlay_miss_message(miss: &tcl_registry::model::OverlayMiss) -> String {
+    format!(
+        "tcl-lsp: {miss}; the compiler checks and optimisations wait for the packs to \
+         install, and analysis and highlighting read the plain registry meanwhile"
+    )
+}
+
 /// Optimiser / compiler-checks diagnostics, also off the event loop via the
 /// cancellable salsa `compiler_check_diagnostics` query: the unit's
 /// per-procedure lattices are memoised by `function_lattice` and shared with
@@ -4507,10 +4551,12 @@ async fn compute_compiler_diags(
         let snapshot = db.snapshot("compute_compiler_diags").await;
         match crate::rt::spawn_blocking(move || {
             with_pack_hooks(|| {
-                salsa::Cancelled::catch(|| {
+                let diagnostics = salsa::Cancelled::catch(|| {
                     tcl_lsp_db::compiler_check_diagnostics(&*snapshot, file, config)
                 })
-                .ok()
+                .ok();
+                report_overlay_misses();
+                diagnostics
             })
         })
         .await
@@ -11179,6 +11225,9 @@ impl Backend {
                 tcl_lsp_db::document_compilation_unit_for(&*snapshot, file, config)
             })
             .ok()
+            // `None` from the query is an abstention: the workspace's packs
+            // are not installed, so there is no unit to hand back.
+            .flatten()
         }))
     }
 
@@ -21037,6 +21086,14 @@ impl Backend {
                         kind: all_kinds,
                     },
                     FileSystemWatcher {
+                        // The lockfile a pack's dependency tier is read from.
+                        // `tclpkg.tcl` beside it is a `.tcl` file, so the source
+                        // watcher above reports it; `did_change_watched_files`
+                        // reloads the packs for either.
+                        glob_pattern: GlobPattern::String(PACKAGE_LOCKFILE_GLOB.to_owned()),
+                        kind: all_kinds,
+                    },
+                    FileSystemWatcher {
                         // The project config the layered settings live-reload
                         // from ([`is_config_file`]). Registered here rather than
                         // left to each client's own `synchronize.fileEvents`, so
@@ -21285,15 +21342,12 @@ impl Backend {
             // dialect anyway. It runs on a worker: it is parse-free but not
             // free.
             let for_worker = Arc::clone(&packs);
-            let _ = crate::rt::spawn_blocking(move || {
-                for profile in tcl_dialect::DialectProfile::all() {
-                    let _ = tcl_spectcl::install::registry_with_packs(profile, &for_worker);
-                }
-            })
-            .await;
+            let _ = crate::rt::spawn_blocking(move || install_pack_overlays(&for_worker)).await;
             // The analyser reads the key off the salsa config, so publish it
-            // before anything re-analyses.
+            // before anything re-analyses, with the overlay epoch that says
+            // the generations behind it are installed.
             self.sync_db_config().await;
+            sync_overlay_epoch(&self.db).await;
         }
         if changed {
             // The publish above moved the process's evaluator epoch, whether
@@ -27478,6 +27532,26 @@ fn is_spec_pack_file(uri: &Uri) -> bool {
         .is_some_and(|path| tcl_spectcl::discovery::is_pack_file(&path))
 }
 
+/// Watcher glob for the lockfile a pack's dependency tier is read from
+/// ([`is_package_metadata_file`]). The manifest beside it is a `.tcl` file, so
+/// the source watcher already reports it.
+const PACKAGE_LOCKFILE_GLOB: &str = "**/tclpkg.lock";
+
+/// `true` when `uri` names a package manifest or lockfile: the files a pack's
+/// dependency tier is read from at discovery, so a change to one changes what
+/// the packs beside a manifest may declare without any pack file moving.
+fn is_package_metadata_file(uri: &Uri) -> bool {
+    uri.to_file_path()
+        .and_then(|path| {
+            path.file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+        })
+        .is_some_and(|name| {
+            name.eq_ignore_ascii_case(tcl_spectcl::discovery::PACKAGE_MANIFEST)
+                || name.eq_ignore_ascii_case(tcl_spectcl::discovery::PACKAGE_LOCKFILE)
+        })
+}
+
 fn is_config_file(uri: &Uri) -> bool {
     let s = uri.as_str();
     s.ends_with("/.tcl-lsp.ini")
@@ -27507,6 +27581,11 @@ fn is_sidecar_stubs_file(uri: &Uri) -> bool {
 fn partition_watched_file_changes(changes: Vec<FileEvent>) -> WatchedFileChanges {
     let mut partition = WatchedFileChanges::default();
     for change in changes {
+        // A manifest also goes on as the Tcl source it is; the lockfile is
+        // no source at all. Either moving can change a pack's tier.
+        if is_package_metadata_file(&change.uri) {
+            partition.spec_pack_changed = true;
+        }
         if is_config_file(&change.uri) {
             partition.config_changed = true;
         } else if is_sidecar_stubs_file(&change.uri) {
@@ -27539,7 +27618,8 @@ struct WatchedFileChanges {
     config_changed: bool,
     /// A `.tcl.stubs` sidecar moved.
     sidecar_changed: bool,
-    /// A `.tclspec` `SpecTcl` pack moved.
+    /// A `.tclspec` `SpecTcl` pack moved, or a `tclpkg.tcl` / `tclpkg.lock`
+    /// did, which is where the tier of the package shipping a pack is read from.
     spec_pack_changed: bool,
     /// The Tcl source files, one entry per URI, with its last event kind.
     last_kind: HashMap<Uri, FileChangeType>,
@@ -42603,6 +42683,196 @@ proc p {} {
         );
     }
 
+    /// A pack's dependency tier is read from the manifest and lockfile beside
+    /// it, so either moving reloads the packs although no `.tclspec` did. The
+    /// lockfile is no Tcl source and has a watcher of its own
+    /// ([`PACKAGE_LOCKFILE_GLOB`]); the manifest is reported by the source
+    /// watcher and stays an indexed Tcl source as well.
+    #[test]
+    fn a_manifest_or_lockfile_change_reloads_the_packs() {
+        let changed = |uri: &Uri| {
+            partition_watched_file_changes(vec![FileEvent {
+                uri: uri.clone(),
+                typ: FileChangeType::CHANGED,
+            }])
+        };
+        let lockfile: Uri = "file:///w/tclpkg.lock".parse().unwrap();
+        let manifest: Uri = "file:///w/lib/json-1.0.0/tclpkg.tcl".parse().unwrap();
+        assert!(is_package_metadata_file(&lockfile));
+        assert!(is_package_metadata_file(&manifest));
+
+        let partition = changed(&lockfile);
+        assert!(partition.spec_pack_changed);
+        assert!(
+            partition.last_kind.is_empty(),
+            "a lockfile is no Tcl source"
+        );
+        let partition = changed(&manifest);
+        assert!(partition.spec_pack_changed);
+        assert!(partition.last_kind.contains_key(&manifest));
+
+        // Negative: other lockfiles and other Tcl files move no pack.
+        for other in ["file:///w/other.lock", "file:///w/lib/x.tcl"] {
+            let other: Uri = other.parse().unwrap();
+            assert!(!is_package_metadata_file(&other), "{other:?}");
+            assert!(!changed(&other).spec_pack_changed, "{other:?}");
+        }
+        assert_eq!(PACKAGE_LOCKFILE_GLOB, "**/tclpkg.lock");
+    }
+
+    /// A unit the database declined to build for want of a workspace's packs
+    /// is built once the packs are installed and the server syncs the overlay
+    /// epoch, with the document and its config untouched: the epoch is what
+    /// tells the database the registry cache changed.
+    #[tokio::test]
+    async fn syncing_the_overlay_epoch_lets_an_abstained_unit_build() {
+        const OVERLAY: u64 = 0x5E71_0001;
+        let db = TrackedMutex::new("db", tcl_lsp_db::TclDatabase::default());
+        let (file, config) = {
+            let db = db.lock().await;
+            let file = tcl_lsp_db::SourceFile::new(
+                &*db,
+                "set x 1\nputs $x\n".to_owned(),
+                "tcl9.0".to_owned(),
+                None,
+            );
+            let config = tcl_lsp_db::AnalyserConfig::new(
+                &*db,
+                Vec::new(),
+                NonAsciiMode::Default,
+                Vec::new(),
+                None,
+                None,
+                OVERLAY,
+                Vec::new(),
+                Vec::new(),
+            );
+            (file, config)
+        };
+        let has_unit = || async {
+            let db = db.lock().await;
+            tcl_lsp_db::document_compilation_unit_for(&*db, file, config).is_some()
+        };
+        assert!(!has_unit().await, "nothing installed the overlay");
+
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").expect("catalogue profile");
+        let _installed = tcl_registry::registry_for_profile_with_overlay(profile, OVERLAY, |_| {});
+        sync_overlay_epoch(&db).await;
+        assert!(has_unit().await, "installed and synced, the unit builds");
+    }
+
+    /// A wish script resolves to the `tk` environment, whose registry store is
+    /// the permissive sink's and no catalogue profile's. The overlay the server
+    /// installs has to reach that key too, or every compile query for a wish
+    /// document answers with a miss for the life of the session and the
+    /// analyser reads the plain registry for good: the document keeps its unit,
+    /// its compiler checks and its rewrites, and a workspace pack's command
+    /// stops being unknown in it.
+    #[tokio::test]
+    async fn a_wish_document_reads_the_workspace_packs_like_any_other() {
+        const PACK: &str = "speclib wishpack 1 {\n    command wishcmd {\n        arity 1..\n        \
+                            arg 0 -role Value\n        arg 1 -role VarWrite\n    }\n}\n";
+        // A bare `wish` shebang names no dialect on its own; the directive (as
+        // a `.tk` extension or `tcl-lsp.setDialect` would) selects `tk`.
+        const SOURCE: &str = "#!/usr/bin/wish\n# tcl-dialect: tk\nwishcmd {1 2} a\nputs $a\n\
+                              set x 1\nset y [expr {$x + 1}]\nputs $y\n\
+                              if {$x == 1} {puts one}\n";
+        assert_eq!(
+            tcl_registry::detect_dialect(SOURCE, None, "tcl9.0"),
+            "tk",
+            "the document is in the `tk` environment"
+        );
+        let packs = tcl_spectcl::pack::load_in_memory(vec![(
+            tcl_spectcl::PackFile {
+                tier: tcl_spectcl::Tier::Workspace,
+                path: PathBuf::from("/workspace/.tcl-lsp/wishpack.tclspec"),
+                origin: tcl_spectcl::discovery::Origin::DotDir,
+                dependency_tier: None,
+            },
+            PACK.to_owned(),
+        )]);
+        assert!(packs.notices.is_empty(), "{:#?}", packs.notices);
+
+        let db = TrackedMutex::new("db", tcl_lsp_db::TclDatabase::default());
+        let (file, config) = {
+            let db = db.lock().await;
+            let file = tcl_lsp_db::SourceFile::new(&*db, SOURCE.to_owned(), "tk".to_owned(), None);
+            let config = tcl_lsp_db::AnalyserConfig::new(
+                &*db,
+                Vec::new(),
+                NonAsciiMode::Default,
+                Vec::new(),
+                None,
+                None,
+                packs.key,
+                Vec::new(),
+                Vec::new(),
+            );
+            (file, config)
+        };
+        let unknown = || async {
+            let db = db.lock().await;
+            tcl_lsp_db::file_analysis_incremental(&*db, file, config)
+                .diagnostics
+                .iter()
+                .any(|d| {
+                    d.code == tcl_compiler::compiler_checks::DiagCode::W123
+                        && d.message.contains("wishcmd")
+                })
+        };
+        assert!(
+            unknown().await,
+            "control: before the packs install, the command is unknown"
+        );
+        let _ = tcl_lsp_db::take_overlay_misses();
+
+        install_pack_overlays(&packs);
+        sync_overlay_epoch(&db).await;
+
+        assert!(!unknown().await, "the analyser reads the pack's command");
+        {
+            let db = db.lock().await;
+            assert!(
+                tcl_lsp_db::document_compilation_unit_for(&*db, file, config).is_some(),
+                "the unit builds under the workspace key"
+            );
+            let diagnostics = tcl_lsp_db::compiler_check_diagnostics(&*db, file, config);
+            assert!(
+                !diagnostics.checks.is_empty(),
+                "and the compiler checks that read it report"
+            );
+            assert!(
+                !diagnostics.optimisations.is_empty(),
+                "and the rewrites that read it are offered"
+            );
+        }
+        let misses: Vec<_> = tcl_lsp_db::take_overlay_misses()
+            .into_iter()
+            .filter(|miss| miss.overlay == packs.key)
+            .collect();
+        assert!(misses.is_empty(), "no query missed: {misses:?}");
+    }
+
+    /// A workspace whose packs are not installed is one line on the log: the
+    /// overlay and the dialect it was asked for, and what waits for it.
+    #[test]
+    fn an_overlay_miss_is_reported_with_its_key_and_what_waits() {
+        let message = overlay_miss_message(&tcl_registry::model::OverlayMiss {
+            environment: "tcl9.0".to_owned(),
+            overlay: 0xC0FF_EE01,
+        });
+        assert!(message.contains("0xc0ffee01"), "{message}");
+        assert!(message.contains("`tcl9.0`"), "{message}");
+        assert!(
+            message.contains("compiler checks and optimisations wait"),
+            "{message}"
+        );
+        assert!(
+            message.contains("highlighting read the plain registry"),
+            "{message}"
+        );
+    }
+
     #[test]
     fn is_skipped_scan_dir_skips_vendor_and_hidden() {
         assert!(is_skipped_scan_dir(Path::new("/a/.git")));
@@ -51770,6 +52040,7 @@ proc p {} {
                 tier: tcl_spectcl::Tier::Workspace,
                 path: std::path::PathBuf::from("/workspace/.tcl-lsp/mylib.tclspec"),
                 origin: tcl_spectcl::discovery::Origin::DotDir,
+                dependency_tier: None,
             },
             "speclib mylib 1.0 {\n    command mylib::put {\n        arity 1\n        \
              arg 0 -role VarWrite\n    }\n}\n"

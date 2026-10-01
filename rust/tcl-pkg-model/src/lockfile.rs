@@ -27,7 +27,6 @@
 
 use std::path::Path;
 
-use chrono::Utc;
 use serde_json::{Value, json};
 
 use crate::errors::TclPkgError;
@@ -95,6 +94,16 @@ pub struct LockedPackage {
 }
 
 impl LockedPackage {
+    /// The names of the packages this one requires — each `requires` entry
+    /// is `name@version`, and only the name places a package in the graph.
+    pub fn required_names(&self) -> impl Iterator<Item = &str> {
+        self.requires.iter().map(|entry| {
+            entry
+                .rsplit_once('@')
+                .map_or(entry.as_str(), |(name, _)| name)
+        })
+    }
+
     fn to_value(&self) -> Value {
         let mut provides = self.provides.clone();
         provides.sort();
@@ -260,11 +269,6 @@ impl LockFile {
     #[must_use]
     pub fn lookup(&self, name: &str) -> Option<&LockedPackage> {
         self.packages.iter().find(|p| p.name == name)
-    }
-
-    /// Set `generated` to now (UTC, ISO-8601, second precision, `Z` suffix).
-    pub fn stamp(&mut self) {
-        self.generated = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
     }
 }
 

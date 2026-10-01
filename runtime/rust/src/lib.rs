@@ -114,8 +114,8 @@ pub mod counters;
 pub mod dict;
 // The Tcl 9 stdlib embedded in the binary, seeded into the WASM VFS so the
 // filesystem-backed startup path (`init.tcl`, `package require`) works with no
-// host filesystem. Gated so non-WASM consumers don't carry the embedded bytes.
-#[cfg(feature = "wasm_stdlib")]
+// host filesystem. The bytes are gated inside the module so non-WASM consumers
+// don't carry them.
 pub mod embedded_stdlib;
 pub mod ensemble;
 mod environment;

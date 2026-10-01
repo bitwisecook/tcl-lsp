@@ -15,6 +15,7 @@
 //! trace, interpreter, effect, and representation proofs remain separate.
 
 use tcl_dialect::{StringCharacterModel, TclVersion};
+use tcl_runtime_api::guard::{GuardDomain, GuardDomains, GuardIdentity};
 
 use crate::hooks::{CodegenHookId, InlineCodegenHookId, LoweringHookId};
 use crate::semantic_operation::SemanticOperationId;
@@ -161,6 +162,68 @@ pub enum IntrinsicId {
     ChannelWrite,
 }
 
+/// The contract family of an intrinsic: what state a fast path for it may
+/// reach beyond the values it is given.
+///
+/// The family is the widest reach of the member under any invocation form, so
+/// `string is`, whose `-failindex` stores, and `regexp`, whose match variables
+/// store, are Family B although a call without those words touches nothing.
+/// The lattice has no channel domain, so channel operations take the family's
+/// variable-trace domain as the store operations do.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum IntrinsicFamily {
+    /// A function of its argument values alone, computed by a shared core in
+    /// `tcl-cmd-core`: it reaches no variable, array, or channel state.
+    Value,
+    /// An operation over a runtime's variable-store or channel adapter, which
+    /// each runtime owns and which re-enters script through traces.
+    FamilyB {
+        /// The domain a guard for the member must cover beyond the dispatch
+        /// dependencies of its command.
+        domain: GuardDomain,
+        /// Whether the operation runs a variable's traces while only
+        /// observing it: `info exists` a read trace, the array queries an
+        /// array trace. An operation that stores runs its write traces as
+        /// part of the store and is not marked.
+        fires_traces: bool,
+    },
+}
+
+impl IntrinsicFamily {
+    /// A Family-B member that stores through an adapter.
+    const STORES: Self = Self::FamilyB {
+        domain: GuardDomain::VariableTrace,
+        fires_traces: false,
+    };
+
+    /// A Family-B member that observes a variable and runs its traces.
+    const OBSERVES_AND_FIRES: Self = Self::FamilyB {
+        domain: GuardDomain::VariableTrace,
+        fires_traces: true,
+    };
+
+    /// The guard domains a guard for a member of this family must cover.
+    #[must_use]
+    pub const fn guard_domains(self) -> GuardDomains {
+        match self {
+            Self::Value => GuardDomains::EMPTY,
+            Self::FamilyB { domain, .. } => GuardDomains::one(domain),
+        }
+    }
+
+    /// Whether the family runs variable traces while only observing.
+    #[must_use]
+    pub const fn fires_traces(self) -> bool {
+        matches!(
+            self,
+            Self::FamilyB {
+                fires_traces: true,
+                ..
+            }
+        )
+    }
+}
+
 impl IntrinsicId {
     /// Every intrinsic in stable-ID order.
     pub const ALL: &'static [Self] = &[
@@ -230,6 +293,61 @@ impl IntrinsicId {
             Self::Concat => 0x0701,
             Self::ChannelWrite => 0x0801,
         }
+    }
+
+    /// The contract family of this member.
+    ///
+    /// Matched per member with no wildcard arm, like [`Self::stable_id`], so
+    /// a member added to the catalogue must be classified. Changing a
+    /// member's family changes what a fast path may assume of it, and the
+    /// manifest's intrinsic-table hash covers the family, so a runtime built
+    /// against another classification is refused.
+    #[must_use]
+    pub const fn family(self) -> IntrinsicFamily {
+        match self {
+            Self::ListLength
+            | Self::ListIndex
+            | Self::ListRange
+            | Self::ListReplace
+            | Self::ListInsert
+            | Self::ListConstruct
+            | Self::DictGet
+            | Self::StringIndex
+            | Self::StringRange
+            | Self::StringEqual
+            | Self::StringCompare
+            | Self::StringReplace
+            | Self::StringLength
+            | Self::Concat => IntrinsicFamily::Value,
+            Self::ListAssign
+            | Self::ListSet
+            | Self::DictSet
+            | Self::DictUnset
+            | Self::DictIncr
+            | Self::DictAppend
+            | Self::DictListAppend
+            | Self::StringIs
+            | Self::Regexp
+            | Self::ChannelWrite => IntrinsicFamily::STORES,
+            Self::InfoExists | Self::ArrayExists | Self::ArrayNames | Self::ArraySize => {
+                IntrinsicFamily::OBSERVES_AND_FIRES
+            }
+        }
+    }
+
+    /// The intrinsic a registry guard identity names, if it names one.
+    #[must_use]
+    pub fn from_guard_identity(identity: GuardIdentity) -> Option<Self> {
+        identity.registry_stable_id().and_then(Self::from_stable_id)
+    }
+
+    /// The domains a guard request for `identity` must cover: its family's,
+    /// for an identity of this vocabulary, and none for any other.
+    #[must_use]
+    pub fn required_guard_domains(identity: GuardIdentity) -> GuardDomains {
+        Self::from_guard_identity(identity).map_or(GuardDomains::EMPTY, |member| {
+            member.family().guard_domains()
+        })
     }
 
     /// This member's row in `revisions`, an explicit [`SEMANTICS_REVISION`]-shaped
@@ -481,9 +599,122 @@ impl IntrinsicId {
     }
 }
 
+/// One member of the intrinsic table as its hash reads it.
+struct TableRow {
+    stable_id: u32,
+    family: IntrinsicFamily,
+    semantics: &'static [u32],
+}
+
+/// The digest of `rows`, each read in the order given.
+fn table_digest(rows: impl IntoIterator<Item = TableRow>) -> [u8; 32] {
+    use sha2::{Digest, Sha256};
+
+    let mut hasher = Sha256::new();
+    for row in rows {
+        hasher.update(row.stable_id.to_le_bytes());
+        match row.family {
+            IntrinsicFamily::Value => hasher.update([0_u8]),
+            IntrinsicFamily::FamilyB {
+                domain,
+                fires_traces,
+            } => {
+                hasher.update([1_u8]);
+                hasher.update(GuardDomains::one(domain).bits().to_le_bytes());
+                hasher.update([u8::from(fires_traces)]);
+            }
+        }
+        let count = u32::try_from(row.semantics.len()).expect("a member has few variants");
+        hasher.update(count.to_le_bytes());
+        for key in row.semantics {
+            hasher.update(key.to_le_bytes());
+        }
+    }
+    hasher.finalize().into()
+}
+
+/// The hash of the intrinsic table this build emits against and dispatches
+/// for: every member's stable identity, its [`IntrinsicId::family`] and its
+/// guarded-semantics keys ([`IntrinsicId::guard_semantics_variants`]), in
+/// table order.
+///
+/// An artefact records the hash of the table its emitter keyed against
+/// (`ArtefactIdentityManifest::intrinsic_table_hash`), and a runtime whose
+/// own differs refuses it: a member added, re-classified or re-versioned on
+/// one side changes what a guarded fast path may assume of the other.
+#[must_use]
+pub fn intrinsic_table_hash() -> [u8; 32] {
+    static HASH: std::sync::OnceLock<[u8; 32]> = std::sync::OnceLock::new();
+    *HASH.get_or_init(|| {
+        table_digest(IntrinsicId::ALL.iter().map(|member| TableRow {
+            stable_id: member.stable_id(),
+            family: member.family(),
+            semantics: member.guard_semantics_variants(),
+        }))
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn rows() -> Vec<TableRow> {
+        IntrinsicId::ALL
+            .iter()
+            .map(|member| TableRow {
+                stable_id: member.stable_id(),
+                family: member.family(),
+                semantics: member.guard_semantics_variants(),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn the_table_hash_is_the_digest_of_every_members_row() {
+        assert_eq!(intrinsic_table_hash(), table_digest(rows()));
+        assert_ne!(intrinsic_table_hash(), [0; 32]);
+    }
+
+    #[test]
+    fn the_table_hash_moves_with_each_thing_it_covers() {
+        let base = table_digest(rows());
+
+        let mut without_one = rows();
+        without_one.pop();
+        assert_ne!(table_digest(without_one), base, "a member goes");
+
+        let mut reordered = rows();
+        reordered.swap(0, 1);
+        assert_ne!(table_digest(reordered), base, "table order");
+
+        let mut renumbered = rows();
+        renumbered[0].stable_id += 1;
+        assert_ne!(table_digest(renumbered), base, "a stable identity");
+
+        let mut reclassified = rows();
+        let value = reclassified
+            .iter_mut()
+            .find(|row| row.family == IntrinsicFamily::Value)
+            .expect("the table has a value member");
+        value.family = IntrinsicFamily::STORES;
+        assert_ne!(table_digest(reclassified), base, "a family");
+
+        let mut retraced = rows();
+        let stores = retraced
+            .iter_mut()
+            .find(|row| row.family == IntrinsicFamily::STORES)
+            .expect("the table has a storing member");
+        stores.family = IntrinsicFamily::OBSERVES_AND_FIRES;
+        assert_ne!(table_digest(retraced), base, "whether it fires traces");
+
+        let mut reversioned = rows();
+        reversioned[0].semantics = &[7];
+        assert_ne!(table_digest(reversioned), base, "a semantics key");
+
+        let mut extra_variant = rows();
+        extra_variant[0].semantics = &[0, 0];
+        assert_ne!(table_digest(extra_variant), base, "a release variant");
+    }
 
     #[test]
     fn overlapping_legacy_hooks_share_one_intrinsic_identity() {
@@ -697,6 +928,121 @@ mod tests {
         assert_ne!(key(TclVersion::V8_6), key(TclVersion::V9_0));
         assert_ne!(key(TclVersion::V8_4), key(TclVersion::V9_0));
         assert_eq!(key(TclVersion::V9_0), key(TclVersion::V9_1));
+    }
+
+    #[test]
+    fn every_member_names_a_family() {
+        use IntrinsicId::*;
+        let (value, family_b): (Vec<_>, Vec<_>) = IntrinsicId::ALL
+            .iter()
+            .copied()
+            .partition(|member| member.family() == IntrinsicFamily::Value);
+        assert_eq!(
+            value,
+            [
+                ListLength,
+                ListIndex,
+                ListRange,
+                ListReplace,
+                ListInsert,
+                ListConstruct,
+                DictGet,
+                StringIndex,
+                StringRange,
+                StringEqual,
+                StringCompare,
+                StringReplace,
+                StringLength,
+                Concat,
+            ]
+        );
+        assert_eq!(
+            family_b,
+            [
+                ListAssign,
+                ListSet,
+                DictSet,
+                DictUnset,
+                DictIncr,
+                DictAppend,
+                DictListAppend,
+                StringIs,
+                Regexp,
+                InfoExists,
+                ArrayExists,
+                ArrayNames,
+                ArraySize,
+                ChannelWrite,
+            ]
+        );
+        for member in family_b {
+            let IntrinsicFamily::FamilyB { domain, .. } = member.family() else {
+                unreachable!("partitioned as Family B");
+            };
+            assert_eq!(domain, GuardDomain::VariableTrace, "{member:?}");
+        }
+    }
+
+    #[test]
+    fn trace_firing_members_are_family_b() {
+        let firing: Vec<_> = IntrinsicId::ALL
+            .iter()
+            .copied()
+            .filter(|member| member.family().fires_traces())
+            .collect();
+        assert_eq!(
+            firing,
+            [
+                IntrinsicId::InfoExists,
+                IntrinsicId::ArrayExists,
+                IntrinsicId::ArrayNames,
+                IntrinsicId::ArraySize,
+            ]
+        );
+        for member in firing {
+            assert_eq!(
+                member.family(),
+                IntrinsicFamily::FamilyB {
+                    domain: GuardDomain::VariableTrace,
+                    fires_traces: true,
+                },
+                "{member:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_guard_request_must_cover_its_members_family_domains() {
+        let variable = GuardDomains::one(GuardDomain::VariableTrace);
+        for &member in IntrinsicId::ALL {
+            let required = member.family().guard_domains();
+            let bare = GuardIdentity::registry_intrinsic(member.stable_id());
+            assert_eq!(IntrinsicId::from_guard_identity(bare), Some(member));
+            assert_eq!(IntrinsicId::required_guard_domains(bare), required);
+            for release in tcl_dialect::TclVersion::ALL {
+                let packed = GuardIdentity::registry_intrinsic_with_semantics(
+                    member.stable_id(),
+                    member.guard_semantics_key(release),
+                );
+                assert_eq!(IntrinsicId::from_guard_identity(packed), Some(member));
+                assert_eq!(IntrinsicId::required_guard_domains(packed), required);
+            }
+            assert_eq!(
+                required == variable,
+                member.family() != IntrinsicFamily::Value,
+                "{member:?}: a Family-B member requires the variable-trace domain, a Value member none"
+            );
+        }
+        let foreign = GuardIdentity::new(7, u64::from(IntrinsicId::DictSet.stable_id()));
+        assert_eq!(
+            IntrinsicId::required_guard_domains(foreign),
+            GuardDomains::EMPTY
+        );
+        let unknown = GuardIdentity::registry_intrinsic(0x7fff);
+        assert_eq!(
+            IntrinsicId::required_guard_domains(unknown),
+            GuardDomains::EMPTY
+        );
     }
 
     #[test]

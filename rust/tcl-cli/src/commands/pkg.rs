@@ -488,7 +488,7 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
     drop(input);
 
     let mut lf = LockFile::new(manifest.name.clone(), manifest.tcl_constraint.clone());
-    lf.stamp();
+    tcl_pkg::stamp_lockfile(&mut lf);
     for rp in &resolved {
         let name = rp.reference.name.clone();
         let version = rp.reference.version.to_string();

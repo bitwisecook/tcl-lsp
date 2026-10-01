@@ -32,10 +32,16 @@ packs".
 through its configuration. It may look the pair up; it may never build it.
 Building a layered registry needs the pack's contents, which only the loader
 that parsed the `.tclspec` files holds, and the analyser must not depend on
-that loader. A miss therefore falls back to the plain profile registry rather
-than caching a pack-less entry under the pack's key — an entry that would be
-permanently wrong for the rest of the process. That fallback is the honest
-pre-install state, not an error condition to special-case.
+that loader. A miss is reported as one (`OverlayMiss`) rather than answered
+with a pack-less entry cached under the pack's key — an entry that would be
+permanently wrong for the rest of the process. What a consumer does with the
+miss is its own decision. The analyser and highlighting only advise and run
+again when the pack installs, so they read the plain profile registry in the
+meantime, the honest pre-install state. Anything that builds a compilation
+unit or compiles bytecode does not: the language server's unit query answers
+no unit and offers no checks or rewrites until the pack installs, and the
+compile service for an overlay declines to compile. A rewrite computed without
+the pack's declarations could be wrong for the workspace.
 
 **Scope.** Packs install once at **workspace** scope, keyed by the pack set's
 content hash. A pack is re-parsed and re-installed only when the pack file

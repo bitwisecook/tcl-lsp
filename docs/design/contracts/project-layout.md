@@ -29,6 +29,7 @@ up to the binaries, and is enforced by cargo's own dependency graph.
 | `tcl-mcp` | Native MCP server binary (`tcl-mcp`) — the tool surface Claude skills / Codex call. |
 | `tcl-explorer` | Compiler-explorer verbs behind `tcl explore` (and the embedded web GUI's `tcl explore --serve`). |
 | `tcl-pkg`, `tcl-debugger`, `tcl-fuzz`, `tcl-irule-test`, `tcl-sandbox`, `tcl-host-native` | Tcl package manager, interactive debugger, differential fuzzer, iRule-test framework, sandbox, and native host bridge. |
+| `tcl-pkg-model` | The `tclpkg` data model — manifest, lockfile, versions, errors, and a package's dependency tier. Split from `tcl-pkg` because the pack loader (`tcl-spectcl`) reads it and must not depend on the package manager, whose network, archive and sandbox code does not build for the browser hosts. `tcl-pkg` re-exports its modules. |
 | `tcl-sslictcl` | SslicTcl — declarative offline TLS configuration, certificate, trust, and assessment model. |
 | `tcl-test-support` | Shared tclsh discovery and source-tree location for the conformance suites. |
 | `bpf-tcl`, `bpf-tcl-ir`, `bpf-tcl-codegen` | Experimental Tcl→BPF backend. |
@@ -84,7 +85,11 @@ dependency graph (a crate can only use what it declares in
 5. **Developer tools sit above the compiler, beside the server.**
    `tcl-cli`, `f5-cli`, `tcl-explorer`, `tcl-pkg`, `tcl-debugger`,
    `tcl-fuzz`, and the F5 query/XC crates consume the compiler /
-   registry / VM but are not consumed by them.
+   registry / VM but are not consumed by them. What a lower crate needs of
+   one of them lives below it instead: the pack loader reads a package's
+   manifest and lockfile through `tcl-pkg-model`, and the per-user
+   directories through `tcl-userdirs`, and neither pulls the package
+   manager into the loader.
 6. **AI integrations sit above the LSP.**  `tcl-mcp` exposes analysis as
    MCP tools on top of the LSP-core and tooling crates; nothing below it
    depends on it.

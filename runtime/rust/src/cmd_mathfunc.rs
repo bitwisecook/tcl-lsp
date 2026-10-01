@@ -40,25 +40,9 @@ use tcl_syntax::naming::qualifier_segments;
 use crate::interp::{obj_bytes, Code, Interp};
 use crate::obj::{self, TclObj};
 
-/// Every math function name — registered as `::tcl::mathfunc::<name>`. Most
-/// forward to the shared [`dispatch`]; `rand`/`srand` are handled inline
-/// (interp state).
-///
-/// Derived from `tcl_syntax::expr::mathfunc::all()` rather than a hand-typed
-/// list, so this loop cannot drift out of sync with `dispatch()` (the
-/// function it wires every one of these names up to): a function
-/// `dispatch()` implements but a stale hand-typed list omitted would report
-/// "invalid command name" instead of dispatching.
-fn mathfunc_names() -> Vec<&'static str> {
-    tcl_syntax::expr::mathfunc::all()
-        .into_iter()
-        .map(|spec| spec.name)
-        .collect()
-}
-
 /// Register `::tcl::mathfunc::*`.
 pub fn install(interp: &mut Interp) {
-    for name in mathfunc_names() {
+    for name in crate::builtins::mathfunc_names() {
         let mut full = b"::tcl::mathfunc::".to_vec();
         full.extend_from_slice(name.as_bytes());
         interp.register_builtin(&full, mathfunc);
@@ -197,12 +181,12 @@ pub(crate) fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// default is the unary `(1, 1)`.
 /// A function's `(min, max)` argument count — derived from
 /// `tcl_syntax::expr::mathfunc::spec` rather than a hand-typed match, so it
-/// cannot drift out of sync with [`mathfunc_names`]: several functions are
+/// cannot drift out of sync with [`crate::builtins::mathfunc_names`]: several functions are
 /// 2- or 3-argument (`copysign`, `dim`, `ldexp`, `nextafter`, `remainder`
 /// take 2; `fma` takes 3), and a fallback arm of `_ => (1, Some(1))` would
 /// wrongly reject a correct call to any function a hand-typed match omitted.
 /// Unknown names fall back to `(1, Some(1))` too — unreachable for any name
-/// [`mathfunc_names`] actually registers, since both read the same table.
+/// [`crate::builtins::mathfunc_names`] actually registers, since both read the same table.
 fn arity(name: &str) -> (usize, Option<usize>) {
     let Some(spec) = tcl_syntax::expr::mathfunc::spec(name) else {
         return (1, Some(1));

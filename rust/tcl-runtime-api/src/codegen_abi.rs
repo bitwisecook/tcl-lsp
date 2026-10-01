@@ -144,6 +144,11 @@ pub enum CodegenAbiImportId {
     RuntimeSetCurrentInterp,
     /// Initialise the Tcl library for a standalone module.
     RuntimeInitLibrary,
+    /// Write the runtime's own identity manifest — what it states of itself, as
+    /// `ArtefactIdentityManifest::to_bytes` encodes it — to a caller buffer, and
+    /// answer its byte length (written only when the buffer holds it). `0` when
+    /// no interpreter is current.
+    RuntimeIdentity,
     /// Prepare a runtime-issued guard for one registry intrinsic implementation.
     ///
     /// Parameters are the intrinsic stable ID, fully evaluated argv pointer
@@ -297,6 +302,70 @@ pub enum CodegenAbiImportId {
 }
 
 impl CodegenAbiImportId {
+    /// Every import, in declaration order: the table [`CODEGEN_ABI_VERSION`] is
+    /// derived from.
+    pub const ALL: &'static [Self] = &[
+        Self::CallFrameAlloc,
+        Self::CallFrameFree,
+        Self::NewOwnedString,
+        Self::InvokeArgv,
+        Self::CompletionRelease,
+        Self::ObjectRetain,
+        Self::ObjectRelease,
+        Self::ObjectNewString,
+        Self::EvalCode,
+        Self::ExprBool,
+        Self::ValueNewString,
+        Self::ValueNewWideInt,
+        Self::FramePush,
+        Self::FramePop,
+        Self::LocalBind,
+        Self::LocalSet,
+        Self::LocalGet,
+        Self::VarSet,
+        Self::VarGet,
+        Self::ExprAdd,
+        Self::Puts,
+        Self::ProcRegister,
+        Self::RuntimeCreateInterp,
+        Self::RuntimeSetCurrentInterp,
+        Self::RuntimeInitLibrary,
+        Self::RuntimeIdentity,
+        Self::GuardPrepare,
+        Self::GuardCheck,
+        Self::GuardRelease,
+        Self::InvokeIntrinsicArgv,
+        Self::VarGetElement,
+        Self::WordConcat,
+        Self::ValueNewDouble,
+        Self::ValueNewBool,
+        Self::ValueGetWideInt,
+        Self::ValueGetDouble,
+        Self::ValueGetBool,
+        Self::SlotBind,
+        Self::SlotSet,
+        Self::SlotGet,
+        Self::SlotIncrI64,
+        Self::SlotAppend,
+        Self::SlotLappend,
+        Self::VarTraced,
+        Self::SlotTraced,
+        Self::ActivationEnter,
+        Self::ActivationLeave,
+        Self::VarSetElement,
+        Self::VarIncr,
+        Self::VarUpdate,
+        Self::ValueTryWideInt,
+        Self::ValueTryDouble,
+        Self::ExprEval,
+        Self::MathOp,
+        Self::MathFunc,
+        Self::ProcDefineNative,
+        Self::LogCommand,
+        Self::ReturnState,
+        Self::NativeProcDispatches,
+    ];
+
     /// Return this import's shared ABI descriptor.
     #[must_use]
     pub const fn descriptor(self) -> CodegenAbiImport {
@@ -330,6 +399,7 @@ impl CodegenAbiImportId {
                 tcl_import("tcl_runtime_set_current_interp", I32, NONE)
             }
             Self::RuntimeInitLibrary => tcl_import("tcl_runtime_init_library", NONE, I32),
+            Self::RuntimeIdentity => tcl_import("tcl_runtime_identity", I32_I32, I32),
             Self::GuardPrepare => {
                 tcl_import("tcl_codegen_guard_prepare", I32_I32_I32_I32_I64_I32, I64)
             }
@@ -452,16 +522,129 @@ pub const WASM32_GUARD_IDENTITY_SIZE: i32 = 16;
 /// Alignment of a materialised guard identity.
 pub const WASM32_GUARD_IDENTITY_ALIGN: i32 = 8;
 
+/// The version of this code-generation ABI: a fingerprint of every import's
+/// module, name and signature (in [`CodegenAbiImportId::ALL`] order) and of the
+/// wasm32 transport constants in [`LAYOUT`].
+///
+/// Derived rather than counted, so an import that changes shape, appears or
+/// goes cannot leave the version where it was. An artefact records the version
+/// it was emitted against (`ArtefactIdentityManifest::abi_version`) and a
+/// runtime refuses one that names another.
+pub const CODEGEN_ABI_VERSION: u32 = fingerprint(&DESCRIPTORS, &LAYOUT);
+
+const IMPORT_COUNT: usize = CodegenAbiImportId::ALL.len();
+
+/// Every import's descriptor, in [`CodegenAbiImportId::ALL`] order.
+const DESCRIPTORS: [CodegenAbiImport; IMPORT_COUNT] = {
+    let mut descriptors = [CodegenAbiImportId::ALL[0].descriptor(); IMPORT_COUNT];
+    let mut index = 0;
+    while index < IMPORT_COUNT {
+        descriptors[index] = CodegenAbiImportId::ALL[index].descriptor();
+        index += 1;
+    }
+    descriptors
+};
+
+const FNV_OFFSET: u32 = 0x811c_9dc5;
+const FNV_PRIME: u32 = 0x0100_0193;
+
+/// The wasm32 transport constants [`CODEGEN_ABI_VERSION`] folds after the
+/// imports: the name of the function table a native entry is called through,
+/// the 32-bit statuses, sizes and offsets, and the 64-bit data window.
+struct Layout<'a> {
+    table_import: &'a str,
+    words: &'a [i32],
+    wide: &'a [i64],
+}
+
+const LAYOUT: Layout<'static> = Layout {
+    table_import: WASM32_FUNCTION_TABLE_IMPORT,
+    words: &[
+        NATIVE_PROC_STATUS_RAN,
+        NATIVE_PROC_STATUS_DECLINED,
+        WASM32_POINTER_BYTES,
+        WASM32_COMPLETION_CODE_OFFSET,
+        WASM32_COMPLETION_RESULT_OFFSET,
+        WASM32_COMPLETION_OPTIONS_OFFSET,
+        WASM32_COMPLETION_SIZE,
+        WASM32_COMPLETION_ALIGN,
+        WASM32_GUARD_TOKEN_SIZE,
+        WASM32_GUARD_TOKEN_ALIGN,
+        WASM32_INTRINSIC_ID_SIZE,
+        WASM32_GUARD_DOMAINS_SIZE,
+        WASM32_GUARD_IDENTITY_NAMESPACE_OFFSET,
+        WASM32_GUARD_IDENTITY_VALUE_OFFSET,
+        WASM32_GUARD_IDENTITY_SIZE,
+        WASM32_GUARD_IDENTITY_ALIGN,
+    ],
+    wide: &[WASM32_CODEGEN_DATA_START, WASM32_CODEGEN_DATA_END],
+};
+
+const fn fold(mut hash: u32, bytes: &[u8]) -> u32 {
+    let mut index = 0;
+    while index < bytes.len() {
+        hash ^= bytes[index] as u32;
+        hash = hash.wrapping_mul(FNV_PRIME);
+        index += 1;
+    }
+    hash
+}
+
+const fn fold_types(mut hash: u32, types: &[CodegenAbiValueType]) -> u32 {
+    let mut index = 0;
+    while index < types.len() {
+        let code = match types[index] {
+            CodegenAbiValueType::I32 => 1,
+            CodegenAbiValueType::I64 => 2,
+            CodegenAbiValueType::F64 => 3,
+        };
+        hash = fold(hash, &[code]);
+        index += 1;
+    }
+    hash
+}
+
+/// The fingerprint of `imports` and the layout.
+const fn fingerprint(imports: &[CodegenAbiImport], layout: &Layout) -> u32 {
+    let mut hash = FNV_OFFSET;
+    let mut index = 0;
+    while index < imports.len() {
+        let import = imports[index];
+        hash = fold(hash, import.module.as_bytes());
+        hash = fold(hash, &[0]);
+        hash = fold(hash, import.name.as_bytes());
+        hash = fold(hash, &[0]);
+        hash = fold_types(hash, import.parameters);
+        hash = fold(hash, &[0xff]);
+        hash = fold_types(hash, import.results);
+        hash = fold(hash, &[0xfe]);
+        index += 1;
+    }
+    hash = fold(hash, layout.table_import.as_bytes());
+    let mut word = 0;
+    while word < layout.words.len() {
+        hash = fold(hash, &layout.words[word].to_le_bytes());
+        word += 1;
+    }
+    word = 0;
+    while word < layout.wide.len() {
+        hash = fold(hash, &layout.wide[word].to_le_bytes());
+        word += 1;
+    }
+    hash
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        CodegenAbiImportId, CodegenAbiValueType, I32, I64, NATIVE_PROC_STATUS_DECLINED,
-        NATIVE_PROC_STATUS_RAN, WASM32_COMPLETION_ALIGN, WASM32_COMPLETION_CODE_OFFSET,
-        WASM32_COMPLETION_OPTIONS_OFFSET, WASM32_COMPLETION_RESULT_OFFSET, WASM32_COMPLETION_SIZE,
-        WASM32_FUNCTION_TABLE_IMPORT, WASM32_GUARD_DOMAINS_SIZE, WASM32_GUARD_IDENTITY_ALIGN,
+        CODEGEN_ABI_VERSION, CodegenAbiImport, CodegenAbiImportId, CodegenAbiValueType,
+        DESCRIPTORS, I32, I64, LAYOUT, Layout, NATIVE_PROC_STATUS_DECLINED, NATIVE_PROC_STATUS_RAN,
+        WASM32_COMPLETION_ALIGN, WASM32_COMPLETION_CODE_OFFSET, WASM32_COMPLETION_OPTIONS_OFFSET,
+        WASM32_COMPLETION_RESULT_OFFSET, WASM32_COMPLETION_SIZE, WASM32_FUNCTION_TABLE_IMPORT,
+        WASM32_GUARD_DOMAINS_SIZE, WASM32_GUARD_IDENTITY_ALIGN,
         WASM32_GUARD_IDENTITY_NAMESPACE_OFFSET, WASM32_GUARD_IDENTITY_SIZE,
         WASM32_GUARD_IDENTITY_VALUE_OFFSET, WASM32_GUARD_TOKEN_ALIGN, WASM32_GUARD_TOKEN_SIZE,
-        WASM32_INTRINSIC_ID_SIZE,
+        WASM32_INTRINSIC_ID_SIZE, fingerprint,
     };
 
     #[test]
@@ -800,6 +983,17 @@ mod tests {
     }
 
     #[test]
+    fn the_runtime_identity_import_takes_a_buffer_and_answers_a_length() {
+        use CodegenAbiValueType::I32;
+
+        let identity = CodegenAbiImportId::RuntimeIdentity.descriptor();
+        assert_eq!(identity.module, "tcl");
+        assert_eq!(identity.name, "tcl_runtime_identity");
+        assert_eq!(identity.parameters, &[I32, I32][..]);
+        assert_eq!(identity.results, &[I32][..]);
+    }
+
+    #[test]
     fn native_proc_entry_statuses_and_the_table_import_name_have_one_spelling() {
         // `0` is "ran" so a zeroed status word is never mistaken for a
         // decline, matching every other ABI status in this file.
@@ -826,5 +1020,152 @@ mod tests {
         assert_eq!(WASM32_COMPLETION_OPTIONS_OFFSET, 8);
         assert_eq!(WASM32_COMPLETION_SIZE, 12);
         assert_eq!(WASM32_COMPLETION_ALIGN, 4);
+    }
+
+    #[test]
+    fn every_import_is_in_the_abi_table() {
+        // The version is derived from `ALL`, so an import missing from it would
+        // leave the version where it was. The declaration is the list the table
+        // must equal, read from this file so a variant added without a row here
+        // fails rather than passes.
+        let source = include_str!("codegen_abi.rs");
+        let body = source
+            .split("pub enum CodegenAbiImportId {")
+            .nth(1)
+            .and_then(|rest| rest.split("\n}\n").next())
+            .expect("the enum's body is in this file");
+        let declared: Vec<&str> = body
+            .lines()
+            .filter_map(|line| line.strip_prefix("    "))
+            .filter(|line| {
+                line.ends_with(',') && line.starts_with(|c: char| c.is_ascii_uppercase())
+            })
+            .map(|line| line.trim_end_matches(','))
+            .collect();
+        let listed: Vec<String> = CodegenAbiImportId::ALL
+            .iter()
+            .map(|id| format!("{id:?}"))
+            .collect();
+        assert_eq!(listed, declared);
+    }
+
+    #[test]
+    fn the_abi_version_moves_with_the_table() {
+        assert_eq!(fingerprint(&DESCRIPTORS, &LAYOUT), CODEGEN_ABI_VERSION);
+
+        let mut dropped = DESCRIPTORS.to_vec();
+        dropped.pop();
+        assert_ne!(
+            fingerprint(&dropped, &LAYOUT),
+            CODEGEN_ABI_VERSION,
+            "an import goes"
+        );
+
+        let mut reordered = DESCRIPTORS.to_vec();
+        reordered.swap(0, 1);
+        assert_ne!(
+            fingerprint(&reordered, &LAYOUT),
+            CODEGEN_ABI_VERSION,
+            "order"
+        );
+
+        let with = |edit: fn(CodegenAbiImport) -> CodegenAbiImport| {
+            let mut edited = DESCRIPTORS.to_vec();
+            edited[3] = edit(edited[3]);
+            fingerprint(&edited, &LAYOUT)
+        };
+        assert_ne!(
+            with(|import| CodegenAbiImport {
+                name: "tcl_invoke_argv2",
+                ..import
+            }),
+            CODEGEN_ABI_VERSION,
+            "a name"
+        );
+        assert_ne!(
+            with(|import| CodegenAbiImport {
+                module: "other",
+                ..import
+            }),
+            CODEGEN_ABI_VERSION,
+            "a module"
+        );
+        assert_ne!(
+            with(|import| CodegenAbiImport {
+                parameters: &[CodegenAbiValueType::I64],
+                ..import
+            }),
+            CODEGEN_ABI_VERSION,
+            "a parameter type"
+        );
+        assert_ne!(
+            with(|import| CodegenAbiImport {
+                results: &[],
+                ..import
+            }),
+            CODEGEN_ABI_VERSION,
+            "a result"
+        );
+
+        let mut words = LAYOUT.words.to_vec();
+        words[0] += 1;
+        assert_ne!(
+            fingerprint(
+                &DESCRIPTORS,
+                &Layout {
+                    words: &words,
+                    ..LAYOUT
+                }
+            ),
+            CODEGEN_ABI_VERSION,
+            "a 32-bit layout constant"
+        );
+        let mut wide = LAYOUT.wide.to_vec();
+        wide[1] += 1;
+        assert_ne!(
+            fingerprint(
+                &DESCRIPTORS,
+                &Layout {
+                    wide: &wide,
+                    ..LAYOUT
+                }
+            ),
+            CODEGEN_ABI_VERSION,
+            "the data window"
+        );
+        assert_ne!(
+            fingerprint(
+                &DESCRIPTORS,
+                &Layout {
+                    table_import: "table",
+                    ..LAYOUT
+                }
+            ),
+            CODEGEN_ABI_VERSION,
+            "the function table import"
+        );
+    }
+
+    #[test]
+    fn every_layout_constant_is_in_the_abi_fingerprint() {
+        // A constant missing from `LAYOUT` could change without the version
+        // moving, so the declarations are read out of this file and each is held
+        // to appear in the table the version folds.
+        let source = include_str!("codegen_abi.rs");
+        let table = source
+            .split("const LAYOUT: Layout<'static> = Layout {")
+            .nth(1)
+            .and_then(|rest| rest.split("\n};\n").next())
+            .expect("the layout table is in this file");
+        let declared: Vec<&str> = source
+            .lines()
+            .filter_map(|line| line.strip_prefix("pub const "))
+            .filter_map(|line| line.split(':').next())
+            .filter(|name| name.starts_with("WASM32_") || name.starts_with("NATIVE_PROC_STATUS_"))
+            .collect();
+        assert!(declared.len() >= 10, "the scan found the declarations");
+        for name in declared {
+            assert!(table.contains(name), "{name} is not in the ABI fingerprint");
+        }
     }
 }

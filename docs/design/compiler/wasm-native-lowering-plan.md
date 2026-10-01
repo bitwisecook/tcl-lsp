@@ -141,8 +141,11 @@ same knowledge; the bytecode backend does not consume them.
 1. **No command cache in dispatch.** `dispatch_inner` copies the command
    name into a fresh `Vec<u8>` per call and walks the namespace path;
    `CmdArena` (dense `u32` ids) exists but dispatch does not use it. The
-   `CommandEnvironment` guard epoch is exactly the validation a direct-call
-   handle would need.
+   validation a direct-call handle would need is the command's token
+   generation, which a guard check already reads to find its attestation,
+   together with the lookup domains' epochs (`CommandEnvironment`,
+   `Namespace`, `UnknownHandling`), which move on namespace and interpreter
+   events and not when a command is rebound.
 2. **`run_proc` cost.** Renders every argument to bytes for `info level`
    unconditionally and binds parameters by name; a compiled body is entered
    through it.

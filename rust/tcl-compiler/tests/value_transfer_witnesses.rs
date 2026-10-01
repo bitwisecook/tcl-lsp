@@ -1819,6 +1819,7 @@ fn pack_workspace(name: &str, source: &str) -> tcl_spectcl::PackSet {
             tier: tcl_spectcl::Tier::Workspace,
             path: std::path::PathBuf::from(format!("/workspace/.tcl-lsp/{name}.tclspec")),
             origin: tcl_spectcl::discovery::Origin::DotDir,
+            dependency_tier: None,
         },
         source.to_owned(),
     )]);

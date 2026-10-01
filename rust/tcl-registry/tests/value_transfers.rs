@@ -1748,6 +1748,7 @@ fn shipped_builtins_stay_on_the_direct_route() {
             tier: tcl_spectcl::Tier::Workspace,
             path: std::path::PathBuf::from("/workspace/.tcl-lsp/tenant.tclspec"),
             origin: tcl_spectcl::discovery::Origin::DotDir,
+            dependency_tier: None,
         },
         include_str!("../../tcl-compiler/tests/fixtures/value_transfers/tenant.tclspec").to_owned(),
     )]);

@@ -44,11 +44,7 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"::tcl::string::reverse", tcl_string_reverse);
     // `tcl::prefix` — prefix matching against a table (`tclIndexObj.c`).
     interp.register_builtin(b"::tcl::prefix", tcl_prefix);
-    let registry = tcl_registry::CommandRegistry::build_default();
-    interp.register_spec_builtin(
-        registry.get("string").expect("core string spec"),
-        string_cmd,
-    );
+    interp.register_builtin(b"string", string_cmd);
 }
 
 // append

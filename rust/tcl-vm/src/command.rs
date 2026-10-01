@@ -231,9 +231,11 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     crate::cmd_coro::register(vm);
     crate::cmd_event::register(vm);
     crate::cmd_thread::register(vm);
-    // Last so the spec-derived intrinsic identities remain live after the
-    // startup registration sweep's conservative command-epoch invalidations.
+    // `string` last, as the registration order has always had it.
     crate::cmd_string::register(vm);
+    // With the command table complete, attach the registry's identities to the
+    // builtins in it.
+    vm.attach_identities();
 }
 
 /// `exit ?returnCode?` — request process termination with `returnCode`

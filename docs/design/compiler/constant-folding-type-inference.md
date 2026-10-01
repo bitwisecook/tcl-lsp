@@ -38,9 +38,10 @@ The Rust `tcl-compiler` codegen keeps that separation structurally. The
 `TclVM` bytecode emitter never reads `fu.sccp` or a `LatticeValue`; it only
 ever sees whatever source text it is handed, literal or not. The WASM
 pipeline reads a `LatticeValue` in exactly one place —
-`selected_closed_native_coverage` in `rust/tcl-compiler/src/codegen/wasm/pipeline.rs`,
-which takes a `Const(Int)` as typed evidence for the default-off
-sealed-program native-integer plan of
+`lattice_i64` (reached from `covered_shape`) in
+`rust/tcl-compiler/src/codegen/wasm/native_add.rs`, which takes a
+`Const(Int)` as typed evidence for the default-off sealed-program
+native-integer plan of
 [semantic-aot-optimisation.md](semantic-aot-optimisation.md) — and never to
 shortcut a variable read. A traced variable is therefore not independently
 at risk from codegen: the risk is confined to the optimiser's own

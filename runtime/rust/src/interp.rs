@@ -46,6 +46,7 @@ use tcl_runtime_api::error_stack::{validate_error_stack, ErrorStack};
 use tcl_runtime_api::guard::{
     GuardDomain, GuardDomains, GuardError, GuardIdentity, GuardManager, GuardToken,
 };
+use tcl_runtime_api::RegisteredBacking;
 
 use crate::builtins;
 use crate::frame::{FrameStack, Link, VarError};
@@ -866,13 +867,22 @@ pub struct InterpState {
     active_var_trace_scopes: RefCell<Vec<crate::cmd_trace::VarTraceScope>>,
     /// Runtime-issued speculative guards and explicitly attested builtin IDs.
     guards: RefCell<GuardManager>,
+    /// The stable semantic identities attested for each command token, by the
+    /// token's generation. A generation follows its command through rename and
+    /// hide, and a replacement or deletion leaves the old entry unreachable, so
+    /// an attestation lasts exactly as long as the command it describes.
+    /// Ordinary registration attests nothing.
     guarded_commands:
-        RefCell<std::collections::BTreeMap<Vec<u8>, std::collections::BTreeSet<GuardIdentity>>>,
+        RefCell<std::collections::BTreeMap<u64, std::collections::BTreeSet<GuardIdentity>>>,
     /// Registry identity of each engine-installed builtin command generation.
     /// A command keeps this key across rename and hide, so imports of a moved
     /// token continue to apply the final builtin's dialect availability rather
     /// than treating its new display spelling as an unrelated extension.
     registry_builtin_names: RefCell<std::collections::HashMap<u64, Vec<u8>>>,
+    /// The generations of the builtins registered only to refuse a call with a
+    /// "not supported" error ([`Interp::register_unsupported`]), which the
+    /// backing report tells apart from a handler.
+    unsupported_builtins: RefCell<std::collections::HashSet<u64>>,
     /// The current namespace for command resolution (the eval context; a proc
     /// runs in its *defining* namespace — wired with procs). Global at top level.
     current_ns: Cell<NsId>,
@@ -1089,6 +1099,11 @@ pub struct InterpState {
     /// every profile an ingress can produce, pinned by the seam's own
     /// sweep.
     dialect_point: Cell<Option<tcl_dialect::model::SurfaceQuery<'static>>>,
+    /// The world this interpreter is pinned to ([`Interp::pin_context`]), the
+    /// registry generation it holds, and the identity those state — what the
+    /// runtime reports of itself to a host comparing a module's manifest
+    /// (`tcl_runtime_identity`). It holds no pack facts.
+    pin: RefCell<tcl_registry::model::PinnedContext>,
     /// The `Command::OoObject` entries the engine installs on the registry's
     /// behalf (the TclOO roots `::oo::object`, `::oo::class`,
     /// `::oo::configurable`, `::oo::abstract`, `::oo::singleton`) rather than
@@ -1355,6 +1370,7 @@ impl Interp {
             guards: RefCell::new(guards),
             guarded_commands: RefCell::new(std::collections::BTreeMap::new()),
             registry_builtin_names: RefCell::new(std::collections::HashMap::new()),
+            unsupported_builtins: RefCell::new(std::collections::HashSet::new()),
             current_ns: Cell::new(GLOBAL),
             recursion_depth: Cell::new(0),
             recursion_limit: Cell::new(RECURSION_LIMIT),
@@ -1414,6 +1430,9 @@ impl Interp {
             dialect_point: Cell::new(Some(crate::environment::surface_point(
                 crate::environment::profile_for_dialect(""),
             ))),
+            pin: RefCell::new(tcl_registry::model::PinnedContext::for_profile(
+                crate::environment::profile_for_dialect(""),
+            )),
             registry_object_roots: RefCell::new(std::collections::HashMap::new()),
             retiring_oo_commands: RefCell::new(std::collections::HashSet::new()),
         }));
@@ -1495,6 +1514,48 @@ impl Interp {
     /// profile's grammar, and the profile's availability mask becomes the
     /// builtin command-surface filter.
     pub fn set_dialect_profile(&mut self, profile: &'static tcl_dialect::DialectProfile) {
+        self.install_pin(tcl_registry::model::PinnedContext::for_profile(profile));
+    }
+
+    /// Pin the world this interpreter runs in: the environment, the release
+    /// point within it, the build, the package floors and the registry overlay
+    /// generation, resolved through the same ingress the compiler uses. The
+    /// profile the environment resolves to is what
+    /// [`Self::set_dialect_profile`] would pin, and the generation at the
+    /// context's overlay is held for as long as the pin stands.
+    ///
+    /// # Errors
+    ///
+    /// [`PinError`](tcl_registry::model::PinError) when the ingress does not
+    /// agree with the context — no such environment, a release or build that
+    /// is not the environment's point, or an overlay nothing has installed,
+    /// which is an error and never the un-overlaid generation under another
+    /// name. The pin is unchanged.
+    pub fn pin_context(
+        &mut self,
+        context: &tcl_runtime_api::RuntimeContext,
+    ) -> Result<(), tcl_registry::model::PinError> {
+        self.install_pin(crate::environment::pin_context(context)?);
+        Ok(())
+    }
+
+    /// The world this interpreter is pinned to.
+    #[must_use]
+    pub fn runtime_context(&self) -> tcl_runtime_api::RuntimeContext {
+        self.0.pin.borrow().context.clone()
+    }
+
+    /// The identity this interpreter states of itself — its pinned context,
+    /// this build's ABI, intrinsic table and embedded library, and no pack
+    /// facts — in the shape a compiled artefact states its own.
+    #[must_use]
+    pub fn held_identity(&self) -> tcl_runtime_api::ArtefactIdentityManifest {
+        self.0.pin.borrow().identity().clone()
+    }
+
+    fn install_pin(&mut self, pin: tcl_registry::model::PinnedContext) {
+        let profile = pin.profile;
+        *self.0.pin.borrow_mut() = pin;
         let version = profile.vm_runtime_version;
         // Ahead of the unchanged-profile short-circuit: the numeric grammar is
         // *thread*-ambient, not per-interp, so "this interp already emulates
@@ -1507,7 +1568,6 @@ impl Interp {
             return;
         }
         self.invalidate_interpreter_policy();
-        self.invalidate_command_environment();
         self.0.dialect_profile.set(profile);
         self.0
             .profile_registry
@@ -1779,6 +1839,11 @@ impl Interp {
     /// Register a built-in command (a possibly-qualified `name`, creating
     /// intermediate namespaces; overwrites any existing command of `name`).
     pub fn register_builtin(&mut self, name: &[u8], f: BuiltinFn) {
+        self.bind_builtin(name, f);
+    }
+
+    /// Bind a builtin, returning the token generation it is bound under.
+    fn bind_builtin(&mut self, name: &[u8], f: BuiltinFn) -> u64 {
         let ns = self.namespaces.borrow_mut().command_home_ns(GLOBAL, name);
         let tail = tcl_syntax::naming::written_command_tail(name).to_vec();
         self.bind_command_replacement(ns, &tail, Command::Builtin(f));
@@ -1795,53 +1860,219 @@ impl Interp {
             .registry_builtin_names
             .borrow_mut()
             .insert(generation, fqn);
+        generation
+    }
+
+    /// Bind a builtin and attest `identities` for the token it is bound under.
+    /// The token it displaces takes its attestation with it.
+    fn bind_attested_builtin(
+        &mut self,
+        name: &[u8],
+        f: BuiltinFn,
+        identities: std::collections::BTreeSet<GuardIdentity>,
+    ) {
+        let displaced = self.namespaces.borrow().resolve_generation(GLOBAL, name);
+        let generation = self.bind_builtin(name, f);
+        self.attest(generation, displaced, identities);
+    }
+
+    /// The one writer of the attestation table: attest `identities` for the
+    /// command token `generation` and drop the entry of the token it displaced.
+    /// What is already attested for `generation` stays.
+    fn attest(
+        &self,
+        generation: u64,
+        displaced: Option<u64>,
+        identities: std::collections::BTreeSet<GuardIdentity>,
+    ) {
+        let mut attested = self.guarded_commands.borrow_mut();
+        if let Some(displaced) = displaced {
+            attested.remove(&displaced);
+        }
+        if !identities.is_empty() {
+            attested.entry(generation).or_default().extend(identities);
+        }
     }
 
     /// Register a builtin with a stable semantic identity understood by
     /// offline-generated code. Ordinary registration never infers identity
     /// from a spelling or function address.
     pub fn register_guarded_builtin(&mut self, name: &[u8], f: BuiltinFn, identity: GuardIdentity) {
-        self.register_builtin(name, f);
-        if let Some(fqn) = self.namespaces.borrow().resolve_fqn(GLOBAL, name) {
-            self.guarded_commands
-                .borrow_mut()
-                .entry(fqn)
-                .or_default()
-                .insert(identity);
+        self.bind_attested_builtin(name, f, std::collections::BTreeSet::from([identity]));
+    }
+
+    /// Register a builtin that only refuses: a call answers "not supported"
+    /// where an unregistered command would answer `invalid command name`. The
+    /// backing report says so ([`RegisteredBacking::Unsupported`]) rather than
+    /// counting it as a handler.
+    pub(crate) fn register_unsupported(&mut self, name: &[u8], f: BuiltinFn) {
+        let generation = self.bind_builtin(name, f);
+        self.0.unsupported_builtins.borrow_mut().insert(generation);
+    }
+
+    /// Attach the registry's intrinsic identities to the builtins this
+    /// interpreter registered, from the generation it is pinned to.
+    ///
+    /// The sweep reads that generation's shipped store and nothing an overlay
+    /// installed: a pack's command is not a runtime implementation, and only
+    /// the runtime may attest. A name is attested only while the command bound
+    /// at it is still the builtin registered there, so a name a script has
+    /// since redefined or renamed over gains no attestation for a procedure,
+    /// and a builtin moved to another name keeps the one it already has (the
+    /// table is keyed by the command token's generation, which a rename
+    /// carries). It runs once, at the end of registration: the table survives
+    /// the profile pin, and a later sweep would attest whatever an embedder
+    /// registered at a registry name as the registry's command.
+    pub(crate) fn attach_identities(&mut self) {
+        let registry = crate::environment::store_for_profile(self.dialect_profile());
+        self.attach_identities_from(registry);
+    }
+
+    /// The sweep over one generation's store. Only [`Self::attach_identities`]
+    /// chooses the store in production: the generation the interpreter is
+    /// pinned to.
+    fn attach_identities_from(&mut self, registry: &tcl_registry::CommandRegistry) {
+        for name in registry.command_names() {
+            let Some(spec) = registry.get_exact(name) else {
+                continue;
+            };
+            let identities: std::collections::BTreeSet<GuardIdentity> = spec
+                .intrinsic_ids()
+                .into_iter()
+                .flat_map(|id| {
+                    id.guard_semantics_variants().iter().map(move |semantics| {
+                        GuardIdentity::registry_intrinsic_with_semantics(id.stable_id(), *semantics)
+                    })
+                })
+                .collect();
+            if identities.is_empty() {
+                continue;
+            }
+            let Some(generation) = self.shipped_builtin_generation(spec.name.as_bytes()) else {
+                continue;
+            };
+            self.attest(generation, None, identities);
         }
     }
 
-    /// Register a builtin and derive every semantic identity from its registry
-    /// command, subcommand, and invocation-form descriptors.
-    pub fn register_spec_builtin(&mut self, spec: &tcl_registry::CommandSpec, f: BuiltinFn) {
-        self.register_builtin(spec.name.as_bytes(), f);
-        let identities: std::collections::BTreeSet<_> = spec
-            .intrinsic_ids()
-            .into_iter()
-            .flat_map(|id| {
-                id.guard_semantics_variants().iter().map(move |semantics| {
-                    GuardIdentity::registry_intrinsic_with_semantics(id.stable_id(), *semantics)
-                })
-            })
-            .collect();
-        if !identities.is_empty() {
-            if let Some(fqn) = self
-                .namespaces
-                .borrow()
-                .resolve_fqn(GLOBAL, spec.name.as_bytes())
-            {
-                self.guarded_commands.borrow_mut().insert(fqn, identities);
+    /// The token generation of the builtin this interpreter registered at
+    /// `name`, when that is still the command `name` resolves to from the
+    /// global namespace.
+    fn shipped_builtin_generation(&self, name: &[u8]) -> Option<u64> {
+        let namespaces = self.namespaces.borrow();
+        let generation = namespaces.resolve_generation(GLOBAL, name)?;
+        let fqn = namespaces.resolve_fqn(GLOBAL, name)?;
+        (self.0.registry_builtin_names.borrow().get(&generation) == Some(&fqn))
+            .then_some(generation)
+    }
+
+    /// What this interpreter's handler table backs, by command name: the
+    /// runtime's own answer to "what did you register", which a spec's
+    /// `runtime_backing` declaration is held to.
+    ///
+    /// Every command bound in any namespace is classified by what it is — a
+    /// native handler, an engine-installed `TclOO` root, or a handler that only
+    /// refuses. Two kinds of name are reported that no table entry holds: the
+    /// commands the object system binds in every object's namespace, which
+    /// exist once the roots do; and, in a build that embeds the Tcl library,
+    /// the commands that library defines, which exist once `init_library` has
+    /// sourced it. A build without the numeric tower reports the commands a
+    /// build with it registers as needing the tower. Names are without a
+    /// leading `::`, and a name this runtime does not mention is absent.
+    #[must_use]
+    pub fn backing_report(&self) -> Vec<(String, RegisteredBacking)> {
+        let mut report = std::collections::BTreeMap::new();
+        {
+            let namespaces = self.namespaces.borrow();
+            let unsupported = self.0.unsupported_builtins.borrow();
+            let roots = self.0.registry_object_roots.borrow();
+            for ns in namespaces.descendant_ids(GLOBAL) {
+                for name in namespaces.command_names(ns) {
+                    let backing = match namespaces.command_in(ns, name) {
+                        Some(Command::Builtin(_)) => {
+                            let refuses = namespaces
+                                .command_generation(ns, name)
+                                .is_some_and(|generation| unsupported.contains(&generation));
+                            if refuses {
+                                RegisteredBacking::Unsupported
+                            } else {
+                                RegisteredBacking::Builtin
+                            }
+                        }
+                        Some(Command::OoObject(id)) if roots.contains_key(&id) => {
+                            RegisteredBacking::Object
+                        }
+                        _ => continue,
+                    };
+                    let fqn = namespaces.command_fqn_at(ns, name);
+                    report.insert(
+                        String::from_utf8_lossy(&fqn)
+                            .trim_start_matches("::")
+                            .to_owned(),
+                        backing,
+                    );
+                }
+            }
+            if !roots.is_empty() {
+                for name in crate::cmd_oo::object_namespace_command_names() {
+                    report.insert(name.to_owned(), RegisteredBacking::Object);
+                }
             }
         }
+        #[cfg(feature = "wasm_stdlib")]
+        for (name, file) in crate::embedded_stdlib::DEFINED_COMMANDS {
+            report
+                .entry((*name).to_owned())
+                .or_insert(RegisteredBacking::Stdlib { file });
+        }
+        #[cfg(not(have_tommath))]
+        for name in builtins::tower_command_names() {
+            report
+                .entry(name)
+                .or_insert(RegisteredBacking::NeedsNumericTower);
+        }
+        report.into_iter().collect()
+    }
+
+    /// The identities attested for the command `name` resolves to from the
+    /// current namespace. The name is resolved afresh, so a command that was
+    /// replaced, renamed away, hidden, or is no longer admitted by the pinned
+    /// surface answers `None`, and one restored by `rename` or `expose` answers
+    /// what it did before.
+    fn attested_identities(
+        &self,
+        name: &[u8],
+    ) -> Option<std::collections::BTreeSet<GuardIdentity>> {
+        let current = self.current_ns.get();
+        let (fqn, generation, command) = {
+            let namespaces = self.namespaces.borrow();
+            (
+                namespaces.resolve_fqn(current, name)?,
+                namespaces.resolve_generation(current, name)?,
+                namespaces.resolve(current, name)?,
+            )
+        };
+        if !self.command_visible_for_surface_at(&command, &fqn, Some(generation)) {
+            return None;
+        }
+        self.guarded_commands.borrow().get(&generation).cloned()
     }
 
     /// Verify live command identity and issue a guard over `domains`.
+    ///
+    /// A request for a registry intrinsic must cover the domains its family
+    /// requires ([`tcl_registry::IntrinsicId::family`]) whatever the caller
+    /// asked for: a Family-B member reaches the variable store, so its guard is
+    /// refused while a variable trace exists and stales when one is added.
     pub fn prepare_command_guard(
         &self,
         name: &[u8],
         expected: GuardIdentity,
         domains: GuardDomains,
     ) -> Result<GuardToken, GuardError> {
+        if !domains.covers(tcl_registry::IntrinsicId::required_guard_domains(expected)) {
+            return Err(GuardError::DomainsInsufficient);
+        }
         let traces = self.traces.borrow();
         if (domains.contains(GuardDomain::CommandTrace) && !traces.cmd_traces.is_empty())
             || (domains.contains(GuardDomain::VariableTrace) && !traces.traces.is_empty())
@@ -1849,19 +2080,13 @@ impl Interp {
             return Err(GuardError::PrerequisiteUnsatisfied);
         }
         drop(traces);
-        let observed = self
-            .namespaces
-            .borrow()
-            .resolve_fqn(self.current_ns.get(), name)
-            .and_then(|fqn| {
-                let identities = self.guarded_commands.borrow();
-                let identities = identities.get(&fqn)?;
-                Some(if identities.contains(&expected) {
-                    expected
-                } else {
-                    *identities.first()?
-                })
-            });
+        let observed = self.attested_identities(name).and_then(|identities| {
+            Some(if identities.contains(&expected) {
+                expected
+            } else {
+                *identities.first()?
+            })
+        });
         self.guards
             .borrow_mut()
             .prepare(expected, observed, domains)
@@ -1870,15 +2095,7 @@ impl Interp {
     /// Re-check a guard against the current resolved implementation identity.
     #[must_use]
     pub fn check_command_guard(&self, token: GuardToken, name: &[u8]) -> bool {
-        let Some(fqn) = self
-            .namespaces
-            .borrow()
-            .resolve_fqn(self.current_ns.get(), name)
-        else {
-            return false;
-        };
-        let identities = self.guarded_commands.borrow();
-        let Some(identities) = identities.get(&fqn) else {
+        let Some(identities) = self.attested_identities(name) else {
             return false;
         };
         identities
@@ -1898,16 +2115,8 @@ impl Interp {
         name: &[u8],
         expected: GuardIdentity,
     ) -> bool {
-        let Some(fqn) = self
-            .namespaces
-            .borrow()
-            .resolve_fqn(self.current_ns.get(), name)
-        else {
-            return false;
-        };
-        let identities = self.guarded_commands.borrow();
-        if !identities
-            .get(&fqn)
+        if !self
+            .attested_identities(name)
             .is_some_and(|identities| identities.contains(&expected))
         {
             return false;
@@ -1962,8 +2171,16 @@ impl Interp {
         self.invalidate_guard_domain(GuardDomain::Interpreter);
     }
 
+    /// Invalidate the guard domains that depend on the command lookup
+    /// environment: namespace structure and lifecycle, and interpreter topology.
+    ///
+    /// A command-table mutation does not come here. What a guard needs of its
+    /// command is decided when it is checked, by resolving the guarded name to
+    /// a token generation and finding an attestation there
+    /// ([`Self::attested_identities`]), so replacing, deleting, renaming,
+    /// hiding, or aliasing one command invalidates that command's guards and no
+    /// other's.
     fn invalidate_command_environment(&self) {
-        self.guarded_commands.borrow_mut().clear();
         let mut guards = self.guards.borrow_mut();
         guards.invalidate(GuardDomain::CommandEnvironment);
         guards.invalidate(GuardDomain::Namespace);
@@ -2059,7 +2276,6 @@ impl Interp {
     /// ([`rename_windows`](crate::cmd_trace::TraceTable::rename_windows))
     /// records the equivalence our name-keyed registries cannot express.
     fn move_bound_command(&mut self, old: &[u8], new: &[u8]) -> RenameOutcome {
-        self.invalidate_command_environment();
         let Some(old_fqn) = self.resolve_cmd_fqn(old) else {
             return RenameOutcome::NoSuchCommand;
         };
@@ -2121,7 +2337,6 @@ impl Interp {
                 Some(Command::Imported { identity, .. }) => (None, Some(identity)),
                 _ => (None, None),
             };
-        self.invalidate_command_environment();
         // Command traces fire *before* the table mutation (the command still
         // exists under its name during the callback), with the fully-qualified
         // old name and an empty new one. C deletes the command *token* it
@@ -2323,7 +2538,6 @@ impl Interp {
     /// Delete the command bound to `name` (the alias-clear form); returns whether
     /// it existed.
     pub(crate) fn delete_command(&mut self, name: &[u8]) -> bool {
-        self.invalidate_command_environment();
         // If `name` is a suspended coroutine, terminate its worker first.
         crate::cmd_coro::on_command_deleted(self, name);
         let source_generation = self.resolve_cmd_token(name);
@@ -2351,7 +2565,6 @@ impl Interp {
     /// Register an ensemble command (`namespace ensemble create`); `name` is the
     /// ensemble command (possibly qualified — rooted at global like any builtin).
     pub(crate) fn create_ensemble(&mut self, name: &[u8], cfg: crate::ensemble::EnsembleConfig) {
-        self.invalidate_command_environment();
         let fqn = self.fqn_for(name);
         // The `-command` name resolves relative to the current namespace, like a
         // proc name (C's `TclGetNamespaceForQualName(name, cxtPtr=nsPtr, ...)` in
@@ -2423,7 +2636,6 @@ impl Interp {
         body_obj: *mut TclObj,
         native: Option<NativeProcEntry>,
     ) {
-        self.invalidate_command_environment();
         let body = obj_bytes(body_obj);
         let ns = self
             .namespaces
@@ -2473,7 +2685,6 @@ impl Interp {
     /// command is bound. Fresh bindings use the same funnel (the lifecycle step
     /// is then a no-op).
     pub(crate) fn bind_command_replacement(&mut self, ns: NsId, tail: &[u8], command: Command) {
-        self.invalidate_command_environment();
         let displaced = self.namespaces.borrow().command_in(ns, tail);
         self.on_bound_command_replaced(ns, tail);
         if let Some(owner) = displaced.as_ref().and_then(Command::oo_object) {
@@ -2651,7 +2862,6 @@ impl Interp {
         self.remove_oo_command_roles(owner, &OO_COMMAND_RETIREMENT_ORDER);
         self.forget_registry_object_root(owner);
         self.0.retiring_oo_commands.borrow_mut().remove(&owner);
-        self.invalidate_command_environment();
     }
 
     fn remove_oo_command_roles(&mut self, owner: OoId, roles: &[OoCommandRole]) {
@@ -2684,7 +2894,6 @@ impl Interp {
         for (fqn, generation) in removed {
             self.remove_cmd_traces_of_token(&fqn, Some(generation));
         }
-        self.invalidate_command_environment();
     }
 
     /// Fire `fqn`'s `delete` traces and drop the ones the dying token owned.
@@ -8207,8 +8416,10 @@ impl Interp {
         // parent. Resolution still runs against the child's *own* global
         // namespace: the rule is shared, the variables are not. The whole
         // profile is inherited, not just the release, so a child's
-        // command-surface availability gate agrees too.
-        child.set_dialect_profile(self.dialect_profile());
+        // command-surface availability gate agrees too, and so is the
+        // context it is pinned to, so the identity it states is its parent's.
+        let pin = self.0.pin.borrow().clone();
+        child.install_pin(pin);
         child
             .channels
             .borrow_mut()
@@ -8348,7 +8559,6 @@ impl Interp {
                 self.hidden
                     .borrow_mut()
                     .insert(hidden_name.to_vec(), binding);
-                self.invalidate_command_environment();
                 CommandVisibilityOutcome::Moved
             }
             None => CommandVisibilityOutcome::Missing,
@@ -8395,7 +8605,6 @@ impl Interp {
                 if let Some(token) = ensemble {
                     token.rename(new_fqn);
                 }
-                self.invalidate_command_environment();
                 CommandVisibilityOutcome::Moved
             }
             None => CommandVisibilityOutcome::Missing,
@@ -10558,10 +10767,9 @@ mod tests {
     }
 
     fn assert_interpreter_guard_stale(interp: &mut Interp, token: GuardToken) {
-        // Command-table mutation deliberately clears all identity attestations.
-        // Restore this explicit identity so a failed check proves the
-        // Interpreter epoch changed rather than merely observing a missing ID.
-        interp.register_guarded_builtin(b"guarded", guarded_builtin, GUARDED_IDENTITY);
+        // The command stays attested through every mutation below, so a failed
+        // check proves the Interpreter epoch changed.
+        assert!(interp.attested_identities(b"guarded").is_some());
         assert!(!interp.check_command_guard(token, b"guarded"));
     }
 
@@ -10744,20 +10952,390 @@ mod tests {
         });
     }
 
+    /// A request for a Family-B intrinsic covers the variable-trace domain or
+    /// is refused, whatever the caller asked for, and a Value member needs no
+    /// such domain. Covered, the guard is refused while a variable trace
+    /// exists and goes stale when one is added.
     #[test]
-    fn command_mutation_invalidates_guard_and_identity_attestation() {
+    fn a_family_b_guard_request_must_cover_the_variable_trace_domain() {
+        use tcl_registry::IntrinsicId;
+        leak_free(|i| {
+            let version = i.runtime_version();
+            let identity = |member: IntrinsicId| {
+                GuardIdentity::registry_intrinsic_with_semantics(
+                    member.stable_id(),
+                    member.guard_semantics_key(version),
+                )
+            };
+            let (stores, value) = (
+                identity(IntrinsicId::DictSet),
+                identity(IntrinsicId::ListLength),
+            );
+            i.register_guarded_builtin(b"stores", guarded_builtin, stores);
+            i.register_guarded_builtin(b"pure", guarded_builtin, value);
+            let command = GuardDomains::one(GuardDomain::CommandEnvironment);
+            let traced = command.with(GuardDomain::VariableTrace);
+
+            assert_eq!(
+                i.prepare_command_guard(b"stores", stores, command),
+                Err(GuardError::DomainsInsufficient)
+            );
+            let token = i
+                .prepare_command_guard(b"pure", value, command)
+                .expect("a Value member requires no variable-trace domain");
+            assert!(i.release_command_guard(token));
+
+            let token = i
+                .prepare_command_guard(b"stores", stores, traced)
+                .expect("a request covering the family's domain");
+            assert!(i.check_command_guard_identity(token, b"stores", stores));
+            assert_eq!(
+                i.eval_str(b"trace add variable watched write callback"),
+                Code::Ok
+            );
+            assert!(!i.check_command_guard_identity(token, b"stores", stores));
+            assert_eq!(
+                i.prepare_command_guard(b"stores", stores, traced),
+                Err(GuardError::PrerequisiteUnsatisfied)
+            );
+            assert!(i.prepare_command_guard(b"pure", value, command).is_ok());
+        });
+    }
+
+    /// A guard is bound to its command's token. A definition, rename or alias
+    /// of another command leaves it and its attestation alone; replacing,
+    /// renaming away or hiding the command drops it, and restoring the same
+    /// token brings it back; a profile pin keeps the attestation.
+    #[test]
+    fn an_unrelated_mutation_keeps_the_guard_and_a_rebinding_drops_it() {
         leak_free(|i| {
             i.register_guarded_builtin(b"guarded", guarded_builtin, GUARDED_IDENTITY);
             let domains = GuardDomains::one(GuardDomain::CommandEnvironment);
             let token = i
                 .prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains)
                 .unwrap();
+
             i.register_builtin(b"unrelated", guarded_builtin);
+            ok(i, b"proc foo {} {return 1}");
+            ok(i, b"rename foo bar");
+            ok(i, b"interp alias {} baz {} bar");
+            ok(i, b"rename baz {}");
+            assert!(i.check_command_guard(token, b"guarded"));
+            assert!(i
+                .prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains)
+                .is_ok());
+
+            // A change to the lookup environment itself stales the token over
+            // it, and the attestation stays.
+            ok(i, b"namespace eval other {namespace path ::}");
+            assert!(!i.check_command_guard(token, b"guarded"));
+            let token = i
+                .prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains)
+                .expect("still attested");
+
+            // The profile pin keeps the attestation and a token that does not
+            // depend on interpreter policy.
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            assert!(i.check_command_guard(token, b"guarded"));
+            assert!(i
+                .prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains)
+                .is_ok());
+
+            // Renaming the command away drops the guard at its name, and the
+            // attestation goes with the command; restoring the name restores it.
+            ok(i, b"rename guarded moved");
             assert!(!i.check_command_guard(token, b"guarded"));
             assert_eq!(
                 i.prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains),
                 Err(GuardError::IdentityUnavailable)
             );
+            assert!(i
+                .prepare_command_guard(b"moved", GUARDED_IDENTITY, domains)
+                .is_ok());
+            ok(i, b"rename moved guarded");
+            assert!(i.check_command_guard(token, b"guarded"));
+
+            // Hiding it drops the guard, exposing it restores it.
+            assert_eq!(
+                i.hide_command(b"guarded", b"guarded"),
+                CommandVisibilityOutcome::Moved
+            );
+            assert!(!i.check_command_guard(token, b"guarded"));
+            assert_eq!(
+                i.expose_command(b"guarded", b"guarded"),
+                CommandVisibilityOutcome::Moved
+            );
+            assert!(i.check_command_guard(token, b"guarded"));
+
+            // A different command at the name is never attested.
+            ok(i, b"proc guarded {} {return 1}");
+            assert!(!i.check_command_guard(token, b"guarded"));
+            assert_eq!(
+                i.prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains),
+                Err(GuardError::IdentityUnavailable)
+            );
+        });
+    }
+
+    /// The attestation belongs to the token the name reaches, so a definition
+    /// in a namespace that shadows the command drops the guard for calls made
+    /// from that namespace and only from it.
+    #[test]
+    fn a_shadowing_definition_drops_the_guard_only_for_calls_from_its_namespace() {
+        leak_free(|i| {
+            i.register_guarded_builtin(b"guarded", guarded_builtin, GUARDED_IDENTITY);
+            let domains = GuardDomains::one(GuardDomain::CommandEnvironment);
+            let token = i
+                .prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains)
+                .unwrap();
+
+            ok(i, b"namespace eval ns {proc guarded {} {return shadow}}");
+            let ns = i
+                .namespaces
+                .borrow()
+                .find_namespace(GLOBAL, b"ns")
+                .expect("the namespace exists");
+            assert!(i.check_command_guard(token, b"guarded"));
+            i.current_ns.set(ns);
+            assert!(!i.check_command_guard(token, b"guarded"));
+            assert_eq!(
+                i.prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains),
+                Err(GuardError::IdentityUnavailable)
+            );
+            i.current_ns.set(GLOBAL);
+            assert!(i.check_command_guard(token, b"guarded"));
+        });
+    }
+
+    /// The three lookup domains move together on a hidden invocation into a
+    /// namespace, whether the namespace is named, is the global one, or does not
+    /// exist yet, and on `oo::copy`: events the guard domain's docs list beside
+    /// `namespace path` and the rest, which a command-table mutation is not.
+    #[test]
+    fn the_lookup_domains_move_on_a_hidden_invocation_into_a_namespace_and_on_oo_copy() {
+        leak_free(|i| {
+            i.register_guarded_builtin(b"guarded", guarded_builtin, GUARDED_IDENTITY);
+            let domains = GuardDomains::one(GuardDomain::CommandEnvironment)
+                .with(GuardDomain::Namespace)
+                .with(GuardDomain::UnknownHandling);
+            let moves = |i: &mut Interp, script: &[u8]| {
+                let token = i
+                    .prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains)
+                    .expect("the lookup domains are guardable");
+                ok(i, script);
+                assert!(i.attested_identities(b"guarded").is_some());
+                !i.check_command_guard(token, b"guarded")
+            };
+
+            ok(i, b"interp hide {} lindex");
+            assert!(
+                moves(i, b"interp invokehidden {} -namespace fresh lindex {a b} 0"),
+                "a namespace it creates"
+            );
+            assert!(
+                moves(i, b"interp invokehidden {} -namespace fresh lindex {a b} 0"),
+                "a namespace that exists"
+            );
+            assert!(
+                moves(i, b"interp invokehidden {} -global lindex {a b} 0"),
+                "the global namespace"
+            );
+            assert!(
+                !moves(i, b"interp invokehidden {} lindex {a b} 0"),
+                "a hidden invocation that names no namespace moves nothing"
+            );
+
+            ok(
+                i,
+                b"oo::class create C {variable v; constructor {} {set v 1}}",
+            );
+            ok(i, b"set o [C new]");
+            assert!(moves(i, b"oo::copy $o"), "oo::copy");
+        });
+    }
+
+    /// The sweep reads the generation the interpreter is pinned to and nothing
+    /// an overlay installed: a pack's command is no runtime implementation, and
+    /// only the runtime may attest.
+    #[test]
+    fn identities_come_from_the_pinned_generation_never_an_overlay() {
+        use tcl_registry::{CommandSpec, IntrinsicId, SemanticOperationId};
+        leak_free(|i| {
+            // A generation an overlay installed under this interpreter's own
+            // profile, holding a spec that declares an intrinsic, and a builtin
+            // of that name in the interpreter.
+            let overlaid = tcl_registry::registry_for_profile_with_overlay(
+                i.dialect_profile(),
+                0xC0DE,
+                |registry| {
+                    registry.insert(CommandSpec {
+                        name: "overlay_length",
+                        semantic_operation: Some(SemanticOperationId::Intrinsic(
+                            IntrinsicId::StringLength,
+                        )),
+                        ..CommandSpec::DEFAULT
+                    });
+                },
+            );
+            i.register_builtin(b"overlay_length", guarded_builtin);
+
+            i.attach_identities();
+            assert!(
+                i.attested_identities(b"overlay_length").is_none(),
+                "the sweep of the pinned generation attests nothing an overlay declares"
+            );
+            assert!(
+                i.attested_identities(b"string").is_some(),
+                "and still attests the shipped command"
+            );
+
+            // Control: the fixture is sound, a sweep over the overlay's own
+            // store would attest the builtin.
+            i.attach_identities_from(&overlaid);
+            assert!(i.attested_identities(b"overlay_length").is_some());
+        });
+    }
+
+    /// A name is attested only while the command bound at it is the builtin
+    /// the runtime registered there: a procedure defined over it, or another
+    /// builtin renamed into it, gains nothing, and the original, put back,
+    /// has what it had.
+    #[test]
+    fn the_sweep_attests_only_the_builtin_it_registered() {
+        leak_free(|i| {
+            use tcl_registry::IntrinsicId;
+            let length = GuardIdentity::registry_intrinsic_with_semantics(
+                IntrinsicId::StringLength.stable_id(),
+                IntrinsicId::StringLength.guard_semantics_key(i.runtime_version()),
+            );
+            let attested = |i: &Interp| {
+                i.attested_identities(b"string")
+                    .is_some_and(|identities| identities.contains(&length))
+            };
+            assert!(attested(i));
+
+            ok(i, b"rename string original");
+            assert!(!attested(i), "moved away, the name reaches nothing");
+            ok(i, b"proc string args {return x}");
+            i.attach_identities();
+            assert!(!attested(i), "a procedure at the name gains no attestation");
+
+            ok(i, b"rename string {}");
+            ok(i, b"rename puts string");
+            i.attach_identities();
+            assert!(
+                !attested(i),
+                "another builtin renamed into the name gains none"
+            );
+
+            ok(i, b"rename string puts");
+            ok(i, b"rename original string");
+            assert!(attested(i), "the original, restored, is attested as it was");
+        });
+    }
+
+    /// Every builtin this runtime registers at the name of a spec that
+    /// declares an intrinsic is attested for every identity the spec's
+    /// intrinsics have, and no other command is attested at all.
+    #[test]
+    fn every_registered_builtin_with_an_intrinsic_is_attested_for_all_of_them() {
+        leak_free(|i| {
+            let registry = crate::environment::store_for_profile(i.dialect_profile());
+            let report = tcl_runtime_api::BackingReport::from_entries(i.backing_report());
+            let mut attested_names = 0;
+            for name in registry.command_names() {
+                let spec = registry.get_exact(name).expect("a named spec");
+                let expected: std::collections::BTreeSet<GuardIdentity> = spec
+                    .intrinsic_ids()
+                    .into_iter()
+                    .flat_map(|id| {
+                        id.guard_semantics_variants().iter().map(move |semantics| {
+                            GuardIdentity::registry_intrinsic_with_semantics(
+                                id.stable_id(),
+                                *semantics,
+                            )
+                        })
+                    })
+                    .collect();
+                let actual = i.attested_identities(name.as_bytes());
+                if expected.is_empty() || report.of(name) != RegisteredBacking::Builtin {
+                    assert!(actual.is_none(), "{name} has nothing to attest");
+                } else {
+                    assert_eq!(actual.as_ref(), Some(&expected), "{name}");
+                    attested_names += 1;
+                }
+            }
+            assert!(attested_names >= 10, "{attested_names}");
+        });
+    }
+
+    /// The backing report says what the handler table holds: handlers, the
+    /// engine's `TclOO` roots and the commands the object system binds in every
+    /// object, handlers that only refuse, and absences; and nothing a script
+    /// defines.
+    #[test]
+    fn the_backing_report_says_what_the_handler_table_holds() {
+        leak_free(|i| {
+            let report =
+                |i: &Interp| tcl_runtime_api::BackingReport::from_entries(i.backing_report());
+            let before = report(i);
+            assert_eq!(before.of("set"), RegisteredBacking::Builtin);
+            assert_eq!(
+                before.of("::tcl::string::insert"),
+                RegisteredBacking::Builtin
+            );
+            assert_eq!(before.of("exec"), RegisteredBacking::Unsupported);
+            assert_eq!(before.of("oo::class"), RegisteredBacking::Object);
+            assert_eq!(before.of("oo::object"), RegisteredBacking::Object);
+            assert_eq!(before.of("my"), RegisteredBacking::Object);
+            assert_eq!(before.of("zipfs"), RegisteredBacking::Absent);
+            assert_eq!(before.of("tcl::dict::get"), RegisteredBacking::Absent);
+            #[cfg(have_tommath)]
+            assert_eq!(before.of("expr"), RegisteredBacking::Builtin);
+            #[cfg(not(have_tommath))]
+            assert_eq!(before.of("expr"), RegisteredBacking::NeedsNumericTower);
+
+            ok(i, b"proc mine {} {}");
+            ok(i, b"oo::class create Mine");
+            ok(i, b"interp alias {} aliased {} set");
+            let after = report(i);
+            for name in ["mine", "Mine", "aliased"] {
+                assert_eq!(after.of(name), RegisteredBacking::Absent, "{name}");
+            }
+            assert_eq!(after, before, "a script adds nothing to the report");
+        });
+    }
+
+    /// The commands a build without the numeric tower reports as needing it
+    /// are the ones a build with it registers as handlers.
+    #[cfg(have_tommath)]
+    #[test]
+    fn the_tower_commands_a_build_without_it_names_are_registered_with_it() {
+        leak_free(|i| {
+            let report = tcl_runtime_api::BackingReport::from_entries(i.backing_report());
+            let names = crate::builtins::tower_command_names();
+            assert!(names.len() > 60, "{}", names.len());
+            for name in names {
+                assert_eq!(report.of(&name), RegisteredBacking::Builtin, "{name}");
+            }
+        });
+    }
+
+    /// A build without the tower reports each of those commands as needing it,
+    /// and registers none of them.
+    #[cfg(not(have_tommath))]
+    #[test]
+    fn a_build_without_the_tower_reports_the_commands_it_lacks_as_needing_it() {
+        leak_free(|i| {
+            let report = tcl_runtime_api::BackingReport::from_entries(i.backing_report());
+            for name in crate::builtins::tower_command_names() {
+                assert_eq!(
+                    report.of(&name),
+                    RegisteredBacking::NeedsNumericTower,
+                    "{name}"
+                );
+            }
+            assert_eq!(ok(i, b"info commands expr"), b"");
         });
     }
 
@@ -10861,6 +11439,30 @@ mod tests {
             let token = prepare_interpreter_guard(i);
             i.mark_trusted();
             assert_interpreter_guard_stale(i, token);
+        });
+    }
+
+    /// A child is another interpreter of the same build, so it states the
+    /// world its parent is pinned to, the overlay included.
+    #[test]
+    fn a_child_states_the_context_its_parent_is_pinned_to() {
+        const OVERLAY: u64 = 0x0C0_1705;
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").expect("catalogue profile");
+        tcl_registry::registry_for_profile_with_overlay(profile, OVERLAY, |_| {});
+        leak_free(|parent| {
+            let mut context = tcl_registry::model::runtime_context_for_profile(profile);
+            context.overlay_generation = OVERLAY;
+            context.packages = vec![("vendor".to_owned(), "2.1".to_owned())];
+            parent.pin_context(&context).expect("installed, so it pins");
+            parent.create_child(Some(b"child".to_vec()));
+            let child = parent
+                .children
+                .borrow()
+                .get(b"child".as_slice())
+                .expect("child")
+                .clone();
+            assert_eq!(child.runtime_context(), context);
+            assert_eq!(child.held_identity(), parent.held_identity());
         });
     }
 
@@ -10997,7 +11599,74 @@ mod tests {
                 .unwrap();
             assert_eq!(i.eval_str(b"rename string moved"), Code::Ok);
             assert!(!i.check_command_guard(token, b"string"));
-            assert!(!i.check_command_guard(token, b"moved"));
+            assert_eq!(
+                i.prepare_command_guard(
+                    b"string",
+                    identity,
+                    GuardDomains::one(GuardDomain::CommandEnvironment)
+                ),
+                Err(GuardError::IdentityUnavailable)
+            );
+        });
+    }
+
+    /// The real runtime's `string length` guard, over the registry's base
+    /// domains, survives the definition, rename and alias of unrelated commands
+    /// and falls back once `string` itself is rebound.
+    #[test]
+    fn an_unrelated_mutation_keeps_the_string_length_guard() {
+        leak_free(|i| {
+            let identity = GuardIdentity::registry_intrinsic_with_semantics(
+                tcl_registry::IntrinsicId::StringLength.stable_id(),
+                tcl_registry::IntrinsicId::StringLength.guard_semantics_key(i.runtime_version()),
+            );
+            let domains = GuardDomains::one(GuardDomain::CommandEnvironment)
+                .with(GuardDomain::Namespace)
+                .with(GuardDomain::CommandTrace)
+                .with(GuardDomain::Interpreter);
+            let token = i
+                .prepare_command_guard(b"string", identity, domains)
+                .expect("the registry BASE domains are guardable");
+
+            ok(i, b"proc foo {x} {return $x}");
+            ok(i, b"rename foo bar");
+            ok(i, b"interp alias {} baz {} bar");
+            assert!(i.check_command_guard_identity(token, b"string", identity));
+
+            ok(i, b"rename string moved");
+            assert!(!i.check_command_guard_identity(token, b"string", identity));
+            ok(i, b"rename moved string");
+            assert!(i.check_command_guard_identity(token, b"string", identity));
+            ok(i, b"proc string args {return shadow}");
+            assert!(!i.check_command_guard_identity(token, b"string", identity));
+        });
+    }
+
+    /// The pin keeps every attestation and the pinned surface decides which of
+    /// them a guard reaches: a command the release lacks has none, and answers
+    /// again under a release that has it.
+    #[test]
+    fn a_pin_to_a_release_without_the_command_leaves_it_unattested() {
+        leak_free(|i| {
+            // `lassign` is a command Tcl 8.4 does not have.
+            i.register_guarded_builtin(b"lassign", guarded_builtin, GUARDED_IDENTITY);
+            let domains = GuardDomains::one(GuardDomain::CommandEnvironment);
+            let token = i
+                .prepare_command_guard(b"lassign", GUARDED_IDENTITY, domains)
+                .expect("attested in the default release");
+            assert!(i.check_command_guard(token, b"lassign"));
+
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_4);
+            assert!(!i.check_command_guard(token, b"lassign"));
+            assert_eq!(
+                i.prepare_command_guard(b"lassign", GUARDED_IDENTITY, domains),
+                Err(GuardError::IdentityUnavailable)
+            );
+
+            i.set_runtime_version(tcl_dialect::TclVersion::V9_0);
+            assert!(i
+                .prepare_command_guard(b"lassign", GUARDED_IDENTITY, domains)
+                .is_ok());
         });
     }
 
@@ -12179,5 +12848,98 @@ mod tests {
                 assert_eq!(ok(i, b"::tcl::build-info memdebug"), b"0");
             });
         }
+    }
+
+    /// `set_dialect_profile` is the profile form of `pin_context`: the context a
+    /// profile names, resolved through the ingress, pins the same profile, the
+    /// same release and the same identity.
+    #[test]
+    fn the_profile_form_of_a_pin_is_the_context_the_profile_names() {
+        for profile in tcl_dialect::DialectProfile::all().iter().chain([
+            tcl_dialect::DialectProfile::plain_tcl(),
+            tcl_dialect::DialectProfile::tk(),
+        ]) {
+            let mut by_profile = Interp::new();
+            by_profile.set_dialect_profile(profile);
+            let mut by_context = Interp::new();
+            by_context
+                .pin_context(&tcl_registry::model::runtime_context_for_profile(profile))
+                .unwrap_or_else(|error| panic!("{}: {error}", profile.name));
+
+            assert!(
+                std::ptr::eq(by_context.dialect_profile(), by_profile.dialect_profile()),
+                "{}",
+                profile.name
+            );
+            assert_eq!(by_context.runtime_version(), by_profile.runtime_version());
+            assert_eq!(by_context.runtime_context(), by_profile.runtime_context());
+            assert_eq!(by_context.held_identity(), by_profile.held_identity());
+        }
+    }
+
+    /// The runtime states the identity of the world it is pinned to: the
+    /// context's fields, this build's ABI, intrinsic table and embedded library,
+    /// and no pack facts.
+    #[test]
+    fn an_interp_states_the_identity_of_the_world_it_is_pinned_to() {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").expect("catalogue profile");
+        let mut interp = Interp::new();
+        interp.set_dialect_profile(profile);
+        let expected = tcl_registry::model::runtime_context_for_profile(profile)
+            .identity(&[], tcl_registry::intrinsic_table_hash());
+        assert_eq!(interp.held_identity(), expected);
+        assert_eq!(expected.environment, "tcl8.6");
+        assert_eq!(expected.release, "8.6");
+        assert_eq!(
+            expected.abi_version,
+            tcl_runtime_api::codegen_abi::CODEGEN_ABI_VERSION
+        );
+        assert!(expected.packs.is_empty());
+
+        interp.set_dialect_profile(tcl_dialect::DialectProfile::plain_tcl());
+        assert_eq!(interp.held_identity().environment, "tcl");
+    }
+
+    /// A context the ingress does not agree with is an error and leaves the pin
+    /// as it was; an overlay nothing has installed is one of them, and is never
+    /// the un-overlaid generation under another name.
+    #[test]
+    fn a_context_the_ingress_refuses_leaves_the_pin_unchanged() {
+        use tcl_registry::model::PinError;
+
+        const OVERLAY: u64 = 0x0C0_1704;
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").expect("catalogue profile");
+        let context = tcl_registry::model::runtime_context_for_profile(profile);
+        let mut interp = Interp::new();
+        interp
+            .pin_context(&context)
+            .expect("the profile's own context");
+
+        let mut unknown = context.clone();
+        unknown.environment = "no-such-environment".to_owned();
+        let mut wrong_build = context.clone();
+        wrong_build.build = tcl_dialect::model::BuildProfileId::JimFull;
+        let mut missing_overlay = context.clone();
+        missing_overlay.overlay_generation = OVERLAY;
+        for (what, refused) in [
+            ("unknown", unknown),
+            ("build", wrong_build),
+            ("overlay", missing_overlay.clone()),
+        ] {
+            assert!(interp.pin_context(&refused).is_err(), "{what}");
+            assert!(std::ptr::eq(interp.dialect_profile(), profile), "{what}");
+            assert_eq!(interp.runtime_context(), context, "{what}");
+        }
+        assert!(matches!(
+            interp.pin_context(&missing_overlay),
+            Err(PinError::OverlayMiss(miss)) if miss.overlay == OVERLAY
+        ));
+
+        tcl_registry::registry_for_profile_with_overlay(profile, OVERLAY, |_| {});
+        interp
+            .pin_context(&missing_overlay)
+            .expect("installed, so it pins");
+        assert_eq!(interp.runtime_context().overlay_generation, OVERLAY);
+        assert!(std::ptr::eq(interp.dialect_profile(), profile));
     }
 }

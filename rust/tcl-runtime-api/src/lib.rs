@@ -490,9 +490,20 @@ pub mod codegen_abi;
 /// Runtime-issued guards for speculative compiler fast paths.
 pub mod guard;
 
+/// What a runtime reports it backs, by command name.
+mod backing;
+pub use backing::{BackingReport, RegisteredBacking};
+
 /// What a specialised site claims about the spec-pack facts it rests on.
 mod site_claim;
 pub use site_claim::{PackFactStamp, SiteClaim};
+
+/// What an artefact says about the world it was compiled for, and the
+/// runtime's counterpart to compare it against.
+pub mod manifest;
+pub use manifest::{
+    ArtefactIdentityManifest, ManifestDecodeError, ManifestField, Rung, RungSet, RuntimeContext,
+};
 
 // -- Compile service (the EVAL_STK / dynamic-code injection point) --
 

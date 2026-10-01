@@ -972,7 +972,11 @@ gate rather than pass silently.
   or `semantic_operation {Intrinsic …}` — goes further: it survives only on
   a bundled pack's command whose `alias_of` names the shipped builtin that
   carries it, and the load drops it everywhere else with a warning naming
-  the provenance and the target (the stamp rejection rule).
+  the provenance and the target (the stamp rejection rule). A pack a
+  package ships, beside its `tclpkg.tcl`, is narrowed further by how far the
+  package sits from the workspace root: a transitive or development
+  dependency's pack also loses `alias_of` and a `runtime_backing`, each with
+  a warning naming the tier (the capability gate).
 - `command NAME -override { … }` claims a name a shipped spec already
   has; without it, shipped wins and the collision is reported. An
   override keeps the shipped command's security facts and its
@@ -1408,8 +1412,8 @@ schema order. "excluded" rows carry the reason.
 | `xc_translatable` | `xc_translatable yes\|no` | argument required — absent means unset |
 | `deprecated_replacement` | `deprecated_replacement NAME` |  |
 | `deprecated_replacement_drop_in` | `deprecated_replacement_drop_in ?yes\|no?` |  |
-| `alias_of` | `alias_of NAME` | the shipped builtin this pack command is — the target whose own codegen-axis stamps a bundled pack may carry (`docs/design/compiler/registry-consumer-contracts.md` § "The loader's stamp rejection rule") |
-| `runtime_backing` | `runtime_backing none\|host-native\|shipped-builtin ID\|tcl-body {-package-source PATH}\|tcl-body {-pack-text {TEXT}}` | how the command's behaviour reaches the runtime (`docs/design/compiler/registry-consumer-contracts.md` § "Four rungs of codegen meeting `.tclspec`", rung 4); every shipped core command declares one, and an unstated one reads as `none`. A `-pack-text` body is reported at load |
+| `alias_of` | `alias_of NAME` | the shipped builtin this pack command is — the target whose own codegen-axis stamps a bundled pack may carry (`docs/design/compiler/registry-consumer-contracts.md` § "The loader's stamp rejection rule"); dropped, with a warning, from a transitive or development dependency's pack |
+| `runtime_backing` | `runtime_backing none\|host-native\|shipped-builtin ID\|tcl-body {-package-source PATH}\|tcl-body {-pack-text {TEXT}}` | how the command's behaviour reaches the runtime (`docs/design/compiler/registry-consumer-contracts.md` § "Four rungs of codegen meeting `.tclspec`", rung 4); every shipped core command declares one, and an unstated one reads as `none`. A `-pack-text` body is reported at load; a backing is dropped, with a warning, from a transitive or development dependency's pack |
 | `byte_array_payload` | `byte_array_payload -replace-data-index N ?-message-flag-shift?` |  |
 | `byte_array_effect` | `byte_array_effect None\|Transparent\|Coerces\|CaseFolds\|Encodes\|{Rebinarifies N}` |  |
 | `definition_body` | `definition_body NAME\|{ … }` | a shipped grammar by name (`tcloo`, `tcloo-configurable`, `snit`, `snit-widget`, `itcl`), a pack `descriptor`, or the inline block — see "Definer grammars and scoped bodies" |

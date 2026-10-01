@@ -73,6 +73,42 @@ fn compile_wasm_analysed(source: &str) -> WasmModule {
     .into_module()
 }
 
+/// An emitted module says which world it was compiled for, in the custom
+/// section the link harness and any other loader reads: the unit's
+/// environment and release, this build's ABI and intrinsic table, and no pack
+/// (a WASM site records no pack claim).
+#[test]
+fn an_emitted_module_carries_its_identity_manifest() {
+    use tcl_runtime_api::ArtefactIdentityManifest;
+
+    for (dialect, release) in [("tcl8.4", "8.4"), ("tcl8.6", "8.6"), ("tcl9.0", "9.0")] {
+        let registry = CommandRegistry::build_default();
+        let unit = CompilationUnit::build_for_dialect("set x 1\n", &registry, false, dialect);
+        let mut module = compile_wasm_unit(
+            &unit,
+            &registry,
+            WasmCompileOptions::hosted()
+                .for_eval_only_test_host()
+                .with_data_base(0),
+        )
+        .into_module();
+        let manifest = ArtefactIdentityManifest::from_wasm(&module.to_bytes())
+            .expect("the bytes are a module")
+            .unwrap_or_else(|| panic!("{dialect}: the module carries no manifest"));
+        assert_eq!(manifest.environment, dialect);
+        assert_eq!(manifest.release, release);
+        assert_eq!(
+            manifest.abi_version,
+            tcl_runtime_api::codegen_abi::CODEGEN_ABI_VERSION
+        );
+        assert_eq!(
+            manifest.intrinsic_table_hash,
+            tcl_registry::intrinsic_table_hash()
+        );
+        assert!(manifest.packs.is_empty());
+    }
+}
+
 #[test]
 fn default_compilation_keeps_legacy_analysis_specialisations_disabled() {
     let registry = CommandRegistry::build_default();

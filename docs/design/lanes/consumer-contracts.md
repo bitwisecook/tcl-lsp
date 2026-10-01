@@ -1,4 +1,4 @@
-# Lane: consumer contracts — steps 1–4 landed, steps 5 to 7 in progress; the plan for steps 2–10
+# Lane: consumer contracts — steps 1–7 landed; the plan for steps 2–10
 
 ## Goal
 
@@ -813,6 +813,7 @@ order, CC4.2, CC4.3, CC4.4, each its own checkpoint.
 | CC4.3 codegen records the alias target | landed | `wip(consumer-contracts): step 4 — codegen records the alias target` | `rust/tcl-registry/src/codegen_stamp.rs` (new): `CodegenStamp` and `StampSite` move here from CC4.2's `stamps.rs` (re-exported there), with `CommandSpec::codegen_stamps` and `CommandSpec::carries_codegen_stamp_at(site, stamp)` — the one "same stamp, same site" answer the loader's rule and codegen both ask — and `ResolvedCall::stamp_site(stamp)` (form over subcommand over command, `resolve_call`'s precedence) and `ResolvedCall::stamp_identity(registry, stamp)`: the `alias_of` target's name where the registry's spec for it carries the stamp at the same site, the resolved spec's own name otherwise (D4.13). `registry_codegen_hook` (`codegen/emitter/bytecoded.rs`) records `stamp_identity(ctx.registry, CodegenStamp::Codegen(hook))` and the inline path (`codegen/cmd_subst.rs`'s `inline_codegen_resolution`) `stamp_identity(self.registry, CodegenStamp::InlineCodegen(hook))`; `command_binding_matches` is unchanged (its one prefix-free alias hop already resolves the pack name to the builtin); lowering-hook sites (`codegen/mod.rs`'s `inline_lowering_hook`) and const-fold sites (`const_subst.rs`) keep the spec's own name (D4.13). Tests: `rust/tcl-spectcl/tests/codegen_stamps.rs` (new; shard row `5 tcl-spectcl::codegen_stamps`; dev-deps `tcl-vm`, `tcl-runtime-api`, both already in the crate's graph, `Cargo.lock` gains the two edges) — a bundled `specs/` pack declaring `vendor::unpack` as `alias_of lassign` with `codegen_hook -native Lassign`, compiled through the lowering → CFG → codegen pipeline against the installed registry: `an_admitted_alias_stamp_records_the_targets_identity` (the top level's `command_bindings` holds `CommandBindingIdentity::new("vendor::unpack", "lassign")` and nothing with identity `vendor::unpack`), `the_vm_admits_it_through_the_alias_hop` (a `tcl_vm::Vm` whose compile service counts plain-dispatch compiles: before the alias the module is refused and recompiled plain, erroring on the unknown name; after `interp alias {} vendor::unpack {} lassign` it runs as compiled — `1 2`, no plain compile) and `a_proc_at_the_pack_name_recompiles_plain` (a proc at `vendor::unpack`: refused, recompiled plain, the proc's `P Q` where the specialised code would have given `1 2`) (D4.14); a mutation check — `registry_codegen_hook` put back to `resolved.spec.name` — fails the first two, and the negative still passes. `codegen_stamp.rs` unit tests: the identity is the target only where the stamp is the target's own (`lassign` → `lassign`; `lsort` or none → `vendor::unpack`), `an_override_with_an_unrelated_alias_keeps_its_own_identity` (a `lassign` spec naming `alias_of lsort` records `lassign`), and `string length`'s intrinsic carried at `Subcommand("length")` only. Gates: `cargo test -p tcl-spectcl --test codegen_stamps` (3), `--test workspace_packs` (9), `--lib stamps` (4); `-p tcl-registry --lib codegen_stamp` (3); `-p tcl-compiler --test codegen --test codegen_integration` (164, 17); `-p tcl-vm --test command_mutation_deopt_e2e` (75); `-p tcl-spec-studio --lib` (199) and `--test reference_doc` (`fields.md` regenerated); `cargo check --workspace --all-targets`; clippy (`-p tcl-registry -p tcl-compiler -p tcl-spectcl -p tcl-spec-studio -p tcl-mcp --all-targets`) and `cargo fmt` clean; `verify-nextest-binary-shards.py --metadata-only` (328 targets) and `test-nextest-binary-shards.sh` green; `registry-axes --check` (7831 / 16 / 40 / 896 across 147), `value-transfers --check` unchanged, `pack-goldens --check` (25), `retired-api-gate` / `owner-resolution` (45) OK, `kcs-index-links` green, `dialect-drift` at its 8. Docs: the design page's status box, § *Codegen and the registry today* (the second witness exists), the rung-2 table cell and bullet (both corrections built, with the override reason), and the test anchors; `vm-compiled-artifact-provenance.md` (the alias-target identity and its admission; the new witness); `alias_of`'s doc comment; the Studio's help text and worked example. Deviations: the identity is conditional, not `alias_of.unwrap_or(name)` (D4.13); the test's word order, counting service and explicit namespace (D4.14). D4.13, D4.14 |
 | CC4.4 site claims | landed | `wip(consumer-contracts): step 4 — site claims` | `rust/tcl-runtime-api/src/site_claim.rs` (new): `PackFactStamp { pack, content_hash: u64, vocabulary_version, overlay_generation, evaluator_revision }` — its doc comment names `content_hash` as the `u64` xxh3 the declaring file's `EvalSnapshotKey` interns (D4.3) — and `SiteClaim` with the two variants this step builds, `PackFacts(PackFactStamp)` and `BuiltinAlias { binding, facts }`, and `facts()`; no `Generic`, no `IdentityKind` (D4.15). `rust/tcl-bytecode/src/lib.rs`: `FunctionAsm::site_claims: Vec<SiteClaim>` (the literals in `format.rs`'s test and four `tcl-vm` test files gain `site_claims: Vec::new()`). `rust/tcl-registry/src/pack_origin.rs` (new): `PackOrigin { pack, content_hash, vocabulary_version }`; `CommandRegistry::insert_pack_origin` / `pack_origin`, a side table keyed by the installed spec's address (D4.4), which `project_for_profile` now carries with the overlay generation (D4.17); the registry's `Debug` counts it. `tcl-spectcl`: `PackCommand::content_hash`, set by the loader on both evaluation paths (`loader/eval.rs`'s `content_hash`, `pack_content_hash`, `with_content_hash` — the root file's hash, taken before the byte-order mark is stripped as `eval_snapshot_key` takes it, folded with each `include`d fragment's) (D4.16); `install::install_into` records every inserted spec's origin through `install::pack_origin`, which `PackSet::fact_stamps(evaluator_revision)` also builds from — one stamp per pack file the set installs, sorted and deduplicated, the facts an embedder hands the VM; `tcl-runtime-api` moves from CC4.3's dev-dependencies to the crate's own (`Cargo.lock` unchanged). `rust/tcl-compiler/src/site_claims.rs` (new): `pack_fact_stamp(origin, overlay_generation, evaluator_revision)`, the one stamp construction; `evaluator_revision()`; `pack_facts_claim(registry, spec)` (rung 1) and `builtin_alias_claim(registry, resolved, binding)` (rung 2, `None` where the binding's identity is the spec's own name). Codegen: `CodegenCtx::site_claim_requirements` becomes each function's `site_claims`; `stamped_binding` returns a `SiteBinding { binding, claim }` to `registry_codegen_hook` and `inline_codegen_resolution`, whose callers `require_site_binding`; `const_subst.rs`'s `ResolvedConstSubst::site_claims` (both fold returns, nested folds included) is required by `values.rs`'s `try_emit_constant_fold`; `trusted_inline_codegen_binding` declines a claimed site (D4.18). `rust/tcl-vm/src/interp.rs`: `Vm::set_pack_facts(stamps)`, which replaces the held facts and advances the compilation-deopt epoch, and `site_claims_hold` inside `function_command_bindings_match` (D4.19). No `rust/tcl-lsp-server` change: the server runs no VM (D4.20). Tests: `codegen_stamps.rs` gains the plan's `a_changed_pack_invalidates_the_site` (the VM holds the set's stamps with the content hash flipped: the module is refused and recompiled plain, `1 2` through the alias; the negative control, the set's own stamps, admits it with no plain compile) and, beyond the plan, `a_pack_fold_is_admitted_only_under_its_pack_s_facts` — rung 1 on its own: a bundled `llength -override` naming `llength::const_fold`, scoped `dialects tcl9.0` (D4.21), folds `[llength {a b c}]` to `3` and claims `PackFacts` beside `llength`'s own binding; a VM holding no facts refuses it and recompiles plain, and holding the set's facts runs it as compiled; `an_admitted_alias_stamp_records_the_targets_identity` asserts the site's `BuiltinAlias` claim carries the one stamp `fact_stamps` gives; `command_mutation_deopt_e2e.rs` gains the plan's `a_rung_zero_module_is_admitted_under_a_changed_pack_set` (a module with specialised bindings and no claims runs as compiled under no facts, one set's and a changed set's, with zero plain compiles); `site_claims.rs` unit tests `a_pack_fold_claims_the_pack_s_facts` (the same fold from an embedder-inserted spec claims nothing) and `an_inline_alias_site_claims_the_builtin` (the inline path's claim, on `alias_of lindex`). A mutation check — `site_claims_hold` answering `true` — fails exactly the two rung-1 witnesses. Moved: `the_vm_admits_it_through_the_alias_hop` and `a_proc_at_the_pack_name_recompiles_plain` set the set's facts before running — an admitted alias site now needs them, and without them the proc test's refusal would no longer isolate the proc; `pack_formatting.rs` normalises the new `content_hash` field in the `Debug` dump it compares (its doc's two differences become three). Gates: `cargo test -p tcl-spectcl --no-fail-fast` (lib 192; `codegen_stamps` 5, was 3; `workspace_packs` 9, `pack_formatting` 2, `golden_packs` 3 and every other binary); `-p tcl-compiler --lib` (6510, was 6508; 2 ignored), `--test codegen --test codegen_integration --test codegen_depth --test compiler_residual` (164, 17, 55, 59); `-p tcl-vm` lib 97, `command_mutation_deopt_e2e` 76 (was 75), `embed_api_e2e` 14, `opcode_c_parity` 86, `opcode_catch_parity` 17, `opcode_dispatch_coverage` 3, `run_script` 96 of 97 (`encoding_command` reads the system encoding, which the container's empty `LANG` makes `iso8859-1`; it passes under `LANG=C.UTF-8`, with or without this item); `-p tcl-bytecode` 33, `-p tcl-runtime-api` 29, `-p tcl-registry --lib` 931, `-p tcl-spec-studio` (lib 199 and every binary), `-p tcl-mcp` 114; `cargo check --workspace --all-targets`; clippy (`-p tcl-runtime-api -p tcl-bytecode -p tcl-registry -p tcl-compiler -p tcl-spectcl -p tcl-vm -p tcl-mcp -p tcl-spec-studio --all-targets`) and `cargo fmt` clean; `verify-nextest-binary-shards.py --metadata-only` (328 targets); `registry-axes --check` (7831 / 16 / 40 / 896 across 147) and `value-transfers --check` (20 / 19 / 90 across 36, 6607 rows) unchanged, `pack-goldens --check` (25), `retired-api-gate` / `owner-resolution` (45) OK, `kcs-index-links` green, `dialect-drift` at its 8. Docs: the design page's status box, § *Codegen and the registry today* (the optimise-path sentence corrected, D4.20), the rung table's state column for rungs 1 and 2, § *What the artefact records per rung* (rungs 1 and 2 built, `content_hash: u64`, the vocabulary version's source, no rung-0 variant), § *The admission checks, per rung* (rows 1 and 2 built), the rung 1 and 2 bullets, and the anchors; `vm-compiled-artifact-provenance.md` gains the claim, its invalidation row, and the witnesses; `spec-packs.md` § *What a pack still cannot say* states what an edited pack does to compiled sites. Deviations: the claim's two variants (D4.15); the stamp's sources (D4.16); the projection (D4.17); which sites claim (D4.18); the check's seat (D4.19); no server wiring (D4.20); the rung-1 witness beyond the plan, and its scoped override (D4.21). D4.15–D4.21 |
 | Step 4 review fixes | landed | `wip(consumer-contracts): step 4 — review fixes` | The step 4 review ("land with fixes", none blocking), the mechanical fixes only — SF2 (the include-fragment `content_hash` test), SF3 (the `project_for_profile`/overlay-generation stamping test) and D3.22's SSA wiring are the opus implementer's, next. **SF1** `retired_api_gate.rs`'s `DeclaredSurface` owners drop `rust/tcl-lsp-core/src/minify.rs`: the file never spells the type, only calls `build_declared_surface` (line ~974), and the gate was already at 0 hits, so the entry was inert and would have silenced a future hand-built `DeclaredSurface::new()` there instead of catching it; the comment explaining why `minify.rs` is a carrier moves to sit beside the `build_declared_surface` call in `minify.rs` itself, and the retired-api-gate comment above the pattern is reworded to explain the omission instead of the inclusion. **SF4** `registry-consumer-contracts.md`'s file-path-anchors line now reads "the one `untrusted(…)` predicate" (was "the second"), matching CC3.2's collapse of the two into one (`rust/tcl-registry/src/model/registration.rs`'s `untrusted` is the only `fn untrusted(` in the tree). **SF5** `rust/tcl-spectcl/tests/workspace_packs.rs`'s AGPL header gains the "You should have received a copy…" paragraph its neighbour `codegen_stamps.rs` carries; it was truncated at "GNU Affero General Public License for more details." straight to the SPDX line. **Nit** `spectcl_check`'s tool description in `rust/tcl-mcp/src/tools.rs` (~2291) loses its doubled "and" before `dormant_hooks` (the `plus` list now reads `…, untrusted_tier_refusal (…), dormant_hooks (…), and stamp_refusals (…)`, one "and" before the last item). **Waiver count** the "Step 4 is landed" paragraph's `registry-axes` citation read `7831 / 16 / 40 / 896 across 147`, a figure CC4.1 inherited from a pre-step-3-review-fix branch position and every later step 4 item repeated unverified. Step 3's own review fix (`1b05e252`) is what actually dropped two irreducible waivers — `rust/tcl-mcp/src/spectcl.rs:274` and `rust/tcl-mcp/src/tools.rs:2352`, both `until never` — taking the ledger from 38 to 36 irreducible before any step 4 commit landed; no step 4 commit touched `docs/generated/registry-axes.md` again (`git log --follow` on the file stops at `1b05e252`), yet the checked-in file already reads 36 waived (all of it `irreducible`; every other axis 0) and 893 pinned — confirmed by running `cargo xtask registry-axes` fresh, which reproduces the checked-in file byte-for-byte bar this commit's own line-number shift in `minify.rs`'s two waiver rows (one at `:1893`, now `:1897`, from SF1's added comment). The landing paragraph is corrected to `7831 / 16 / 36 / 893 across 147`; CC4.1–CC4.4's own rows are left as each item's own historical record and are not rewritten. Gates: `cargo check --workspace --all-targets`; clippy (`-p xtask -p tcl-lsp-core -p tcl-spectcl -p tcl-mcp --all-targets --no-deps -- -D warnings`) and `cargo fmt --all -- --check` clean; `cargo xtask retired-api-gate` OK (0 hits, unchanged); `registry-axes --check` OK (7831 / 16 / 36 / 893 across 147, regenerated for the `minify.rs` line shift only); `value-transfers --check` unchanged; `owner-resolution` OK; `kcs-index-links` green; `dialect-drift` at its 8 (no new site). |
+| Step 4 review fixes, continued | landed | `wip(consumer-contracts): step 4 — review fixes, continued` | The step 4 review's two remaining fixes; D3.22's SSA and memory-SSA wiring stays deferred until value-transfers slice 6 lands, because it shares `ssa.rs`. No source file changes. **SF2** D4.16's include fold: `rust/tcl-spectcl/tests/eval_loader.rs` gains `a_content_hash_is_the_snapshot_keys_and_follows_an_included_fragment`. The review named `eval.rs`'s tests or `workspace_packs.rs`; `eval.rs` has no test module of its own, and `eval_loader.rs` is the file that selects both drive paths (`EvalOptions::static_fast_path`) and already resolves fragments through `IncludeContext::new`, so the test sits beside `an_included_fragment_loads_identically_on_both_routes`. One test, both routes, three parts. (b) A root that includes nothing, with a leading byte-order mark, carries exactly `eval_snapshot_key(source).content_hash`, and the key of the mark-stripped text is a different number, so a hash taken after the strip cannot pass. (a) The same root over a fragment edited from `arity 2` to `arity 3` hashes differently, differs from the root's own key, hashes alike on the static route and the interpreter route for one fragment, and every command of one load, the root's and the fragment's, carries one value. A row the loader drops (an unresolvable fragment) folds nothing: the hash is the root's own key. Mutation checks: `pack_content_hash` answering the root's hash always fails (a); the same on the static route alone, and on the interpreter route alone, each fails (a); the root's hash taken after the strip fails (b). **SF3** D4.17's projection: `rust/tcl-spectcl/tests/codegen_stamps.rs` gains `a_site_compiled_through_the_service_stamps_the_bases_overlay_generation`. A bundled pack's registry (overlay generation `set.key`, asserted non-zero) is handed to `BytecodeCompileService::new` and compiled through `compile_for_profile` for `tcl9.0`, the seam `tcl-engine-tclvm`'s `with_registry` uses. The owned value handed to the service is `project_for_profile`'s own view of the cached registry: `CommandRegistry` is not `Clone` and `set_overlay` is crate-private, so a projection is the only owned form a pack registry with a generation has, and the service then projects it again for the profile. Both rungs: the alias site claims `BuiltinAlias { vendor::unpack → lassign, facts }` and a pack's `llength` fold claims `PackFacts(facts)`, each with `overlay_generation == set.key`, equal to the one stamp `PackSet::fact_stamps` gives. Mutation checks: `project_for_profile` not carrying `overlay` (the stamp reads `0`) fails it, and not carrying `pack_origins` (no claim at all) fails it. Gates: `cargo test -p tcl-spectcl --no-fail-fast` (lib 197; `eval_loader` 27, was 26; `codegen_stamps` 7, was 6; `workspace_packs` 10, `golden_packs` 3, `spec_corpus` 5 and every other binary); `cargo check --workspace --all-targets`; `cargo clippy --workspace --all-targets -- -D warnings` and `cargo fmt --all` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389), `retired-api-gate` and `owner-resolution` (45) OK, `kcs-index-links` green, `dialect-drift` at its 8 sites (the gate exits 1 on them, as on the parent commit). Deviations: the SF2 test's file. |
 
 **Step 4 is landed.** All four items above (CC4.1, CC4.2, CC4.3 and
 CC4.4) are `landed`; the review checklist below is run against this tree
@@ -1015,6 +1016,150 @@ and CC5.2 last, each its own checkpoint.
 | Item | State | Checkpoint | Notes |
 |---|---|---|---|
 | CC5.1 one semantics key per member | landed | `wip(consumer-contracts): step 5 — one semantics key per member` | `rust/tcl-registry/src/intrinsic.rs`: `const SEMANTICS_REVISION: [(IntrinsicId, u32); 28]`, one explicit row per member (every row `0`, matched by `stable_id`, never by declaration order; the array length is the catalogue's, so a member added without a row does not compile). `guard_semantics_key` is `semantics_key(release_variant(runtime), &SEMANTICS_REVISION)` — a key packs three disjoint fields, the member's own `stable_id` (bits 16–31), its revision (bits 2–15) and the release variant (bits 0–1, `RUNTIME_INVARIANT_SEMANTICS` for every member but `StringLength`, which keeps its three: 8.4/8.5 BMP, 8.6 UTF-16, 9.x scalar) (D5.2). `guard_semantics_variants` is an exhaustive per-member match with no wildcard, each arm a `const { &[…] }` block over the `member_keys!` macro, so it keeps its `&'static [u32]` signature and a new member must say which releases it is versioned across (D5.4); `revision_in` panics on a member with no row, at compile time through those blocks. The shared `INVARIANT_SEMANTICS` and `VERSIONED_STRING_SEMANTICS` slices are gone. `revision_in` and `semantics_key` take the revision table as a parameter so a test can bump one row of a copy. Every key is now non-zero, so every intrinsic's guard identity takes the packed form (the stable id in the high half of the identity's 64-bit value, the key in the low half), where a release-invariant member's used to be its bare stable id: each identity value moves once, and no persisted artefact holds one (D5.3). Tests (`intrinsic.rs`, 13 in the file, was 5): the plan's `every_member_has_a_distinct_semantics_key` (no key answered by two members on any of the five releases, no key on two members' variant lists, none zero) and `bumping_one_members_revision_moves_no_other_key` (for each of the 28 members, at revision 1 and at the field's maximum: every one of that member's keys moves, no other member's does), plus `the_revision_table_names_every_member_exactly_once`, `the_variants_are_exactly_the_keys_the_releases_answer` (pins `guard_semantics_variants` to `guard_semantics_key` across all five releases), `a_key_names_its_member_in_its_high_field`, `a_bumped_member_still_collides_with_no_other`, `a_revision_beyond_its_field_is_refused` (`should_panic`) and `string_length_answers_three_keys_across_five_releases`. The runtime and VM tests that call `guard_semantics_key` are unchanged and pass; the plan's "one literal `0x0306`-style assertion" does not exist as a key literal — the only one is `stable_ids_round_trip_without_ordinal_dependence`'s on `stable_id()`, which does not move (D5.5). Gates: `cargo test -p tcl-registry --no-fail-fast` (lib 941, was 933, and every binary), `-p tcl-vm --lib guard` (8), `-p tcl-compiler --lib mixed_region_plan` (8), and `runtime/rust`'s own `cargo test --lib -- guard intrinsic` (15; a standalone workspace, built with its own `target/`); `-p tcl-compiler --test wasm_tiers --test wasm_real_link` (6, 13) pass, but every real-link case skips loudly in this container — no `wasm32-wasip1` target, and no libtommath under the worktree's `tmp/` — so the identity check is covered by the runtime crate's `codegen_abi` tests and the planner's `mixed_region_plan` tests rather than by a linked module; `cargo check --workspace --all-targets`; clippy (`-p tcl-registry --all-targets --no-deps -- -D warnings`) and `cargo fmt -p tcl-registry` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows — the value-transfers lane's own figures, moved by its merged commits), `pack-goldens --check` (25), `retired-api-gate`, `owner-resolution` (45), `kcs-index-links` green, `dialect-drift` at its 8. No KCS note: nothing a user runs changes. Docs: the design page's status box and its "intrinsic table splits by family" bullet, `docs/GLOSSARY.md` § *Guard identity*. D5.2–D5.5 |
+| CC5.3 the Explorer observability record | landed | `wip(consumer-contracts): step 5 — the AOT decline record` | `select_native_i64_add_plan` returned `None` at the first premise that failed, so a compile that did not select the sealed native i64 addition fell to the generic or general plan and said nothing of why. The composition moves to `rust/tcl-compiler/src/codegen/wasm/native_add.rs` (new; the function and its six helpers leave `pipeline.rs`, D5.9) and is rebuilt as one derivation of selection and record: `native_add::select` evaluates every premise, records each one it finds wanting as a `NativeDecline`, and returns `Ok(selection)` only where none is rejected, so the two cannot disagree. **The types** are in `common_aot_plan.rs`, where the plan puts them: `NativePremise` (`SemanticPlans`, `Packaging`, `SealedProgram`, `Pass(id)`, `Coverage`, `DirectCall`, `DirectBody`, `ClosedProgram`, `Frame`, `Actuals`, `Boundary`, `NativeInteger`, `Operands`), `NativeDeclineReason` (27 variants; each wrapped typed reason keeps its own `as_str`) and `NativeDecline { premise, reason, sites }` (D5.7); `as_str` is added to the four typed declines that had none (`DirectProcBodyDecline`, `CommonAotCoverageDecline`, `ClosedProgramCoverageDecline`, `NativeIntegerDeclineReason`). **The plan** `WasmCodegenPlan::GenericInvoke` and `::General` gain `native_declines: Vec<NativeDecline>`, with the accessor `WasmCodegenPlan::native_declines()` (empty for `NativeI64Add`); `mixed_region_plan.rs` is untouched: the addition is a whole-program top-level selection that needs the unit, registry and options, which the region plan's builder does not have (D5.6). **Evaluation.** The options' premises (target plan policy, packaging, sealed environment, each of the five passes) are always evaluated; while none of the five passes is enabled the addition has not been asked for and no proof is built, so the record is those premises alone (D5.8: measured on a 300-statement, 150-procedure script in a debug build, `CommonAotProofPlan::build` costs 410 ms of `compile_wasm`'s 446 ms and about a fifth of the 1.9 s unit build, for every caller: `tcl compwasm`, the MCP tool, the fuzz harness). Once a pass is enabled the unit-level premises (excluded surfaces, the closed-program accounting) and, per direct call site, the direct call, its body, the closed-program shape, the frame's two flags, both actuals, the boundary, the integer proof (cached per callee) and the operands are each evaluated independently; a premise whose input another rejects is not evaluated. Entries dedupe on (premise, reason) and collect their sites, so the record is bounded by premises, not by calls; a unit with no call to its own procedure records `direct-call: no-direct-call`. **The Explorer.** `codegenPlan` gains `nativeDeclines` (`premise`, `reason`, `detail`, `sites`), and the plan the `wasm` header carries is repeated once, unchanged, as `data.aot`; the plan's "`aot` view" did not exist (the `wasm` text view prints only the WAT and function headers, `codegenPlan` was JSON-only, and `--show aot` matched no view), so `views.rs` gains the `aot` descriptor (`AOT Plan`, group `codegen`, `Tree`) and `view_tree.rs` its builder, which `render_all` and the TUI pick up from `tree_view_ids()` and the browser and editor panels show through their structured fallback (D5.10). `meta.views` is 36, was 35. Tests: `native_add.rs` (8) — `a_selected_addition_records_no_decline`, `an_addition_nobody_asked_for_records_the_options_premises_alone`, `a_hosted_compile_names_the_environment_the_passes_and_what_they_take_down` (five entries, the call named), `a_rejected_body_records_each_premise_it_takes_down` (the `native-integer` pass off: body, frame and the integer proof, each at the call), `a_surviving_statement_rejects_the_closed_program_and_the_actuals_it_hides`, `a_program_without_a_procedure_call_names_the_missing_call`, `a_second_call_to_the_callee_is_recorded_at_both_sites` and `the_target_and_its_packaging_are_premises_too`; the plan's `wasm_tiers.rs::a_failed_native_add_names_every_rejected_premise` (public API: the selected program rejects nothing, the same program hosted with two passes off names five premises and the call); the explorer text snapshots the plan asks for, `render.rs`'s `aot_text_lists_every_rejected_native_premise` (the six premises of an untouched Explorer) and `aot_text_follows_the_pass_selection` (seven, with the cascade a missing pass causes), `serialise.rs`'s `aot_view_carries_the_plan_and_every_rejected_native_premise` (the JSON, typed, with the site) and `view_tree.rs`'s `aot_view_names_a_selected_native_add`. Mutation checks: recording only the first rejected premise fails seven of the eight `native_add` tests (the selected case alone passes) and the `wasm_tiers` test; serialising `nativeDeclines` as `[]` fails both text snapshots and the JSON test. Moved: `serialise.rs`'s `meta_lists_all_dialects_views_and_severities` (36 views) and `wasm_view_exposes_common_native_i64_selection_evidence` (a selected plan's `nativeDeclines` is `[]`); every existing native add test passes unmodified (`pipeline.rs`'s four, the explorer's selection-evidence test, `wasm_codegen`, `wasm_execute`), and the real-link native rows skip loudly here (no `wasm32-wasip1` target), so the emitted module is covered by the pipeline tests that inspect its WAT. Gates: `cargo test -p tcl-compiler --no-fail-fast` (lib 6546, 2 ignored, was 6538; `wasm_tiers` 7, was 6; `wasm_real_link` 13, skipping loudly; `wasm_codegen` 45, `wasm_execute` 4, `codegen` 164, `codegen_integration` 17 and every other binary), `-p tcl-explorer` (lib 108, was 104), `-p tcl-cli --no-fail-fast` (lib 27, `cli` 50, `compile_verbs` 11, `explorer_gui` 2, `pkg_verbs` 13, `spec_verbs` 18, `value_transfers_cli` 8); `tcl-explorer-wasm` is outside the workspace (wasm32, its own lockfile) and reads only keys this item adds to; `cargo check --workspace --all-targets`; `cargo clippy --workspace --all-targets -- -D warnings` and `cargo fmt --all` clean, no new `#[allow]`; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged: the moved `ChannelWrite` and `Set` matches trip no site), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389), `retired-api-gate` and `owner-resolution` (45) OK, `kcs-index-links` green, `dialect-drift` at its 8 sites. Docs: `semantic-aot-optimisation.md` (the observability paragraph states the record as built), `wasm-explorer-view.md` (`nativeDeclines`, `data.aot` and the `aot` view), `kcs-feature-compiler-explorer.md` (an *AOT plan* section), the `compiler-explorer` skill's view catalogue. Deviations: the record sits on `WasmCodegenPlan`, not `MixedRegionPlan` (D5.6); `NativeDecline` gains `sites` (D5.7); the record is complete only once a pass is enabled (D5.8); the composition has its own module (D5.9); the `aot` view is created here (D5.10). D5.6–D5.10 |
+| CC5.2 guard identities keyed by token generation | landed | `wip(consumer-contracts): step 5 — guard identities persist` | Both runtimes held a command's guard identities in a table keyed by its name, and every command-table mutation cleared it whole and moved the `CommandEnvironment`, `Namespace` and `UnknownHandling` domains (the VM's `bump_cmd_epoch`, the runtime's `invalidate_command_environment`, and the runtime's profile pin with it), so the first `proc`, `rename`, `interp alias`, `namespace import`, `interp hide` or `interp expose` after registration emptied the table for the interpreter's life: `prepare` answered `IdentityUnavailable`, every `check` answered false, and every guarded intrinsic of a linked module took generic dispatch from then on (the design page's "never repopulated" row). **The table** is `guarded_commands: HashMap<u64, BTreeSet<GuardIdentity>>` in the VM (the generation of `command_identity.generations`, read through `visible_command_generation`) and `BTreeMap<u64, BTreeSet<GuardIdentity>>` in the runtime (`Namespaces::resolve_generation`): a command's identities sit under its token generation, which both runtimes already carry through a rename and a hide and replace on a rebinding (D5.11). **Registration** goes through one funnel per runtime, `register_attested` (VM) and `bind_attested_builtin` (runtime): bind, attest the generation bound and drop the displaced generation's entry; `register_guarded_builtin` and `register_spec_builtin` use it, the VM's `register` returns the storage key it bound at, and the runtime's `register_builtin` shares a `bind_builtin` that returns the generation. **The read** is `attested_identities(name)` in each: it resolves the guarded name afresh, from the current namespace, to a key and a generation, requires the pinned surface to admit the command (`command_visible_for_surface_at` in the runtime, `resolve_command_fqn`'s filter in the VM) and answers the entry at that generation. `prepare_command_guard`, `check_command_guard` and the runtime's `check_command_guard_identity` (the second half of the ABI's `tcl_codegen_guard_check`, which recomputes the identity from the runtime version and re-resolves the argv head on every check) all read through it, so a guard follows its command through rename and hide, stops at a different command at the name, and a `proc string` in a namespace drops it for the calls made from that namespace alone. **What moves the domains** (D5.12). A command-table mutation moves none: the VM's `bump_cmd_epoch` keeps its resolution-memo clear and its counter and loses both guard effects; the runtime loses eleven `invalidate_command_environment` calls (the pin, `move_bound_command`, `delete_bound_command`, `delete_command`, `create_ensemble`, procedure definition, `bind_command_replacement`, the two OO command-retirement paths, hide and expose) and keeps eight (`namespaces_mut`, `ensure_namespace`, `ensure_command_owned_namespace`, `ensure_global_namespace`, `delete_namespace_by_id`, `create_child`, `with_child`, `delete_child`); the VM's new `invalidate_lookup_guards` is called from `ns_path_set`, `mark_interp_trusted`, `make_safe` and `delete_interp`. The Interpreter and ObjectDispatch domains and the trace domains are untouched, so a renamed or traced intrinsic still falls back; `tcl-runtime-api` is untouched (D5.13). **The pin** keeps the table in both runtimes, and the surface decides what a guard reaches (D5.14). Tests, in the runtime: `an_unrelated_mutation_keeps_the_guard_and_a_rebinding_drops_it` re-states `command_mutation_invalidates_guard_and_identity_attestation`, whose one assertion, that an unrelated registration stales the guard, is the behaviour the item removes — an unrelated `proc`, `rename` and `interp alias` keep the guard and a fresh `prepare`; `namespace eval other {namespace path ::}` stales the token and leaves the attestation; the pin keeps a `CommandEnvironment`-only token and `prepare`; `rename guarded moved` drops the guard at `guarded`, where `prepare` answers `IdentityUnavailable`, and `prepare("moved")` succeeds; renaming back restores the guard; hide drops it and expose restores it; a `proc guarded` drops it for good; `a_shadowing_definition_drops_the_guard_only_for_calls_from_its_namespace` (the plan's risk row: a `proc guarded` in `ns` leaves the guard at `::`, drops it with the current namespace set to `ns` and restores it back at `::`); `an_unrelated_mutation_keeps_the_string_length_guard` (the spec-registered `string length` over the registry's base domains, through `check_command_guard_identity`: an unrelated `proc`, `rename` and alias keep it, `rename string moved` drops it, `rename moved string` restores it, `proc string` drops it); `a_pin_to_a_release_without_the_command_leaves_it_unattested` (a guarded builtin named `lassign`, a command Tcl 8.4 lacks, under 8.4 and back); and `codegen_abi.rs`'s `guarded_intrinsic_guards_survive_unrelated_command_mutation`, which makes the ABI call an emitted module makes (`tcl_codegen_guard_prepare`, `tcl_codegen_guard_check`) over the base domains: three unrelated scripts leave the check at 1, `proc string` moves it to 0. In the VM's `family_b_tests` (D5.16): the restated test and the shadowing test under the same names (the `interp` verbs run through `eval_value`, and a probe builtin checks the token from wherever it runs for the shadowing row), `a_profile_pin_keeps_the_spec_registered_string_attested`, `a_pin_to_a_release_without_the_command_leaves_it_unattested`, and the rename test gains its `prepare` assertion. The real-link case gains the plan's "unrelated proc keeps the fast path" row (D5.15). **Mutation checks.** In the runtime, `bind_command_replacement` moving the command domains again fails four of the 18 guard and pin tests — `guarded_intrinsic_guards_survive_unrelated_command_mutation`, `an_unrelated_mutation_keeps_the_guard_and_a_rebinding_drops_it`, `an_unrelated_mutation_keeps_the_string_length_guard` and the shadowing test; resolving the guarded name from `::` alone fails the shadowing test only; dropping the surface gate from the read fails the pin test only. In the VM, `bump_cmd_epoch` calling `invalidate_lookup_guards` fails the restated test and the shadowing test (2 of the 37 in `family_b_tests`); resolving from the empty namespace key alone fails the shadowing test only; reading through `resolve_command_fqn_raw`, which skips the surface filter, fails the pin test only; and `bump_cmd_epoch` clearing the table again fails the restated test, the shadowing test and both pin tests (4 of 37). **Moved.** `renaming_spec_registered_string_stales_its_intrinsic_guard`'s second assertion in the runtime, that the guard at the new name `moved` fails, contradicts D5.11, since the token at `moved` is the one the rename carried, and is replaced by a `prepare("string", …)` that answers `IdentityUnavailable`; the VM's twin keeps both assertions (its manual take and `register_command` mint a new generation) and gains the same `prepare` one; the runtime helper `assert_interpreter_guard_stale` asserts the attestation is present instead of re-registering the builtin, which only the old clearing made necessary. Gates: `cargo test -p tcl-vm --lib` (100, was 97), `-p tcl-vm --test command_mutation_deopt_e2e` (76, unchanged), `-p tcl-vm` in full under `LANG=C.UTF-8` (50 binaries, 1477 tests; `expanded_invoke_e2e` needs the `tmp` oracle tree, which was linked for its run); `runtime/rust`'s `cargo test --locked --lib` (707, was 703) and `--tests` (12 integration binaries, 160 tests), its own workspace, built with `TCL_TOMMATH_DIR`, under `LANG=C.UTF-8` (under an empty `LANG`, `cmd_misc.rs`'s `encoding_ensemble_resolves_like_tclsh` fails as `tcl-vm`'s `encoding_command` test does, issue #2271); `-p tcl-runtime-api` (29, unchanged); `-p tcl-compiler --test wasm_real_link --test wasm_tiers` (13 and 7, with `TCL_REQUIRE_WASM_LINK=1`, run for real: `wasm32-wasip1`, wasi-sdk 34.0 and wasmtime were installed for this item, so the 13 real-link cases execute and pass against the changed runtime, where CC5.3's row recorded them skipping); `-p tcl-registry` (21 binaries, 1276 tests), `-p tcl-explorer` (108); `cargo check --workspace --all-targets`; `cargo clippy --workspace --all-targets -- -D warnings` and `cargo fmt --all` clean, and the runtime's own `cargo clippy --all-targets -- -D warnings` and `cargo fmt`, no new `#[allow]`; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389), `retired-api-gate` and `owner-resolution` (45) OK, `kcs-index-links` green, `dialect-drift` at its 8 sites. **Fuzz.** The plan's exit campaign: `tcl-fuzz run --subject runtime-rust --reference tclvm`, both engines built from this tree (`tclvm` debug, `runtime/rust`'s `run_script` release with `TCL_TOMMATH_DIR`) and hard-linked out of the build tree so a rebuild could not change them mid-run, one release at a time, findings in a scratch directory. Release 9.0: seed 5210000, 3000 iterations, 2998 matched, 2 findings, 1096 s. Release 8.6: seed 5310000, 800 iterations, 800 matched, no finding, 324 s. 23 minutes 40 seconds in all. The two 9.0 findings (seeds 5210167 and 5211533, both `stdout_mismatch`) are one `tclvm` compiler defect and no guard: `proc p {} {return \101}` answers `\101` where C Tcl 9.0 and `runtime/rust` answer `A`, because the compiler pushes `return`'s value word as source text when it holds a backslash escape and no `$` or `[` (`tcl dis` shows `push1 "\101"`; `emit_value`'s default arm in `rust/tcl-compiler/src/codegen/cmd_subst.rs`, reached from `emit_proc_return`). With the escaped word decoded by hand in each script, `tclvm`, `runtime/rust` and C Tcl agree, and `runtime/rust` matched C Tcl on both scripts as they stand; the code involved is unchanged since this step began and no guard is in its path. So the campaign is not finding-free and neither finding is this item's: it is reported, not fixed (*CC5.2 — what the next items read*). Docs: `rename-alias.md` § 3.5 (a rename changes what a guard's name resolves to and no longer clears anything), `tclvm-opcode-status.md` note 5, `value-transfers-review.md` R12, the design page (the guard-eligibility bullet, the diagram's "never repopulated" row, the paragraph after it, an *Intrinsic guard identities persist* bullet and the test anchor), `docs/GLOSSARY.md` § *Guard identity*. Deviations: keyed by generation and read live, not a name-keyed entry that moves (D5.11); the domains keep the lookup events only (D5.12); no `GuardDomain::CommandToken` (D5.13); the pin keeps the table and the read filters (D5.14); the real-link row is output-equal to the fallback (D5.15); the VM twin sits in `family_b_tests` (D5.16). D5.11–D5.16 |
+| Step 5 review fixes | landed | `wip(consumer-contracts): step 5 — review fixes` | The step 5 review ("land with fixes"): two statements that the code no longer bears out, and two notes. No behaviour changes; the one Rust file that changes changes in its doc comments only. **S1** the guard-domain text after D5.12. Measured from the code first: the runtime's eight `invalidate_command_environment` sites (`namespaces_mut`, the three `ensure_*namespace` funnels, `delete_namespace_by_id`, `create_child`, `with_child`, `delete_child`) and the VM's four `invalidate_lookup_guards` sites (`ns_path_set`, `mark_interp_trusted`, `make_safe`, `delete_interp`); then by a probe in `runtime/rust`'s own test module — a token over each lookup domain prepared before, and checked after, each of 25 scripts; the test was added, run and reverted, and nothing of it is committed. The probe reproduced the reviewer's nine results and added the cases they lacked. The runtime moves `CommandEnvironment`, `Namespace` and `UnknownHandling` together, never one alone, on `namespace path`, `namespace export`, `namespace unknown`, `namespace delete`, a `namespace forget` that removes an imported command, `oo::class create`, `interp create` and `interp delete` (and, by the code, `oo::copy`'s namespace clone and an `interp invokehidden -namespace` that names a new namespace); it leaves them alone for a `namespace eval` that creates a namespace, `namespace import`, `interp alias`, `proc`, `rename`, and binding, renaming or deleting `unknown`. The VM moves them on `namespace path`, `interp marktrusted`, making an interpreter safe and `interp delete`, and on none of the rest, so it misses `namespace delete`, `namespace export` and `namespace unknown`; that gap is older than D5.12 and is issue #2292, and neither runtime's invalidation is widened here. `CommandEnvironment` moves on no definition, rename, alias or import in either. The reviewer's `namespace forget ::guarded` left the token valid because it removed nothing (below); a forget that removes an import moves the three. The fixes: `rust/tcl-runtime-api/src/guard.rs`'s `GuardDomain` doc comments name the events and the runtime difference and drop "imports"; the design page's guard paragraph (the sentence that said a `CommandEnvironment` guard "depends on its command's token and on no other", and the one that listed the events) and `rename-alias.md` § 3.5 say the same; `wasm-native-lowering-plan.md`'s runtime-limits item 1, which called the `CommandEnvironment` epoch "exactly the validation a direct-call handle would need", now names the token generation and the lookup epochs, since a rebinding no longer moves the epoch (a third instance, not named by the review); D5.12 is amended in place and *CC5.2 — what the next items read* says the same, citing #2292. **S2** `constant-folding-type-inference.md` named `selected_closed_native_coverage` in `pipeline.rs` as the WASM pipeline's one read of a `LatticeValue`; that function left with the composition (D5.9), and the read is `lattice_i64`, reached from `covered_shape`, in `codegen/wasm/native_add.rs`, the only `LatticeValue` match under `codegen/`. **N1** this table's CC5.3 row said `NativeDeclineReason` has 26 variants; `common_aot_plan.rs` declares 27. **N2** the two fuzz notes (*Step 5 — what the next steps read* and *CC5.2 — what the next items read*) now say that the `return` defect does not depend on the release (it reproduces at 8.6 and at 9.0), that the quoted form `return "\101"` answers `\101` too, and that it is issue #2291. **Reported, not fixed** `runtime/rust`'s `namespace forget` of a command imported from the global namespace removes nothing (`ns_forget` matches against `::::name`; tclsh 8.6 and 9.0 remove it), found by the S1 probe and recorded with its reproduction under *Step 5 — what the next steps read*. Gates: `cargo check --workspace --all-targets`, `cargo clippy --workspace --all-targets -- -D warnings` and `cargo fmt --all -- --check` clean (no test suite ran: no code changed, only the doc comments of one file), and `cargo doc -p tcl-runtime-api --no-deps` warns once, on an unresolved `GuardToken` link in the crate's opening paragraph, which the edit did not touch; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389), `retired-api-gate` and `owner-resolution` (45) OK, `kcs-index-links` green, `dialect-drift` at its 8 sites (the gate exits 1 on them, as on the parent commit) and the shard-manifest verifier (329 targets). Deviations: the `wasm-native-lowering-plan.md` sentence is beyond the four items the review named, and D5.12 is amended in place rather than superseded. |
+
+**Step 5 is landed.** All three items above (CC5.1, CC5.3 and CC5.2) are
+`landed`; the review checklist below is run against this tree and its evidence
+recorded there. The plan's exit evidence holds, with one qualification.
+`command_mutation_invalidates_guard_and_identity_attestation` is re-stated as
+`an_unrelated_mutation_keeps_the_guard_and_a_rebinding_drops_it`
+(`runtime/rust/src/interp.rs`), and its VM twin,
+`any_command_mutation_invalidates_guard_and_live_identity_attestation`, under
+the same name (`rust/tcl-vm/src/interp.rs`, D5.16); both are green.
+`guarded_boxed_intrinsic_runs_and_falls_back_against_the_real_runtime` gains
+the "unrelated proc keeps the fast path" row and, unlike at CC5.3, runs for
+real: `wasm32-wasip1`, wasi-sdk 34.0 and wasmtime are installed here, so the 13
+real-link cases execute against the changed runtime (D5.15 says what the new
+row can and cannot show). The qualification is the fuzz exit. The campaign over
+the `tclvm`/`runtime-rust` pair ran — release 9.0, 3000 iterations from seed
+5210000; release 8.6, 800 from seed 5310000; 23 minutes 40 seconds of wall
+clock — and found two divergences at 9.0 and none at 8.6. Both (seeds 5210167
+and 5211533) are one `tclvm` compiler defect in `return`'s value word, which
+the runtime under test does not share, and neither involves a guard; so "no
+new finding" holds for what this step changed and not for the pair. The defect
+is reported under *what the next steps read* and is not fixed here.
+
+The landing commit also changes the following. It appends `"step 5"` to
+`registry_axes.rs`'s `LANDED` — D2.13's "a lane landing a step or slice bumps
+it". No waiver in the tree says `until step 5`, so none expires and none needs
+resolving; the gate's own fixtures that used `until step 5` as a not-yet-landed
+expiry (five spellings in three tests) move to `until step 6`, as CC4's landing
+moved `until step 3` to `until step 5` (`cargo test -p xtask registry_axes`, 9; the crate's 237 pass),
+and `docs/generated/registry-axes.md` regenerates unchanged. It rewrites the
+design page's status box as a description of what is built and of what is not,
+and the two design indexes' entries for the page likewise: the repository
+owner's standing rule for every page outside `docs/design/lanes/` is current
+state only, with no step, item or decision numbers, so the boxes that said
+"built in step 2", "step 4 builds" and "still proposed" now name what exists and
+what does not, and read the value-transfers names as the types they have become
+(`AnalysisContext`, `AnalysisInputs`, `PlanAnswer`, `OperandId`,
+`TemplateWordPlan`, `EvalAnswer` and `HandlerPlan` are in
+`tcl_registry::value_transfer`). Other passages of the page that say "(step 4)"
+or "step 8's" are untouched and still carry that narrative; they are for the
+owner's sweep. It updates the title above and `docs/design/lanes/README.md`'s
+bullet. Gates for the landing: `cargo check --workspace --all-targets`, `cargo
+fmt --all -- --check` and clippy over the crate it touches (`-p xtask
+--all-targets`) are clean; `registry-axes --check` (7831 / 16 / 36 / 893 across
+147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows,
+unchanged), `pack-goldens --check` (25), `command-backing --check` (389),
+`retired-api-gate`, `owner-resolution` (45), `kcs-index-links`,
+`callback-inventory --check`, `audit-option-dialects --check` (114 probed
+options), `number-drift` and `segmentation-drift` are green, `dialect-drift` is
+at its 8 sites, and `verify-nextest-binary-shards.py --partition-count 5
+--metadata-only` proves 328 targets (no test binary was added). The plan drafts
+no landing message for step 5, so this commit's follows step 4's. Steps 6 and 7
+are in progress, each on its own items.
+
+### Step 5 — review checklist, verified
+
+The plan's § *Review checklist* (§ *Plan for steps 2–10* › *Step 5*), run
+against the landed tree with evidence:
+
+- **Both runtimes change together, and the fuzz campaign is recorded with its
+  seed count and release.** CC5.2's commit changes `runtime/rust/src/interp.rs`
+  and `rust/tcl-vm/src/interp.rs` together, with a test pair in each and the
+  ABI's own call checked in `runtime/rust/src/codegen_abi.rs`; the campaign's
+  releases, seeds, iteration counts, wall clock and findings are in CC5.2's row.
+- **A persisted identity is invalidated when its dependency changes: the
+  `rename` and `trace` rows still fall back.** `wasm_real_link.rs`'s
+  `renamed fallback` (`proc string` answers 99) and `traced fallback` rows run
+  for real and pass; `renaming_spec_registered_string_stales_its_intrinsic_guard`,
+  `command_trace_stales_the_string_intrinsic_guard` and the shadowing, rename,
+  hide and pin rows of `an_unrelated_mutation_keeps_the_guard_and_a_rebinding_drops_it`
+  hold it in both runtimes, and each of the seven mutations of the read or of the
+  domains that CC5.2's row lists fails the rows that name it.
+- **No identity is attached by name after registration.** `guarded_commands` has
+  one writer in each runtime, `register_attested` (VM) and `bind_attested_builtin`
+  (runtime), both inside registration, and one reader, `attested_identities`;
+  `git grep guarded_commands` in the two interpreters finds no other use. CC5.2
+  adds no attach path (D5.11).
+- **Risk: a guard surviving a shadowing `proc string` for calls made from a
+  namespace.** `a_shadowing_definition_drops_the_guard_only_for_calls_from_its_namespace`,
+  in both runtimes, asserts it: the read resolves the name from the calling
+  namespace to the token generation it reaches, and a mutation resolving from
+  the global namespace alone fails it in each.
+- **CC5.1's own checks.** `guard_semantics_key` is one key per member, and
+  `every_member_has_a_distinct_semantics_key` and
+  `bumping_one_members_revision_moves_no_other_key` hold in `intrinsic.rs`
+  (CC5.1's row); nothing in CC5.2 or CC5.3 touches it.
+
+### Step 5 — what the next steps read
+
+- **For step 6.** The compile service's one route to a registry carrying an
+  overlay today is `BytecodeCompileService::new(registry.project_for_profile(profile))`:
+  `project_for_profile` keeps the base's `overlay` and `pack_origins`, which is
+  what `codegen_stamps.rs`'s
+  `a_site_compiled_through_the_service_stamps_the_bases_overlay_generation` (step
+  4's review fix, SF3) drives; `CommandRegistry::set_overlay` is `pub(crate)` and
+  the registry is not `Clone`, so CC6.3's `RegistryTarget::Overlay` replaces that
+  route rather than wrapping it. `BytecodeCompileService::new` builds its
+  `config` with `LexerConfig::default()` (`compile_service.rs:165`), one of the
+  eight `dialect-drift` sites, and stays that while the gate's baseline is 8.
+  CC6.2's capability matrix gives a `Transitive` or `Development` pack nothing,
+  which should include `runtime_backing` (CC7.1's field) beside `alias_of`, the
+  stamps and a reference body; CC7.1's floor already keeps a shipped command's
+  backing against an override from any tier, so the matrix only has to refuse
+  what a pack *adds*.
+- **For step 7.** CC7.2's attach path, the pin and the table's lifetime are in
+  *CC5.2 — what the next items read*; CC7.3 raises a member's
+  `SEMANTICS_REVISION` row when a family split moves its guard domain or trace
+  behaviour, and CC7.4's `intrinsic_table_hash` can hash `(stable_id,
+  guard_semantics_variants())` over `IntrinsicId::ALL` (*CC5.1 — what the next
+  items read*). CC7.5's fuzz exit should replay seeds 5210167 and 5211533 first
+  (`tcl-fuzz replay SEED --subject runtime-rust --reference tclvm --tcl-version
+  9.0`): they diverge until the `return` defect below (issue #2291) is fixed,
+  and a campaign that reports them again is the known pair, not a regression.
+- **Real-link tests run here.** `wasm32-wasip1` (rustup), wasi-sdk 34.0 at
+  `/opt/wasi-sdk` and wasmtime are installed, so `wasm_real_link` (13) and
+  `wasm_tiers` (7) execute; `TCL_REQUIRE_WASM_LINK=1` turns a missing toolchain
+  into a failure rather than a loud skip; the runtime's bignums need the Tcl
+  9.0.4 source under `tmp/` or `TCL_TOMMATH_DIR`. An item that changes the
+  runtime's guard, ABI or codegen contract should run them.
+- **Reported, not fixed.** `tclvm` prints `\101` for `proc p {} {return \101};
+  puts [p]`, where C Tcl 9.0 and `runtime/rust` print `A`, and likewise `\{\}`,
+  `\x41` and `\n` (a length of 2): `emit_proc_return`
+  (`rust/tcl-compiler/src/codegen/emitter/terminator.rs`) hands the value word to
+  `emit_value`, whose default arm (`codegen/cmd_subst.rs`, `push_word_value`)
+  pushes the source text when the word has no `$` or `[` and no escaped marker, so
+  a backslash escape is never decoded; `tcl dis` shows `push1 "\101"`. The
+  quoted form `return "\101"` answers `\101` too, and the defect does not
+  depend on the release: it reproduces at 8.6 and at 9.0. It is the fuzz
+  campaign's two findings, filed as issue #2291, and independent of the guard
+  tables. The runtime crate's `cmd_misc.rs:210`
+  (`encoding_ensemble_resolves_like_tclsh`) reads the host locale and fails under
+  an empty `LANG`, as `tcl-vm`'s `encoding_command` test does (issue #2271);
+  `scripts/dev/ensure-test-deps.sh:982` still says `wasi-sdk-25` in a comment
+  where the pin is 34.0. The runtime's
+  `namespace forget` of a command imported from the global namespace removes
+  nothing: `ns_forget` (`runtime/rust/src/cmd_namespace.rs`, ~491) joins the
+  source namespace's qualified name, `::` for the global one, to `::` and the
+  tail, so it matches imports against `::::name` and finds none. `proc g {};
+  namespace eval :: {namespace export g}; namespace eval n {namespace import
+  ::g}; namespace eval n {namespace forget ::g}; info commands n::g` answers
+  `::n::g` where tclsh 8.6 and 9.0 answer nothing. Found by the step 5 review
+  fixes' probe; a forget from any other namespace removes the import.
 
 ### CC5.1 — what the next items read
 
@@ -1032,6 +1177,69 @@ and CC5.2 last, each its own checkpoint.
   moves it, and the accessors are already public. The tests' `bumped` and
   `keys_under` helpers show the shape of a table-parameterised check.
 
+### CC5.3 — what the next items read
+
+- **For CC5.2.** Nothing: the record concerns the AOT plan, and CC5.2's
+  identities are the runtimes' guard tables.
+- **For widening native selection (CC7.3 and later).** A new consumer of a
+  common proof adds its premises where the addition's are: a `NativePremise`
+  and the reasons it can be rejected for in `common_aot_plan.rs`, and an
+  evaluation in `native_add.rs` that records the rejection instead of
+  returning early. `native_add::select` returning `Ok` is the only selection,
+  so a premise that is evaluated but not recorded is a bug the record's tests
+  catch by name. The Explorer needs no change for a new premise: `aot` prints
+  whatever `nativeDeclines` holds.
+- **For the Explorer.** `data.aot` is the `wasm` header's plan; an options
+  path that compiles sealed (the Explorer compiles hosted) would show
+  `native i64 add: selected` there, a branch `aot_view_names_a_selected_native_add`
+  covers with hand-built JSON.
+
+### CC5.2 — what the next items read
+
+- **For CC7.2.** The table is keyed by generation, so the sweep's attach is
+  "resolve the name to its generation and insert under it"
+  (`Namespaces::resolve_generation` in the runtime, `visible_command_generation`
+  in the VM), and it must attest only a generation that is still the shipped
+  builtin (the runtime's `registry_builtin_names`, by generation, and the VM's
+  `builtin_identities`, by name, moving with a rename, record which), or a name a script has since
+  redefined would gain an attestation for a `proc`. Registration attests through
+  `register_attested` and `bind_attested_builtin`, which bind, attest the
+  generation bound and drop the displaced one; the sweep may call them or do the
+  same three things. The pin no longer empties the table (D5.14), so a sweep run
+  again at the pin has nothing to restore: the surface filter already hides what
+  the pinned release lacks.
+- **For CC7.3 and CC7.4.** Nothing changes for them: the identity values,
+  `guard_semantics_variants` and the ABI's guard functions are as CC5.1 left
+  them, and a change to a member's guarded contract still raises its
+  `SEMANTICS_REVISION` row, which moves its identity. A module compiled before
+  this item links and runs unchanged (D5.13).
+- **For a guard family added later.** A guard is valid while its token's domains
+  have not moved *and* the name it guards resolves, from the namespace the call
+  is made in, to a command attested for the guard's identity. A family whose
+  guard depends on a command being one particular builtin is covered by the
+  second condition at no cost. A family that depends on a command's *absence*
+  has no identity to attest and is not covered; it needs a domain (the
+  `GuardDomain` set has no per-command variant, D5.13). A family that depends on
+  how names resolve, not on what a name is bound to, takes the lookup domains,
+  which move together and only on the events D5.12 lists as amended: in the
+  runtime `namespace path`, `namespace export`, `namespace unknown`,
+  `namespace delete`, a `namespace forget` that removes an import, `TclOO`
+  class and object creation and child interpreter creation and deletion; in
+  the VM `namespace path`, `interp marktrusted`, making an interpreter safe and
+  `interp delete` alone (the gap is issue #2292). A family that relies on any
+  other event has no domain to take.
+- **For the Explorer and the AOT record.** Nothing: the record concerns the
+  plan, and the guard tables are the runtimes'.
+- **Reported, not fixed.** `tclvm` prints `\101` for `proc p {} {return \101};
+  puts [p]`, where C Tcl 9.0 and the runtime print `A`: `return`'s value word
+  is pushed as source text when it holds a backslash escape and no `$` or `[`
+  (`emit_value`'s default arm, `rust/tcl-compiler/src/codegen/cmd_subst.rs`, via
+  `emit_proc_return` in `codegen/emitter/terminator.rs`). The quoted form
+  `return "\101"` answers `\101` too, and the defect does not depend on the
+  release: it reproduces at 8.6 and at 9.0. Found by this item's fuzz campaign
+  (release 9.0, seeds 5210167 and 5211533), filed as issue #2291; it is
+  independent of the guard tables.
+
 ### Behavioural deltas accepted in step 5
 
 - CC5.1: every intrinsic's guard identity value changes once, because
@@ -1040,6 +1248,40 @@ and CC5.2 last, each its own checkpoint.
   `guard_semantics_key`, so nothing a user runs differs; a module compiled
   by the previous compiler and linked against a runtime from this tree
   fails the identity check and takes generic dispatch.
+- CC5.3: a compile that does not select the sealed native i64 addition
+  records every premise it rejected on the plan (`WasmCodegenPlan::native_declines`,
+  `codegenPlan.nativeDeclines`), where it recorded nothing; while none of the
+  five passes the addition consumes is enabled, the record is the options'
+  premises alone. `compile_wasm` builds the common proof plan when any one of
+  the five is enabled, where it built it only with all five enabled, sealed and
+  not standalone; a compile enabling one to four passes pays for the proofs.
+- CC5.3: the Explorer gains an `aot` view (`AOT Plan`; `meta.views` is 36)
+  and the `aot` payload, and `tcl explore --show aot --text` prints the plan
+  and the rejected premises. `WasmCodegenPlan::GenericInvoke` and `::General`
+  gain a field, which no pattern in the tree spelled out.
+- CC5.2: defining, renaming, deleting, aliasing, importing, hiding or exposing
+  a command other than the guarded one no longer stales a guard or empties the
+  attestation table in either runtime, so `string length` and every other
+  guarded intrinsic of a linked module keeps its fast path after a `proc foo`,
+  where every guard failed for the rest of the interpreter's life. A guard
+  follows its command through `rename` and `interp hide`: renaming the guarded
+  command away drops the guard at its name, and renaming it back, or exposing
+  it, restores it, where the table was never refilled. Replacing the command,
+  or shadowing it by a definition in a namespace, drops the guard for the calls
+  that reach the other command and for those alone.
+- CC5.2: the profile pin no longer clears the attestation table in either
+  runtime, and the runtime's pin no longer moves `CommandEnvironment`,
+  `Namespace` or `UnknownHandling`; a VM pinned at construction can issue a
+  guard, where it held none. A token over the `Interpreter` domain still goes
+  stale at a pin, and a guard on a command the pinned release lacks answers
+  false through the surface filter.
+- CC5.2: the VM's `bump_cmd_epoch` no longer moves guard domains (it clears
+  the resolution memo and advances the counter); `namespace path`,
+  `interp marktrusted`, making an interpreter safe and deleting one move the
+  lookup domains through `invalidate_lookup_guards`. No script observes any
+  of this: the guards steer emitted code only, the ABI, the identity values and
+  `tcl-runtime-api` are unchanged, and a module the previous compiler emitted
+  links and runs.
 
 ## Step 6 — progress
 
@@ -1050,6 +1292,195 @@ and CC6.3, each its own checkpoint.
 | Item | State | Checkpoint | Notes |
 |---|---|---|---|
 | CC6.1 the floor widens | landed | `wip(consumer-contracts): step 6 — the floor widens` | `rust/tcl-registry/src/security_floor.rs`: `SecurityFloor::apply` takes `lowering_hook`, `analyser_hook`, `semantic_operation`, `state_transitions`, `native_lowering` and `bpf_op` from the shipped command beside the two codegen hooks it already kept, through the same `take_shipped` (the shipped value wins wherever the shipped command has one; all six types are `Copy`, so no new merge shape), `MERGED_FIELDS` lists them, and `every_security_bearing_field_is_in_the_floor` names the six explicitly in a `matches!` beside its `taint` / `codegen` / `side_effect` / `credential` filter, since none of their names carries those words. The module and `apply` docs state the codegen and dispatch axis as a contract about the closed catalogues, not a trust gate on analysis facts (D6.4). Tests: `rust/tcl-spectcl/tests/i6_security_floor.rs` gains the plan's six rows, each first proving the override took effect (its own `arity 7..9` window installed, so what survives of the shipped spec is the floor's doing) — `a_workspace_override_cannot_swap_the_lowering_hook` (`while`'s `While` against `lowering_hook -native If`), `…_swap_the_analyser_hook` (`source`'s `Source` against `Rename`), `…_swap_the_semantic_operation` (`puts`'s `Intrinsic(ChannelWrite)` against `Invoke`), `…_swap_the_state_transitions` (`join`'s descriptor against a restated one, compared by `Debug` since the type has no `PartialEq`), `…_drop_the_native_lowering` (`break`) and `…_drop_the_bpf_op` (the `bpf` dialect's `pass`); the last two fields have no loader statement, so their rows lose them the only way a pack can, by replacing the command and saying nothing (D6.5). Two registry unit tests: `the_floor_takes_the_shipped_codegen_and_dispatch_axis` (all six, on a hand-built shipped spec) and `the_floor_adds_nothing_the_shipped_command_lacks` (the negative: a shipped command with none of the six leaves an override's own value alone, the registry-level twin of the unchanged `the_floor_does_not_invent_facts_for_a_new_command`). A mutation check — the six `take_shipped` lines commented out — fails all six integration rows and the unit test, and dropping `"bpf_op"` from `MERGED_FIELDS` fails the field scan. Nothing existing moved: no shipped or bundled pack overrides a command, and every test that installs an override passes unmodified. Gates: `cargo test -p tcl-spectcl --test i6_security_floor` (8, was 2), `-p tcl-registry` (lib 943, was 941, and every binary) and `-p tcl-spectcl` (lib 192 and every binary, `workspace_packs`, `codegen_stamps`, `golden_packs` included), `-p tcl-spec-studio` (lib 199 and every binary) and `-p tcl-mcp` (114); `cargo check --workspace --all-targets`; clippy (`-p tcl-registry -p tcl-spectcl --all-targets --no-deps -- -D warnings`) and `cargo fmt` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows), `pack-goldens --check` (25), `retired-api-gate`, `owner-resolution` (45), `kcs-index-links` green, `dialect-drift` at its 8. Docs: `spec-packs.md` § *Workspace trust* floor sentence, the design page's rule 4 (now built for the six, `runtime_backing` step 7's) with its status box, the BPF bullet's tense and the anchors, and the pack howto `docs/kcs/kcs-howto-write-a-tclspec-pack.md` (an override keeps the shipped taint facts and compiler-side identity, silently). D6.4, D6.5 |
+| CC6.2 `DependencyTier` and `CodegenCapability` | landed | `wip(consumer-contracts): step 6 — the dependency-tier capability matrix` | **The types.** `rust/tcl-dialect/src/model/environment.rs`: `DependencyTier` (`Root`, `Direct`, `Transitive`, `Development`, with `label`) beside `Provenance` and `WorkspaceTrust`, exported from `tcl_dialect::model` (D6.7). `rust/tcl-registry/src/model/capability.rs` (new): `CodegenCapability { tier, codegen_stamps, runtime_backing, builtin_alias, reference_body }` with `for_tier`, the page's matrix (`Root` everything; `Direct` a backing and an alias, no stamp, no body; `Transitive` and `Development` nothing), `DependencyTier` re-exported, and `ReferenceBodies { Forbidden, AnySource }` for the fourth field (D6.10). **The model crate.** `rust/tcl-pkg-model` (new workspace member): `errors.rs`, `json.rs`, `version.rs`, `manifest.rs` and `lockfile.rs` move from `tcl-pkg` with `git mv`, `tcl-pkg` re-exports the five (its own modules and `tcl-cli` keep their paths, as for `tcl-userdirs`), `LockFile::stamp`, the model's one use of the clock, becomes `tcl_pkg::stamp_lockfile` so the model has no `chrono`, `LockedPackage::required_names` is new, and `tier.rs` (new) is `dependency_tier(root_manifest, lockfile, package) -> Option<DependencyTier>` (D6.6, D6.8). The plan's `tcl-pkg` dependency was measured first and refused: `cargo tree` puts 33 more crates in the server's build (39 in the Explorer's and the Studio's) — `ureq`, `rustls`, `zip`, `tar`, `tcl-sandbox` among them — and `cargo check --target wasm32-unknown-unknown -p tcl-sandbox` fails (`wait-timeout` builds for `unix` and `windows` only), which would break `tcl-lsp-server-wasm`, `tcl-lsp-server-wasi`, `tcl-explorer-wasm` and `tcl-spec-studio-wasm` without `cargo check --workspace` seeing it, since none is a workspace member; the layout rules also keep a developer-tool crate out of the pack loader's graph. **Discovery.** `PackFile::dependency_tier: Option<DependencyTier>` (the last field, so the sort is unchanged; the 31 `PackFile` literals in nine crates' sources and tests gain `dependency_tier: None`), set by `discovery::assign_dependency_tiers` for the files of `Origin::BesideManifest` only. A file's package is the one whose manifest is nearest above it; the project root is the *outermost* directory inside the workspace folder holding both a `tclpkg.tcl` and a `tclpkg.lock` — not the plan's nearest, because an installed dependency's directory can hold a pair of its own and the nearest pair would let it name itself the root of its own graph; the package is `Root` when its directory is the project root, and otherwise the tier is `dependency_tier` of the project's manifest and lockfile for the package the manifest beside the file names. No lockfile, an unlisted package and a file that does not read leave `None` (D6.8). Read through the `SourceStore`, like the packs, so a browser host places its packs the same way. **The loader.** `PackCommand::dependency_tier`, set by the merge beside `file`; `pack::set_key` mixes each file's tier (a package moving in the graph is as much a change as an edit, or the cached registry would keep the old answer); `stamps.rs`: `RefusalReason::Capability(tier)` — a stamp must pass the provenance gate and then the capability gate (`stamps_admitted`, `capability_admits_stamps`), the provenance the reason named when both refuse — and the second gate for the two declarations, `Declaration` (`AliasOf`, `RuntimeBacking`), `DeclarationRefusal`, `declaration_refusals` and `admit_declarations`, run in `pack::load_sources` after the stamp rule so rule 1 still reads `alias_of`; each refusal is a warning on the command's row naming the tier ("`alias_of lassign` refused for `dep::unpack`: a transitive dependency's pack may not declare `alias_of`; only the workspace's own package and its direct dependencies may"), and only the declaration goes. The strip is memoised on the spec's address and a `Drops` set (stamps, `alias_of`, `runtime_backing`); `install_into`'s assertion asks both gates; `stamp_refusals` gains the tier parameter, and the Studio's and `spectcl_check`'s previews pass `None` (D6.9). Tests: `rust/tcl-pkg-model/src/tier.rs` (6): `a_package_the_root_requires_is_direct`, `a_package_reached_only_through_another_is_transitive`, `a_package_named_only_in_dev_require_is_development`, `a_regular_route_outranks_a_development_one`, `a_stale_entry_is_transitive_and_an_unlisted_package_has_no_tier` and `a_cycle_in_the_lockfile_terminates`. `rust/tcl-registry/src/model/capability.rs` (3): `the_matrix_is_the_pages` (every tier's row, cell by cell), `a_capability_names_its_own_tier` and `distance_never_widens_a_capability` (down the order a tier keeps or loses a right, never gains one). `rust/tcl-spectcl/src/discovery.rs` (6): `a_packs_package_is_placed_by_the_lockfiles_graph`, `no_lockfile_and_no_listing_mean_no_tier`, `a_dependency_shipping_its_own_lockfile_does_not_become_a_root` (the outermost-pair rule), `only_a_pack_beside_a_manifest_has_a_tier`, `an_unreadable_manifest_or_lockfile_leaves_no_tier` and `a_host_filled_store_places_its_packs_too` (an in-memory `SourceStore`, no disk). `rust/tcl-spectcl/src/stamps.rs` (7): `the_capability_gate_refuses_a_stamp_the_provenance_gate_admits`, `a_stamp_must_pass_both_gates`, `the_matrix_decides_which_declarations_a_command_may_keep`, `the_remedy_names_the_tiers_the_matrix_permits`, `a_refusal_names_the_declaration_the_command_and_the_tier`, `a_dropped_declaration_costs_no_other_fact` and `a_repeated_declaration_refusal_reuses_its_stripped_spec`. `rust/tcl-spectcl/tests/workspace_packs.rs` (4 new, 14 in all, was 10): the plan's `a_transitive_dependencys_alias_of_is_dropped` and `a_direct_dependency_keeps_alias_of_but_not_a_stamp` (its negative half loads the workspace's own package, `Root`, which keeps both declarations and loses the stamp to the provenance gate alone), `a_package_moving_in_the_graph_changes_what_its_pack_loads` (the lockfile edited between two loads; the set's key moves with it) and `a_pack_no_package_ships_is_not_narrowed`. `rust/tcl-lsp-server/src/lib.rs` (1): `a_manifest_or_lockfile_change_reloads_the_packs` (D6.11). **Mutation checks** (19, each one line or arm changed, the tests that must fail named beforehand; in 18 every named test failed, and the exception is the graph-walk mutation under `tier.rs`). `tier.rs`: a root requirement no longer `Direct`, a development requirement outranking a regular route, development reachability dropped and an unlisted package given a tier each fail their own test; the graph walk following no edge fails the two development tests and *not* the transitive test named for it, which cannot tell a package the walk reaches from one merely listed, since both are `Transitive` (D6.8): the transitive test pins the answer and the two development tests pin the walk. `capability.rs`: a direct dependency permitted a stamp fails `the_matrix_is_the_pages`; a transitive tier given a direct one's rights fails it and `distance_never_widens_a_capability`. `discovery.rs`: no tier assigned fails all six discovery tests; the nearest rather than the outermost project root fails `a_dependency_shipping_its_own_lockfile_does_not_become_a_root` alone; every origin placed fails `only_a_pack_beside_a_manifest_has_a_tier` alone. `stamps.rs`: the capability gate admitting every stamp fails the two stamp tests; refusing no declaration fails four; the stamp rule ignoring the command's tier fails `the_capability_gate_refuses_a_stamp_the_provenance_gate_admits` alone; an alias always permitted fails five. `pack.rs`: the merge not recording the tier fails `a_transitive_dependencys_alias_of_is_dropped` and `a_package_moving_in_the_graph_changes_what_its_pack_loads`; the key ignoring the tier fails the second alone; the load never running the declaration gate fails both. The server: `partition_watched_file_changes` no longer flagging a manifest or lockfile, and `is_package_metadata_file` forgetting the lockfile, each fail `a_manifest_or_lockfile_change_reloads_the_packs`. Nothing existing moved: no test expectation changed. `Cargo.lock` gains `tcl-pkg-model` and `tcl-pkg` loses `regex`, `tcl-lexer` and `tcl-syntax`; the shard table gains the new crate's lib row (329 targets, `verify-nextest-binary-shards.py` passing). Gates: `cargo test -p tcl-pkg-model` (39: the six new and the 33 that moved), `-p tcl-pkg` (lib 53, was 86 before the 33 moved out, and `manifest_env_drift` 2), `-p tcl-cli-support` (19), `-p tcl-registry` (lib 949, was 946, and every binary), `-p tcl-spectcl` (lib 210, was 197; `workspace_packs` 14, was 10; `codegen_stamps` 7, `i6_security_floor` 10, `golden_packs` 3, `spec_corpus` 5, `workspace_trust` 7 and every other binary), `-p tcl-spec-studio` (lib 199 and every binary), `-p tcl-mcp` (114), `-p tcl-lsp-db` (lib 103 and every binary), `-p tcl-lsp-core` (lib 2350), `-p tcl-dialect` (lib 153), `-p tcl-compiler` (lib 6546, `analyser` 505, `cfg` 17, `value_transfer_witnesses` 64, `codegen` 164), `-p tcl-lsp-server --lib` (595, was 594), `-p tcl-cli` (lib 27, `cli` 50, `compile_verbs` 11, `explorer_gui` 2, `pkg_verbs` 13, `spec_verbs` 18, `value_transfers_cli` 8) and `-p xtask` (237); `cargo check --workspace --all-targets`, `cargo clippy --workspace --all-targets -- -D warnings` and `cargo fmt --all -- --check` clean, no new `#[allow]`; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389), `retired-api-gate` and `owner-resolution` (45) OK, `kcs-index-links` green, `dialect-drift` at its 8 sites. Docs: `spec-packs.md` (the workspace-trust section's second gate), the design page (the status paragraph and both not-built lists, rule 2, the packages table's tier row, the capability code block with `ReferenceBodies`, the composition paragraph with the outermost-lockfile rule and its binding residual, the anchors), `docs/GLOSSARY.md` (*Dependency tier and codegen capability*, and its index row), `docs/kcs/kcs-qa-why-was-a-declaration-dropped-from-my-dependencys-pack.md` (new, indexed in `docs/kcs/README.md`), `docs/kcs/kcs-howto-write-a-tclspec-pack.md`, `project-layout.md` (the model crate beside `tcl-userdirs`), `tclpkg/architecture.md`, `tclpkg-contracts.md` and `spec-dsl-examples/README.md`. Deviations: the model crate, not `tcl-pkg` (D6.6); `DependencyTier` in `tcl-dialect`, not `tcl-pkg` (D6.7); the outermost lockfile, not the nearest (D6.8); `ReferenceBodies`, not `Option<BodySource>` (D6.10); a server reload trigger beyond the plan's files (D6.11). D6.6–D6.11 |
+| CC6.3 the overlay reaches the compile service; a miss fails closed | landed | `wip(consumer-contracts): step 6 — overlay misses fail closed` | **The door.** `rust/tcl-registry/src/model/assembly.rs`: `OverlayMiss { environment, overlay }` (`Display`, `Error`, exported from `tcl_registry::model`), and `registry_for_environment_if_built` returns `Result<Arc<ContextRegistry>, OverlayMiss>`; `ingress.rs`: `DocumentEnvironment::context_registry` returns the same, `plain_context_registry` is new and infallible (overlay `0` cannot miss) and `default_context_registry` goes through it, so nothing around the overlay lookup falls back (`grep unwrap_or` in `ingress.rs` finds the environment-name resolution, the library-version override and one test helper, none on the overlay lookup); `cache.rs`'s docs say the door's callers answer a miss themselves. **The consumers** (D6.12) are told apart by what a wrong answer costs. *Advising* consumers read the plain generation by a door named for it: the analyser's three overlay reads go through `environment_ingress::analysis_registry` and its per-item walk through `plain_context_registry`, and the two semantic-token queries through `token_registry` in `tcl-lsp-db`. *Compiling* consumers decline. `BytecodeCompileService` gains `RegistryTarget::Overlay { profile, overlay }` and `for_profile_with_overlay(profile, overlay) -> Result<Self, OverlayMiss>` (overlay `0` is `for_profile`): the generation is looked up again for every compile, every entry point returns a `CompileError` naming the overlay when it is gone, an explicit-profile compile looks the service's overlay up for the profile asked for, and `RegistryTarget::registry` and `registry_for_profile` return `Result` with a `?` at the four compile paths (D6.16). In `tcl-lsp-db`, `TclDb::registry_with_overlay` returns `Result`, `compilation_unit` and `proc_taint_solve` return `Option`, `compiler_check_diagnostics` answers no checks and no optimisations, `file_analysis_incremental` supplies no override, and `document_compilation_unit_for` is an `Option`; the abstention reads the overlay epoch — `tcl_registry::overlay_epoch` (`cache.rs`: it moves when an overlay generation is installed or a sweep retires one), mirrored as the salsa input `tcl_lsp_db::OverlayEpoch` that `unit_registry` reads for every non-zero overlay and the host moves with `set_overlay_epoch` (the server does, beside its key publish, in `sync_overlay_epoch`) — so an overlay installed later is found when the epoch moves, by the unit and by everything that read it; a first design that called salsa's `report_untracked_read` instead was measured to re-run the unit and leave the analysis on its memoised answer, and was replaced (D6.14). Each distinct miss is recorded once (`take_overlay_misses`) and reported by the server (`report_overlay_misses`, on stderr with its worker faults). The database holds the generations its queries resolve (`OverlayGenerations`, 64, process-wide) so a per-procedure query, which reads `nested_registry`, finds the generation its unit started with when the process cache retires the key (D6.15). The server's other change is `.flatten()` on the unit handle. **The plan's server file did not apply**: `optimise_document_command` builds no compile service, because it has none — it hands `optimise_under_policy` the registry `registry_for_dialect` installs the overlay into, which cannot miss (D6.13); the exit evidence for it is the two existing e2e tests that run the optimiser under a workspace pack, run here and green. Tests: `rust/tcl-registry/src/model/ingress.rs` `an_uninstalled_overlay_is_an_error_not_the_plain_generation` (the plan's; the old test's fallback half is its inversion, and `context_registries_carry_the_expected_stores` keeps the rest); `rust/tcl-compiler/src/compile_service.rs` (3) `a_service_for_an_uninstalled_overlay_is_not_built`, `a_service_over_an_installed_overlay_compiles_its_commands` (an overlay-only command is a known binding to the service and unknown to the plain one, for its own profile and another release's) and `a_service_whose_overlay_is_gone_declines_every_compile` (all eight compile entries); `environment_ingress.rs` `an_analysis_reads_the_plain_generation_until_its_overlay_installs`; `rust/tcl-lsp-db/tests/dialect_seam.rs` (2) `the_compilation_unit_sees_the_packs_commands` (the plan's: a real pack's `VarWrite` roles define `a` in the unit; the key set to `0`, the unit is rebuilt without it; set back, it sees it again) and `the_analysis_reads_the_packs_once_they_install`; `rust/tcl-lsp-db/tests/overlay_generations.rs` (new binary, 4, serialised because one of them fills the process caches) `an_uninstalled_overlay_yields_no_unit_and_no_findings` (with a control that the same document has a unit and rewrites under no overlay, and one record for two queries that missed), `an_abstention_runs_again_once_the_overlay_is_installed` (the unit and the checks and rewrites that read it, after the epoch moves and not before), `the_token_query_reads_the_plain_registry_for_a_miss` and `a_retired_generation_still_serves_the_queries_that_resolved_it`; `rust/tcl-registry/src/cache.rs` `installing_and_retiring_an_overlay_moves_the_epoch`; `rust/tcl-spectcl/tests/codegen_stamps.rs` `a_service_for_the_packs_overlay_compiles_against_the_generation_they_installed` (a real pack through the door: the alias site and the fold claim their pack facts and stamp the overlay generation, as the owned projection's do; a key nothing installed builds no service; a service for `tcl9.0`'s pack declines a compile for `tcl8.6`); `rust/tcl-lsp-server/src/lib.rs` (2) `an_overlay_miss_is_reported_with_its_key_and_what_waits` and `syncing_the_overlay_epoch_lets_an_abstained_unit_build`. **Mutation checks** (18, each one line or arm changed and the tests that must fail named beforehand, run over the final tree; in 14 exactly the named tests failed and in four — G5, H1, H4 and H6 — others failed as well, as listed). `ingress.rs`: the door answering a miss with the plain generation (F1) fails `an_uninstalled_overlay_is_an_error_not_the_plain_generation`. `environment_ingress.rs`: the analysis door with no fallback (G1) fails `an_analysis_reads_the_plain_generation_until_its_overlay_installs`. `compile_service.rs`: the service's default registry (G2) and its per-profile registry (G3) each falling back to the plain generation fail `a_service_whose_overlay_is_gone_declines_every_compile`; a service built over an overlay nothing installed (G4) fails `a_service_for_an_uninstalled_overlay_is_not_built`; the service looking overlay `0` up whatever its key (G5) fails all three service tests; a per-profile compile using the service's own profile instead of the one asked for (G6) fails `a_service_for_the_packs_overlay_compiles_against_the_generation_they_installed`. `tcl-lsp-db`: the unit falling back to the plain registry on a miss (H1) fails `an_uninstalled_overlay_yields_no_unit_and_no_findings` and `an_abstention_runs_again_once_the_overlay_is_installed`; an overlay lookup that reads no epoch (H2) fails the second and `the_analysis_reads_the_packs_once_they_install`; the database holding no generations (H3) fails `a_retired_generation_still_serves_the_queries_that_resolved_it`; every miss recorded again (H4) fails the first and `the_token_query_reads_the_plain_registry_for_a_miss`; the token query with no plain fallback (H5) fails its own test; the unit ignoring the overlay (H6) fails `the_compilation_unit_sees_the_packs_commands`, `an_uninstalled_overlay_yields_no_unit_and_no_findings` and three more; an epoch written whether or not it moved (E1) fails `an_abstention_runs_again_once_the_overlay_is_installed`. `cache.rs`: an install that does not move the epoch (R1) and a sweep that does not (R2) each fail `installing_and_retiring_an_overlay_moves_the_epoch`. The server: not syncing the epoch after a reload (S1) fails `syncing_the_overlay_epoch_lets_an_abstained_unit_build`, and a miss report that omits what waits (I1) fails `an_overlay_miss_is_reported_with_its_key_and_what_waits`. The first design of the abstention, salsa's `report_untracked_read`, is not among them: it was measured wrong before these were written (D6.14). Moved: `assembly.rs`'s `pack_overlays_thread_through_the_generation_door` asserts the `OverlayMiss` value where it asserted `is_none()`; `context_registries_carry_the_expected_stores` (`ingress.rs`) and its twin in `environment_ingress.rs` lose the fallback assertion (the named tests are its inversion); `spec_corpus.rs` (2) and the lib tests of `tcl-lsp-db` and `compile_service.rs` take an `.expect` where the door became fallible, `value_transfer_parity.rs` reads its units through `installed_unit`; the shard table gains `tcl-lsp-db::overlay_generations`. Gates: `cargo test -p tcl-registry` (lib 951, was 949; 1281 with every binary and the doctest), `-p tcl-compiler` (lib 6550, was 6546; all 66 integration binaries, 3271 tests, `analyser` 505, `cfg` 17, `codegen` 164, `value_transfer_witnesses` 64, `wasm_real_link` 13 and `wasm_tiers` 7 among them), `-p tcl-lsp-db` (lib 103; `dialect_seam` 5, was 3; `overlay_generations` 4, new; 135 in all), `-p tcl-spectcl` (lib 210; `codegen_stamps` 8, was 7; `i6_security_floor` 10; `workspace_packs` 14; `spec_corpus` 5; 365 in all), `-p tcl-lsp-server` (lib 597, was 595; `e2e` 1600, `preview_tickets_e2e` 24, `smoke` 14, `stdio_deadlock` 6), `-p tcl-mcp` (114) and `-p tcl-lsp-core --lib` (2350) green; `cargo check --workspace --all-targets`, `cargo clippy --workspace --all-targets -- -D warnings` and `cargo fmt --all -- --check` clean, no new `#[allow]`; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389), `retired-api-gate`, `owner-resolution` (45) and `kcs-index-links` green, `dialect-drift` at its 8 sites (`compile_service.rs`'s `LexerConfig::default()` moved from line 125 to 165), and `verify-nextest-binary-shards.py --partition-count 5 --metadata-only` proves 330 targets (`tcl-lsp-db::overlay_generations` is the one new row). Docs: the design page (the *Codegen and the registry today* bullet on the overlay, the runtime-pin bullet, the plumbing-gap row for the shared compilation unit, the file-path and test anchors), `dialect-and-package-registry-centralisation.md` (its F7 row goes, the fail-closed overlay row joins its tests, and the not-built sentence loses it), `value-evaluation.md` (a unit is not built against a fallback), `kcs-qa-is-the-command-registry-fixed-at-compile-time.md` (a miss is an `OverlayMiss` and what each consumer does with it). Deviations: the server file of the plan (D6.13); the analysis-versus-compile split of what the door's callers do with the error (D6.12); the overlay epoch, the generation holder and the once-only record with its stderr report, none in the plan, each what "diagnostic-free abstention, logged once" needs to hold when a query runs again (D6.14, D6.15). D6.12–D6.16 |
+| Review fixes | landed | `wip(consumer-contracts): step 6 — review fixes` | The step 6 review ("land with fixes"), item by item, on the branch after CC7.3. **B1** a document in the `tk` environment or the lenient `tcl` one lost its compilation unit, its compiler checks and its rewrites for the life of the session once an overlay miss failed closed: the server's pack reload installed the workspace overlay under `DialectProfile::all()`, and `assembly.rs`'s `store_profile` sinks every environment the catalogue does not hold (`tk`, the lenient `tcl`, and any a pack declares) to `DialectProfile::plain_tcl()`, whose key nothing installed, so each compile query for such a document answered an `OverlayMiss` (D6.17). `tcl_registry::model::store_profiles()` (new, exported) is the one list of keys a generation can be stored under, the catalogue's profiles and the sink, and the server's `install_pack_overlays` installs under it. Tests: `every_store_key_is_a_profile_a_host_can_install` (registry; a catalogue id, `tk`, `tcl` and an id no catalogue holds each read their store from the list) and `a_wish_document_reads_the_workspace_packs_like_any_other` (server; a `#!/usr/bin/wish` script under `tk` calling a workspace pack's command: before the install the command is a W123; after it the analyser reads it, the unit builds under the workspace key, the compiler checks and the rewrites are there, and `take_overlay_misses()` holds nothing for the key). **B2** the `None` tier was fail-open: `discovery.rs`'s `tier_of_package` answered `None` for a package the lockfile does not list, a manifest that does not read and a lockfile that does not read, and `None` narrows nothing, so a transitive dependency kept `alias_of` and `runtime_backing` by writing `package anything` in its `tclpkg.tcl`, or a manifest that does not parse. The rule (D6.8, amended): in a project that has a lockfile a `BesideManifest` file below the project root is at least `Transitive`, whatever its manifest says or fails to say; `None` is left for a file found any other way and for a workspace whose project has no lockfile. `tcl-pkg-model`'s `dependency_tier` still answers `None` for an unlisted package, which is its contract, and the caller completes it. Tests flipped or added: `no_lockfile_and_no_listing_mean_no_tier` is `no_lockfile_means_no_tier_and_an_unlisted_package_is_transitive` (the unlisted `stranger` is `Transitive`; the no-lockfile half is as before), `an_unreadable_manifest_or_lockfile_leaves_no_tier` is `an_unreadable_manifest_or_lockfile_is_transitive` (both shapes, and a manifest that names an unlisted package), `workspace_packs.rs`'s `a_pack_no_package_ships_is_not_narrowed` keeps its `.tcl-lsp/` half and gains the no-lockfile half (the lockfile removed: four packs with no tier that keep `alias_of`), and `a_manifest_that_places_nothing_does_not_lift_its_pack` is new (an unreadable manifest and `package anything`: tier `Transitive`, `alias_of` and backing dropped, the tier warning on the row). **S1** the guard-domain text omitted two runtime events: `interp invokehidden` with `-namespace` or `-global` (`ensure_global_namespace`, reached from `cmd_alias.rs`'s `invokehidden_in`, which invalidates whether or not the namespace exists yet) and `oo::copy`'s copy of an object's namespace (`oo_clone_namespace`, through `namespaces_mut`). `GuardDomain`'s docs in `rust/tcl-runtime-api/src/guard.rs`, the design page's guard paragraph and `rename-alias.md` § 3.5 name them, and a runtime test pins them, which the review did not ask for: `the_lookup_domains_move_on_a_hidden_invocation_into_a_namespace_and_on_oo_copy` (a token over the three lookup domains goes stale on a namespace the hidden invocation creates, on one that exists, on `-global` and on `oo::copy`, and does not on a hidden invocation that names no namespace). **N1** `tier_of` took the first workspace root a pack path starts with; it takes the outermost, as the project rule takes the outermost pair, so a folder opened inside an installed dependency cannot end the search at the dependency's own pair and make it `Root` (`nested_workspace_roots_take_the_outermost_in_either_order`: the inner root listed first and listed second). **N3** D6.14's miss log (D6.14, amended): a key leaves the seen set when it installs (`a_key_that_installs_is_reported_again_if_it_misses_later`). **N4** `install_into`'s assertion asked the stamp gate only; `passed_the_gates` asks it and the declaration gate's `declaration_refusals` (D6.9, amended; `the_install_assertion_holds_the_capability_gate_too`: a transitive or development tier fails it with an `alias_of`, and no tier, the root and a direct dependency pass). **N6** D6.8's "a dependency cannot name itself the root" holds only where the project has a lockfile: a dependency that ships its own manifest and lockfile under a workspace root that has a manifest and none is itself the outermost pair, and is `Root`, which `None` already admitted, so no right is lost that was held (D6.8 and the design page say so). **N2** the authoring previews pass `None` and never ask `declaration_refusals`, so `spectcl_check` shows no capability refusal beside a dependency's manifest; it is not one line (it needs a tier input that neither tool has) and is recorded under *Step 6 — what the next steps read*. Docs: the design page (the packages paragraph and the guard paragraph), `spec-packs.md`, `rename-alias.md`, `docs/GLOSSARY.md` § *Dependency tier and codegen capability*, and the KCS note's sentence "a package the lockfile does not list gets no limit", which is now "a project with no lockfile gets no limit". **Mutation checks** (each reverted, each failing exactly the tests named beforehand): the server installing under `DialectProfile::all()` only fails `a_wish_document_reads_the_workspace_packs_like_any_other` at its first post-install assertion, "the analyser reads the pack's command"; `store_profiles` without the sink fails that test and `every_store_key_is_a_profile_a_host_can_install`; `tier_of_package` answering `graded` fails `no_lockfile_means_no_tier_and_an_unlisted_package_is_transitive`, `an_unreadable_manifest_or_lockfile_is_transitive` and `a_manifest_that_places_nothing_does_not_lift_its_pack`; a project-less file given `Transitive` fails `no_lockfile_means_no_tier_and_an_unlisted_package_is_transitive` and `a_pack_no_package_ships_is_not_narrowed`; the first-match root fails `nested_workspace_roots_take_the_outermost_in_either_order` alone; the miss log's seen set never cleared fails `a_key_that_installs_is_reported_again_if_it_misses_later` alone; `passed_the_gates` without the declaration twin fails `the_install_assertion_holds_the_capability_gate_too` alone; in the runtime, `ensure_global_namespace` not invalidating fails the S1 test at its first assertion ("a namespace it creates"), and `ensure_namespace`, `ensure_command_owned_namespace` and `namespaces_mut` not invalidating fails it at `oo::copy` with the `invokehidden` assertions passing. Gates: `cargo test -p tcl-registry` (lib 955, was 954; 1285 in 21 binaries), `-p tcl-spectcl` (lib 212, was 210; `workspace_packs` 15, was 14; 368 in 22 binaries, 1 ignored), `-p tcl-lsp-db` (lib 104, was 103; 136 in 12 binaries), `-p tcl-lsp-server` (lib 598, was 597; `e2e` 1600; 2242 in 7 binaries), `-p tcl-runtime-api` (31) and `runtime/rust` (lib 709, was 708; 12 integration binaries, 160; 869 in all) under `LANG=C.UTF-8`; `cargo check --workspace --all-targets`; `cargo clippy --workspace --all-targets -- -D warnings`, the runtime's own `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all` and the runtime's `cargo fmt` clean, no new `#[allow]`; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389), `retired-api-gate` and `owner-resolution` (45) OK, `kcs-index-links` green, `dialect-drift` at its 8 sites (the gate exits 1 on them, as on the parent commit). Deviations: the S1 runtime test and `-global` in the docs are beyond the review's wording; D6.17 is a decision the review's fix needed and the plan did not have; N2 is reported, not fixed. D6.8, D6.9, D6.14 amended; D6.17 |
+
+**Step 6 is landed.** All three items above (CC6.1, CC6.2 and CC6.3) are
+`landed`; the review checklist below is run against this tree and its evidence
+recorded there. The plan's exit evidence holds, with one qualification.
+`cargo test -p tcl-spectcl --test i6_security_floor` is green (10 tests: the
+six rows CC6.1 added, and the rows CC7.1 added for `runtime_backing`),
+`cargo test -p tcl-registry` is green with the ingress test inverted
+(`an_uninstalled_overlay_is_an_error_not_the_plain_generation`; lib 951)
+and `cargo test -p tcl-lsp-db --test dialect_seam` is green (5, was 3). The
+qualification is the last line of the exit evidence, "the server's optimise path
+compiles under the workspace overlay": that path builds no compile service, so
+the door has no server caller to compile through (D6.13). What runs is the two
+e2e tests that put the optimiser under a workspace pack,
+`a_pack_const_fold_body_folds_a_call_site_in_the_optimiser` and its negative
+`without_the_pack_the_same_call_site_does_not_fold`, and the door's own witness
+through a real pack, `a_service_for_the_packs_overlay_compiles_against_the_generation_they_installed`
+(`codegen_stamps.rs`); all pass. The plan's own list of green suites is run over
+the final tree: `cargo test -p tcl-registry`, `-p tcl-spectcl`, `-p tcl-lsp-db`
+and `-p tcl-compiler` (every binary, `--test codegen` among them) are green,
+with the counts in *Step 6 — review checklist, verified*.
+
+The landing commit also changes the following. It appends `"step 6"` to
+`registry_axes.rs`'s `LANDED` — D2.13's "a lane landing a step or slice bumps
+it". No waiver in the tree says `until step 6`, so none expires and none needs
+resolving; the gate's own fixtures that used `until step 6` as a not-yet-landed
+expiry (five spellings in three tests) move to `until step 7`, as step 5's
+landing moved `until step 5` to `until step 6` (`cargo test -p xtask
+registry_axes`, 9; the crate's 237 pass), and `docs/generated/registry-axes.md`
+regenerates unchanged. It rewrites the design page's status box to add the
+overlay door and to say what is not built, and the two design indexes' entries
+for the page likewise, under the repository owner's standing rule for every page
+outside `docs/design/lanes/`: current state only, with no step, item or decision
+numbers. Rule 4 of the page's § *The loader's stamp rejection rule* and the
+sentence after it, which said the floor "protected" two hooks "and nothing else"
+and marked rules "(step 4)", "(step 6)" and "(step 7)", now say what the floor
+keeps and that the rules are built; other passages that carry that narrative are
+untouched, for the owner's sweep. It updates the title above and
+`docs/design/lanes/README.md`'s bullet. Gates for the landing: `cargo check
+--workspace --all-targets`, `cargo clippy --workspace --all-targets -- -D
+warnings` and `cargo fmt --all -- --check` are clean, with no new `#[allow]`;
+`registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged),
+`value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged),
+`pack-goldens --check` (25), `command-backing --check` (389),
+`retired-api-gate`, `owner-resolution` (45), `kcs-index-links`,
+`callback-inventory --check`, `audit-option-dialects --check` (114 probed
+options), `number-drift` and `segmentation-drift` are green, `dialect-drift` is
+at its 8 sites (`compile_service.rs`'s `LexerConfig::default()` is one, now at
+line 165), and `verify-nextest-binary-shards.py --partition-count 5
+--metadata-only` proves 330 targets (CC6.2 added the `tcl-pkg-model` lib row and
+CC6.3 the `overlay_generations` binary). The plan drafts no landing message for
+step 6, so this commit's follows step 5's. Step 7 is in progress, on its own
+items.
+
+### Step 6 — review checklist, verified
+
+The plan's § *Review checklist* (§ *Plan for steps 2–10* › *Step 6*), run
+against the landed tree with evidence:
+
+- **The floor is a codegen-axis contract, not a trust gate on analysis facts: an
+  override still changes arity, roles, hover.** `security_floor.rs`'s module and
+  `apply` docs say so (D6.4). Every row of `i6_security_floor.rs` first asserts
+  the override took effect through its own `arity 7..9` window, a window no
+  shipped command has, so a green row means the floor restored the value and not
+  that the override never installed; `the_floor_adds_nothing_the_shipped_command_lacks`
+  holds that an override's own value stands where the shipped command has none.
+  The floor reads command-level fields only; a subcommand's or a form's hooks are
+  outside it, and *what the next steps read* has the reproduction.
+- **Both gates, provenance and capability, apply and a declaration passes both;
+  the notices name which one refused.** `stamps_admitted` asks
+  `stamps_admitted_from` (the provenance) and then `capability_admits_stamps`
+  (the tier), and `admit_declarations` runs the capability's second gate over
+  `alias_of` and `runtime_backing` in `pack::load_sources` after the stamp rule.
+  `a_stamp_must_pass_both_gates` and `the_capability_gate_refuses_a_stamp_the_provenance_gate_admits`
+  hold both directions; `stamp_refusals` names the provenance when both refuse
+  and the tier when only the capability does, and
+  `a_refusal_names_the_declaration_the_command_and_the_tier` holds the wording.
+- **No silent fallback remains in `ingress.rs`.** `grep -n unwrap_or
+  rust/tcl-registry/src/model/ingress.rs` finds three lines: the environment-name
+  resolution to the lenient `tcl` (127), the library-version override (364) and a
+  test's spelling of the retired ingress (671, in `mod tests`); none is on the
+  overlay lookup. `context_registry` returns `Result<_, OverlayMiss>`, and its
+  non-test callers outside `tcl-registry` are `compile_service.rs` (`?`, into a
+  `CompileError`), `tcl-lsp-db`'s `unit_registry` (an `Err` the unit abstains
+  on, which `token_registry` reads through a named plain fallback) and
+  `environment_ingress::analysis_registry` (the analyser's named plain
+  fallback): a fallback is a function whose name says so, at the consumer, and
+  never an `unwrap_or` at the ingress (D6.12).
+  `an_uninstalled_overlay_is_an_error_not_the_plain_generation` holds the ingress;
+  `an_analysis_reads_the_plain_generation_until_its_overlay_installs` and
+  `the_token_query_reads_the_plain_registry_for_a_miss` hold the two doors.
+- **Risk: `tcl-pkg` as a `tcl-spectcl` dependency pulling `tcl-sandbox` into
+  every server build.** Measured at CC6.2 and refused (D6.6): the manifest and
+  lockfile live in `tcl-pkg-model`, and `cargo tree -p tcl-lsp-server` on the
+  landed tree lists `tcl-pkg-model` and none of `tcl-pkg`, `tcl-sandbox`, `ureq`
+  or `rustls`.
+- **Exit evidence, run over the final tree.** `cargo test -p tcl-spectcl --test
+  i6_security_floor` 10; `-p tcl-registry` (lib 951, 1281 with every binary);
+  `-p tcl-lsp-db --test dialect_seam` 5 (the crate's 135 in all); `-p
+  tcl-compiler --test codegen` 164 (lib 6550, and 3271 in the 66 integration
+  binaries); `-p tcl-spectcl` 365; `-p tcl-lsp-server` 2241 (lib 597 and `e2e`
+  1600, which hold the optimiser's
+  `a_pack_const_fold_body_folds_a_call_site_in_the_optimiser` and
+  `without_the_pack_the_same_call_site_does_not_fold`), `-p tcl-mcp` 114 and `-p
+  tcl-lsp-core --lib` 2350; no failure and no test newly ignored.
+
+### Step 6 — what the next steps read
+
+- **For CC7.3 (the intrinsic families).** A family carries a `GuardDomain`, and
+  the domain's docs in `rust/tcl-runtime-api/src/guard.rs` are what the code does
+  today (the step 5 review fixes corrected them): `CommandEnvironment`,
+  `Namespace` and `UnknownHandling` describe how a name reaches a command, and
+  each runtime moves the three together and on no definition, rename, alias,
+  import, hide or expose of a command; the runtime's events are `namespace
+  path`, `export`, `unknown`, `delete`, a forget that removes an import, TclOO
+  creation and child-interpreter creation and deletion, the VM's are `namespace
+  path`, making an interpreter safe, `interp marktrusted` and deleting a child
+  (issue #2292). `every_member_names_a_family` and `trace_firing_members_are_family_b`
+  should take a member's domain from those docs. A split that moves a member's
+  guard domain or trace behaviour raises its `SEMANTICS_REVISION` row (CC5.1).
+- **For CC7.2 (the backing query and the identity sweep).** "From the pinned
+  generation only" has a door: `DocumentEnvironment::plain_context_registry` is
+  the shipped generation and cannot miss, while `context_registry(keyed, overlay)`
+  is fallible and is what an overlay goes through; the sweep takes the first and
+  never the second. A `runtime_backing` from a transitive or development
+  dependency's pack never reaches a spec (CC6.2's load gate), and the floor keeps
+  a shipped command's against any override from any tier, so `backing_report()`
+  and the gate need no tier logic; a `Root` or `Direct` package's declaration
+  does reach the registry, and the query sees it.
+- **For CC7.4 (the manifest and the runtime context).** The pack-set field is
+  `PackSet::key`, which mixes each file's `DependencyTier` as well as its
+  content: a package moving in the lockfile's graph moves the key, so a unit
+  compiled before the move is refused at rung 1 like any other changed pack.
+  `RuntimeContext::overlay_generation` resolves at
+  `DocumentEnvironment::context_registry`, and a miss is an `OverlayMiss` the pin
+  takes as an error, as the plan says; `analysis_registry` is for what advises
+  and runs again, and a pin is neither. The pin should hold the
+  `Arc<ContextRegistry>` it resolved, not the key alone: the process cache retires
+  overlay generations past 64 (`OVERLAY_LIMIT`), and the database holds them for
+  the same reason (D6.15). A compile through `BytecodeCompileService::for_profile_with_overlay`
+  looks the generation up at every compile (D6.16), so the manifest's pack facts
+  are those of the compile, not of the service's construction.
+- **For CC7.5 (the fuzz exit).** Nothing in this step touches either runtime; the
+  seeds and the `return` defect in *Step 5 — what the next steps read* stand.
+- **Reported, not fixed: the floor does not reach a subcommand's or a form's
+  hooks (D6.4).** `SecurityFloor::apply` reads `CommandSpec` fields. A
+  `SubCommand` carries its own `lowering_hook`, `codegen_hook`,
+  `inline_codegen_hook`, `analyser_hook`, `semantic_operation` and
+  `state_transitions`, a `CommandForm` its own `lowering_hook`, `codegen_hook`,
+  `semantic_operation` and `state_transitions`, and an override of the command
+  replaces every such row. The stamp rule refuses only a pack's own
+  `codegen_hook`, `inline_codegen_hook` and `semantic_operation {Intrinsic …}`
+  at those sites and restores nothing, so `lowering_hook`, `analyser_hook` and
+  `state_transitions` on a subcommand or a form are open to a swap, and every
+  such row to a drop. Measured on the landed tree with three temporary tests in
+  the style of `i6_security_floor.rs`, using its `shipped` and `overridden`
+  helpers, each asserting what the floor would guarantee and each failing:
+  `a_workspace_override_cannot_swap_a_subcommands_lowering_hook` —
+  `shipped("tcl8.6", "array")`'s `for` subcommand has `lowering_hook:
+  Some(ArrayFor)`, and `overridden(..., "array", "subcommand for { lowering_hook
+  -native If }")` installs `Some(If)` on it, and `lowering/mod.rs` chooses the
+  translation by that id;
+  `a_workspace_override_cannot_swap_a_forms_lowering_hook` — `incr`'s `implicit`
+  form ships `Some(Incr)`, and `refine implicit { lowering_hook -native If }`
+  installs `Some(If)`;
+  `a_workspace_override_cannot_drop_a_subcommands_intrinsic` — `string length`
+  ships `semantic_operation: Some(Intrinsic(StringLength))`, and an override
+  that redeclares `subcommand length { arity 1 }` installs `None`. The tests are
+  not committed. The fix is `apply` walking `subcommands` and `command_forms` by
+  name and taking the shipped row's hooks the way it takes the command's, with
+  `MERGED_FIELDS` and `every_security_bearing_field_is_in_the_floor` naming
+  them; what a pack that removes or adds a subcommand should keep is the open
+  part.
+
+- **Reported, not fixed: the authoring previews show no capability
+  refusal (D6.9).** `spectcl_check` and the Studio's `stamp_refusals_at` call
+  `stamps::stamp_refusals` with `None` for the dependency tier, and neither
+  calls `declaration_refusals` at all, so a pack that a transitive
+  dependency ships and the load would strip of its `alias_of` or its
+  `runtime_backing` previews clean. The tier is a fact about where a file sits
+  under a project's lockfile, which neither tool has: a pack is handed to
+  them as text, with a `tier` argument that names the discovery tier
+  (`bundled`, `user`, `workspace`) and no package. The fix is an input —
+  a `dependency_tier` argument on `spectcl_check` and a choice in the Studio
+  — and the second call, so it is more than one line and waits for the step
+  that adds the lockfile hash (step 8), which gives a pack a package to be
+  checked against.
 
 ### CC6.1 — what the next items read
 
@@ -1066,8 +1497,104 @@ and CC6.3, each its own checkpoint.
 - **Residue, reported.** The floor reads `CommandSpec` fields only: the
   same fields on a `SubCommand` or a form are not restored (D6.4).
 
+### CC6.2 — what the next items read
+
+- **For CC6.3.** Nothing in the item touches the overlay. The compile
+  service's `LexerConfig::default()` (`compile_service.rs:165`) is still one
+  of the eight `dialect-drift` sites.
+- **For CC7.2 (the backing query).** A `runtime_backing` from a transitive or
+  development dependency's pack never reaches a spec: the load drops it, with
+  a warning naming the tier, before the merge is installed. The query needs no
+  tier logic. A `Root` or `Direct` package's backing does reach the registry,
+  and the floor still keeps a shipped command's against any override.
+- **For CC8.x (reference bodies, the manifest `spec` directive).** The
+  manifest and lockfile live in `rust/tcl-pkg-model/src/` now, not
+  `rust/tcl-pkg/src/` (D6.6): `ManifestAst::spec` and the lockfile's pack hash
+  are edits there, and `tcl_pkg` re-exports the modules. `tier::dependency_tier`
+  is the derivation `SpecDirective::requested_tier` clamps against, and
+  `DependencyTier` is `tcl_dialect::model::DependencyTier`. A reference body
+  joins the load gate as one more `Declaration` variant and one more `Drops`
+  field beside `alias_of` and `runtime_backing` in `stamps.rs`;
+  `CodegenCapability::reference_body` is `ReferenceBodies` already. The
+  lockfile hash of each pack is what closes D6.8's residual: today a pack's
+  package is the one its manifest names, and a manifest that names a package
+  the lockfile does not list gets no tier.
+- **For anything that builds a `PackFile`.** The struct gained
+  `dependency_tier`; a literal takes `dependency_tier: None` unless the caller
+  is discovery. Every literal in the tree, 31 in nine crates, takes it in this
+  commit.
+- **Reported, not fixed.** The wasm hosts' own lockfiles
+  (`rust/tcl-spec-studio-wasm/Cargo.lock` and the three beside it) are already
+  stale at `dc7a138c` — `cargo metadata --locked` there fails, `tcl-spectcl`'s
+  `tcl-runtime-api` edge from step 4 is missing — and this commit adds
+  `tcl-pkg-model` to their graphs, so they need regenerating together; they
+  are not workspace members and not this lane's. `spectcl_check` and the
+  Studio's store view report stamp refusals for a `(tier, trust)` pair and do
+  not show a capability refusal, since neither sees a lockfile. `cargo test -p
+  tcl-spectcl --lib` failed once in three runs at `cache::tests::the_two_tiers_share_one_identity`
+  (`cache.rs:997`, the entry count read 2 where it expects 1) and passed in
+  every other; no lib test this item adds loads a pack, so it looks like an
+  older race with a test that loads one without the cache lock.
+
+### CC6.3 — what the next items read
+
+- **For a host that compiles bytecode against a workspace's packs.**
+  `BytecodeCompileService::for_profile_with_overlay(profile, key)` is the door,
+  with `key` the `PackSet::key` the packs were installed under. The packs have to
+  be installed for each profile the service is asked to compile for, and the
+  service declines a compile for one they are not installed for (D6.16). No
+  shipped host uses the door yet (D6.13): `tcl-engine-tclvm`'s `with_registry`
+  takes an owned registry, which is what `codegen_stamps.rs`'s first service test
+  still compiles through.
+- **For CC7.5's runtime context pin.** The pin's overlay generation is looked up
+  at `DocumentEnvironment::context_registry`, and a miss is an `OverlayMiss` to
+  take as an error, as the plan says. `analysis_registry` is for what advises and
+  runs again, and a pin is neither.
+- **For a new query in `tcl-lsp-db` that reads an overlay registry.** A query
+  that builds a unit resolves through `unit_registry` at its top, which reads
+  the `OverlayEpoch` input, and abstains through `abstain` on a miss (D6.14); a
+  per-procedure query reads `nested_registry` (D6.15). Do not put a plain
+  fallback below the unit query: the result would be memoised under the pack's
+  key. A host that installs an overlay after a query has missed on it moves the
+  epoch with `set_overlay_epoch(db, tcl_registry::overlay_epoch())`.
+- **For a caller of the unit queries.** `document_compilation_unit_for` and
+  `compilation_unit` answer `None` when the packs are not installed; the server's
+  handle flattens it, and the tests that install their overlay first `.expect`
+  it. `document_compilation_unit` (no overlay) still answers an `Arc`.
+- **Reported, not fixed.** In the window a miss leaves, the analyser's own
+  CFG/SSA tail builds a unit against the plain registry, because the shared unit
+  query declined to build one; that analysis is corrected when the host moves
+  the overlay epoch, which runs the unit query again and so the analysis that
+  reads it. The server's line for a miss goes to stderr, where its worker faults
+  already go, not to `window/logMessage`. `OverlayGenerations` is first in first
+  out, not least recently used; with 64 entries and one per
+  `(environment, overlay)` the difference is not reachable. The compile
+  service's `LexerConfig::default()`, one of the eight `dialect-drift` sites,
+  moved to `compile_service.rs:165` with this item's additions, and the two
+  earlier notes that cite its line are updated.
+
 ### Behavioural deltas accepted in step 6
 
+- CC6.3: a pack overlay nothing has installed no longer gives the editor a
+  compilation unit built against the plain registry. Until the packs are
+  installed for the document's dialect, the compiler checks and the optimiser's
+  hints for a document under that key are absent, the miss is logged once on
+  the server's stderr, and analysis and highlighting read the plain registry as
+  they did. The server installs the overlay before it publishes the key, so the
+  window is a reload racing a pass at the superseded key; with the packs
+  installed nothing changes. `BytecodeCompileService::for_profile_with_overlay`
+  is new, and no shipped host builds one; a compile through it for a generation
+  that is not installed is a `CompileError`, not a plain compile.
+- CC6.2: a `.tclspec` beside a `tclpkg.tcl` whose package a `tclpkg.lock`
+  lists as a transitive or development dependency loses its commands'
+  `alias_of` and `runtime_backing` at load, each with a warning on the
+  command's row; a direct dependency's pack keeps both and loses any codegen
+  stamp (which every workspace-tier pack already lost); the workspace's own
+  package's pack keeps everything the provenance gate leaves it. A pack found
+  any other way, in a project with no lockfile, or for a package the lockfile
+  does not list, is unchanged. The server reloads the packs when a
+  `tclpkg.tcl` or `tclpkg.lock` changes. No shipped or bundled pack sits
+  beside a manifest, so nothing a user runs today changes without a lockfile.
 - CC6.1: an `-override` of a shipped command, from any tier, keeps the
   shipped command's `lowering_hook`, `analyser_hook`, `semantic_operation`,
   `state_transitions`, `native_lowering` and `bpf_op` wherever the shipped
@@ -1088,6 +1615,207 @@ exit) last.
 | Item | State | Checkpoint | Notes |
 |---|---|---|---|
 | CC7.1 `RuntimeBacking` on the spec | landed | `wip(consumer-contracts): step 7 — RuntimeBacking on the spec` | `rust/tcl-registry/src/runtime_backing.rs` (new): `RuntimeBacking` (`ShippedBuiltin { identity }`, `TclBody { source }`, `HostNative`, `None` — the default) and `BodySource` (`PackageSource { relative_path }`, `PackText { text }` — the text is carried, D7.3), with `shipped`, `package_source` and `is_none`; `CommandSpec::runtime_backing`, `CommandSpec::DEFAULT` says `None`, `RuntimeBacking` and `BodySource` reach the prelude and the crate root. **The rows.** The report's 389 core Tcl commands each declare what the report says: 324 `ShippedBuiltin` (the 282 handler and native rows and the 42 known-gap rows, whose target state it is, D7.5), 11 `TclBody`/`PackageSource` (`init.tcl` 7, `package.tcl` 3, `parray.tcl` 1 — the stdlib rows) and 54 `None` (the not-required rows, by default). A mechanical pass placed the 128 standard spec literals; seven builders needed hand edits — `mathop_generated` (the two qualified spellings `ShippedBuiltin`, the bare operator word `None`), `mathfunc_generated` (both spellings), `dict::qualified_specs`, `oo_helpers::qualified_specs` (shipped where the bare twin is, so the `ooutil` twins declare none), and the `corotype`, `zipfs` and `list_math_91` factories; the identity is the spec's own name as the spec spells it, `::` kept (D7.4). **The floor.** `runtime_backing` joins `SecurityFloor::apply` (a non-`None` shipped backing wins), `MERGED_FIELDS` and the field scan (D6.1). **The statement.** `rust/tcl-spectcl/src/backing.rs` (new) — `BackingSyntax` with `parse`, `parse_spelling`, `spelling`, `from_backing` and `leak` — is the one spelling of the five `runtime_backing` statements (`none`, `host-native`, `shipped-builtin ID`, `tcl-body {-package-source PATH}`, `tcl-body {-pack-text {TEXT}}`) for the loader (`apply_command_stmt`'s new arm and `eval.rs`'s `ROW_WORDS`, the two halves of the one loader), the Studio's draft and both its renderers; a statement that does not read is dropped with a warning and claims nothing. `PackNotice::pack_text_backing` — an Information notice on the command's row, raised in `pack::load_sources` beside the stamp refusals — reports a `-pack-text` body at load (D7.7). **The Studio.** `FieldKind::RuntimeBacking` (`IDENTITY` category, sharing the `text` wire tag, so the front-end needs no new editor and `every_field_kind_has_a_front_end_editor` stays green), `draft.rs` (the spelling), `render_spectcl.rs`'s `runtime_backing_row` (re-spelled through the parser, so the row is always one the loader reads back), `render_rs.rs`'s `runtime_backing_expr`, `help.rs`, `coverage.rs`'s witness and `Field` row, `relations.rs` (the "Builtin identity" cluster) and `examples/fields_core.rs` (D7.6); `docs/references/command-spec/fields.md` regenerated. **The generator.** `gen_irule_test_data.rs` emits a stub only for a command whose backing is `None` or `HostNative`; the plan expected the output byte-identical, and it is not: 46 entries for shared Tcl core commands and `pkg::create` drop, all dead (D7.8). **The ports.** Nine ports of shipped core commands declare `runtime_backing shipped-builtin NAME` (D7.9). Tests: `registry_sweep.rs`'s `every_core_command_declares_a_backing` reads the committed report and holds the spec to it in both directions — the row's kind, the identity equal to the name, the stdlib file the note names — and requires every non-core spec in the Tcl table to declare nothing (a mutation check, one declaration removed, fails it naming the command); `i6_security_floor.rs` gains `a_workspace_override_cannot_swap_the_runtime_backing` (`lindex` against `host-native` and `none`) and `a_new_command_keeps_the_backing_it_declares`; `security_floor.rs`'s unit rows cover it; `eval_loader.rs`'s `runtime_backing_reads_each_shape_through_both_paths` (five shapes, an unstated one, two that do not read — through the static fast path and the interpreter); `workspace_packs.rs`'s `a_pack_text_backing_is_reported_at_load`; `spectcl_roundtrip.rs`'s `runtime_backing_survives_the_round_trip` (five backings, one with unbalanced braces, and `none` writing no row); `backing.rs`'s four unit rows. Moved: `spectcl_ports.rs`'s `every_port_loads_and_matches_its_shipped_spec` (the ports now declare it, D7.9); `_mock_stubs.tcl` (D7.8); `pack-goldens` rewrote all 25 snapshots (every `spec` digest moved once, as for `alias_of`; the nine edited ports' notice lines moved by one). Gates: `cargo test -p tcl-registry` (lib 946, was 943; `registry_sweep` 40, was 39; every other binary), `-p tcl-spectcl` (lib 196, was 192; `eval_loader` 26, was 25; `i6_security_floor` 10, was 8; `workspace_packs` 10, was 9; `codegen_stamps`, `golden_packs`, `spec_corpus` and every other binary), `-p tcl-spec-studio` (lib 199; `spectcl_roundtrip` 10, was 9; `spectcl_ports` 11; `reference_doc` regenerated; every other binary), `-p xtask -p tcl-mcp -p tcl-cli` (480), `-p tcl-irule-test` (28, against the regenerated stubs), `-p tcl-compiler -p tcl-lsp-core --lib` (6531, 2 ignored; 2350); `runtime/rust`'s `cargo check --tests` clean; `cargo check --workspace --all-targets`; clippy (`-p tcl-registry -p tcl-spectcl -p tcl-spec-studio -p xtask --all-targets --no-deps -- -D warnings`) and `cargo fmt` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows), `pack-goldens --check` (25), `gen-irule-test-data --check`, `command-backing --check` (389 commands, unchanged), `callback-inventory --check`, `audit-option-dialects --check` (114), `retired-api-gate`, `owner-resolution` (45), `kcs-index-links` green, `dialect-drift` at its 8. Docs: the design page (status box, the rung table's row 4, the rung-4 `RuntimeBacking` block with its `PackText { text }`, the rung-4 bullet, rule 4, the registration bullet), `docs/GLOSSARY.md` § *Runtime backing*, `spec-packs.md` § *What a pack still cannot say*, `spec-dsl-examples/README.md` (the keyword row and the override bullet), `irule-test-framework.md` decision rule 1. No KCS note: nothing a user runs changes today. Deviations: the text `PackText` carries (D7.3); the identity (D7.4); the rows and their test (D7.5); one spelling for six consumers, and the Studio kind sharing the `text` tag (D7.6); the notice's seat (D7.7); the generator's output moves (D7.8); the ports (D7.9). D7.3–D7.9 |
+| CC7.3 the intrinsic table by family | landed | `wip(consumer-contracts): step 7 — the intrinsic families` | `rust/tcl-registry/src/intrinsic.rs`: `IntrinsicFamily` (`Value`; `FamilyB { domain: GuardDomain, fires_traces }`, with the two constants `STORES` and `OBSERVES_AND_FIRES`), `IntrinsicId::family` (an exhaustive per-member match with no wildcard, arms grouped by family), `IntrinsicFamily::guard_domains` and `fires_traces`, `IntrinsicId::from_guard_identity` and `required_guard_domains`; the crate gains a direct dependency on `tcl-runtime-api` for `GuardDomain` (it was in its graph through `tcl-cmd-core`, so no crate joins any graph). **The table.** 14 `Value` members (`llength`, `lindex`, `lrange`, `lreplace`, `linsert`, `list`, `concat`, `dict get` and `string` `index`, `range`, `equal`, `compare`, `replace`, `length`) and 14 `FamilyB`, every one under `VariableTrace`: `lassign`, `lset`, the five `dict` updates, `string is`, `regexp`, `info exists`, the three array queries and `puts` (D7.10); `fires_traces` only on `info exists` and the array queries, which `tclsh` 8.4 to 9.0 and `tcl-vm` answer with a read trace and an array trace respectively, and `runtime/rust` answers for the array queries only (reported). **The consumers** (D7.11). `tcl-runtime-api/src/guard.rs`: `GuardDomains::union` and `covers`, `GuardIdentity::registry_stable_id` (inverts both identity forms), `GuardError::DomainsInsufficient`, and the `VariableTrace` doc names the family. `tcl-compiler/src/backend_registry.rs`: `guard_domains_for_intrinsic` (the dispatch domains plus the family's), read by `mixed_region_plan.rs` where a guarded plan is built and where it is validated. Both runtimes' `prepare_command_guard` refuse a request that does not cover the family's domains, before any other check. No `SEMANTICS_REVISION` row moves (D7.12). Tests: `intrinsic.rs`'s `every_member_names_a_family` (the two lists, spelled out), `trace_firing_members_are_family_b` (the four) and `a_guard_request_must_cover_its_members_family_domains` (both identity forms across the five releases, a foreign vocabulary, an unknown id); `guard.rs`'s `a_registry_identity_names_its_intrinsic_in_both_forms` and `a_set_covers_exactly_the_domains_it_contains`; `backend_registry.rs`'s `an_intrinsics_guard_domains_add_its_familys_to_its_dispatch_dependencies`; in each runtime `a_family_b_guard_request_must_cover_the_variable_trace_domain` (a `DictSet` identity refused without the domain, a `ListLength` one issued without it, the covered `DictSet` request refused while a variable trace exists and stale once one is added); `tcl-vm`'s `every_trace_firing_intrinsic_fires_a_trace_here`. Mutation checks, each reverted and each failing its test: `ListLength` moved to Family B (`every_member_names_a_family`), `ArraySize` unmarked (`trace_firing_members_are_family_b`), Family B requiring no domain (`a_guard_request_must_cover_its_members_family_domains`, the compile-side test, and both runtimes' test), `registry_stable_id` ignoring the packed form and `covers` answering on any overlap (the two `guard.rs` tests), the check removed from each runtime's `prepare_command_guard` (that runtime's test), `ListLength` marked as firing (`every_trace_firing_intrinsic_fires_a_trace_here` panics naming it). Moved: nothing; the lockfiles that list `tcl-registry` gain one edge (the root's and `runtime/rust`'s by cargo, `bigip-query-wasm`, `bigip-report-gen/wasm` and `tcl-vm-wasm` by `cargo metadata --offline`, `bigip-report-gen/python` by hand); the four host lockfiles that were already stale (`tcl-explorer-wasm`, `tcl-lsp-server-wasi`, `tcl-lsp-server-wasm`, `tcl-spec-studio-wasm`) are left for the regeneration step 6 reported. Gates: `cargo test -p tcl-registry` (lib 954, was 951; `registry_sweep` 40; every other binary), `-p tcl-runtime-api` (lib 31, was 29), `-p tcl-compiler` (lib 6551, 2 ignored, was 6550; `codegen_integration` 17, `wasm_codegen` 45; `wasm_real_link` 13 and `wasm_tiers` 7 against the real runtime with `TCL_REQUIRE_WASM_LINK=1`), `-p tcl-vm` (lib 102, was 100; every other binary, `command_mutation_deopt_e2e` 76), `runtime/rust` (lib 708, was 707; its 12 integration binaries); `cargo check --workspace --all-targets`; clippy (`--workspace --all-targets -- -D warnings`), `cargo fmt --all` and `runtime/rust`'s `cargo fmt` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows), `pack-goldens --check` (25), `command-backing --check` (389), `owner-resolution` (45), `retired-api-gate`, `kcs-index-links`, `dialect-drift` at its 8. Docs: the design page's status box and its intrinsic-table bullet, `family-b-routing.md` § 3 (*Intrinsic families*) and § 4 (one row), `docs/GLOSSARY.md` § *Guard identity*. Deviations: the classification and the `puts` domain (D7.10); the consumers, where the plan names `codegen_abi.rs` and `tcl-vm` (D7.11); no revision bump (D7.12); § 4 had no gap row to close (D7.13). D7.10–D7.13 |
+| CC7.2 the backing query in both runtimes; the gate asks it | landed | `wip(consumer-contracts): step 7 — the backing query replaces the scan` | **The vocabulary.** `rust/tcl-runtime-api/src/backing.rs` (new): `RegisteredBacking` (`Builtin`, `Object`, `Stdlib { file }`, `Unsupported`, `NeedsNumericTower`, `Absent`, with `label` and `executes`) and `BackingReport` (`from_entries`, `of`: a name is looked up without its leading `::`, and a name never mentioned is `Absent`) (D7.14). **The runtime.** `runtime/rust/src/interp.rs`: `Interp::backing_report(&self) -> Vec<(String, RegisteredBacking)>` walks every namespace's command table and classifies each command by what it is (a handler is `Builtin`; a handler registered only to refuse is `Unsupported`; an engine-installed `TclOO` root is `Object`; a proc, alias, ensemble or user object is no backing), adds the commands the object system binds in every object's namespace once a root exists (`cmd_oo.rs`'s `OBJECT_NAMESPACE_COMMANDS`, which `oo_register_my` now reads too: `my`, `myclass`), adds the commands the embedded library defines under the `wasm_stdlib` feature (`embedded_stdlib.rs`'s `DEFINED_COMMANDS`, 11 names and their files, verified by `the_library_defines_the_commands_it_reports`, which sources the vendored library natively, asks the auto-load index for `parray` and holds each entry to the file whose text defines it) and, in a build without libtommath, adds the commands a build with it registers as `NeedsNumericTower` (`builtins.rs`'s `tower_command_names`: `expr`, `if`, `while`, `for`, `lseq` and the derived `::tcl::mathop::*` and `::tcl::mathfunc::*`, 90 names; `mathop_names` and `mathfunc_names` moved out of their gated modules so the list can be derived without the tower) (D7.16). `register_unsupported` records the five refusal stubs of `cmd_misc.rs` (`exec`, `socket`, `load`, `fileevent`, `fcopy`) by generation. **The sweep.** `Interp::attach_identities` (runtime) and `Vm::attach_identities` walk the specs of `environment::store_for_profile(pinned profile)` and attest each spec's intrinsic identities to the builtin registered at its name, only while the command bound there is still that builtin (the runtime compares the generation's recorded registry name with the resolved name, the VM the command's `builtin_identity_for_key`); one writer per runtime, `attest` (`bind_attested_builtin` and `register_attested` call it), which unions into what a generation already holds. It takes no registry argument, so a generation an overlay installed is unreachable by construction, and it runs once, at the end of registration, not again at the pin (D7.15). `register_spec_builtin` goes from both runtimes: `string` is an ordinary registration in both, and the VM's 15 `::tcl::dict::*` members register through `register_spelled`, which keeps the registry's rooted spelling as the builtin's registry identity, as `register_spec_builtin` did; the VM's `environment::universal_store` had no reader left and goes. The sweep attests 15 commands and 30 identities in each runtime (the runtime attested `string` alone before); `Vm::new` costs 1.7 ms more in a debug build, of 11.5. **The gate.** `rust/xtask/Cargo.toml` depends on `tcl-runtime` (by path, with `wasm_stdlib`), `tcl-vm` and `tcl-runtime-api`; `command_backing.rs` is rewritten: the source scan, `HANDLER_EXTRA`, `STDLIB`, `NOT_REQUIRED` and the four predicates (`is_expr_operator`, `is_mathop_command`, `is_mathfunc_command`, `is_tcl_dict_qualified`, `is_oo_helpers_qualified`) are deleted, and `KNOWN_UNBACKED` is the one list, its two families now prefix entries (`tcl::dict::` and `oo::Helpers::`, matched on canonical names and stale when nothing under them is left unbacked). `stand` holds one declaration to the WASM runtime's answer: a shipped builtin is backed by `Builtin`, `Object` or `NeedsNumericTower`, and otherwise known gap when a waiver covers it and drift when not; a library body is backed by `Stdlib` from the same file; `None` is backed by `Absent` or `Unsupported` and drift when the runtime registers it. The VM is asked too and printed in the `vm` column, informational (D7.17). `docs/generated/wasm-command-backing.md` is regenerated: the same 389 rows, now `command | backing | wasm | vm | note`, with a tally by declaration and answer (shipped-builtin 323: 275 builtin, 6 object, 42 known gap; `tcl-body` 11, all `stdlib`; `none` 55: 50 absent, 5 unsupported), and it reads identically from a build with the tower and one without (`--check` passes in both; the `rust-check` job has no libtommath). **What the gate found.** `tcl::mathfunc`, the namespace head, was declared `shipped-builtin` (CC7.1 copied the old report's row, which a predicate gave the native-handler status) and no runtime registers a command of that name; it declares `None`, as its twin `tcl::mathop` already did (D7.18). **Tests.** `backing.rs` (2): `a_name_is_one_command_whichever_spelling_asks`, `only_a_registered_handler_executes_the_command`. `runtime/rust/src/interp.rs` (5): `identities_come_from_the_pinned_generation_never_an_overlay` (an overlay generation installed under the interpreter's own profile holds a spec declaring `StringLength` and the interpreter a builtin of that name: the sweep attests nothing for it and still attests `string`; control: a sweep over the overlay's store would), `the_sweep_attests_only_the_builtin_it_registered` (a procedure over `string`, `puts` renamed into it, and the original restored), `every_registered_builtin_with_an_intrinsic_is_attested_for_all_of_them`, `the_backing_report_says_what_the_handler_table_holds` and, with the tower, `the_tower_commands_a_build_without_it_names_are_registered_with_it` (without it, `a_build_without_the_tower_reports_the_commands_it_lacks_as_needing_it`); `embedded_stdlib.rs` (1): `the_library_defines_the_commands_it_reports`. `rust/tcl-vm/src/interp.rs` (5, in `family_b_tests`): the same four and `a_spelled_builtin_names_a_spec_the_registry_has`. `rust/xtask/src/command_backing.rs` (8 new): the plan's `a_declared_builtin_the_runtime_lacks_is_drift_unless_waived` and `a_declared_none_the_runtime_registers_is_drift`, `a_declared_library_body_must_be_reported_from_that_file`, `a_waiver_that_no_longer_applies_is_stale`, `a_build_without_the_tower_renders_its_handlers_as_handlers`, `the_waivers_are_sorted_and_canonical`, `every_core_command_declares_what_the_wasm_runtime_bears_out` and the kept `committed_wasm_command_backing_matches_generated` (now over the query). `registry_sweep.rs`: `every_core_command_declares_a_backing` goes, since the report it read is a rendering of the declarations (a tautology, D7.5), and its two surviving invariants are `a_spec_outside_the_core_set_declares_no_backing` and `a_shipped_builtin_is_attested_by_the_commands_own_name`. **Mutation checks** (18, each reverted, each failing the tests named beforehand and only those, bar the one that fails ten). Runtime: the sweep reading an overlay generation (`identities_come_from_the_pinned_generation_never_an_overlay`), the sweep attesting whatever generation the name resolves to (`the_sweep_attests_only_the_builtin_it_registered`), no sweep at the end of registration (ten tests: `every_registered_builtin_with_an_intrinsic_is_attested_for_all_of_them`, `the_sweep_attests_only_the_builtin_it_registered` and eight of the existing guard tests, which read `string`'s attestation), the refusal stubs not recorded and procedures counted as handlers (`the_backing_report_says_what_the_handler_table_holds`, each), a bogus name on the tower list (`the_tower_commands_a_build_without_it_names_are_registered_with_it`), a wrong file in `DEFINED_COMMANDS` (`the_library_defines_the_commands_it_reports`). VM: the same overlay, any-binding, procedure and spelling mutations, each failing its own test in `family_b_tests`. xtask: a declared `None` registered not counted as drift, every shipped builtin waived, a distinct label for `NeedsNumericTower` (fails its test and `committed_wasm_command_backing_matches_generated`, which a build without the tower would otherwise hide), a prefix waiver never stale, and the `vm` column dropped from the rendering (`committed_wasm_command_backing_matches_generated`). Registry: a non-core spec declaring a backing and a shipped identity that is not the command's name. Moved: `docs/generated/wasm-command-backing.md` (the columns and the `tcl::mathfunc` row); `every_core_command_declares_a_backing` deleted; `rust-tests-package-paths.txt` and `lsp-e2e-package-paths.txt` gain `rust/tcl-pkg-model`, a crate CC6.2 added without registering, which `check-rust-tests-paths` and `check-lsp-e2e-paths` found failing on the parent commit, and the first gains `runtime/rust`, which the gate now links, so `test-rust-tests-paths.sh` expects a path under it to be relevant where it expected it unrelated. Build time, the plan's checklist: linking `tcl-runtime` adds 15 s to a cold `xtask` build without libtommath and 23 s with it (`tcl-vm` was already in its graph), under the minute that would move the query behind a build step, so it stays in the gate. Gates: `cargo test -p tcl-runtime-api` (33, was 31) and `-p tcl-registry` (1286 with every binary; lib 955, `registry_sweep` 41, was 40), `-p tcl-vm` (lib 107, was 102; 50 binaries, 1484) under `LANG=C.UTF-8`, `runtime/rust` (lib 715, was 709; 12 integration binaries, 160; 875 in all; and in the tower-less configuration, libtommath absent, lib 618 and 745 in all), `-p xtask` (241, was 237), `-p tcl-compiler --test wasm_real_link` (13) and `--test wasm_tiers` (7) with `TCL_REQUIRE_WASM_LINK=1` against the changed runtime, `--test wasm_codegen` (45) and `--test codegen_integration` (17), `-p tcl-engine-tclvm -p tcl-debugger -p tcl-spec-hooks -p tcl-irule-test -p tcl-spectcl -p tcl-spec-studio -p tcl-mcp -p tcl-vm-cli` (902 in 49 binaries, 1 ignored) and `-p tcl-cli -p tcl-explorer` (237); `cargo check --workspace --all-targets`; `cargo clippy --workspace --all-targets -- -D warnings`, the runtime's own `cargo clippy --all-targets -- -D warnings` in both configurations, `cargo fmt --all` and the runtime's `cargo fmt` clean, no new `#[allow]`; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389, with and without the tower), `gen-irule-test-data --check`, `callback-inventory --check`, `audit-option-dialects --check` (114), `retired-api-gate` and `owner-resolution` (45) OK, `kcs-index-links` green, `dialect-drift` at its 8 sites, and the path gates `check-rust-tests-paths`, `check-lsp-e2e-paths`, `check-runtime-rust-paths`, `check-release-dependency-graph`, `check-rust-tests-runner` and `check-smoke-targets`. Docs: `AGENTS.md` § *WASM command parity* and its *Command registry* bullet, the design page (the status box, the rung-4 cell, the ruling's rationale, the registry-today bullet for the WASM runtime, the *Consequences for the runtimes* bullet, the anchors), `command-registry.md`, `docs/GLOSSARY.md` (*Runtime backing* and *Guard identity*), and the `filename` spec's doc comment. Deviations: the three variants beyond the plan's four (D7.14); no registry argument and no second sweep at the pin (D7.15); the stdlib answer is a verified table, not a scan (D7.16); `KNOWN_UNBACKED`'s families are prefix entries, the VM is informational and the per-row prose of `NOT_REQUIRED` is gone (D7.17); `tcl::mathfunc` declares `None` (D7.18); the two path manifests. D7.14–D7.18 |
+| CC7.4 the artefact manifest and the runtime context | landed | `wip(consumer-contracts): step 7 — the artefact manifest and the runtime context` | **The vocabulary.** `rust/tcl-runtime-api/src/manifest.rs` (new): `ArtefactIdentityManifest` (the page's eight fields, `abi_version` a `u32`, `intrinsic_table_hash` 32 bytes), `RuntimeContext { environment, release, build, packages, overlay_generation }` with `identity(packs, intrinsic_table_hash)`, the one function by which an artefact and a runtime state themselves (the pack facts sorted and without repeats; this build's ABI version and embedded-library revision filled in), `Rung` and `RungSet`, `ManifestField` with `rests_on` — the table of what rests on what (D7.23) — `disagreements`, `refused_rungs` and `describe` (D7.24), `to_bytes` and `from_bytes` (a field list in declaration order, each field a little-endian `u32` length and its bytes) and `from_wasm` (reads the `tcl.manifest` custom section), `ManifestDecodeError`, `WASM_SECTION` and `EMBEDDED_STDLIB_REVISION`. The vocabulary sits in the lowest crate the compiler, both runtimes and the link harness share (D7.19). `codegen_abi.rs`: `CodegenAbiImportId::ALL`, `CODEGEN_ABI_VERSION` — an FNV-1a fingerprint, evaluated at compile time, over every import's module, name and types in table order and the wasm32 layout constants (D7.20) — and the import `RuntimeIdentity` (`tcl_runtime_identity(out, capacity)`). **The registry.** `tcl-registry`: `intrinsic_table_hash()` — SHA-256 over each member's stable identity, its family (a tag, the domain bits and `fires_traces`) and its guarded-semantics keys, in table order, once per process (D7.21); `model/runtime_context.rs` (new) — `runtime_context_of`, `runtime_context_for_profile` (memoised per profile name and environment-registry generation, so a trusted `-extend` moves the next statement), `PinnedContext` (the context, the interned profile, the `Arc<ContextRegistry>` it resolved and holds — the process cache retires overlays past 64, D6.15 — and the identity it states, restated with the pack facts), `PinError` (an environment nothing answers to, a release or a build that is not the environment's point, `OverlayMiss`) and `pin`, which resolves through `resolve_known_environment` and the fallible `context_registry`, so an overlay nothing installed is an error and never the plain generation (D7.19, D7.26); `ResolvedContext::package_floors`. **The compile side.** `tcl-bytecode`: `ModuleAsm::manifest` (an `Arc`, `None` for assembly no compiler produced), `ModuleAsm::claimed_packs` (every function's claims' stamps, sorted and once) and `FunctionAsm::rungs` (rung 0 always, each claim's own rung, 3 from `procedure_bindings`, 4 from `command_bindings`). The bytecode emitter states the context of the profile the module carries, the claimed packs and this build's table (D7.25); the WASM backend states the unit's dialect's context and no packs, and `WasmModule::to_bytes` writes it as the last custom section (D7.29). **The VM.** `CompiledUnit::manifest` (an `Arc`; a unit made from a module carries it, a plain-dispatch child and a scanner activation carry none) and `Frame::manifest`; `InterpState::pin: PinnedContext` replaces `dialect_profile`, so there is one copy of the profile to keep in step; `Vm::pin_context`, `runtime_context` and `held_identity`; `set_dialect_profile` is the profile form of the same pin, both through `install_pin`, which advances the compilation-deopt epoch whenever the context changes; `set_pack_facts` restates the identity; a child interpreter inherits the pin (D7.26). `validate_module_profile` keeps the profile-pointer check and then refuses the whole module on a field every rung rests on, naming the field and both values, and `function_command_bindings_match(asm, manifest)` gains `manifest_admits`, the per-rung conjunct, beside the bindings and the claims (D7.23, D7.24). **The WASM runtime.** `Interp::pin_context`, `runtime_context` and `held_identity` over `InterpState::pin`; `create_child` passes the pin on; the `tcl_runtime_identity` export states the current interp's pin and this build's tables, with no pack facts. **The gates.** `environment::gate_profile`, one in each runtime, is the profile a `namespace` or `trace` subcommand table is read under: the profile the runtime exposes commands under, and the plain profile of the release it emulates when that is the permissive fallback; it replaces `surface_point_for_dialect` and the two `dialect_profile_name()` reads (D7.27). **The link.** `tests/common/wasm_link.rs`: `runtime_identity` (the runtime's own `tcl_runtime_identity`, run under wasmtime once per process), `check_manifest` and `LinkRefusal`; every module `wasm_real_link.rs` and `wasm_tiers.rs` link goes through it (D7.28). `cargo xtask runtime-stdlib` holds `EMBEDDED_STDLIB_REVISION` equal to the vendored library's manifest and prints the value it expects. **Tests** (51 new, in 18 files). `manifest.rs` (12): `a_manifest_round_trips_through_its_bytes` (every build code; no packs), `the_fields_are_length_prefixed_in_declaration_order` (the bytes spelt out), `bytes_that_are_not_exactly_a_manifest_do_not_decode` (every truncation, a ninth field, an unknown build code), `a_field_longer_than_its_type_does_not_decode`, `the_packs_are_sorted_and_without_repeats`, `each_field_that_disagrees_is_named_and_none_other` (eight edits, each naming its one field), `a_runtime_may_hold_more_packs_than_the_artefact_rests_on`, `a_field_refuses_the_rungs_that_rest_on_it_and_no_others`, `a_field_is_described_as_a_message_spells_it`, `a_rung_set_holds_what_was_put_in_it`, `a_module_hands_back_the_manifest_in_its_custom_section` (with and without another custom section before it, and a non-module) and `the_embedded_revision_is_a_patchlevel_a_commit_and_a_digest`; `codegen_abi.rs` (4): `the_runtime_identity_import_takes_a_buffer_and_answers_a_length`, `every_import_is_in_the_abi_table` (reads the enum's declaration out of the file and holds `ALL` equal to it), `the_abi_version_moves_with_the_table` (an import dropped, reordered, renamed, re-moduled, re-typed in a parameter and in a result, a layout word, the data window and the table import each move it) and `every_layout_constant_is_in_the_abi_fingerprint` (reads the `WASM32_` and `NATIVE_PROC_STATUS_` constants out of the file and holds each in `LAYOUT`). `tcl-registry` (9): `intrinsic.rs`'s `the_table_hash_is_the_digest_of_every_members_row` and `the_table_hash_moves_with_each_thing_it_covers` (a member gone, the order, an identity, a family, whether it fires traces, a key, a release variant); `runtime_context.rs`'s `a_profiles_context_is_its_environments_own_point` and `a_profiles_context_pins_back_to_that_profile` (every profile in the catalogue, `plain_tcl` and `tk` included), `a_context_the_ingress_disagrees_with_is_not_pinned`, `an_overlay_nothing_installed_is_an_error_and_not_the_plain_generation`, `an_installed_overlay_is_pinned_and_held` (the held generation is the installed `Arc`), `a_pin_states_its_context_and_the_facts_it_holds_as_an_artefact_would` and `the_package_floors_a_context_carries_are_the_hosts_statement`. `tcl-bytecode` (2): `a_functions_rungs_are_read_off_what_it_records` and `a_modules_claimed_packs_are_every_functions_stamps_sorted_and_once` (the top-level body claims a stamp nothing else does, which B3 below made necessary). `tcl-compiler` (5): `ir.rs`'s `a_manifest_is_the_last_section_and_no_manifest_is_no_section`, `compile_service.rs`'s `a_module_states_the_world_it_was_compiled_for` (four profiles through all five entries of the service), `site_claims.rs`'s `a_manifests_packs_are_the_claims_stamps_each_once`, `wasm_codegen.rs`'s `an_emitted_module_carries_its_identity_manifest` and, against the real runtime, `wasm_real_link.rs`'s `a_module_with_a_foreign_intrinsic_table_is_refused` (the plan's; the honest module links and runs `set x 42`, a foreign table, another ABI and a module that states nothing are each refused, before anything is composed). `tcl-vm`: `command_mutation_deopt_e2e.rs` (6) — the plan's `a_manifest_disagreeing_on_packs_refuses_only_rung_one_sites` (a service whose modules list a pack the VM does not hold: the pack-fact unit is recompiled plain, the generic unit carrying the same manifest is not, and holding both packs admits both) and `a_rung_zero_unit_is_admitted_under_a_changed_pack_set`, beside `a_manifest_for_another_world_refuses_the_whole_module` (each of the four fields, the error text exact), `a_manifest_for_another_intrinsic_table_refuses_only_shipped_backing_sites`, `a_pin_to_other_package_floors_refuses_the_units_that_rest_on_packs` and `a_running_function_is_checked_against_its_manifest_when_the_pin_changes` (a native `repin` command pins other floors part-way through a function resting on a pack: it is recompiled plain from its next command, and the same function pinned to the context it holds is not touched); `cross_version_command_surface_e2e.rs` (4) — `the_trace_gate_reads_the_pinned_profile_not_the_release_name`, `the_profile_form_of_a_pin_is_the_context_the_profile_names` (every profile), `a_vm_states_the_identity_a_module_compiled_for_its_pin_states` and `a_context_the_ingress_refuses_leaves_the_pin_unchanged`; `interp.rs` (1, in `family_b_tests`) — `a_child_states_the_context_its_parent_is_pinned_to`. `runtime/rust` (6): `interp.rs`'s `a_child_states_the_context_its_parent_is_pinned_to`, `the_profile_form_of_a_pin_is_the_context_the_profile_names`, `an_interp_states_the_identity_of_the_world_it_is_pinned_to` and `a_context_the_ingress_refuses_leaves_the_pin_unchanged`, `codegen_abi.rs`'s `the_runtime_states_its_identity_to_a_host` (no interp, a short buffer left unwritten, the decoded statement equal to the interp's) and `cmd_trace.rs`'s `the_trace_gate_reads_the_pinned_profile_not_the_release_name`. `tcl-spectcl`'s `environment_registration.rs` (1): `a_profiles_runtime_context_follows_an_environment_extension`. `xtask` (1): `runtime_stdlib.rs`'s `the_revision_moves_with_every_embedded_file_and_no_other`. Moved: `run_script.rs`'s `ModuleAsm` literal gains `manifest: None`; `surface_point_for_dialect` and `run_function_rc` go (the second had one caller, which builds its unit and runs it); nothing else changes, and no test was deleted or re-baselined. **Mutation checks** (74 runs, each reverted: 71 fail the tests named below and only those, `cargo xtask runtime-stdlib` fails on one, and two do not fail, B3 and V12). *The vocabulary* (`manifest.rs`): `rests_on` widened for the packs and floors (R1) or for the intrinsic table and the library (R13) fails `a_field_refuses_the_rungs_that_rest_on_it_and_no_others`; the packs compared as an equal list (R2) fails `a_runtime_may_hold_more_packs_than_the_artefact_rests_on`; `identity` neither sorting nor deduplicating the packs (R3) fails `the_packs_are_sorted_and_without_repeats`; the release never noted as disagreeing (R8) fails that test and `each_field_that_disagrees_is_named_and_none_other`; a byte tolerated after the packs (R4) or after the ABI version (R10) fails `a_field_longer_than_its_type_does_not_decode`; the environment and the release swapped in the encoding (R9) fails `the_fields_are_length_prefixed_in_declaration_order`; `from_wasm` taking any named custom section (R5) fails `a_module_hands_back_the_manifest_in_its_custom_section`; a four-bit `RungSet::ALL` (R11) fails `a_rung_set_holds_what_was_put_in_it`; `describe` empty for the build (R14) or without a pack's hash (R15) fails `a_field_is_described_as_a_message_spells_it`; the revision constant a digit short (R12) fails `the_embedded_revision_is_a_patchlevel_a_commit_and_a_digest`, and `cargo xtask runtime-stdlib` then exits 1 naming both values (X3). `codegen_abi.rs`: the fingerprint not folding results (R6), the whole layout (R6b), the table import's name (R6d) or the data window's end (R6e) fails `the_abi_version_moves_with_the_table`; a layout constant dropped from `LAYOUT` (R6c) fails `every_layout_constant_is_in_the_abi_fingerprint`; `RuntimeIdentity` missing from `ALL` (R7) fails `every_import_is_in_the_abi_table`. `xtask`: the revision's digest over every file and not the embedded ones (X1), or over the listing order and not the sorted paths (X2), fails `the_revision_moves_with_every_embedded_file_and_no_other`. `tcl-registry`: the table hash without the family (G1), the guarded-semantics keys (G1b), `fires_traces` (G1c) or the stable identity (G1d) fails `the_table_hash_moves_with_each_thing_it_covers` (G1c is the mutation the interrupted run left in `intrinsic.rs`; it was found against its backup, restored, and run); `pin` not checking the release (G2) or the build (G2b), or taking an environment nothing answers to for the lenient `tcl` (G2c), fails `a_context_the_ingress_disagrees_with_is_not_pinned`; a missing overlay falling back to the plain generation (G3) fails `an_overlay_nothing_installed_is_an_error_and_not_the_plain_generation`; `restate` ignoring the packs (G4) fails `a_pin_states_its_context_and_the_facts_it_holds_as_an_artefact_would`; the context's release always empty (G5) or its build always unknown (G5b) fails the gate test and `a_profiles_context_is_its_environments_own_point`; no generation held (G6) fails `an_installed_overlay_is_pinned_and_held`; the pin storing the resolved context and not the one given (G7) fails `the_package_floors_a_context_carries_are_the_hosts_statement`; the pin's profile always plain (G11) fails `a_profiles_context_pins_back_to_that_profile` and `an_installed_overlay_is_pinned_and_held`; the memo keyed without the environment-registry generation (G8) and the package floors cleared (G9) each fail `a_profiles_runtime_context_follows_an_environment_extension`. `tcl-bytecode`: command bindings read as rung 3 (B1), procedure bindings as rung 1 (B1b) and a pack-fact claim as rung 2 (B4) fail `a_functions_rungs_are_read_off_what_it_records`; `claimed_packs` without its deduplication (B2) fails `a_modules_claimed_packs_are_every_functions_stamps_sorted_and_once`; and without the top-level body (B3) **survived** that test as drafted, whose body claimed a stamp the top level claimed too: the body now claims one nothing else does, and B3 fails it. `tcl-compiler`: the compile stating no packs (C1) fails `a_manifests_packs_are_the_claims_stamps_each_once`; the bytecode emitter stating the plain profile's context whatever the profile (C2) fails `a_module_states_the_world_it_was_compiled_for`, and stating none (C4) fails that and the claims test; the WASM backend stating none (C3), or the context of the plain profile (C5), fails `an_emitted_module_carries_its_identity_manifest`; the section written first (I1) fails `a_manifest_is_the_last_section_and_no_manifest_is_no_section`, and never written (I2) fails that and the emitted-module test. `tcl-vm`: the manifest conjunct always true (V1) fails the four tests that state a disagreement (`a_manifest_disagreeing_on_packs_refuses_only_rung_one_sites`, `a_manifest_for_another_intrinsic_table_refuses_only_shipped_backing_sites`, `a_pin_to_other_package_floors_refuses_the_units_that_rest_on_packs` and `a_running_function_is_checked_against_its_manifest_when_the_pin_changes`), and any disagreement refusing every function (V2) fails the first three; `validate_module_profile` returning after the profile check (V3) fails `a_manifest_for_another_world_refuses_the_whole_module`; a script unit (a function handle's, an `eval`'s) dropping its manifest (V4) fails the floors test and the running-function test; `set_pack_facts` not restating the identity (V5) fails those two and `a_vm_states_the_identity_a_module_compiled_for_its_pin_states`; a pin that does not advance the compilation-deopt epoch (V6) fails only `a_running_function_is_checked_against_its_manifest_when_the_pin_changes`, which was added for it, because a function handle re-checks its bindings at every invocation and the epoch is what a running frame waits for; a child that does not inherit the pin (V7) fails `a_child_states_the_context_its_parent_is_pinned_to`; the `trace` gate reading only the release (V8a) or only the profile (V8b) fails `the_trace_gate_reads_the_pinned_profile_not_the_release_name`; `install_pin` not restating (V9) fails the identity test; and a refused context installing the plain profile (V10) fails `a_context_the_ingress_refuses_leaves_the_pin_unchanged`. The `namespace` gate: reading the dialect profile outright (V11) fails ten `tcl-irule-test` tests, whose harness keeps an 8.4 command surface under the iRules dialect, which has no `namespace`; reading the release name again (V12) **fails nothing**, because no profile in the catalogue has a `namespace` table that differs from its release's where the command exists (D7.27), so the two reads agree and the choice is held by V11 alone. `runtime/rust`: the export not writing its bytes (T1) fails `the_runtime_states_its_identity_to_a_host`, as does the export flipping a bit of the table hash (W2r); the `trace` gate reading only the release (T2a) or only the profile (T2b) fails `the_trace_gate_reads_the_pinned_profile_not_the_release_name`; a child not inheriting the pin (T3) fails `a_child_states_the_context_its_parent_is_pinned_to`; the pin kept only when the profile changes (T4) and a refused context installing the plain profile (T5) fail `a_context_the_ingress_refuses_leaves_the_pin_unchanged`. The link: the harness comparing only the ABI (W1) or only the table (W1b), the runtime stating a flipped table hash (W2), and a module with no manifest passing (W3) each fail `a_module_with_a_foreign_intrinsic_table_is_refused`, the last two against the rebuilt real runtime. Gates: `cargo test -p tcl-runtime-api` (lib 49, was 33), `-p tcl-bytecode` (lib 35, was 33), `-p tcl-registry` (1295 with every binary, was 1286; lib 964, was 955; `registry_sweep` 41), `-p xtask` (242, was 241), `-p tcl-compiler` (9834 in 68 binaries, 6 ignored; lib 6554, was 6551; `codegen_integration` 17; `wasm_codegen` 46, was 45; `wasm_real_link` 14, was 13, and `wasm_tiers` 7, both against the real runtime with `TCL_REQUIRE_WASM_LINK=1`), `-p tcl-vm` (1495 in 50 binaries, was 1484; lib 108, was 107; `command_mutation_deopt_e2e` 82, was 76; `cross_version_command_surface_e2e` 38, was 34) under `LANG=C.UTF-8`, `runtime/rust` (lib 721, was 715; 881 in all in 14 binaries; without the numeric tower lib 624 and 751 in all, run with no `tmp` symlink, through which the build script finds libtommath), `-p tcl-engine-tclvm -p tcl-debugger -p tcl-spec-hooks -p tcl-irule-test -p tcl-spectcl -p tcl-spec-studio -p tcl-mcp -p tcl-vm-cli` (903 in 49 binaries, 1 ignored; `environment_registration` 5, was 4) and `-p tcl-cli -p tcl-explorer -p tcl-lsp-core -p tcl-lsp-db` (3951 in 58 binaries, 5 ignored); `cargo check --workspace --all-targets` and the runtime's `cargo check --tests`; `cargo clippy --workspace --all-targets -- -D warnings`, the runtime's own `cargo clippy --all-targets -- -D warnings` in both configurations, `cargo fmt --all` and the runtime's `cargo fmt` clean, no new `#[allow]`; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389, with and without the tower), `gen-irule-test-data --check`, `callback-inventory --check`, `audit-option-dialects --check` (114), `retired-api-gate` and `owner-resolution` (45) OK, `kcs-index-links` green, `runtime-stdlib` (14 embedded files, the revision held), `number-drift`, `segmentation-drift` and `resolution-drift` OK, `dialect-drift` at its 8 sites, and `verify-nextest-binary-shards.py --partition-count 5 --metadata-only` (330 targets; no test binary was added). Docs: the design page (the status box, § *Consequences for the runtimes* — the pin bullet, and the manifest bullet with its block now the struct as built and the paragraph after it on what each field refuses — § *The admission checks, per rung*, § *Codegen and the registry today*'s admission bullet, and the file-path and test anchors), `vm-compiled-artifact-provenance.md` (the unit's `manifest` field, the manifest's check with its per-field table, the pin's row in the invalidation table, and the witnesses), `refcount-contract.md` (the `tcl_runtime_identity` row), `docs/GLOSSARY.md` (§ *Artefact identity manifest and runtime context*, and § *Compiled artefact*), `runtime/rust/vendor/tcl_library/README.md` (the revision the gate holds) and the `Makefile`'s help line for `xtask-runtime-stdlib`. No KCS note: nothing a user runs changes. Deviations: the vocabulary's crate, and the context's two halves (D7.19); the ABI version a fingerprint and not a count (D7.20); the table hash covers the family (D7.21); the library revision carries a digest of the embedded files (D7.22); the four world fields refuse the whole module where the plan says never a global refusal (D7.23); what disagreement is (D7.24); the compile states its profile's context (D7.25); the pin, its profile form and the child (D7.26); the gates' profile (D7.27); the link reads the runtime's own statement (D7.28); the section's file (D7.29). D7.19–D7.29 |
+| CC7.5 the fuzz exit | landed | `wip(consumer-contracts): step 7 — the fuzz exit` | `tcl-fuzz run --subject tclvm --reference runtime-rust` over the CC7.4 commit (`1d70173c`), one release at a time, findings in a scratch directory outside the tree (D7.30). Both engines and the fuzzer were built from that commit with the tree clean, `tclvm` and `tcl-fuzz` in a debug build and `runtime/rust`'s `run_script` in a release build with `TCL_TOMMATH_DIR`, and hard-linked out of the build tree so that a rebuild could not change them mid-run; a smoke script (`expr`, `if`, a rename) ran on both first. **The known seeds first.** `tcl-fuzz replay 5210167` and `replay 5211533` (`--subject runtime-rust --reference tclvm --tcl-version 9.0`, as they were recorded) still diverge, `StdoutMismatch`, and their output is byte-for-byte what the binaries CC5.2's campaign used gave (`tclvm` prints `\101` and `\{\}`, `runtime-rust` `A` and `{}`): the `return` defect, issue #2291, untouched. **The campaign** (13,400 scripts in 66 minutes 35 seconds of wall clock, `--tcl-version` pinning both engines): release 9.0, seeds 7210000 for 3200 scripts and 7220000 for 1400, 4599 matched and 1 finding, 1371 s; release 8.6, seeds 7310000 for 2900 and 7320000 for 1500, 4388 matched and 12 findings (6 stdout, 6 status), 1248 s; release 8.4, seeds 7410000 for 2900 and 7420000 for 1500, 4389 matched and 11 findings (1 stdout, 10 status), 1376 s; no script skipped, no timeout, and `--compare-error-text` off. **What it found, and whose it is.** Each of the 24 findings was run against the C Tcl of its own release (`tclsh` 8.4.20, 8.6.18 and 9.0.4) and replayed on the binaries CC5.2's campaign used, which predate steps 6 and 7: every one reproduces identically there, so CC7.4 moved none and caused none. Three are the recorded shape, a `return` whose value word holds a backslash escape (`tclvm` wrong, `runtime-rust` and C agree; seeds 7310355, 7312857 and 7320271, all at 8.6), and are excluded as the known defect. The other 21 are older and unreported, and are listed with their reproductions in *CC7.5 — what the next items read*: `runtime-rust`'s `upvar` into a `namespace eval` frame (15: one at 9.0, nine at 8.6, five at 8.4), `tclvm` accepting `string reverse` under an 8.4 pin (5), and a second trigger of the `return` defect, a braced value word holding `[` (1, seed 7412652); two of them also carry a deviation both engines share, `incr` of an unset variable under 8.4. So the exit is "no regression" and not "no finding" (D7.30). No source file changes; the tree was clean before and after the run. |
+
+**Step 7 is landed.** All five items above (CC7.1 to CC7.5) are `landed`; the
+review checklist below is run against this tree and its evidence recorded there.
+The plan's exit evidence holds, with one qualification: the campaign over the
+two-backend pair is recorded in CC7.5's row, and it is not finding-free for the
+pair, though none of its 24 findings is this step's (D7.30). `cargo xtask
+command-backing --check` is green with the report generated from the query and
+`KNOWN_UNBACKED` the only list left (389 commands, in a build with the numeric
+tower and in one without); `cargo test -p tcl-runtime` (the standalone runtime:
+lib 721, 881 in all; without the tower lib 624, 751 in all) and `cargo test -p
+tcl-vm` (lib 108, 1495 in all) are green; the manifest witnesses are in
+`rust/tcl-vm/tests/command_mutation_deopt_e2e.rs`
+(`a_manifest_disagreeing_on_packs_refuses_only_rung_one_sites`,
+`a_rung_zero_unit_is_admitted_under_a_changed_pack_set` and four more, 82 in the
+file) and `rust/tcl-compiler/tests/wasm_real_link.rs`
+(`a_module_with_a_foreign_intrinsic_table_is_refused`; the suite's 14 cases run
+for real against the changed runtime, with `TCL_REQUIRE_WASM_LINK=1`); and
+CC7.5's row records the campaign over the two-backend pair: three releases and
+13,400 scripts, 24 findings, none moved or caused by this step (the recorded
+`return` defect, a second trigger of it, and two older defects, one in each
+runtime).
+
+The landing commit also changes the following. It appends `"step 7"` to
+`registry_axes.rs`'s `LANDED` — D2.13's "a lane landing a step or slice bumps
+it". No waiver in the tree says `until step 7`, so none expires and none needs
+resolving; the gate's own fixtures that used `until step 7` as a not-yet-landed
+expiry (five spellings in three tests) move to `until step 8`, as step 6's landing
+moved `until step 6` to `until step 7` (`cargo test -p xtask registry_axes`, 9;
+the crate's 242 pass), and `docs/generated/registry-axes.md` regenerates
+unchanged. It rewrites the two design indexes' entries for the page, and the
+sentence of the page's § *What the artefact records per rung* that said which
+step builds rungs 3 and 4's claim variants, under the repository owner's
+standing rule for every page outside `docs/design/lanes/`: current state only,
+with no step, item or decision numbers; the page's status box already says what
+CC7.1 to CC7.4 built, and is read again against the tree and left as it is. Other
+passages that carry the step narrative are untouched, for the owner's sweep. It
+updates the title above and `docs/design/lanes/README.md`'s bullet. Gates for the
+landing: `cargo check --workspace --all-targets`, `cargo clippy --workspace
+--all-targets -- -D warnings` and `cargo fmt --all -- --check` are clean, with no
+new `#[allow]`; `registry-axes --check` (7831 / 16 / 36 / 893 across 147,
+unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows,
+unchanged), `pack-goldens --check` (25), `command-backing --check` (389),
+`retired-api-gate`, `owner-resolution` (45), `kcs-index-links`,
+`callback-inventory --check`, `audit-option-dialects --check` (114 probed
+options), `number-drift` and `segmentation-drift` are green, `dialect-drift` is
+at its 8 sites, and `verify-nextest-binary-shards.py --partition-count 5
+--metadata-only` proves 330 targets (CC7.4 and CC7.5 added no test binary). The
+plan drafts no landing message for step 7, so this commit's follows step 6's.
+Step 8 is next, on its own items.
+
+### Step 7 — review checklist, verified
+
+The plan's § *Review checklist* (§ *Plan for steps 2–10* › *Step 7*), run
+against the landed tree with evidence:
+
+- **Registration stays a runtime-owned handler table in its documented order
+  (TclOO overrides `variable`, the event loop replaces `update`, `string`
+  last); the sweep attaches identities, it never registers.** Each runtime's
+  registration ends with `string` and then one call, `attach_identities()`
+  (`runtime/rust/src/builtins.rs`, `rust/tcl-vm/src/command.rs`), and `git grep
+  attach_identities` finds no other caller outside the tests; the sweep reads
+  `environment::store_for_profile` of the pinned profile and takes no registry
+  argument, so an overlay generation is unreachable by construction
+  (`identities_come_from_the_pinned_generation_never_an_overlay`, in each
+  runtime). `register_spec_builtin` is gone from both. CC7.2's mutation that
+  removed the sweep fails ten tests.
+- **The gate's residue is one list (`KNOWN_UNBACKED`); the report is a rendering
+  of the query, and `--check` fails on a changed row.**
+  `rust/xtask/src/command_backing.rs` holds `KNOWN_UNBACKED` and the report's
+  path and no other table (`HANDLER_EXTRA`, `STDLIB`, `NOT_REQUIRED` and the
+  classification predicates are gone).
+  `committed_wasm_command_backing_matches_generated` compares the committed
+  report with the one rendered from both runtimes' answers, and CC7.2's mutation
+  that dropped the `vm` column fails it; `command-backing --check` answers the
+  same with the numeric tower and without it.
+- **The manifest is checked per rung, never as a global refusal.** With one
+  qualification, which D7.23 states: the four fields that decide what every word
+  of a unit decoded to (the ABI version, the environment, the release, the
+  build) refuse the whole module, as the profile check always did, and now say
+  which field and both values. The packs and the package floors refuse rungs 1
+  and 2, and the intrinsic table and the embedded library rung 4, and no other
+  rung: `a_manifest_disagreeing_on_packs_refuses_only_rung_one_sites` (the
+  generic unit carrying the same disagreeing manifest is admitted),
+  `a_rung_zero_unit_is_admitted_under_a_changed_pack_set`,
+  `a_manifest_for_another_intrinsic_table_refuses_only_shipped_backing_sites` and
+  `a_pin_to_other_package_floors_refuses_the_units_that_rest_on_packs`, with the
+  mutation that made any disagreement refuse every function (V2) and those that
+  widened `rests_on` (R1, R13) each failing the tests that name them.
+- **The `xtask` build time with the two runtime crates linked is measured and
+  recorded.** CC7.2's row: 15 s cold without libtommath and 23 s with it, under
+  the minute that would have moved the query behind a build step, so it stays in
+  the gate. CC7.4 adds no dependency to `xtask`: `runtime-stdlib` reads
+  `tcl_runtime_api::manifest::EMBEDDED_STDLIB_REVISION` through a crate already
+  in its graph.
+- **Risk: the identity sweep running before `package` is registered (the first
+  pin happens inside `register_builtins`).** The sweep runs once, at the end of
+  registration, after `package` and `string` (above), and not again at a pin
+  (D7.15); a pin, which CC7.4 turned into a context, restates the identity and
+  never touches the attestation table.
+- **Risk: the custom section's byte layout drifting between emitter and reader
+  without a shared encoder.** One pair in `tcl-runtime-api`, `to_bytes` and
+  `from_bytes`/`from_wasm` (D7.2, D7.29), tested round-trip
+  (`a_manifest_round_trips_through_its_bytes`), against the bytes spelt out
+  (`the_fields_are_length_prefixed_in_declaration_order`), out of a real
+  `WasmModule::to_bytes`
+  (`a_manifest_is_the_last_section_and_no_manifest_is_no_section`,
+  `an_emitted_module_carries_its_identity_manifest`) and out of the module the
+  real runtime links (`a_module_with_a_foreign_intrinsic_table_is_refused`,
+  which also decodes the runtime's own statement from the real
+  `tcl_runtime.wasm`).
+- **Exit evidence, run over the final tree.** `cargo xtask command-backing
+  --check` green with the report generated from the query and `KNOWN_UNBACKED`
+  the only list (389 commands, with and without the tower); `cargo test -p
+  tcl-runtime` (the standalone runtime: lib 721 and 881 in all, 751 without the
+  tower) and `cargo test -p tcl-vm` (lib 108 and 1495 in all) green; the
+  manifest witnesses in `command_mutation_deopt_e2e.rs` (82) and
+  `wasm_real_link.rs` (14, for real); and CC7.5's campaign over `tclvm` and
+  `runtime-rust`, three releases and 13,400 scripts, whose 24 findings are the
+  known `return` defect, a second trigger of it and two older defects, each
+  identical on the binaries CC5.2's campaign used.
+
+### Step 7 — what the next steps read
+
+- **For step 8 (reference bodies, `tcl spec test`, the manifest `spec`
+  directive).** Every core Tcl command declares its `runtime_backing`, and the
+  two runtimes answer what they registered (`Vm::backing_report`,
+  `Interp::backing_report`, with `RegisteredBacking::Stdlib { file }` for a
+  command the embedded library defines, which only the WASM runtime embeds: the
+  VM's column reads `absent` for nine of the eleven and `builtin` for the two it
+  registers natively). `BackingSyntax::spelling` is the
+  canonical text of a backing and round-trips through `parse_spelling`;
+  `BodySource::PackText { text }` carries the body a rung-3 claim compares
+  against the live procedure, and the load-time Information notice for it is
+  raised by `pack::load_sources` only, not by `spectcl_check` or the Studio's
+  Test tab (D7.7). `SiteClaim` gains `ReferenceBody` (CC8.1), and the `match` in
+  `FunctionAsm::rungs` is exhaustive, so the new variant must say which rung it
+  is; today an inlined procedure body (`procedure_bindings`) reads as rung 3
+  without a claim and a command binding as rung 4 without one.
+  `ModuleAsm::claimed_packs` reads `claim.facts()`, so a new variant's pack
+  reaches the manifest through its `facts()` arm and nothing else.
+  `ManifestField::rests_on` decides what a rung rests on: a reference body
+  resolved from the embedded library rests on `embedded_stdlib_revision`, which
+  today refuses rung 4 alone, so CC8.1 widens that row (the test
+  `a_field_refuses_the_rungs_that_rest_on_it_and_no_others` states the present
+  table). A WASM site records no claim, so a WASM module states no packs, and a
+  WASM rung above 0 needs `WasmModule::manifest` to state them. The lockfile hash
+  the `spec` directive adds must equal `PackFactStamp::content_hash` (D4.16); the
+  manifest's `packages` are the environment's own floors and no lockfile's, and
+  nothing compares them with one. `ShippedImplementation` and `IdentityKind`
+  (D4.15) are built by no item: CC4.4's pointer names CC7.1 and CC8.2, and
+  neither does, so rung 4's claim variant and its comparison of the runtime's
+  loaded report with the claimed backing are still to place; the manifest
+  conjunct is the only one a shipped builtin's specialisation is admitted by.
+- **For step 9 (versioned stamps, evaluation points).** The manifest's `release`
+  is the environment's point as the ingress states it (`tmm` for `f5-irules`,
+  `8.6` for `tcl8.6`): a name, not an evaluation point, and no evaluator chooses
+  a release within an environment yet (D7.19), so CC9.2's `evaluation_point` is
+  a separate fact the field does not carry. `intrinsic_table_hash` covers the
+  intrinsic table (identity, family, guarded-semantics keys) and no `CommandSpec`
+  field, so CC9.1's windows on a spec's codegen-axis fields move nothing the
+  manifest states; what a module was specialised for is its environment and
+  release, which the whole-module check already compares.
+- **For step 10 (the extension legs).** A new ABI import goes into
+  `CodegenAbiImportId::ALL` (`every_import_is_in_the_abi_table` fails until it
+  does) and moves `CODEGEN_ABI_VERSION` by itself; a new transport constant goes
+  into `LAYOUT` (`every_layout_constant_is_in_the_abi_fingerprint`), so CC10.4's
+  `Tcl_CreateObjCommand` exports and `Command::ObjCmd` move the version the same
+  way. `Interp::backing_report` classifies a command by what it is and has no
+  variant for a host-registered native command; an object command a shim
+  registers needs one (or a `Builtin` reading), and the gate checks a declared
+  `HostNative` as it checks a `ShippedBuiltin`. A module's manifest carries no
+  extension artefact hash (CC10.6 keys its memo on one), and `from_wasm` reads
+  the first `tcl.manifest` section of a module, so a side module needs its own
+  statement.
+- **For an ABI or a vendored-library change.** A re-vendored Tcl library needs
+  `EMBEDDED_STDLIB_REVISION` changed with its `manifest.json`, and `cargo xtask
+  runtime-stdlib` prints the value it expects. Nothing persists a manifest, so
+  there is nothing to migrate.
+- **For a host that pins a context of its own.** `BytecodeCompileService` states
+  the environment's own package floors, so a host that pins other floors
+  (`RuntimeContext::packages`) has every function with a pack-fact or
+  builtin-alias site recompiled plain, since the two disagree and `packages`
+  rests on rungs 1 and 2; the service would need to take the context. No shipped
+  host pins a context of its own. A pack that extends an environment's
+  placements after a VM is pinned has the same effect on modules compiled from
+  then on, until the VM is pinned again.
+- **Reported, not fixed.** The items under *CC7.4 — what the next items read*
+  stand: `Vm::set_dialect_profile(DialectProfile::tk())` cannot run a compiled
+  module, the other subcommand gates still read the release name, and a thread
+  worker pins the profile form. The campaign's older defects are under *CC7.5 —
+  what the next items read*: `tclvm`'s `return` value word (issue #2291, and a
+  second trigger), `runtime/rust`'s `upvar` into a `namespace eval` frame,
+  `tclvm`'s `string reverse` under an 8.4 pin, and `incr` of an unset variable
+  under 8.4 in both. `runtime/rust`'s `info exists` runs no read trace (CC7.3's
+  note), and the four host lockfiles step 6 reported stale (`tcl-explorer-wasm`,
+  `tcl-lsp-server-wasi`, `tcl-lsp-server-wasm`, `tcl-spec-studio-wasm`; issue
+  #2301) are still stale.
 
 ### CC7.1 — what the next items read
 
@@ -1118,6 +1846,161 @@ exit) last.
   raise the `-pack-text` notice, which `pack::load_sources` raises for a
   pack the server loads (D7.7).
 
+### CC7.2 — what the next items read
+
+- **For CC7.4 (the manifest and the runtime context).** The runtime and the
+  VM both pin through `set_dialect_profile`, and the sweep runs once, at the end
+  of registration, reading `environment::store_for_profile(pinned profile)`:
+  a `pin_context` that moves the environment must not assume the table is
+  rebuilt (it is kept, D5.14), and a context whose `overlay_generation` is not
+  zero must not reach the sweep (`attach_identities` has no registry argument and
+  reads the plain generation; an overlay is for the compile side, and a pin
+  resolves it through `context_registry`). `embedded_stdlib_revision` can be read
+  from `runtime/rust/vendor/tcl_library/manifest.json`, which `cargo xtask
+  runtime-stdlib` already checks, and the runtime's own record of which commands
+  that library defines is `DEFINED_COMMANDS`.
+- **For the gate's next change.** A new core command needs its spec's
+  `runtime_backing` and a runtime that registers it, or a line in
+  `KNOWN_UNBACKED` (an exact canonical name, or a namespace prefix ending in
+  `::`); `cargo xtask command-backing` regenerates the report and should be run
+  with libtommath available (`TCL_TOMMATH_DIR=tmp/tcl9.0.4/libtommath`) so that
+  the committed rows come from a build with the numeric tower, which the
+  `rust-check` job's build (without it) must then reproduce. A command the
+  WASM runtime registers only with the tower must be added to
+  `builtins::tower_command_names`, or the tower-less build reports it absent
+  and `--check` fails there.
+- **Reported, not fixed.** The VM registers 15 `::tcl::dict::*` members that the
+  WASM runtime does not (the `KNOWN_UNBACKED` prefix `tcl::dict::`), and the
+  `vm` column shows which core commands the VM lacks: it is where a VM parity
+  list would be read, and the gate does not fail on it.
+
+### CC7.3 — what the next items read
+
+- **For CC7.4.** `IntrinsicId::family` is a `const fn` over a `Copy` enum, so
+  `intrinsic_table_hash` hashes `(stable_id, family, guard_semantics_variants())`
+  over `IntrinsicId::ALL` (D7.12). The family wants one stable byte spelling for
+  that, written where the hash is built and tested there: `Value`, or `FamilyB`
+  with the domain's discriminant and the `fires_traces` flag. `GuardDomain` is
+  `#[repr(u8)]` with explicit discriminants, which are the ABI's `domains` bits'
+  positions and so stable.
+- **For CC7.2.** The sweep attests identities and never issues guards, so the
+  family does not reach it. A sweep that attests every command whose spec
+  declares an intrinsic (`string` only, today) widens no fast path: `execute_intrinsic`
+  serves `StringLength` alone, and a guard request for any other member declines
+  at the runtime's own check.
+- **Reported, not fixed.** `runtime/rust`'s `info exists` runs no read trace:
+  `proc note {n1 n2 op} {lappend ::fired $op}; set v 1; trace add variable v read
+  note; info exists v; puts [set ::fired]` prints `read` under `tclsh` 8.4 to 9.0
+  and `tclvm`, and nothing under the runtime (`cmd_info.rs`'s `info_exists`, over
+  `VarStore::exists`, which takes `&self`). The array queries fire their array
+  traces in all three.
+
+### CC7.4 — what the next items read
+
+- **For CC7.5 (the fuzz exit).** `tclvm` runs every script through its
+  compile service, so every compile in a campaign passes the manifest check
+  with no setting; `runtime-rust` states its identity and admits no bytecode,
+  so the campaign exercises the VM's admission and both runtimes' pins (a child
+  interpreter inherits the pin in each). A divergence whose stderr reads
+  `bytecode manifest disagrees with the runtime on …` is this item's and not a
+  language difference: the VM names the field and both values, and no module
+  compiled in process should produce it, since the compiler and the VM state
+  their context by the same function (`RuntimeContext::identity`). The known
+  `return \101` defect (issue #2291) is the campaign's own exclusion, not this
+  item's.
+- **For step 8 (reference bodies, `tcl spec test`, the manifest `spec`
+  directive).** `SiteClaim` gains `ReferenceBody` and `ShippedImplementation`,
+  and the `match` in `FunctionAsm::rungs` is exhaustive, so each new variant
+  must say which rung it is; today an inlined procedure body
+  (`procedure_bindings`) reads as rung 3 and a command binding as rung 4,
+  neither with a claim. `ModuleAsm::claimed_packs` reads `claim.facts()`, so a
+  new variant's pack reaches the manifest with its `facts()` arm and nothing
+  else. `ManifestField::rests_on` decides what a rung rests on: a reference
+  body resolved from the embedded library should rest on
+  `embedded_stdlib_revision`, which today refuses rung 4 alone. A WASM site
+  records no claim, so a WASM module states no packs; a WASM rung above 0
+  needs `WasmModule::manifest` to state them. The lockfile hash the `spec`
+  directive adds must equal `PackFactStamp::content_hash` (D4.16); the
+  manifest's `packages` are the environment's own floors and no lockfile's, and
+  nothing compares them with one. Rung 4's own comparison, the runtime's loaded
+  report against the claimed backing, is not built: the report is
+  `Vm::backing_report` and `Interp::backing_report` (CC7.2), and the manifest
+  conjunct is the only one a shipped builtin's specialisation is admitted by.
+- **For an ABI or a vendored-library change.** A new import goes into
+  `CodegenAbiImportId::ALL` (`every_import_is_in_the_abi_table` fails until it
+  does) and moves `CODEGEN_ABI_VERSION` by itself; a new transport constant
+  goes into `LAYOUT` (`every_layout_constant_is_in_the_abi_fingerprint`). A
+  re-vendored Tcl library needs `EMBEDDED_STDLIB_REVISION` changed with its
+  `manifest.json`, and `cargo xtask runtime-stdlib` prints the value it expects.
+  Nothing persists a manifest, so there is nothing to migrate.
+- **For a host that pins a context of its own.** `BytecodeCompileService`
+  states the environment's own package floors, so a host that pins other
+  floors (`RuntimeContext::packages`) has every function with a pack-fact or
+  builtin-alias site recompiled plain, since the two disagree and `packages`
+  rests on rungs 1 and 2; the service would need to take the context. No
+  shipped host pins a context of its own. A pack that extends an environment's
+  placements after a VM is pinned has the same effect on modules compiled from
+  then on, until the VM is pinned again.
+- **Reported, not fixed.** (1) `Vm::set_dialect_profile(DialectProfile::tk())`
+  cannot run a compiled module: a `tk` compile resolves its analyser profile to
+  the permissive fallback, and `validate_module_profile` compares that profile by
+  pointer with the `tk` profile the VM pinned (`rust/tcl-vm/src/interp.rs`,
+  `validate_module_profile`; it read the same before this item). Repro: pin the
+  VM to `DialectProfile::tk()`, install `BytecodeCompileService::for_profile`
+  of it, and `eval_source("set x 1")` answers `bytecode compiled for dialect
+  profile tcl cannot run under tk`. (2) The other subcommand gates still take
+  the release name, not the pinned profile: in `rust/tcl-vm/src`, `cmd_binary.rs`
+  (`binary`), `cmd_dict.rs` (`dict`), `cmd_file.rs` (`file`), `cmd_info.rs`
+  (`info`), `cmd_string.rs` (`string`) and `command.rs` (`encoding`); in
+  `runtime/rust/src`, the same six (`cmd_fs.rs` is `file`, `cmd_misc.rs`
+  `encoding`), `cmd_chan.rs` (`chan`), and `codegen_abi.rs`'s three
+  guarded-intrinsic dialect lookups. The VM's `cmd_array.rs` already reads the
+  command surface profile. An iRules-pinned runtime emulating 8.4 gates `string`
+  and `dict` under `tcl8.4`'s table, not iRules'. `environment::gate_profile` is
+  the function to call. (3) A thread
+  worker pins the profile form, not the context its parent was pinned to
+  (`rust/tcl-vm/src/cmd_thread.rs`).
+
+### CC7.5 — what the next items read
+
+- **For whoever fixes `return`'s value word (issue #2291).** The `return`
+  defect has a second trigger, present at every release though the campaign met
+  it once, at 8.4: a braced value word that holds `[` is command-substituted,
+  where C Tcl returns it literally. `proc p {} {return {a[nosuchcmd]}}; puts [p]` prints `a[nosuchcmd]`
+  under `tclsh` 8.4, 8.6 and 9.0 and `runtime-rust`, and `tclvm` raises `invalid
+  command name "nosuchcmd"`; `return {[string length abc]}` answers `3` there.
+  Measured on `tclvm` at 9.0: `return {$x}`, `return {a b}`, `return {a\ b}` and
+  `return {a\nb}` are right, `return a\ b` and `return "a\tb"` (the recorded
+  shape) are wrong, and so are the two bracket forms. `tcl dis` shows the
+  compiled `::p` pushing `"a"` and `"nosuchcmd"` and invoking the second: the
+  braces are dropped and the content is lexed again, as in the recorded shape
+  (whose report names `emit_value`'s default arm and `emit_proc_return`; not
+  re-read here). One finding, seed 7412652 at 8.4.
+- **Reported, not fixed: `runtime/rust`'s `upvar` into a `namespace eval`
+  frame sees no variable.** `namespace eval ns {set x world; proc up {vn} {upvar 1
+  $vn v; return $v}; puts [up x]}` prints `world` under `tclsh` 8.4, 8.6 and 9.0
+  and under `tclvm`, and `runtime-rust` raises `can't read "v": no such variable`
+  at every release; so does the 8.4 and 8.6 form that rests on the global
+  fallback, `set i 10; namespace eval ns {proc up {vn} {upvar 1 $vn v; return $v};
+  puts [up i]}` (`10` under `tclsh` and `tclvm`, an error under 9.0 for every
+  engine, as C has it). It reads as `upvar`
+  (`runtime/rust/src/cmd_var.rs`): `relative_here` sends an `upvar 0` at
+  `namespace eval` scope to the namespace's variable table, and a procedure's
+  `upvar 1` into a `namespace eval` frame links to that frame's own table
+  (`VarHome::Frame`), which holds none of the namespace's variables, so the 8.x
+  fallback (`ns_scope_fallback`, `runtime/rust/src/vars.rs`) has nothing to
+  resolve; not tested by a patch. Fifteen findings in the campaign: one at 9.0, nine at 8.6 and five at 8.4.
+- **Reported, not fixed: `tclvm` accepts `string reverse` under an 8.4 pin.**
+  `puts [string reverse abc]` prints `cba`; `tclsh` 8.4.20 raises `bad option
+  "reverse"` and `runtime-rust` refuses it too (the subcommand arrives in 8.5).
+  `STRING_SUBS` (`rust/tcl-vm/src/cmd_string.rs`) lists `reverse` and the
+  release table `release_subcommands` leaves it in. Five findings at 8.4.
+- **Reported, not fixed: both runtimes run `incr` on an unset variable under an
+  8.4 pin.** `incr j 4` raises `can't read "j": no such variable` under `tclsh`
+  8.4.20, which creates the variable from 8.5; `tclvm` and `runtime-rust` create
+  it. The two agree, so the pair does not flag it by itself: seeds 7410369 and
+  7411840 diverge on a second construct and carry it along.
+
 ### Behavioural deltas accepted in step 7
 
 - CC7.1: `CommandSpec` gains `runtime_backing`, so every command's `Debug`
@@ -1130,6 +2013,57 @@ exit) last.
   `_mock_stubs.tcl` reads 933 stub actions, was 979.
 - CC7.1: the Spec Studio gains a "Runtime backing" field in the Identity
   group, edited as text in the statement's own spelling.
+- CC7.2: both runtimes attest 15 commands' intrinsic identities (30 in all)
+  where the runtime attested `string` alone and the VM `string` and its
+  `::tcl::dict::*` members; no emitted module asks for any but `StringLength`'s,
+  so no module a user runs changes. `Interp::new` and `Vm::new` each run a
+  sweep over the pinned generation's specs (1.7 ms in a debug build).
+  `register_spec_builtin` is gone from both runtimes' public surfaces.
+- CC7.2: `docs/generated/wasm-command-backing.md` reads `command | backing |
+  wasm | vm | note` and has a tally; the gate fails on a declaration the WASM
+  runtime does not bear out rather than on an unclassified command;
+  `tcl::mathfunc` is declared `None`.
+- CC7.2: `xtask` builds the standalone runtime (15 s cold without libtommath,
+  23 s with it), and the two CI path manifests list `runtime/rust` and
+  `rust/tcl-pkg-model`.
+- CC7.3: a guard request for a Family-B intrinsic that omits the
+  variable-trace domain is refused by both runtimes (`GuardError::DomainsInsufficient`);
+  before, it was issued if the identity matched. No compiler emits one, so no
+  module a user runs changes. `GuardError` gains a variant, `GuardDomains` two
+  methods and `GuardIdentity` one, and `tcl-registry` a direct dependency on
+  `tcl-runtime-api`.
+- CC7.4: every module a compile service emits states an `ArtefactIdentityManifest`,
+  and the VM refuses, per rung, the functions that rest on a field that
+  disagrees: a pack-fact or builtin-alias site is recompiled plain (an admission
+  error without source) when the module lists a pack the VM does not hold or
+  other package floors, and a function with a command binding when the
+  intrinsic table or the embedded library differs. Nothing compiled in process
+  disagrees, so no program a user runs changes; an embedder's own compile
+  service that states another manifest sees the change. A module compiled for
+  another ABI, environment, release or build is refused with `bytecode manifest
+  disagrees with the runtime on FIELD: compiled for X, runtime holds Y`, where
+  before only another dialect profile was, by name. A cached `eval` costs 3.6 µs
+  more in a debug build.
+- CC7.4: `Vm::pin_context` and `Interp::pin_context` are new, and an overlay
+  nothing has installed is an error (`PinError::OverlayMiss`), never the plain
+  generation. `set_dialect_profile` is the profile form of the same pin. A child
+  interpreter inherits its parent's pin in both runtimes, as it inherited the
+  profile before.
+- CC7.4: the `trace` subcommand table of a runtime pinned to a vendor profile is
+  that profile's, where it was the table of the release the profile emulates:
+  a VM or interpreter pinned to iRules, which emulates 8.4, answers `trace add`
+  as a bad option, as the TMM's Tcl does, where it accepted it. The VM reads the
+  profile its command surface is under, so the iRule-test harness, which keeps
+  an 8.4 surface for its host Tcl, answers as before. The `namespace` table
+  reads the pinned profile too, and answers as before for every profile the
+  catalogue has. A runtime pinned to nothing keeps reading its release.
+- CC7.4: a WASM module carries a custom section `tcl.manifest` (about 130 bytes)
+  and the runtime exports `tcl_runtime_identity`; the link harness refuses a
+  module whose ABI version or intrinsic-table hash disagrees with what the
+  linked runtime states. `cargo xtask runtime-stdlib` also holds
+  `EMBEDDED_STDLIB_REVISION` equal to the vendored library's manifest.
+- CC7.5: none. The campaign changed no file; the findings it made are in its row
+  and in *CC7.5 — what the next items read*.
 
 ## Plan for steps 2–10
 
@@ -4252,11 +5186,162 @@ everything else in this lane is independent of both.
   on `stable_id()`, which does not move; no test asserts a key or an
   identity as a literal (`git grep` for `registry_intrinsic` and `<< 32`
   finds none in a test), so the runtime and VM tests stand as the plan says.
+- **D5.6** The rejected-premise record lives on `WasmCodegenPlan`, in the
+  two variants that did not select the addition (`native_declines`), not on
+  `MixedRegionPlan`. `semantic-aot-optimisation.md` says the addition is a
+  separate top-level selection that deliberately requires exact closed
+  coverage of its whole script and that the region plan holds no native
+  variant; the composition also needs the unit, the registry and the compile
+  options, none of which `MixedRegionPlan::build` (an `ExecutableFunction` in,
+  a plan out) or `mixed_plan_with_optimisations` has. The types are in
+  `common_aot_plan.rs` as the plan says; `mixed_region_plan.rs` is untouched.
+- **D5.7** `NativeDecline` is `{ premise, reason, sites }`, the plan's two
+  fields and the direct call sites the premise was rejected at. A premise
+  about a call is rejected per call, and a unit with two calls must say which;
+  entries dedupe on (premise, reason) and collect their sites, so the record
+  is bounded by the premises and not by the number of calls. `sites` is empty
+  for a premise about the options or the unit.
+- **D5.8** Every premise is evaluated independently, but the unit's proofs
+  are built only once a pass the addition consumes is enabled. A premise whose
+  input another premise rejects is not evaluated, since its obstacle is the
+  one already recorded. All five passes exist only for the addition (the
+  pass table in `semantic-aot-optimisation.md`), so while none is enabled it
+  has not been asked for and the record is the options' premises alone.
+  Building the common proof plan always would multiply `compile_wasm`'s own
+  cost by about twelve on a 300-statement, 150-procedure script (a debug
+  build: 410 ms of 446 ms, about a fifth of the 1.9 s unit build), for every
+  caller, and its direct-call collection is the dominant part. So "every
+  rejected premise" holds for a compile that asked for the addition; the
+  options' premises are always complete. Before, the proofs were built only
+  with all five passes enabled, sealed, semantic-first and not standalone;
+  they are now built with any one enabled.
+- **D5.9** The composition moves to `codegen/wasm/native_add.rs`. It is one
+  responsibility (the premises the emitter's one native selection composes),
+  and rebuilding it to record every premise rewrote it whole; keeping it in
+  `pipeline.rs` would have grown that file by the record's bookkeeping. The
+  selection is unchanged: the same premises in the same reading, and every
+  existing native add test passes unmodified.
+- **D5.10** The plan's "`aot` view" did not exist. The `wasm` text view prints
+  only the module's WAT and per-function headers, `codegenPlan` was reachable
+  only in `--json` and the browser panel, and `tcl explore --show aot` matched
+  no view. The item adds it: descriptor `aot` (`AOT Plan`, group `codegen`,
+  `Tree`), payload `aot` (the `wasm` header's `codegenPlan` on its own,
+  serialised once and cloned so the two cannot disagree), and a builder in
+  `view_tree.rs` that shows the plan kind, the semantic decline, each region's
+  guarded candidates and the addition's selection or its rejected premises.
+  `render_all` and the TUI take every `Tree` view from `tree_view_ids()`, and
+  the browser and editor panels reconcile tabs from `meta.views` and show a
+  view with no bespoke renderer through their structured fallback, so no
+  front-end changes; `meta.views` is 36.
+- **D5.11** The attestation is keyed by generation and read live; nothing
+  moves on rename or hide. The plan's shape, a name-keyed table of
+  `(generation, identities)` whose entry moves with `builtin_identities`, keeps
+  two stores in step (the name and its generation) where one is enough: both
+  runtimes already carry a command's token generation through a rename and a
+  hide (the VM's `set_visible_command_generation`, the runtime's
+  `insert_moved_binding`) and mint a new one for a rebinding. So
+  `guarded_commands` is `generation → identities`, and `attested_identities`
+  resolves the guarded name afresh, from the current namespace, to a key and a
+  generation, and answers the entry at that generation. A guard follows its
+  command wherever the name goes and stops at a different command at the name (a
+  `proc string`, an alias, an import); a definition in a namespace that shadows
+  the command reaches a different token only for calls made from that
+  namespace, which is the plan's risk row. `register_attested` and
+  `bind_attested_builtin` remove the entry of the generation a registration
+  displaces; an entry for a command deleted by `rename x {}` stays in the table,
+  unreachable, and the table grows only with registrations. D5.1 stands: the
+  `CommandEnvironment` guard invalidates per token, by this read and not by an
+  epoch per token.
+- **D5.12** A command-table mutation moves no guard domain and clears no table;
+  the events that change how names resolve keep moving the three lookup
+  domains. Before, every definition, rename, deletion, alias, ensemble
+  creation, OO retirement, hide, expose and profile pin cleared the table and
+  moved `CommandEnvironment`, `Namespace` and `UnknownHandling`. The check's
+  re-resolution now decides what a mutation staled (D5.11), so the domains stay
+  for `namespace path`, namespace creation and deletion, and interpreter
+  topology: the runtime's `invalidate_command_environment` keeps its eight
+  calls (`namespaces_mut`, the three `ensure_*namespace` funnels,
+  `delete_namespace_by_id`, `create_child`, `with_child`, `delete_child`) and
+  loses its eleven at the command-table paths; the VM's `bump_cmd_epoch` keeps
+  its resolution-memo clear and its counter and loses both guard effects, and
+  `invalidate_lookup_guards` (new) is called from `ns_path_set`,
+  `mark_interp_trusted`, `make_safe` and `delete_interp`. The Interpreter and
+  ObjectDispatch domains and the trace domains are untouched, as D5.1 says.
+  **Amended by the step 5 review.** The event list above ("namespace creation
+  and deletion") is wider than either runtime's code, and the contract text
+  that repeated it said "imports" as well. Measured from the code and by probe
+  (a token per domain, checked after each script), the runtime moves the three
+  domains together on `namespace path`, `namespace export`, `namespace
+  unknown`, `namespace delete`, a `namespace forget` that removes an imported
+  command, the creation of a `TclOO` class or object (and an `interp
+  invokehidden -namespace` naming a new namespace) and `interp create` and
+  `interp delete`; it leaves them alone when `namespace eval` creates a
+  namespace, on `namespace import`, on `interp alias` and when `unknown` is
+  bound, renamed or deleted. The VM moves them on `namespace path`, `interp
+  marktrusted`, making an interpreter safe and `interp delete`, and on none of
+  the rest: a `namespace delete`, `namespace export` or `namespace unknown`
+  leaves a VM token valid. That narrower set is older than this decision, is
+  filed as issue #2292, and neither runtime's invalidation is widened by the
+  fix. `CommandEnvironment` moves on no definition, rename, alias or import in
+  either runtime. The events are stated in `guard.rs`'s doc comments (a
+  comment change, so D5.13's "untouched" is about code), the design page's
+  guard paragraph and `rename-alias.md` § 3.5. One probe result needs its
+  reason: a `namespace forget` of a command imported from the global namespace
+  moved nothing, because the runtime's `ns_forget` builds `::::name` for a
+  global-qualified pattern, finds no import and removes none (real Tcl 8.6 and
+  9.0 remove it); the runtime does move the domains when a forget removes an
+  import from another namespace. That defect is reported under *Step 5 — what
+  the next steps read*, not fixed here.
+- **D5.13** No `GuardDomain::CommandToken`. The plan left it to the implementer
+  whether the domain lattice needs the finer key. It does not: a domain is an
+  epoch a token snapshots at issue and compares at check, and the command's
+  generation, which the check already reads to find the attestation, is that
+  epoch for one command. A variant would put a second per-command counter beside
+  the generation for the same job and add a bit to every token's
+  `GuardDomains`, which the ABI's `domains` word, the registry's base sets and
+  the emitter carry. `rust/tcl-runtime-api/src/guard.rs` is untouched, so the
+  ABI, the identity values and a compiled module's guard sites are unchanged: a
+  module compiled before this item links and runs against a runtime from this
+  tree.
+- **D5.14** The profile pin keeps the whole table, and the pinned surface decides
+  what a guard reaches. The plan's "keeps the entries whose spec is in the
+  pinned generation" filters at the pin; filtering at the read does the same for
+  every release an interpreter is pinned to and back, with nothing to rebuild
+  when the pin moves. An entry for a command the pinned release lacks is kept
+  and unreachable (`command_visible_for_surface_at` in the runtime, the surface
+  filter of `resolve_command_fqn` in the VM) and reachable again when the pin
+  returns to a release that has the command
+  (`a_pin_to_a_release_without_the_command_leaves_it_unattested`, `lassign`
+  under 8.4, in both runtimes). A token whose domains include `Interpreter`,
+  as the registry's base sets do, still goes stale at a pin, as an
+  interpreter-policy change should; what the pin keeps is the attestation, so a
+  guard can be issued after it, where a pinned VM used to hold none (its
+  `bump_cmd_epoch` cleared the table).
+- **D5.15** The real-link row cannot tell the fast path from the fallback. The
+  harness reads the module's standard output, and a guarded intrinsic answers
+  alike on either path: `renamed fallback` tells them apart because the
+  mutation changes the command (`proc string` answers 99), and `traced
+  fallback` answers 3 on both. The "unrelated proc keeps the fast path" row is
+  added as the plan says and proves that an emitted module links and runs
+  against an interpreter whose command table has moved; the proof that the guard
+  survives is `guarded_intrinsic_guards_survive_unrelated_command_mutation`,
+  which makes the exact `tcl_codegen_guard_check` call an emitted module makes.
+  A row that told the paths apart needs a probe in the runtime, such as a
+  fast-path counter, which is not this item's.
+- **D5.16** The VM twin is re-stated where it lives. The plan names
+  `command_mutation_deopt_e2e.rs`, which drives the compile epoch through
+  scripts and holds no guard test (it does not mention a guard); the test the
+  item re-states is `family_b_tests`'s
+  `any_command_mutation_invalidates_guard_and_live_identity_attestation`, so
+  the twin is re-stated in place under the runtime's new name. The e2e binary
+  runs green unchanged, as a regression check on the compile epoch that
+  `bump_cmd_epoch` still owns.
 - **D6.1** CC6.1 covers the six existing fields; `runtime_backing` joins
   the floor in CC7.1. **D6.2** `DependencyTier` is defined in `tcl-pkg`
   and re-exported by `tcl-registry`'s `model::capability`; `tcl-spectcl`
   depends on `tcl-pkg` for the manifest and lockfile data model only.
-  **D6.3** An overlay miss is an error at the ingress.
+  **D6.3** An overlay miss is an error at the ingress. (D6.2 is amended
+  by D6.6 and D6.7 below.)
 - **D6.4** The widened floor keeps the floor's existing shape and reach:
   command-level values only, and the shipped value wins wherever the
   shipped command has one. It reads `CommandSpec` fields, so the same fields
@@ -4281,6 +5366,238 @@ everything else in this lane is independent of both.
   first asserts the override took effect (its `arity 7..9`, a window no
   shipped command has), so a green row means the floor restored the value
   rather than the override never having installed.
+- **D6.6** `tcl-spectcl` reads the manifest and lockfile through a new leaf
+  crate, `tcl-pkg-model`, not through `tcl-pkg` (D6.2's dependency). The
+  plan's own risk clause said to check the build graph, and the graph
+  answers it. `tcl-pkg` in `tcl-spectcl`'s dependencies puts 33 more crates
+  in `tcl-lsp-server`'s build and 39 in `tcl-explorer`'s and
+  `tcl-spec-studio`'s — `ureq`, `rustls`, `webpki-roots`, `zip`, `tar`,
+  `xattr`, `tcl-sandbox` — and `cargo check --target
+  wasm32-unknown-unknown -p tcl-sandbox` fails (`wait-timeout` compiles for
+  `unix` and `windows` only, "cannot find module or crate `imp`"), so every
+  wasm host that loads packs (`tcl-lsp-server-wasm`, `tcl-lsp-server-wasi`,
+  `tcl-explorer-wasm`, `tcl-spec-studio-wasm`) would stop building — outside
+  the workspace, where `cargo check --workspace` never sees it. The layout
+  contract (`project-layout.md` rule 5) also keeps a developer-tool crate out
+  of a pack loader's graph, and `tcl-userdirs` is the precedent for lifting
+  the shared part into a leaf. What moves, by `git mv`: `errors.rs`,
+  `json.rs`, `version.rs`, `manifest.rs` and `lockfile.rs`; `tier.rs` is new.
+  `tcl-pkg` re-exports the five modules as it re-exports `tcl-userdirs`, so
+  the package manager's own modules and `tcl-cli` keep their paths (the
+  layout contract asks for direct imports; a re-export is what the
+  precedent does, and it keeps this diff to the crate boundary).
+  `LockFile::stamp`, the model's one use of the clock, becomes
+  `tcl_pkg::stamp_lockfile`, so the model needs no `chrono`. The step 8
+  plan's `rust/tcl-pkg/src/manifest.rs` and `lockfile.rs` are
+  `rust/tcl-pkg-model/src/` files now.
+- **D6.7** `DependencyTier` is defined in `tcl_dialect::model`, beside
+  `Provenance` and `WorkspaceTrust`, and re-exported by `tcl-registry`'s
+  `model::capability` (D6.2 said `tcl-pkg`). `tcl-registry` cannot depend on
+  `tcl-pkg`, and a dependency on the model crate would put `regex` and
+  `serde_json` under every crate; `tcl-pkg-model` needs the enum for
+  `tier.rs` and step 8's `SpecDirective::requested_tier`, and `tcl-dialect`
+  is the lowest crate all three reach.
+- **D6.8** How discovery reads a tier. The plan says "the nearest
+  `tclpkg.lock`"; the tier is read from the *outermost* directory, inside
+  the workspace folder and at or above the package, that holds both a
+  `tclpkg.tcl` and a `tclpkg.lock`. An installed dependency's directory can
+  hold a manifest and a lockfile of its own (its tarball can carry any file),
+  and the nearest pair would let a dependency name itself the root of its own
+  graph — the one distance the matrix exists to deny it. A file's package is
+  the one whose manifest is nearest above it; the package is `Root` when its
+  directory *is* the project root (a fact about where a directory sits, never
+  about a name a manifest claims), and otherwise the tier is
+  `tier::dependency_tier` of the project's manifest and lockfile for the
+  package the file's own manifest names. The graph rules: named in `require`
+  is `Direct` whatever else requires it; reached through the `require` graph
+  is `Transitive`; named in `dev-require` only, or reached only from there,
+  is `Development`; listed but reached from neither (a stale entry) is
+  `Transitive`, the least a listed package gets; not listed is `None`. No
+  lockfile, an unlisted package, and a manifest or lockfile that does not
+  read leave `None`, as the plan says, and a pack with no tier is not
+  narrowed. Only a file found `BesideManifest` is placed: a pack named in
+  `tclLsp.specPacks` is the user's own choice of it. Residual, recorded on
+  the design page: a manifest names its own package, so a dependency that
+  names itself a package the lockfile does not list is unlimited; the
+  lockfile hash of each pack that step 8 adds is what binds a pack file to
+  the package it claims. **Amended by the step 6 review.** The `None` tier
+  was fail-open: an unlisted name or an unreadable manifest answered `None`,
+  which narrows nothing, so a transitive dependency kept `alias_of` and
+  `runtime_backing` by writing `package anything` or a garbage `tclpkg.tcl`.
+  In a project that has a lockfile, a `BesideManifest` file below the project
+  root is now at least `Transitive`: a manifest that does not read, a package
+  the lockfile does not list and a lockfile that does not read each leave it
+  there. `None` is left for a file found any other way and for a workspace
+  with no project lockfile, where nothing is known of the graph. The
+  "cannot name itself the root" argument above holds only where the project
+  has a lockfile: a dependency that ships its own manifest and lockfile under
+  a root that has a manifest and no lockfile is itself the outermost pair and
+  becomes `Root`; `Root` and `None` admit the same, so no right is lost that
+  was held. A dependency that names itself a package the lockfile *does* list
+  still takes that package's tier, which the lockfile hash binds later. The
+  workspace folder a pack is read under is the outermost one that holds it,
+  as the project rule takes the outermost pair, so a folder opened inside a
+  dependency cannot end the search at that dependency's own pair.
+- **D6.9** The gate's shape. Two functions in `stamps.rs`, run in
+  `pack::load_sources` on every merged command after the merge has recorded
+  the declaring file's tier on `PackCommand::dependency_tier`. Stamps first,
+  through `stamp_refusals`, which gains the tier: the provenance gate is
+  asked first and names itself when both refuse (an author reads it off where
+  the pack sits; every pack that has a tier is a workspace-tier file, so in
+  the product it is the reason named), then the capability gate
+  (`RefusalReason::Capability`, "only the workspace's own package may"), then
+  rule 1. Then `admit_declarations` drops `alias_of` and a `runtime_backing`
+  other than `none`, after the stamp rule, so rule 1 still reads the
+  `alias_of` a refused stamp would have needed. Each refusal is a warning on
+  the command's row that names the declaration and the tier; the command keeps
+  every other fact. The strip is one memo keyed by the spec's address and a
+  `Drops` set. `pack::set_key` mixes a file's tier: a package moving in the
+  lockfile's graph changes what its packs load, and the registry cache is
+  keyed by the set's key. `install_into`'s assertion asks both gates. The
+  Studio's and `spectcl_check`'s previews pass `None` — they see no lockfile —
+  and so do not show a capability refusal. **Amended by the step 6 review.**
+  The assertion asked the stamp gate only and was written as if it asked both:
+  a command that dodged `admit_declarations` — a transitive dependency's
+  `alias_of` — passed it. `passed_the_gates` asks the stamp gate and the
+  declaration gate, and `install_into` asserts it.
+- **D6.10** `CodegenCapability::reference_body` is `ReferenceBodies
+  { Forbidden, AnySource }`, not the page's `Option<BodySource>`.
+  `BodySource`'s variants carry data (a path, a text), so a capability
+  cannot hold "from which source"; no tier is allowed one source and not the
+  other; and a fourth `bool` trips `clippy::struct_excessive_bools`, which
+  the plan's "no new `#[allow]`" forbids answering. A tier that gains one
+  source without the other adds its variant. Nothing reads the field yet
+  (reference bodies are step 8's); the matrix test holds its values.
+- **D6.11** The server reloads the packs when a `tclpkg.tcl` or a
+  `tclpkg.lock` changes (beyond the plan's files). Discovery now reads both,
+  so a lockfile rewritten by `tcl pkg install` changes what a dependency's
+  pack may declare with no `.tclspec` moving; without a trigger the old tiers
+  would stand until the next reload, and a stale tier that is *nearer* than
+  the graph now says is the unsafe direction. The manifest is a `.tcl` file
+  the source watcher already reports, and it stays an indexed Tcl source; the
+  lockfile gets a watcher of its own (`**/tclpkg.lock`). Both set the pack
+  reload flag `partition_watched_file_changes` already had.
+- **D6.12** The overlay miss is answered by each consumer of the door, not by
+  the door. The plan: `context_registry` and `registry_for_environment_if_built`
+  return `Result<Arc<ContextRegistry>, OverlayMiss>`, and the test at
+  `ingress.rs:796` is inverted — done, as `an_uninstalled_overlay_is_an_error_not_the_plain_generation`
+  (the old test's first half stays as `context_registries_carry_the_expected_stores`),
+  and `plain_context_registry` is the new infallible door for overlay `0`. What
+  the plan did not say is what each caller does with the error, and they are not
+  alike. What produces something a host compiles or a user is offered as an
+  edit — the compile service, `compilation_unit` and the checks and rewrites
+  built on it — declines (D6.14, D6.16). What only advises and runs again when
+  the packs arrive — the analyser's three overlay reads (`analysis_context`,
+  `resolve_walk_environment`, the incremental re-analysis) and the two
+  semantic-token queries — reads the plain generation through a door named for
+  it (`environment_ingress::analysis_registry`, `token_registry` in `tcl-lsp-db`),
+  so no `unwrap_or` sits at the ingress and the fallback survives only where it
+  is right. The line is drawn by what a wrong answer costs: a diagnostic pass
+  without the packs is corrected by the re-analysis a reload triggers (the e2e
+  `the_bundled_eda_loadables_make_their_vendor_commands_known` waits for
+  exactly that settle), while a unit built without them is memoised under the
+  pack's key and is where the optimiser's rewrites come from. The analysis
+  re-runs when the overlay epoch moves because `file_analysis_incremental` reads
+  the unit query, which reads it (`the_analysis_reads_the_packs_once_they_install`).
+- **D6.13** The server's optimise path builds no compile service. The plan's
+  Files list has `optimise_document_command` build the service with
+  `spec_pack_key`; there is no service there to build. The command hands
+  `core_report::optimise_under_policy` the registry `Backend::registry_for_dialect`
+  returns, which installs the workspace's overlay itself
+  (`registry_for_dialect_with_packs`) and so cannot miss, and the language
+  server compiles no bytecode (the design page's words since D4.20). So the
+  item delivers the door — `RegistryTarget::Overlay`,
+  `BytecodeCompileService::for_profile_with_overlay` — with its tests through a
+  real pack in `codegen_stamps.rs`, and the exit evidence "the server's optimise
+  path compiles under the workspace overlay" is the two e2e tests that already
+  ran it, `a_pack_const_fold_body_folds_a_call_site_in_the_optimiser` and its
+  negative `without_the_pack_the_same_call_site_does_not_fold`
+  (`rust/tcl-lsp-server/tests/e2e/spec_packs.rs`), run and green. No shipped host
+  builds a service through the door: the `tclvm` engine takes an owned
+  registry and the debugger the profile's shared generation. The server's
+  changes are at the two ends of the unit query: the handle takes `None` from
+  `document_compilation_unit_for`, the compiler-checks pass reports each
+  recorded miss, and a pack reload moves the overlay epoch beside its key
+  publish (D6.14).
+- **D6.14** How `compilation_unit` abstains, and how it is asked again. It
+  returns `Option<Arc<CompilationUnit>>`; `proc_taint_solve` returns an `Option`
+  too; `compiler_check_diagnostics` answers no checks and no optimisations;
+  `file_analysis_incremental` supplies no override, and the analyser builds its
+  own against the registry it reads; `document_compilation_unit_for` is an
+  `Option`, and `document_compilation_unit` (no overlay, so no miss) keeps its
+  `Arc`. The abstaining path reads nothing an installation of the packs moves,
+  so it would stand for every revision that leaves `(file, cfg, overlay)`
+  alone. The first design made it volatile with salsa's `report_untracked_read`
+  and was measured wrong: the query itself ran again at the next revision, but
+  a re-executed volatile query whose value changed keeps its old `changed_at`,
+  so `file_analysis_incremental` and everything else that had read the `None`
+  stayed on the answer memoised without the packs — an analysis of a pack
+  command stayed a W123 after the overlay was installed and a revision ran. So
+  the overlay is an input, as the evaluator epoch is (D104):
+  `tcl_registry::overlay_epoch` moves whenever an overlay generation is
+  installed and whenever a sweep retires one, `tcl_lsp_db::OverlayEpoch` is
+  the salsa input that mirrors it, `unit_registry` reads it for every non-zero
+  overlay, and a host installs the packs and then moves it with
+  `set_overlay_epoch` — the server does, beside its key publish
+  (`sync_overlay_epoch`). Compare-then-set, so a sync that finds nothing moved
+  invalidates nothing, and everything that resolved an overlay — the unit, its
+  per-procedure queries, the analysis and the tokens that read it — depends on
+  it at any depth (`an_abstention_runs_again_once_the_overlay_is_installed`,
+  `the_analysis_reads_the_packs_once_they_install`,
+  `syncing_the_overlay_epoch_lets_an_abstained_unit_build`). Until the epoch
+  moves the abstention stands: a database cannot see the cache change, only its
+  inputs. "Logged once": `tcl-lsp-db` has no logger, and the server sends a
+  worker's faults to stderr with `eprintln!`, so the database records each
+  distinct `(environment, overlay)` miss once in a process-wide log,
+  `take_overlay_misses`, and `compute_compiler_diags` reports what it finds.
+  **Amended by the step 6 review.** The log kept a key in its seen set for the
+  life of the process, so a key that missed, installed, was retired by the
+  sweep and missed again was never reported the second time, and the host
+  could not tell a new absence from the one it had already heard of.
+  `OverlayGenerations::hold` drops the key from the seen set when it installs
+  (`a_key_that_installs_is_reported_again_if_it_misses_later`).
+- **D6.15** The queries hold the overlay generations they resolve (beyond the
+  plan). A unit is built by per-procedure queries that each look the registry up
+  again, and the process cache retires overlay generations past 64 entries,
+  keeping only the key being built — so a reload that lands while a pass at the
+  superseded key is running would hand the per-procedure queries a miss the unit
+  never saw. `OverlayGenerations` (64 entries, first in first out, process-wide)
+  keeps what `registry_with_overlay` resolved and answers from it first; a
+  generation is content-addressed by its key, so serving one the cache has
+  dropped is never stale (`a_retired_generation_still_serves_the_queries_that_resolved_it`).
+  It is process-wide because the cache it backs up is, and because the crate's
+  tests build `TclDatabase { storage }` by literal at 21 sites. The per-procedure
+  queries read it through `nested_registry`, which stops with the miss in its
+  message for a key no unit query resolved — a caller error no production path
+  reaches, since a per-procedure query runs only inside a unit or a
+  re-verification of one. The alternative, a plain registry inside a memoised
+  per-procedure query, would put a lattice computed without the packs under the
+  pack's key, which is the fault the item removes.
+- **D6.16** `BytecodeCompileService::for_profile_with_overlay` returns
+  `Result<Self, OverlayMiss>` and looks the generation up again at every
+  compile. A built service can outlive its generation, and a compile through it
+  then declines with a `CompileError` naming the overlay, on every compile entry,
+  instead of compiling plain. A compile for another profile than the service's
+  uses the service's overlay for the profile asked for: the packs are installed
+  per profile, so a service for `tcl9.0` asked to compile for `tcl8.6` finds no
+  generation and declines. Overlay `0` is `for_profile`. `RegistryTarget::registry`
+  and `registry_for_profile` return `Result`, and the four compile paths take `?`.
+- **D6.17** (added by the step 6 review) The workspace overlay is installed
+  under every key the ingress can ask for. A generation's store is the
+  catalogue profile of its environment, and `store_profile` sinks every
+  environment the catalogue does not hold — `tk`, the lenient `tcl`, and any
+  environment a pack declares — to `DialectProfile::plain_tcl()`; the
+  server's pack reload installed under `DialectProfile::all()`, which has no
+  entry for that sink, so once a miss failed closed (D6.12) every compile
+  query for such a document answered an `OverlayMiss` for the life of the
+  session: no unit, no compiler checks, no rewrites, and the analyser on the
+  plain generation, where a workspace pack's command was a W123.
+  `tcl_registry::model::store_profiles()` is the one list — the catalogue and
+  the sink — that a host installs an overlay under, and the server's
+  `install_pack_overlays` iterates it. The alternative, resolving the key at
+  the query (a document in `tk` asks for the sink's overlay), would make a
+  key nothing installs look installed; listing the keys keeps an overlay
+  miss meaning one thing.
 - **D7.1** `HANDLER_EXTRA`, `STDLIB`, `NOT_REQUIRED` become
   `runtime_backing` rows; `KNOWN_UNBACKED` stays as the drift waiver;
   `xtask` links `tcl-runtime` and `tcl-vm` to ask `backing_report()`.
@@ -4344,6 +5661,296 @@ everything else in this lane is independent of both.
   document but a line to transcribe — `if`, `foreach`, `switch`, `lsort`,
   `string`, `upvar`, `return`, `oo::class` and `subst` each gain
   `runtime_backing shipped-builtin NAME`.
+- **D7.10** The family is the widest reach of a member under any invocation
+  form, which gives 14 `Value` and 14 `FamilyB` members (the page's "about
+  half"). `string is` (its `-failindex` stores, which is why its spec is not
+  `pure`) and `regexp` (its match variables store through the adapter) are
+  Family B although a call without those words touches nothing; classifying
+  by the common form would let a later fast path skip a trace the rest of the
+  forms run. Every Family-B member takes `GuardDomain::VariableTrace`, `puts`
+  included: the lattice has no channel domain, and adding one is a lattice
+  change (D5.13's reasoning), not this item's. `fires_traces` marks the four
+  members that run a variable's traces while only *observing* it (`info
+  exists` a read trace, `array exists`, `names` and `size` an array trace),
+  measured with `tclsh` 8.4, 8.5, 8.6 and 9.0; a storing member's write
+  traces are the store's and are not marked, although `lset`, `dict set` and
+  the rest do run read and write traces in C Tcl. `tcl-vm` answers all four;
+  `runtime/rust` answers the array queries and not `info exists`, which runs
+  no read trace there (reported, and stated in `family-b-routing.md` § 4),
+  so the cross-check test lives in the VM and the runtime keeps its existing
+  `array_trace_oracle.rs`.
+- **D7.11** Neither runtime had a per-call table of guard domains for the
+  family to replace: `tcl_codegen_guard_prepare` takes the mask the compiler
+  sends, and the VM's `prepare_command_guard` has no production caller. The
+  family is read where a domain is decided, which is two places. The compiler
+  builds a guarded plan's domains as the dispatch dependencies' plus the
+  member's family's (`guard_domains_for_intrinsic`), and both runtimes'
+  `prepare_command_guard` refuse a request that omits a domain the identity's
+  family requires (`GuardError::DomainsInsufficient`), so a module from a
+  compiler that forgot the variable-trace domain declines instead of taking a
+  fast path over a variable store that has a trace on it. The plan's
+  "registration derives the domain" is read as issuance: a registration
+  attests an identity and has no domain to derive. Only `StringLength`, a
+  `Value` member, is guarded today, so no emitted request changes.
+- **D7.12** No `SEMANTICS_REVISION` row rises. CC5.1's rule raises a member's
+  row when what a compiled fast path may assume of it changes, and nothing is
+  compiled against a Family-B member's contract: the boxed fast path is
+  `StringLength`'s alone and neither runtime executes another intrinsic. The
+  requirement is additive and refused at issuance, so a module asking for an
+  under-covered guard declines whether or not its identity moves. CC7.4's
+  table hash covers the family as well as `guard_semantics_variants()`, so a
+  later change to the classification is visible to the manifest without a
+  row bump.
+- **D7.13** `family-b-routing.md` § 4 had no gap row for the family split to
+  close: the page mentioned no intrinsic at all. § 3 gains the *Intrinsic
+  families* subsection, stated as the code is, and § 4 gains the one gap this
+  item measured, `info exists` in `runtime/rust`.
+- **D7.14** `RegisteredBacking` has six variants, not the plan's four, and
+  `Stdlib` names its file. Five commands — `exec`, `socket`, `load`,
+  `fileevent` and `fcopy` — are registered only to answer "not supported under
+  the WASM runtime" and are declared `None` (nothing executes them there): the
+  plan's gate reads a declared `None` that the runtime registers as drift, and
+  a refusal stub is a registration, so without `Unsupported` the gate flags
+  five commands the declarations are right about. `NeedsNumericTower` is for a
+  build without libtommath: the `rust-check` job fetches no Tcl source, so the
+  runtime the gate links is built without the numeric tower there, and that
+  build registers none of `expr`, `if`, `while`, `for`, `lseq`,
+  `::tcl::mathop::*` and `::tcl::mathfunc::*` (90 names). Reporting them
+  `Absent` would make the gate's answer depend on whether `tmp/` was fetched;
+  reporting them `Builtin` would be false at run time, where a rung-4 check
+  may one day read it. The variant says what is true of the build, and the
+  gate reads it as the handler a build with the tower has, so the report reads
+  identically either way; a runtime test in each configuration holds the list
+  to the registrations (`the_tower_commands_a_build_without_it_names_are_registered_with_it`
+  with the tower, `a_build_without_the_tower_reports_the_commands_it_lacks_as_needing_it`
+  without), and a name missing from the list shows as a stale report in the
+  build that lacks it, since the committed report comes from a build with the
+  tower. `Stdlib { file }` lets the gate hold a `TclBody`'s
+  `PackageSource` path to the file the runtime reports, which a unit variant
+  could not. `BackingReport` is a lookup over the `Vec<(String, RegisteredBacking)>`
+  the plan gives `backing_report`, which can only list what a runtime
+  registered, so `Absent` is the answer to a name it does not mention.
+- **D7.15** The sweep is `attach_identities()`, without the plan's registry
+  argument, and runs once. It reads `environment::store_for_profile(pinned
+  profile)`, the un-overlaid generation, so "from the pinned generation only"
+  holds by construction and a test shows an overlay generation installed under
+  the same profile is not seen; a private `attach_identities_from` takes the
+  store so the test can run the control. It runs at the end of registration and
+  not again at the pin, which the plan asks for: the plan wrote that when the
+  pin emptied the table, and since D5.14 it keeps the whole table and lets the
+  surface decide what a guard reaches, so a second sweep has nothing to
+  restore, and it would attest whatever an embedder registered at a registry
+  name after construction as the registry's command. It attests every
+  intrinsic of a spec to the builtin at its name, so each runtime now attests
+  15 commands and 30 identities where the runtime attested `string` alone;
+  `execute_intrinsic` serves `StringLength` alone and a guard for any other
+  member declines there, as D7.11 says. Only a builtin the runtime registered
+  is attested (the runtime's `registry_builtin_names`, by generation; the VM's
+  `builtin_identity_for_key`), so a procedure, an alias or another builtin
+  renamed over the name gains nothing. `register_spec_builtin` is removed from
+  both runtimes; the VM's 15 `::tcl::dict::*` members register through
+  `register_spelled`, which keeps the registry's rooted spelling as the
+  builtin's registry identity (the registry has no spec for the unrooted
+  spelling they are stored under), exactly the part of `register_spec_builtin`
+  that was not attestation.
+- **D7.16** What the runtime says it is asked, and how it answers. `Object` is
+  the engine-installed `TclOO` roots (`registry_object_roots`) and the commands
+  the object system binds in every object's namespace, which `oo_register_my`
+  and the report both read from one table. `Stdlib` is a table,
+  `embedded_stdlib::DEFINED_COMMANDS`, not a scan of the library text and not a
+  live bootstrap: the library defines some commands conditionally (two
+  `auto_execok`s), some lazily (`parray`, through the auto-load index) and one
+  by alias, which a text scan reads wrongly, and bootstrapping needs the
+  numeric tower, which the gate's build may lack. The table is verified where
+  it can be: a runtime test sources the vendored library natively and holds
+  each entry to a definition in the file it names. The embedded module is
+  ungated so the table and its test run in the default build, with only the
+  bytes behind `wasm_stdlib`.
+- **D7.17** The gate's shape. `xtask` depends on `tcl-runtime` by path (it is
+  outside the workspace, for `unsafe`, and stays so), with `wasm_stdlib` so the
+  library's commands are reported, and on `tcl-vm` and `tcl-runtime-api`; the
+  marginal cold build is 15 s without libtommath and 23 s with it, under the
+  plan's minute. `KNOWN_UNBACKED` is the only list: its `tcl::dict::` and
+  `oo::Helpers::` families, which were predicates, are prefix entries on
+  canonical names, stale when nothing under them is left unbacked, so one
+  command in a family gaining a handler does not retire the family's waiver.
+  The VM is asked and printed beside the WASM runtime and never fails the
+  gate: its gaps are not this gate's waivers, which are a list of what the
+  WASM runtime lacks, and a second list would break "one list left". The
+  per-row prose that `NOT_REQUIRED` held for its 54 commands is gone with the
+  list, as the plan deletes it; the five refusal stubs say so in the note
+  column and the tally says how many commands are declared `None`. The file
+  ensemble's arity scan stays source-level (the report names commands, not
+  their subcommands).
+- **D7.18** `tcl::mathfunc` declares `None`. It is the namespace, which no
+  runtime registers as a command and which C Tcl does not define as one
+  (`info commands ::tcl::mathfunc` answers nothing); its twin `tcl::mathop`
+  is documented as not callable and was already `None`. CC7.1 copied the old
+  report's row for it, and that report took the name for a native handler
+  because a predicate (`is_mathfunc_command`) matched the bare namespace as well
+  as its members. The gate's first finding, and the one declared row that
+  moves: 324 shipped builtins become 323, and 54 `None` rows 55.
+- **D7.19** Where the vocabulary lives, and what the plan's names mean.
+  `ArtefactIdentityManifest`, `RuntimeContext`, `Rung`, `RungSet` and the one
+  comparison are in `tcl-runtime-api` (`manifest.rs`), because the compiler, the
+  VM, the WASM runtime and the link harness all state or compare one and the
+  crate is the lowest they share; the plan put the context in each runtime's
+  `environment.rs`, where two copies would drift. What needs the registry is in
+  `tcl-registry`'s `model::runtime_context` (new): `runtime_context_of` and
+  `runtime_context_for_profile` state the context an environment or a profile
+  resolves to, and `pin` resolves a context to a `PinnedContext`. Each
+  runtime's `environment.rs` keeps its two-line door (`pin_context`). The
+  plan's "`BuildProfileId` is `tcl_dialect::build_info`'s id" names a module
+  that holds the `tcl::build-info` dictionary; the type is
+  `tcl_dialect::model::BuildProfileId`. `pin` refuses four things, each a
+  `PinError`: an environment nothing answers to, a release that is not the
+  point the environment is at, a build that is not its build, and an overlay
+  nothing has installed (`OverlayMiss`, never the plain generation). The
+  package floors are not checked against the environment: they are the host's
+  statement, carried as given, and the profile form fills them from the
+  environment. A release other than the environment's own is refused, not
+  accepted as a per-target release: no evaluator chooses a release within an
+  environment yet, so there is nothing for the field to say. The field is an
+  `Arc` on `ModuleAsm` and on the unit made from it, where the plan writes an
+  owned `Option`: a cached module's manifest goes to a unit at every run, and a
+  clone allocates six times.
+- **D7.20** `abi_version` is a fingerprint and not a count. The plan says "the
+  table version", and a constant somebody bumps is a constant somebody does not:
+  `CODEGEN_ABI_VERSION` is an FNV-1a over every import's module, name, parameter
+  and result types in table order and the wasm32 layout constants, evaluated at
+  compile time, so an import that changes shape, appears or goes moves it.
+  The table had no list of its members, so `CodegenAbiImportId::ALL` is new, and
+  `every_import_is_in_the_abi_table` reads the enum's declaration out of the
+  source file and holds it equal, because a variant missing from `ALL` would
+  leave the version where it was. The runtime's statement of itself is an
+  import like the others (`RuntimeIdentity`, `tcl_runtime_identity`), so the
+  name a host looks up is spelt once.
+- **D7.21** `intrinsic_table_hash` is a SHA-256 (the crate already depends on
+  `sha2`; the page's field is 32 bytes) over each member's stable identity, its
+  family (a tag, the domain bits and `fires_traces` for a `FamilyB`) and its
+  guarded-semantics keys, in table order, as CC7.3's note says. It is computed
+  once per process. A test holds it sensitive to a member going, the order, an
+  identity, a family, whether it fires traces, a key and a release variant.
+- **D7.22** `embedded_stdlib_revision` is `EMBEDDED_STDLIB_REVISION`:
+  `9.0.4+c655b4770b1d.86f5852aba2f`, the patchlevel, twelve characters of the
+  upstream commit and twelve of a SHA-256 over the embedded files' paths and
+  hashes. The commit alone would not move when a vendored file is patched with
+  its manifest hash updated, which the README forbids but nothing enforced;
+  the digest does. `cargo xtask runtime-stdlib` holds the constant equal to the
+  manifest's and prints the value it expects. Both runtimes state it, though
+  only the WASM runtime embeds the library: the VM has none, and the field is
+  what a unit's `source` route assumed.
+- **D7.23** The rung of a field, and the rungs of a function. The page's rule is
+  "per rung, a disagreeing field refuses only the sites that rest on it", and a
+  table of what rests on what is the content of that rule:
+  `ManifestField::rests_on`. The ABI, the environment, the release and the build
+  decide what every word of a unit decoded to (an escape, a numeral, an `expr`
+  grammar), generic dispatch included, so they refuse every rung, which is the
+  profile check the VM already made, now naming the field. The packs and the
+  package floors are what rungs 1 and 2 rest on. The intrinsic table and the
+  embedded library rest on rung 4. A function's rungs are read off what it
+  records (`FunctionAsm::rungs`): rung 0 always, 1 and 2 from the claims, 3
+  from `procedure_bindings` (an inlined body, which has no claim variant until
+  step 8), 4 from `command_bindings`, every specialisation on a shipped
+  builtin's identity. Whole-unit fields are checked once, in
+  `validate_module_profile`, and refuse the module with an error naming the
+  field and both values; the others are checked per function in
+  `function_command_bindings_match`, where a refused function is recompiled
+  plain or an admission error, like any failed binding.
+- **D7.24** What disagreement is. Every field must be equal except the packs,
+  of which every one the artefact states must be one the runtime holds (a
+  runtime may hold more, as `set_pack_facts` always allowed). The packs the
+  compiler states are the claims' stamps, sorted and without repeats, which the
+  note under step 6 said (`ModuleAsm::claimed_packs` reads `claim.facts()`, so a
+  variant step 8 adds needs only its `facts()` arm). The per-claim
+  `site_claims_hold` stays, unconditionally, beside the manifest's whole-set
+  check: assembly with no manifest is admitted by it, and a function whose own
+  claims hold is still refused when the manifest lists a pack the VM lacks, which
+  is the plan's "checked as a whole". The package floors are compared as the two
+  ordered lists (both sides state them by name) and the packs by membership, so
+  the order of the packs says nothing.
+- **D7.25** The compile states the context of the profile the module carries.
+  The plan says "from the `AnalysisContext` and the pack set", and D4.16 found
+  that codegen carries a registry and no analysis context; the registry's
+  profile is the context's, but the VM compares `ModuleAsm::profile` by pointer
+  and a manifest that named another environment for the same profile would
+  refuse what the profile check admits. A `tk` compile resolves its analyser
+  profile to the permissive fallback, so its manifest states `tcl`, as the
+  pointer check already sees it. The WASM emitter, which carries no profile,
+  resolves the unit's dialect the same way. A WASM module states no packs,
+  because a WASM site records no claim: a guarded fast path is checked against
+  the live command on every call.
+- **D7.26** The pin. `set_dialect_profile` is kept, as the profile form of the
+  pin (`PinnedContext::for_profile`), because it has 87 call sites, a profile an
+  ingress can produce always resolves, and the plan asks for the profile form to
+  be kept; `pin_context` is the context form. Both install through one
+  `install_pin`, which advances the compilation-deopt epoch whenever the pinned
+  context changes, so a unit admitted under the old context is checked again at
+  its next entry; a change of profile also clears the eval caches, as it did
+  before. The held generation rides on the pin and so does the identity;
+  `set_pack_facts` restates it. The pin's profile is the VM's dialect profile:
+  the field `InterpState::dialect_profile` is gone and every read takes
+  `pin.profile`, so there is one copy to keep in step. A VM child is another
+  interpreter of the same build, so `fork_child_state` passes the pin on (a child
+  that kept the unpinned context refused every module compiled for its profile;
+  six existing tests found it), and the WASM runtime's `create_child` does the
+  same. A thread worker, which is built from a snapshot of the profile, pins the
+  profile form. The sweep is not run again: the pin resolves an overlay for the
+  compile side and the sweep keeps reading the plain generation (D7.15).
+- **D7.27** The gates' profile. "The pinned profile, not the release name" is
+  `gate_profile`: the profile the VM exposes commands under (its command surface
+  profile, which is the pinned dialect profile unless a host broadened it, and
+  the WASM runtime's dialect profile), and the plain profile of the release the
+  runtime emulates when that is the permissive fallback, which states no table.
+  Reading the dialect profile outright fails twice. The iRules harness pins the
+  iRules dialect and a tcl8.4 command surface so its host Tcl keeps `namespace`,
+  which the iRules surface lacks, and the `expect` in the `namespace` gate would
+  panic; and a VM pinned to nothing, which is every `Vm::new`, would take the
+  permissive table, in which `trace variable` exists, though it emulates Tcl 9.
+  The data decides what the change does: measured over every profile in the
+  catalogue, `plain_tcl` and `tk` included, none has a `namespace` table that
+  differs from its release's while the command is present (`f5-bigip` and
+  `f5-irules` lack the command altogether), so that gate's answers do not move
+  and nothing but the iRule-test harness can tell the two reads apart, and
+  `trace` differs for the iRules profile
+  (the three legacy forms and no `add`, as the TMM's Tcl has) and, were it read
+  outright, for the fallback. The other subcommand gates (`binary`, `dict`,
+  `encoding`, `file`, `info` and `string` in the VM, and those and `chan` in
+  `runtime/rust`) still take the release name; the same change would serve them,
+  and the plan names two.
+- **D7.28** The WASM link. The runtime exports `tcl_runtime_identity`, the
+  manifest-shaped statement of the current interp's pin and of this build's
+  tables, and the harness runs it under wasmtime (once per process) rather than
+  reading the compiler's own constants, because the point is what the linked
+  `tcl_runtime.wasm` was built against. The harness refuses on the two fields
+  the plan names, the ABI version and the intrinsic-table hash, and on a module
+  that states nothing; the environment and the rest are the VM's to check. Every
+  module `wasm_real_link.rs` and `wasm_tiers.rs` link goes through it, so each
+  existing case is also a positive control.
+- **D7.29** The custom section is written where the module's other sections
+  are. The plan names `rust/tcl-compiler/src/codegen/wasm/encoding.rs`, which
+  holds the LEB128 and string helpers and no section layout; `WasmModule::to_bytes`
+  (`ir.rs`) writes the section after every other, through `encode_string` for its
+  name, and its content is `ArtefactIdentityManifest::to_bytes`, the one encoder
+  (D7.2). `WasmModule::manifest` is an `Option`: a module a test builds by hand
+  states none and gets no section, and the link harness refuses a real module
+  that states none (`LinkRefusal::NoManifest`).
+- **D7.30** The fuzz exit's pair, releases and triage rule. The campaign runs
+  `tclvm` as the subject and `runtime-rust` as the reference (CC5.2 ran the
+  reverse), at 9.0, 8.6 and 8.4 where CC5.2 ran two: the item changes what both
+  runtimes read as a pin, and the legacy `trace` and `namespace` forms are
+  release-gated, so the oldest release is where a wrong gate shows. Each release
+  runs in two seed ranges, to about twenty minutes in all. A divergence between
+  two engines says one of them is wrong and not which, so each finding is run
+  against the C Tcl of its own release (`tclsh8.4`, `tclsh8.6`, `tclsh9.0`, from
+  the trees under `tmp/`) and read as the defect of whichever engine disagrees
+  with it, and each is replayed on the binaries CC5.2's campaign used, the
+  oldest the lane has, which predate steps 6 and 7; the replay tells a divergence
+  this item moved from one it found. The `return` defect of issue
+  #2291 is excluded as such: a `return` whose value word holds a backslash
+  escape and no `$` or `[`. All 24 findings reproduce identically there, so
+  CC7.4 moved none and caused none, and the exit is "no regression", not "no
+  finding"; they are in the row and in *CC7.5 — what the next items read*.
 - **D8.1** `Engine::set_release` is slice 4's. **D8.2** `docker.rs` stays
   registry-free; `tcl docker create` computes native extensions.
 - **D9.1** Versioned stamps are `StampWindow<T>` slices mirroring

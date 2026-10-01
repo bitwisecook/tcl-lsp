@@ -292,8 +292,10 @@ deliberate divergences; everything else matches C per the parity suites.
    command: its source text is compiled plain and the frame resumes at the
    instruction's continuation label. Its length/cmd-count operands are
    carried for disassembly parity. Binding provenance and intrinsic guard
-   eligibility stay separate mechanisms — the guard table is what
-   `bump_cmd_epoch` clears
+   eligibility stay separate mechanisms — the guard table is keyed by
+   command token generation and read live, so a command-table mutation
+   invalidates only that command's guards and `bump_cmd_epoch` clears the
+   resolution memo alone
    ([../compiler/registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
    § *Codegen and the registry today*).
 6. **`arrayExistsImm`/`arrayExistsStk` skip C's `TclCheckArrayTraces`** — the

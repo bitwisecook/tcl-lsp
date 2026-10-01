@@ -24,42 +24,31 @@
 
 use std::ops::{Deref, DerefMut};
 
-use tcl_registry::hooks::LoweringHookId;
-use tcl_registry::{CommandRegistry, IntrinsicId, SemanticOperationId};
+use tcl_registry::{CommandRegistry, SemanticOperationId};
 
-use crate::analyses::{ConstValue, LatticeValue};
 use crate::backend_registry::{
     BackendDeclineReason, BackendPlanKind, BackendRegistry, BackendSelection, BackendSelector,
     SelectionFacts, SelectionInput, SelectionRegion, SelectorDecision, SelectorPriority,
     SelectorRequest,
 };
-use crate::common_aot_plan::{
-    ClosedProgramCoverageDecision, ClosedProgramStatementEvidence, CommonAotEnvironment,
-    CommonAotProofPlan, DirectActualValue, DirectCallSiteId, DirectProcBodyDecision,
-    DirectProcDecision, MaterialisableSlotDecision, SemanticCallArgument, SemanticCallDecision,
-};
+use crate::common_aot_plan::{CommonAotEnvironment, NativeDecline};
 use crate::compilation_unit::CompilationUnit;
 use crate::executable_ir::{
     ExecutableFunction, ExecutableInstruction, InvocationResolution, SourceCompatibilityDecline,
 };
 use crate::mixed_region_plan::{GuardedSelectionEvidence, InvocationSelection, RegionPlan};
-use crate::native_integer_proof::{
-    NativeAddDecision, NativeAddExecution, NativeAddResult, NativeIntegerPolicy,
-    NativeIntegerProof, prove_native_integer_adds,
-};
 use crate::native_lowering::NativeTierReport;
 use crate::semantic_analysis::{ExecutableAnalysisAvailability, MixedRegionPlanAvailability};
 use crate::semantic_optimisation::{SemanticOptimisationConfig, SemanticOptimisationPassId};
 use crate::target_contract::{
     LegalisationRequirements, TargetCapabilities, TargetContract, TargetFamily,
 };
-use crate::types::TypeShape;
 
 use super::semantic_plan::{
     WasmExecutableInvokeDecline, WasmGenericInvokePlan, plan_wasm_generic_invoke_named,
     validate_plan_layout,
 };
-use super::{RESERVED_DATA_BASE, WasmModule, backend};
+use super::{RESERVED_DATA_BASE, WasmModule, backend, native_add};
 use backend::WasmEmissionMode;
 
 /// Packaging and semantic-plan policy for [`compile_wasm`].
@@ -201,6 +190,11 @@ impl WasmCompileOptions {
     #[must_use]
     pub const fn semantic_optimisations(self) -> SemanticOptimisationConfig {
         self.semantic_optimisations
+    }
+
+    /// Whether the target lowers semantic plans at all.
+    pub(super) const fn semantic_plans_enabled(self) -> bool {
+        matches!(self.plan_policy, WasmPlanPolicy::SemanticFirst)
     }
 
     pub(super) const fn is_standalone(self) -> bool {
@@ -372,6 +366,8 @@ pub enum WasmCodegenPlan {
         operation: SemanticOperationId,
         /// Target-neutral evidence for every executable semantic region.
         region_plan: MixedRegionPlanAvailability,
+        /// Every premise the sealed native i64 addition rejected.
+        native_declines: Vec<NativeDecline>,
     },
     /// General structured lowering ran in the same emitter.
     General {
@@ -379,6 +375,8 @@ pub enum WasmCodegenPlan {
         semantic_decline: WasmSemanticDecline,
         /// Target-neutral region evidence retained even when WASM selection declines.
         region_plan: MixedRegionPlanAvailability,
+        /// Every premise the sealed native i64 addition rejected.
+        native_declines: Vec<NativeDecline>,
     },
 }
 
@@ -432,6 +430,21 @@ impl WasmCodegenPlan {
             Self::NativeI64Add { region_plan, .. }
             | Self::GenericInvoke { region_plan, .. }
             | Self::General { region_plan, .. } => region_plan,
+        }
+    }
+
+    /// Every premise of the sealed native i64 addition this compile rejected,
+    /// in evaluation order; empty when the addition was selected.
+    #[must_use]
+    pub fn native_declines(&self) -> &[NativeDecline] {
+        match self {
+            Self::NativeI64Add { .. } => &[],
+            Self::GenericInvoke {
+                native_declines, ..
+            }
+            | Self::General {
+                native_declines, ..
+            } => native_declines,
         }
     }
 }
@@ -529,22 +542,25 @@ pub fn compile_wasm(
         .top_level
         .semantic_facts
         .mixed_plan_with_optimisations(options.semantic_optimisations());
-    if let Some(native) = select_native_i64_add_plan(unit, registry, options) {
-        let (module, report) = backend::emit_wasm(
-            unit,
-            registry,
-            options,
-            WasmEmissionMode::NativeI64Add(&native),
-        );
-        return WasmCompilation {
-            module,
-            plan: WasmCodegenPlan::NativeI64Add {
-                native,
-                region_plan,
-            },
-            native: report,
-        };
-    }
+    let native_declines = match native_add::select(unit, registry, options) {
+        Ok(native) => {
+            let (module, report) = backend::emit_wasm(
+                unit,
+                registry,
+                options,
+                WasmEmissionMode::NativeI64Add(&native),
+            );
+            return WasmCompilation {
+                module,
+                plan: WasmCodegenPlan::NativeI64Add {
+                    native,
+                    region_plan,
+                },
+                native: report,
+            };
+        }
+        Err(declines) => declines,
+    };
     let (semantic_plan, evidence) = match select_semantic_plan(unit, options) {
         Ok(plan) => match validate_plan_layout(&plan, options.data_base) {
             Ok(()) => {
@@ -554,6 +570,7 @@ pub fn compile_wasm(
                     WasmCodegenPlan::GenericInvoke {
                         operation,
                         region_plan: region_plan.clone(),
+                        native_declines,
                     },
                 )
             }
@@ -562,6 +579,7 @@ pub fn compile_wasm(
                 WasmCodegenPlan::General {
                     semantic_decline: WasmSemanticDecline::PlanLayout(decline),
                     region_plan: region_plan.clone(),
+                    native_declines,
                 },
             ),
         },
@@ -570,6 +588,7 @@ pub fn compile_wasm(
             WasmCodegenPlan::General {
                 semantic_decline,
                 region_plan: region_plan.clone(),
+                native_declines,
             },
         ),
     };
@@ -586,215 +605,6 @@ pub fn compile_wasm(
         module,
         plan: evidence,
         native,
-    }
-}
-
-fn select_native_i64_add_plan(
-    unit: &CompilationUnit,
-    registry: &CommandRegistry,
-    options: WasmCompileOptions,
-) -> Option<WasmNativeI64AddSelection> {
-    let config = options.semantic_optimisations();
-    let required = [
-        SemanticOptimisationPassId::DirectProc,
-        SemanticOptimisationPassId::MaterialisableSlot,
-        SemanticOptimisationPassId::FrameElision,
-        SemanticOptimisationPassId::NativeInteger,
-        SemanticOptimisationPassId::SemanticOperationSpecialisation,
-    ];
-    if !matches!(options.plan_policy, WasmPlanPolicy::SemanticFirst)
-        || options.is_standalone()
-        || options.common_aot_environment() != CommonAotEnvironment::SealedProgram
-        || required.into_iter().any(|pass| !config.is_enabled(pass))
-    {
-        return None;
-    }
-
-    let common = CommonAotProofPlan::build(
-        unit,
-        registry,
-        unit.top_level.semantic_facts.context(),
-        config,
-        options.common_aot_environment(),
-    );
-    if !common.coverage_declines().is_empty() {
-        return None;
-    }
-    common.direct_calls().find_map(|(site, decision)| {
-        let DirectProcDecision::Selected(direct) = decision else {
-            return None;
-        };
-        let DirectProcBodyDecision::Selected(_) = &direct.body else {
-            return None;
-        };
-        let (covered_left, covered_right, closed_program_statements) =
-            selected_closed_native_coverage(&common, site, direct)?;
-        if !direct.frame_elidable
-            || !direct.frame_escape_private
-            || direct.formals.len() != 2
-            || direct.actual_values.len() != 2
-            || !direct.actual_values.iter().all(|actual| {
-                matches!(actual, DirectActualValue::Ssa(value) if selected_materialisable_identity(&common, value))
-            })
-        {
-            return None;
-        }
-
-        let boundary_operation = selected_native_boundary(&common, site)?;
-        let NativeIntegerProof::Analysed(decisions) = prove_native_integer_adds(
-            unit,
-            &direct.callee.qualified_name,
-            registry,
-            config,
-            NativeIntegerPolicy::default(),
-            &common,
-        ) else {
-            return None;
-        };
-        let NativeAddDecision::Proven(native) = decisions.as_slice().first()? else {
-            return None;
-        };
-        if decisions.len() != 1
-            || native.site.result != NativeAddResult::FunctionReturn
-            || native.execution != NativeAddExecution::OverflowImpossible
-            || native.composition.direct_calls.as_slice() != [site.clone()]
-            || !native.composition.requires_frame_plan
-            || !native.composition.requires_internal_operation_guard_or_sealed_policy
-            || !selected_materialisable_int(
-                &common,
-                &direct.callee.qualified_name,
-                native.left.value,
-            )
-            || !selected_materialisable_int(
-                &common,
-                &direct.callee.qualified_name,
-                native.right.value,
-            )
-        {
-            return None;
-        }
-        let left = exact_i64(native.left.range)?;
-        let right = exact_i64(native.right.range)?;
-        if (left, right) != (covered_left, covered_right) {
-            return None;
-        }
-        Some(WasmNativeI64AddSelection {
-            callee: direct.callee.clone(),
-            left,
-            right,
-            boundary_operation,
-            frame_elided: true,
-            closed_program_statements,
-        })
-    })
-}
-
-fn selected_materialisable_int(
-    common: &CommonAotProofPlan,
-    function: &str,
-    value: crate::ssa::ValueKey,
-) -> bool {
-    common.materialisable_slots().any(|(identity, decision)| {
-        identity.function == function
-            && (identity.symbol, identity.version) == value
-            && matches!(
-                decision,
-                MaterialisableSlotDecision::Selected(evidence) if evidence.shape == TypeShape::Int
-            )
-    })
-}
-
-fn selected_materialisable_identity(
-    common: &CommonAotProofPlan,
-    value: &crate::common_aot_plan::SsaValueIdentity,
-) -> bool {
-    common.materialisable_slots().any(|(identity, decision)| {
-        identity == value
-            && matches!(
-                decision,
-                MaterialisableSlotDecision::Selected(evidence) if evidence.shape == TypeShape::Int
-            )
-    })
-}
-
-fn selected_closed_native_coverage(
-    common: &CommonAotProofPlan,
-    direct_site: &DirectCallSiteId,
-    direct: &crate::common_aot_plan::DirectProcEvidence,
-) -> Option<(i64, i64, u32)> {
-    let coverage = match common.closed_program_coverage() {
-        ClosedProgramCoverageDecision::Selected(coverage) => coverage,
-        ClosedProgramCoverageDecision::Declined(_) => return None,
-    };
-    let [
-        ClosedProgramStatementEvidence::DirectProcedureDefinition { procedure, .. },
-        ClosedProgramStatementEvidence::DirectActualConstant {
-            value: first,
-            constant: left,
-            operation: left_operation,
-            ..
-        },
-        ClosedProgramStatementEvidence::DirectActualConstant {
-            value: second,
-            constant: right,
-            operation: right_operation,
-            ..
-        },
-        ClosedProgramStatementEvidence::SemanticBoundary { call, operation },
-    ] = coverage.statements.as_slice()
-    else {
-        return None;
-    };
-    if !(procedure == &direct.callee
-        && matches!(
-            direct.actual_values.as_slice(),
-            [DirectActualValue::Ssa(left), DirectActualValue::Ssa(right)] if left == first && right == second
-        )
-        && call.function == direct_site.function
-        && call.block == direct_site.block
-        && call.statement_index == direct_site.statement_index
-        && call.nested_argument.is_none()
-        && *operation == SemanticOperationId::Intrinsic(IntrinsicId::ChannelWrite)
-        && *left_operation == SemanticOperationId::StructuredLowering(LoweringHookId::Set)
-        && *right_operation == SemanticOperationId::StructuredLowering(LoweringHookId::Set))
-    {
-        return None;
-    }
-    let statement_count = u32::try_from(coverage.statements.len()).ok()?;
-    Some((lattice_i64(left)?, lattice_i64(right)?, statement_count))
-}
-
-fn lattice_i64(value: &LatticeValue) -> Option<i64> {
-    match value {
-        LatticeValue::Const(ConstValue::Int(value)) => Some(*value),
-        LatticeValue::Unknown
-        | LatticeValue::Const(ConstValue::Float(_) | ConstValue::Bool(_) | ConstValue::String(_))
-        | LatticeValue::ConstSet(_)
-        | LatticeValue::Overdefined => None,
-    }
-}
-
-fn selected_native_boundary(
-    common: &CommonAotProofPlan,
-    direct_site: &DirectCallSiteId,
-) -> Option<SemanticOperationId> {
-    common.semantic_calls().find_map(|(_, decision)| {
-        let SemanticCallDecision::Selected(evidence) = decision else {
-            return None;
-        };
-        (evidence.operation == SemanticOperationId::Intrinsic(IntrinsicId::ChannelWrite)
-            && matches!(
-                evidence.arguments.as_slice(),
-                [SemanticCallArgument::NestedDirect { outer_argument: 0, call }] if call == direct_site
-            ))
-        .then_some(evidence.operation)
-    })
-}
-
-fn exact_i64(interval: crate::intervals::Interval) -> Option<i64> {
-    match (interval.lo, interval.hi) {
-        (Some(value), Some(same)) if value == same => Some(value),
-        _ => None,
     }
 }
 

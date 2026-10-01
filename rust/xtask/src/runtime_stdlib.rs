@@ -110,6 +110,15 @@ pub fn run() -> Result<ExitCode> {
     if embedded != owner_files {
         bail!("embedded stdlib FILES table disagrees with manifest read-closure");
     }
+    let revision = embedded_revision(&manifest);
+    if revision != tcl_runtime_api::manifest::EMBEDDED_STDLIB_REVISION {
+        bail!(
+            "EMBEDDED_STDLIB_REVISION in rust/tcl-runtime-api/src/manifest.rs is {:?}, but the \
+             vendored library's manifest says {revision:?}: every artefact states the revision \
+             of the library it assumed, so update the constant with the library",
+            tcl_runtime_api::manifest::EMBEDDED_STDLIB_REVISION
+        );
+    }
     let init = fs::read_to_string(root.join(VENDOR_DIR).join("init.tcl"))?;
     let exact = format!("package require -exact tcl {expected_patch}");
     if !init.lines().any(|line| line.trim() == exact) {
@@ -127,6 +136,29 @@ pub fn run() -> Result<ExitCode> {
         manifest.source_revision
     );
     Ok(ExitCode::SUCCESS)
+}
+
+/// The revision the runtimes state of the library they embed: the patchlevel,
+/// the first twelve characters of the upstream commit, and the first twelve of
+/// the SHA-256 over the embedded files' paths and hashes, so a refreshed file
+/// moves it whichever way the refresh was made.
+fn embedded_revision(manifest: &Manifest) -> String {
+    let mut embedded: Vec<&FileEntry> = manifest.files.iter().filter(|e| e.embedded).collect();
+    embedded.sort_by(|a, b| a.path.cmp(&b.path));
+    let mut hasher = Sha256::new();
+    for entry in embedded {
+        hasher.update(format!("{}\t{}\n", entry.path, entry.sha256));
+    }
+    let mut digest = String::with_capacity(64);
+    for byte in hasher.finalize() {
+        write!(&mut digest, "{byte:02x}").expect("writing a digest to a String cannot fail");
+    }
+    format!(
+        "{}+{}.{}",
+        manifest.tcl_patchlevel,
+        &manifest.source_revision[..12],
+        &digest[..12]
+    )
 }
 
 /// Every three-component Tcl patchlevel the text names, so a patchlevel left
@@ -184,6 +216,58 @@ fn embedded_owner_files(source: &str) -> Result<BTreeSet<String>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn entry(path: &str, sha256: &str, embedded: bool) -> FileEntry {
+        FileEntry {
+            path: path.to_owned(),
+            source: path.to_owned(),
+            sha256: sha256.to_owned(),
+            embedded,
+        }
+    }
+
+    fn manifest(files: Vec<FileEntry>) -> Manifest {
+        Manifest {
+            schema_version: 1,
+            tcl_patchlevel: "9.0.4".to_owned(),
+            source_url: "https://example.invalid/tcl".to_owned(),
+            source_revision: "0123456789abcdef0123456789abcdef01234567".to_owned(),
+            files,
+        }
+    }
+
+    #[test]
+    fn the_revision_moves_with_every_embedded_file_and_no_other() {
+        let base = embedded_revision(&manifest(vec![
+            entry("b.tcl", "bb", true),
+            entry("a.tcl", "aa", true),
+            entry("license.terms", "ll", false),
+        ]));
+        assert!(base.starts_with("9.0.4+0123456789ab."), "{base}");
+        assert_eq!(base.len(), "9.0.4+0123456789ab.".len() + 12);
+
+        // Listing order, and what is not embedded, do not matter.
+        assert_eq!(
+            base,
+            embedded_revision(&manifest(vec![
+                entry("license.terms", "changed", false),
+                entry("a.tcl", "aa", true),
+                entry("b.tcl", "bb", true),
+            ]))
+        );
+        // A file that changes, goes or arrives does.
+        for changed in [
+            vec![entry("b.tcl", "bX", true), entry("a.tcl", "aa", true)],
+            vec![entry("a.tcl", "aa", true)],
+            vec![
+                entry("b.tcl", "bb", true),
+                entry("a.tcl", "aa", true),
+                entry("c.tcl", "cc", true),
+            ],
+        ] {
+            assert_ne!(base, embedded_revision(&manifest(changed)));
+        }
+    }
 
     #[test]
     fn parses_only_the_files_table_literals() {

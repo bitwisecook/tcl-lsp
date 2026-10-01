@@ -71,14 +71,16 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use tcl_compiler::codegen::wasm::{
-    SemanticOptimisationPassId, WasmCompileOptions, WasmModule, WasmOp, compile_wasm,
+    SemanticOptimisationConfig, SemanticOptimisationPassId, WasmCodegenPlan, WasmCompileOptions,
+    WasmModule, WasmOp, compile_wasm,
 };
+use tcl_compiler::common_aot_plan::NativePremise;
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_registry::CommandRegistry;
 use tcl_runtime_api::codegen_abi::CodegenAbiImportId;
 
 mod common;
-use common::wasm_link::{REQUIRE_VAR, real_link_runtime, scratch, workspace_root};
+use common::wasm_link::{REQUIRE_VAR, check_manifest, real_link_runtime, scratch, workspace_root};
 
 /// Set this to rewrite [`BUDGETS_PATH`] from the current emitter instead of
 /// asserting against it. Reviewing that diff is the point of the golden.
@@ -392,8 +394,12 @@ fn run_linked(runtime: &Path, sample: &Sample, plan: Plan) -> RunOutcome {
     let mut module = compile(sample, plan);
     let tag = format!("{}_{}_{}", sample.tier, sample.name, plan.as_str());
     let path = scratch(&format!("wasm_tiers_{tag}.wasm"));
-    std::fs::write(&path, module.to_bytes())
-        .unwrap_or_else(|e| panic!("write {}: {e}", path.display()));
+    let bytes = module.to_bytes();
+    // The runtime states the ABI and intrinsic table it was built against, and
+    // a sample emitted for another is not linked.
+    check_manifest(runtime, &bytes)
+        .unwrap_or_else(|refusal| panic!("{tag} was not linked: {refusal:?}"));
+    std::fs::write(&path, bytes).unwrap_or_else(|e| panic!("write {}: {e}", path.display()));
 
     let out = Command::new("wasmtime")
         .arg("run")
@@ -636,6 +642,76 @@ fn the_expected_divergence_ledger_is_well_formed() {
             );
         }
     }
+}
+
+/// A sealed native addition that is not selected names every premise that
+/// rejected it, not the first: the environment, each pass left off, the
+/// closed-program accounting the environment denies, and the one call the
+/// direct-procedure proof declined. Requested in full and sealed, the same
+/// program is selected and rejects nothing.
+#[test]
+fn a_failed_native_add_names_every_rejected_premise() {
+    const PROGRAM: &str =
+        "proc add {b c} {return [expr {$b + $c}]}\nset d 2\nset e 4\nputs [add $d $e]\n";
+    let registry = CommandRegistry::build_default();
+    let unit = CompilationUnit::build_for_dialect(PROGRAM, &registry, false, "tcl9.0");
+
+    let mut requested = SemanticOptimisationConfig::new();
+    for pass in [
+        SemanticOptimisationPassId::DirectProc,
+        SemanticOptimisationPassId::MaterialisableSlot,
+        SemanticOptimisationPassId::FrameElision,
+        SemanticOptimisationPassId::NativeInteger,
+        SemanticOptimisationPassId::SemanticOperationSpecialisation,
+    ] {
+        requested.enable(pass);
+    }
+    let sealed = WasmCompileOptions::hosted()
+        .for_sealed_program()
+        .with_semantic_optimisations(requested);
+    let selected = compile_wasm(&unit, &registry, sealed).plan;
+    assert!(matches!(selected, WasmCodegenPlan::NativeI64Add { .. }));
+    assert!(selected.native_declines().is_empty());
+
+    let mut partial = requested;
+    partial.disable(SemanticOptimisationPassId::DirectProc);
+    partial.disable(SemanticOptimisationPassId::NativeInteger);
+    let hosted = WasmCompileOptions::hosted().with_semantic_optimisations(partial);
+    let plan = compile_wasm(&unit, &registry, hosted).plan;
+    assert!(!matches!(plan, WasmCodegenPlan::NativeI64Add { .. }));
+    let rejected: Vec<_> = plan
+        .native_declines()
+        .iter()
+        .map(|decline| (decline.premise, decline.reason.as_str()))
+        .collect();
+    assert_eq!(
+        rejected,
+        [
+            (NativePremise::SealedProgram, "hosted-environment"),
+            (
+                NativePremise::Pass(SemanticOptimisationPassId::DirectProc),
+                "pass-disabled"
+            ),
+            (
+                NativePremise::Pass(SemanticOptimisationPassId::NativeInteger),
+                "pass-disabled"
+            ),
+            (NativePremise::ClosedProgram, "hosted-environment"),
+            (NativePremise::DirectCall, "pass-disabled"),
+        ]
+    );
+    let call = plan
+        .native_declines()
+        .last()
+        .expect("the direct call's decline");
+    assert_eq!(
+        call.sites
+            .iter()
+            .map(|site| (site.function.as_str(), site.nested_argument))
+            .collect::<Vec<_>>(),
+        [("::top", Some(0))],
+        "the decline names the call it concerns"
+    );
 }
 
 /// The gate variable is spelled the same here as in `wasm_real_link.rs`, so

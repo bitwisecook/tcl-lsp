@@ -259,6 +259,15 @@ fn serialise_children(stmt: &Statement, li: &LineIndex, source: &str) -> Option<
     }
 }
 
+/// The `aot` view's payload: the codegen plan the `wasm` view's module header
+/// carries, so the plan is serialised once and the two views cannot disagree.
+fn wasm_codegen_plan(wasm: &Value) -> Value {
+    wasm.get(0)
+        .and_then(|header| header.get("codegenPlan"))
+        .cloned()
+        .unwrap_or(Value::Null)
+}
+
 /// Serialise the `semanticOptimisations` view: one row per pass, in
 /// [`SemanticOptimisationPassId::all`] order, with the state the shown
 /// `wasm` module was built with.
@@ -324,6 +333,7 @@ fn serialise_wasm_with_options(
         header.insert("text".to_owned(), Value::String(wat));
         let (region_status, regions, region_decline) =
             serialise_wasm_region_plan(wasm.plan.region_plan());
+        let native_declines = serialise_native_declines(wasm.plan.native_declines());
         let plan = match &wasm.plan {
             WasmCodegenPlan::NativeI64Add { native, .. } => json!({
                 "kind": wasm.plan.as_str(),
@@ -342,6 +352,7 @@ fn serialise_wasm_with_options(
                 "regionPlanStatus": region_status,
                 "regionPlanDecline": region_decline,
                 "regions": regions,
+                "nativeDeclines": native_declines,
             }),
             WasmCodegenPlan::GenericInvoke { .. } => json!({
                 "kind": wasm.plan.as_str(),
@@ -350,6 +361,7 @@ fn serialise_wasm_with_options(
                 "regionPlanStatus": region_status,
                 "regionPlanDecline": region_decline,
                 "regions": regions,
+                "nativeDeclines": native_declines,
             }),
             WasmCodegenPlan::General {
                 semantic_decline, ..
@@ -379,6 +391,7 @@ fn serialise_wasm_with_options(
                     "regionPlanStatus": region_status,
                     "regionPlanDecline": region_decline,
                     "regions": regions,
+                    "nativeDeclines": native_declines,
                 })
             }
         };
@@ -456,6 +469,62 @@ fn serialise_native_tier(report: &tcl_compiler::native_lowering::NativeTierRepor
     json!({
         "enabled": report.enabled,
         "functions": Value::Object(functions),
+    })
+}
+
+/// Every premise the sealed native i64 addition rejected, in evaluation
+/// order. Empty when the addition was selected.
+fn serialise_native_declines(declines: &[tcl_compiler::common_aot_plan::NativeDecline]) -> Value {
+    Value::Array(
+        declines
+            .iter()
+            .map(|decline| {
+                json!({
+                    "premise": decline.premise.as_str(),
+                    "reason": decline.reason.as_str(),
+                    "detail": native_decline_detail(decline),
+                    "sites": decline.sites.iter().map(direct_site_identity).collect::<Vec<_>>(),
+                })
+            })
+            .collect(),
+    )
+}
+
+/// The typed extras a decline carries beyond its premise and reason.
+fn native_decline_detail(decline: &tcl_compiler::common_aot_plan::NativeDecline) -> Value {
+    use tcl_compiler::common_aot_plan::{
+        DirectProcBodyDecline, DirectProcDecline, NativeDeclineReason, NativePremise,
+    };
+    match (&decline.premise, &decline.reason) {
+        (NativePremise::Pass(pass), _) => json!({ "pass": pass.as_str() }),
+        (_, NativeDeclineReason::ExcludedSurfaces(surfaces)) => json!({
+            "surfaces": surfaces
+                .iter()
+                .copied()
+                .map(tcl_compiler::common_aot_plan::CommonAotCoverageDecline::as_str)
+                .collect::<Vec<_>>(),
+        }),
+        (
+            _,
+            NativeDeclineReason::DirectCall(DirectProcDecline::ArityMismatch { expected, actual }),
+        ) => json!({ "expected": expected, "actual": actual }),
+        (
+            _,
+            NativeDeclineReason::DirectBody(
+                DirectProcBodyDecline::InternalDispatchUntrusted { operation }
+                | DirectProcBodyDecline::InternalExecutionTrace { operation },
+            ),
+        ) => json!({ "operation": serialise_semantic_operation(Some(*operation)) }),
+        _ => json!({}),
+    }
+}
+
+fn direct_site_identity(site: &tcl_compiler::common_aot_plan::DirectCallSiteId) -> Value {
+    json!({
+        "function": site.function,
+        "block": site.block.0,
+        "statementIndex": site.statement_index,
+        "nestedArgument": site.nested_argument,
     })
 }
 
@@ -3377,10 +3446,9 @@ pub fn serialise_result_with_optimisations(
     // and surface its WAT plus the rich per-instruction
     // explorer shape (resolved `call`/branch targets, per-instruction ranges)
     // alongside per-function headers, which the text/`wasm` view renders.
-    out.insert(
-        "wasm".to_owned(),
-        serialise_wasm_with_options(result, options),
-    );
+    let wasm = serialise_wasm_with_options(result, options);
+    out.insert("aot".to_owned(), wasm_codegen_plan(&wasm));
+    out.insert("wasm".to_owned(), wasm);
     out.insert(
         "wasmOptimised".to_owned(),
         opt.as_ref().map_or(Value::Null, |(r, _)| {
@@ -3425,8 +3493,9 @@ mod tests {
             assert!(entry["shortName"].as_str().is_some_and(|s| !s.is_empty()));
         }
         // The original 27 views, plus World SSA, six durable compiler
-        // artefact views, and the optimisation-pass toggle surface.
-        assert_eq!(meta["views"].as_array().unwrap().len(), 35);
+        // artefact views, the optimisation-pass toggle surface and the AOT
+        // plan.
+        assert_eq!(meta["views"].as_array().unwrap().len(), 36);
         assert_eq!(meta["severities"], json!(["error", "warning", "info"]));
         let traits = meta["traits"]
             .as_array()
@@ -3535,6 +3604,65 @@ mod tests {
         );
         assert_eq!(plan["nativeI64Add"]["frameElided"], true);
         assert_eq!(plan["nativeI64Add"]["closedProgramStatements"], 4);
+        assert_eq!(plan["nativeDeclines"], json!([]), "nothing rejected it");
+    }
+
+    /// The `aot` payload is the `wasm` header's plan, and the plan names each
+    /// premise the sealed native addition rejected: typed, in evaluation
+    /// order, with the call each concerns.
+    #[test]
+    fn aot_view_carries_the_plan_and_every_rejected_native_premise() {
+        let result = run_pipeline(
+            "proc add {b c} {return [expr {$b + $c}]}\nset d 2\nset e 4\nputs [add $d $e]\n",
+            "tcl9.0",
+        );
+        let mut config = SemanticOptimisationConfig::new();
+        for pass in [
+            SemanticOptimisationPassId::DirectProc,
+            SemanticOptimisationPassId::MaterialisableSlot,
+            SemanticOptimisationPassId::FrameElision,
+            SemanticOptimisationPassId::SemanticOperationSpecialisation,
+        ] {
+            config.enable(pass);
+        }
+        let data = serialise_result_with_optimisations(&result, config);
+        assert_eq!(data["aot"], data["wasm"][0]["codegenPlan"]);
+
+        let declines = data["aot"]["nativeDeclines"]
+            .as_array()
+            .expect("the native record");
+        let named: Vec<(&str, &str)> = declines
+            .iter()
+            .map(|decline| {
+                (
+                    decline["premise"].as_str().expect("a premise"),
+                    decline["reason"].as_str().expect("a reason"),
+                )
+            })
+            .collect();
+        assert_eq!(
+            named,
+            [
+                ("sealed-program", "hosted-environment"),
+                ("pass", "pass-disabled"),
+                ("closed-program", "hosted-environment"),
+                ("direct-body", "native-integer-pass-disabled"),
+                ("frame", "frame-not-elidable"),
+                ("actuals", "hosted-top-level-observable"),
+                ("native-integer", "pass-disabled"),
+            ]
+        );
+        assert_eq!(declines[0]["sites"], json!([]));
+        assert_eq!(declines[1]["detail"], json!({ "pass": "native-integer" }));
+        assert_eq!(
+            declines[3]["sites"],
+            json!([{
+                "function": "::top",
+                "block": 0,
+                "statementIndex": 3,
+                "nestedArgument": 0,
+            }])
+        );
     }
 
     /// The toggle surface a front end renders from: every pass, in a stable

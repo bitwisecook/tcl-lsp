@@ -172,6 +172,64 @@ mod tests {
         assert!(module.top_level.site_claims.is_empty());
     }
 
+    /// The manifest's packs are the claims' stamps, sorted, each once,
+    /// however many sites and functions claim it.
+    #[test]
+    fn a_manifests_packs_are_the_claims_stamps_each_once() {
+        fn other_origin() -> PackOrigin {
+            PackOrigin {
+                pack: "another".to_owned(),
+                content_hash: 9,
+                vocabulary_version: "2".to_owned(),
+            }
+        }
+        let fold = |name: &'static str| CommandSpec {
+            name,
+            const_fold: Some(double),
+            ..CommandSpec::DEFAULT
+        };
+        let mut registry = CommandRegistry::build_default();
+        install(&mut registry, fold("vendor::double"));
+        let spec: &'static CommandSpec = Box::leak(Box::new(fold("another::double")));
+        registry.insert_static(spec);
+        registry.insert_pack_origin(spec, other_origin());
+
+        let module = compile(
+            "set a [vendor::double 1]\nset b [vendor::double 2]\nset c [another::double 3]\n\
+             proc p {} {set d [vendor::double 4]; set e [another::double 5]}",
+            &registry,
+        );
+        let vendor = stamp(&registry);
+        let another = pack_fact_stamp(
+            &other_origin(),
+            registry.overlay_generation().unwrap_or(0),
+            evaluator_revision(),
+        );
+        let mut expected = vec![vendor, another];
+        expected.sort();
+        let manifest = module.manifest.as_ref().expect("the compiler fills it");
+        assert_eq!(manifest.packs, expected);
+        assert_eq!(manifest.packs, module.claimed_packs());
+        assert!(
+            module
+                .procedures
+                .values()
+                .any(|p| !p.site_claims.is_empty()),
+            "the procedure's claims are in the union too"
+        );
+
+        let bare = compile(
+            "set x [vendor::double 21]",
+            &CommandRegistry::build_default(),
+        );
+        assert!(
+            bare.manifest
+                .expect("the compiler fills it")
+                .packs
+                .is_empty()
+        );
+    }
+
     /// Rung 2 on the inline path: a pack command whose `alias_of lindex`
     /// carries `lindex`'s own inline hook records the target's binding and
     /// the claim beside it.

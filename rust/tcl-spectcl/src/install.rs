@@ -144,14 +144,14 @@ fn install_into(
         }
         let provenance = pack.provenance();
         for command in &pack.commands {
-            // The stamp rejection rule runs where a set is assembled
-            // (`pack::load_sources`, and the studio's own set): no
-            // codegen-axis stamp reaches a registry from a provenance whose
-            // tier gate refuses one.
+            // The gates run where a set is assembled (`pack::load_sources`,
+            // and the studio's own set): no codegen-axis stamp reaches a
+            // registry from a provenance, or a package, whose gate refuses
+            // one, and no declaration from a package whose capability holds
+            // neither.
             debug_assert!(
-                crate::stamps::stamps_admitted_from(provenance)
-                    || !crate::stamps::carries_stamp(command.spec),
-                "a codegen-axis stamp on `{}` survived from a {} pack",
+                passed_the_gates(command, provenance),
+                "`{}` from a {} pack reached an install past a gate it fails",
                 command.spec.name,
                 tcl_registry::model::provenance_label(provenance),
             );
@@ -181,6 +181,16 @@ fn install_into(
             }
         }
     }
+}
+
+/// Whether `command` left the load as its gates would have it: a codegen-axis
+/// stamp only from a provenance and a package that admit one, and `alias_of`
+/// or a `runtime_backing` only from a tier whose capability holds them.
+/// [`install_into`] asserts it.
+fn passed_the_gates(command: &PackCommand, provenance: tcl_dialect::model::Provenance) -> bool {
+    (crate::stamps::stamps_admitted(provenance, command.dependency_tier)
+        || !crate::stamps::carries_stamp(command.spec))
+        && crate::stamps::declaration_refusals(command.spec, command.dependency_tier).is_empty()
 }
 
 /// The origin `command` of `pack` installs with — the pack's name, the
@@ -229,6 +239,7 @@ mod tests {
             tier: Tier::Workspace,
             path,
             origin: Origin::DotDir,
+            dependency_tier: None,
         }])
     }
 
@@ -282,6 +293,41 @@ mod tests {
             .expect("the effective index includes the installed pack command");
         assert_eq!(facts.traits(), spec.traits);
         assert_eq!(facts.lowering_hook(), spec.lowering_hook);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The assertion at the install holds the capability gate as well as the
+    /// stamp gate. A command that dodged the load's gate — a transitive
+    /// dependency's `alias_of` — fails it, and the same declaration from a
+    /// direct dependency, the root or a pack no package ships passes.
+    #[test]
+    fn the_install_assertion_holds_the_capability_gate_too() {
+        use tcl_dialect::model::DependencyTier::{Development, Direct, Root, Transitive};
+        let _cache = cache_guard();
+        let dir = tmpdir("gates");
+        let packs = pack_set(
+            &dir,
+            "aliased.tclspec",
+            "speclib aliased 1 {\n  command aliased::unpack {\n    arity 2..\n    \
+             alias_of lassign\n  }\n}\n",
+        );
+        let pack = &packs.packs[0];
+        let mut command = pack.commands[0].clone();
+        assert!(command.spec.alias_of.is_some(), "the declaration loaded");
+        for (tier, passes) in [
+            (None, true),
+            (Some(Root), true),
+            (Some(Direct), true),
+            (Some(Transitive), false),
+            (Some(Development), false),
+        ] {
+            command.dependency_tier = tier;
+            assert_eq!(
+                passed_the_gates(&command, pack.provenance()),
+                passes,
+                "{tier:?}"
+            );
+        }
         let _ = std::fs::remove_dir_all(&dir);
     }
 

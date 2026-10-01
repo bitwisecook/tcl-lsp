@@ -38,7 +38,9 @@
 use std::path::{Path, PathBuf};
 
 use tcl_dialect::model::{Placement, SpecProvider};
-use tcl_spectcl::loader::{EvalOptions, Notice, Pack, evaluate_pack, evaluate_pack_with};
+use tcl_spectcl::loader::{
+    EvalOptions, Notice, Pack, eval_snapshot_key, evaluate_pack, evaluate_pack_with,
+};
 use tcl_spectcl::{LoadError, Tier};
 
 fn repo_root() -> PathBuf {
@@ -944,6 +946,104 @@ fn an_included_fragment_loads_identically_on_both_routes() {
         "{:#?}",
         fast_cycle.notices
     );
+}
+
+/// A pack command's `content_hash` is the value its file's snapshot key
+/// interns — the bytes as read, byte-order mark and all — when nothing is
+/// included, and it follows an `include`: the same root over an edited
+/// fragment hashes differently, and the fragment's own commands carry the
+/// same value as the root's. Both routes fold alike, and a row the loader
+/// drops folds nothing.
+#[test]
+fn a_content_hash_is_the_snapshot_keys_and_follows_an_included_fragment() {
+    let options = |fast_path: bool| EvalOptions {
+        static_fast_path: fast_path,
+        ..EvalOptions::default()
+    };
+    let hash_of = |pack: &Pack| {
+        assert!(pack.notices.is_empty(), "{:#?}", pack.notices);
+        let mut hashes = pack.commands.iter().map(|command| command.content_hash);
+        let first = hashes.next().expect("the pack declares a command");
+        assert!(
+            hashes.all(|hash| hash == first),
+            "every command of one load carries one hash"
+        );
+        first
+    };
+
+    let plain = "\u{feff}speclib probe 2.0 {\n command demo { arity 1 }\n}\n";
+    let stripped = plain.trim_start_matches('\u{feff}');
+    for fast_path in [true, false] {
+        let key = |source: &str| eval_snapshot_key(source, &options(fast_path)).content_hash;
+        assert_eq!(
+            hash_of(&evaluate_pack_with(plain, &options(fast_path))),
+            key(plain),
+            "a root that includes nothing hashes as its snapshot key does"
+        );
+        assert_ne!(
+            key(plain),
+            key(stripped),
+            "the key hashes the mark, so the pack's hash must be taken before it goes"
+        );
+    }
+
+    let root = "speclib probe 2.0 {\n include extra.frag\n command demo { arity 1 }\n}\n";
+    let including = |fragment: &'static str, fast_path: bool| {
+        let resolver = move |name: &str| match name {
+            "extra.frag" => Ok(fragment.to_owned()),
+            other => Err(format!("no such fragment `{other}`")),
+        };
+        tcl_spectcl::loader::evaluate_pack_in(
+            root,
+            &options(fast_path),
+            Some(std::rc::Rc::new(tcl_spectcl::IncludeContext::new(resolver))),
+        )
+    };
+    let original = "command extra {\n arity 2\n}\n";
+    let edited = "command extra {\n arity 3\n}\n";
+    for fast_path in [true, false] {
+        let before = including(original, fast_path);
+        let after = including(edited, fast_path);
+        assert!(before.command("extra").is_some() && before.command("demo").is_some());
+        assert_ne!(
+            hash_of(&before),
+            hash_of(&after),
+            "an edit to the fragment moves the hash while the root is unchanged"
+        );
+        assert_ne!(
+            hash_of(&before),
+            eval_snapshot_key(root, &options(fast_path)).content_hash,
+            "the fragment is folded into the root's own hash"
+        );
+    }
+    assert_eq!(
+        hash_of(&including(original, true)),
+        hash_of(&including(original, false)),
+        "the static route and the interpreter fold to one value"
+    );
+
+    for fast_path in [true, false] {
+        let dropped = tcl_spectcl::loader::evaluate_pack_in(
+            root,
+            &options(fast_path),
+            Some(std::rc::Rc::new(tcl_spectcl::IncludeContext::new(|name| {
+                Err(format!("no such fragment `{name}`"))
+            }))),
+        );
+        assert!(
+            dropped
+                .notices
+                .iter()
+                .any(|n| n.message.contains("did not resolve")),
+            "{:#?}",
+            dropped.notices
+        );
+        assert_eq!(
+            dropped.command("demo").map(|command| command.content_hash),
+            Some(eval_snapshot_key(root, &options(fast_path)).content_hash),
+            "a dropped include folds nothing"
+        );
+    }
 }
 
 /// The ratified words load identically on both routes: they are read at the

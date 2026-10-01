@@ -371,7 +371,7 @@ fn codegen_module_with_top_context(
         )
     };
     let procedures = codegen_procedures(cfg_module, ir_module, &module);
-    ModuleAsm {
+    let mut asm = ModuleAsm {
         profile: emit_profile(dialect).unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl),
         source: src.clone(),
         // Lowering owns the rooted constructed form; the runtime ABI uses the
@@ -387,7 +387,21 @@ fn codegen_module_with_top_context(
         top_level_body: top_body,
         procedures: procedures.functions,
         procedure_provenance: procedures.provenance,
-    }
+        manifest: None,
+    };
+    asm.manifest = Some(std::sync::Arc::new(module_manifest(&asm)));
+    asm
+}
+
+/// What `module` says about the world it was compiled for: the context of the
+/// profile it carries, the pack facts its sites claim, and this build's
+/// intrinsic table. The runtime's pin states the same thing in the same
+/// shape (`tcl_runtime_api::RuntimeContext::identity`), so the two compare.
+fn module_manifest(module: &ModuleAsm) -> tcl_runtime_api::ArtefactIdentityManifest {
+    tcl_registry::model::runtime_context_for_profile(module.profile).identity(
+        &module.claimed_packs(),
+        tcl_registry::intrinsic_table_hash(),
+    )
 }
 
 #[cfg(test)]

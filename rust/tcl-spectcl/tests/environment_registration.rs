@@ -247,6 +247,52 @@ fn a_trusted_extension_of_a_compiled_environment_is_additive() {
     );
 }
 
+/// A profile's runtime context states the package floors its environment
+/// establishes, and a trusted `-extend` that places another package moves
+/// them: the context a compile states and a runtime is pinned with is memoised
+/// per environment-registry generation, so the next one sees the extension and
+/// is not served the statement from before it.
+#[test]
+fn a_profiles_runtime_context_follows_an_environment_extension() {
+    let profile = tcl_dialect::DialectProfile::find("synopsys-eda-tcl").expect("catalogue profile");
+    let before = tcl_registry::model::runtime_context_for_profile(profile);
+    assert!(
+        !before
+            .packages
+            .iter()
+            .any(|(name, _)| name == "ContextProbe"),
+        "{:?}",
+        before.packages
+    );
+
+    let pack = evaluate_pack(
+        "speclib probe 2.0 {\n\
+         environment synopsys-eda-tcl -extend {\n\
+         \x20   ambient ContextProbe 4.2\n\
+         }\n\
+         }\n",
+    );
+    assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+    let outcome = register_pack_environments(
+        &pack,
+        Tier::Bundled,
+        tcl_dialect::model::WorkspaceTrust::Trusted,
+    )
+    .expect("a bundled extension lands");
+    assert_eq!(outcome.extended, 1);
+
+    let after = tcl_registry::model::runtime_context_for_profile(profile);
+    assert!(
+        after
+            .packages
+            .contains(&("ContextProbe".to_owned(), "4.2".to_owned())),
+        "{:?}",
+        after.packages
+    );
+    assert_eq!(after.environment, before.environment);
+    assert_eq!(after.release, before.release);
+}
+
 /// **The production wiring**, at the seam every consumer publishes
 /// through: a whole loaded pack set registers its environments *and* its
 /// pack-declared dialects, and a set that no longer carries a pack retires
@@ -281,6 +327,7 @@ speclib picolpack 2.0 {
             tier: tcl_spectcl::Tier::User,
             path: PathBuf::from("/probe/picolpack.tclspec"),
             origin: Origin::UserDir,
+            dependency_tier: None,
         },
         SOURCE.to_owned(),
     )]);

@@ -723,6 +723,7 @@ fn attempt_pack(grammar: &str) -> tcl_spectcl::PackSet {
             tier: tcl_spectcl::Tier::Workspace,
             path: std::path::PathBuf::from("/workspace/.tcl-lsp/guarded.tclspec"),
             origin: tcl_spectcl::discovery::Origin::DotDir,
+            dependency_tier: None,
         },
         source,
     )])

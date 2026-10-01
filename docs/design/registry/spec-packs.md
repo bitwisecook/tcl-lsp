@@ -551,6 +551,23 @@ message. See [W139](../../kcs/codes/kcs-diagnostic-w139-retired-at-resolved-vers
   host did not mount. See
   [contracts/lsp-source-store.md](../contracts/lsp-source-store.md), "The
   virtual spec-pack mount".
+- **A pack a package ships is placed by the lockfile.** A file found beside
+  a `tclpkg.tcl` carries the tier of the package that ships it
+  (`PackFile::dependency_tier`): the workspace's own package is the root, a
+  package the root manifest names in `require` is direct, one reached only
+  through another package is transitive, and one named only in
+  `dev-require` is a development dependency. Discovery computes the tier
+  from the `tclpkg.lock` beside the *outermost* manifest that has one inside
+  the workspace folder — not the nearest, because an installed dependency
+  can carry a manifest and a lockfile of its own and would otherwise name
+  itself a root — reading through the same closed-file store as the packs,
+  and never from what a package's own manifest claims. A file found any
+  other way, and a file in a project with no lockfile, have no tier. Below a
+  project that has a lockfile a file always has one: a package the lockfile
+  does not list, a manifest that does not read and a lockfile that does not
+  read each leave it transitive, the least a package gets. The tier is part
+  of the pack set's key, so a package moving in the lockfile's graph reloads
+  what its packs may declare.
 - **Live reload of a pack outside the workspace needs a 3.17 client.** The
   session-wide watcher registration uses workspace-relative patterns, which a
   client matches only inside its workspace folders, so the user tier and any
@@ -951,6 +968,22 @@ shipped core command declares one, an override keeps the shipped command's
 (the security floor), and nothing yet admits a compiled site on it. A
 `-pack-text` body, which a library upgrade makes diverge silently, is
 reported at load as an information notice on the command's row.
+
+How far the package that ships a pack sits from the workspace root narrows
+what the pack may declare, beside the gate above: a declaration must pass
+both. The workspace's own package may declare everything, a direct
+dependency may declare `alias_of` and a `runtime_backing` but no codegen-axis
+stamp, and a transitive or development dependency may declare none of the
+three, so a package deep in a dependency graph cannot change what the
+workspace emits (`CodegenCapability::for_tier`,
+[../compiler/registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
+§ *Dialects and packages*). The load drops an `alias_of` or a backing the
+tier may not declare and publishes a warning on the command's row that names
+the tier — "`alias_of lassign` refused for `dep::unpack`: a transitive
+dependency's pack may not declare `alias_of`; only the workspace's own
+package and its direct dependencies may" — and the command keeps every other
+fact. A pack no package ships has no tier and is not narrowed. The user's
+answer is [why was a declaration dropped from my dependency's pack](../../kcs/kcs-qa-why-was-a-declaration-dropped-from-my-dependencys-pack.md).
 
 The `world_effects` block rows stay documented vocabulary the loader does
 not read, a library-defined completion code scoped to one command's body

@@ -9287,6 +9287,7 @@ mod pack_declared_transitions {
                 tier: tcl_spectcl::Tier::Workspace,
                 path: std::path::PathBuf::from("/workspace/.tcl-lsp/scoped.tclspec"),
                 origin: tcl_spectcl::discovery::Origin::DotDir,
+                dependency_tier: None,
             },
             source.to_owned(),
         )]);
@@ -9392,6 +9393,7 @@ mod pack_declared_transitions {
                 tier: tcl_spectcl::Tier::Workspace,
                 path: std::path::PathBuf::from("/workspace/.tcl-lsp/hosted.tclspec"),
                 origin: tcl_spectcl::discovery::Origin::DotDir,
+                dependency_tier: None,
             },
             HOST_PACK.to_owned(),
         )]);

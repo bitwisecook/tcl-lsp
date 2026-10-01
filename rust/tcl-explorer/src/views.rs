@@ -307,6 +307,16 @@ pub const VIEW_META: &[ViewDescriptor] = &[
         group: "codegen",
         render_kind: ViewRenderKind::Frontend,
     },
+    // The plan the WASM emitter was handed, and every premise of the sealed
+    // native addition it rejected: the record a pass selection is read
+    // against, which the module text alone does not show.
+    ViewDescriptor {
+        id: "aot",
+        label: "AOT Plan",
+        payload: "aot",
+        group: "codegen",
+        render_kind: ViewRenderKind::Tree,
+    },
     // The toggle surface for the two views above: one row per semantic/AOT
     // optimisation pass with the state the shown module was built with. A
     // front end renders its checkboxes from this payload rather than from a

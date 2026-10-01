@@ -106,8 +106,8 @@ sites and are not debt.
   `.tclspec`, not Rust.
 - Add a command's `CommandSpec` and its WASM runtime backing in the same
   change (see *WASM command parity*), and declare the spec's
-  `runtime_backing` to match: `every_core_command_declares_a_backing` holds
-  a core command's declaration to its row in the backing report.
+  `runtime_backing` to match: `cargo xtask command-backing` holds a core
+  command's declaration to what the runtime reports registering.
 - Argument roles resolve `clause_grammar` → `arg_role_resolver` →
   `arg_roles` → `assigns_variable_at`; a clause grammar states where a
   chain's keywords, conditions and scripts sit, and the resolver is
@@ -152,14 +152,20 @@ owner-shaped implementation without updating the contract and its gate.
 ### WASM command parity
 
 Every command in `tcl-registry` needs backing in `runtime/rust/` — a handler,
-an interpreter-fallback path, or an explicit not-required classification.
-`cargo xtask command-backing --check` cross-checks the two, writes
-[wasm-command-backing.md](docs/generated/wasm-command-backing.md), and fails
-on an unclassified command; a real gap goes on `KNOWN_UNBACKED` in
-`rust/xtask/src/command_backing.rs` until it gains a handler. The
-`wasm_stdlib` feature embeds Tcl scripts and the Tcl-level `tcltest` package
-in the runtime VFS; it is not a port of the C `test*` commands and does not
-bundle package-driven extensions. Pipeline:
+a definition in the Tcl library the runtime embeds, or a declaration that
+nothing executes it there. The spec says which, in its `runtime_backing`;
+the runtimes say what they registered, through `Interp::backing_report`
+(`runtime/rust`) and `Vm::backing_report` (`tcl-vm`). `cargo xtask
+command-backing --check` asks both, holds every core command's declaration
+to the WASM runtime's answer, writes
+[wasm-command-backing.md](docs/generated/wasm-command-backing.md) from the
+two, and fails on a disagreement; a real gap goes on `KNOWN_UNBACKED` in
+`rust/xtask/src/command_backing.rs` until it gains a handler, and it is the
+only list. A runtime built without libtommath reports the handlers that need
+it as needing it, so the gate answers the same either way. The `wasm_stdlib`
+feature embeds Tcl scripts and the Tcl-level `tcltest` package in the runtime
+VFS; it is not a port of the C `test*` commands and does not bundle
+package-driven extensions. Pipeline:
 [wasm-codegen.md](docs/design/compiler/wasm-codegen.md); extensions:
 [wasm-extensions.md](docs/design/compiler/wasm-extensions.md).
 

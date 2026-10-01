@@ -395,6 +395,7 @@ fn in_memory_pack(path: &Path, source: &str) -> tcl_spectcl::PackSet {
             tier: tcl_spectcl::Tier::Workspace,
             path: path.to_path_buf(),
             origin: tcl_spectcl::discovery::Origin::DotDir,
+            dependency_tier: None,
         },
         source.to_owned(),
     )])

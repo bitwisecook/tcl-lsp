@@ -73,6 +73,11 @@ remove the shipped command's taint facts, or change how the compiler and the
 analyser handle the command: those stay as shipped, and the override does
 not warn you that it kept them.
 
+A pack a package ships, beside that package's own `tclpkg.tcl`, also loses
+its `alias_of` and `runtime_backing` rows unless the package is your own or
+one your manifest requires directly
+([why](kcs-qa-why-was-a-declaration-dropped-from-my-dependencys-pack.md)).
+
 ### Validating a pack
 
 Run it through `mcp__tcl-lsp__spectcl_check` — the spec-author Claude Code

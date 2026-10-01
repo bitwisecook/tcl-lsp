@@ -22,7 +22,6 @@ use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::mathfunc",
-        runtime_backing: RuntimeBacking::shipped("tcl::mathfunc"),
         traits: Traits::PURE,
         // TIP 232 added the namespace (and this command-table mechanism)
         // in Tcl 8.5 — see mathfunc_generated.rs's module docs for why

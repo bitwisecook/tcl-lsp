@@ -29,7 +29,7 @@ flowchart LR
 
 ## Alphabetic index
 
-[Admissibility](#admissibility) · [AST](#ast) · [Barrier](#barrier) · [Basic block](#basic-block) · [C extension shim](#c-extension-shim) · [Call-site evidence](#call-site-evidence) · [Cell write](#cell-write) · [CFG](#cfg) · [Clause grammar](#clause-grammar) · [Codegen](#codegen) · [Codegen optimisation pass](#codegen-optimisation-pass) · [Command walk](#command-walk) · [CommandSpec](#commandspec) · [Compilation unit](#compilation-unit) · [Compiled artefact](#compiled-artefact) · [Completion path](#completion-path) · [Concrete syntax tree (CST) / red-green tree](#concrete-syntax-tree-cst--red-green-tree) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [Diagnostic policy](#diagnostic-policy) · [Diagnostic report](#diagnostic-report) · [dialect](#dialect) · [Dispatch-stability proof](#dispatch-stability-proof) · [Dominance frontier](#dominance-frontier) · [Dominator / idom](#dominator--idom) · [Edge refinement](#edge-refinement) · [Escape tag](#escape-tag) · [Evaluator generation](#evaluator-generation) · [Evaluator route](#evaluator-route) · [Existence](#existence) · [Finding](#finding) · [FormSpec](#formspec) · [Frame-only var](#frame-only-var) · [GVN](#gvn) · [Guard identity](#guard-identity) · [ICIP](#icip) · [InstCombine](#instcombine) · [Interpreter domain](#interpreter-domain) · [IPA](#ipa) · [IR](#ir) · [Keyed update](#keyed-update) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Lifecycle (registry)](#lifecycle-registry) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Member effect](#member-effect) · [Memory-SSA](#memory-ssa) · [Native proc entry](#native-proc-entry) · [Object handle](#object-handle) · [ObjectClassSpec](#objectclassspec) · [Option effect](#option-effect) · [Pattern recognition](#pattern-recognition) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [Requirement straddle](#requirement-straddle) · [Runtime backing](#runtime-backing) · [salsa](#salsa) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [Site claim and pack fact stamp](#site-claim-and-pack-fact-stamp) · [Source edge](#source-edge) · [Special variable](#special-variable) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Symbol-definer command](#symbol-definer-command) · [Tail position](#tail-position) · [Tail-call optimisation](#tail-call-optimisation) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Template word](#template-word) · [Trace](#trace) · [Transfer summary](#transfer-summary) · [Type inference](#type-inference) · [Unit linkage](#unit-linkage) · [Unused procs elimination](#unused-procs-elimination) · [Value provenance](#value-provenance) · [Value transfer](#value-transfer) · [ValueOps](#valueops) · [Var-escape analysis](#var-escape-analysis) · [Version floor](#version-floor) · [World-state contents lattice](#world-state-contents-lattice)
+[Admissibility](#admissibility) · [Artefact identity manifest and runtime context](#artefact-identity-manifest-and-runtime-context) · [AST](#ast) · [Barrier](#barrier) · [Basic block](#basic-block) · [C extension shim](#c-extension-shim) · [Call-site evidence](#call-site-evidence) · [Cell write](#cell-write) · [CFG](#cfg) · [Clause grammar](#clause-grammar) · [Codegen](#codegen) · [Codegen optimisation pass](#codegen-optimisation-pass) · [Command walk](#command-walk) · [CommandSpec](#commandspec) · [Compilation unit](#compilation-unit) · [Compiled artefact](#compiled-artefact) · [Completion path](#completion-path) · [Concrete syntax tree (CST) / red-green tree](#concrete-syntax-tree-cst--red-green-tree) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [Dependency tier and codegen capability](#dependency-tier-and-codegen-capability) · [Diagnostic policy](#diagnostic-policy) · [Diagnostic report](#diagnostic-report) · [dialect](#dialect) · [Dispatch-stability proof](#dispatch-stability-proof) · [Dominance frontier](#dominance-frontier) · [Dominator / idom](#dominator--idom) · [Edge refinement](#edge-refinement) · [Escape tag](#escape-tag) · [Evaluator generation](#evaluator-generation) · [Evaluator route](#evaluator-route) · [Existence](#existence) · [Finding](#finding) · [FormSpec](#formspec) · [Frame-only var](#frame-only-var) · [GVN](#gvn) · [Guard identity](#guard-identity) · [ICIP](#icip) · [InstCombine](#instcombine) · [Interpreter domain](#interpreter-domain) · [IPA](#ipa) · [IR](#ir) · [Keyed update](#keyed-update) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Lifecycle (registry)](#lifecycle-registry) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Member effect](#member-effect) · [Memory-SSA](#memory-ssa) · [Native proc entry](#native-proc-entry) · [Object handle](#object-handle) · [ObjectClassSpec](#objectclassspec) · [Option effect](#option-effect) · [Pattern recognition](#pattern-recognition) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [Requirement straddle](#requirement-straddle) · [Runtime backing](#runtime-backing) · [salsa](#salsa) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [Site claim and pack fact stamp](#site-claim-and-pack-fact-stamp) · [Source edge](#source-edge) · [Special variable](#special-variable) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Symbol-definer command](#symbol-definer-command) · [Tail position](#tail-position) · [Tail-call optimisation](#tail-call-optimisation) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Template word](#template-word) · [Trace](#trace) · [Transfer summary](#transfer-summary) · [Type inference](#type-inference) · [Unit linkage](#unit-linkage) · [Unused procs elimination](#unused-procs-elimination) · [Value provenance](#value-provenance) · [Value transfer](#value-transfer) · [ValueOps](#valueops) · [Var-escape analysis](#var-escape-analysis) · [Version floor](#version-floor) · [World-state contents lattice](#world-state-contents-lattice)
 
 ---
 
@@ -1149,10 +1149,19 @@ Compiled code that wants to take an intrinsic fast path asks the runtime to
 attest the identity of the live command first, and falls back to generic
 dispatch when it cannot. This is intrinsic guard *eligibility*, distinct
 from the command-binding provenance check (`command_binding_matches`) that
-re-resolves every specialised site at admission. Both runtimes derive
-identities through `register_spec_builtin` for one command today and clear
-their guard tables on every command-environment mutation, including the
-profile pin; the binding check survives those mutations.
+re-resolves every specialised site at admission. An intrinsic also belongs to a
+family (`IntrinsicId::family`): a `Value` member computes from its arguments
+alone, and a Family-B member reaches a runtime's variable store or channel
+and so takes the variable-trace domain, which a guard request for it must
+cover or the runtime refuses it. Both runtimes attach
+identities by a sweep after registration, to every builtin whose spec
+declares an intrinsic, from the generation they are pinned to and never from
+a pack overlay, and key them by the command's token generation: a guard's
+check resolves the
+guarded name afresh and needs an attestation at the token it reaches, so
+defining, renaming or aliasing another command leaves a guard alone, the
+profile pin keeps the identities, and replacing, deleting, renaming away or
+hiding the guarded command drops its guards.
 See [Registry consumer contracts](design/compiler/registry-consumer-contracts.md).
 
 KCS tag: `codegen`.
@@ -1610,7 +1619,9 @@ See also: [Diagnostic policy § The outcome](design/compiler/diagnostic-policy.m
 
 Executable bytecode together with the target facts that authorised it. In
 TclVM, `CompiledUnit` owns a `FunctionAsm` plus the dialect-profile, command,
-and compile-service provenance under which it was validated. The compiler
+and compile-service provenance under which it was validated, and the
+[manifest](#artefact-identity-manifest-and-runtime-context) of the module it
+came from. The compiler
 provenance records either the service generation that produced the assembly or
 an explicit foreign-artifact admission. Consumers carry that unit intact into
 an activation, so old assembly cannot be labelled with new provenance after a
@@ -1763,11 +1774,37 @@ command or an embedder's own handler, attested by a
 nothing that executes the command in the target runtime, which is also what a
 spec that declares nothing reads as. Every core Tcl command declares one; a
 pack states it with `runtime_backing`, and an override keeps a shipped
-command's. Code generation will choose from it which identity the compiled
+command's. Each runtime reports what it registered (`backing_report`, as a
+`RegisteredBacking`: a handler, a `TclOO` object, a definition from the Tcl
+library it embeds, a handler that only refuses, or nothing), and `cargo xtask
+command-backing` holds every core command's declaration to the WASM runtime's
+answer. Code generation will choose from it which identity the compiled
 artefact records — a command binding, a procedure binding, a guard, or
 none — so the runtime can attest the claim at admission or fall back to
 generic dispatch; nothing reads it that way yet. See
 [Registry consumer contracts § What the artefact records per rung](design/compiler/registry-consumer-contracts.md#what-the-artefact-records-per-rung).
+
+KCS tag: `codegen`.
+
+### Dependency tier and codegen capability
+
+How far the package that ships a spec pack sits from the workspace root, and
+what a pack at that distance may declare. The tier — `DependencyTier` in
+`tcl_dialect::model` — is the workspace's own package (the root), a package
+the root manifest names in `require` (direct), one reached only through
+another package (transitive), or one named only in `dev-require`
+(development). Discovery computes it from the `tclpkg.lock` beside the
+project's manifest, never from what a package's own manifest claims; a pack
+no package ships, and a pack in a project with no lockfile, have none, and
+below a project with a lockfile a package that file does not place is
+transitive. The capability —
+`CodegenCapability::for_tier` in `rust/tcl-registry/src/model/capability.rs` —
+is the matrix over it: the root may declare everything, a direct dependency
+an `alias_of` and a [runtime backing](#runtime-backing) but no codegen-axis
+stamp, and a transitive or development dependency none of them. It is a
+second gate beside the discovery tier's provenance gate, and a declaration
+must pass both. See
+[Registry consumer contracts § Dialects and packages](design/compiler/registry-consumer-contracts.md#dialects-and-packages).
 
 KCS tag: `codegen`.
 
@@ -1787,6 +1824,30 @@ invalidates the artefact instead of silently changing its meaning.
 Proposed as `SiteClaim` and `PackFactStamp`. See
 [Registry consumer contracts § What the artefact records per rung](design/compiler/registry-consumer-contracts.md#what-the-artefact-records-per-rung).
 
+KCS tag: `codegen`.
+
+### Artefact identity manifest and runtime context
+
+What an artefact says about the world it was compiled for, and the runtime's
+statement of the world it is pinned to, in one shape. The manifest —
+`ArtefactIdentityManifest` in `rust/tcl-runtime-api/src/manifest.rs` — is the
+ABI version (a fingerprint of the code-generation ABI's import table), the
+environment, release and build, the package floors in force, the pack facts
+any site claims, the hash of the intrinsic table the emitter keyed against, and
+the revision of the Tcl library both runtimes embed. A bytecode module carries
+it as `ModuleAsm::manifest`, and the VM's compiled unit keeps it; a WASM module
+carries it as the custom section `tcl.manifest`. The runtime context —
+`RuntimeContext`, resolved through the same ingress the compiler uses by
+`Vm::pin_context` and `Interp::pin_context` — is the environment, release
+point, build, package floors and registry overlay generation a runtime is
+pinned to, where an overlay nothing has installed is an error. The two are
+compared as a whole, and a field that disagrees refuses the codegen rungs that
+rest on it and no others: the ABI and the world refuse every rung, the packs
+and package floors rungs 1 and 2, the intrinsic table and the embedded library
+the specialisations resting on a shipped implementation's identity. See
+[Registry consumer contracts § Consequences for the runtimes](design/compiler/registry-consumer-contracts.md#consequences-for-the-runtimes).
+
+See also: [TclVM compiled-artifact provenance](design/contracts/vm-compiled-artifact-provenance.md).
 KCS tag: `codegen`.
 
 ### salsa

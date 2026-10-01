@@ -327,6 +327,45 @@ impl WorkspaceTrust {
     }
 }
 
+/// How far a package sits from the workspace root — the fact a pack shipped
+/// by a package inherits, which the discovery tier cannot express
+/// (`registry-consumer-contracts.md` § *Dialects and packages*).
+///
+/// The package manager computes it from the lockfile's dependency graph
+/// (`tcl-pkg-model`), and a manifest cannot claim a nearer one; the pack
+/// loader reads it beside the file's discovery tier
+/// (`tcl_spectcl::PackFile::dependency_tier`), and
+/// `tcl_registry::model::CodegenCapability` says what a pack at each tier may
+/// declare. It is a second axis beside [`Provenance`], never folded into it:
+/// the provenance says whose content a definition is, the tier says how
+/// far down the graph the package that shipped it sits.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum DependencyTier {
+    /// The workspace's own package — the pack the author is editing.
+    Root,
+    /// Named in the root manifest's `require` directives.
+    Direct,
+    /// Reached only through another package's requirements.
+    Transitive,
+    /// Named in the root manifest's `dev-require` directives only, or
+    /// reached only through a package that is.
+    Development,
+}
+
+impl DependencyTier {
+    /// The tier as a notice names it, without an article: `direct
+    /// dependency`.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Root => "root package",
+            Self::Direct => "direct dependency",
+            Self::Transitive => "transitive dependency",
+            Self::Development => "development dependency",
+        }
+    }
+}
+
 /// One environment definition (§3.3) — dynamic data, held behind `Arc`,
 /// identified by `(id, generation, overlay hash)`, never by pointer.
 #[derive(Debug, Clone, PartialEq, Eq)]

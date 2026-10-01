@@ -307,6 +307,7 @@ fn install_preview(
             tcl_spectcl::stamps::stamp_refusals(
                 command.spec,
                 provenance,
+                None,
                 tcl_spectcl::stamps::shipped(),
             )
             .into_iter()

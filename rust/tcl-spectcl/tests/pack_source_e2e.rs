@@ -105,6 +105,7 @@ fn pack_set_from(name: &str, source: &str) -> PackSet {
         tier: Tier::Workspace,
         path,
         origin: Origin::DotDir,
+        dependency_tier: None,
     }])
 }
 

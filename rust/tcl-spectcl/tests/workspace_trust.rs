@@ -45,6 +45,7 @@ fn file(tier: Tier, name: &str) -> PackFile {
         tier,
         path: PathBuf::from(format!("/workspace/.tcl-lsp/{name}.tclspec")),
         origin: Origin::DotDir,
+        dependency_tier: None,
     }
 }
 

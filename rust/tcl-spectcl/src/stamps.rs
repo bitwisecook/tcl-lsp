@@ -46,6 +46,27 @@
 //! [`crate::install`] asserts that no stamp reaches a registry from a
 //! provenance the gate refuses.
 //!
+//! ## The capability gate
+//!
+//! A second gate narrows the first for a pack a *package* ships. The tier gate
+//! reads where a pack was found; it cannot say how far down the dependency
+//! graph the package that shipped it sits, and a pack beside a `tclpkg.tcl` is
+//! a workspace-tier file whether the author wrote it or a dependency of a
+//! dependency did. [`CodegenCapability::for_tier`] says what the packs of each
+//! [`DependencyTier`] may declare, and [`PackCommand::dependency_tier`] says
+//! which tier the command's file is at:
+//!
+//! - a codegen-axis stamp is refused from a tier whose capability names none
+//!   ([`RefusalReason::Capability`]), in the same pass as the rules above, so
+//!   a stamp must pass both gates;
+//! - `alias_of` and a `runtime_backing` other than `none` are dropped, with a
+//!   warning naming the tier, from a tier whose capability holds neither
+//!   ([`admit_declarations`]).
+//!
+//! A command no package ships has no tier and the capability gate leaves it
+//! alone. Like a refused stamp, a dropped declaration costs the command no
+//! other fact.
+//!
 //! ## What a refusal costs
 //!
 //! A pack command's spec is leaked (`&'static`), so dropping a stamp clones
@@ -65,9 +86,12 @@ use std::sync::{Mutex, OnceLock, PoisonError};
 use rustc_hash::FxHashMap;
 use tcl_dialect::model::Provenance;
 use tcl_registry::forms::CommandForm;
+use tcl_registry::model::capability::{CodegenCapability, DependencyTier};
 use tcl_registry::registry::CommandRegistry;
 use tcl_registry::spec::{CommandSpec, SubCommand};
+use tcl_registry::{BodySource, RuntimeBacking};
 
+use crate::backing::BackingSyntax;
 use crate::loader::PackCommand;
 
 pub use tcl_registry::codegen_stamp::{CodegenStamp, StampSite};
@@ -77,6 +101,9 @@ pub use tcl_registry::codegen_stamp::{CodegenStamp, StampSite};
 pub enum RefusalReason {
     /// Rule 2: the provenance may not carry a codegen-axis stamp at all.
     TierGate,
+    /// The capability gate: the package that ships the pack sits at this
+    /// tier, whose capability names no codegen-axis stamp.
+    Capability(DependencyTier),
     /// Rule 1: the command declares no `alias_of`, so nothing names the
     /// builtin whose stamp this would be.
     NoAliasOf,
@@ -122,6 +149,9 @@ impl StampRefusal {
                     indefinite_article(label)
                 )
             }
+            RefusalReason::Capability(tier) => {
+                format!("{} may not name a codegen catalogue member", pack_of(tier))
+            }
             RefusalReason::NoAliasOf => "a codegen-axis stamp must be a shipped builtin's own, \
                  and the command declares no `alias_of`"
                 .to_owned(),
@@ -132,12 +162,13 @@ impl StampRefusal {
                 format!("`alias_of {named}` names a shipped command that does not carry it")
             }
         };
-        let remedy = match self.target {
-            Some(target) if self.alias_of == Some(target) => {
+        let remedy = match (self.reason, self.target) {
+            (RefusalReason::Capability(_), _) => "only the workspace's own package may".to_owned(),
+            (_, Some(target)) if self.alias_of == Some(target) => {
                 format!("only a bundled pack may carry `alias_of {target}`'s own stamp")
             }
-            Some(target) => format!("the stamp would have to sit on `alias_of {target}`"),
-            None => "no shipped command carries it".to_owned(),
+            (_, Some(target)) => format!("the stamp would have to sit on `alias_of {target}`"),
+            (_, None) => "no shipped command carries it".to_owned(),
         };
         format!(
             "`{}` refused for {}: {why}; {remedy}",
@@ -164,12 +195,33 @@ fn indefinite_article(label: &str) -> &'static str {
     }
 }
 
+/// The subject of a capability refusal: "a direct dependency's pack".
+fn pack_of(tier: DependencyTier) -> String {
+    let label = tier.label();
+    format!("{} {label}'s pack", indefinite_article(label))
+}
+
 /// Rule 2: whether `provenance` may carry a codegen-axis stamp at all — the
 /// compiled-in catalogue and a pack bundled with the server, nothing a user
 /// or a workspace authored.
 #[must_use]
 pub fn stamps_admitted_from(provenance: Provenance) -> bool {
     matches!(provenance, Provenance::BuiltIn | Provenance::BundledPack)
+}
+
+/// The capability gate's stamp row: whether a pack whose package sits at
+/// `tier` may name a codegen-axis stamp. A pack no package ships (`None`) is
+/// not narrowed by it.
+#[must_use]
+pub fn capability_admits_stamps(tier: Option<DependencyTier>) -> bool {
+    tier.is_none_or(|tier| CodegenCapability::for_tier(tier).codegen_stamps)
+}
+
+/// Both gates: whether a codegen-axis stamp may survive from `provenance` in
+/// a package at `tier`.
+#[must_use]
+pub fn stamps_admitted(provenance: Provenance, tier: Option<DependencyTier>) -> bool {
+    stamps_admitted_from(provenance) && capability_admits_stamps(tier)
 }
 
 /// Whether `spec` carries any codegen-axis stamp, at any site.
@@ -188,33 +240,38 @@ pub fn shipped() -> &'static CommandRegistry {
     crate::environment::lenient_store()
 }
 
-/// What the rule refuses on `spec` at `provenance`, one [`StampRefusal`]
-/// per refused stamp, without dropping anything — the preview an authoring
-/// tool reports for the install it describes.
+/// What the rule refuses on `spec` at `provenance`, in a package at `tier`
+/// (`None` for a pack no package ships), one [`StampRefusal`] per refused
+/// stamp, without dropping anything — the preview an authoring tool reports
+/// for the install it describes.
 #[must_use]
 pub fn stamp_refusals(
     spec: &CommandSpec,
     provenance: Provenance,
+    tier: Option<DependencyTier>,
     shipped: &CommandRegistry,
 ) -> Vec<StampRefusal> {
     spec.codegen_stamps()
         .into_iter()
         .filter_map(|(site, stamp)| {
-            refusal_reason(spec, site, stamp, provenance, shipped).map(|reason| StampRefusal {
-                command: spec.name,
-                site,
-                stamp,
-                provenance,
-                reason,
-                alias_of: spec.alias_of,
-                target: carrier(shipped, site, stamp),
+            refusal_reason(spec, site, stamp, provenance, tier, shipped).map(|reason| {
+                StampRefusal {
+                    command: spec.name,
+                    site,
+                    stamp,
+                    provenance,
+                    reason,
+                    alias_of: spec.alias_of,
+                    target: carrier(shipped, site, stamp),
+                }
             })
         })
         .collect()
 }
 
-/// Apply the rule to one loaded command at `provenance`: drop every stamp
-/// [`stamp_refusals`] refuses and return the refusals.
+/// Apply the rule to one loaded command at `provenance`, in the package its
+/// declaring file belongs to ([`PackCommand::dependency_tier`]): drop every
+/// stamp [`stamp_refusals`] refuses and return the refusals.
 ///
 /// A command that carries no stamp, or whose every stamp is admitted, keeps
 /// its spec pointer untouched.
@@ -223,15 +280,160 @@ pub fn admit_codegen_stamps(
     provenance: Provenance,
     shipped: &CommandRegistry,
 ) -> Vec<StampRefusal> {
-    let refusals = stamp_refusals(command.spec, provenance, shipped);
+    let refusals = stamp_refusals(command.spec, provenance, command.dependency_tier, shipped);
     if !refusals.is_empty() {
-        let drops = refusals
-            .iter()
-            .map(|refusal| (refusal.site, refusal.stamp))
-            .collect();
+        let drops = Drops {
+            stamps: refusals
+                .iter()
+                .map(|refusal| (refusal.site, refusal.stamp))
+                .collect(),
+            ..Drops::default()
+        };
         command.spec = stripped(command.spec, drops);
     }
     refusals
+}
+
+/// A declaration, other than a codegen-axis stamp, that the capability gate
+/// takes from a pack whose package sits too far from the workspace root.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Declaration {
+    /// `alias_of NAME`, which a site recorded against a shipped builtin rests
+    /// on.
+    AliasOf(&'static str),
+    /// A `runtime_backing` other than `none`, as declared.
+    RuntimeBacking(RuntimeBacking),
+}
+
+impl Declaration {
+    /// The row as the pack wrote it, for a notice.
+    fn spelling(self) -> String {
+        match self {
+            Self::AliasOf(target) => format!("alias_of {target}"),
+            // The body is the pack's own text and can run to pages.
+            Self::RuntimeBacking(RuntimeBacking::TclBody {
+                source: BodySource::PackText { .. },
+            }) => "runtime_backing tcl-body {-pack-text …}".to_owned(),
+            Self::RuntimeBacking(backing) => format!(
+                "runtime_backing {}",
+                BackingSyntax::from_backing(backing).spelling()
+            ),
+        }
+    }
+
+    /// What the declaration is called in the sentence that refuses it.
+    const fn noun(self) -> &'static str {
+        match self {
+            Self::AliasOf(_) => "`alias_of`",
+            Self::RuntimeBacking(_) => "a `runtime_backing`",
+        }
+    }
+
+    /// Whether `capability` lets a pack declare it.
+    const fn permitted_by(self, capability: CodegenCapability) -> bool {
+        match self {
+            Self::AliasOf(_) => capability.builtin_alias,
+            Self::RuntimeBacking(_) => capability.runtime_backing,
+        }
+    }
+}
+
+/// One declaration the capability gate dropped: said on the pack file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeclarationRefusal {
+    /// The pack command the declaration was made on.
+    pub command: &'static str,
+    /// What was dropped.
+    pub declaration: Declaration,
+    /// The tier of the package that shipped the command.
+    pub tier: DependencyTier,
+}
+
+impl DeclarationRefusal {
+    /// The warning the load publishes on the command's row: the declaration,
+    /// the tier that may not make it, and who may.
+    #[must_use]
+    pub fn message(&self) -> String {
+        format!(
+            "`{}` refused for `{}`: {} may not declare {}; only the workspace's own package \
+             and its direct dependencies may",
+            self.declaration.spelling(),
+            self.command,
+            pack_of(self.tier),
+            self.declaration.noun(),
+        )
+    }
+}
+
+/// What the capability gate refuses on `spec` in a package at `tier`, one
+/// [`DeclarationRefusal`] per declaration, without dropping anything.
+///
+/// A command no package ships (`tier` of `None`) is refused nothing.
+#[must_use]
+pub fn declaration_refusals(
+    spec: &CommandSpec,
+    tier: Option<DependencyTier>,
+) -> Vec<DeclarationRefusal> {
+    let Some(tier) = tier else {
+        return Vec::new();
+    };
+    let capability = CodegenCapability::for_tier(tier);
+    let declared = spec.alias_of.map(Declaration::AliasOf).into_iter().chain(
+        (!spec.runtime_backing.is_none())
+            .then_some(Declaration::RuntimeBacking(spec.runtime_backing)),
+    );
+    declared
+        .filter(|declaration| !declaration.permitted_by(capability))
+        .map(|declaration| DeclarationRefusal {
+            command: spec.name,
+            declaration,
+            tier,
+        })
+        .collect()
+}
+
+/// Apply the capability gate to one loaded command, in the package its
+/// declaring file belongs to ([`PackCommand::dependency_tier`]): drop every
+/// declaration [`declaration_refusals`] refuses and return the refusals.
+///
+/// A command whose declarations are all admitted keeps its spec pointer
+/// untouched.
+pub fn admit_declarations(command: &mut PackCommand) -> Vec<DeclarationRefusal> {
+    let refusals = declaration_refusals(command.spec, command.dependency_tier);
+    if !refusals.is_empty() {
+        let mut drops = Drops::default();
+        for refusal in &refusals {
+            match refusal.declaration {
+                Declaration::AliasOf(_) => drops.alias_of = true,
+                Declaration::RuntimeBacking(_) => drops.runtime_backing = true,
+            }
+        }
+        command.spec = stripped(command.spec, drops);
+    }
+    refusals
+}
+
+/// What a strip clears from a spec: the refused stamps, and the two
+/// declarations the capability gate takes.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+struct Drops {
+    stamps: Vec<(StampSite, CodegenStamp)>,
+    alias_of: bool,
+    runtime_backing: bool,
+}
+
+impl Drops {
+    fn apply(&self, spec: &mut CommandSpec) {
+        for &(site, stamp) in &self.stamps {
+            drop_stamp(spec, site, stamp);
+        }
+        if self.alias_of {
+            spec.alias_of = None;
+        }
+        if self.runtime_backing {
+            spec.runtime_backing = RuntimeBacking::None;
+        }
+    }
 }
 
 /// `spec` with `drops` cleared, leaked once per `(spec, drops)`.
@@ -241,11 +443,8 @@ pub fn admit_codegen_stamps(
 /// which makes its address its identity for the life of the process. The
 /// drops are part of the key because they, and nothing else, decide the
 /// clone.
-fn stripped(
-    spec: &'static CommandSpec,
-    drops: Vec<(StampSite, CodegenStamp)>,
-) -> &'static CommandSpec {
-    type Memo = FxHashMap<(usize, Vec<(StampSite, CodegenStamp)>), &'static CommandSpec>;
+fn stripped(spec: &'static CommandSpec, drops: Drops) -> &'static CommandSpec {
+    type Memo = FxHashMap<(usize, Drops), &'static CommandSpec>;
     static STRIPPED: OnceLock<Mutex<Memo>> = OnceLock::new();
     let key = (std::ptr::from_ref(spec).addr(), drops);
     let mut memo = STRIPPED
@@ -256,9 +455,7 @@ fn stripped(
         return done;
     }
     let mut clone = spec.clone();
-    for &(site, stamp) in &key.1 {
-        drop_stamp(&mut clone, site, stamp);
-    }
+    key.1.apply(&mut clone);
     let leaked: &'static CommandSpec = Box::leak(Box::new(clone));
     memo.insert(key, leaked);
     leaked
@@ -270,10 +467,16 @@ fn refusal_reason(
     site: StampSite,
     stamp: CodegenStamp,
     provenance: Provenance,
+    tier: Option<DependencyTier>,
     shipped: &CommandRegistry,
 ) -> Option<RefusalReason> {
     if !stamps_admitted_from(provenance) {
         return Some(RefusalReason::TierGate);
+    }
+    if !capability_admits_stamps(tier)
+        && let Some(tier) = tier
+    {
+        return Some(RefusalReason::Capability(tier));
     }
     let Some(named) = spec.alias_of else {
         return Some(RefusalReason::NoAliasOf);
@@ -375,6 +578,7 @@ mod tests {
             line: 3,
             file: std::path::PathBuf::new(),
             content_hash: 0,
+            dependency_tier: None,
         }
     }
 
@@ -508,5 +712,215 @@ mod tests {
             "the second reload leaks nothing"
         );
         assert_eq!(first.codegen_hook, None);
+    }
+
+    /// A command a package ships, at `tier`: `lassign`'s own stamp, `alias_of
+    /// lassign`, and a shipped-builtin backing.
+    fn shipped_by(tier: Option<DependencyTier>) -> PackCommand {
+        let mut command = command(CommandSpec {
+            name: "vendor::unpack",
+            alias_of: Some("lassign"),
+            runtime_backing: RuntimeBacking::shipped("lassign"),
+            codegen_hook: Some(CodegenHookId::Lassign),
+            ..CommandSpec::DEFAULT
+        });
+        command.dependency_tier = tier;
+        command
+    }
+
+    /// The capability gate refuses what the provenance gate admits: a bundled
+    /// pack's stamp, on the right `alias_of` target, still cannot come from a
+    /// package too far from the root. The workspace's own package and a pack
+    /// no package ships are not narrowed, and the notice names the tier.
+    #[test]
+    fn the_capability_gate_refuses_a_stamp_the_provenance_gate_admits() {
+        for (tier, label) in [
+            (DependencyTier::Direct, "a direct dependency's"),
+            (DependencyTier::Transitive, "a transitive dependency's"),
+            (DependencyTier::Development, "a development dependency's"),
+        ] {
+            let mut command = shipped_by(Some(tier));
+            let refusals = admit_codegen_stamps(&mut command, Provenance::BundledPack, shipped());
+            assert_eq!(refusals.len(), 1, "{tier:?}");
+            assert_eq!(refusals[0].reason, RefusalReason::Capability(tier));
+            assert_eq!(
+                refusals[0].message(),
+                format!(
+                    "`codegen_hook Lassign` refused for `vendor::unpack`: {label} pack may not \
+                     name a codegen catalogue member; only the workspace's own package may"
+                )
+            );
+            assert_eq!(command.spec.codegen_hook, None, "{tier:?}: the stamp goes");
+            assert_eq!(
+                command.spec.alias_of,
+                Some("lassign"),
+                "{tier:?}: and only the stamp"
+            );
+        }
+        for tier in [None, Some(DependencyTier::Root)] {
+            let mut command = shipped_by(tier);
+            assert!(
+                admit_codegen_stamps(&mut command, Provenance::BundledPack, shipped()).is_empty(),
+                "{tier:?}"
+            );
+            assert_eq!(command.spec.codegen_hook, Some(CodegenHookId::Lassign));
+        }
+    }
+
+    /// A stamp survives only by passing both gates, and when both refuse the
+    /// provenance is the reason named: it is the one the author can read off
+    /// where the pack sits.
+    #[test]
+    fn a_stamp_must_pass_both_gates() {
+        let root = Some(DependencyTier::Root);
+        let direct = Some(DependencyTier::Direct);
+        for (provenance, tier, admitted) in [
+            (Provenance::BundledPack, None, true),
+            (Provenance::BundledPack, root, true),
+            (Provenance::BundledPack, direct, false),
+            (Provenance::WorkspaceTrusted, None, false),
+            (Provenance::WorkspaceTrusted, root, false),
+            (Provenance::WorkspaceTrusted, direct, false),
+        ] {
+            assert_eq!(
+                stamps_admitted(provenance, tier),
+                admitted,
+                "{provenance:?} in {tier:?}"
+            );
+        }
+        let spec = shipped_by(direct).spec;
+        let refusals = stamp_refusals(spec, Provenance::WorkspaceTrusted, direct, shipped());
+        assert_eq!(refusals.len(), 1);
+        assert_eq!(refusals[0].reason, RefusalReason::TierGate);
+    }
+
+    /// The matrix decides `alias_of` and a backing: a direct dependency
+    /// keeps both, a transitive or development one neither, and a pack no
+    /// package ships is not narrowed.
+    #[test]
+    fn the_matrix_decides_which_declarations_a_command_may_keep() {
+        let spec = shipped_by(None).spec;
+        let refused = |tier| -> Vec<Declaration> {
+            declaration_refusals(spec, tier)
+                .into_iter()
+                .map(|refusal| refusal.declaration)
+                .collect()
+        };
+        let both = vec![
+            Declaration::AliasOf("lassign"),
+            Declaration::RuntimeBacking(RuntimeBacking::shipped("lassign")),
+        ];
+        assert!(refused(None).is_empty());
+        assert!(refused(Some(DependencyTier::Root)).is_empty());
+        assert!(refused(Some(DependencyTier::Direct)).is_empty());
+        assert_eq!(refused(Some(DependencyTier::Transitive)), both);
+        assert_eq!(refused(Some(DependencyTier::Development)), both);
+
+        // A command that declares neither has nothing to refuse anywhere.
+        let bare = CommandSpec {
+            name: "vendor::bare",
+            ..CommandSpec::DEFAULT
+        };
+        assert!(declaration_refusals(&bare, Some(DependencyTier::Transitive)).is_empty());
+    }
+
+    /// The remedy the messages give ("only the workspace's own package and its
+    /// direct dependencies may") is the matrix's own answer for both
+    /// declarations, so a change to the matrix cannot leave the text behind.
+    #[test]
+    fn the_remedy_names_the_tiers_the_matrix_permits() {
+        for tier in [
+            DependencyTier::Root,
+            DependencyTier::Direct,
+            DependencyTier::Transitive,
+            DependencyTier::Development,
+        ] {
+            let capability = CodegenCapability::for_tier(tier);
+            let named = matches!(tier, DependencyTier::Root | DependencyTier::Direct);
+            assert_eq!(Declaration::AliasOf("x").permitted_by(capability), named);
+            assert_eq!(
+                Declaration::RuntimeBacking(RuntimeBacking::HostNative).permitted_by(capability),
+                named
+            );
+        }
+    }
+
+    #[test]
+    fn a_refusal_names_the_declaration_the_command_and_the_tier() {
+        let mut command = shipped_by(Some(DependencyTier::Transitive));
+        let refusals = admit_declarations(&mut command);
+        let messages: Vec<String> = refusals.iter().map(DeclarationRefusal::message).collect();
+        assert_eq!(
+            messages,
+            vec![
+                "`alias_of lassign` refused for `vendor::unpack`: a transitive dependency's pack \
+                 may not declare `alias_of`; only the workspace's own package and its direct \
+                 dependencies may",
+                "`runtime_backing shipped-builtin lassign` refused for `vendor::unpack`: a \
+                 transitive dependency's pack may not declare a `runtime_backing`; only the \
+                 workspace's own package and its direct dependencies may",
+            ]
+        );
+
+        // A body carried in the pack is named, not quoted: it can run to pages.
+        let text = Declaration::RuntimeBacking(RuntimeBacking::TclBody {
+            source: BodySource::PackText { text: "return 1" },
+        });
+        assert_eq!(text.spelling(), "runtime_backing tcl-body {-pack-text …}");
+    }
+
+    /// A dropped declaration costs the command nothing else, and a command
+    /// whose declarations are all admitted keeps its spec pointer.
+    #[test]
+    fn a_dropped_declaration_costs_no_other_fact() {
+        let mut direct = shipped_by(Some(DependencyTier::Direct));
+        let before = direct.spec;
+        assert!(admit_declarations(&mut direct).is_empty());
+        assert!(
+            std::ptr::eq(direct.spec, before),
+            "nothing dropped, nothing cloned"
+        );
+
+        let mut far = shipped_by(Some(DependencyTier::Development));
+        let original = far.spec;
+        assert_eq!(admit_declarations(&mut far).len(), 2);
+        assert!(!std::ptr::eq(far.spec, original));
+        assert_eq!(far.spec.alias_of, None);
+        assert_eq!(far.spec.runtime_backing, RuntimeBacking::None);
+        let without = CommandSpec {
+            alias_of: None,
+            runtime_backing: RuntimeBacking::None,
+            ..original.clone()
+        };
+        assert_eq!(
+            format!("{:?}", far.spec),
+            format!("{without:?}"),
+            "the stamp and every other fact are as loaded"
+        );
+    }
+
+    /// The stripped spec is leaked once per original and drop set: a reload
+    /// of an unchanged pack reuses it, whichever gate drops.
+    #[test]
+    fn a_repeated_declaration_refusal_reuses_its_stripped_spec() {
+        let original: &'static CommandSpec = Box::leak(Box::new(CommandSpec {
+            name: "vendor::unpack",
+            alias_of: Some("lassign"),
+            ..CommandSpec::DEFAULT
+        }));
+        let strip = || {
+            let mut loaded = command(CommandSpec::DEFAULT);
+            loaded.spec = original;
+            loaded.dependency_tier = Some(DependencyTier::Transitive);
+            admit_declarations(&mut loaded);
+            loaded.spec
+        };
+        let first = strip();
+        assert!(!std::ptr::eq(first, original));
+        assert!(
+            std::ptr::eq(first, strip()),
+            "the second reload leaks nothing"
+        );
+        assert_eq!(first.alias_of, None);
     }
 }

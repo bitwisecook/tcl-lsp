@@ -35,7 +35,7 @@ use super::*;
 fn both_paths(db: &TclDatabase, file: SourceFile) -> (Arc<CompilationUnit>, CompilationUnit) {
     let dialect = file.dialect(db).clone();
     let cfg_key = lexer_cfg_key(db, &dialect);
-    let memoised = compilation_unit(db, file, cfg_key, 0);
+    let memoised = compilation_unit(db, file, cfg_key, 0).expect("no overlay always builds");
     let direct = CompilationUnit::build_with_options(
         file.text(db),
         unit_build_options(
@@ -48,6 +48,16 @@ fn both_paths(db: &TclDatabase, file: SourceFile) -> (Arc<CompilationUnit>, Comp
         ),
     );
     (memoised, direct)
+}
+
+/// The document's unit under `config`'s pack overlay, which these tests
+/// install before they ask.
+fn installed_unit(
+    db: &TclDatabase,
+    file: SourceFile,
+    config: AnalyserConfig,
+) -> Arc<CompilationUnit> {
+    document_compilation_unit_for(db, file, config).expect("the pack overlay is installed")
 }
 
 /// `qname`'s lattice, value by value: `(variable, version, value)`,
@@ -362,6 +372,7 @@ fn tenant_pack_with_body(body: Option<&str>) -> tcl_spectcl::PackSet {
             tier: tcl_spectcl::Tier::Workspace,
             path: std::path::PathBuf::from("/workspace/.tcl-lsp/tenant.tclspec"),
             origin: tcl_spectcl::discovery::Origin::DotDir,
+            dependency_tier: None,
         },
         source,
     )]);
@@ -426,7 +437,7 @@ fn a_workspace_pack_evaluator_reaches_i230_on_the_memoised_path() {
         2,
         "both conditions fold through the pack's evaluator"
     );
-    let unit = document_compilation_unit_for(&db, file, config);
+    let unit = installed_unit(&db, file, config);
     let tally = unit.procedures.get("::p").expect("::p").sccp.route_tally;
     assert!(
         tally.implementation > 0,
@@ -461,12 +472,12 @@ fn a_pack_edit_invalidates_the_lattice() {
         &db,
         install_workspace_packs(&tenant_pack(Some("tenant:")), "tcl9.0"),
     );
-    let unit = document_compilation_unit_for(&db, file, config);
+    let unit = installed_unit(&db, file, config);
     assert_eq!(value_at(&unit, "::p", "r", 1), Some(text("tenant:acme")));
 
     let edited = install_workspace_packs(&tenant_pack(Some("t:")), "tcl9.0");
     config.set_spec_pack_key(&mut db).to(edited);
-    let unit = document_compilation_unit_for(&db, file, config);
+    let unit = installed_unit(&db, file, config);
     assert_eq!(value_at(&unit, "::p", "r", 1), Some(text("t:acme")));
     tcl_spectcl::hooks::publish(&tcl_spectcl::PackSet::default());
 }
@@ -495,7 +506,7 @@ fn a_pool_thread_with_a_stale_host_answers_with_the_new_plan() {
         &db,
         install_workspace_packs(&tenant_pack(Some("tenant:")), "tcl9.0"),
     );
-    let unit = document_compilation_unit_for(&db, file, config);
+    let unit = installed_unit(&db, file, config);
     assert_eq!(value_at(&unit, "::p", "r", 1), Some(text("tenant:acme")));
 
     // The reload publishes the edited pack; this thread's host is still the
@@ -504,7 +515,7 @@ fn a_pool_thread_with_a_stale_host_answers_with_the_new_plan() {
     let _registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl9.0", &edited);
     tcl_spectcl::hooks::publish(&edited);
     config.set_spec_pack_key(&mut db).to(edited.key);
-    let unit = document_compilation_unit_for(&db, file, config);
+    let unit = installed_unit(&db, file, config);
     assert_eq!(
         value_at(&unit, "::p", "r", 1),
         Some(text("t:acme")),
@@ -545,11 +556,11 @@ fn an_evaluator_epoch_re_keys_the_memoised_lattices() {
         "tcl9.0".to_owned(),
         None,
     );
-    let unit = document_compilation_unit_for(&db, folding, config);
+    let unit = installed_unit(&db, folding, config);
     assert_eq!(value_at(&unit, "::p", "r", 1), Some(text("tenant:acme")));
 
     let epoch = tcl_registry::pack_hooks::evaluator_epoch();
-    let unit = document_compilation_unit_for(&db, spinning, config);
+    let unit = installed_unit(&db, spinning, config);
     assert_eq!(
         value_at(&unit, "::q", "s", 1),
         Some(LatticeValue::Overdefined)
@@ -558,7 +569,7 @@ fn an_evaluator_epoch_re_keys_the_memoised_lattices() {
         tcl_registry::pack_hooks::evaluator_epoch() > epoch,
         "the quarantine moved the process's epoch"
     );
-    let unit = document_compilation_unit_for(&db, folding, config);
+    let unit = installed_unit(&db, folding, config);
     assert_eq!(
         value_at(&unit, "::p", "r", 1),
         Some(text("tenant:acme")),
@@ -571,7 +582,7 @@ fn an_evaluator_epoch_re_keys_the_memoised_lattices() {
         !set_evaluator_epoch(&mut db, now),
         "and a second sync is a no-op"
     );
-    let unit = document_compilation_unit_for(&db, folding, config);
+    let unit = installed_unit(&db, folding, config);
     assert_eq!(
         value_at(&unit, "::p", "r", 1),
         Some(LatticeValue::Overdefined)

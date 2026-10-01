@@ -148,6 +148,7 @@ fn a_workspace_pack_cannot_hijack_a_bundled_environment_name() {
         tier: Tier::Workspace,
         path: intruder,
         origin: tcl_spectcl::discovery::Origin::DotDir,
+        dependency_tier: None,
     });
     let set = tcl_spectcl::pack::load(&files);
     assert!(
