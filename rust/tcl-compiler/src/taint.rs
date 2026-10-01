@@ -8865,7 +8865,8 @@ mod tests {
     /// TN: no coercion reaches the tainted value — the option does not exist
     /// before 9.1 (tclsh 9.0.4 rejects `-integer` as a bad option), the value
     /// is brace-quoted text, a sanitiser hands over an integer it produced, the
-    /// subject is clean, or the mode compares text.
+    /// subject is clean, the mode compares text (including when `-integer` is
+    /// only another option's value), or C rejects the option combination.
     #[test]
     fn t100_silent_for_switch_integer_without_a_coerced_tainted_word() {
         for (release, call) in [
@@ -8878,6 +8879,13 @@ mod tests {
             ),
             ("tcl9.1", "switch -integer -- $ok {1 { puts one }}"),
             ("tcl9.1", "switch -glob -- $cmd {1* { puts one }}"),
+            // `-integer` is `-matchvar`'s value here: a regexp switch.
+            (
+                "tcl9.1",
+                "switch -matchvar -integer -regexp -- $cmd {1 { puts one }}",
+            ),
+            // C rejects the call before reading the subject.
+            ("tcl9.1", "switch -integer -nocase -- $cmd {1 { puts one }}"),
             (
                 "tcl9.1",
                 "if {[scan $cmd %d n] == 1} { switch -integer -- $n {1 { puts one }} }",

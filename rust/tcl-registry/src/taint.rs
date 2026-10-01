@@ -832,29 +832,33 @@ impl TaintNumericCoercion {
     }
 }
 
-/// [`TaintNumericCoercion::IntegerModeOperands`]. The option run is the
-/// spec's own scan, which stops short of the operands C reserves, so a subject
-/// spelled `-integer` is never read as the option.
+/// [`TaintNumericCoercion::IntegerModeOperands`], read off the spec's
+/// validated case-list invocation: option values (`-matchvar -integer`),
+/// `--`, a second mode option and `-nocase` all resolve there exactly as C
+/// resolves them, and an option absent from `dialect` makes the call invalid
+/// rather than coercing.
 fn integer_mode_operands(
     spec: &crate::CommandSpec,
     args: &[&str],
     dialect: Option<SurfaceQuery<'_>>,
 ) -> Vec<usize> {
-    const OPTION: &str = TaintNumericCoercion::IntegerModeOperands.option();
-    if !spec.leading_switch_names(args).contains(&OPTION)
-        || spec.find_option(OPTION, dialect, None).is_none()
-    {
+    let option = TaintNumericCoercion::IntegerModeOperands.option();
+    let Some(case) = spec.case_list else {
         return Vec::new();
-    }
-    let subject = spec.switch_word_count(args);
-    if subject >= args.len() {
+    };
+    let Some(call) = case.invocation(args, &spec.option_specs(dialect), dialect) else {
         return Vec::new();
-    }
+    };
+    let Some(subject) = call
+        .subject_index
+        .filter(|_| call.special_option == Some(option))
+    else {
+        return Vec::new();
+    };
     let mut coerced = vec![subject];
-    // One word after the subject is the braced list, whose patterns are
-    // literal; more are inline pattern/body pairs.
-    if args.len() - subject > 2 {
-        coerced.extend((subject + 1..args.len()).step_by(2));
+    // A braced clause list's patterns are literal; inline patterns are words.
+    if let Some(start) = call.inline_clause_start {
+        coerced.extend((start..args.len()).step_by(2));
     }
     coerced
 }
@@ -1274,32 +1278,47 @@ y"}"#,
     #[test]
     fn switch_integer_coerces_the_subject_and_inline_patterns_on_tcl91() {
         let v91 = Some("tcl9.1");
-        assert_eq!(switch_coerced(v91, &["-integer", "$x", "{1 a}"]), [1]);
-        assert_eq!(switch_coerced(v91, &["-int", "--", "$x", "{1 a}"]), [2]);
+        assert_eq!(switch_coerced(v91, &["-integer", "$x", "1 a"]), [1]);
+        assert_eq!(switch_coerced(v91, &["-int", "--", "$x", "1 a"]), [2]);
         // Inline form: the patterns are read as integers too, bodies are not.
         assert_eq!(
             switch_coerced(v91, &["-integer", "--", "$x", "$p", "a", "default", "b"]),
             [2, 3, 5]
         );
         // An unknown surface widens rather than hides the hazard.
-        assert_eq!(switch_coerced(None, &["-integer", "$x", "{1 a}"]), [1]);
+        assert_eq!(switch_coerced(None, &["-integer", "$x", "1 a"]), [1]);
     }
 
     #[test]
     fn switch_without_a_live_integer_option_coerces_nothing() {
         let v91 = Some("tcl9.1");
         // String modes compare text.
-        assert!(switch_coerced(v91, &["-glob", "$x", "{1 a}"]).is_empty());
-        assert!(switch_coerced(v91, &["$x", "{1 a}"]).is_empty());
+        assert!(switch_coerced(v91, &["-glob", "$x", "1 a"]).is_empty());
+        assert!(switch_coerced(v91, &["$x", "1 a"]).is_empty());
         // `-i` is ambiguous between `-indexvar` and `-integer` on 9.1.
-        assert!(switch_coerced(v91, &["-i", "$x", "{1 a}"]).is_empty());
+        assert!(switch_coerced(v91, &["-i", "$x", "1 a"]).is_empty());
         // C reserves the last two words: `-integer` here is the subject.
-        assert!(switch_coerced(v91, &["-integer", "{1 a}"]).is_empty());
-        assert!(switch_coerced(v91, &["--", "-integer", "{1 a}"]).is_empty());
+        assert!(switch_coerced(v91, &["-integer", "1 a"]).is_empty());
+        assert!(switch_coerced(v91, &["--", "-integer", "1 a"]).is_empty());
+        // An option's value is not an option: this is a regexp switch.
+        assert!(
+            switch_coerced(
+                v91,
+                &["-matchvar", "-integer", "-regexp", "--", "$x", "1 a"]
+            )
+            .is_empty()
+        );
+        // C rejects these before reading any operand.
+        for args in [
+            &["-integer", "-regexp", "$x", "1 a"][..],
+            &["-integer", "-nocase", "$x", "1 a"][..],
+        ] {
+            assert!(switch_coerced(v91, args).is_empty(), "{args:?}");
+        }
         // Before 9.1 the option does not exist, so the call fails instead.
         for release in ["tcl8.6", "tcl9.0"] {
             assert!(
-                switch_coerced(Some(release), &["-integer", "$x", "{1 a}"]).is_empty(),
+                switch_coerced(Some(release), &["-integer", "$x", "1 a"]).is_empty(),
                 "{release}"
             );
         }
