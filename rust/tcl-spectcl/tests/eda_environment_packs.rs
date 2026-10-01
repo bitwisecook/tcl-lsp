@@ -16,19 +16,16 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! **D17 — the EDA environment shells live in their packs.** The six
-//! `specs/eda_*.tclspec` packs declare `environment` blocks; the compiled
-//! `EDA_SHELLS` table that used to seed the same six definitions is gone.
+//! **The EDA environment shells live in their packs.** The six
+//! `specs/eda_*.tclspec` packs declare `environment` blocks.
 //!
-//! Three things hold that move honest:
+//! Three things hold:
 //!
-//! 1. **Parity with what the compiled shells produced.** The fixture beside
-//!    this file is the `Debug` rendering of `eda_environments()` captured
-//!    before the table was deleted (provenance rewritten to the bundled
-//!    tier, which is what the packs declare at). Every name, alias, editor
-//!    identity, extension, display name, help term, base release, ceiling,
-//!    and placement the shells carried must load from the packs
-//!    field-for-field.
+//! 1. **The packs declare the snapshot.** The fixture beside this file is the
+//!    `Debug` rendering of the six pack-declared definitions at the bundled
+//!    tier. Every name, alias, kind, editor identity, extension, display
+//!    name, short name, help term, base release, ceiling, and placement the
+//!    shells carry must load from the packs field-for-field.
 //! 2. **The compiled seed is the packs' projection.** `cargo xtask
 //!    gen-bundled-environments` writes the blocks into `tcl-dialect`'s
 //!    compiled registry so the environments resolve at generation 0; the
@@ -40,7 +37,7 @@
 
 use std::path::PathBuf;
 
-use tcl_dialect::model::{EnvironmentDefinition, EnvironmentRegistry, Provenance};
+use tcl_dialect::model::{EnvironmentDefinition, EnvironmentKind, EnvironmentRegistry, Provenance};
 use tcl_registry::model::EnvironmentRegistrationError;
 use tcl_spectcl::registration::register_pack_set;
 use tcl_spectcl::{PackEnvironmentTier, Tier, bundled};
@@ -85,6 +82,129 @@ fn the_packs_declare_exactly_what_the_compiled_shells_declared() {
         "the pack-declared EDA environments differ from the compiled shells' snapshot:\n{}",
         unified_diff(&fixture, &loaded)
     );
+}
+
+/// Each shell is named for the tool a user runs, states `kind packages`, and
+/// answers to the spellings users type.
+#[test]
+fn each_shell_is_named_for_the_tool_a_user_runs() {
+    let table: [(&str, &str, &str, &[&str]); 6] = [
+        ("xilinx-eda-tcl", "Xilinx Vivado", "Vivado", &["vivado"]),
+        (
+            "intel-quartus-eda-tcl",
+            "Intel Quartus Prime",
+            "Quartus",
+            &["quartus"],
+        ),
+        (
+            "mentor-eda-tcl",
+            "Siemens Questa / ModelSim",
+            "Questa",
+            &["questa", "modelsim"],
+        ),
+        (
+            "microchip-libero-eda-tcl",
+            "Microchip Libero SoC",
+            "Libero",
+            &["libero"],
+        ),
+        (
+            "synopsys-eda-tcl",
+            "Synopsys DC / PrimeTime / ICC2 / Formality",
+            "Synopsys",
+            &["dc_shell", "primetime"],
+        ),
+        (
+            "cadence-eda-tcl",
+            "Cadence Genus / Innovus / Xcelium",
+            "Cadence",
+            &["genus", "innovus"],
+        ),
+    ];
+    let declared = pack_declared();
+    for (id, display_name, short_name, aliases) in table {
+        let definition = declared
+            .iter()
+            .find(|definition| definition.id.as_str() == id)
+            .unwrap_or_else(|| panic!("{id}: declared by a pack"));
+        assert_eq!(definition.display_name.as_ref(), display_name, "{id}");
+        assert_eq!(definition.short_name.as_ref(), short_name, "{id}");
+        assert_eq!(definition.kind, EnvironmentKind::Packages, "{id}");
+        let declared_aliases: Vec<&str> = definition.aliases.iter().map(AsRef::as_ref).collect();
+        assert_eq!(declared_aliases, aliases, "{id}");
+        let registry = EnvironmentRegistry::compiled();
+        for alias in aliases {
+            assert_eq!(
+                registry.resolve(alias).expect(alias).id.as_str(),
+                id,
+                "`{alias}` resolves to `{id}`"
+            );
+        }
+    }
+    assert_eq!(
+        EnvironmentRegistry::compiled()
+            .resolve("synopsys")
+            .map(|definition| definition.id.as_str().to_owned()),
+        None,
+        "`synopsys` is a package the shell places, not an alias"
+    );
+}
+
+/// An alias selects an environment; it never spells a package a *different*
+/// bundled pack provides, co-provides, declares ambient, or requires for a
+/// command. (A tool's shell and the tool's own package share the tool's name,
+/// so an alias may equal a package of its own pack.)
+#[test]
+fn an_alias_never_spells_another_bundled_packs_package() {
+    let specs = repo_root().join("specs");
+    let mut packs = Vec::new();
+    for entry in std::fs::read_dir(&specs).expect("the bundled specs directory") {
+        let path = entry.expect("a directory entry").path();
+        if path
+            .extension()
+            .is_some_and(|extension| extension == "tclspec")
+        {
+            let source = std::fs::read_to_string(&path).expect("a readable bundled pack");
+            packs.push(tcl_spectcl::loader::evaluate_pack(&source));
+        }
+    }
+    assert!(!packs.is_empty(), "the bundled packs are found");
+    let packages_of = |pack: &tcl_spectcl::loader::Pack| -> Vec<&'static str> {
+        pack.provides
+            .iter()
+            .map(|row| row.name)
+            .chain(pack.co_provides.iter().map(|row| row.name))
+            .chain(pack.ambient_packages.iter().map(|row| row.name))
+            .chain(
+                pack.commands
+                    .iter()
+                    .filter_map(|command| command.spec.required_package),
+            )
+            .collect()
+    };
+    assert!(
+        packs.iter().any(|pack| packages_of(pack).contains(&"upf")),
+        "the packages a pack names are read"
+    );
+    for (index, pack) in packs.iter().enumerate() {
+        for environment in pack.environments.iter().filter(|e| !e.extends) {
+            for alias in &environment.aliases {
+                for (other_index, other) in packs.iter().enumerate() {
+                    if other_index == index {
+                        continue;
+                    }
+                    assert!(
+                        !packages_of(other)
+                            .iter()
+                            .any(|package| package.eq_ignore_ascii_case(alias)),
+                        "alias `{alias}` of `{}` is a package pack `{}` names",
+                        environment.id,
+                        other.name
+                    );
+                }
+            }
+        }
+    }
 }
 
 #[test]
@@ -182,7 +302,7 @@ fn a_workspace_pack_cannot_hijack_a_bundled_environment_name() {
 
     // The bundled definition is the one that resolves, from the bundled tier.
     let resolved = tcl_registry::model::resolve_environment("xilinx-eda-tcl");
-    assert_eq!(resolved.definition.display_name.as_ref(), "Xilinx EDA Tcl");
+    assert_eq!(resolved.definition.display_name.as_ref(), "Xilinx Vivado");
     assert_eq!(resolved.definition.provenance, Provenance::BundledPack);
     assert!(
         resolved

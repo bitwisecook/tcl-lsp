@@ -2243,7 +2243,10 @@ fn recover_procedure_definition(
     let Some(argument_count) = invocation.exact_argument_count else {
         return ProcedureDefinitionReplay::Unavailable;
     };
-    if argument_count != 3 {
+    // The definer's own arity decides which call shapes define a procedure:
+    // three words for `proc name args body`, three or four for a definer that
+    // also takes a static-variable list.
+    if !u16::try_from(argument_count).is_ok_and(|count| invocation.facts.arity.accepts(count)) {
         return ProcedureDefinitionReplay::KnownError;
     }
     if !invocation.facts.arg_roles_complete {
@@ -3302,7 +3305,8 @@ fn stmt_gen(stmt: &Statement, state: &mut State, registry: &CommandRegistry) {
 /// The command a registry-described class definer creates, when this call
 /// is a creation: `METACLASS create NAME …` / `METACLASS createWithNamespace
 /// NAME …` for the `TclOo` family (gated on `IS_OO_METACLASS`, mirroring the
-/// analyser's dual gate), `DEFINER NAME BODY` for snit/itcl.  `None` for
+/// analyser's dual gate), `DEFINER NAME BODY` for snit/itcl and
+/// `DEFINER NAME ?BASES? VARS` for a Jim class.  `None` for
 /// non-definers, `new` (auto-named), or a dynamic name.
 fn definer_created_command(
     registry: &CommandRegistry,
@@ -3322,9 +3326,9 @@ fn definer_created_command(
             let method = registry.exported_manufacturer_method(cmd, args.first()?)?;
             args.get(usize::from(method.names_instance_at?))?
         }
-        tcl_registry::definer::DefinerFamily::Snit | tcl_registry::definer::DefinerFamily::Itcl => {
-            args.first()?
-        }
+        tcl_registry::definer::DefinerFamily::Snit
+        | tcl_registry::definer::DefinerFamily::Itcl
+        | tcl_registry::definer::DefinerFamily::JimClass => args.first()?,
         tcl_registry::definer::DefinerFamily::SpecTcl
         | tcl_registry::definer::DefinerFamily::SslicTcl => return None,
     };

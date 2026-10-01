@@ -49,6 +49,8 @@ mod document_symbols;
 mod edit_tracking_stress;
 #[path = "e2e/editor_features.rs"]
 mod editor_features;
+#[path = "e2e/environment_notice.rs"]
+mod environment_notice;
 #[path = "e2e/hover.rs"]
 mod hover;
 #[path = "e2e/invariants.rs"]
@@ -120,6 +122,8 @@ mod issue945;
 mod issue954_followup;
 #[path = "e2e/issue996_stack_overflow.rs"]
 mod issue996_stack_overflow;
+#[path = "e2e/jim.rs"]
+mod jim;
 #[path = "e2e/name_resolution.rs"]
 mod name_resolution;
 #[path = "e2e/navigation.rs"]

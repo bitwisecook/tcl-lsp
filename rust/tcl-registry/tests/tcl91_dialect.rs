@@ -24,7 +24,7 @@
 //! observable over LSP; the observable completion / W003 behaviour is covered
 //! by the `lsp_e2e` suite.
 
-use tcl_dialect::available_dialects;
+use tcl_dialect::model::EnvironmentRegistry;
 use tcl_dialect::model::SpecSurface;
 use tcl_dialect::model::surface_admits;
 use tcl_dialect::model::{Family, SurfaceQuery};
@@ -40,7 +40,11 @@ fn tcl91_is_a_known_catalogued_dialect() {
         tcl_dialect::DialectProfile::find("tcl9.1").map(tcl_dialect::DialectProfile::surface_query),
         Some(SurfaceQuery::core(Family::Tcl, "9.1"))
     );
-    assert!(available_dialects().contains(&"tcl9.1"));
+    assert!(
+        EnvironmentRegistry::compiled_selectable()
+            .iter()
+            .any(|environment| environment.id.as_str() == "tcl9.1")
+    );
 }
 
 #[test]

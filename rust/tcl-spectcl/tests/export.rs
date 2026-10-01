@@ -420,6 +420,24 @@ fn a_canonical_environment_block_round_trips_byte_identically() {
     assert_eq!(exported, source, "canonical source is its own expansion");
 }
 
+/// The `kind` and `short_name` rows export in the canonical form too: the
+/// expansion of an environment block says everything the loader read.
+#[test]
+fn an_environment_block_with_kind_and_short_name_round_trips_byte_identically() {
+    let source = "speclib canon 2.0 {\n\nenvironment canon-shell {\n    display_name {Canon Shell}\n    short_name {Canon}\n    kind language\n    core tcl 8.6\n    alias canon\n}\n\n}\n";
+    let pack = evaluate_pack(source);
+    assert!(pack.load_error.is_none(), "{:#?}", pack.notices);
+    assert_eq!(pack.environments.len(), 1, "{:#?}", pack.notices);
+    assert_eq!(
+        pack.environments[0].kind,
+        tcl_dialect::model::EnvironmentKind::Language
+    );
+    let exported = export_pack_reporting(&pack).0;
+    assert_eq!(exported, source, "canonical source is its own expansion");
+    let reloaded = evaluate_pack(&exported);
+    assert_eq!(reloaded.environments, pack.environments);
+}
+
 /// The 2.0 word batch (P2-H): `provides`, `co_provides`,
 /// `dynamic_surface`/`unknown_members`, and the `environment -extend`
 /// block all round-trip through gate A's machinery — export, reload,

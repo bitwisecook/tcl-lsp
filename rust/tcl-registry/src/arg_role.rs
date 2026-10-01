@@ -89,6 +89,15 @@ pub enum ArgRole {
     LoopVarList,
     /// Procedure parameter list.
     ParamList,
+    /// A procedure's **static-variable list** — Jim's `proc name args ?statics?
+    /// body`. Each element is a bare `name`, a `{name value}` pair, or (from
+    /// Jim 0.83) `&name`; every one declares a variable that persists across
+    /// calls and is visible in the body without being an argument.
+    ///
+    /// Distinct from [`Self::ParamList`] on the question a call-site check
+    /// asks: statics are never supplied by the caller, so they add nothing
+    /// to the procedure's arity.
+    StaticVarList,
     /// Symbolic name (proc name, namespace name).
     Name,
     /// Pattern or regex.
@@ -276,6 +285,7 @@ impl ArgRole {
         Self::VarRead,
         Self::LoopVarList,
         Self::ParamList,
+        Self::StaticVarList,
         Self::Name,
         Self::Pattern,
         Self::Option,
@@ -348,6 +358,7 @@ impl ArgRole {
             | Self::VarRead
             | Self::LoopVarList
             | Self::ParamList
+            | Self::StaticVarList
             | Self::Name
             | Self::Pattern
             | Self::Option
@@ -392,6 +403,7 @@ impl ArgRole {
             | Self::VarRead
             | Self::LoopVarList
             | Self::ParamList
+            | Self::StaticVarList
             | Self::Name
             | Self::Pattern
             | Self::Option
@@ -440,6 +452,7 @@ impl ArgRole {
             | Self::CommandNameProbe
             | Self::LoopVarList
             | Self::ParamList
+            | Self::StaticVarList
             | Self::Name
             | Self::Pattern
             | Self::Option
@@ -494,6 +507,7 @@ impl ArgRole {
             | Self::VarRead
             | Self::LoopVarList
             | Self::ParamList
+            | Self::StaticVarList
             | Self::Name
             | Self::Pattern
             | Self::Option
@@ -589,6 +603,13 @@ impl ArgRole {
                 (0, "{width height}", "declares the locals the body may read"),
                 (0, "$width * $height", "reads those locals"),
                 (1, "area 3 4", "must supply exactly two words or reports E002/E003"),
+            ),
+            Self::StaticVarList => worked_example!(
+                "proc counter {} {{n 0}} { incr n }\nputs [counter]\nputs [counter]";
+                carrier (0, "{{n 0}}");
+                (0, "{{n 0}}", "declares n, initialised once when the proc is defined and kept between calls"),
+                (0, "incr n", "reads and writes that persistent cell, so it is not a read before set"),
+                (1, "counter", "supplies no argument for n: a static never adds to the arity"),
             ),
             Self::Name => worked_example!(
                 "proc greet {who} { puts \"hello $who\" }\ngreet Ada";
