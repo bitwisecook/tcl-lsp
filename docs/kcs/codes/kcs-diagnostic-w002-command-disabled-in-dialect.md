@@ -55,6 +55,16 @@ that resolves to a same-file `proc`, `interp alias`, static `rename` target,
 tcl-lsp: stub` declaration is never flagged — Tcl resolves the call to that
 definition, not to the disabled builtin, so there is nothing to warn about.
 
+W002 also needs the dialect that has the command to be **related** to the
+document's own. A `tcl8.4` document writing a `tcl8.6` command, a `jim`
+document writing a Tcl command Jim's roster omits (`coroutine`), and a
+`tcl8.6` document writing an iRules command are related: the command exists
+on the document's own derivation line, so W002 says it is disabled here. A
+name only an unrelated environment offers — Expect's `system` in a `jim`
+document, where neither Jim's ancestry nor a shared package ecosystem reaches
+Expect — is not disabled, it is unknown: the analyser reports
+[`W123`](kcs-diagnostic-w123-unresolved-command.md) instead.
+
 ## How to suppress
 
 Add `# noqa: W002` on the line **above** the offending command.

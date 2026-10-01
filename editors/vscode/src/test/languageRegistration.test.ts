@@ -18,39 +18,91 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { TCL_LANGUAGE_IDS, isTclLanguage } from "../languageIds";
+import {
+  catalogueChoices,
+  dialectFromEffectiveConfig,
+  groupDialectChoices,
+  parseListedDialects,
+} from "../dialectChoices";
+import { LANGUAGE_ID_DIALECTS, TCL_LANGUAGE_IDS, isTclLanguage } from "../languageIds";
+
+interface Manifest {
+  activationEvents: string[];
+  contributes: { languages: { id: string }[] };
+}
+
+/** The extension's own manifest: the list of languages every check below derives from. */
+function manifest(): Manifest {
+  return vscode.extensions.getExtension("bitwisecook.tcl-lsp")!.packageJSON as Manifest;
+}
 
 suite("Language Registration", () => {
-  const expectedLanguageIds = [
-    "tcl",
-    "tcl-irule",
-    "tcl-iapp",
-    "tcl-apl",
-    "tcl-bigip",
-    "tcl84",
-    "tcl85",
-    "tcl86",
-    "tcl90",
-    "tcl91",
-    "tcl-synopsys",
-    "tcl-cadence",
-    "tcl-xilinx",
-    "tcl-quartus",
-    "tcl-mentor",
-    "tcl-expect",
-  ];
-
   let registeredLanguages: string[];
 
   suiteSetup(async () => {
     registeredLanguages = await vscode.languages.getLanguages();
   });
 
-  for (const langId of expectedLanguageIds) {
-    test(`language '${langId}' is registered`, () => {
-      assert.ok(registeredLanguages.includes(langId), `Language '${langId}' should be registered`);
+  test("every language the manifest contributes is registered", () => {
+    const contributed = manifest().contributes.languages.map((language) => language.id);
+    assert.ok(contributed.includes("tcl-jim"), "the manifest contributes tcl-jim");
+    const missing = contributed.filter((id) => !registeredLanguages.includes(id));
+    assert.deepStrictEqual(missing, [], `contributed but not registered: ${missing.join(", ")}`);
+  });
+
+  test("every contributed language is a Tcl language id that activates the extension", () => {
+    const contributed = manifest().contributes.languages.map((language) => language.id);
+    assert.deepStrictEqual([...TCL_LANGUAGE_IDS].sort(), [...contributed].sort());
+    for (const id of contributed) {
+      assert.ok(
+        manifest().activationEvents.includes(`onLanguage:${id}`),
+        `${id} has no onLanguage activation event`,
+      );
+      assert.ok(
+        id === "tcl" || Object.prototype.hasOwnProperty.call(LANGUAGE_ID_DIALECTS, id),
+        `${id} implies no dialect in LANGUAGE_ID_DIALECTS`,
+      );
+    }
+  });
+
+  test("the dialect picker lists languages before Tcl-plus-packages environments", () => {
+    const choices = catalogueChoices();
+    const groups = groupDialectChoices(choices);
+    assert.deepStrictEqual(
+      groups.map((group) => group.title),
+      ["Dialects", "Tcl + packages"],
+    );
+    const [languages, packages] = groups;
+    assert.ok(languages.choices.some((choice) => choice.name === "jim"));
+    assert.ok(
+      packages.choices.some(
+        (choice) =>
+          choice.name === "xilinx-eda-tcl" && choice.description.includes("Tcl 8.5 + vivado"),
+      ),
+    );
+    for (const choice of choices) {
+      assert.ok(choice.shortLabel && choice.description, `${choice.name} lacks a label`);
+    }
+  });
+
+  test("the status bar label comes from the server's labels, with the catalogue as fallback", () => {
+    const served = dialectFromEffectiveConfig({
+      dialect: "jim",
+      dialect_id: "jim",
+      dialect_display_name: "Jim Tcl",
+      dialect_short_name: "Jim",
+      dialect_kind: "language",
+      dialect_description: "Jim Tcl",
     });
-  }
+    assert.strictEqual(served?.name, "jim");
+    assert.strictEqual(served?.shortLabel, "Jim");
+    assert.strictEqual(
+      dialectFromEffectiveConfig({ dialect: "xilinx-eda-tcl" })?.shortLabel,
+      "Vivado",
+    );
+    assert.strictEqual(dialectFromEffectiveConfig(null), undefined);
+    assert.strictEqual(parseListedDialects([{ name: "incomplete" }]), undefined);
+  });
 
   test("tcl files are associated with the tcl language", async () => {
     const doc = await vscode.workspace.openTextDocument({
@@ -82,6 +134,14 @@ suite("Language Registration", () => {
       content: "ltm virtual /Common/test {\n}\n",
     });
     assert.strictEqual(doc.languageId, "tcl-bigip");
+  });
+
+  test("Jim content can be opened with tcl-jim language", async () => {
+    const doc = await vscode.workspace.openTextDocument({
+      language: "tcl-jim",
+      content: "alias greet puts\n",
+    });
+    assert.strictEqual(doc.languageId, "tcl-jim");
   });
 
   test("APL content can be opened with tcl-apl language", async () => {

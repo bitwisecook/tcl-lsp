@@ -33,15 +33,16 @@
 //! 9.0.4+git-abe35fa7….gcc-1303.static.tommath-0103
 //! tclsh9.0 % ::tcl::build-info version       → 9.0
 //! tclsh9.0 % ::tcl::build-info patchlevel    → 9.0.4
-//! tclsh9.1 % ::tcl::build-info version       → 9.1b0
-//! tclsh9.1 % ::tcl::build-info patchlevel    → 9.1b0
+//! tclsh9.1 % ::tcl::build-info
+//! 9.1.0+git-….gcc-1303.static.tommath-0103
+//! tclsh9.1 % ::tcl::build-info version       → 9.1
+//! tclsh9.1 % ::tcl::build-info patchlevel    → 9.1.0
 //! tclsh8.6 % ::tcl::build-info               → invalid command name
 //! ```
 //!
-//! 9.1's `version` answering `9.1b0` rather than `9.1` is not a special case:
-//! C returns the text up to the *second* `.` and there is no second `.` in
-//! `9.1b0+…`, so it falls back to the `+` boundary. The same rule reproduces
-//! both releases.
+//! C returns the text up to the *second* `.`, falling back to the `+`
+//! boundary when there is none: the 9.1b0 beta answered `version` with
+//! `9.1b0`, not `9.1`. The same rule reproduces every release.
 
 use crate::TclVersion;
 
@@ -131,11 +132,15 @@ mod tests {
         assert_eq!(query(&ninety, "patchlevel"), "9.0.4");
         assert_eq!(query(&ninety, "version"), "9.0");
 
-        // TP: 9.1b0 has no second `.`, so `version` runs to the `+` — which is
-        // exactly what `tclsh9.1` answers (`9.1b0`, not `9.1`).
         let ninety_one = build_info(TclVersion::V9_1, "rust");
-        assert_eq!(query(&ninety_one, "patchlevel"), "9.1b0");
-        assert_eq!(query(&ninety_one, "version"), "9.1b0");
+        assert_eq!(query(&ninety_one, "patchlevel"), "9.1.0");
+        assert_eq!(query(&ninety_one, "version"), "9.1");
+
+        // TP: a beta patch level has no second `.`, so `version` runs to the
+        // `+` — what the 9.1b0 `tclsh9.1` answered (`9.1b0`, not `9.1`).
+        let beta = "9.1b0+git-fbe83207.gcc-1303.static.tommath-0103";
+        assert_eq!(query(beta, "patchlevel"), "9.1b0");
+        assert_eq!(query(beta, "version"), "9.1b0");
     }
 
     #[test]

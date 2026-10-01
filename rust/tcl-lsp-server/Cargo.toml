@@ -59,7 +59,7 @@ tcl-diagram = { path = "../tcl-diagram" }
 # worker. Trimming it in `tcl-lsp-db` alone would achieve nothing — cargo
 # unions features across the graph, so a defaults-on dependant puts rayon
 # straight back.
-salsa = { version = "0.28", default-features = false, features = ["macros", "inventory"] }
+salsa = { version = "0.28.5", default-features = false, features = ["macros", "inventory"] }
 serde_json = "1"
 sha2 = "0.11"
 # `FutureExt::shared` (progressive diagnostics): the base per-file analysis

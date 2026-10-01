@@ -36,7 +36,7 @@
 //! `supports_dialect`/`ProfileQueries::is_available` semantics for every
 //! compiled spec under every catalogue profile.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, OnceLock};
 
 use smallvec::SmallVec;
@@ -326,6 +326,41 @@ pub(crate) fn hosted_placement_packages() -> &'static HashSet<String> {
             .map(|placement| placement.package.as_ref().to_owned())
             .collect()
     })
+}
+
+/// The core families of the compiled environments that ship `package` — by a
+/// placement (`Tk` and `Itcl` are hosted on the Tcl environments) or as the
+/// environment's own vendor surface ([`VENDOR_SURFACE_BRIDGE`]: Expect on the
+/// `expect` environment, whose core is Tcl). Empty for a package no compiled
+/// environment ships.
+///
+/// Answers "whose package is this?" for a spec whose surface names a package
+/// rather than a core family.
+#[must_use]
+pub fn package_hosting_families(package: &str) -> &'static [Family] {
+    static CELL: OnceLock<HashMap<String, Vec<Family>>> = OnceLock::new();
+    let hosting = CELL.get_or_init(|| {
+        let mut hosting: HashMap<String, Vec<Family>> = HashMap::new();
+        let mut note = |package: &str, family: Family| {
+            let families = hosting.entry(package.to_owned()).or_default();
+            if !families.contains(&family) {
+                families.push(family);
+            }
+        };
+        for definition in compiled_definitions() {
+            let Some(core) = definition.core else {
+                continue;
+            };
+            for placement in &definition.expected_packages {
+                note(placement.package.as_ref(), core.family);
+            }
+            if let Some(vendor) = vendor_surface_package(definition.id.as_str()) {
+                note(vendor, core.family);
+            }
+        }
+        hosting
+    });
+    hosting.get(package).map_or(&[], Vec::as_slice)
 }
 
 /// Whether `package` is a **closed-world** package: part of some

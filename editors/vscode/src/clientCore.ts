@@ -28,13 +28,10 @@
  * `vscode-languageclient/node`, `vscode-languageclient/browser`, or a node
  * builtin — so the browser bundle can take it verbatim.
  *
- * Deliberately NOT here: `DIALECT_LABELS` and `LANGUAGE_ID_DIALECTS`. Both are
- * generated blocks that `cargo xtask gen-editor-dialects` /
- * `gen-editor-extensions` write into `editors/vscode/src/extension.ts` by path,
- * so moving them would mean moving the generator's target too. The browser
- * entry reads dialect labels from the generated, vscode-free
- * `./chat/dialectCatalog` instead, which is the same projection of
- * `tcl_dialect::DialectProfile::all()`.
+ * Dialect labels and language-id tables are not here: they are generated,
+ * `vscode`-free modules both entries import directly — `./chat/dialectCatalog`
+ * (the selectable environments, from `cargo xtask gen-ai-diagnostics`) and
+ * `./languageIds` (`cargo xtask gen-editor-extensions`).
  */
 
 import { Range, Uri, workspace, WorkspaceEdit } from "vscode";
@@ -42,7 +39,9 @@ import type { LanguageClientOptions } from "vscode-languageclient";
 import type { DiffDiagnosticsSuppressor } from "./diffAnalysis";
 import { TCL_LANGUAGE_IDS } from "./languageIds";
 
-export const DEFAULT_DIALECT = "tcl8.6";
+// The dialect a document is analysed under when nothing selects another: the
+// generated copy of `tcl_dialect::model::DEFAULT_ENVIRONMENT_ID`.
+export { DEFAULT_DIALECT } from "./chat/dialectCatalog";
 
 // LSP wire types, for the server commands that answer with an edit of their own
 // rather than through a protocol request (the BIG-IP partition rename).

@@ -573,7 +573,7 @@ fn registry_definer_set_equals_former_hardcoded_list() {
             registry.get(name).is_some_and(|spec| {
                 spec.definition_body.is_some_and(|g| match g.family {
                     DefinerFamily::TclOo => spec.traits.contains(Traits::IS_OO_METACLASS),
-                    DefinerFamily::Snit | DefinerFamily::Itcl => true,
+                    DefinerFamily::Snit | DefinerFamily::Itcl | DefinerFamily::JimClass => true,
                     // SpecTcl bodies declare commands and SslicTcl bodies
                     // declare TLS facts; neither creates classes, so the
                     // scanner deliberately claims none of them.
