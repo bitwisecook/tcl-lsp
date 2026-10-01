@@ -99,6 +99,40 @@ pub fn resolve_system_encoding(value: &str) -> Result<SystemEncoding, CmdError> 
     }
 }
 
+/// The text a script file's bytes are under `encoding`, for `source`.
+///
+/// UTF-8 is read leniently, an invalid byte becoming U+FFFD; ISO-8859-1 maps
+/// each byte to the scalar of the same value; ASCII keeps the low seven bits'
+/// scalars and reads anything above as `?`, the character the encoding's table
+/// substitutes; Unicode is native-endian UTF-16, a trailing odd byte and an
+/// unpaired surrogate each becoming U+FFFD.
+#[must_use]
+pub fn decode_text(bytes: &[u8], encoding: SystemEncoding) -> String {
+    match encoding {
+        SystemEncoding::Utf8 => String::from_utf8_lossy(bytes).into_owned(),
+        SystemEncoding::Iso88591 => bytes.iter().copied().map(char::from).collect(),
+        SystemEncoding::Ascii => bytes
+            .iter()
+            .map(|&byte| if byte < 0x80 { char::from(byte) } else { '?' })
+            .collect(),
+        SystemEncoding::Unicode => {
+            let units = bytes
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .copied()
+                .map(u16::from_ne_bytes);
+            let mut text: String = char::decode_utf16(units)
+                .map(|unit| unit.unwrap_or(char::REPLACEMENT_CHARACTER))
+                .collect();
+            if bytes.len() % 2 == 1 {
+                text.push(char::REPLACEMENT_CHARACTER);
+            }
+            text
+        }
+    }
+}
+
 /// Tcl 9's output conversion profile.  Tcl 8 channels use `tcl8`
 /// conversion semantics implicitly.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -790,6 +824,31 @@ pub fn channel_output_error(name: &str, error: CmdError) -> CmdError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_files_bytes_decode_under_the_encoding_it_is_read_as() {
+        let latin1 = [b'a', 0xe9, b'z'];
+        assert_eq!(decode_text(&latin1, SystemEncoding::Iso88591), "a\u{e9}z");
+        assert_eq!(decode_text(&latin1, SystemEncoding::Utf8), "a\u{fffd}z");
+        assert_eq!(decode_text(&latin1, SystemEncoding::Ascii), "a?z");
+        assert_eq!(
+            decode_text("a\u{e9}z".as_bytes(), SystemEncoding::Utf8),
+            "a\u{e9}z"
+        );
+        let wide: Vec<u8> = "h\u{e9}\u{1f600}"
+            .encode_utf16()
+            .flat_map(u16::to_ne_bytes)
+            .collect();
+        assert_eq!(
+            decode_text(&wide, SystemEncoding::Unicode),
+            "h\u{e9}\u{1f600}"
+        );
+        assert_eq!(
+            decode_text(&wide[..wide.len() - 1], SystemEncoding::Unicode),
+            "h\u{e9}\u{fffd}\u{fffd}"
+        );
+        assert_eq!(decode_text(b"", SystemEncoding::Unicode), "");
+    }
 
     #[test]
     fn binary_translation_is_release_aware() {

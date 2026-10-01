@@ -650,6 +650,10 @@ pub struct CommandRegistry {
     /// registry indexes is `&'static` and never freed, so an address names
     /// one spec for the life of the process.
     pack_origins: FxHashMap<usize, crate::pack_origin::PackOrigin>,
+    /// The text of the definition a `TclBody`-backed pack command's
+    /// `PackageSource` pointer resolved to at load, keyed by the installed
+    /// spec's address as [`Self::pack_origins`] is ([`Self::reference_body`]).
+    reference_texts: FxHashMap<usize, Arc<str>>,
     /// This registry's generation: a number no other registry, and no
     /// earlier state of this one, has had. Every mutation draws a new one,
     /// so a memo keyed by it names exactly the command surface it resolved
@@ -1508,6 +1512,7 @@ impl CommandRegistry {
             effective_semantics: OnceLock::new(),
             overlay: None,
             pack_origins: FxHashMap::default(),
+            reference_texts: FxHashMap::default(),
             generation: next_registry_generation(),
         };
         for spec in tcl_specs() {
@@ -1729,6 +1734,7 @@ impl CommandRegistry {
         // pack each authored spec came from travel with the specs themselves.
         projected.overlay = self.overlay;
         projected.pack_origins.clone_from(&self.pack_origins);
+        projected.reference_texts.clone_from(&self.reference_texts);
         projected.invalidate_effective_semantics();
         projected
     }
@@ -1809,6 +1815,48 @@ impl CommandRegistry {
     #[must_use]
     pub fn pack_origin(&self, spec: &CommandSpec) -> Option<&crate::pack_origin::PackOrigin> {
         self.pack_origins.get(&std::ptr::from_ref(spec).addr())
+    }
+
+    /// Record the definition text a pack command's `PackageSource` backing
+    /// resolved to — what the loader read from the package at load, so that
+    /// nothing downstream reads a file ([`Self::reference_body`]).
+    pub fn insert_reference_text(&mut self, spec: &'static CommandSpec, text: Arc<str>) {
+        self.reference_texts
+            .insert(std::ptr::from_ref(spec).addr(), text);
+    }
+
+    /// The Tcl definition `spec`'s backing says defines the command: the text
+    /// a `PackText` backing carries, or the file a `PackageSource` backing
+    /// resolved to at load. `None` for every other backing, and for a
+    /// `PackageSource` the loader had no package to read.
+    #[must_use]
+    pub fn reference_body(&self, spec: &CommandSpec) -> Option<&str> {
+        use crate::runtime_backing::{BodySource, RuntimeBacking};
+        match spec.runtime_backing {
+            RuntimeBacking::TclBody {
+                source: BodySource::PackText { text },
+            } => Some(text),
+            RuntimeBacking::TclBody {
+                source: BodySource::PackageSource { .. },
+            } => self
+                .reference_texts
+                .get(&std::ptr::from_ref(spec).addr())
+                .map(AsRef::as_ref),
+            _ => None,
+        }
+    }
+
+    /// Every spec a pack installed whose backing is a Tcl body this registry
+    /// holds the text of, with the text — the commands a compile may inline
+    /// the definition of. A spec a later insertion shadowed is not among them.
+    pub fn reference_bodies(&self) -> impl Iterator<Item = (&'static CommandSpec, &str)> {
+        self.overlay_specs.iter().filter_map(|&spec| {
+            let text = self.reference_body(spec)?;
+            self.pack_origin(spec)?;
+            self.get_exact(spec.name)
+                .is_some_and(|live| std::ptr::eq(live, spec))
+                .then_some((spec, text))
+        })
     }
 
     /// Index one row from the compiled-in command universe without recording
@@ -6356,6 +6404,7 @@ impl std::fmt::Debug for CommandRegistry {
             )
             .field("overlay", &self.overlay)
             .field("pack_origins", &self.pack_origins.len())
+            .field("reference_texts", &self.reference_texts.len())
             .field("generation", &self.generation)
             .finish()
     }
@@ -6372,6 +6421,114 @@ mod tests {
     use tcl_dialect::model::SpecProvider;
     use tcl_dialect::model::{Family, SpecSurface, SurfaceLayer, SurfaceQuery};
     use tcl_dialect::surface;
+
+    fn body_backed(name: &'static str, backing: crate::RuntimeBacking) -> crate::CommandSpec {
+        crate::CommandSpec {
+            name,
+            runtime_backing: backing,
+            ..crate::CommandSpec::DEFAULT
+        }
+    }
+
+    fn text_backing(text: &'static str) -> crate::RuntimeBacking {
+        crate::RuntimeBacking::TclBody {
+            source: crate::BodySource::PackText { text },
+        }
+    }
+
+    fn origin() -> crate::pack_origin::PackOrigin {
+        crate::pack_origin::PackOrigin {
+            pack: "vendor".to_owned(),
+            content_hash: 7,
+            vocabulary_version: "2".to_owned(),
+        }
+    }
+
+    /// The reference bodies a registry offers are the specs a pack installed,
+    /// whose backing is a Tcl body this registry holds the text of, and which
+    /// are still the answer for their name: the text a `PackText` carries or a
+    /// `PackageSource` resolved to at load, never an embedder's own spec, a
+    /// backing of another kind, a `PackageSource` nobody read, or a spec a later
+    /// insertion shadowed.
+    #[test]
+    fn a_registry_offers_the_live_pack_installed_bodies_it_holds_text_for() {
+        let installed = |registry: &mut CommandRegistry, spec: crate::CommandSpec| {
+            let spec: &'static crate::CommandSpec = Box::leak(Box::new(spec));
+            registry.insert_static(spec);
+            registry.insert_pack_origin(spec, origin());
+            spec
+        };
+        let mut registry = CommandRegistry::build_default();
+        let in_text = installed(
+            &mut registry,
+            body_backed("vendor::text", text_backing("proc vendor::text {} {}")),
+        );
+        let from_file = installed(
+            &mut registry,
+            body_backed(
+                "vendor::file",
+                crate::RuntimeBacking::package_source("lib.tcl"),
+            ),
+        );
+        registry.insert_reference_text(from_file, Arc::from("proc vendor::file {} {}"));
+        // Not offered: nobody read the file; the host owns the command; the
+        // embedder inserted it; and a later spec shadowed it.
+        installed(
+            &mut registry,
+            body_backed(
+                "vendor::unread",
+                crate::RuntimeBacking::package_source("absent.tcl"),
+            ),
+        );
+        installed(
+            &mut registry,
+            body_backed("vendor::native", crate::RuntimeBacking::HostNative),
+        );
+        registry.insert(body_backed(
+            "embedder::text",
+            text_backing("proc embedder::text {} {}"),
+        ));
+        installed(
+            &mut registry,
+            body_backed(
+                "vendor::shadowed",
+                text_backing("proc vendor::shadowed {} {}"),
+            ),
+        );
+        registry.insert(body_backed(
+            "vendor::shadowed",
+            crate::RuntimeBacking::HostNative,
+        ));
+
+        let offered: Vec<(&str, &str)> = registry
+            .reference_bodies()
+            .map(|(spec, text)| (spec.name, text))
+            .collect();
+        assert_eq!(
+            offered,
+            vec![
+                ("vendor::text", "proc vendor::text {} {}"),
+                ("vendor::file", "proc vendor::file {} {}"),
+            ]
+        );
+        assert_eq!(
+            registry.reference_body(in_text),
+            Some("proc vendor::text {} {}")
+        );
+        assert_eq!(
+            registry.reference_body(from_file),
+            Some("proc vendor::file {} {}")
+        );
+        // A projection for a profile carries the text with the spec.
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        assert_eq!(
+            registry
+                .project_for_profile(profile)
+                .reference_bodies()
+                .count(),
+            2
+        );
+    }
 
     /// Tcl 9.0.4: inside a method the bare words resolve to the receiving
     /// object's `my` command or the `::oo::Helpers` namespace path, while every

@@ -897,6 +897,7 @@ fn codegen_module_with_no_procs() {
         traced_variables: std::collections::BTreeSet::new(),
         has_dynamic_variable_trace: false,
         deferred_writes: tcl_compiler::ir::DeferredWrites::default(),
+        reference_bodies: tcl_compiler::ir::ReferenceBodies::default(),
     };
     let registry = CommandRegistry::build_default();
     let asm = codegen_module(&cfg_mod, &ir_mod, &registry);

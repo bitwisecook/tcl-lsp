@@ -159,11 +159,23 @@ slices proceed without deciding anything here.
 > carries. `tcl docker create` lists the Tcl package behind each command the
 > project's packs declare `HostNative`.
 >
+> A command a pack backs with a Tcl body has its definition inlined into the
+> code that calls it. `inline_reference_bodies`
+> (`rust/tcl-compiler/src/inlining/`) brings the definition the backing names
+> into a module, the procedures that call the command are rewritten, and
+> codegen records a `SiteClaim::ReferenceBody` beside the procedure binding
+> that holds the live command to the definition (`BackingKind`,
+> `rust/tcl-runtime-api/src/site_claim.rs`). The capability matrix's
+> `reference_body` row decides at load whether a pack may declare one, a
+> `PackageSource` body is read at load, through the store that read the pack
+> (`tcl_spectcl::package_sources`), and the VM's `source` command reads through
+> the host's filesystem and honours `-encoding`.
+>
 > The rest of the vocabulary is not built, and names nothing in the
 > workspace:
 >
-> - **Identity and backing** — the `ReferenceBody` and
->   `ShippedImplementation` claims and `IdentityKind`.
+> - **Identity and backing** — the `ShippedImplementation` claim and
+>   `IdentityKind`.
 > - **Packages** — the `tcl spec test` verb.
 >
 > `AnalysisContext`, `AnalysisInputs`, `PlanAnswer`, `OperandId`,
@@ -1671,7 +1683,7 @@ and lifetime argument.
 | 0 | arity and roles | none needed; generic dispatch | exists, sound |
 | 1 | purity, effects, types, transfers, evaluators | none possible at run time; the fact is authoritative for analysis by ruling; what emitted code can check is the binding, and the pack facts it was compiled under | evaluators exist; the answer protocol does not; a constant a pack's `const_fold` computed claims the pack's facts, checked at admission |
 | 2 | this command is a shipped builtin | the live binding is that builtin | `alias_of` decides which codegen stamps a bundled pack keeps, and codegen records the target's identity and claims the pack's facts, checked at admission |
-| 3 | a reference Tcl body | exact definition match of the live proc | the admission seam exists; no spec field |
+| 3 | a reference Tcl body | exact definition match of the live proc | a `TclBody` backing's definition is inlined into the procedures that call the command and claims the pack's facts, checked at admission; the backing is the spec field |
 | 4 | a runtime implementation ships with the package | the runtime reports what it loaded; the artefact pins it | the `runtime_backing` field exists and every core command declares it; both runtimes report what they back and the gate holds the declaration to the WASM runtime's answer; no bundler |
 
 ```mermaid
@@ -1706,23 +1718,27 @@ One claim per specialised site, and the rung is the variant. Rung 0
 records nothing because there is nothing a generic dispatch can get wrong:
 a unit with no claims is the rung-0 case, and no variant stands for it.
 
-Rungs 1 and 2 are built. `SiteClaim` and `PackFactStamp` live in
+Rungs 1, 2 and 3 are built. `SiteClaim` and `PackFactStamp` live in
 `rust/tcl-runtime-api/src/site_claim.rs`, and `FunctionAsm::site_claims`
-carries a function's claims beside its `command_bindings`. Codegen records
-`PackFacts` where a spec an installed pack supplied answered a constant
-fold (`rust/tcl-compiler/src/const_subst.rs`), and `BuiltinAlias` where a
-binding's identity came through `alias_of` (`ResolvedCall::stamp_identity`
-answered the target). `rust/tcl-compiler/src/site_claims.rs` builds both
-from the origin the installer records beside each spec it inserts
-(`CommandRegistry::pack_origin`, `rust/tcl-registry/src/pack_origin.rs`),
-the registry's overlay generation, and the compiling thread's evaluator
-revision. The claim variants of rungs 3 and 4 are not built. `RuntimeBacking`
-and `BodySource`, which rung 4's variant will carry, are built and ride on the
-spec rather than in the artefact.
+carries a function's claims beside its `command_bindings` and
+`procedure_bindings`. Codegen records `PackFacts` where a spec an installed
+pack supplied answered a constant fold (`rust/tcl-compiler/src/const_subst.rs`),
+`BuiltinAlias` where a binding's identity came through `alias_of`
+(`ResolvedCall::stamp_identity` answered the target), and `ReferenceBody` for
+each procedure binding of a function that names a definition the inliner copied
+from a pack (`claim_reference_bodies`, `rust/tcl-compiler/src/codegen/emitter/mod.rs`;
+a procedure the module defines for itself has a binding and no claim).
+`rust/tcl-compiler/src/site_claims.rs` builds the stamps from the origin the
+installer records beside each spec it inserts (`CommandRegistry::pack_origin`,
+`rust/tcl-registry/src/pack_origin.rs`), the registry's overlay generation, and
+the compiling thread's evaluator revision. The claim variant of rung 4 is not
+built. `RuntimeBacking` and `BodySource` are built and ride on the spec rather
+than in the artefact; the claim states only the kind of backing (`BackingKind`),
+because the definition it rests on is in the procedure binding beside it.
 
 ```rust,ignore
-/// What a specialised site carries in the artefact. Rungs 1 and 2 are
-/// built; rungs 3 and 4 are proposed.
+/// What a specialised site carries in the artefact. Rungs 1, 2 and 3 are
+/// built; rung 4 is proposed.
 enum SiteClaim {
     /// Rung 1. The pack facts this site's specialisation rests on — a
     /// constant a pack's `const_fold` computed at compile time.
@@ -1734,11 +1750,13 @@ enum SiteClaim {
         binding: CommandBindingIdentity,
         facts: PackFactStamp,
     },
-    /// Proposed. Rung 3. A reference Tcl body, plus the backing that says
-    /// a proc is the right thing to compare against at all.
+    /// Rung 3. A reference Tcl body inlined at this site, plus the kind of
+    /// backing that says a proc is the right thing to compare against at all.
+    /// The procedure binding is also one of the function's procedure bindings,
+    /// checked as any other is.
     ReferenceBody {
         procedure: ProcedureBindingIdentity,
-        backing: RuntimeBacking,
+        backing: BackingKind,
         facts: PackFactStamp,
     },
     /// Proposed. Rung 4. A shipped implementation, and the identity kind
@@ -1785,6 +1803,16 @@ enum RuntimeBacking {
     None,
 }
 
+/// What a `ReferenceBody` claim states of the backing it was inlined under:
+/// the variant of `RuntimeBacking`, without where a body or a builtin is
+/// named. Built (`tcl_runtime_api::BackingKind`, `RuntimeBacking::kind`).
+enum BackingKind {
+    ShippedBuiltin,
+    TclBody,
+    HostNative,
+    None,
+}
+
 enum BodySource {
     /// A path into the package's own installed source, resolved through
     /// the host filesystem seam; the spec field is a pointer, so a library
@@ -1824,10 +1852,10 @@ otherwise.
 | 0 | nothing | — | never |
 | 1 | every claim's `PackFactStamp` is one the VM holds, compared whole: pack, content hash, vocabulary version, overlay generation, and evaluator revision | the admission check in `rust/tcl-vm/src/interp.rs` (`function_command_bindings_match`), against the facts the embedder set with `Vm::set_pack_facts` — `PackSet::fact_stamps` for the set its registry installs | a pack changed, an overlay changed, a revision moved, or the VM holds no facts for the pack |
 | 2 | `command_binding_matches` re-resolves the recorded identity, follows one prefix-free alias hop, and accepts a `Command::Builtin` whose identity matches or a registry TclOO root; the claim's stamp is held, as for rung 1 | `rust/tcl-vm/src/interp.rs` | a proc, a host command, an ensemble, a shimmed C command, any execution trace, or a changed pack |
-| 3 | `procedure_binding_matches` compares creation name, parameters, and body text against the live proc, *and* the backing is `TclBody` | `rust/tcl-vm/src/interp.rs` plus the backing query | the body differs, or the backing is `ShippedBuiltin`, `HostNative`, or `None` — a proc is then a model of a C command, not the command |
+| 3 | `procedure_binding_matches` compares creation name, parameters, and body text against the live proc, *and* every reference-body claim of the function states a `TclBody` backing and names a procedure binding the function carries, with the claim's stamp held as for rung 1 | `rust/tcl-vm/src/interp.rs` (`function_command_bindings_match`: the procedure bindings and `site_claims_hold`) | the body differs, or the claim states `ShippedBuiltin`, `HostNative`, or `None` — a proc is then a model of a C command, not the command |
 | 4 | the runtime's loaded report equals the claimed backing, and the artefact's manifest matches the runtime's own context pin | the runtime's backing query and `ArtefactIdentityManifest` | the report names a different backing, or the manifest disagrees on ABI version, environment, release, packs, or the intrinsic-table hash |
 
-Rungs 1 and 2's checks are built. `Vm::set_pack_facts` replaces
+Rungs 1, 2 and 3's checks are built. `Vm::set_pack_facts` replaces
 the facts a VM holds and advances its compilation-deopt epoch, so a unit
 admitted under the old facts is checked again at its next entry or
 source-command boundary. A VM that holds none admits exactly the units that
@@ -1836,17 +1864,21 @@ claim nothing, which is every unit compiled without a pack.
 The manifest's check is built for every rung a unit has sites at. A module's
 manifest is compared with the identity the VM states of itself, and the fields
 that disagree refuse the rungs that rest on them: the packs and the package
-floors refuse rungs 1 and 2, the intrinsic table and the embedded library
-refuse rung 4 — every function with a command binding — and the ABI version,
-the environment, the release and the build refuse the module. Rung 4's claim
+floors refuse rungs 1 and 2, the intrinsic table refuses rung 4 — every
+function with a command binding — the embedded library refuses rungs 3 and 4,
+since a reference body may be resolved from it, and the ABI version, the
+environment, the release and the build refuse the module. Rung 4's claim
 variant and its comparison of the runtime's loaded report with the claimed
 backing are not built, so the manifest conjunct is the only one the
 specialisations that rest on a shipped builtin are admitted by today.
 
 Rung 3's extra conjunct is the one that is easy to lose: an exact body
 match is a true statement about a proc and says nothing about whether the
-command *is* that proc. Activation therefore never defines a proc for a
-command whose backing is `HostNative` or `None`.
+command *is* that proc. A reference-body claim whose backing is not `TclBody`
+is therefore refused even where the live procedure's text matches, and no path
+in the VM defines a procedure from a claim: the live procedure is whatever the
+library defined, and a command whose backing is `HostNative` or `None` is never
+compared against one.
 
 ### The loader's stamp rejection rule
 
@@ -1931,17 +1963,27 @@ Rules 1 to 4 are built.
   the bounded engine under the target release, which needs the release
   setter the `Engine` trait in `rust/tcl-engine-api/src/lib.rs` lacks, with
   per-evaluation state isolation, and only value-position bodies the
-  sandbox can express qualify. As code, `procedure_binding_matches` in
-  `rust/tcl-vm/src/interp.rs` already compares creation name, parameters,
-  and body text against the live proc; the body therefore comes from
-  `BodySource::PackageSource`, a pointer into the library's own installed
-  source, or from `BodySource::PackText`, which a library upgrade makes
-  diverge silently and which is reported at load for exactly that reason.
-  Activation never defines a proc for a command whose backing is
-  `HostNative` or `None`, or the check admits a model of a C command. As a
-  derivation source, analysing the body yields purity, effects, return
-  type, callback slots, and the transfer — the facts
-  `ai/claude/skills/spec-author/SKILL.md` still leaves to the author.
+  sandbox can express qualify; this route is not built. As code, a reference
+  body is built. `procedure_binding_matches` in `rust/tcl-vm/src/interp.rs`
+  compares creation name, parameters, and body text against the live proc, and
+  the definition the compiler inlines comes from the spec's backing: from
+  `BodySource::PackageSource`, a pointer into the package's own installed
+  source that the loader reads at load, through the store that read the pack,
+  so no compile reads a file (`rust/tcl-spectcl/src/package_sources.rs`), or
+  from `BodySource::PackText`, which a library upgrade makes diverge silently
+  and which is reported at load for exactly that reason and turns the site
+  plain on the first mismatch. The compiler brings a definition into a module
+  by lowering it on its own, shifting its spans past the module's source and
+  appending its text there (`ReferenceBodies`, `rust/tcl-compiler/src/ir.rs`),
+  and inlines only where the caller has a local variable table — a procedure
+  body — never at a script's global level. The VM defines no procedure from a
+  claim, and refuses a claim whose backing is not `TclBody`, or the check
+  admits a model of a C command. Only a pack's commands are inlined: a
+  `TclBody` command the shipped registry declares has no pack facts for a claim
+  to carry. As a derivation source, analysing the body yields purity, effects,
+  return type, callback slots, and the transfer — the facts
+  `ai/claude/skills/spec-author/SKILL.md` still leaves to the author; that
+  derivation is not built.
 - **Rung 4** is `RuntimeBacking` per command, and codegen picks the
   `IdentityKind` from it. The iRules test harness is an existing
   miniature: `rust/xtask/src/gen_irule_test_data.rs` generates Tcl mocks
@@ -2071,9 +2113,10 @@ struct ArtefactIdentityManifest {
   unit with rung-0 sites only is admitted under a changed pack set. The
   ABI version, the environment, the release and the build decide what every
   word of a unit decoded to, so they refuse every rung; the package floors
-  and the packs are what rungs 1 and 2 rest on; the intrinsic table and the
-  embedded library are what a specialisation resting on a shipped
-  implementation's identity assumes. A pack the artefact states must be one
+  and the packs are what rungs 1 and 2 rest on; the intrinsic table is what a
+  specialisation resting on a shipped implementation's identity assumes, and
+  the embedded library is that as well as where a reference body may be
+  resolved from, so it refuses rungs 3 and 4. A pack the artefact states must be one
   the runtime holds, and a runtime may hold more; every other field must be
   equal. The VM reads a function's rungs off what it records
   (`FunctionAsm::rungs`). A WASM host reads the runtime's own statement
@@ -2085,11 +2128,14 @@ struct ArtefactIdentityManifest {
   shipped to WASM (`rust/tcl-vm-wasm`) is a second WASM engine with a
   browser host, no filesystem, and the fallback profile, and needs the same
   statements.
-- **Pack bodies are in-memory text and need no filesystem.** Real package
-  sources reach the VM through a direct `std::fs` read in
-  `rust/tcl-vm/src/command.rs` that bypasses the host filesystem seam and
-  ignores the encoding option, and no browser host can serve them; the
-  pinned provisioning path in the evaluation contract is the replacement.
+- **Pack bodies are in-memory text and need no filesystem.** A package source
+  reaches the compiler as text the loader read at load, so no compile reads a
+  file. The VM's `source`, which loads the library that defines the command at
+  run time, reads through the host filesystem seam
+  (`rust/tcl-vm/src/command.rs`), so a host with no filesystem, such as a
+  browser, reads nothing, and decodes the file as the encoding `-encoding`
+  names — UTF-8 from Tcl 9, the system encoding before. `runtime/rust`'s
+  `source` reads through its host too and still ignores the option.
 - **Jim and every non-Tcl point execute as Tcl 9 by decision**
   (`vm_runtime_version` in `rust/tcl-dialect/src/profile.rs`), so a Jim
   attestation key has nothing to compare against.
@@ -2163,7 +2209,8 @@ struct CodegenCapability {
     runtime_backing: bool,
     /// May declare `alias_of`, which is what rung 2 rests on.
     builtin_alias: bool,
-    /// Which reference bodies it may supply. Not built: nothing consults it.
+    /// Which reference bodies it may supply: whether a `runtime_backing` that
+    /// is a Tcl body survives the load from a pack at this tier.
     reference_body: ReferenceBodies,
 }
 
@@ -2188,9 +2235,11 @@ unchanged package release is a lockfile change, and the value is
 for both — which is what lets an artefact's rung-1 check and the package
 manager's install check agree without a second hashing rule. `Root` is the
 only tier with every capability; `Direct` may declare `runtime_backing` and
-`alias_of` but no codegen stamp; `Transitive` and `Development` may declare
-neither, so a package deep in a dependency graph cannot change what the
-workspace emits. The container generator reads `runtime_backing` for the
+`alias_of` but no codegen stamp and no reference body — a `runtime_backing` that
+is a Tcl body is a reference body, which the compiler inlines into the code
+that calls the command, and the load drops it with a warning naming the tier;
+`Transitive` and `Development` may declare neither, so a package deep in a
+dependency graph cannot change what the workspace emits. The container generator reads `runtime_backing` for the
 same reason the resolver's load edge does: a `HostNative` command needs its
 extension in the image, so `tcl docker create` lists the Tcl package behind
 each one the project's packs declare and the Dockerfile checks that it

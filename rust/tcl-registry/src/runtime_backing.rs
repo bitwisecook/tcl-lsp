@@ -88,6 +88,19 @@ impl RuntimeBacking {
     pub const fn is_none(self) -> bool {
         matches!(self, Self::None)
     }
+
+    /// Which door the behaviour comes through, without where a body or a
+    /// builtin is named — the fact a compiled site claims
+    /// ([`tcl_runtime_api::SiteClaim::ReferenceBody`]).
+    #[must_use]
+    pub const fn kind(self) -> tcl_runtime_api::BackingKind {
+        match self {
+            Self::ShippedBuiltin { .. } => tcl_runtime_api::BackingKind::ShippedBuiltin,
+            Self::TclBody { .. } => tcl_runtime_api::BackingKind::TclBody,
+            Self::HostNative => tcl_runtime_api::BackingKind::HostNative,
+            Self::None => tcl_runtime_api::BackingKind::None,
+        }
+    }
 }
 
 /// Where a [`RuntimeBacking::TclBody`]'s body text comes from.
@@ -122,6 +135,30 @@ mod tests {
         assert!(!RuntimeBacking::shipped("lassign").is_none());
         assert!(!RuntimeBacking::HostNative.is_none());
         assert!(!RuntimeBacking::package_source("init.tcl").is_none());
+    }
+
+    #[test]
+    fn a_backings_kind_names_its_door_and_nothing_more() {
+        use tcl_runtime_api::BackingKind;
+        assert_eq!(
+            RuntimeBacking::shipped("lassign").kind(),
+            BackingKind::ShippedBuiltin
+        );
+        assert_eq!(
+            RuntimeBacking::package_source("a.tcl").kind(),
+            BackingKind::TclBody
+        );
+        assert_eq!(
+            RuntimeBacking::TclBody {
+                source: BodySource::PackText {
+                    text: "proc p {} {}"
+                }
+            }
+            .kind(),
+            BackingKind::TclBody
+        );
+        assert_eq!(RuntimeBacking::HostNative.kind(), BackingKind::HostNative);
+        assert_eq!(RuntimeBacking::None.kind(), BackingKind::None);
     }
 
     #[test]

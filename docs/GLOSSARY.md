@@ -1778,10 +1778,12 @@ command's. Each runtime reports what it registered (`backing_report`, as a
 `RegisteredBacking`: a handler, a `TclOO` object, a definition from the Tcl
 library it embeds, a handler that only refuses, or nothing), and `cargo xtask
 command-backing` holds every core command's declaration to the WASM runtime's
-answer. Code generation will choose from it which identity the compiled
-artefact records — a command binding, a procedure binding, a guard, or
-none — so the runtime can attest the claim at admission or fall back to
-generic dispatch; nothing reads it that way yet. See
+answer. A Tcl body a pack declares is a **reference body**: the text of the
+`proc` that defines the command, which the compiler inlines into the procedures
+that call it, recording the procedure binding and a claim of the kind of
+backing so the runtime can attest it at admission or fall back to generic
+dispatch (`inline_reference_bodies`, `rust/tcl-compiler/src/inlining/`). No other
+backing is read that way yet. See
 [Registry consumer contracts § What the artefact records per rung](design/compiler/registry-consumer-contracts.md#what-the-artefact-records-per-rung).
 
 KCS tag: `codegen`.
@@ -1803,7 +1805,8 @@ the request is held no nearer the root than the package's position gives it
 `CodegenCapability::for_tier` in `rust/tcl-registry/src/model/capability.rs` —
 is the matrix over it: the root may declare everything, a direct dependency
 an `alias_of` and a [runtime backing](#runtime-backing) but no codegen-axis
-stamp, and a transitive or development dependency none of them. It is a
+stamp and no Tcl body (a reference body), and a transitive or development
+dependency none of them. It is a
 second gate beside the discovery tier's provenance gate, and a declaration
 must pass both. See
 [Registry consumer contracts § Dialects and packages](design/compiler/registry-consumer-contracts.md#dialects-and-packages).
@@ -1812,18 +1815,17 @@ KCS tag: `codegen`.
 
 ### Site claim and pack fact stamp
 
-The proposed record one specialised call site carries in a compiled
-artefact, with the codegen rung as the variant: generic dispatch claims
-nothing; a pack-facts site records the facts its specialisation rests on;
-an alias site adds the command binding identity the VM's alias hop
-resolves; a reference-body site adds the procedure binding and the
-[runtime backing](#runtime-backing); and a shipped-implementation site
-adds the backing with the identity kind codegen chooses from it. The stamp
-is which pack facts a site rests on — the pack name, its content hash, the
-vocabulary version, the registry overlay generation, and the evaluator
-revision behind any declared implementation — so a changed pack
-invalidates the artefact instead of silently changing its meaning.
-Proposed as `SiteClaim` and `PackFactStamp`. See
+The record one specialised call site carries in a compiled artefact
+(`SiteClaim` and `PackFactStamp`, `rust/tcl-runtime-api/src/site_claim.rs`), with
+the codegen rung as the variant: generic dispatch claims nothing; a pack-facts
+site records the facts its specialisation rests on; an alias site adds the
+command binding identity the VM's alias hop resolves; and a reference-body site
+adds the procedure binding and the kind of [runtime backing](#runtime-backing)
+(`BackingKind`), which the VM requires to be a Tcl body. A shipped-implementation
+claim is not built. The stamp is which pack facts a site rests on — the pack
+name, its content hash, the vocabulary version, the registry overlay generation,
+and the evaluator revision behind any declared implementation — so a changed
+pack invalidates the artefact instead of silently changing its meaning. See
 [Registry consumer contracts § What the artefact records per rung](design/compiler/registry-consumer-contracts.md#what-the-artefact-records-per-rung).
 
 KCS tag: `codegen`.

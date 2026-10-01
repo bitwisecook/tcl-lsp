@@ -522,7 +522,8 @@ fn a_bundled_stamp_on_an_alias_of_target_is_admitted() {
 /// A `runtime_backing tcl-body {-pack-text …}` is reported at load — once,
 /// as information, on its command's row — because the body travels with the
 /// pack and goes stale without anyone touching it. The other backings, a body
-/// read from the library's own source among them, draw nothing.
+/// read from the library's own source among them, draw nothing; one the load
+/// cannot read is a warning of its own.
 #[test]
 fn a_pack_text_backing_is_reported_at_load() {
     let root = scratch("pack-text");
@@ -537,6 +538,8 @@ fn a_pack_text_backing_is_reported_at_load() {
          }\n",
     )
     .expect("write pack");
+    std::fs::write(root.join("tclpkg.tcl"), "package probe 1.0\n").expect("manifest");
+    std::fs::write(root.join("init.tcl"), "proc probe::file {} {return 1}\n").expect("library");
     let set = load_workspace(&root);
 
     assert_eq!(set.notices.len(), 1, "{:#?}", set.notices);
@@ -545,6 +548,22 @@ fn a_pack_text_backing_is_reported_at_load() {
     assert_eq!(notice.severity, pack::Severity::Information);
     assert_eq!(notice.context, "command probe::text");
     assert_eq!(notice.line, 4, "the command's own row");
+
+    // The same pack with the library file gone: the body is not in hand, which
+    // is its own warning, on its own row.
+    std::fs::remove_file(root.join("init.tcl")).expect("remove the library");
+    let set = load_workspace(&root);
+    let warnings: Vec<_> = set
+        .notices
+        .iter()
+        .filter(|notice| notice.severity == pack::Severity::Warning)
+        .collect();
+    assert_eq!(warnings.len(), 1, "{:#?}", set.notices);
+    assert_eq!(warnings[0].context, "command probe::file");
+    assert!(
+        warnings[0].message.contains("cannot be read"),
+        "{warnings:?}"
+    );
 
     let _ = std::fs::remove_dir_all(&root);
 }

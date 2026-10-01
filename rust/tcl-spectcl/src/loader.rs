@@ -887,6 +887,12 @@ pub struct PackCommand {
     /// file only it knows, and the capability gate reads it
     /// ([`crate::stamps`]).
     pub dependency_tier: Option<tcl_dialect::model::DependencyTier>,
+    /// The text a `tcl-body {-package-source PATH}` backing pointed at,
+    /// read from the package that ships the declaring file when the load had
+    /// a store to read it through ([`crate::package_sources`]); `None` as the
+    /// loader builds it and for every other backing. A `PackText` body is the
+    /// spec's own and is not copied here.
+    pub reference_text: Option<std::sync::Arc<str>>,
 }
 
 /// A loaded `.tclspec` pack.
@@ -5928,6 +5934,7 @@ fn command_from_parts(
             // (`evaluate_pack_in`), which is the only place the bytes are.
             content_hash: 0,
             dependency_tier: None,
+            reference_text: None,
         })
     })
 }

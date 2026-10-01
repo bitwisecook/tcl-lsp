@@ -163,15 +163,19 @@ impl ManifestField {
     /// every site means, generic dispatch included: a string constant a unit
     /// decoded under one release's escapes is not the constant another
     /// release's would. The pack facts and the package floors are what rungs 1
-    /// and 2 rest on. The intrinsic table and the embedded library are what a
-    /// specialisation resting on a shipped implementation's identity assumes.
+    /// and 2 rest on. The intrinsic table is what a specialisation resting on a
+    /// shipped implementation's identity assumes, and the embedded library is
+    /// that as well as where a reference body may have been resolved from, so
+    /// a library that is not the one the unit was compiled against refuses
+    /// rung 3 too.
     #[must_use]
     pub const fn rests_on(self) -> RungSet {
         match self {
             Self::AbiVersion | Self::Environment | Self::Release | Self::Build => RungSet::ALL,
             Self::Packages | Self::Packs => RungSet::of(Rung::PackFacts).with(Rung::BuiltinAlias),
-            Self::IntrinsicTableHash | Self::EmbeddedStdlibRevision => {
-                RungSet::of(Rung::ShippedBacking)
+            Self::IntrinsicTableHash => RungSet::of(Rung::ShippedBacking),
+            Self::EmbeddedStdlibRevision => {
+                RungSet::of(Rung::ReferenceBody).with(Rung::ShippedBacking)
             }
         }
     }
@@ -830,9 +834,11 @@ mod tests {
             refused(|m| m.intrinsic_table_hash[0] ^= 1),
             RungSet::of(Rung::ShippedBacking)
         );
+        // The library a reference body may have been resolved from refuses
+        // its own rung beside the shipped implementations it defines.
         assert_eq!(
             refused(|m| m.embedded_stdlib_revision.clear()),
-            RungSet::of(Rung::ShippedBacking)
+            RungSet::of(Rung::ReferenceBody).with(Rung::ShippedBacking)
         );
         for edit in [
             (|m: &mut ArtefactIdentityManifest| m.abi_version += 1) as fn(&mut _),

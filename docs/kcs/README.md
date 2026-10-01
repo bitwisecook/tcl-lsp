@@ -188,7 +188,7 @@ symptom with several possible causes worth telling apart. See rule 13 in
 - [kcs-qa-why-was-a-declaration-dropped-from-my-dependencys-pack.md](kcs-qa-why-was-a-declaration-dropped-from-my-dependencys-pack.md)
   — why a spec pack shipped by a dependency loses its `alias_of` or
   `runtime_backing` row unless the package is your own or one your manifest
-  requires directly, and what still works.
+  requires directly (a Tcl body only if it is your own), and what still works.
 - [kcs-qa-when-is-a-proc-parameter-treated-as-a-constant.md](kcs-qa-when-is-a-proc-parameter-treated-as-a-constant.md)
   — when the analyser binds a procedure parameter to a compile-time
   literal from its call sites, which indirect calls (`$cmd args`, callback

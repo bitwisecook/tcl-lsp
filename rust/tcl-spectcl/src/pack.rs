@@ -370,7 +370,7 @@ pub fn load_in_memory(sources: Vec<(PackFile, String)>) -> PackSet {
 /// [`load_in_memory`] with the workspace tier's files loaded under `trust`.
 #[must_use]
 pub fn load_in_memory_under(sources: Vec<(PackFile, String)>, trust: WorkspaceTrust) -> PackSet {
-    load_sources(sources, Vec::new(), trust)
+    load_sources(sources, Vec::new(), trust, None)
 }
 
 /// Load and merge every discovered file, the workspace tier trusted — a
@@ -388,8 +388,9 @@ pub fn load(files: &[PackFile]) -> PackSet {
 /// register), then groups by `speclib` name.
 #[must_use]
 pub fn load_under(files: &[PackFile], trust: WorkspaceTrust) -> PackSet {
-    let (sources, notices) = read_sources(&tcl_lsp_core::vfs::NativeStore, files);
-    load_sources(sources, notices, trust)
+    let store = tcl_lsp_core::vfs::NativeStore;
+    let (sources, notices) = read_sources(&store, files);
+    load_sources(sources, notices, trust, Some(&store))
 }
 
 /// Read every discovered file, turning an unreadable one into a notice rather
@@ -446,10 +447,15 @@ pub(crate) fn load_sources(
     sources: Vec<(PackFile, String)>,
     mut notices: Vec<PackNotice>,
     trust: WorkspaceTrust,
+    store: Option<&dyn tcl_lsp_core::vfs::SourceStore>,
 ) -> PackSet {
     // Keyed from the bytes, before anything is parsed: the key must describe
     // the input, not what the loader made of it.
-    let key = set_key(&sources, trust);
+    let mut key = set_key(&sources, trust);
+    // What the load reads beside the packs — the package files their
+    // `-package-source` backings name — is input too.
+    let mut provisioned = xxhash_rust::xxh3::Xxh3::new();
+    let mut read_any = false;
 
     // Group by declared pack name. `BTreeMap` so the resulting pack order is
     // by name, deterministically. Each file is parsed exactly once here — the
@@ -514,35 +520,18 @@ pub(crate) fn load_sources(
             winners,
             &mut notices,
         );
-        // The stamp rejection rule, on the merged commands: a codegen-axis
-        // stamp survives only as a bundled pack's `alias_of` target's own,
-        // and each one dropped is said on its command's row. Only the stamp
-        // goes; the command keeps every analysis fact it declared.
-        let provenance = merged.provenance();
-        for command in &mut merged.commands {
-            for refusal in
-                crate::stamps::admit_codegen_stamps(command, provenance, crate::stamps::shipped())
-            {
-                notices.push(PackNotice::stamp_refused(command, &refusal));
-            }
-            // The capability gate's other two declarations, on the same
-            // command: what a package too far from the root may not say.
-            for refusal in crate::stamps::admit_declarations(command) {
-                notices.push(PackNotice::declaration_refused(command, &refusal));
-            }
+        admit_commands(&mut merged, &mut notices);
+        // The files `-package-source` backings point at, read through the store
+        // that read the packs. A load with no store reads none, and a command
+        // whose body is not in hand is simply not inlined.
+        if let Some(store) = store
+            && let Some(digest) =
+                crate::package_sources::provision(&mut merged.commands, store, &mut notices)
+        {
+            provisioned.update(&digest.to_le_bytes());
+            read_any = true;
         }
-        // A body carried in the pack is the one backing that goes stale
-        // without anyone touching the pack, so it is said at load.
-        for command in &merged.commands {
-            if matches!(
-                command.spec.runtime_backing,
-                tcl_registry::RuntimeBacking::TclBody {
-                    source: tcl_registry::BodySource::PackText { .. }
-                }
-            ) {
-                notices.push(PackNotice::pack_text_backing(command));
-            }
-        }
+        say_pack_text_backings(&merged, &mut notices);
         // The execution half of the trust ruling, said where the author
         // looks: each body an untrusted workspace holds dormant, on its own
         // row. `hooks::plan_for` reads the same list and allocates none of
@@ -565,6 +554,16 @@ pub(crate) fn load_sources(
     });
     notices.dedup();
 
+    if read_any {
+        // A set that read nothing keeps the key its sources gave it. A
+        // digest of 0 would read as "no packs" to the registry cache.
+        key = match xxhash_rust::xxh3::xxh3_64(
+            &[&key.to_le_bytes()[..], &provisioned.digest().to_le_bytes()].concat(),
+        ) {
+            0 => 1,
+            folded => folded,
+        };
+    }
     let set = PackSet {
         packs,
         notices,
@@ -584,6 +583,42 @@ pub(crate) fn load_sources(
         crate::registration::extension_routes(&set),
     );
     set
+}
+
+/// The capability gate on the merged commands of one pack, each refusal said on
+/// its command's row.
+///
+/// The stamp rejection rule: a codegen-axis stamp survives only as a bundled
+/// pack's `alias_of` target's own. Only the stamp goes; the command keeps every
+/// analysis fact it declared. Then the gate's other two declarations, on the same
+/// command: what a package too far from the root may not say.
+fn admit_commands(merged: &mut MergedPack, notices: &mut Vec<PackNotice>) {
+    let provenance = merged.provenance();
+    for command in &mut merged.commands {
+        for refusal in
+            crate::stamps::admit_codegen_stamps(command, provenance, crate::stamps::shipped())
+        {
+            notices.push(PackNotice::stamp_refused(command, &refusal));
+        }
+        for refusal in crate::stamps::admit_declarations(command) {
+            notices.push(PackNotice::declaration_refused(command, &refusal));
+        }
+    }
+}
+
+/// A body carried in the pack is the one backing that goes stale without anyone
+/// touching the pack, so it is said at load.
+fn say_pack_text_backings(merged: &MergedPack, notices: &mut Vec<PackNotice>) {
+    for command in &merged.commands {
+        if matches!(
+            command.spec.runtime_backing,
+            tcl_registry::RuntimeBacking::TclBody {
+                source: tcl_registry::BodySource::PackText { .. }
+            }
+        ) {
+            notices.push(PackNotice::pack_text_backing(command));
+        }
+    }
 }
 
 /// Report every command name two *different* packs both claim.

@@ -61,7 +61,9 @@
 //!   a stamp must pass both gates;
 //! - `alias_of` and a `runtime_backing` other than `none` are dropped, with a
 //!   warning naming the tier, from a tier whose capability holds neither
-//!   ([`admit_declarations`]).
+//!   ([`admit_declarations`]); a `runtime_backing` that is a Tcl body is a
+//!   reference body, which the compiler inlines into the code that calls the
+//!   command, and is dropped from every tier but the workspace's own package.
 //!
 //! A command no package ships has no tier and the capability gate leaves it
 //! alone. Like a refused stamp, a dropped declaration costs the command no
@@ -86,7 +88,7 @@ use std::sync::{Mutex, OnceLock, PoisonError};
 use rustc_hash::FxHashMap;
 use tcl_dialect::model::Provenance;
 use tcl_registry::forms::CommandForm;
-use tcl_registry::model::capability::{CodegenCapability, DependencyTier};
+use tcl_registry::model::capability::{CodegenCapability, DependencyTier, ReferenceBodies};
 use tcl_registry::registry::CommandRegistry;
 use tcl_registry::spec::{CommandSpec, SubCommand};
 use tcl_registry::{BodySource, RuntimeBacking};
@@ -301,8 +303,13 @@ pub enum Declaration {
     /// `alias_of NAME`, which a site recorded against a shipped builtin rests
     /// on.
     AliasOf(&'static str),
-    /// A `runtime_backing` other than `none`, as declared.
+    /// A `runtime_backing` other than `none` and a Tcl body, as declared.
     RuntimeBacking(RuntimeBacking),
+    /// A `runtime_backing` that is a Tcl body, from a package whose tier may
+    /// declare a backing: the body is a reference body, which the compiler
+    /// inlines into the code of whatever calls the command, so it is held to
+    /// the matrix's own row for them.
+    ReferenceBody(RuntimeBacking),
 }
 
 impl Declaration {
@@ -313,8 +320,11 @@ impl Declaration {
             // The body is the pack's own text and can run to pages.
             Self::RuntimeBacking(RuntimeBacking::TclBody {
                 source: BodySource::PackText { .. },
+            })
+            | Self::ReferenceBody(RuntimeBacking::TclBody {
+                source: BodySource::PackText { .. },
             }) => "runtime_backing tcl-body {-pack-text …}".to_owned(),
-            Self::RuntimeBacking(backing) => format!(
+            Self::RuntimeBacking(backing) | Self::ReferenceBody(backing) => format!(
                 "runtime_backing {}",
                 BackingSyntax::from_backing(backing).spelling()
             ),
@@ -326,6 +336,7 @@ impl Declaration {
         match self {
             Self::AliasOf(_) => "`alias_of`",
             Self::RuntimeBacking(_) => "a `runtime_backing`",
+            Self::ReferenceBody(_) => "a reference body",
         }
     }
 
@@ -334,6 +345,20 @@ impl Declaration {
         match self {
             Self::AliasOf(_) => capability.builtin_alias,
             Self::RuntimeBacking(_) => capability.runtime_backing,
+            Self::ReferenceBody(_) => {
+                capability.runtime_backing
+                    && !matches!(capability.reference_body, ReferenceBodies::Forbidden)
+            }
+        }
+    }
+
+    /// Who may declare it, as the tiers the matrix names.
+    const fn remedy(self) -> &'static str {
+        match self {
+            Self::AliasOf(_) | Self::RuntimeBacking(_) => {
+                "only the workspace's own package and its direct dependencies may"
+            }
+            Self::ReferenceBody(_) => "only the workspace's own package may",
         }
     }
 }
@@ -355,12 +380,12 @@ impl DeclarationRefusal {
     #[must_use]
     pub fn message(&self) -> String {
         format!(
-            "`{}` refused for `{}`: {} may not declare {}; only the workspace's own package \
-             and its direct dependencies may",
+            "`{}` refused for `{}`: {} may not declare {}; {}",
             self.declaration.spelling(),
             self.command,
             pack_of(self.tier),
             self.declaration.noun(),
+            self.declaration.remedy(),
         )
     }
 }
@@ -378,10 +403,20 @@ pub fn declaration_refusals(
         return Vec::new();
     };
     let capability = CodegenCapability::for_tier(tier);
-    let declared = spec.alias_of.map(Declaration::AliasOf).into_iter().chain(
-        (!spec.runtime_backing.is_none())
-            .then_some(Declaration::RuntimeBacking(spec.runtime_backing)),
-    );
+    // A Tcl body is held to the reference-body row once the tier may declare a
+    // backing at all; a tier that may not refuses it as the backing it is.
+    let backing = match spec.runtime_backing {
+        RuntimeBacking::None => None,
+        backing @ RuntimeBacking::TclBody { .. } if capability.runtime_backing => {
+            Some(Declaration::ReferenceBody(backing))
+        }
+        backing => Some(Declaration::RuntimeBacking(backing)),
+    };
+    let declared = spec
+        .alias_of
+        .map(Declaration::AliasOf)
+        .into_iter()
+        .chain(backing);
     declared
         .filter(|declaration| !declaration.permitted_by(capability))
         .map(|declaration| DeclarationRefusal {
@@ -405,7 +440,9 @@ pub fn admit_declarations(command: &mut PackCommand) -> Vec<DeclarationRefusal> 
         for refusal in &refusals {
             match refusal.declaration {
                 Declaration::AliasOf(_) => drops.alias_of = true,
-                Declaration::RuntimeBacking(_) => drops.runtime_backing = true,
+                Declaration::RuntimeBacking(_) | Declaration::ReferenceBody(_) => {
+                    drops.runtime_backing = true;
+                }
             }
         }
         command.spec = stripped(command.spec, drops);
@@ -579,6 +616,7 @@ mod tests {
             file: std::path::PathBuf::new(),
             content_hash: 0,
             dependency_tier: None,
+            reference_text: None,
         }
     }
 
@@ -842,7 +880,81 @@ mod tests {
                 Declaration::RuntimeBacking(RuntimeBacking::HostNative).permitted_by(capability),
                 named
             );
+            // A reference body is the workspace's own package's alone.
+            assert_eq!(
+                Declaration::ReferenceBody(tcl_body()).permitted_by(capability),
+                tier == DependencyTier::Root
+            );
         }
+    }
+
+    fn tcl_body() -> RuntimeBacking {
+        RuntimeBacking::TclBody {
+            source: BodySource::PackText {
+                text: "proc vendor::double {x} {expr {$x * 2}}",
+            },
+        }
+    }
+
+    /// A Tcl body is a reference body, which only the workspace's own package
+    /// may supply: a direct dependency keeps every other backing and loses
+    /// this one, said in the reference body's own words, and a further tier,
+    /// which may declare no backing at all, loses it as a backing.
+    #[test]
+    fn only_the_workspaces_own_package_may_supply_a_reference_body() {
+        let body = || {
+            let mut command = command(CommandSpec {
+                name: "vendor::double",
+                runtime_backing: tcl_body(),
+                ..CommandSpec::DEFAULT
+            });
+            command.dependency_tier = None;
+            command
+        };
+        let mut shipped_by_no_package = body();
+        assert!(admit_declarations(&mut shipped_by_no_package).is_empty());
+        assert_eq!(shipped_by_no_package.spec.runtime_backing, tcl_body());
+
+        let mut root = body();
+        root.dependency_tier = Some(DependencyTier::Root);
+        assert!(admit_declarations(&mut root).is_empty());
+        assert_eq!(root.spec.runtime_backing, tcl_body());
+
+        let mut direct = body();
+        direct.dependency_tier = Some(DependencyTier::Direct);
+        let refusals = admit_declarations(&mut direct);
+        assert_eq!(
+            refusals
+                .iter()
+                .map(DeclarationRefusal::message)
+                .collect::<Vec<_>>(),
+            vec![
+                "`runtime_backing tcl-body {-pack-text …}` refused for `vendor::double`: a \
+                 direct dependency's pack may not declare a reference body; only the \
+                 workspace's own package may"
+            ]
+        );
+        assert_eq!(direct.spec.runtime_backing, RuntimeBacking::None);
+
+        let mut transitive = body();
+        transitive.dependency_tier = Some(DependencyTier::Transitive);
+        let refusals = admit_declarations(&mut transitive);
+        assert_eq!(refusals.len(), 1);
+        assert_eq!(
+            refusals[0].declaration,
+            Declaration::RuntimeBacking(tcl_body()),
+            "a tier with no backings refuses it as one"
+        );
+        assert_eq!(transitive.spec.runtime_backing, RuntimeBacking::None);
+
+        // A backing that is no Tcl body is not a reference body.
+        let mut host = command(CommandSpec {
+            name: "vendor::native",
+            runtime_backing: RuntimeBacking::HostNative,
+            ..CommandSpec::DEFAULT
+        });
+        host.dependency_tier = Some(DependencyTier::Direct);
+        assert!(admit_declarations(&mut host).is_empty());
     }
 
     #[test]

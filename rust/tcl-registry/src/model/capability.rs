@@ -51,8 +51,9 @@ pub struct CodegenCapability {
     /// May declare `alias_of`, which is what a site recorded against a
     /// shipped builtin rests on.
     pub builtin_alias: bool,
-    /// Which reference bodies it may supply. Reference bodies are not
-    /// built: nothing consults this yet.
+    /// Which reference bodies it may supply: whether a `runtime_backing` that
+    /// is a Tcl body — which the compiler inlines into the code of whatever
+    /// calls the command — survives the load from a pack at this tier.
     pub reference_body: ReferenceBodies,
 }
 

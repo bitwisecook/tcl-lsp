@@ -2080,6 +2080,7 @@ step 7 review's fixes were committed between CC8.4 and CC8.1.
 | Item | State | Checkpoint | Notes |
 |---|---|---|---|
 | CC8.4 the manifest `spec` directive, the lockfile hash, the container generator | landed | `wip(consumer-contracts): step 8 — the manifest spec directive` | **The directive.** `rust/tcl-pkg-model/src/manifest.rs` (the manifest moved out of `rust/tcl-pkg/src/` with D6.6): `SpecDirective { packs: Vec<String>, requested_tier: DependencyTier }` and `ManifestAst::spec: Option<SpecDirective>`, read from `spec { packs {FILE …} ?tier NAME? }` by `parse_spec` — one braced word read as key and value words through the list parser, never evaluated, a second `spec` an error, and `tier` defaulting to `direct` (D8.4). Each pack is a relative `.tclspec` path inside the package (no absolute or drive-qualified path, no `..`, no empty component, no repeat), so the join with the package directory cannot leave it. `DIRECTIVES` gains `spec` and `tcl-registry`'s `TCLPKG_MANIFEST_ENV` the matching `manifest_directive`; `manifest_env_drift.rs` stays as it was and holds the two equal. **The clamp.** `tier::clamp_requested(requested, resolved)` — the later of the two tiers, the workspace's own package taking no request — sits beside `dependency_tier` in `tcl-pkg-model`, not in `tcl-pkg`'s `resolver.rs` (D8.3). **The lockfile.** `LockedPackage::spec_integrity: Option<String>` (`xxh3-` and sixteen hex digits per pack, comma-joined in the manifest's order; written for a package that ships packs and for no other, so every other entry keeps its bytes), with `format_spec_integrity` and `parse_spec_integrity`. The hash is `loader::pack_file_hash` — the xxh3 of the file's bytes, folded with each `include` fragment, which is the value every command of that file carries into a `PackFactStamp` — and `tcl_spectcl::package_specs` (new) holds `pack_paths` and `spec_integrity` over it (D8.6). `tcl pkg install` records the value from the fetched package's content-addressed tree (`package_spec_integrity`, `rust/tcl-cli/src/commands/pkg.rs`) and `locked_to_json` shows it. **Discovery.** `discovery.rs`'s `collect_beside_manifests`: a manifest with a directive has exactly the packs it names, read even from a directory the scan skips, and a pack it names that is not there is still discovered, so the load reports `cannot read pack file` on it; a manifest without one keeps the scan, which no longer descends into a directory whose own manifest has a directive; a directive that does not read leaves the scan, as a manifest that does not read always did. `TierReader::tier_of_package` clamps the request against the graph's tier (D8.5). **The container generator.** `DockerfileSpec::native_extensions: Vec<String>` (`rust/tcl-pkg/src/docker.rs`, no registry type: D8.2) renders a comment and one `RUN printf … \| tclsh` that loads each with `package require` after the packages install and before `CMD`, so the build stops naming a missing extension; a name that is not spelt as a Tcl package name is an error. `tcl docker create` (`commands/docker.rs`) reads the project's workspace-tier packs, collects the `required_package` of every command whose `runtime_backing` is `host-native`, warns on standard error for one that names none, and shows the list in its report and its `--json`; `run_create` was split (`key_values`, `report_created`) to stay under the line limit (D8.7). Tests: `tcl-pkg-model`'s `manifest.rs` — `the_spec_directive_is_data_only` (a substitution is text, and a word that would have started `exec` is refused with nothing run), `a_spec_directive_names_packs_and_a_tier` (defaults, each tier, a name with a space) and `a_spec_directive_that_does_not_read_is_refused` (sixteen rows and a second directive); `tier.rs`'s `a_manifest_cannot_claim_a_nearer_tier` (nine positions and the root); `lockfile.rs`'s `spec_integrity_round_trips_and_is_written_only_for_a_package_that_ships_packs` and `the_hashes_a_value_records_read_back_and_nothing_else_does`; `tcl-spectcl`'s `discovery.rs` — `a_manifest_that_names_its_packs_loads_those_and_no_others` (with the same tree under no directive as its control), `a_listed_pack_that_is_missing_is_reported_by_the_load`, `a_directive_that_does_not_read_leaves_the_scan_in_place`, `a_dependencys_directive_decides_its_packs_whatever_the_manifest_above_scans` and `a_dependency_may_ask_for_a_further_tier_and_never_a_nearer_one` (a direct dependency asking for development, a transitive one asking for direct, the root asking for development); `tcl-spectcl/tests/package_specs.rs` (new binary, 4) — `the_lockfile_hash_and_the_artefact_stamp_are_one_value` (two packs, one that includes a fragment; the lockfile's entries equal `PackSet::fact_stamps`' content hashes in the manifest's order, and editing the fragment moves the including pack's value in both places and the other's in neither), `the_hashes_follow_the_order_the_manifest_names_the_packs`, `a_pack_that_cannot_be_read_is_named` and `discovery_finds_the_packs_the_hash_covers`; `tcl-pkg`'s `docker.rs` — `native_extensions_are_checked_once_everything_is_installed` (three families), `a_project_with_no_native_extensions_gains_no_check` and `an_extension_that_is_not_spelt_as_a_package_name_is_refused`; `tcl-cli`'s `pkg_verbs.rs` — `a_changed_pack_changes_the_lockfile` (through `tcl pkg install` with a local path source: the entry equals `format_spec_integrity` of `pack_file_hash`, an unchanged pack keeps it through a second install, a changed pack in the same release moves it, and a package that names no packs writes no field) and `docker_create_lists_a_host_native_commands_extension` (the Dockerfile line, the standard-error warning, the `--json` field, and nothing once the declaration goes). Mutation checks, each reverted and each failing the test that names it: the `..` component allowed in a pack path (`a_spec_directive_that_does_not_read_is_refused`), the `.tclspec` suffix rule off (`the_spec_directive_is_data_only`), the clamp answering the request (`a_manifest_cannot_claim_a_nearer_tier`, and `a_dependency_may_ask_for_a_further_tier_and_never_a_nearer_one` through discovery), the root taking its request (`a_manifest_cannot_claim_a_nearer_tier`), the directive ignored by discovery (`a_manifest_that_names_its_packs_loads_those_and_no_others`), the scan not stopping at a directory with its own directive (`a_dependencys_directive_decides_its_packs_whatever_the_manifest_above_scans`), a missing listed pack skipped (`a_listed_pack_that_is_missing_is_reported_by_the_load`), `pack_file_hash` ignoring fragments (`the_lockfile_hash_and_the_artefact_stamp_are_one_value`), the lockfile not writing the field (`spec_integrity_round_trips_…`), the Dockerfile block dropped (`native_extensions_are_checked_once_everything_is_installed`), `tcl pkg install` recording nothing (`a_changed_pack_changes_the_lockfile`) and the generator reading the commands that are not host-native (`docker_create_lists_a_host_native_commands_extension`). New binary: `tcl-spectcl::package_specs` in `scripts/dev/rust-test-binary-shards.tsv` (shard 3; the verifier proves 331 targets, was 330). Gates: `cargo test -p tcl-pkg-model` (lib 45, was 39), `-p tcl-pkg` (lib 56, was 53; `manifest_env_drift` 2), `-p tcl-spectcl` (lib 217, was 212; `package_specs` 4, new; `codegen_stamps` 8, `workspace_packs` 15, `golden_packs` 3 and every other binary), `-p tcl-cli` (lib 27, `cli` 50, `pkg_verbs` 15, was 13, `spec_verbs` 18, `compile_verbs` 11, `value_transfers_cli` 11, `explorer_gui` 3), `-p tcl-registry --lib` (965) and `-p tcl-compiler --lib manifest_` (5, the manifest environment's diagnostics); `cargo check --workspace --all-targets`; clippy (`--workspace --all-targets -- -D warnings`; two lints answered in the code, `chunks_exact` by `as_chunks` and `too_many_lines` by the split of `run_create`) and `cargo fmt --all` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389), `owner-resolution` (45), `retired-api-gate`, `runtime-stdlib`, `kcs-index-links` green, `dialect-drift` at its 8 sites. Docs: the design page's status box, its package row, the `SpecDirective` block and the lockfile paragraph; `spec-packs.md` (the `spec` bullet); `docs/design/tclpkg/architecture.md` (rules 2, 5a and 9 and the anchors) and `docs/design/contracts/tclpkg-contracts.md` (rules 2, 5 and 14); `docs/GLOSSARY.md` § *Dependency tier and codegen capability*; `kcs-feature-tcl-pkg.md`, `kcs-feature-tcl-docker.md` and `kcs-howto-containerise-a-tcl-project.md`. Deviations: the clamp's home (D8.3), the grammar and its default (D8.4), the load order and the missing pack (D8.5), the hash's text and what writes it (D8.6), the generator checks and does not install (D8.7), and the binding of a pack file to the lockfile's hash is not built (D8.8). D8.3–D8.8 |
+| CC8.1 reference bodies as code (rung 3) | landed | `wip(consumer-contracts): step 8 — reference bodies as code` | **The claim.** `tcl-runtime-api`'s `site_claim.rs`: `SiteClaim::ReferenceBody { procedure: ProcedureBindingIdentity, backing: BackingKind, facts: PackFactStamp }` with its `facts()` arm, and `BackingKind`, the four kinds of `RuntimeBacking` without a payload (`RuntimeBacking::kind`, `tcl-registry`; D8.13). `FunctionAsm::rungs` says rung 3 for it; `ManifestField::EmbeddedStdlibRevision::rests_on` is now rungs 3 and 4 (D8.17). **The text.** `CommandRegistry::reference_body(spec)` answers the `PackText` the spec carries or the `PackageSource` text the loader read; `reference_bodies()` lists the pack-installed specs that are still the live answer for their name and have text; `insert_reference_text` is a side table beside `pack_origins`, carried by `project_for_profile`. `tcl-spectcl`'s `package_sources.rs` (new): `provision` reads each `PackageSource` file at load through the store that read the pack, beneath the nearest `tclpkg.tcl` above it, the path relative and without `..`, puts the text on `PackCommand::reference_text` (a field the loader's one construction and `stamps.rs`'s helper take) and folds a digest of what it read into `PackSet::key` only when it read something; a file that cannot be read, a path that leaves the package and a pack no package ships are each a warning on the command's row, and a load with no store (`load_sources` gained the store as a parameter; `load_in_memory` and the embedded set pass none) reads nothing and says nothing; the installer inserts the text (D8.16). **The gate.** The capability matrix's `reference_body` row is consulted at load: `Declaration::ReferenceBody` in `stamps.rs`, a `tcl-body` backing from a tier that may declare a backing and not a reference body, which is a direct dependency's, is dropped with a warning that says "a reference body" and "only the workspace's own package may" (D8.15). **The compiler.** `inlining/reference.rs` (new): `import` lowers each candidate definition on its own, shifts its spans with `lattice_rebase::rebase_script` past the end of `Module::source` and appends the text there, adds the procedure to the module's table under the rooted name the definition creates and records a `ReferenceImport` (`ReferenceBodies { appendix_start, imports }` on the IR `Module`, `Module::own_source`); `inline_reference_bodies` imports, inlines through the module-procedure inliner's own policy (`inline_procedures` with `Inlining::Only`), and drops the imports again; `inline_module` is unchanged and unwired (D8.10, D8.11, D8.12). Codegen (`emitter/mod.rs`) slices spans from the combined text, states `ModuleAsm::source` as the module's own, and `claim_reference_bodies` records the claim beside each procedure binding that names an import (D8.13); `BytecodeCompileService`'s `compile_target_with` and `compile_procedure_target_with` call it. **The VM.** `site_claims_hold` gains `claim_is_coherent`: a reference-body claim states a `TclBody` backing and names a procedure binding the function carries (D8.14). `source` (`command.rs`) reads through `vm.host().filesystem()` and decodes the file as the encoding `-encoding` names, with `tcl_cmd_core::channel::decode_text` (D8.18). Tests: `tcl-runtime-api`'s `manifest.rs` — `a_field_refuses_the_rungs_that_rest_on_it_and_no_others` (the embedded library's row is now rungs 3 and 4); `tcl-bytecode`'s `a_functions_rungs_are_read_off_what_it_records` (a reference-body claim reads as rung 3); `tcl-registry`'s `runtime_backing.rs` — `a_backings_kind_names_its_door_and_nothing_more` — and `registry.rs` — `a_registry_offers_the_live_pack_installed_bodies_it_holds_text_for` (an embedder's spec, a pack's whose name a later spec shadowed, a backing of another kind and a `PackageSource` nobody read are not offered; a `PackText` and a `PackageSource` text read at load are, and survive a projection); `tcl-compiler`'s `site_claims.rs` — `a_reference_body_is_inlined_and_claims_the_pack_s_facts` (the binding, the claim, the instructions carrying the definition's text, the artefact's source without the appendix, the manifest's pack), `a_global_level_call_stays_a_call_and_a_procedure_body_compile_inlines` (with the plain compile as its control), `only_the_definition_a_pack_declared_for_the_command_is_inlined` (an embedder's spec, a shadowed one, a name the module defines itself and five texts that are not the definition of the command) and `a_host_native_backing_supplies_no_body`; `tcl-cmd-core`'s `channel.rs` — `a_files_bytes_decode_under_the_encoding_it_is_read_as`; `tcl-vm`'s `tests/capability.rs` — `source_reads_through_the_hosts_filesystem`, `source_honours_its_encoding_option` (the options in either order, the usage error, `unknown encoding`) and `source_defaults_to_the_system_encoding_before_tcl_nine`; `tcl-spectcl`'s `stamps.rs` — `only_the_workspaces_own_package_may_supply_a_reference_body` (and a row in `the_remedy_names_the_tiers_the_matrix_permits`) — and `tests/codegen_stamps.rs` (14, was 8) — the plan's three, `a_tcl_body_backed_command_is_inlined_and_admitted`, `a_host_native_backing_never_defines_a_proc` (the same body under `host-native`, and units with a forged shipped-builtin, host-native and `none` backing and a forged procedure, each refused though the live procedure's text matches) and `a_pack_text_body_that_diverges_turns_the_site_plain`, with `a_package_source_body_is_read_at_load_through_the_store`, `a_package_source_that_cannot_be_read_is_said_and_not_inlined` and `a_direct_dependencys_reference_body_is_dropped_at_load`; and `tests/workspace_packs.rs`'s `a_pack_text_backing_is_reported_at_load`, whose package source now has a manifest and a file (an unreadable one is a warning, and the test has that row). Mutation checks, each reverted and each failing the test that names it: the claim read as rung 1 (`a_functions_rungs_are_read_off_what_it_records`); the embedded library not resting rung 3 (the manifest test); the backing kind of a Tcl body read as host-native (`a_backings_kind_names_its_door_and_nothing_more`); `reference_bodies` without the pack origin, without the liveness check, and a resolved package source not served (`a_registry_offers_the_live_pack_installed_bodies_it_holds_text_for`; the compiler's own tests catch only the liveness one, because its importer asks for the pack's facts as well, which is why the registry has a test of its own); the global level rewritten (`a_global_level_call_stays_a_call_…`); a module-defined name imported anyway and a definition with other statements accepted (`only_the_definition_…`); spans not shifted past the module, the artefact's source taking the appendix, no claim recorded, and the script compile and the procedure-body compile not wired (`a_reference_body_is_inlined_…` and `a_global_level_call_stays_a_call_…`); a plain-dispatch compile that inlines (`a_global_level_call_stays_a_call_…`); the claim's backing, its binding and the coherence check not required (`a_host_native_backing_never_defines_a_proc`) and the live body not compared (`a_pack_text_body_that_diverges_turns_the_site_plain`); `source` reading the operating system's files, ignoring `-encoding`, taking extra words after the file, reading an unknown encoding as UTF-8, refusing `-nopkg`, and the Tcl 9 and earlier defaults exchanged (the three `source_…` tests); Latin-1 decoded as UTF-8 (`a_files_bytes_decode_…`); the matrix row not consulted, and a Tcl body not a reference body (`only_the_workspaces_own_package_may_supply_a_reference_body`); the provisioned text out of the key, out of the digest, the path not confined, the manifest taken as the pack's own directory and the installer dropping the text (`a_package_source_…` and `a_host_native_…`); and the key folded when nothing was read (`the_set_key_tracks_content_and_never_collides_with_empty`). The checks ran through a driver that restores each file with its old modification time, which cargo reads as unchanged, so a later run reused the mutated build; it now touches the file after restoring it, and the runs whose result a stale mutation could have changed (C3 to C5, the `source` and package-source ones added after them) were repeated clean. Gates: `cargo test`, under `LANG=C.UTF-8` with `TCL_REQUIRE_WASM_LINK=1`, `TCL_TOMMATH_DIR` and the `tmp` oracle tree linked — `-p tcl-runtime-api` (lib 49), `-p tcl-bytecode` (lib 35), `-p tcl-cmd-core` (lib 134, was 133; 135 with its doc test), `-p tcl-registry` (21 binaries, 1299 tests; lib 967, was 965), `-p tcl-compiler` (68 binaries, 9922 tests, run in batches of twelve binaries so that the test executables fit the disk; lib 6628, was 6624; the 14 cases of `wasm_real_link` run for real against the changed runtime), `-p tcl-vm` (50 binaries, 1500 tests; lib 108; `capability` 6, was 3), `-p tcl-spectcl` (385 tests; lib 218, was 217; `codegen_stamps` 14, was 8; `workspace_packs` 15; `package_specs` 4; `pack_source_e2e` 4; `golden_packs` 3), `-p tcl-lsp-db` (138), and the dependents `-p tcl-cli` (135: lib 27, `cli` 50, `pkg_verbs` 15, `spec_verbs` 18, `compile_verbs` 11, `value_transfers_cli` 11, `explorer_gui` 3), `-p tcl-spec-hooks` (48), `-p tcl-spec-studio` (295), `-p tcl-engine-tclvm` (16), `-p tcl-mcp` (114) and `-p tcl-lsp-core` (3578); `runtime/rust`, its own workspace, built with `TCL_TOMMATH_DIR` under `LANG=C.UTF-8`: `cargo test --locked --lib` (721) and `--tests` (13 binaries, 881 tests), and without the numeric tower lib 624 and 751 in all, none of them changed in count by this item; `cargo check --workspace --all-targets`; clippy (`--workspace --all-targets -- -D warnings`, no new `#[allow]`; two lints answered in the code, `chunks_exact` by `as_chunks` and `too_many_lines` by the split of `load_sources` into `admit_commands` and `say_pack_text_backings`) and `cargo fmt --all` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389), `owner-resolution` (45), `retired-api-gate`, `runtime-stdlib`, `kcs-index-links` green, `dialect-drift` at its 8 sites. Deviations: the inliner's wiring and its scope (D8.10, D8.11), the claim's backing type (D8.13), the conjunct's home and what "activation defines the proc" means (D8.14), the gate's one `Drops` field (D8.15), `PackageSource` resolution (D8.16), the embedded library's bodies not inlined (D8.17), the `source` details (D8.18). D8.10–D8.18 |
 
 ### CC8.4 — what the next items read
 
@@ -2114,6 +2115,42 @@ step 7 review's fixes were committed between CC8.4 and CC8.1.
   (`rust/tcl-cli/src/commands/pkg.rs`, the entry built before the `if !offline`
   block).
 
+### CC8.1 — what the next items read
+
+- **For CC8.3 (`tcl spec test`).** A reference body's text is a full `proc NAME
+  params body` definition: on the spec for `-pack-text`
+  (`BodySource::PackText { text }`), and for `-package-source` on
+  `PackCommand::reference_text`, which is set only when the load had a store to
+  read it through (`pack::load` and the discovered tiers have one;
+  `load_in_memory` and the embedded set have none). The registry's answer is
+  `CommandRegistry::reference_body(spec)`. The verb compares that text with the
+  command in a real shell and needs none of the compiler's machinery.
+- **For CC8.2 (the declared implementation).** The derivation reads the same
+  text and so runs where the text is in hand: on the merged commands, after
+  `stamps::admit_declarations` has taken a body the package may not declare and
+  after `package_sources::provision` has read the files (`pack::load_sources`).
+  A reference body from a direct dependency is gone by then
+  (`Declaration::ReferenceBody`), so a derivation needs no gate of its own. The
+  body is a procedure the module around it never sees (D8.12): the importer
+  lowers it alone, so a scan of the text is a scan of what the compiler inlines.
+- **For step 9.** `SiteClaim::ReferenceBody` carries `facts`, the pack stamp, so
+  step 9's versioned windows and the evidence gate read a reference-body claim's
+  stamp as they read any pack claim's (`SiteClaim::facts`, `ModuleAsm::claimed_packs`);
+  nothing is keyed on the claim's backing beyond `BackingKind`, a payload-free
+  kind that the VM requires to be `TclBody`. `claim_is_coherent` is the place a
+  further condition on a claim that is about the artefact alone belongs;
+  `procedure_binding_matches` stays the comparison with the live procedure.
+- **Reported, not fixed.** `runtime/rust`'s `source` (`cmd_fs.rs`) parses
+  `-encoding NAME` and ignores it, reading the bytes as they are, where the VM's
+  `source` decodes (D8.18); no differential script tells them apart, and
+  `decode_text` in `tcl-cmd-core` is there for it to use. A reference body is
+  read once, at load: a change to a `-package-source` file moves the pack set's
+  key only when the set is loaded again, which a workspace does when a pack file
+  changes and not when a library file does, so an editor's registry can rest on a
+  body a later save has replaced until the next reload; the VM is unaffected,
+  because a stale body fails `procedure_binding_matches` against the live
+  procedure and the site turns plain.
+
 ### Behavioural deltas accepted in step 8
 
 - CC8.4: a `tclpkg.tcl` may carry a `spec` directive. A manifest that has one has
@@ -2130,6 +2167,23 @@ step 7 review's fixes were committed between CC8.4 and CC8.1.
   project's packs declare `host-native`, ends the Dockerfile with a
   `package require` check for each, and warns on standard error for one that
   names no providing package.
+- CC8.1: a command a pack backs with a Tcl body (`-pack-text`, or
+  `-package-source` text from the workspace's own package) has its definition
+  inlined into the procedures that call it when it is a pure leaf of at most five
+  statements, and the artefact carries a `ReferenceBody` claim. The VM runs that
+  function only where the live procedure has exactly the pack's text and it holds
+  the pack's facts, and otherwise compiles the call plain. A call at a script's
+  global level stays a call.
+- CC8.1: a `tcl-body` backing in a direct dependency's pack is dropped at load
+  with a warning that says it is a reference body and that only the workspace's
+  own package may declare one; the command keeps every other fact.
+- CC8.1: a `-package-source` file that cannot be read, that leaves the package or
+  that no package ships is a warning on the command's row, and the pack set's key
+  moves with the files it read.
+- CC8.1: the VM's `source` reads through the host's filesystem and honours
+  `-encoding`: UTF-8 from Tcl 9 and the system encoding before, a file that is
+  not valid UTF-8 now sources, and the message for one that cannot be read
+  carries Tcl's reason (`no such file or directory`).
 
 ## Plan for steps 2–10
 
@@ -6124,6 +6178,137 @@ everything else in this lane is independent of both.
   code generator that specialises a site on a host-native or shipped
   implementation the binding check cannot see, which is step 10's, and the
   design page says rung 4's claim is not built.
+- **D8.10** Reference bodies are inlined by `inline_reference_bodies`, a second
+  entry beside `inline_module`, and the bytecode compile service calls it. The
+  inliner was exposed and unwired, "owned by the codegen consumer", and the
+  plan's test (`a_tcl_body_backed_command_is_inlined_and_admitted`, in
+  `codegen_stamps.rs`, which compiles through the service) needs it wired.
+  `inline_module` keeps its meaning — the procedures a module defines, for the
+  WASM codegen, which records no claim and so must never see a pack's body —
+  and the new entry imports the definitions packs give commands and inlines
+  calls to those and to no procedure the module defines, so no existing script
+  compiles differently: a registry with no pack body returns the module
+  unchanged before any analysis runs, and a plain-dispatch compile returns it
+  too. `compile_target_with` and `compile_procedure_target_with` call it, so
+  every bytecode compile path that specialises is covered. `inline_uplevel.rs`,
+  which the plan lists, is the analysis side's transform of passthrough
+  `uplevel` wrappers (`unit_scope`, `compilation_unit`); it never runs in a
+  compile that reaches codegen and records no procedure binding for a procedure
+  the module defines either, so it is not extended.
+- **D8.11** A body is inlined where the caller has a local variable table: in
+  the body of a procedure the module defines (compiled ahead of time) and in a
+  procedure-body compile, never at a script's global level. The v3 splice
+  renames each parameter and local to `__inline_<n>__<name>` in the caller's
+  frame; at a script's global level that frame is Tcl frame zero's, the names
+  would be global variables, and the module-procedure inliner already declined
+  there when the callee belongs to another namespace because the runtime cannot
+  replay a command copied into frame zero. A call at the global level stays a
+  call (`a_global_level_call_stays_a_call_and_a_procedure_body_compile_inlines`).
+  The policy is the module-procedure inliner's own: a pure leaf of at most
+  `SMALL_BODY_THRESHOLD` statements, at a statement-position call.
+- **D8.12** The text of a definition is foreign to the module that inlines it.
+  The importer lowers it on its own — as the text a runtime would evaluate to
+  create the procedure, so nothing the module around it says can change what it
+  means — shifts every span in the lowered body by `lattice_rebase::rebase_script`
+  past the end of `Module::source`, and appends the text there
+  (`ReferenceBodies { appendix_start, imports }`, `Module::own_source`). Codegen
+  slices spans from the combined text, as it always did, and `ModuleAsm::source`
+  is the module's own: a plain recompile reads it, and the definition must
+  never be part of what runs. A text is a full `proc NAME params body`
+  definition (the loader's own examples are), and it is imported only when it is
+  exactly one `proc` that defines the command it backs, the body is a literal
+  the lowering kept the text of, and no span would pass what an offset holds;
+  anything else is passed over and the call stays a call. A name the module
+  defines is never imported. The candidates are the pack-installed specs the
+  registry holds text for that are its live answer for their name, so a spec a
+  later insertion shadowed, and an embedder's own, are not. The inlined
+  commands carry the lines of the appended text, past the module's last line,
+  where an inlined module procedure carries its own; `(procedure "p" line N)`
+  frames of an inlined body were never kept.
+- **D8.13** The claim is `SiteClaim::ReferenceBody { procedure, backing:
+  BackingKind, facts }`, and `BackingKind` is the four kinds of
+  `RuntimeBacking` without the payload. The design page proposed
+  `backing: RuntimeBacking`, which carries `'static` text and lives in
+  `tcl-registry`, above the crates an artefact and the VM share; the claim needs
+  the kind, because the definition it rests on is in the procedure binding
+  beside it. Codegen derives the claim: `claim_reference_bodies` pairs each
+  procedure binding of a function that names an import (creation name,
+  parameters and body) with the pack facts the import carries, so the inliner
+  records a binding exactly as it does for a module procedure and a binding for
+  a procedure the module defines has no claim. `FunctionAsm::rungs` says rung 3
+  for the claim and, as before, for every procedure binding.
+- **D8.14** The VM's conjunct is in the claims check and not in
+  `procedure_binding_matches`, which sees a binding and not a claim. A
+  reference-body claim is coherent when its backing is `TclBody` and its
+  procedure is one the function's procedure bindings hold — a claim of a body
+  nothing holds the live command to is the artefact contradicting itself — and
+  its stamp is held as for any claim (`site_claims_hold`,
+  `claim_is_coherent`). The plan's "activation defines the proc only then" is
+  read as admission. No path in the VM defines a procedure from a claim, and
+  none could be added soundly: the definition on the artefact's say-so would let
+  a pack author decide what runs. The live procedure is whatever the library
+  defined, and the conjunct keeps a claim about a `HostNative` or `None`
+  command from being satisfied by a procedure of the same text. The plan's
+  negative test is read the same way: the same body under `host-native` is not
+  inlined at compile and the unit that claims it anyway is refused, though the
+  live procedure's text matches exactly (`a_host_native_backing_never_defines_a_proc`,
+  with the forged backings and the forged procedure as rows).
+- **D8.15** The capability matrix's `reference_body` row is consulted at load,
+  which the CC6.2 hand-off asked for. A `tcl-body` backing from a tier that may
+  declare a backing is a reference body (`Declaration::ReferenceBody`), and the
+  row is `Forbidden` for a direct dependency: the load drops the backing from
+  its pack with a warning that says "a reference body" and "only the workspace's
+  own package may", and the command keeps every other fact. A tier that may
+  declare no backing refuses the same declaration as a `runtime_backing`, as it
+  did, and a pack no package ships is not narrowed. The hand-off said "one more
+  `Drops` field"; the backing is cleared whichever gate refuses it, so there is
+  one field and two declarations. The matrix's own text says what the row
+  governs now.
+- **D8.16** A `PackageSource` body is read at load and nowhere else.
+  `tcl_spectcl::package_sources::provision` reads each file through the
+  `SourceStore` the pack was read through, beneath the nearest directory above
+  the pack that holds a `tclpkg.tcl` (no field is added to `PackFile`: 31
+  literals, and a manifest's directory is a fact about the filesystem), the path
+  relative and inside the package. This is the value-transfers lane's pinned
+  provisioning path (value-evaluation.md, "a file the pack names, inside the
+  pack's own discovery tier"). The text rides on `PackCommand::reference_text`,
+  the installer puts it in the registry (`insert_reference_text`, beside
+  `pack_origins`, carried by `project_for_profile`), and the compiler asks the
+  registry (`reference_body`): it reads no file. What was read is folded into
+  `PackSet::key` and only when something was read, so a registry built before a
+  library file changed is not the one built after and the stamps' overlay
+  generation carries the library's identity; it is not folded into a pack's
+  content hash, which stays the lockfile's value (D4.16, D8.6). A path that
+  cannot be read, that leaves the package, or that has no package above its
+  pack is a warning on the command's row and the command keeps its declaration;
+  a load with no store (`load_in_memory`, the embedded bundled set) reads
+  nothing and says nothing.
+- **D8.17** Only a pack's commands are inlined. A `TclBody` command the
+  shipped registry declares has its text in the Tcl library the WASM runtime
+  embeds, which the compiler does not have, and a claim carries pack facts that
+  a shipped spec has none of. `ManifestField::EmbeddedStdlibRevision::rests_on`
+  is widened to rungs 3 and 4 regardless, as the step 7 hand-off asked, so a body
+  resolved from the library, when a host provisions one, is held to the library's
+  revision. A rung is a function's and not a site's, so a disagreeing library
+  refuses every function with a procedure binding, the module's own inlined
+  procedures included: sound, and it costs a recompile only when an artefact from
+  another build, whose library differs, is run. `Packs` and `Packages` keep
+  rungs 1 and 2: a reference-body claim's stamp is checked by `site_claims_hold`
+  whether or not the manifest says so (D7.24), and an exact comparison of a
+  procedure's text rests on no package floor.
+- **D8.18** The VM's `source` reads through `vm.host().filesystem()` and
+  decodes the file as the encoding the option names — `utf-8`, `iso8859-1`,
+  `ascii` or `unicode`, the names `encoding system` accepts, anything else Tcl's
+  `unknown encoding "…"` — with UTF-8 the default from Tcl 9 and the system
+  encoding before (`tcl_cmd_core::channel::decode_text` is the decoding, shared
+  so the other runtime can take it). A host with no filesystem reads nothing,
+  as `runtime/rust`'s host does, and the error carries the POSIX reason Tcl
+  prints (`no such file or directory`) where it carried the Rust one. A file
+  that is not valid UTF-8 now sources, its bad bytes read as U+FFFD, where it
+  was `couldn't read file`. `-nopkg` and `-encoding` may be given in either
+  order. `runtime/rust`'s `source` already reads through its host and still
+  ignores `-encoding`: it is not this item's, and the three-way differential has
+  no script that tells the two apart.
 - **D9.1** Versioned stamps are `StampWindow<T>` slices mirroring
   `ArityWindow`. **D9.2** `DialectProfile::evaluation_point` is the
   evidence gate; `TclVersion::from_profile` delegates.

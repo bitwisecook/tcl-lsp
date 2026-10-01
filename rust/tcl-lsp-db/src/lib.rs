@@ -3206,6 +3206,7 @@ pub fn function_optimisations<'db>(
         traced_variables: BTreeSet::new(),
         has_dynamic_variable_trace: false,
         deferred_writes: tcl_compiler::ir::DeferredWrites::default(),
+        reference_bodies: tcl_compiler::ir::ReferenceBodies::default(),
     };
     let empty_cfg = tcl_compiler::cfg::Function::new("::", "entry");
     let top_fu = FunctionUnit::build(
@@ -3430,6 +3431,7 @@ fn top_level_only_unit(
             traced_variables: cu.ir_module.traced_variables.clone(),
             has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
             deferred_writes: cu.ir_module.deferred_writes.clone(),
+            reference_bodies: cu.ir_module.reference_bodies.clone(),
         },
         cfg_module: tcl_compiler::cfg::CfgModule {
             top_level: cu.cfg_module.top_level.clone(),

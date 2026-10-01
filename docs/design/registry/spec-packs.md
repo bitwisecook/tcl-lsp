@@ -978,26 +978,42 @@ rung* there).
 A pack may also say how a command's behaviour reaches the runtime, with
 `runtime_backing` — `none`, `host-native`, `shipped-builtin ID`,
 `tcl-body {-package-source PATH}`, or `tcl-body {-pack-text {TEXT}}` (a
-`RuntimeBacking`, rung 4 of the same page). It is declared vocabulary: every
-shipped core command declares one, an override keeps the shipped command's
-(the security floor), and nothing yet admits a compiled site on it. A
-`-pack-text` body, which a library upgrade makes diverge silently, is
-reported at load as an information notice on the command's row.
+`RuntimeBacking`, rung 4 of the same page). Every shipped core command declares
+one and an override keeps the shipped command's (the security floor). A
+`tcl-body` backing is a **reference body**: the text of the `proc` that defines
+the command, which the compiler inlines into the procedures that call it. The
+text is the pack's own for `-pack-text`, and for `-package-source` the file of
+the package that ships the pack, relative to the nearest directory above the
+pack that holds a `tclpkg.tcl`, read once at load through the store that read
+the pack — the compiler reads no file, an unreadable path is a warning on the
+command's row, and what was read is part of the pack set's key. The text must be
+exactly one `proc` that defines the command it backs; anything else is passed
+over, as is a call the policy that inlines a module's own procedures declines,
+and a call at a script's global level. A site that inlines one records the
+pack's facts with a claim on the binding that holds the live command to that
+definition, and the VM runs it only while the command is a procedure of exactly
+that text and holds the same facts: a library that diverges from the pack turns
+the site back to ordinary dispatch ([../compiler/registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
+§ *What the artefact records per rung*, rung 3). A `-pack-text` body, which a
+library upgrade makes diverge silently, is reported at load as an information
+notice on the command's row. A command backed any other way is never inlined.
 
 How far the package that ships a pack sits from the workspace root narrows
 what the pack may declare, beside the gate above: a declaration must pass
 both. The workspace's own package may declare everything, a direct
 dependency may declare `alias_of` and a `runtime_backing` but no codegen-axis
-stamp, and a transitive or development dependency may declare none of the
-three, so a package deep in a dependency graph cannot change what the
-workspace emits (`CodegenCapability::for_tier`,
+stamp and no reference body (a `tcl-body` backing), and a transitive or
+development dependency may declare none of the three, so a package deep in a
+dependency graph cannot change what the workspace emits (`CodegenCapability::for_tier`,
 [../compiler/registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
 § *Dialects and packages*). The load drops an `alias_of` or a backing the
 tier may not declare and publishes a warning on the command's row that names
 the tier — "`alias_of lassign` refused for `dep::unpack`: a transitive
 dependency's pack may not declare `alias_of`; only the workspace's own
-package and its direct dependencies may" — and the command keeps every other
-fact. A pack no package ships has no tier and is not narrowed. The user's
+package and its direct dependencies may", and "`runtime_backing tcl-body
+{-pack-text …}` refused for `dep::double`: a direct dependency's pack may not
+declare a reference body; only the workspace's own package may" — and the
+command keeps every other fact. A pack no package ships has no tier and is not narrowed. The user's
 answer is [why was a declaration dropped from my dependency's pack](../../kcs/kcs-qa-why-was-a-declaration-dropped-from-my-dependencys-pack.md).
 
 The `world_effects` block rows stay documented vocabulary the loader does

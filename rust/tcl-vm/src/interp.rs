@@ -4814,15 +4814,36 @@ impl Vm {
         })
     }
 
-    /// The rung-1 check: every spec-pack claim `asm`'s sites make stamps
+    /// The claims check: every spec-pack claim `asm`'s sites make stamps
     /// facts this VM holds — the same pack, content hash, vocabulary
-    /// version, overlay generation and evaluator revision. A unit that
-    /// claims nothing, as every unit compiled without a pack does, holds
-    /// trivially.
+    /// version, overlay generation and evaluator revision — and says what its
+    /// kind of claim must. A unit that claims nothing, as every unit compiled
+    /// without a pack does, holds trivially.
     fn site_claims_hold(&self, asm: &FunctionAsm) -> bool {
-        asm.site_claims
-            .iter()
-            .all(|claim| self.pack_facts.contains(claim.facts()))
+        asm.site_claims.iter().all(|claim| {
+            self.pack_facts.contains(claim.facts()) && Self::claim_is_coherent(claim, asm)
+        })
+    }
+
+    /// What a claim states beyond the pack facts it stamps. A reference-body
+    /// claim must name a procedure binding the function carries — the binding is
+    /// what holds the live command to the body, so a claim of a body nothing
+    /// checks is the artefact contradicting itself — and its backing must be a
+    /// Tcl body. An exact match of a procedure's text is a true statement about
+    /// the procedure and says nothing about whether the command *is* that
+    /// procedure: a command the host registered natively, or one nothing
+    /// executes, is not made one by a procedure of the same text.
+    fn claim_is_coherent(claim: &tcl_runtime_api::SiteClaim, asm: &FunctionAsm) -> bool {
+        match claim {
+            tcl_runtime_api::SiteClaim::ReferenceBody {
+                procedure, backing, ..
+            } => {
+                *backing == tcl_runtime_api::BackingKind::TclBody
+                    && asm.procedure_bindings.contains(procedure)
+            }
+            tcl_runtime_api::SiteClaim::PackFacts(_)
+            | tcl_runtime_api::SiteClaim::BuiltinAlias { .. } => true,
+        }
     }
 
     /// Run under the facts of the spec-pack set code is compiled against —

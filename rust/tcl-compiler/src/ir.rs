@@ -1913,6 +1913,44 @@ pub struct Module {
     /// [`DeferredWrites`]. Populated after lowering, beside
     /// [`Self::traced_variables`].
     pub deferred_writes: DeferredWrites,
+    /// The definitions of pack commands this module's calls were inlined
+    /// from, and where [`Self::source`] holds their text — see
+    /// [`ReferenceBodies`].
+    pub reference_bodies: ReferenceBodies,
+}
+
+/// The reference bodies a module's calls were inlined from.
+///
+/// A command a pack declares `TclBody`-backed has its definition in the pack,
+/// not in the module that calls it. The inliner lowers that definition on its
+/// own and shifts its spans past the end of [`Module::source`], then appends
+/// the definition's text there, so every span in the module — the module's own
+/// and the borrowed — indexes one text and codegen slices each as it always
+/// did. The appended text is no part of the module: [`Module::own_source`]
+/// is what an artefact carries as its source, and what a plain recompile
+/// reads.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ReferenceBodies {
+    /// The byte offset in [`Module::source`] at which the appended
+    /// definitions start; `None` when nothing was appended.
+    pub appendix_start: Option<usize>,
+    /// The definitions appended, by what identifies each to the runtime.
+    pub imports: Vec<ReferenceImport>,
+}
+
+/// One pack command's definition, as copied into a module.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReferenceImport {
+    /// The rooted name the definition creates (`::vendor::double`).
+    pub name: String,
+    /// The definition's raw parameter list.
+    pub parameters: String,
+    /// The definition's body text, as the live procedure would hold it.
+    pub body: String,
+    /// The kind of backing the definition was declared with.
+    pub backing: tcl_runtime_api::BackingKind,
+    /// The pack facts that declared the backing the definition came from.
+    pub facts: tcl_runtime_api::PackFactStamp,
 }
 
 fn execution_namespace_for_qname(qname: &str) -> String {
@@ -1925,6 +1963,16 @@ fn execution_namespace_for_qname(qname: &str) -> String {
 }
 
 impl Module {
+    /// The source text the module was lowered from, without the definitions
+    /// the inliner appended ([`ReferenceBodies`]).
+    #[must_use]
+    pub fn own_source(&self) -> &str {
+        match self.reference_bodies.appendix_start {
+            Some(end) => self.source.get(..end).unwrap_or(&self.source),
+            None => &self.source,
+        }
+    }
+
     /// Executable roots whose invocation is independent of an enclosing
     /// statement: the module load script, retained procedures and methods,
     /// and retained replacement methods.

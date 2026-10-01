@@ -82,6 +82,19 @@ pub fn pack_facts_claim(
         .map(|origin| SiteClaim::PackFacts(site_stamp(registry, origin)))
 }
 
+/// Rung 3: the pack facts behind a pack command's declared backing, for a site
+/// that inlines the definition the backing names. `None` for a spec no pack
+/// supplied.
+#[must_use]
+pub fn reference_body_facts(
+    registry: &CommandRegistry,
+    spec: &tcl_registry::CommandSpec,
+) -> Option<PackFactStamp> {
+    registry
+        .pack_origin(spec)
+        .map(|origin| site_stamp(registry, origin))
+}
+
 /// Rung 2: the claim a site makes when its `binding` reached a builtin
 /// through the resolved pack command's `alias_of` — its identity is not the
 /// command's own name. `None` for every other binding.
@@ -228,6 +241,218 @@ mod tests {
                 .packs
                 .is_empty()
         );
+    }
+
+    /// A pack command backed by a Tcl body: `vdouble` is its definition text.
+    fn body_backed(name: &'static str, text: &'static str) -> CommandSpec {
+        CommandSpec {
+            name,
+            runtime_backing: tcl_registry::RuntimeBacking::TclBody {
+                source: tcl_registry::BodySource::PackText { text },
+            },
+            ..CommandSpec::DEFAULT
+        }
+    }
+
+    const DOUBLE: &str = "proc vdouble {x} {expr {$x * 2}}";
+
+    fn binding() -> tcl_runtime_api::ProcedureBindingIdentity {
+        tcl_runtime_api::ProcedureBindingIdentity::new("vdouble", "::vdouble", "x", "expr {$x * 2}")
+    }
+
+    fn service_over(registry: CommandRegistry) -> crate::compile_service::BytecodeCompileService {
+        crate::compile_service::BytecodeCompileService::new(registry)
+    }
+
+    fn calls_a_command(function: &tcl_bytecode::FunctionAsm) -> bool {
+        function.instructions.iter().any(|instruction| {
+            matches!(
+                instruction.op,
+                tcl_bytecode::Op::INVOKE_STK1 | tcl_bytecode::Op::INVOKE_STK4
+            )
+        })
+    }
+
+    /// Rung 3: a procedure that calls a pack command whose backing is a Tcl
+    /// body has the body inlined, and the function records the binding that
+    /// holds the live command to it and the claim on the pack that declared
+    /// it. The artefact's source is the module's own, without the definition
+    /// the inliner appended, and the manifest lists the pack.
+    #[test]
+    fn a_reference_body_is_inlined_and_claims_the_pack_s_facts() {
+        use tcl_runtime_api::CompileService;
+
+        let mut registry = CommandRegistry::build_default();
+        install(&mut registry, body_backed("vdouble", DOUBLE));
+        let facts = stamp(&registry);
+        let source = "proc caller {n} {vdouble $n}\nset x 1";
+        let module = service_over(registry).compile(source).unwrap();
+
+        let caller = &module.procedures["::caller"];
+        assert_eq!(caller.procedure_bindings, vec![binding()]);
+        assert_eq!(
+            caller.site_claims,
+            vec![SiteClaim::ReferenceBody {
+                procedure: binding(),
+                backing: tcl_runtime_api::BackingKind::TclBody,
+                facts: facts.clone(),
+            }]
+        );
+        assert!(!calls_a_command(caller), "{:#?}", caller.instructions);
+        assert!(
+            caller
+                .instructions
+                .iter()
+                .any(|instruction| instruction.source_cmd_text == "expr {$x * 2}"),
+            "the inlined commands keep the text of the definition they came from: {:#?}",
+            caller.instructions
+        );
+        assert_eq!(
+            module.source, source,
+            "the appended definition is no part of it"
+        );
+        assert_eq!(
+            module
+                .manifest
+                .as_ref()
+                .expect("the compiler fills it")
+                .packs,
+            vec![facts]
+        );
+        assert!(module.top_level.site_claims.is_empty());
+    }
+
+    /// A script's global level is Tcl frame zero's and holds no local variable
+    /// table, so a call there stays a call; a procedure-body compile has a frame
+    /// of its own, and the definition is inlined and claimed there too.
+    #[test]
+    fn a_global_level_call_stays_a_call_and_a_procedure_body_compile_inlines() {
+        use tcl_runtime_api::{CompileService, ProcedureCompileTarget, ProcedureDispatch};
+
+        let mut registry = CommandRegistry::build_default();
+        install(&mut registry, body_backed("vdouble", DOUBLE));
+        let facts = stamp(&registry);
+        let service = service_over(registry);
+
+        let script = service.compile("vdouble 21").unwrap();
+        assert!(calls_a_command(&script.top_level));
+        assert!(script.top_level.procedure_bindings.is_empty());
+        assert!(script.top_level.site_claims.is_empty());
+
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+        let parameters = vec!["n".to_owned()];
+        let body = service
+            .compile_procedure_for_profile(
+                ProcedureCompileTarget {
+                    source: "vdouble $n",
+                    parameters: &parameters,
+                    namespace: "",
+                },
+                profile,
+                ProcedureDispatch::Optimised,
+            )
+            .unwrap();
+        assert_eq!(body.top_level.procedure_bindings, vec![binding()]);
+        assert_eq!(
+            body.top_level.site_claims,
+            vec![SiteClaim::ReferenceBody {
+                procedure: binding(),
+                backing: tcl_runtime_api::BackingKind::TclBody,
+                facts,
+            }]
+        );
+        assert!(!calls_a_command(&body.top_level));
+
+        let plain = service
+            .compile_procedure_for_profile(
+                ProcedureCompileTarget {
+                    source: "vdouble $n",
+                    parameters: &parameters,
+                    namespace: "",
+                },
+                profile,
+                ProcedureDispatch::Plain,
+            )
+            .unwrap();
+        assert!(plain.top_level.procedure_bindings.is_empty());
+        assert!(plain.top_level.site_claims.is_empty());
+        assert!(calls_a_command(&plain.top_level));
+    }
+
+    /// What is never inlined: a command no pack supplied, whatever its
+    /// backing says; a command the module defines for itself, whose definition
+    /// the module keeps; and a text that is not exactly the definition of the
+    /// command it backs.
+    #[test]
+    fn only_the_definition_a_pack_declared_for_the_command_is_inlined() {
+        use tcl_runtime_api::CompileService;
+        let caller = "proc caller {n} {vdouble $n}";
+        let inlined = |registry: CommandRegistry, source: &str| {
+            let module = service_over(registry).compile(source).unwrap();
+            let function = &module.procedures["::caller"];
+            (
+                function.procedure_bindings.clone(),
+                function.site_claims.clone(),
+            )
+        };
+
+        // No pack supplied the spec: the embedder's own.
+        let mut embedder = CommandRegistry::build_default();
+        embedder.insert(body_backed("vdouble", DOUBLE));
+        assert_eq!(inlined(embedder, caller), (vec![], vec![]));
+
+        // A later spec at the name shadows the pack's, whose body is then not
+        // the command any more.
+        let mut shadowed = CommandRegistry::build_default();
+        install(&mut shadowed, body_backed("vdouble", DOUBLE));
+        shadowed.insert(CommandSpec {
+            name: "vdouble",
+            runtime_backing: tcl_registry::RuntimeBacking::HostNative,
+            ..CommandSpec::DEFAULT
+        });
+        assert_eq!(inlined(shadowed, caller), (vec![], vec![]));
+
+        // The module defines the name itself: its definition is the live one.
+        let mut registry = CommandRegistry::build_default();
+        install(&mut registry, body_backed("vdouble", DOUBLE));
+        let own = format!("proc vdouble {{x}} {{expr {{$x * 3}}}}\n{caller}");
+        assert_eq!(inlined(registry, &own), (vec![], vec![]));
+
+        for text in [
+            "proc other {x} {expr {$x * 2}}",
+            "proc vdouble {x} {expr {$x * 2}}\nset y 1",
+            "proc vdouble {x} {expr {$x * 2}}\nproc vdouble {x} {expr {$x * 3}}",
+            "set body {expr {$x * 2}}\nproc vdouble {x} $body",
+            "expr {1 + 1}",
+        ] {
+            let mut registry = CommandRegistry::build_default();
+            install(&mut registry, body_backed("vdouble", text));
+            assert_eq!(inlined(registry, caller), (vec![], vec![]), "{text}");
+        }
+    }
+
+    /// A backing that is not a Tcl body supplies nothing to inline, even when
+    /// a procedure of the same text is what runs.
+    #[test]
+    fn a_host_native_backing_supplies_no_body() {
+        use tcl_runtime_api::CompileService;
+        let mut registry = CommandRegistry::build_default();
+        install(
+            &mut registry,
+            CommandSpec {
+                name: "vdouble",
+                runtime_backing: tcl_registry::RuntimeBacking::HostNative,
+                ..CommandSpec::DEFAULT
+            },
+        );
+        let module = service_over(registry)
+            .compile("proc caller {n} {vdouble $n}")
+            .unwrap();
+        let caller = &module.procedures["::caller"];
+        assert!(caller.procedure_bindings.is_empty());
+        assert!(caller.site_claims.is_empty());
+        assert!(calls_a_command(caller));
     }
 
     /// Rung 2 on the inline path: a pack command whose `alias_of lindex`

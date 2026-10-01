@@ -75,8 +75,22 @@ not warn you that it kept them.
 
 A pack a package ships, beside that package's own `tclpkg.tcl`, also loses
 its `alias_of` and `runtime_backing` rows unless the package is your own or
-one your manifest requires directly
+one your manifest requires directly, and a Tcl body (`tcl-body`) unless the
+package is your own
 ([why](kcs-qa-why-was-a-declaration-dropped-from-my-dependencys-pack.md)).
+
+### Saying a Tcl proc defines the command
+
+`runtime_backing tcl-body {-pack-text {proc NAME args body}}` says the command
+is that `proc`, and the compiler inlines the body into any procedure that
+calls it, while the runtime still holds the call to exactly that text: a
+library that differs from the pack runs as it always did, only slower. The
+text must be one `proc` that defines the command and nothing else.
+`tcl-body {-package-source PATH}` names a file of your package instead,
+relative to the directory of its `tclpkg.tcl`; it is read when the pack
+loads, so a library edit reaches the compiler at the next load without any
+change to the pack, and a path that cannot be read draws a warning on the
+command's line. A call at the top level of a script is not inlined.
 
 ### Validating a pack
 

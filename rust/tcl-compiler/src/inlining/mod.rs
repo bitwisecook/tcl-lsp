@@ -42,12 +42,15 @@
 //! # Consumer
 //!
 //! Inlining is a pre-codegen IR transform — it dissolves call boundaries
-//! so the backend emits flatter code — so its only consumer is the WASM
-//! codegen. The LSP and CLI analysis paths report on the program *as
-//! written* and never lower to codegen, so they deliberately do not run
-//! the inliner; wiring it in is owned by the codegen consumer. It is thus
-//! exposed but unwired, with the IR-shape unit tests here as its current
-//! verification.
+//! so the backend emits flatter code. The LSP and CLI analysis paths
+//! report on the program *as written* and never lower to codegen, so they
+//! deliberately do not run the inliner. [`inline_module`], which inlines
+//! the procedures a module defines, is exposed for the WASM codegen and
+//! unwired, with the IR-shape unit tests here as its current verification.
+//! [`inline_reference_bodies`] is the bytecode compile service's: it inlines
+//! the definitions a pack gives the commands it backs with a Tcl body, and
+//! no procedure the module defines, because a site that inlines one records
+//! a claim on the pack that the VM attests and the WASM backend records none.
 //!
 //! # Soundness
 //!
@@ -61,9 +64,10 @@
 //! / `uplevel` body (where our `break`-based early-return lowering would
 //! be trapped) and any call site using `{*}` expansion (runtime arity).
 
+pub(crate) mod reference;
 mod rename;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use tcl_lexer::Span;
 
@@ -756,28 +760,111 @@ fn build_inlinable_map(
 /// the module so host eval / `info procs` / `rename` observers still see
 /// them.
 #[must_use]
-pub fn inline_module(mut module: Module, registry: &CommandRegistry) -> Module {
+pub fn inline_module(module: Module, registry: &CommandRegistry) -> Module {
+    inline_procedures(module, registry, &Inlining::Everything)
+}
+
+/// Inline the calls `module` makes to commands a pack declares
+/// `TclBody`-backed, and to no procedure the module defines.
+///
+/// The definition each such command's `runtime_backing` names is brought into
+/// the module ([`ReferenceBodies`](crate::ir::ReferenceBodies)) and inlined under
+/// the policy a procedure the module defines is: a pure leaf of at most
+/// [`SMALL_BODY_THRESHOLD`] statements, never at a site the runtime could not
+/// replay. Each site records the procedure binding the runtime holds the live
+/// command to, and codegen records a
+/// [`tcl_runtime_api::SiteClaim::ReferenceBody`] beside it, so the unit is
+/// admitted only while the live command is that definition and the pack that
+/// declared it is the one the runtime holds. A module that calls none, a plain
+/// dispatch compile, and a registry that holds no pack with a body are returned
+/// unchanged.
+///
+/// `config` and `profile` are the compile's own, so a definition is read under
+/// the grammar its caller is.
+#[must_use]
+pub fn inline_reference_bodies(
+    mut module: Module,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    profile: Option<&'static tcl_dialect::DialectProfile>,
+) -> Module {
+    if module.plain_command_dispatch {
+        return module;
+    }
+    let imported = reference::import(&mut module, registry, config, profile);
+    if imported.is_empty() {
+        return module;
+    }
+    let mut module = inline_procedures(module, registry, &Inlining::Only(&imported));
+    module.procedures.retain(|name, _| !imported.contains(name));
+    module
+}
+
+/// Which procedures a pass inlines the calls to.
+enum Inlining<'a> {
+    /// Every procedure the module defines that the policy admits.
+    Everything,
+    /// Only the procedures the importer added: the module's own are neither
+    /// inlined nor rewritten.
+    Only(&'a BTreeSet<String>),
+}
+
+impl Inlining<'_> {
+    fn admits(&self, qname: &str) -> bool {
+        match self {
+            Self::Everything => true,
+            Self::Only(names) => names.contains(qname),
+        }
+    }
+
+    /// Whether the module's top level is rewritten, and whether it may be Tcl
+    /// frame zero. A script's global level is frame zero's, and a body inlined
+    /// there would leave its renamed parameters behind as global variables, so
+    /// a pass that inlines a pack's definition leaves it alone; a
+    /// procedure-body compile's top level is a procedure's, with a frame of its
+    /// own.
+    fn top_level(&self, module: &Module) -> Option<bool> {
+        match self {
+            Self::Everything => Some(true),
+            Self::Only(_) => {
+                (module.top_level_kind == crate::ir::TopLevelKind::ProcedureBody).then_some(false)
+            }
+        }
+    }
+}
+
+fn inline_procedures(
+    mut module: Module,
+    registry: &CommandRegistry,
+    scope: &Inlining<'_>,
+) -> Module {
     let summaries = crate::var_escape::analyse_var_escape_with_registry(&module, true, registry);
-    let inlinable = build_inlinable_map(&module, &summaries, registry);
+    let mut inlinable = build_inlinable_map(&module, &summaries, registry);
+    inlinable.retain(|qname, _| scope.admits(qname));
     if inlinable.is_empty() {
         return module;
     }
 
     let mut counter: usize = 0;
     let top_caller = namespace_caller_key(&module.top_level_namespace);
-    let (new_top, _) = rewrite_script(
-        &module.top_level,
-        &top_caller,
-        &inlinable,
-        &summaries,
-        &mut counter,
-        true,
-        true,
-    );
-    module.top_level = new_top;
+    if let Some(may_be_global_frame) = scope.top_level(&module) {
+        let (new_top, _) = rewrite_script(
+            &module.top_level,
+            &top_caller,
+            &inlinable,
+            &summaries,
+            &mut counter,
+            true,
+            may_be_global_frame,
+        );
+        module.top_level = new_top;
+    }
 
     let mut procedures = std::mem::take(&mut module.procedures);
     for (qname, proc) in &mut procedures {
+        if matches!(scope, Inlining::Only(names) if names.contains(qname)) {
+            continue;
+        }
         let (new_body, changed) = rewrite_script(
             &proc.body,
             qname,
