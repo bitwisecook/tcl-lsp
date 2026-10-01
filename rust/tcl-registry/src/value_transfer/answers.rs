@@ -256,7 +256,7 @@ pub enum CompletionProtocol {
 /// Where a case list's arms are written. The page's shape,
 /// `Vec<(OperandId, Option<OperandId>)>`, is the inline form's alone: the
 /// one-word form's patterns and bodies are elements of a single operand
-/// that no `OperandId` names (VT6.2).
+/// that no `OperandId` names.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CaseArms {
     /// Each pattern and body its own word, in order: `(pattern, body)`, a
@@ -375,9 +375,8 @@ pub struct SelectionFact {
     pub selected: Vec<Option<usize>>,
     /// The arm whose body runs: the selected arm's, or through a
     /// fall-through body the next arm's that has one; `None` with
-    /// `selected`. VT6.2 adds it beside the page's `selected`, because a
-    /// pattern that never matches can still supply the body a preceding
-    /// `-` arm reaches.
+    /// `selected`. It is recorded beside `selected` because a pattern that
+    /// never matches can still supply the body a preceding `-` arm reaches.
     pub bodies: Vec<Option<usize>>,
     /// The writes the selection makes before its body runs — the
     /// `-indexvar` value, then the `-matchvar` one, each a `Write` of its

@@ -528,7 +528,7 @@ fn build_dominators(d: &Value) -> Vec<ViewNode> {
     }
 }
 
-/// One selection record's leaf (VT6.3): the arm each member selects, the
+/// One selection record's leaf: the arm each member selects, the
 /// arm whose body runs, and the statement's line.
 fn selection_leaf(selection: &Value) -> ViewNode {
     ViewNode::leaf(

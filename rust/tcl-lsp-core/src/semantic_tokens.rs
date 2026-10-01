@@ -11400,7 +11400,7 @@ mod tests {
         assert!(failures.is_empty(), "{}", failures.join("\n  "));
     }
 
-    /// VT5.17: `insert_format_overrides` marks a format/clock/binary-role
+    /// `insert_format_overrides` marks a format/clock/binary-role
     /// argument by its registry-declared *position*, independent of
     /// whether that word is literal — so a computed word (`$fmt`) reaches
     /// the sub-tokeniser exactly as a literal one does, and each
@@ -11408,8 +11408,8 @@ mod tests {
     /// (its own doc comment, `ArgOverride`) when it finds no specifier in
     /// the token's own bytes. `$fmt`'s own text is `"$fmt"`, never a `%`
     /// specifier, so it renders as a plain `variable` token — a computed
-    /// pattern is explained at its use through hover (VT5.17's
-    /// `hover.rs`/`inlay_hints.rs` changes), never painted here at a token
+    /// pattern is explained at its use through hover and inlay hints
+    /// (`hover.rs`/`inlay_hints.rs`), never painted here at a token
     /// range it does not have.
     #[test]
     fn a_computed_format_word_falls_back_to_its_plain_classification() {

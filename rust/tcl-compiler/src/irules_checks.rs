@@ -2926,7 +2926,7 @@ mod tests {
     }
 
     /// A value the lattice proves reads no request data, whatever its
-    /// commands (VT5.16): `[string range ABCDEFG 0 3]` is `ABCD` on every
+    /// commands: `[string range ABCDEFG 0 3]` is `ABCD` on every
     /// request and hoists like a literal, where the same range over the host
     /// header does not.
     #[test]

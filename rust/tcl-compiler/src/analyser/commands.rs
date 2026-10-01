@@ -1263,8 +1263,7 @@ impl Analyser {
         // A direct one-target write of a value word (`set name value`) binds
         // its name to that word — the constant-string environment, a
         // created interpreter's key and the search-path record — from the
-        // registry's `CellWrite` declaration, not the command's spelling
-        // (value-transfers VT8.9 retired the `Set` analyser hook).
+        // registry's `CellWrite` declaration, not the command's spelling.
         self.bind_value_word_assignment(cmd_name, args, arg_tokens, arg_single, scope_path);
         // Registry symbol-definer commands (`tcltest::test NAME …`) contribute a
         // lightweight named definition to the outline.  Void handler — it only
@@ -4709,8 +4708,8 @@ impl Analyser {
     /// layout whose class source is a construction value
     /// ([`tcl_registry::handle_binding::HandleClassSource::ConstructionValue`],
     /// `set NAME [TYPE …]`), resolved over the call's words, so a rooted
-    /// `::set` binds as the bare spelling does and no command is named here
-    /// (value-transfers VT8.9). `None` for any other call.
+    /// `::set` binds as the bare spelling does and no command is named here.
+    /// `None` for any other call.
     fn construction_value_binding<'a>(
         &self,
         cmd_name: &str,

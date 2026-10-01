@@ -452,7 +452,7 @@ fn variable_hover(
             // count.
             let (type_info, taint_info) =
                 var_type_annotations(source, line, character, &var_name, registry, profile);
-            // VT5.17: this read's own occurrence may be a registry pattern
+            // This read's own occurrence may be a registry pattern
             // or format-string argument the lattice proves — the same table
             // a literal spelling already renders, appended rather than
             // replacing the variable card, since the `$`-led read is still
@@ -609,7 +609,7 @@ struct PatternFormatContext<'a> {
 }
 
 /// The text a computed token's word proves, tried only once a literal read
-/// at `token` has already failed (VT5.17): the enclosing function's exact
+/// at `token` has already failed: the enclosing function's exact
 /// value at the statement [`FunctionUnit::word_at`] resolves the token's
 /// span to, so `set fmt "%-20s %d"; format $fmt a 1` hovers `$fmt` the way
 /// the literal `format "%-20s %d" a 1` already did. `unit` is built at most
@@ -694,7 +694,7 @@ fn pattern_format_hover_for_command(
     )?;
 
     let source_args = segmented_command_arguments(command);
-    // Built at most once, only if a literal read below fails — VT5.17.
+    // Built at most once, only if a literal read below fails.
     let mut proven_unit: Option<CompilationUnit> = None;
     for pattern in context.registry.pattern_args_words_for_dialect(
         head,
@@ -3322,7 +3322,7 @@ fn caller_frame_hover_text(
 }
 
 /// `format_info` is the same embedded-language table
-/// [`registry_pattern_format_hover`] renders for a literal argument — VT5.17
+/// [`registry_pattern_format_hover`] renders for a literal argument; the hover
 /// appends it here too, at *this* read's own occurrence, when the lattice
 /// proves the variable is used as a registry pattern or format-string
 /// argument right where the cursor sits (`set fmt "%-20s %d"; format $fmt a
@@ -5333,7 +5333,7 @@ mod tests {
 
     #[test]
     fn hover_explains_a_computed_format_string() {
-        // VT5.17: a literal `format "%-20s %d" a 1` already explains its
+        // A literal `format "%-20s %d" a 1` already explains its
         // specifiers; the lattice proves the same text when it reaches the
         // word through a variable, so the computed spelling must not go
         // blind.

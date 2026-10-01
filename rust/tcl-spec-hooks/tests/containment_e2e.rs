@@ -509,7 +509,7 @@ fn a_declared_budget_narrows_the_host_for_its_call_only() {
 
 /// A declared budget above the host's runs under the host's: the host caps
 /// each field a call declares at its own configuration, whatever that is,
-/// and it is the only place the rule lives (the review of slice 4) — the
+/// and it is the only place the rule lives — the
 /// loader records `budget {-commands 900000}` as written. Here the host is
 /// configured at two hundred commands, below the default, so a check
 /// against the default host would have let the declaration through: the

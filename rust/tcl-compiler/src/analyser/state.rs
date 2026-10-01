@@ -3662,9 +3662,9 @@ mod tests {
         );
     }
 
-    /// A rooted `::set d [Dog new]` binds `d` as `set` does (VT8.9): the
+    /// A rooted `::set d [Dog new]` binds `d` as `set` does: the
     /// instance tracking reads `set`'s handle-binding layout, which the
-    /// rooted spelling resolves to, where it compared the spelling `set`
+    /// rooted spelling resolves to, rather than comparing the spelling `set`
     /// (tclsh 8.6.18 to 9.1b0: `$d bark` dispatches to `::Dog`).
     #[test]
     fn analyse_records_instance_class_rooted_set_new() {

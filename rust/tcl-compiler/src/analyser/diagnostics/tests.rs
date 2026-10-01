@@ -1670,7 +1670,7 @@ fn w004_skips_option_value_that_looks_like_a_flag() {
     );
 }
 
-/// The literal-only checks read proven words (VT5.16): each program's
+/// The literal-only checks read proven words: each program's
 /// checked word is a variable the lattice proves at the call, and the check
 /// reports there — at the word the user wrote, once — where it had
 /// abstained; the same call over an unknown value (a parameter) draws
@@ -7091,9 +7091,9 @@ fn i230_message_keeps_braced_var_spelling() {
     );
 }
 
-/// The existence branch fact is stored once, with its kind (VT5.12;
-/// `docs/design/compiler/value-transfers.md` § *Branch facts*). Since
-/// slice 8 (VT8.2) the solver decides `[info exists X]` inside the fixed
+/// The existence branch fact is stored once, with its kind
+/// (`docs/design/compiler/value-transfers.md` § *Branch facts*). The
+/// solver decides `[info exists X]` inside the fixed
 /// point, so the unit stores it as an `Applied` fact like any decided
 /// branch — reachability follows it — and I230 reports each stored fact
 /// once. Under iRules `[info exists ans_cleared]` in one event is not
@@ -7222,6 +7222,35 @@ fn an_opaque_switch_reports_the_arms_it_never_selects() {
     let quoted = "proc p {} {\n set s abc\n switch -glob -- $s a* \"-\" b* {puts B} c* {puts C} default {puts D}\n}\n";
     assert_eq!(reported(quoted, "tcl9.0"), at(quoted, &["c*"]));
     assert!(reported(quoted, "tcl9.1").is_empty());
+}
+
+/// I231 on an opaque case list names the command the statement is spelled
+/// with: a `case` statement's arm is a `Case` arm, a `switch` statement's a
+/// `Switch` arm, on the whole-file walk and the per-item walk alike.
+#[test]
+fn i231_names_the_command_of_the_case_list() {
+    let switch = "proc p {} {\n set s abc\n switch -glob -- $s {a* {puts A} b* {puts B} default {puts D}}\n}\n";
+    let case = "proc p {} {\n case abc in a* {puts A} b* {puts B} default {puts D}\n}\n";
+    assert_eq!(
+        i231_messages(switch, "tcl8.6"),
+        ["Switch arm 'b*' is never selected; this arm is unreachable"]
+    );
+    for dialect in ["tcl8.4", "tcl8.6", "f5-irules"] {
+        assert_eq!(
+            i231_messages(case, dialect),
+            ["Case arm 'b*' is never selected; this arm is unreachable"],
+            "{dialect}"
+        );
+    }
+    // A statement spelled with its namespace reads as the command it names.
+    let qualified = "proc p {} {\n ::case abc in a* {puts A} b* {puts B} default {puts D}\n ::switch -glob -- abc {a* {puts A} b* {puts B}}\n}\n";
+    assert_eq!(
+        i231_messages(qualified, "tcl8.6"),
+        [
+            "Case arm 'b*' is never selected; this arm is unreachable",
+            "Switch arm 'b*' is never selected; this arm is unreachable"
+        ]
+    );
 }
 
 /// The I231 messages `source` draws under `dialect`, which the whole-file walk
@@ -10574,8 +10603,8 @@ fn w210_matchable_regexp_scan_silent() {
     );
 }
 
-/// W210 reads the preserve outcome (VT5.11; "W210 consuming preserve
-/// outcomes"): a match variable a `regexp` leaves untouched holds its prior
+/// W210 reads the preserve outcome: a match variable a `regexp` leaves
+/// untouched holds its prior
 /// version (`SccpResult::preserved`), so a read of one no earlier statement
 /// set is a read before set, reported at the read — a `return` and a
 /// condition's no-match arm included — and a read of one an earlier
@@ -10694,7 +10723,7 @@ fn w210_empty_dict_with_return_fires_but_known_key_silent() {
 }
 
 /// The `dict with` / `dict update` key harvest reads the registry's body
-/// plan (VT5.18). A key path descends before the keys bind: `dict with d a
+/// plan. A key path descends before the keys bind: `dict with d a
 /// {}` over `{a {x 1}}` binds `x`, not `a` (tclsh 8.5 to 9.1 return `1`,
 /// and raise `can't read "y"` for a key the path does not hold); a key path
 /// over a dictionary the analysis does not know leaves the shape unknown;
@@ -10736,7 +10765,7 @@ fn w210_dict_body_keys_come_from_the_plan() {
 }
 
 /// W307 reads the element and body bindings from outcomes, the lattice and
-/// the plan (VT5.18): a `dict with` key path binds the nested dictionary's
+/// the plan: a `dict with` key path binds the nested dictionary's
 /// keys (the spelling harvest read the outer dictionary's); an `array set`
 /// over a lattice-constant list binds its elements; and in a function with
 /// a barrier, which widens every value it holds, a literal `array set` or
@@ -11774,7 +11803,7 @@ fn w102_advice_never_mixes_switch_families() {
     );
 }
 
-/// W102 reads the lattice's template-word plan (VT5.10): `set opt
+/// W102 reads the lattice's template-word plan: `set opt
 /// -novariables; subst $opt $x` warns of `[cmd]` alone and advises
 /// `-nocommands`, exactly as `subst -novariables $x` does (tclsh 8.4 to 9.1,
 /// `set x {[set y 1]$y}`: both run the command and leave `$y`), where the
@@ -15292,7 +15321,7 @@ fn analyser_hook_selection_requires_binding_proof() {
     );
 }
 
-/// VT5.13: W100's produced set is the fact DP8.2's `brace_expr_hints` reads
+/// W100's produced set is the fact `brace_expr_hints` reads
 /// for O111, so it must cover every unbraced expression argument — one
 /// finding, at the expression word's own span, for each EXPR-role form.
 #[test]
@@ -15349,7 +15378,7 @@ fn lifecycle_findings(src: &str) -> Vec<(DiagCode, String)> {
 }
 
 /// A second `unset` after the first killed the version reads an unbound
-/// place, so its W213 is definite (VT8.4): tclsh 8.4 to 9.1 raise `can't
+/// place, so its W213 is definite: tclsh 8.4 to 9.1 raise `can't
 /// unset "x": no such variable` there.
 #[test]
 fn a_second_unset_is_a_definite_w213() {
@@ -15360,7 +15389,7 @@ fn a_second_unset_is_a_definite_w213() {
 }
 
 /// An `unset` on one path leaves the read after the merge may-unbound, so
-/// it draws W210 (VT8.4); tclsh raises `can't read "x"` when `c` is true.
+/// it draws W210; tclsh raises `can't read "x"` when `c` is true.
 #[test]
 fn a_conditional_unset_gives_w210() {
     let found =
@@ -15374,7 +15403,7 @@ fn a_conditional_unset_gives_w210() {
 }
 
 /// `unset -nocomplain` raises nothing, whatever the place holds, so it
-/// draws neither W213 nor W210 (VT8.4).
+/// draws neither W213 nor W210.
 #[test]
 fn nocomplain_never_reports_w213() {
     for src in [
@@ -15433,7 +15462,7 @@ fn a_concatenated_script_writes_through_the_documents_registry() {
     assert_eq!(w210("tcl8.4"), 1, "8.4: lassign is no command");
 }
 
-/// An existence read and an unbind are uses of their place (VT8.4): a
+/// An existence read and an unbind are uses of their place: a
 /// variable only asked about or unset draws no W211, and a parameter only
 /// asked about or unset — its entry state read — draws no W214.
 #[test]
@@ -15461,7 +15490,7 @@ fn an_existence_read_or_an_unbind_is_a_use() {
     }
 }
 
-/// A nested unbind reads its place's existence (VT8.5): the store `puts
+/// A nested unbind reads its place's existence: the store `puts
 /// [unset x]` observes is used, so no W211, and the read is no value read,
 /// so an unbind of a never-set name — `-nocomplain` or not — draws no W210.
 #[test]
@@ -15488,15 +15517,15 @@ fn a_nested_unbind_is_an_existence_read() {
     }
 }
 
-/// A guard's refinement narrows the read under `&&` too (VT8.3, VT8.4):
-/// `x` set on one path reads bound on the true edge of `[info exists x] &&
+/// A guard's refinement narrows the read under `&&` too: `x` set on one
+/// path reads bound on the true edge of `[info exists x] &&
 /// $flag`, so no W210; the read past the `if` still draws one.
 /// The guarded read of a global draws no W210 although the existence rung
-/// no longer refines an externally mutable place (D166): the qualified-name
-/// and scope-alias filters and the guard walk (`collect_existence_guards`,
-/// D8) keep `if {[info exists ::errorInfo]} {puts $::errorInfo}` silent at
+/// never refines an externally mutable place: the qualified-name
+/// and scope-alias filters and the guard walk (`collect_existence_guards`)
+/// keep `if {[info exists ::errorInfo]} {puts $::errorInfo}` silent at
 /// the top level and in a procedure, and so does the `global` spelling.
-/// Slice 11 inherits this obligation when it retires the guard walk.
+/// Whatever replaces the guard walk must keep this silence.
 #[test]
 fn the_guarded_global_idiom_draws_no_w210() {
     for src in [

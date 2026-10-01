@@ -11117,7 +11117,7 @@ mod tests {
         assert_eq!(projection, VariableWriteProjection::default());
     }
 
-    /// An unbind reads its place's existence (value-transfers slice 8): the
+    /// An unbind reads its place's existence: the
     /// read projection names a destroyer's targets, past `-nocomplain` and
     /// `--`, where the write projection names none, and a substituted target
     /// widens the frame.

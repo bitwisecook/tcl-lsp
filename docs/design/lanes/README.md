@@ -89,9 +89,11 @@ checkpoint compiling.
   header's branch fact, either replacing W242; and the iRules flow checks
   reading applied reachability, with the review's fixes — the lattice
   states what an opaque `switch`, a callback script and a call the module
-  cannot see write; and the flattened chain compares the values of its
-  words, and a subject the option scan may read — on a release before 8.5,
-  or with the arms as words — stays to the selection record), and slice 8
+  cannot see write; the flattened chain compares the values of its words,
+  and a subject the option scan may read — on a release before 8.5, or with
+  the arms as words — stays to the selection record; and the comments, the
+  design pages, the Explorer's rendering and I231's wording were repaired
+  beside them), and slice 8
   (the existence rung: a
   flow-sensitive bound / unbound / may-bound fact per place and per SSA
   version, owned by the solver and fed by storage outcomes, the entry

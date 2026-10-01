@@ -2841,7 +2841,7 @@ mod tests {
         assert!(has_const, "expected `safe_const` to still fold to a Const");
     }
 
-    /// Existence is a deep-tier fact (VT8.7): a procedure lattice requested
+    /// Existence is a deep-tier fact: a procedure lattice requested
     /// at the fast tier runs no rung, so every read of it answers
     /// `Unavailable(Fast)` — neither bound nor unbound — and W210 and W213
     /// stay silent where the deep build reports both; a unit over the

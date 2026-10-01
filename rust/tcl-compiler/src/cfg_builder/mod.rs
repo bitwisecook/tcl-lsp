@@ -120,7 +120,8 @@ fn all_str_tokens(cmd: &str, args: &[String]) -> CommandTokens {
 /// Whether a `switch` lowers to a dispatch chain of `StrEq` branches, one
 /// per arm, rather than to one opaque statement: only an exact,
 /// case-sensitive one with no fall-through arm, whose subject no option scan
-/// of the registry's release may read, does. Its selection is then the
+/// may read, does — the registry's release and whether the arms are one list
+/// word or pattern and body words decide that. Its selection is then the
 /// chain's decided branches; the opaque forms' is the selection record.
 pub(crate) fn switch_is_flattened(
     stmt: &Statement,

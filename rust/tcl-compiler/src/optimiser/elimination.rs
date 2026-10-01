@@ -35,15 +35,15 @@
 //!   for scope-alias commands (`global` / `variable` / `upvar`).
 //!
 //! A store is removable only when no value read and no existence read of
-//! its version remains (value-transfers slice 8): `[info exists x]`,
+//! its version remains: `[info exists x]`,
 //! `[array exists x]` and an unbind — `unset x`, `array unset x` — read the
 //! version they observe as an SSA use wherever they run, a statement, a
 //! condition, a nested word or a `return` word, so the store they observe
 //! stays. An unbind statement is never removed: the error on an absent
 //! place and the binding's disappearance are its effects. A dead `incr` is
 //! removable only when its own outcome is a total `Write` under every
-//! release its target profile spans (value-transfers slice 8's totality
-//! proof, permission 3): the release rule's `UnboundPlace` decline —
+//! release its target profile spans (a totality proof): the release
+//! rule's `UnboundPlace` decline —
 //! recorded on the statement's own [`crate::value_transfer::RouteExplanation`]
 //! — means a release that does not create the cell may raise instead, so
 //! "the write is the whole observable effect" does not hold and the
@@ -291,7 +291,7 @@ pub(crate) fn assignment_safe_to_delete(
 }
 
 /// Whether the dead `incr` of the place `name` at `site` completes on
-/// every release the profile names (the slice 8 review's S2): every such
+/// every release the profile names: every such
 /// release creates an absent cell (8.5 onwards), or the existence rung
 /// proves the place bound where the statement reads it. Under a profile
 /// spanning 8.4, where `incr` of an absent place raises `can't read`, a
@@ -1288,7 +1288,7 @@ pub(crate) fn collect_textual_var_references(
 /// variable.
 ///
 /// Computed as the deep RMW scan minus the shallow scan, less every name the
-/// SSA records where the word runs (value-transfers slice 8): a nested cell
+/// SSA records where the word runs: a nested cell
 /// update (`lappend r [incr i $j]` reads `i`), a `VarRead` role and an
 /// existence read — `[info exists x]`, `[array exists x]`, a nested `[unset
 /// x]` — are uses of the version they read, which keep exactly that store
@@ -1690,8 +1690,8 @@ mod tests {
         ctx.optimisations
     }
 
-    /// The hidden-read scan keeps only what the SSA does not record
-    /// (value-transfers slice 8): an existence read, a `VarRead` role and a
+    /// The hidden-read scan keeps only what the SSA does not record:
+    /// an existence read, a `VarRead` role and a
     /// nested cell update in a statement's words, or in a `return` word, are
     /// uses of the version they read — on the statement itself or on the
     /// synthetic one the lowering pushes ahead of it under the same span —

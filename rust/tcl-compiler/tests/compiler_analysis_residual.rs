@@ -1569,9 +1569,7 @@ fn g_proves_v_is_three(cu: &CompilationUnit) -> bool {
 /// shadows a builtin is never served a unit built as if every builtin still
 /// meant what it spells (#2164). The key's analysis context carries the
 /// module's command-trust snapshot, so the memo stays on and answers under
-/// the module's own trust — the rewrite, onto the value-transfer lane's
-/// keyed memo, of `rust`'s `a_shadowing_module_refuses_the_memoised_lattice`,
-/// which bypassed the memo because its key could not carry the fact.
+/// the module's own trust.
 ///
 /// tclsh 8.4.20 – 9.1b0 (unanimous): with the shadow, `[llength {a b c}]` is
 /// 99, so a lattice claiming `v == 3` is wrong.

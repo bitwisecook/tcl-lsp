@@ -494,9 +494,9 @@ mod tests {
         writes(source).names.into_iter().collect()
     }
 
-    /// The callbacks the review names — `after`, `after idle`, `trace`, `bind`,
-    /// `fileevent`, `chan event`, `interp bgerror` — each write a name the
-    /// scan reports, the leading `::` stripped.
+    /// The callbacks `after`, `after idle`, `trace`, `bind`, `fileevent`,
+    /// `chan event` and `interp bgerror` each write a name the scan reports,
+    /// the leading `::` stripped.
     #[test]
     fn a_callback_script_names_what_it_writes() {
         for source in [

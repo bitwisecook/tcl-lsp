@@ -933,7 +933,7 @@ impl Analyser {
     /// semantics is that write
     /// ([`tcl_registry::value_transfer::ResolvedSemantics::writes_value_word`]),
     /// the registry's declaration rather than the command's spelling or an
-    /// analyser hook (value-transfers VT8.9):
+    /// analyser hook:
     ///
     /// - the written name is an assignment the unused-variable hint may
     ///   report, so its definition escalates `warn_if_unused` over the one
@@ -10657,7 +10657,7 @@ mod tests {
     }
 
     // `set`'s binding through the generic dispatch tail — the role binding
-    // and `bind_value_word_assignment` — since VT8.9 retired the `Set` hook.
+    // and `bind_value_word_assignment`; `set` has no analyser hook.
 
     /// Dispatch one command whose words carry the given tokens and
     /// single-token flags, through `process_command` exactly as a walked
@@ -10755,10 +10755,9 @@ mod tests {
         assert_eq!(read_only.lookup_const_string("x", &[]), None);
     }
 
-    /// A literal value word is recorded as Tcl reads it (VT8.9): the
+    /// A literal value word is recorded as Tcl reads it: the
     /// `CellWrite` evaluation cooks a bare or quoted token, so `set p
-    /// "a\\d"` holds `a\d` — tclsh 8.4.20 to 9.1b0 print `a\d` — where the
-    /// hook kept the token's raw text.
+    /// "a\\d"` holds `a\d` — tclsh 8.4.20 to 9.1b0 print `a\d`.
     #[test]
     fn a_literal_value_word_is_recorded_as_tcl_reads_it() {
         let mut a = Analyser::new();
@@ -10773,10 +10772,9 @@ mod tests {
         assert_eq!(a.lookup_const_string("p", &[]), Some("a\\d"));
     }
 
-    /// A computed target defines no variable (VT8.9): `set $n 1` writes
+    /// A computed target defines no variable: `set $n 1` writes
     /// the variable `n` names — tclsh 8.4.20 to 9.1b0 leave `n` as it was
-    /// — so the role binding's static-name rule binds nothing, where the
-    /// hook defined `n`.
+    /// — so the role binding's static-name rule binds nothing.
     #[test]
     fn a_computed_set_target_defines_no_variable() {
         let r = Analyser::new().analyse("set $n 1\n", "tcl8.6");

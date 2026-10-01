@@ -1,4 +1,4 @@
-# tcl-lsp — the value-transfer lane's executable example (slice 4, VT4.13).
+# tcl-lsp — the value-transfer design's executable example.
 #
 # A private command declared entirely by a pack: `tenant::label NAME`
 # returns `tenant:NAME`. The declaration is the evaluation page's own

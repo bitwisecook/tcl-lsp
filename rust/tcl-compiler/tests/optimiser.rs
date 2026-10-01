@@ -2245,7 +2245,7 @@ fn a_braced_expr_word_with_no_nested_write_still_folds() {
 /// prints `2`, matching the originals.
 ///
 /// The write chain folds through the lattice's proven `$x` too (O104 / O130
-/// over a lattice operand — the value-transfer lane's slice 2), so the
+/// over a lattice operand), so the
 /// forwarded read and the store it extends become the one store
 /// `set x {1 1}`; tclsh 8.4.20 – 9.1b0 print `1 1` for both programs.
 #[test]
@@ -2346,7 +2346,7 @@ fn a_structural_body_is_not_the_enclosing_statements_surface() {
 /// writes at all, so the store was deleted *and* the stale literal forwarded
 /// into the loop body.
 ///
-/// Since value-transfers slice 8 the existence rung decides `[info exists
+/// The existence rung decides `[info exists
 /// x]` inside the fixed point, so the first program's condition folds to `1`
 /// (O101) — a sound rewrite that still prints `yes` — and the store it read
 /// stays.
@@ -2495,7 +2495,7 @@ fn a_conditional_writer_does_not_kill_the_store_it_may_preserve() {
         // Asserted on the stores rather than byte-identity: the `binary scan`
         // row also gets a legitimate O100, specialising its one call site's
         // `$d` to `AB`, and the `regexp` row's proven no-match keeps both
-        // values in the lattice (VT5.4), so its `puts` reads them as the
+        // values in the lattice, so its `puts` reads them as the
         // constants they are — both unrelated and correct.
         let out = optimised(src, TCL);
         for store in src

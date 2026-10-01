@@ -1615,7 +1615,7 @@ pub fn serialise_dominators(result: &ExplorerResult) -> Value {
     )
 }
 
-/// One selection record of the SCCP view (VT6.3): the statement's range,
+/// One selection record of the SCCP view: the statement's range,
 /// each kept arm's pattern range, and per member the arm selected and the
 /// arm whose body runs — the final `default` pair by that name, since the
 /// statement keeps it as its default body — with the count of its writes.
@@ -4223,8 +4223,8 @@ mod tests {
         assert_eq!(tally["implementation"], 0);
     }
 
-    /// The SCCP view carries each opaque case-list statement's selection
-    /// (VT6.3): program (4)'s `-glob` form selects its final `default`,
+    /// The SCCP view carries each opaque case-list statement's selection:
+    /// program (4)'s `-glob` form selects its final `default`,
     /// which the view names as such, against the one pattern span the
     /// statement keeps — `baz`'s.
     #[test]

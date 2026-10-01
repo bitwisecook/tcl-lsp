@@ -227,7 +227,7 @@ fn subject_members(
 }
 
 /// Whether operand `id`'s word reads as its value on every path the
-/// releases run it on (D179). 9.1b0's byte-compiled `switch` recognises a
+/// releases run it on. 9.1b0's byte-compiled `switch` recognises a
 /// fall-through body only as a bare word (`IsFallthroughToken`,
 /// `tclCompCmdsSZ.c`, measures the word token with its quotes or braces),
 /// its interpreted path by value, and a word with a substitution sends the
@@ -247,7 +247,7 @@ fn read_by_value_everywhere(input: &dyn AnalysisInputs, id: OperandId) -> bool {
 }
 
 /// Per arm, whether its body is the fall-through spelling a release that
-/// may be 9.1 reads two ways (D179): only a body word of the separate-words
+/// may be 9.1 reads two ways: only a body word of the separate-words
 /// form can be delimited, and only under a profile that may be 9.1.
 fn delimited_fallthroughs(
     input: &dyn AnalysisInputs,

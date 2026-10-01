@@ -1539,7 +1539,7 @@ mod tests {
         }
     }
 
-    /// `case` lowers through the switch hook on its own descriptor (D180):
+    /// `case` lowers through the switch hook on its own descriptor:
     /// no word is an option, the `in` word is skipped, and every clause is
     /// a glob comparison — an opaque glob `Statement::Switch` naming `case`
     /// in each form, its final `default` the default body.
@@ -1601,7 +1601,7 @@ mod tests {
         }
     }
 
-    /// From 9.0 there is no `case` command, so nothing lowers it (D180).
+    /// From 9.0 there is no `case` command, so nothing lowers it.
     #[test]
     fn case_does_not_lower_under_9() {
         let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
@@ -1622,7 +1622,7 @@ mod tests {
 
     /// Each word's delimiters reach the statement: per word, whether it was
     /// braced (`raw_arg_braced`) or double-quoted (`raw_arg_quoted`), so a
-    /// bare `-` body is told apart from a quoted or braced one (D179).
+    /// bare `-` body is told apart from a quoted or braced one.
     #[test]
     fn a_switch_records_how_each_word_was_delimited() {
         let m = lower_to_ir("switch -glob -- $x a \"-\" b - c {-} d {puts d}", &reg());

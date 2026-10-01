@@ -126,7 +126,7 @@ fn literal_true_expr() -> ExprNode {
 /// where the variable-name owner proves the text is exactly one reference
 /// under the document's `${…}` close rule with none of `{`, `}` or `\` in
 /// the name (`sccp::with_whole_variable_operands` over
-/// `value_transfer::whole_variable_operand`, VT6.1): the dispatch then
+/// `value_transfer::whole_variable_operand`): the dispatch then
 /// decides per arm from the lattice, so a dead arm draws I231 and O107
 /// removes its unreachable body. Any other `Raw` text stays undecided.
 ///

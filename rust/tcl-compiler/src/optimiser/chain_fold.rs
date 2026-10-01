@@ -38,8 +38,8 @@
 //! group so they apply atomically.
 //!
 //! A chain may also anchor at an `append` / `lappend` whose own target the
-//! existence rung proves `Unbound` immediately before it (value-transfers
-//! slice 8): the release rule creates the cell in every release for both
+//! existence rung proves `Unbound` immediately before it: the release
+//! rule creates the cell in every release for both
 //! commands, so the absent start folds through the value at the last write
 //! exactly as an explicit `set var ""` would —
 //! `lappend l a; lappend l b` folds to `set l {a b}`.
@@ -224,8 +224,8 @@ impl<'a> FunctionLattice<'a> {
     /// spanning `span` reads it — the state its own read-modify-write
     /// observes (`incr` / `append` / `lappend` all read their target's
     /// existence before they write it), after every clobber since the
-    /// version's definition (the slice 8 review's B2: a non-lowered
-    /// `switch` arm's clobber reaches the statement, not the version) — or
+    /// version's definition (a non-lowered `switch` arm's clobber reaches
+    /// the statement, not the version) — or
     /// `None` when the run computed none.
     fn existence_at_statement(
         &self,

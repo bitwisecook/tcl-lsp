@@ -168,8 +168,8 @@ pub fn inlay_hints_in_program(
     let mut out = Vec::new();
 
     if type_hints && let Some(registry) = registry {
-        // One `CompilationUnit`, built once and read by both families below
-        // (VT5.17): the type hints' own per-variable lattices, and the
+        // One `CompilationUnit`, built once and read by both families below:
+        // the type hints' own per-variable lattices, and the
         // format-string hints' fallback when a format word is computed
         // rather than literal — the lattice's proven value for it, through
         // [`tcl_compiler::value_transfer::proven_word_value`].
@@ -581,7 +581,7 @@ fn push_format_hint(
 }
 
 /// Collect format-string specifier hints for the whole document. `cu` is the
-/// same [`CompilationUnit`] the caller built for the type hints (VT5.17): a
+/// same [`CompilationUnit`] the caller built for the type hints: a
 /// format word with no literal content of its own falls back to the
 /// lattice's proven value for it, read off `cu`.
 fn collect_format_string_hints(
@@ -661,7 +661,7 @@ struct FormatHintCtx<'a> {
 /// `content`, at the position `position_at` maps each specifier's own
 /// end-offset within `content` to — `cstart + offset` for a literal word's
 /// own source span, or a fixed anchor for a computed word's proven text,
-/// which carries no span of its own (VT5.17).
+/// which carries no span of its own.
 fn emit_format_specifier_hints(
     kind: tcl_registry::FormatType,
     content: &str,
@@ -1829,7 +1829,7 @@ mod tests {
 
     #[test]
     fn inlay_hints_label_a_computed_format_string() {
-        // VT5.17: a literal `format "%d" 1` already labels its specifier;
+        // A literal `format "%d" 1` already labels its specifier;
         // the lattice proves the same text when it reaches the word
         // through a variable, so the computed spelling must not go blind
         // (there is no in-place span of its own, so the label anchors at

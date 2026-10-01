@@ -322,7 +322,7 @@ impl TclDatabase {
 /// that input, and the smallest one that does it: [`compilation_unit`] and
 /// [`proc_taint_solve`] read it, and every per-procedure
 /// [`ValueTransferContext`] carries it, so a new epoch re-keys every
-/// memoised lattice (`docs/design/lanes/value-transfers.md`, D104). The
+/// memoised lattice. The
 /// language server sets it with [`set_evaluator_epoch`] where it reloads
 /// packs and after each diagnostics pass, which is where it first sees a
 /// quarantine on the worker that ran the pass.
@@ -614,15 +614,15 @@ pub fn file_analysis(
     Arc::new(analyser.analyse(file.text(db), file.dialect(db)))
 }
 
-/// Offset-stable item tree — the per-item firewall's foundation (slice 1 of
-/// `docs/design/rust/incremental-analysis.md`). One item per declaration, keyed
+/// Offset-stable item tree — the per-item firewall's foundation
+/// (`docs/design/rust/incremental-analysis.md`). One item per declaration, keyed
 /// by stable name + kind so a shifted-but-unedited proc keeps its identity.
 ///
-/// **Slice-1 anchor.** `ensemble_namespaces` lives on the `Analyser`, not the
+/// **Anchor.** `ensemble_namespaces` lives on the `Analyser`, not the
 /// returned `AnalysisResult`, so this query runs `analyse` directly and reads
 /// the ensemble set off the instance rather than reusing [`file_analysis`]. The
-/// item set therefore *cannot* diverge from `analyse`. Slices 2–3 re-home this
-/// onto a cheap, independent CST extractor — guarded by the `file_decls` corpus
+/// item set therefore *cannot* diverge from `analyse`; it is guarded by the
+/// `file_decls` corpus
 /// gate + the `incremental == fresh` differential fuzzer + the full-rebuild
 /// fallback (item detection is config-independent, hence no `AnalyserConfig`;
 /// the one cross-file input it does read, `SourceFile::workspace_class_factories`,

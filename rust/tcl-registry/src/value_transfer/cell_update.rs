@@ -61,7 +61,7 @@ use super::route::{EvalRoute, NativeEvalId};
 const NORMAL: &[CompletionCode] = &[CompletionCode::Ok];
 
 /// The revision of the registry-owned cell-update evaluators: 2 is the
-/// shared cores over `ConstOps`; 1 was the slice-one checked arithmetic.
+/// shared cores over `ConstOps`; 1 was the checked arithmetic they replaced.
 const REVISION: u64 = 2;
 
 /// The derived cell read-modify-write specialisation.

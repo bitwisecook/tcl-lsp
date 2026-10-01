@@ -2043,7 +2043,7 @@ mod tests {
         let cu = CompilationUnit::build_for("regexp {(.)} $s c", &registry(), false);
         let fu = cu.function("::top").unwrap();
         assert!(none_known(fu, "c"), "regexp capture must not be Known Int");
-        // Over exact operands the route writes the capture (VT5.4): the
+        // Over exact operands the route writes the capture: the
         // String it matched, still never the count.
         let cu = CompilationUnit::build_for("regexp {(.)} abc c", &registry(), false);
         let fu = cu.function("::top").unwrap();
@@ -2057,7 +2057,7 @@ mod tests {
         let cu = CompilationUnit::build_for("scan $s %s word", &registry(), false);
         let fu = cu.function("::top").unwrap();
         assert!(none_known(fu, "word"), "scan target must not be Known Int");
-        // Over exact operands the route writes the conversion (VT5.5): the
+        // Over exact operands the route writes the conversion: the
         // String `%s` built, still never the count.
         let cu = CompilationUnit::build_for("scan hello %s word", &registry(), false);
         let fu = cu.function("::top").unwrap();

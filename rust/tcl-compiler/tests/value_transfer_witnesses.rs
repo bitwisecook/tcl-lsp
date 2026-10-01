@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The value-transfer witnesses, program by program
-//! (`docs/design/lanes/value-transfers.md` § *Plan for slices 2–13*).
+//! (`docs/design/compiler/value-transfers-examples.md`).
 //!
 //! Each test drives the compiler the way a user reaches it — the shared
 //! lattice through `CompilationUnit::build`, the rewrites through the
@@ -372,10 +372,9 @@ fn a_store_a_global_writing_callee_reads_is_kept() {
     prints_under_every_release(source, "15\n");
 }
 
-/// A callee that only reads a global keeps the store it reads: the
-/// slice-two record said O109 deleted `set hits 0` ahead of `show`, and it
-/// does not — the rewrite keeps both stores, and tclsh 8.4 to 9.1 print 0
-/// then 1 for both programs.
+/// A callee that only reads a global keeps the store it reads: O109 does not
+/// delete `set hits 0` ahead of `show` — the rewrite keeps both stores, and
+/// tclsh 8.4 to 9.1 print 0 then 1 for both programs.
 #[test]
 fn a_store_a_global_reading_callee_observes_is_kept() {
     let source = "set hits 0\nproc show {} {global hits; puts $hits}\nshow\nset hits 1\nshow\n";
@@ -1233,8 +1232,7 @@ fn route_entries_are_counted_per_family() {
 /// The interface contract's `expr` acceptance list: multi-argument forms,
 /// braced versus quoted arguments, short-circuit operators and ternaries,
 /// strings that look like code, nested pure substitutions, errors,
-/// bignums, and target release ambiguity
-/// (`docs/design/compiler/value-transfers-migration.md`, slice 3's exit).
+/// bignums, and target release ambiguity.
 /// Each case is `proc p {} {<prelude>; set r [<expr call>]}`, oracle
 /// values checked against `tclsh8.4` to `tclsh9.1` directly.
 /// `expression_witnesses_match_every_release_on_path` re-runs the same
@@ -1242,7 +1240,7 @@ fn route_entries_are_counted_per_family() {
 /// beyond-wide from 8.5: `tclsh8.4` raises for the first (`**` is not an
 /// 8.4 operator) and wraps to 0 for the second, so both decline under
 /// `tcl8.4` (`WrongRepresentation`) and under `f5-irules`, whose runtime
-/// base is 8.4's (D48); `"010" + 0` reads the leading zero as octal up to
+/// base is 8.4's; `"010" + 0` reads the leading zero as octal up to
 /// 8.6, `f5-irules` included, and as decimal from 9.0. The lenient profile
 /// declares no release, so all three release-dependent cases decline there.
 #[test]
@@ -1355,13 +1353,13 @@ fn the_square_of_one_finite_input_stays_correlated() {
 /// finite-set limit*): `a` and `b` are the loop's two binders, so pairing
 /// them by position or taking their cartesian product would both be
 /// unsound, and neither post-loop branch decides — `x` is 20 and `y` is
-/// 25 in every release, but only ordered enumeration (slice 12) answers
+/// 25 in every release, but only ordered enumeration answers
 /// that, never the finite-set lift.
 ///
-/// Since VT5.7 the loop header answers each binder of the two-binder
+/// The loop header answers each binder of the two-binder
 /// source with the elements it takes (`a` is `{1 2}`, `b` is `{10 20}`),
 /// so each quotient sees the page's two distinct `Finite` identities and
-/// declines `CorrelatedSets`, the reason D64 deferred to this slice; `x`
+/// declines `CorrelatedSets`; `x`
 /// and `y` never fold and neither branch decides.
 #[test]
 fn the_mirror_pairs_decline_as_correlated() {
@@ -1399,7 +1397,7 @@ fn the_mirror_pairs_decline_as_correlated() {
                 function.sccp.constant_branches
             );
         }
-        // The two-binder source is lowered (VT5.7): `a` and `b` are two
+        // The two-binder source is lowered: `a` and `b` are two
         // distinct finite inputs, so each quotient declines as correlated.
         let answers = answers_for(&unit, "::p", "expr");
         assert_eq!(
@@ -1787,7 +1785,7 @@ fn a_declared_implementation_folds_through_the_driver() {
     );
 }
 
-/// The value-transfer lane's executable example (VT4.13): a private command
+/// The value-transfer design's executable example: a private command
 /// a workspace pack declares under its own name, a second name, and a
 /// subcommand form whose operand sits one word later.
 const TENANT_PACK: &str = include_str!("fixtures/value_transfers/tenant.tclspec");
@@ -1837,7 +1835,7 @@ fn tenant_workspace() -> tcl_spectcl::PackSet {
     pack_workspace("tenant", TENANT_PACK)
 }
 
-/// Program (2) of the interface page (VT5.6): `binary format` declares a
+/// Program (2) of the interface page: `binary format` declares a
 /// registry-owned route, so `set h [binary format H* 414243444546]` is
 /// `ABCDEF` in the shared lattice under every profile, typed a byte array by
 /// construction, and neither S100 nor S110 reports a conversion for it. A
@@ -1896,7 +1894,7 @@ fn folded_at(
     function.sccp.folded_types.get(&(symbol, version)).cloned()
 }
 
-/// VT5.2: the shared lattice keeps what each evaluation states of its
+/// The shared lattice keeps what each evaluation states of its
 /// value's type beside the value itself (`SccpResult::folded_types`). A
 /// result and a write carry the type facts and the representation the route
 /// constructed — `string length` and `incr` build an int, `list` a list,
@@ -2241,7 +2239,7 @@ fn a_pack_write_through_an_incoming_target_reaches_the_driver() {
     tcl_spectcl::hooks::publish(&tcl_spectcl::PackSet::default());
 }
 
-/// The no-match preserve (VT5.11, #2051's program): a `regexp` that cannot
+/// The no-match preserve (#2051's program): a `regexp` that cannot
 /// match leaves its match variables as they were, so the store feeding one
 /// stays — no O109 deletes it, no W220 calls it unread, no W210 reports the
 /// read — and the original and optimised programs print `before` under
@@ -2297,7 +2295,7 @@ fn a_no_match_keeps_the_store_it_preserves() {
 }
 
 /// A pack command's declared preserve is a preserved definition like a
-/// builtin's (VT5.11): `keep::miss VAR PIECE` declares `write_or_preserve`
+/// builtin's: `keep::miss VAR PIECE` declares `write_or_preserve`
 /// on its target and its body preserves it, so the definition holds the
 /// version before the call — the undefined root in `p`, the `set` in `q` —
 /// which is what W210 reads, though the command carries no trait that
@@ -2342,7 +2340,7 @@ fn a_pack_declared_preserve_holds_the_prior_version() {
 }
 
 /// A materialised child carries the span of the factory call that produced
-/// it (VT5.9, #2143): `Configure port 8080 {the port}` materialises `proc
+/// it (#2143): `Configure port 8080 {the port}` materialises `proc
 /// port {x} {return 8080}`, and the child's W214 for `x` anchors at that
 /// call — line 4 — where, with no span of its own, it anchored at 1:1. The
 /// factory's template is read through its template-word plan, and `port
@@ -2365,8 +2363,8 @@ fn a_materialised_child_carries_its_factory_call_span() {
     prints_under_every_release(&format!("{source}puts [port ignored]\n"), "8080\n");
 }
 
-/// A computed template that runs commands can read any variable (VT5.10,
-/// D155): `subst -novariables $t` over `[set x]` reads `x`, so the store
+/// A computed template that runs commands can read any variable:
+/// `subst -novariables $t` over `[set x]` reads `x`, so the store
 /// before it stays — the original and optimised programs print `1` under
 /// tclsh 8.4 to 9.1, where dropping `set x 1` as unused made them raise.
 #[test]
@@ -2380,7 +2378,7 @@ fn a_computed_template_that_runs_commands_keeps_the_stores_it_reads() {
     prints_under_every_release(source, "1\n");
 }
 
-// VT5.19: the slice's exit witnesses (the interface page's § *Test
+// The interface page's exit witnesses (its § *Test
 // anchors*, "fixed witnesses to add"), each read off the shared lattice
 // through the memoised unit and checked against `tcl opt`'s rewritten
 // program, printed under every release on `PATH`.
@@ -2431,7 +2429,7 @@ fn the_partial_scan_witness() {
     prints_under_every_release(source, "12 before\n");
 }
 
-/// The conversion-count witness (the slice 5 review, B1): `%n` is a
+/// The conversion-count witness: `%n` is a
 /// conversion for `scan`'s underflow, as C's `nconversions` counts it, so
 /// `scan "" %n%d n a` is 1 and writes `n` the characters consumed, 0, on
 /// every release. The route had answered the underflow's -1 and preserved
@@ -2468,7 +2466,7 @@ fn the_percent_n_count_witness() {
     prints_under_every_release(bound, "0\n");
 }
 
-/// `const` writes only an absent place (VT8.8): the first `const c 5`
+/// `const` writes only an absent place: the first `const c 5`
 /// writes 5 into the absent `c` and the second keeps it — tclsh 9.0 and
 /// 9.1 print 5 twice — so the lattice holds 5 after the first and no value
 /// after the second, and `tcl opt` never prints 7. `set x 1; const x 2`
@@ -2714,7 +2712,8 @@ fn the_increment_split(releases: &[(&'static str, String)]) {
 
 /// The page's release table for an absent cell
 /// (`docs/design/compiler/value-transfers.md` § *Existence*), every line but
-/// the `unset p nosuch q` prefix line, which is slice 10's: each place's
+/// the `unset p nosuch q` prefix line, whose stores an error leaves behind
+/// are not modelled: each place's
 /// existence after the line, and the value a cell update leaves, under
 /// each release's dialect and the `tcl` profile that spans them all. An
 /// `incr` of an absent place binds from 8.5 and declines under 8.4 and
@@ -2742,7 +2741,7 @@ fn removes_store(source: &str, dialect: &str, store: &str) -> bool {
     })
 }
 
-/// O109 keeps a store an existence read observes (VT8.5, #2132): while the
+/// O109 keeps a store an existence read observes (#2132): while the
 /// read stands, no pass deletes the store behind it — the item's two
 /// programs keep `set x 1` and `incr n` behind `[info exists …]`, and an
 /// existence read in a bare statement, a `catch` body, a value word, a
@@ -2816,7 +2815,7 @@ fn o109_keeps_a_store_an_existence_read_observes() {
     prints_under_every_release(positions, "1 1 1 1 1 yes 0 1 0 0 0 0 {} 1 1\n");
 }
 
-/// The entry rule for a parameter and a never-assigned local (VT8.10, the
+/// The entry rule for a parameter and a never-assigned local (the
 /// Existence row): a parameter enters `Bound(Scalar)`, so `[info exists
 /// a]` decides true, and a local nothing ever assigns enters `Unbound`, so
 /// `[info exists b]` decides false — both inside the fixed point, so
@@ -2894,7 +2893,7 @@ fn a_scope_alias_enters_maybound() {
     prints_under_every_release(source, "no\n");
 }
 
-/// A cross-event iRules variable enters `MayBound` (D160, a superset of
+/// A cross-event iRules variable enters `MayBound` (a superset of
 /// `ConnectionScope::cross_event_defs`): `y` is bound in `CLIENT_ACCEPTED`
 /// and read at `HTTP_REQUEST`'s own entry, so the guard there never
 /// decides either — no oracle here, since `when` is not a command a plain
@@ -2996,11 +2995,11 @@ fn reports(source: &str, dialect: &str, code: DiagCode) -> bool {
         .any(|diagnostic| diagnostic.code == code)
 }
 
-/// An externally mutable place is never refined (D166, the slice 8
-/// review's B1): a call the module cannot see — here a computed head —
+/// An externally mutable place is never refined: a call the
+/// module cannot see — here a computed head —
 /// sets or unsets a global between the guard and the inner query, with no
 /// barrier in between, so the inner `info exists` decides nothing. tclsh
-/// 8.4 to 9.1 print `yes yes gone`; the refinement had folded the inner
+/// 8.4 to 9.1 print `yes yes gone`; a refinement would fold the inner
 /// conditions to `no no still`, with three false I230s.
 #[test]
 fn an_unseen_call_ends_no_refinement_because_none_is_made() {
@@ -3047,8 +3046,8 @@ p; unset ::x; q; r
     prints_under_every_release(source, "yes\nyes\ngone\n");
 }
 
-/// The absent-start chain anchor reads the fact at the statement (the
-/// slice 8 review's B2): after a non-lowered `switch` whose arm may bind
+/// The absent-start chain anchor reads the fact at the statement: after a
+/// non-lowered `switch` whose arm may bind
 /// `l`, the per-version fact of `l`'s version 0 is still `Unbound`, but
 /// the fact at `lappend l a` is `MayBound` — the arm's clobber — so no
 /// chain anchors there. tclsh 8.4 to 9.1 print `z a b` and `a b`, before
@@ -3066,8 +3065,8 @@ fn an_absent_start_anchor_reads_the_fact_at_the_statement() {
     prints_under_every_release(source, "z a b\na b\n");
 }
 
-/// A failing dead `incr` on a may-bound place is retained under 8.4 (the
-/// slice 8 review's S2): `incr n` after `if {$c} {set n 1}` raises `can't
+/// A failing dead `incr` on a may-bound place is retained under 8.4:
+/// `incr n` after `if {$c} {set n 1}` raises `can't
 /// read "n"` under 8.4 when `c` is false, so removing it would silence a
 /// raising program there; a profile whose every release creates the cell
 /// still removes it. tclsh 8.4 prints `1` (the call raised) and 8.5 to 9.1
@@ -3095,10 +3094,10 @@ fn a_failing_dead_incr_on_a_maybound_place_is_retained_under_84() {
     }
 }
 
-/// A script body nested in a substitution clobbers what it may unset (the
-/// slice 8 review's S3, #2231's consequence): `[catch {unset x}]` in a
+/// A script body nested in a substitution clobbers what it may unset
+/// (#2231's consequence): `[catch {unset x}]` in a
 /// condition leaves `x` may-bound, so the later `[info exists x]` decides
-/// nothing — it had folded to `1` with an I230. tclsh 8.4 to 9.1 print
+/// nothing — a fold would give `1` with an I230. tclsh 8.4 to 9.1 print
 /// `no`, before and after the optimiser.
 #[test]
 fn a_substituted_body_clobbers_what_it_unsets() {
@@ -3114,8 +3113,8 @@ fn a_substituted_body_clobbers_what_it_unsets() {
     prints_under_every_release(source, "no\n");
 }
 
-/// A whole-variable `switch` subject resolves from the lattice (VT6.1; §
-/// `switch`, step 1), so program (4)'s flattened form decides per arm: I231
+/// A whole-variable `switch` subject resolves from the lattice (§ `switch`
+/// of the interface page), so program (4)'s flattened form decides per arm: I231
 /// on the dead arm's pattern and O107 on its body, beside O112 on the whole
 /// statement, which subsumes O107's rewrite when the findings are applied
 /// together — so O107 is read from the passes' raw findings and the
@@ -3335,15 +3334,13 @@ fn a_decided_loop_header_gives_w240_or_w241() {
     }
 }
 
-/// `case` lowers as an opaque glob selection over its own contract (D180),
-/// where it had lowered as an exact-mode `switch` that never skipped `in`:
-/// the one-word form compared `a*` as a string — I231 on the arm that runs
-/// and O112 keeping the default — and the separate-words form with `in`
-/// was a barrier. Now `a*` and a literal pattern each select the first arm
-/// — the selection record says so under 8.4, 8.6 and the iRules profile —
-/// no I231 claims the live arm is dead, and the optimiser leaves `puts yes`,
-/// which tclsh 8.4 to 8.6 print before and after it. From 9.0 there is no
-/// `case`: nothing lowers it, so nothing is recorded or folded.
+/// `case` lowers as an opaque glob selection over its own contract: `a*` and
+/// a literal pattern each select the first arm, in the one-word form and in
+/// the separate-words form with `in` alike — the selection record says so
+/// under 8.4, 8.6 and the iRules profile — no I231 claims the live arm is
+/// dead, and the optimiser leaves `puts yes`, which tclsh 8.4 to 8.6 print
+/// before and after it. From 9.0 there is no `case`: nothing lowers it, so
+/// nothing is recorded or folded.
 #[test]
 fn case_selects_its_glob_arm() {
     for clauses in [

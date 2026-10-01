@@ -22,30 +22,19 @@ delivery slices, the gate, and what changes for every pass and diagnostic.
 value axis among the other axes and holds the runtime, package, and
 C-extension contracts, none of which this one waits for.
 
-> **Status — a proposal, not a description of what is built.** The
-> `CommandSemantics` interface and every shape in § The interface —
-> `AnalysisInputs`, `ResolvedInvocationView`, `OperandId`, `PlaceRef`,
-> `TargetId`, `FactView`, `FactDomain`, `DomainFact`, `WordStructure`,
-> `BodyRegion`, `EvaluationState`, `NestedPolicy`, `PlanAnswer`,
-> `Binder`, `BodyPlan`, `Reconcile`, `CompletionProtocol`,
-> `HandlerPlan`, `IterationPlan`, `IterableKind`, `ExitRule`,
-> `SelectionContract`, `TemplateWordPlan`, `ScriptRegion`,
-> `VariableRead`, `TransferAnswer`, `ExistenceTransfer`,
-> `CompletionPath`, `ExistenceOutcome`, `Existence`, `BindingKind`,
-> `RangeModel`, `SegmentFacts`, `TaintTransfer`, `SelectionFact`,
-> `EvalAnswer`, `InvocationOutcome`, `CompletionOutcome`,
-> `StoreOutcome`, `ExactValue`, `ExactValueOrUnavailable`,
-> `RepresentationEvidence`, `ValueShape`, `TypeFacts`, `FactBounds`,
-> `DependencyEvidence`, `RouteIdentity`, `AnalysisContext`, `Budget`,
-> `BudgetLimit`, `AnalysisTier`, `DeclineReason` (whose `Axis` and
-> `NoRouteReason` payloads the evaluation page defines) — and the
-> section-local shapes `EdgeRefinement`, `TransferSummary`, `ParamRole`, and
-> `LoopEnumeration`, with the migration plan's `folded_types` side map,
-> name nothing in the workspace today; every Rust shape
-> on this page is a sketch of capabilities and answer shapes, not
-> compilable signatures. Every *existing* identifier cited here was
-> checked against the tree at the revision named in the migration plan.
-> The observed Tcl behaviours quoted below were run under Tcl 9.1b0,
+> **Status — the interface is built; three designs on this page are not.**
+> `CommandSemantics` and the shapes of § The interface are defined in
+> `rust/tcl-registry/src/value_transfer/` (`inputs.rs`, `answers.rs`,
+> `context.rs`, `decline.rs`), and the compiler's `LatticeDriver`
+> (`rust/tcl-compiler/src/value_transfer.rs`) applies them for every consumer,
+> keeping each definition's type facts in `SccpResult::folded_types`. The code
+> blocks on this page sketch capabilities and answer shapes; where one differs
+> from its definition in the source, the source is the contract. Three shapes
+> name nothing in the workspace — `TransferSummary` and `ParamRole`
+> (§ Proc-level transfer summaries) and `LoopEnumeration` (§ Bounded-loop
+> enumeration) — and `EdgeRefinement` exists for the existence domain alone
+> (`rust/tcl-compiler/src/sccp.rs`; § Predicate refinement describes its other
+> domains). The observed Tcl behaviours quoted below were run under Tcl 9.1b0,
 > 9.0.4, 8.6.18, 8.5.19, and 8.4.20; a line names releases only where they
 > differ, or where one of them lacks the feature.
 
@@ -100,15 +89,16 @@ These are the owner's decisions, and every section below fits inside them.
 
 ## The four motivating programs
 
-Each of these is legal, common Tcl. What the compiler knows about it today
-depends on which of the tree's independent constant evaluators —
-[value-transfers-migration.md](value-transfers-migration.md) § *Where
-per-command knowledge lives today* inventories them — happens to be
-asked, and the answer is different for each consumer.
+Each of these is legal, common Tcl, and each has one answer: the registry's
+declaration of its command computes the value once, and every consumer — the
+optimiser, the diagnostics, the editor features and the Explorer — reads it
+from the one lattice. [value-transfers-migration.md](value-transfers-migration.md)
+§ *Where per-command knowledge lives today* inventories the private evaluators
+that still answer from their own reading.
 
 ```tcl
 set s [string range foobarbaz 3 6]      ;# (1) a pure result: barb
-set h [binary format H* 414243444546]   ;# (2) a pure result with no evaluator: ABCDEF
+set h [binary format H* 414243444546]   ;# (2) a pure result: ABCDEF, a byte array
 set n 1; incr n; incr n 2               ;# (3) a read-modify-write chain: 4
 set acc ""; append acc foo; append acc bar
 switch -- $acc {                        ;# (4) a switch whose subject is known
@@ -117,14 +107,14 @@ switch -- $acc {                        ;# (4) a switch whose subject is known
 }
 ```
 
-| Program | Optimiser (O-codes) | Shared lattice the diagnostics read | Why they differ |
+| Program | Shared lattice | Optimiser (O-codes) | Diagnostics |
 |---|---|---|---|
-| (1) `string range` | O129 fires: `string range` carries `const_fold: Some(fold_range)` (`rust/tcl-registry/src/commands/tcl/string_.rs`) and the propagation pass re-runs SCCP with `BuiltinFoldInputs` | `s` is `Overdefined` — `FunctionUnit::build` calls `sccp_with_extra_escaping` with `folds = None` (`rust/tcl-compiler/src/compilation_unit.rs`) | the shared lattice's memo key does not carry the command-binding fact (`rust/tcl-compiler/src/sccp.rs`, the `BuiltinFoldInputs` doc) |
-| (2) `binary format` | nothing: `rust/tcl-registry/src/commands/tcl/binary_.rs` declares `pure: true` on the `format` subcommand and no evaluator | `Overdefined` | the registry can say *whether* a command is pure but not *what* it computes; `tcl_cmd_core::binary::format` exists and the registry already depends on `tcl-cmd-core` |
-| (3) `incr` chain | O100 forwards `4` into a subsequent `$n` (`sccp_value_literal`); the `Statement::Incr` arm of `evaluate_def_with_folds` does the arithmetic | `4` — the same arm runs in both lattices | `incr` is the one read-modify-write command with a typed IR node and a hand-written transfer; `append acc …` hits `_ => LatticeValue::Overdefined` and `acc` is unknown everywhere |
-| (4) `switch -- $acc` | O112 would fire if `acc` were constant (`structure_elimination.rs` resolves `$acc` by name from its own `Env`); it is not, because of (3) | no `ConstantBranch`, no I231, no O107 — even with a constant subject, `switch_subject_operand` lowers a whole-variable subject to `ExprNode::Raw`, which the expression evaluator rejects before consulting the environment | three implementations of `switch` semantics (`cfg_lower.rs`, `structure_elimination.rs`, `analyser/handlers.rs`) with two notions of subject resolution |
+| (1) `string range` | `s` is `barb`, typed a string the route constructed, from the registry's direct route `string-range` | O100 writes `barb` into every later read of `s` and O109 removes the store that leaves | the literal-only checks, hover and inlay hints read the same value where they would otherwise see a variable |
+| (2) `binary format` | `h` is `ABCDEF`, typed a byte array by construction, from the direct route `binary-format` | no rewrite writes a byte array into source as a literal (`SccpResult::materialises`), so the call stays | S100 and S110 report no conversion for it; the analyses read its value |
+| (3) `incr` chain | `n` is `1`, `2`, then `4`, one definition per statement, from the direct route `cell-increment` | O100 forwards `4` into the later `$n` | the same values decide later conditions, so a condition over `$n` draws I230 |
+| (4) `switch -- $acc` | `acc` is `""`, `foo`, then `foobar`, from the direct route `cell-append`; the dispatch chain's branch `${acc} eq {baz}` is decided false, an applied fact | O112 folds the statement to `puts always`, which subsumes the O107 removal of `baz`'s body, no edge reaching it | I231 reports `baz`'s arm; the decided branch leaves that body outside `executable_blocks` |
 
-The contract below makes one answer per program, computed once through the
+The contract below gives one answer per program, computed once through the
 registry's declaration, visible to every consumer, and reachable by a pack
 for a command the registry has never heard of. The completion test is
 stated at the end: a command that fits an existing analyser interface
@@ -133,7 +123,7 @@ evaluator or shared core, and never SCCP, the analyser walk, a diagnostic,
 or the optimiser. These four are the shortest cases;
 [value-transfers-examples.md](value-transfers-examples.md) has one program
 for every optimisation and diagnostic the design touches, with the tool's
-observed behaviour today and the declarations behind each in Rust and in
+observed behaviour and the declarations behind each in Rust and in
 `.tclspec`.
 
 ## Vocabulary
@@ -289,9 +279,9 @@ command bindings and namespace context, the target semantic profile and
 grammar overrides, trace and escape facts, seeds, and any evaluator or
 implementation revision not already fixed by the registry identity. It is
 carried unchanged through lowering, unit construction, per-function
-queries, optimiser consumers, and evaluator calls. As built (slice 4,
-[value-evaluation.md](value-evaluation.md) § *The evaluator generation*,
-decisions D96, D97, D104): `compilation_unit` and `proc_taint_solve` take
+queries, optimiser consumers, and evaluator calls. As built
+([value-evaluation.md](value-evaluation.md) § *The evaluator generation*):
+`compilation_unit` and `proc_taint_solve` take
 the overlay (`AnalyserConfig::spec_pack_key`) as an argument, resolved by
 `unit_registry`; `function_lattice`, `function_checks`,
 `function_optimisations`, `taint_cascade`, and `proc_summary_cascade`
@@ -985,14 +975,12 @@ Both loops give `a` the set `{1, 2}` and `b` the set `{10, 20}`. Pairing
 members by position answers `{10, 10}` for either loop, where the real
 quotients of the second are `20` and `5`; the cartesian product
 `{5, 10, 20}` is sound for both and exact for neither; only ordered
-enumeration answers `20` and `25`. The rule is in force from slice 2, the
-first slice that evaluates over lattice inputs. Slice 3's
-`the_mirror_pairs_decline_as_correlated` pins the outcome — neither loop
-folds `x`, and neither post-loop branch decides — but not yet this reason:
-until slice 5 lowers the two-binder `foreach` source, `a` and `b` are
-overdefined from the loop header, so `expr {$b / $a}` declines `not-exact`
-before the limit is reached. The witness gains its `CorrelatedSets` reason
-once the two-binder `foreach` source is lowered.
+enumeration answers `20` and `25`. The rule is in force for every evaluation
+over lattice inputs. `the_mirror_pairs_decline_as_correlated` pins the
+outcome: the loop header answers each binder of the two-binder `foreach`
+source with the elements it takes, so each `expr {$b / $a}` declines
+`CorrelatedSets`, neither loop folds `x`, and neither post-loop branch
+decides.
 
 ### Bounded-loop enumeration
 
@@ -1398,8 +1386,8 @@ dominance and which stays byte-identical in effect.
   existence guards, and the preserved definitions are all readings of
   this one fact: no match is a `Preserve`, so the prior fact stands —
   `SccpResult::preserved` names the version a preserved definition holds
-  and the undef trace reads through it, which retired the private
-  `regexp` / `scan` no-match prover in slice 5. A use
+  and the undef trace reads through it, so no private `regexp` / `scan`
+  no-match prover remains. A use
   that safely initialises (`use_site_safe_initialises`) is a cell update
   whose `creates_absent` admits the release.
 - **W213** (the `command == "unset"` site in `record_chain_w210_uses`):
@@ -1413,7 +1401,7 @@ dominance and which stays byte-identical in effect.
   `proc p {} { set x 1; if {[info exists x]} { puts yes } }` reported W211
   on `set x 1`, and `tcl opt --profile full` deleted the store, so the
   optimised procedure printed nothing where the original prints `yes`.
-  Since slice 8 (VT8.5) the registry's read projection
+  The registry's read projection
   (`CommandRegistry::variable_read_projection`) names a destroyer's
   targets beside its `VarRead` words, so a nested `[unset x]` — in an
   argument, a value word, a condition or a `return` — is a use too, and
@@ -1421,8 +1409,8 @@ dominance and which stays byte-identical in effect.
 - **O108 and O109** (`elimination.rs`): a store is removable only when
   no value read *and no existence read* of its version remains; an
   unbind statement is never removed, because the error on an absent
-  place and the binding's disappearance are its effects. Since slice 8
-  (VT8.5) every existence read the lowering can place is an SSA use of
+  place and the binding's disappearance are its effects. Every existence
+  read the lowering can place is an SSA use of
   the version it observes — a statement's, a condition's (`<cond>`), a
   value word's and a `return` word's (`<upvar-invalidate>`) — and
   `array unset` is a conditional write (`Traits::CONDITIONAL_VARIABLE_WRITE`),
@@ -1437,7 +1425,7 @@ dominance and which stays byte-identical in effect.
   `FunctionUnit::build` and its cross-event retention retire with it.
 - **S100** (`shimmer/`): an unbind is not a typed value, so a phi that
   merges a bound version with an unbound one is not a representation
-  merge. Since slice 8 (VT8.6) a whole-variable kill is typed the type
+  merge. A whole-variable kill is typed the type
   lattice's bottom and the merge classification skips an arm whose
   existence is `Unbound`, so `set x 1; if {$c} { unset x }; puts $x`
   keeps its W210 and reports no S100.
@@ -1446,8 +1434,8 @@ dominance and which stays byte-identical in effect.
 request, a function over the complexity ceiling (`FunctionUnit`'s
 trivial lattices), and a consumer without SSA read
 `FactView::Top(DeclineReason::Unavailable)`, which is neither `Unbound`
-nor `MayBound`: every consumer above stays silent on it. Since slice 8
-(VT8.7) the read is `FunctionUnit::existence(symbol, ExistencePoint)`,
+nor `MayBound`: every consumer above stays silent on it. The read is
+`FunctionUnit::existence(symbol, ExistencePoint)`,
 typed by the tier the unit's lattices ran at (`FunctionUnit::tier`): a
 unit built under a context key below the deep tier
 (`AnalysisContextKey::at_tier`) runs no rung and answers
@@ -1688,7 +1676,7 @@ struct EvaluationState {
 
 enum NestedPolicy {
     /// Only effect-free nested invocations (`string length`, a pure
-    /// route): the policy of a branch condition and of slice 3.
+    /// route): the policy of a branch condition.
     EffectFreeOnly,
     /// Nested invocations whose ordered stores name only places the
     /// state can own — local, not escaping, not traced, not dynamic —
@@ -1837,17 +1825,15 @@ flowchart LR
     A -. reachability .-> R["O107 · W210 · taint · shimmer"]
 ```
 
-`FunctionUnit::build` appends existence-derived constant branches to
-`sccp.constant_branches`, and those post-pass facts do not update
-`executable_blocks`. Until slice 5 `emit_existence_constant_branch_diagnostics`
-called the same semantic helper again to learn which kind it had, and the
-two drifted: an iRules fold the unit dropped for a cross-event variable was
-still reported. The stored fact now says which of the three it is
-(`BranchFactKind` on `ConstantBranch` in `rust/tcl-compiler/src/sccp.rs`:
-the solver's decided branches `Applied`, the post-pass's `Proven`), and
-emission never reruns the proof. With the existence rung (§ Existence) the existence
-condition decides inside the fixed point, so the post-pass and its second
-run retire and the three kinds are the only distinction left.
+Each branch fact the solver stores says which of the three it is
+(`BranchFactKind` on `ConstantBranch` in `rust/tcl-compiler/src/sccp.rs`). A
+decided branch is `Applied` and updates `executable_blocks`; an existence
+condition is one, decided inside the fixed point (§ Existence). A `Selected`
+fact names an arm of an opaque `switch` or `case` that no member of the subject
+runs the body of: the CFG has no edge for the arm, so the fact applies no
+reachability and drops no block. `Proven` names a condition proven with no
+reachability applied, and no producer states it. A consumer reads the stored
+kind and never reruns the proof.
 
 ### `if`, `elseif`, `while`, `for`
 
@@ -2445,7 +2431,7 @@ Three producers move onto the interface in the first slices:
   per-form semantics. The owner is the registry transfer's *preserve*
   outcome plus the existence rung (§ Existence): no match preserves, so
   the prior cell fact is necessary, and W210 consumes the resulting proof.
-  Slice 5 retired it: SCCP records each preserved definition with the
+  The private prover is gone: SCCP records each preserved definition with the
   version it holds (`SccpResult::preserved`, a condition's substitutions
   included when the shared engine decided the condition), and the
   read-before-set pass reads through it. This is the end-to-end acceptance
@@ -2674,8 +2660,8 @@ optional string.
 `AnalyserHookId` is scope and definition structure — what a `proc`, a
 `namespace eval`, or a `dict for` *declares* — and is the structural plan
 in the table above. Its constant-string store (`Analyser::const_strings`)
-is a consumer of constants, not a producer of transfers: since slice 8
-(VT8.9) the `Set` hook is retired, and the store reads a direct
+is a consumer of constants, not a producer of transfers: there is no `Set`
+hook, and the store reads a direct
 one-target write's `CellWrite` evaluation over its literal words
 (`Analyser::bind_value_word_assignment`, for any invocation whose
 resolved semantics `writes_value_word`), with the written name bound by

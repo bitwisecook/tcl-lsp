@@ -319,7 +319,7 @@ fn whole_unset_names(args: &[String]) -> FxHashSet<String> {
 /// the SSA function itself.
 pub(super) struct PhiUndefCtx<'a> {
     /// The registry whose special-variable faces answer the startup facts,
-    /// pack rows included (D157).
+    /// pack rows included.
     pub registry: &'a tcl_registry::CommandRegistry,
     pub phi_def: &'a PhiDefMap,
     pub phi_block: &'a PhiBlockMap,

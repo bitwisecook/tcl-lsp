@@ -59,6 +59,9 @@ switch -glob -- $acc {
 }
 ```
 
+A `case` statement's arm is reported the same way, named by the command the
+statement spells (`Case arm 'baz' is never selected`).
+
 An arm that passes its body on with `-` is judged by the body it leads to, so
 the alternates of a body that runs are not reported, and `default` is never
 reported. The analyser makes no selection when it cannot be sure which arm

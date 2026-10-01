@@ -438,7 +438,7 @@ pub(crate) struct LatticeDriver<'a> {
     /// Per slot, whether the place is externally mutable — qualified,
     /// aliased, traced, an instance variable, a connection's name or a
     /// special variable of the initial global frame: an existence query
-    /// about one decides nothing (D166).
+    /// about one decides nothing.
     existence_external: RefCell<Vec<bool>>,
     /// Whether the run is the document's initial global frame, where an
     /// existence query about a registry special variable decides nothing:
@@ -996,7 +996,7 @@ impl<'a> LatticeDriver<'a> {
 
     /// Whether the place `name` is one the rung holds externally mutable: a
     /// call to a procedure the module cannot see may bind or unset it, so
-    /// no fact about it is proven at a point (D166).
+    /// no fact about it is proven at a point.
     fn existence_is_external(&self, ssa: &SsaFunction, name: &str) -> bool {
         ssa.var_symbol(name)
             .or_else(|| self.existence_places.borrow().get(name).copied())
@@ -1009,7 +1009,7 @@ impl<'a> LatticeDriver<'a> {
             })
     }
 
-    /// The existence query `kind` over its source words (VT8.2): a literal
+    /// The existence query `kind` over its source words: a literal
     /// name reads its place, and an element name its array; a computed key
     /// leaves a bareword array fixed, so `Params($k)` asks about `Params` as
     /// a literal element does. Any other computed name decides nothing.
@@ -1035,7 +1035,7 @@ impl<'a> LatticeDriver<'a> {
     }
 
     /// `info exists NAME` / `array exists NAME` over the existence rung at
-    /// the current point (VT8.2), for the place `base` — an `element` query
+    /// the current point, for the place `base` — an `element` query
     /// names its array: a bound place exists, one bound as an array is an
     /// array, one bound as a scalar is no array, and an unbound one is
     /// neither; an element exists only in an array, so an unbound array
@@ -1044,7 +1044,7 @@ impl<'a> LatticeDriver<'a> {
     /// array that may exist, a run with no rung (`Unavailable`, never read
     /// as unbound), a special variable in the initial global frame, which
     /// the host rather than the script binds, and any other externally
-    /// mutable place (D166), which a call the module cannot see may bind
+    /// mutable place, which a call the module cannot see may bind
     /// or unset.
     fn existence_of(
         &self,
@@ -1628,8 +1628,8 @@ impl<'a> LatticeDriver<'a> {
     /// # Errors
     ///
     /// The whole answer declines, and every definition widens, for a
-    /// completion other than the normal one (the prefix rule is slice
-    /// 10's); a target that is no place (`DynamicName`, `EscapingPlace`
+    /// completion other than the normal one (the stores made before an error
+    /// are not applied); a target that is no place (`DynamicName`, `EscapingPlace`
     /// from the resolver); an element write beside its array's base write
     /// (`OverlappingTargets`); and a traced place (`TracedPlace`), whose
     /// trace runs on the write and can observe or rewrite the others.
@@ -2123,7 +2123,7 @@ impl<'a> LatticeDriver<'a> {
         let words: Vec<InvocationWord<'_>> = cooked.iter().map(ArgWord::word).collect();
         let resolved = self.resolve(head, &words)?;
         let binding = binding_of(head, resolved.canonical_command);
-        // An existence query reads the rung, not a route (VT8.2).
+        // An existence query reads the rung, not a route.
         if let Some(kind) = crate::existence_query::kind_of(resolved.semantics.operation) {
             return Some(ScriptRun {
                 head: head.to_owned(),
@@ -3238,7 +3238,7 @@ fn switch_arguments<'t>(
         .collect()
 }
 
-/// The command a statement's binding site names (D181): the registry
+/// The command a statement's binding site names: the registry
 /// identity the lowering recorded at the statement's own span, when every
 /// site there names the same one — the canonical command a
 /// `Statement::Switch`, which keeps no resolved name of its own, was lowered
@@ -4892,7 +4892,7 @@ mod tests {
     }
 
     /// A destructuring route resolves its targets' roles over the values the
-    /// lattice proves (the slice 5 review's S2): a substituted subject no
+    /// lattice proves: a substituted subject no
     /// longer hides them, so `regexp` writes its match variable, `lassign`
     /// both of its targets, and a no-match preserves its target — tclsh 8.5
     /// to 9.1 print `aa`, `1 2` and `before`.
@@ -4923,7 +4923,7 @@ mod tests {
         assert_eq!(last("m"), text("before"), "the no-match preserves `m`");
     }
 
-    /// `proven_word_value` reads the lattice at the statement (VT5.15): a
+    /// `proven_word_value` reads the lattice at the statement: a
     /// word reading a variable a `set` gave a literal is that literal, one
     /// reading a route's result carries the folded type the route states, a
     /// quoted word is its runs and reads concatenated and a literal word its
@@ -4975,7 +4975,7 @@ mod tests {
     }
 
     /// A loop header binds each binder of its plan the elements it is
-    /// assigned (VT5.7): `foreach {a b} {1 10 2 20 3} {…}` gives `a` the
+    /// assigned: `foreach {a b} {1 10 2 20 3} {…}` gives `a` the
     /// set `{1 2 3}` and `b` the set `{10 20 ""}`, the empty string where the
     /// last iteration runs past the list's end; a repeated binder holds its
     /// last position's element (`foreach {c c} {x y z w}` gives `c` `{y w}`).
@@ -5021,8 +5021,8 @@ mod tests {
         );
     }
 
-    /// A dictionary body is found by its plan whatever its dictionary holds
-    /// (VT5.18): the probe's dictionary holds the key path the plan reads,
+    /// A dictionary body is found by its plan whatever its dictionary holds:
+    /// the probe's dictionary holds the key path the plan reads,
     /// so `dict with d a b {…}` over a dictionary the analysis does not know
     /// is still one, under either spelling. Over a known dictionary the
     /// declared keys are read at the key path, which a dictionary lacking
@@ -5080,7 +5080,7 @@ mod tests {
     }
 
     /// The driver records each executable `subst` call's template-word
-    /// plan over the settled lattice (VT5.8): `set opt -novariables; subst
+    /// plan over the settled lattice: `set opt -novariables; subst
     /// $opt {hello $name}` reads the proven switch, so the template's
     /// `$name` is no read (tclsh 8.4 to 9.1 print `hello $name`); each record
     /// carries its template word's token span, the plan's own spans offsets
@@ -5141,15 +5141,15 @@ mod tests {
     }
 
     /// The driver records each executable opaque case-list statement's
-    /// selection over the settled lattice (VT6.3): the record's arm indices
+    /// selection over the settled lattice: the record's arm indices
     /// count the command's pattern and body pairs against the statement's
     /// arms, whose pattern spans it keeps in order, so the index one past
     /// them names the final `default` the statement keeps as its default
-    /// body (D182) — `abc` selects `a*`, a literal `zzz` the default, and a
+    /// body — `abc` selects `a*`, a literal `zzz` the default, and a
     /// finite subject one arm per member. A subject with no proven value,
     /// and a flattened exact switch, which is no statement at all, record
     /// nothing; `case`'s statement records through the command its binding
-    /// site names (D181). Each answer is tclsh 8.6.18's.
+    /// site names. Each answer is tclsh 8.6.18's.
     #[test]
     fn an_opaque_switch_records_its_selection() {
         let source = "proc p {x} {\n\
@@ -5199,7 +5199,7 @@ mod tests {
         );
     }
 
-    /// A delimited fall-through body reads two ways on 9.1b0 (D179), and
+    /// A delimited fall-through body reads two ways on 9.1b0, and
     /// the statement carries each word's delimiters to the transfer: `a`
     /// falls through a quoted or braced `-` into `b`'s body under 8.6 and
     /// 9.0, and no selection is recorded under a profile that may be 9.1;
@@ -5782,10 +5782,10 @@ mod tests {
         }
     }
 
-    /// D60: `simple_var_ref_name` reads exactly one reference. A lowered
+    /// `simple_var_ref_name` reads exactly one reference. A lowered
     /// quoted `expr` word spells `${a} + ${b}`, which starts and ends like one
     /// braced reference and is not the variable `a} + ${b`. The `${…}`
-    /// closer is the release rule's (VT6.1): `${a{b}c}` is one reference
+    /// closer is the release rule's: `${a{b}c}` is one reference
     /// under 9.x and `${a{b}` followed by `c}` under 8.x.
     #[test]
     fn a_simple_reference_is_one_reference_only() {
@@ -5805,7 +5805,7 @@ mod tests {
     }
 
     /// A `Raw` operand reads a variable only when it is one reference whose
-    /// name the release rules read alike (VT6.1): `${acc}` and `$acc` do, a
+    /// name the release rules read alike: `${acc}` and `$acc` do, a
     /// backslash or brace in the name never does, and neither does any
     /// other `Raw` text.
     #[test]

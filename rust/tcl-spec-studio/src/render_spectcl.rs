@@ -327,8 +327,7 @@ pub const GAPS: &[Gap] = &[
         spelling: "",
         kind: GapKind::Excluded,
     },
-    // `semantics` left this bucket with the private-command slice of the
-    // value-transfer migration: the structural half is plain data all the
+    // `semantics` is not in this bucket: the structural half is plain data all the
     // way down (like `object_class`), and a route with no body renders in
     // full. What still cannot survive a bare `CommandSpec` — a declared
     // implementation's body, which lives only in the loader's pack-hook

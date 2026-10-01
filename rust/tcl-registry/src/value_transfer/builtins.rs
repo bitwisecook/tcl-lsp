@@ -949,9 +949,9 @@ impl CommandSemantics for ExpressionRoute {
 /// A command declared to write its named targets with no route to
 /// evaluate the written value: `evaluate` declines with the given
 /// reason, and the driver's conservative fallback — the same one an
-/// undeclared write already took — is what widens each target's value
-/// (VT5.14; the classification is new, the lattice answer is not). Its
-/// existence transfer is a may-bind of each target, as the kind the
+/// undeclared write takes — is what widens each target's value, so the
+/// declaration classifies the command and leaves the lattice answer as it
+/// was. Its existence transfer is a may-bind of each target, as the kind the
 /// command writes: the place may be bound afterwards, and never loses a
 /// binding it had. A command that may also unbind its target declares no
 /// kind and keeps the generic transfer, whose widening to may-bound is

@@ -16,12 +16,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The value-transfer lane's CLI witnesses
-//! (`docs/design/lanes/value-transfers.md` § *Plan for slices 2–13*, D9):
-//! the `tcl explore` and `tcl opt` evidence the lane's exit criteria name,
-//! driven through the built `tcl` binary rather than the library directly.
-//! Separate from `rust/tcl-cli/tests/cli.rs`, which the diagnostic-policy
-//! lane edits; every later slice extends this file instead.
+//! The value-transfer design's CLI witnesses: the `tcl explore` and
+//! `tcl opt` evidence for its programs, driven through the built `tcl`
+//! binary rather than the library directly. Separate from
+//! `rust/tcl-cli/tests/cli.rs`, which the diagnostic policy's work edits.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -61,11 +59,10 @@ fn run_tcl(args: &[&str]) -> String {
     String::from_utf8(output.stdout).expect("utf-8 stdout")
 }
 
-/// VT3.9's route tally, read from `tcl explore --show sccp`: two fused
+/// The route tally, read from `tcl explore --show sccp`: two fused
 /// `expr` statements are two expression entries, one nesting a
 /// direct-routed `string length`, so `direct 1 · expression 2 ·
-/// implementation 0` — the exit evidence's own line
-/// (`docs/design/lanes/value-transfers.md` § *Slice 3* › *Goal and exit*).
+/// implementation 0`.
 #[test]
 fn explore_sccp_prints_the_route_tally() {
     let text = run_tcl(&[
@@ -85,12 +82,12 @@ fn explore_sccp_prints_the_route_tally() {
     );
 }
 
-/// VT5.19, slice 5's own exit line: `tcl explore --show sccp` prints the
+/// `tcl explore --show sccp` prints the
 /// folded type a route's representation evidence states, beside the
 /// value, and says nothing where a route states none. `binary format` is
-/// the exit criterion's own program — `h#1 = const('ABCDEF')` typed
-/// `bytearray (constructed)` (VT5.6) — read beside `format`'s `string
-/// (constructed)` and `list`'s `list (constructed)` (VT5.2) so "types" is
+/// the interface page's program (2) — `h#1 = const('ABCDEF')` typed
+/// `bytearray (constructed)` — read beside `format`'s `string
+/// (constructed)` and `list`'s `list (constructed)` so "types" is
 /// not one route's alone; a plain literal constructs nothing and prints
 /// no type line at all.
 #[test]
@@ -144,10 +141,9 @@ fn explore_sccp_prints_folded_types() {
     assert!(!literal.contains("type:"), "{literal}");
 }
 
-/// VT2.10's deferred CLI witness binary (D9, D35): the `tcl explore` exit
-/// lines slice 2's § *Goal and exit* names — program (3)'s `incr` route
+/// The `tcl explore` witnesses — program (3)'s `incr` route
 /// twice, a release-ambiguous decline, and `llength`'s direct route — each
-/// hand-verified at the time and now pinned here. The decline was
+/// hand-verified and pinned here. The decline was
 /// `f5-irules`'s until ruling 8 gave iRules its declared 8.4 base: it now
 /// folds `incr` over `010` to 9, as tclsh 8.4 does, and `tk`, a profile
 /// that declares no release, is the one that declines.
@@ -219,7 +215,7 @@ fn explore_sccp_prints_the_route_of_each_statement() {
     );
 }
 
-/// Slice 8's exit line (VT8.10): the existence branch decides inside the
+/// The existence branch decides inside the
 /// fixed point — `unset x` leaves `x` provably unbound, so `[info exists
 /// x]` folds `False` as an ordinary `Applied` branch — and the `if`'s
 /// true block (`puts yes`) is outside `executable blocks`.
@@ -248,7 +244,7 @@ fn explore_sccp_prints_the_existence_branch_decided() {
     );
 }
 
-/// VT2.10: `tcl opt --profile full --dialect tcl8.6` forwards program
+/// `tcl opt --profile full --dialect tcl8.6` forwards program
 /// (3)'s constant return into its call site (O100 / O103).
 #[test]
 fn opt_forwards_program_three() {
@@ -264,7 +260,7 @@ fn opt_forwards_program_three() {
     assert!(out.contains("puts 4"), "{out}");
 }
 
-/// VT2.10: a value-position cell update whose read the host statement does
+/// A value-position cell update whose read the host statement does
 /// not hold keeps its store — `set n 1` stays ahead of `set result [incr
 /// n]` rather than being read by a join the optimiser cannot see through.
 #[test]
@@ -281,7 +277,7 @@ fn opt_keeps_the_store_behind_a_nested_increment() {
     assert!(out.contains("set n 1"), "{out}");
 }
 
-/// VT2.9 (#2214): a `::`-qualified global a nested `incr` writes is a
+/// #2214: a `::`-qualified global a nested `incr` writes is a
 /// global write in its procedure's summary, so `set hits 0` and `puts
 /// $hits` around `bump`'s `[incr ::hits]` are both kept — the program
 /// prints `1` under `tclsh8.4` to `tclsh9.1`, as the original does.
@@ -293,7 +289,7 @@ fn opt_keeps_a_global_a_nested_increment_writes() {
     assert!(out.contains("puts $hits"), "{out}");
 }
 
-/// The value-transfer lane's executable example (VT4.13), whose one home is
+/// The value-transfer design's executable example, whose one home is
 /// the compiler's test fixtures.
 const TENANT_PACK: &str =
     include_str!("../../tcl-compiler/tests/fixtures/value_transfers/tenant.tclspec");
@@ -382,8 +378,8 @@ fn assert_the_explorer_folds(workspace: &Path) {
     assert!(explored.contains("implementation 3"), "{explored}");
 }
 
-/// The step-1 completion test on the CLI and the pack surfaces (VT4.13;
-/// `docs/design/compiler/value-transfers.md` § *The completion test*),
+/// The completion test on the CLI and the pack surfaces
+/// (`docs/design/compiler/value-transfers.md` § *The completion test*),
 /// beside `the_completion_test_needs_no_consumer_edit` in the compiler
 /// witnesses: the executable example's three spellings, from a workspace
 /// pack alone, fold `acme` to `tenant:acme` in `tcl explore`, make the

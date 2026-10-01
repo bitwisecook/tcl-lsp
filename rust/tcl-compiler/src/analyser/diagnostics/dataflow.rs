@@ -142,7 +142,7 @@ pub(super) struct ReturnUndefCtx<'a> {
     /// variable, so a `return` read of one of them adds nothing.
     pub already_reported: &'a HashSet<String>,
     /// The analyser's registry, whose special-variable faces answer the
-    /// startup facts, pack rows included (D157).
+    /// startup facts, pack rows included.
     pub registry: &'a tcl_registry::CommandRegistry,
     pub initial_global: bool,
     pub global_aliases: &'a HashSet<String>,
@@ -186,10 +186,40 @@ fn startup_read_facts(
     }
 }
 
-/// The existence fact the read at `index` of `block` finds at `var`'s place
-/// (VT8.4): the statement's own read, or — for the terminator, `index` -1
+/// The command of the case-list statement that holds the `Selected` fact
+/// `arm`, as the source spells it, less a leading `::`, and capitalised to
+/// open a message: `Switch`, or `Case` for the statement a `case` spells.
+fn case_list_command(
+    fu: &crate::compilation_unit::FunctionUnit,
+    arm: &crate::sccp::ConstantBranch,
+) -> String {
+    let command = arm
+        .span
+        .zip(fu.cfg.block_by_name(&arm.block))
+        .and_then(|(pattern, block)| {
+            block
+                .statements
+                .iter()
+                .find_map(|statement| match statement {
+                    crate::ir::Statement::Switch { span, command, .. }
+                        if span.start() <= pattern.start() && pattern.end() <= span.end() =>
+                    {
+                        Some(command.as_str())
+                    }
+                    _ => None,
+                })
+        })
+        .unwrap_or("switch");
+    let mut letters = command.trim_start_matches(':').chars();
+    letters.next().map_or_else(String::new, |first| {
+        first.to_uppercase().chain(letters).collect()
+    })
+}
+
+/// The existence fact the read at `index` of `block` finds at `var`'s place:
+/// the statement's own read, or — for the terminator, `index` -1
 /// — the block's exit, as the unit's typed view
-/// ([`crate::compilation_unit::FunctionUnit::existence`], VT8.7): `Pending`
+/// ([`crate::compilation_unit::FunctionUnit::existence`]): `Pending`
 /// where the run never reached it, and `Unavailable` below the deep tier or
 /// past the complexity ceiling, neither of which is bound or unbound.
 fn place_fact(
@@ -211,7 +241,7 @@ fn place_fact(
 /// The existence fact a W210 or W213 read reports on: an unbound or a
 /// may-bound place. A bound one, one the run never reached, and one it
 /// computed nothing for — `Unavailable` below the deep tier or past the
-/// complexity ceiling (VT8.7) — report nothing.
+/// complexity ceiling — report nothing.
 fn reportable(fact: &FactView) -> Option<Existence> {
     match fact {
         FactView::Domain(DomainFact::Existence(
@@ -703,7 +733,7 @@ file; this call falls through to the 'unknown' handler."
 
     /// Whether the runtime reads `var` when the script does not — a special
     /// variable such as `auto_path`, whose write the host observes — under
-    /// the analyser's registry, pack-declared rows included (D157).
+    /// the analyser's registry, pack-declared rows included.
     fn externally_read(&self, var: &str) -> bool {
         self.registry
             .as_deref()
@@ -1522,7 +1552,7 @@ file; this call falls through to the 'unknown' handler."
             }
             // An unbind of the place — a command the registry declares
             // `DESTROYS_VARIABLE`, under the spelling the source uses —
-            // reads the existence fact where it runs (VT8.4): W213 is
+            // reads the existence fact where it runs: W213 is
             // definite on an unbound place, "may not exist" on a may-bound
             // one, and nothing on a bound one or where the run computed no
             // fact. The `-nocomplain` form raises nothing, so it reports
@@ -1604,7 +1634,7 @@ file; this call falls through to the 'unknown' handler."
             if ctx.startup.readable {
                 continue;
             }
-            // The existence rung has the last word (VT8.4): a read at a place
+            // The existence rung has the last word: a read at a place
             // bound there, or where the run computed no fact, is no
             // read-before-set.
             if reportable(&place_fact(
@@ -1736,7 +1766,7 @@ file; this call falls through to the 'unknown' handler."
                 if !Self::return_read_fires_w210(fu, &name, ver, bn, &phi_idx, ctx, &mut memo) {
                     continue;
                 }
-                // The existence rung has the last word here too (VT8.4).
+                // The existence rung has the last word here too.
                 let fact = fu
                     .ssa
                     .var_symbol(&name)
@@ -1860,8 +1890,8 @@ file; this call falls through to the 'unknown' handler."
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
     ) {
-        // The solver's decided branches — an existence query among them
-        // since slice 8, decided inside the fixed point.
+        // The solver's decided branches — an existence query among them,
+        // decided inside the fixed point.
         for branch in fu
             .sccp
             .constant_branches
@@ -2027,7 +2057,8 @@ file; this call falls through to the 'unknown' handler."
                     DiagCode::I231,
                     fu.abs_span(span),
                     format!(
-                        "Switch arm '{}' is never selected; this arm is unreachable",
+                        "{} arm '{}' is never selected; this arm is unreachable",
+                        case_list_command(fu, arm),
                         arm.condition,
                     ),
                     // I230/I231 are observational (LSP `Information`).

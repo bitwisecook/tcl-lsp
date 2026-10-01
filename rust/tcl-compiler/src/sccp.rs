@@ -179,8 +179,8 @@ fn cv_eq(a: &ConstValue, b: &ConstValue) -> bool {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BranchFactKind {
     /// The condition is proven, and reachability was not updated from it.
-    /// Since slice 8 the solver decides an existence query inside the fixed
-    /// point, as an `Applied` fact, so no producer states this kind today.
+    /// The solver decides an existence query inside the fixed point, as an
+    /// `Applied` fact, so no producer states this kind.
     Proven,
     /// A statement selects among arms the CFG has no edge of its own for (an
     /// opaque `switch`): the fact names an arm no member of the subject
@@ -322,7 +322,7 @@ pub struct SccpResult {
     /// barrier read instead of walking the template themselves.
     pub template_plans: Vec<TemplatePlanRecord>,
     /// Each executable opaque case-list statement's selection over the
-    /// settled lattice, in source order (VT6.3).
+    /// settled lattice, in source order.
     pub selections: Vec<SelectionRecord>,
     /// Per SSA value, the existence rung
     /// (`docs/design/compiler/value-transfers.md` § *Existence*): whether
@@ -356,7 +356,7 @@ pub struct SccpResult {
 /// A fact that holds on one CFG edge, and on from its target until the
 /// place is defined again or a barrier or an up-frame clobbers it, for one
 /// SSA version (`docs/design/compiler/value-transfers.md` § *Edge
-/// refinement*). In slice 8 the domain is `FactDomain::Existence` alone.
+/// refinement*). The domain is `FactDomain::Existence` alone.
 #[derive(Debug, Clone, PartialEq)]
 pub struct EdgeRefinement {
     /// The guarded edge: the branch block and the block the edge enters.
@@ -1449,8 +1449,8 @@ impl ExistenceRun {
 /// `fact` where it narrows the place — a may-bound place to anything, a
 /// place bound as either kind to one kind — and `current` otherwise. A
 /// refinement the place contradicts rides an edge the query did not decide
-/// although the place has a fact, as for a special variable the host binds
-/// (D165), so the place keeps its fact.
+/// although the place has a fact, as for a special variable the host binds,
+/// so the place keeps its fact.
 const fn narrowed(current: Existence, fact: Existence) -> Existence {
     match (current, fact) {
         (Existence::MayBound, _) | (Existence::Bound(BindingKind::Either), Existence::Bound(_)) => {
@@ -1589,8 +1589,8 @@ fn query_facts(name: &str, kind: crate::existence_query::ExistenceKind) -> EdgeF
 /// The existence refinements of the function's guarded edges
 /// ([`EdgeRefinement`]): each branch whose condition states a fact about a
 /// place the rung carries ([`condition_facts`]) refines the place on that
-/// edge. An externally mutable place (`external`, by slot) is never refined
-/// (D166): a plain call to a procedure the module cannot see, or to a
+/// edge. An externally mutable place (`external`, by slot) is never refined:
+/// a plain call to a procedure the module cannot see, or to a
 /// computed head, may write or unset a global, an alias, an instance
 /// variable or a connection's name without any barrier or up-frame, so a
 /// refinement there would outlive the point at which another actor acts.
@@ -1765,7 +1765,7 @@ fn special_at_entry(
 /// instance variable, a connection-scoped name, or a special variable of
 /// the initial global frame. Beside the qualified, aliased and traced
 /// places the rung already holds may-bound, these are the externally
-/// mutable places a refinement never narrows (D166).
+/// mutable places a refinement never narrows.
 fn linked_elsewhere(
     name: &str,
     entry: ExistenceEntry<'_>,
@@ -1859,7 +1859,7 @@ fn touched_symbols(named: &HashSet<String>, ssa: &SsaFunction) -> Vec<Symbol> {
 /// destroy: an inline nested body's (a non-lowered `switch`'s arms), and one
 /// nested in a command substitution — `[catch {unset x}]`, `[eval {…}]`,
 /// `[lmap v {1} {…}]` run their body here, so the rung clobbers every name
-/// it defines or destroys (the slice 8 review's S3, #2231's consequence). A
+/// it defines or destroys (#2231's consequence). A
 /// body lowers to the statements the IR builds for it and each is asked
 /// what it defines ([`crate::ssa::defs_of_with_registry`]); a barrier or an
 /// up-frame among them, or text nested past the depth cap, touches every
@@ -3108,8 +3108,8 @@ pub(crate) fn evaluate_branch<S: std::hash::BuildHasher>(
 }
 
 /// `condition` with every `Raw` *operand* the variable-name owner proves is
-/// exactly one variable reference read as that variable (VT6.1; § `switch`,
-/// step 1) — the flattened dispatch's whole-variable subject, which
+/// exactly one variable reference read as that variable — the flattened
+/// dispatch's whole-variable subject, which
 /// `switch_subject_operand` keeps `Raw` so codegen loads the name intact.
 /// `None` when no operand resolves. The proof is
 /// [`crate::value_transfer::whole_variable_operand`] under `style`, the
@@ -3646,8 +3646,8 @@ mod tests {
         );
     }
 
-    /// `set x 1; unset x; info exists x` decides 0 inside the fixed point
-    /// (VT8.2): the query reads the rung, the branch is an `Applied` fact,
+    /// `set x 1; unset x; info exists x` decides 0 inside the fixed point:
+    /// the query reads the rung, the branch is an `Applied` fact,
     /// and its true arm is unreachable. tclsh 8.4 to 9.1 print `no`.
     #[test]
     fn set_unset_info_exists_decides_zero() {
@@ -3695,11 +3695,11 @@ mod tests {
         reads.into_iter().map(|(_, fact)| fact).collect()
     }
 
-    /// The existence guard refines its edges (VT8.3): on a may-bound place
+    /// The existence guard refines its edges: on a may-bound place
     /// the true edge of `[info exists x]` carries `Bound(Either)` and the
     /// false edge `Unbound`, `!` swaps the two, and past the merge the
     /// place is may-bound again. A `global` alias is externally mutable and
-    /// never refined (D166): both its reads stay may-bound.
+    /// never refined: both its reads stay may-bound.
     #[test]
     fn the_existence_guard_refines_its_edges() {
         use tcl_registry::value_transfer::DomainFact;
@@ -3769,7 +3769,7 @@ mod tests {
         assert_eq!(puts_reads(h, "x"), vec![Existence::MayBound], "::h");
     }
 
-    /// An externally mutable place is never refined (D166): the guard on
+    /// An externally mutable place is never refined: the guard on
     /// `::errorInfo`, at the top level and in a procedure, and on a
     /// `TclOO` instance variable's `if {[info exists x]} {return $x}` —
     /// spelled with absolute heads, which keep a method body analysable
@@ -3817,7 +3817,7 @@ mod tests {
         assert_eq!(returned, vec![Existence::MayBound]);
     }
 
-    /// A refinement never survives a barrier (D166): a local its guard
+    /// A refinement never survives a barrier: a local its guard
     /// refines bound reads bound before `eval $script`, which lowers to a
     /// barrier, and may-bound after it — the script may have unset it.
     #[test]
@@ -3843,8 +3843,8 @@ mod tests {
         );
     }
 
-    /// A special variable of the initial global frame is never refined
-    /// (D166): at the top level of a Tcl 8.6 script `errorCode` enters
+    /// A special variable of the initial global frame is never refined:
+    /// at the top level of a Tcl 8.6 script `errorCode` enters
     /// may-bound — startup binds it only under 8.4 — and `if {![info exists
     /// errorCode]}` refines neither edge, since the host, or any command
     /// that raises, may set it without a barrier.
@@ -5384,9 +5384,8 @@ mod tests {
 
     #[test]
     fn evaluate_def_foreach_multi_var_binds_each_its_elements() {
-        // Two binders over one list (VT5.7): each takes the elements it is
-        // assigned, so over `a b` the first binder, `v`, holds `a` (it had
-        // widened while the plan answered one binder only).
+        // Two binders over one list: each takes the elements it is
+        // assigned, so over `a b` the first binder, `v`, holds `a`.
         let mut ssa = bare_ssa();
         let mut stmt = foreach_stmt(&mut ssa, "v", "a b", 1);
         let Statement::Call { defs, .. } = &mut stmt.statement else {
