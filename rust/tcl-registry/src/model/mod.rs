@@ -75,6 +75,7 @@ pub mod context;
 pub mod declaration;
 pub mod ingress;
 pub mod registration;
+pub mod runtime_context;
 pub mod semantic;
 pub mod surface;
 pub mod tcllib;
@@ -100,6 +101,9 @@ pub use ingress::{
     DocumentEnvironment, context_for_profile, environments, irules_context,
     is_known_environment_name, resolve_environment, resolve_known_environment, static_context_for,
     static_context_for_profile, static_document_context_for, static_document_context_for_profile,
+};
+pub use runtime_context::{
+    PinError, PinnedContext, pin, runtime_context_for_profile, runtime_context_of,
 };
 pub use semantic::{SemanticContext, resolve_structured_invocation_in_context};
 pub use tcllib::{TCLLIB_MODULES, TcllibModule, module_version_set, tcllib_module};

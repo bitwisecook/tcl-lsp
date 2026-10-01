@@ -30,6 +30,7 @@ use std::cell::RefCell;
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::io::{self, Write};
 use std::rc::{Rc, Weak};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tcl_dialect::{PackagePrefer, model::SurfaceQuery};
 
@@ -42,10 +43,11 @@ use tcl_runtime_api::guard::{
     GuardDomain, GuardDomains, GuardError, GuardIdentity, GuardManager, GuardToken,
 };
 use tcl_runtime_api::{
-    ArrayElementRead, ArrayInvalidation, ArrayReadFailure, ArrayReadMiss, ArrayTarget, Code,
-    CommandId, Commands, CompileService, Completion, FatalTail, FrameId, FrameLinkOrigin, Frames,
-    Introspect, Namespaces, NsId, ProcInfo, ProcParam, ProcedureCompileTarget, ProcedureDispatch,
-    Procs, ROOT_NS, RegisteredBacking, ScriptCompileTarget, Traces, VarId, VarStore, VarUnsetError,
+    ArrayElementRead, ArrayInvalidation, ArrayReadFailure, ArrayReadMiss, ArrayTarget,
+    ArtefactIdentityManifest, Code, CommandId, Commands, CompileService, Completion, FatalTail,
+    FrameId, FrameLinkOrigin, Frames, Introspect, Namespaces, NsId, ProcInfo, ProcParam,
+    ProcedureCompileTarget, ProcedureDispatch, Procs, ROOT_NS, RegisteredBacking, Rung,
+    RuntimeContext, ScriptCompileTarget, Traces, VarId, VarStore, VarUnsetError,
 };
 use tcl_syntax::expr::{eval, parse_expr};
 
@@ -856,6 +858,9 @@ struct PackageState {
     package_loading: Vec<(String, String)>,
 }
 
+/// A compiled function and the manifest of the module it came from.
+pub(crate) type CompiledFunction = (Rc<FunctionAsm>, Option<Arc<ArtefactIdentityManifest>>);
+
 pub struct InterpState {
     /// The Tcl release whose number/expr grammar this VM emulates —
     /// threaded from `DialectProfile::vm_runtime_version` (dialect-profile
@@ -863,16 +868,8 @@ pub struct InterpState {
     /// and variable-resolution semantics; the VM never infers them from a
     /// dialect name.
     runtime_version: tcl_dialect::TclVersion,
-    /// The dialect profile this VM validates its builtin command surface
-    /// against: [`Self::builtin_command_visible_for_surface`]
-    /// consults this profile's availability point, so a command the emulated
-    /// release does not have (`lassign` at 8.4, `lpop` before 9.0) resolves
-    /// like C Tcl — to `invalid command name`. Defaults to the permissive
-    /// fallback profile, which hides nothing; `set_runtime_version` pins the
-    /// matching plain-Tcl profile and `set_dialect_profile` pins a vendor one.
-    dialect_profile: &'static tcl_dialect::DialectProfile,
     /// The profile used solely for builtin command-surface availability.
-    /// Normally identical to [`Self::dialect_profile`], but an embedding host
+    /// Normally identical to the pinned dialect profile, but an embedding host
     /// may expose a broader Tcl host surface while retaining a vendor grammar
     /// and bytecode identity (for example, the iRules simulation harness).
     command_surface_profile: &'static tcl_dialect::DialectProfile,
@@ -1138,6 +1135,17 @@ pub struct InterpState {
     /// unit whose site claims a stamp not among them is not admitted.
     /// Empty — the default — admits exactly the units that claim nothing.
     pack_facts: Vec<tcl_runtime_api::PackFactStamp>,
+    /// The world this interpreter is pinned to ([`Vm::pin_context`]), the
+    /// registry generation it holds, and the identity those state together
+    /// with the pack facts above — what a compiled unit's manifest is
+    /// compared with. Its profile is the dialect profile this VM validates its
+    /// builtin command surface against: [`Self::builtin_command_visible_for_surface`]
+    /// consults its availability point, so a command the emulated release does
+    /// not have (`lassign` at 8.4, `lpop` before 9.0) resolves like C Tcl — to
+    /// `invalid command name`. Defaults to the permissive fallback profile,
+    /// which hides nothing; `set_runtime_version` pins the matching plain-Tcl
+    /// profile and `set_dialect_profile` pins a vendor one.
+    pin: tcl_registry::model::PinnedContext,
     /// Optional debug hook fired once per source command (the execution-control
     /// seam a step debugger drives). `None` in normal runs — the only
     /// per-instruction cost is an `Option` check.
@@ -1676,7 +1684,58 @@ impl Vm {
     /// availability point becomes the builtin command-surface filter
     /// ([`Self::builtin_command_visible_for_surface`]).
     pub fn set_dialect_profile(&mut self, profile: &'static tcl_dialect::DialectProfile) {
-        let profile_changed = !std::ptr::eq(self.dialect_profile, profile);
+        self.install_pin(tcl_registry::model::PinnedContext::for_profile(profile));
+    }
+
+    /// Pin the world this VM runs in: the environment, the release point within
+    /// it, the build, the package floors and the registry overlay generation,
+    /// resolved through the same ingress the compiler uses. The profile the
+    /// environment resolves to is what [`Self::set_dialect_profile`] would pin,
+    /// and the generation at the context's overlay is held for as long as the
+    /// pin stands.
+    ///
+    /// A compiled unit states the context it was compiled for, and is admitted
+    /// only at the rungs whose fields agree with this one.
+    ///
+    /// # Errors
+    ///
+    /// [`PinError`](tcl_registry::model::PinError) when the ingress does not
+    /// agree with the context — no such environment, a release or build that
+    /// is not the environment's point, or an overlay nothing has installed,
+    /// which is an error and never the un-overlaid generation under another
+    /// name. The pin is unchanged.
+    pub fn pin_context(
+        &mut self,
+        context: &RuntimeContext,
+    ) -> Result<(), tcl_registry::model::PinError> {
+        self.install_pin(crate::environment::pin_context(context)?);
+        Ok(())
+    }
+
+    /// The world this VM is pinned to.
+    #[must_use]
+    pub fn runtime_context(&self) -> &RuntimeContext {
+        &self.pin.context
+    }
+
+    /// The identity this VM holds — its pinned context and the pack facts it
+    /// was given — in the shape a compiled artefact states its own, which a
+    /// unit's manifest is compared with.
+    #[must_use]
+    pub fn held_identity(&self) -> &ArtefactIdentityManifest {
+        self.pin.identity()
+    }
+
+    fn install_pin(&mut self, mut pin: tcl_registry::model::PinnedContext) {
+        let profile = pin.profile;
+        let profile_changed = !std::ptr::eq(self.pin.profile, profile);
+        pin.restate(&self.pack_facts);
+        if pin.context != self.pin.context {
+            // A unit admitted under the old context is checked again at its
+            // next entry.
+            self.bump_trace_deopt_epoch();
+        }
+        self.pin = pin;
         // The 8.4 `namespace path` tier gate (M10.1) and the availability
         // gate change resolution outcomes, so the command-resolution memo
         // (M16.4) must not survive a version flip.
@@ -1692,7 +1751,6 @@ impl Vm {
             self.eval_cache_plain.clear();
             self.module_procs.clear();
         }
-        self.dialect_profile = profile;
         self.command_surface_profile = profile;
         self.command_surface_point = Some(crate::environment::surface_point(profile));
         self.profile_registry =
@@ -1748,8 +1806,8 @@ impl Vm {
         // a named surface must still be new enough *and* expose each compiled
         // command from the execution dialect.
         if !profile.is_fallback()
-            && (profile.vm_runtime_version < self.dialect_profile.vm_runtime_version
-                || !Self::command_surface_covers_compiled_commands(self.dialect_profile, profile))
+            && (profile.vm_runtime_version < self.pin.profile.vm_runtime_version
+                || !Self::command_surface_covers_compiled_commands(self.pin.profile, profile))
         {
             return false;
         }
@@ -1818,7 +1876,7 @@ impl Vm {
     /// (see [`Self::set_dialect_profile`]).
     #[must_use]
     pub fn dialect_profile(&self) -> &'static tcl_dialect::DialectProfile {
-        self.dialect_profile
+        self.pin.profile
     }
 
     /// The release's `${…}` close rule — `Tcl_ParseVarName`'s brace-form
@@ -1829,7 +1887,7 @@ impl Vm {
     /// compiled word path cannot answer `${a{b}c}` differently.
     #[must_use]
     pub(crate) fn braced_var_style(&self) -> tcl_dialect::BracedVarStyle {
-        self.dialect_profile.grammar.braced_var
+        self.pin.profile.grammar.braced_var
     }
 
     /// The whole lexer grammar this VM emulates, as one `LexerConfig`.
@@ -1843,7 +1901,7 @@ impl Vm {
     /// VM kept C's `}{`.
     #[must_use]
     pub(crate) fn lexer_config(&self) -> tcl_lexer::LexerConfig {
-        tcl_lexer::LexerConfig::from_grammar(self.dialect_profile.grammar)
+        tcl_lexer::LexerConfig::from_grammar(self.pin.profile.grammar)
     }
 
     /// Generation of the dialect profile used to compile dynamic bytecode.
@@ -1893,7 +1951,7 @@ impl Vm {
     /// emulating 9.0 reads it as `A42`.
     #[must_use]
     pub fn escape_syntax(&self) -> tcl_dialect::EscapeSyntax {
-        self.dialect_profile.grammar.escapes
+        self.pin.profile.grammar.escapes
     }
 
     /// A VM writing to an already-shared output sink.
@@ -2043,7 +2101,6 @@ impl InterpState {
         let (guards, unpinned, command_surface_point) = Self::fresh_semantic_environment();
         Self {
             runtime_version: tcl_dialect::TclVersion::V9_0,
-            dialect_profile: unpinned,
             command_surface_profile: unpinned,
             command_surface_point: Some(command_surface_point),
             profile_registry: None,
@@ -2101,6 +2158,7 @@ impl InterpState {
             out,
             compiler: None,
             pack_facts: Vec::new(),
+            pin: tcl_registry::model::PinnedContext::for_profile(unpinned),
             debug_hook: None,
             line_watch: None,
             last_debug_key: None,
@@ -2764,7 +2822,7 @@ impl Vm {
     /// survives the profile pin, and a later sweep would attest whatever an
     /// embedder registered at a registry name as the registry's command.
     pub(crate) fn attach_identities(&mut self) {
-        let registry = crate::environment::store_for_profile(self.dialect_profile);
+        let registry = crate::environment::store_for_profile(self.pin.profile);
         self.attach_identities_from(registry);
     }
 
@@ -3988,7 +4046,6 @@ impl Vm {
         child.compiler.clone_from(&self.compiler);
         child.host = Rc::clone(&self.host);
         child.runtime_version = self.runtime_version;
-        child.dialect_profile = self.dialect_profile;
         child.command_surface_profile = self.command_surface_profile;
         // The pin's three derived facts travel together: the surface
         // profile, the mask its environment gates under, and the
@@ -3996,6 +4053,11 @@ impl Vm {
         // gate the parent's registry under the unpinned permissive mask.
         child.command_surface_point = self.command_surface_point;
         child.profile_registry = self.profile_registry;
+        // The pin's context and the registry generation it holds come with
+        // the profile: a child that kept the unpinned context would state an
+        // identity no module compiled for its profile agrees with.
+        child.pin = self.pin.clone();
+        child.pin.restate(&child.pack_facts);
         Box::new(child)
     }
 
@@ -4678,7 +4740,11 @@ impl Vm {
         }
     }
 
-    pub(crate) fn function_command_bindings_match(&self, asm: &FunctionAsm) -> bool {
+    pub(crate) fn function_command_bindings_match(
+        &self,
+        asm: &FunctionAsm,
+        manifest: Option<&ArtefactIdentityManifest>,
+    ) -> bool {
         let commands = asm
             .command_bindings
             .iter()
@@ -4689,6 +4755,25 @@ impl Vm {
                 .iter()
                 .all(|binding| self.procedure_binding_matches(binding))
             && self.site_claims_hold(asm)
+            && self.manifest_admits(asm, manifest)
+    }
+
+    /// The manifest check, per rung: the fields in which the module's
+    /// manifest disagrees with this VM's identity refuse the rungs that rest
+    /// on them, and `asm` is admitted unless it has a site at one of those. A
+    /// function with only generic-dispatch sites is admitted under a changed
+    /// pack set; one with a pack-fact site is not. Assembly with no manifest is
+    /// admitted by its bindings and claims alone.
+    fn manifest_admits(
+        &self,
+        asm: &FunctionAsm,
+        manifest: Option<&ArtefactIdentityManifest>,
+    ) -> bool {
+        manifest.is_none_or(|manifest| {
+            !manifest
+                .refused_rungs(self.pin.identity())
+                .intersects(asm.rungs())
+        })
     }
 
     /// The rung-1 check: every spec-pack claim `asm`'s sites make stamps
@@ -4711,7 +4796,9 @@ impl Vm {
     /// advances the compilation-deopt epoch, so a unit admitted under the
     /// old facts is checked again at its next entry.
     pub fn set_pack_facts(&mut self, stamps: Vec<tcl_runtime_api::PackFactStamp>) {
-        self.pack_facts = stamps;
+        let state = &mut *self.state;
+        state.pack_facts = stamps;
+        state.pin.restate(&state.pack_facts);
         self.bump_trace_deopt_epoch();
     }
 
@@ -9418,14 +9505,16 @@ impl Vm {
                         parameters: &parameter_names,
                         namespace,
                     },
-                    self.dialect_profile,
+                    self.pin.profile,
                     requested_dispatch,
                 )
                 .map_err(|error| TclError::new(error.0))?
         };
         self.validate_module_profile(&module)?;
         Self::validate_module_namespace(&module, namespace)?;
-        if !force_plain && !self.function_command_bindings_match(&module.top_level) {
+        if !force_plain
+            && !self.function_command_bindings_match(&module.top_level, module.manifest.as_deref())
+        {
             requested_dispatch = ProcedureDispatch::Plain;
             let compiler = self.compiler.as_ref().expect("compiler checked above");
             module = compiler
@@ -9435,7 +9524,7 @@ impl Vm {
                         parameters: &parameter_names,
                         namespace,
                     },
-                    self.dialect_profile,
+                    self.pin.profile,
                     ProcedureDispatch::Plain,
                 )
                 .map_err(|error| TclError::new(error.0))?;
@@ -9461,6 +9550,7 @@ impl Vm {
         self.merge_procs(&module);
         Ok(self
             .compiled_unit(Rc::new(module.top_level), module.source_namespace)
+            .with_manifest(module.manifest)
             .with_fatal_tail(fatal_tail))
     }
 
@@ -9483,7 +9573,7 @@ impl Vm {
                     source: src,
                     namespace,
                 },
-                self.dialect_profile,
+                self.pin.profile,
             )
             .map_err(|error| TclError::new(error.0))?;
         self.validate_module_profile(&module)?;
@@ -9513,7 +9603,7 @@ impl Vm {
         &mut self,
         src: &str,
         namespace: &str,
-    ) -> Result<Option<Rc<FunctionAsm>>, TclError> {
+    ) -> Result<Option<CompiledFunction>, TclError> {
         let Some(compiler) = self.compiler.clone() else {
             return Err(TclError::new(
                 "procedure recompilation requires a CompileService",
@@ -9525,15 +9615,15 @@ impl Vm {
                     source: src,
                     namespace,
                 },
-                self.dialect_profile,
+                self.pin.profile,
             )
             .map_err(|error| TclError::new(error.0))?;
         self.validate_module_profile(&module)?;
         Self::validate_module_namespace(&module, namespace)?;
         let asm = Rc::new(module.top_level.clone());
-        if self.function_command_bindings_match(&asm) {
+        if self.function_command_bindings_match(&asm, module.manifest.as_deref()) {
             self.merge_procs(&module);
-            Ok(Some(asm))
+            Ok(Some((asm, module.manifest)))
         } else {
             Ok(None)
         }
@@ -9568,13 +9658,32 @@ impl Vm {
     /// intrinsic unavailable in a named release, so it is only executable by
     /// a fallback-profile VM.
     pub(crate) fn validate_module_profile(&self, module: &ModuleAsm) -> Result<(), TclError> {
-        if std::ptr::eq(module.profile, self.dialect_profile) {
-            Ok(())
-        } else {
-            Err(TclError::new(format!(
+        if !std::ptr::eq(module.profile, self.pin.profile) {
+            return Err(TclError::new(format!(
                 "bytecode compiled for dialect profile {} cannot run under {}",
-                module.profile.name, self.dialect_profile.name
-            )))
+                module.profile.name, self.pin.profile.name
+            )));
+        }
+        // What the whole unit rests on — the ABI and the world it was lexed
+        // and specialised for — is checked here, once, and refuses it outright.
+        // The fields that only some rungs rest on are checked per function, in
+        // `function_command_bindings_match`.
+        let Some(manifest) = &module.manifest else {
+            return Ok(());
+        };
+        let held = self.pin.identity();
+        match manifest
+            .disagreements(held)
+            .into_iter()
+            .find(|field| field.rests_on().contains(Rung::Generic))
+        {
+            None => Ok(()),
+            Some(field) => Err(TclError::new(format!(
+                "bytecode manifest disagrees with the runtime on {}: compiled for {}, runtime holds {}",
+                field.name(),
+                manifest.describe(field),
+                held.describe(field)
+            ))),
         }
     }
 
@@ -9599,6 +9708,7 @@ impl Vm {
 
     /// Merge proc bodies produced by the VM's current compile service.
     pub(crate) fn merge_procs(&mut self, module: &ModuleAsm) {
+        let manifest = module.manifest.clone();
         for (qname, asm) in &module.procedures {
             let Some(provenance) = module.procedure_provenance.get(qname) else {
                 continue;
@@ -9607,7 +9717,9 @@ impl Vm {
                 continue;
             };
             let namespace = key_holder_and_tail_unrooted(&key.name).0;
-            let unit = self.compiled_unit(Rc::new(asm.clone()), namespace);
+            let unit = self
+                .compiled_unit(Rc::new(asm.clone()), namespace)
+                .with_manifest(manifest.clone());
             // This compiler invocation is the newest authoritative artifact
             // for the exact source identity. A CompileService is allowed to
             // change its lowering semantics between invocations, so retaining
@@ -9620,6 +9732,7 @@ impl Vm {
     /// Admit proc bodies from an embedder-owned module without attributing
     /// them to the current compile service.
     pub(crate) fn merge_foreign_procs(&mut self, module: &ModuleAsm) {
+        let manifest = module.manifest.clone();
         for (qname, asm) in &module.procedures {
             let Some(provenance) = module.procedure_provenance.get(qname) else {
                 continue;
@@ -9628,7 +9741,9 @@ impl Vm {
                 continue;
             };
             let namespace = key_holder_and_tail_unrooted(&key.name).0;
-            let unit = self.admitted_foreign_unit(Rc::new(asm.clone()), namespace);
+            let unit = self
+                .admitted_foreign_unit(Rc::new(asm.clone()), namespace)
+                .with_manifest(manifest.clone());
             // `run_module` promises the supplied module's semantics. Two
             // foreign modules may carry the same proc source while having
             // been produced by different compilers, so the module currently
@@ -9658,7 +9773,8 @@ impl Vm {
         let want_epoch = self.trace_deopt_epoch();
         let want_profile = self.profile_generation;
         let want_compiler = self.compiler_generation;
-        let bindings_match = self.function_command_bindings_match(&proc.body.asm);
+        let bindings_match =
+            self.function_command_bindings_match(&proc.body.asm, proc.body.manifest.as_deref());
         let foreign_without_compiler = self.compiler.is_none()
             && proc
                 .body
@@ -12303,7 +12419,7 @@ impl Vm {
         if let Some(m) = self.eval_cache.get(&key) {
             let m = Rc::clone(m);
             Self::validate_module_namespace(&m, namespace)?;
-            if !self.function_command_bindings_match(&m.top_level) {
+            if !self.function_command_bindings_match(&m.top_level, m.manifest.as_deref()) {
                 return self.compile_plain_cached_module(target);
             }
             return Ok(m);
@@ -12318,12 +12434,12 @@ impl Vm {
                 source: src,
                 namespace,
             },
-            self.dialect_profile,
+            self.pin.profile,
         );
         let m = Rc::new(compiled.map_err(|e| TclError::new(e.0))?);
         self.validate_module_profile(&m)?;
         Self::validate_module_namespace(&m, namespace)?;
-        if !self.function_command_bindings_match(&m.top_level) {
+        if !self.function_command_bindings_match(&m.top_level, m.manifest.as_deref()) {
             return self.compile_plain_cached_module(target);
         }
         self.eval_cache.insert(key, Rc::clone(&m));
@@ -12392,7 +12508,7 @@ impl Vm {
         let Some(compiler) = self.compiler.as_ref() else {
             return (src, None, usize::from(!src.is_empty()));
         };
-        let plan = compiler.script_command_plan_for_profile(src, self.dialect_profile);
+        let plan = compiler.script_command_plan_for_profile(src, self.pin.profile);
         if plan.complete_prefix_len > src.len() || !src.is_char_boundary(plan.complete_prefix_len) {
             return (src, None, usize::from(!src.is_empty()));
         }
@@ -12425,10 +12541,12 @@ impl Vm {
         self.validate_module_profile(&module)?;
         Self::validate_module_namespace(&module, namespace)?;
         self.merge_procs(&module);
-        Ok(self.compiled_unit(
-            Rc::new(module.top_level.clone()),
-            module.source_namespace.clone(),
-        ))
+        Ok(self
+            .compiled_unit(
+                Rc::new(module.top_level.clone()),
+                module.source_namespace.clone(),
+            )
+            .with_manifest(module.manifest.clone()))
     }
 
     /// Prepare a catchable/handleable script without rejecting a valid command
@@ -12444,7 +12562,7 @@ impl Vm {
                 "eval / command substitution requires a CompileService",
             ));
         };
-        let plan = compiler.script_command_plan_for_profile(src, self.dialect_profile);
+        let plan = compiler.script_command_plan_for_profile(src, self.pin.profile);
         if plan.complete_prefix_len > src.len() || !src.is_char_boundary(plan.complete_prefix_len) {
             return Err(TclError::new(
                 "CompileService returned an invalid script command boundary",
@@ -13004,6 +13122,32 @@ mod family_b_tests {
             ProcedureCacheKey::from_runtime_key("p", "x", body),
             ProcedureCacheKey::from_runtime_key("p", "{x default}", body),
         );
+    }
+
+    /// A child is another interpreter of the same build, so it states the
+    /// world its parent is pinned to, the overlay included.
+    #[test]
+    fn a_child_states_the_context_its_parent_is_pinned_to() {
+        const OVERLAY: u64 = 0x0C0_1706;
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        tcl_registry::registry_for_profile_with_overlay(profile, OVERLAY, |_| {});
+        let mut context = tcl_registry::model::runtime_context_for_profile(profile);
+        context.overlay_generation = OVERLAY;
+        context.packages = vec![("vendor".to_owned(), "2.1".to_owned())];
+        let mut vm = Vm::new();
+        vm.pin_context(&context).expect("installed, so it pins");
+
+        let name = vm.create_child(Some("child".to_owned()), false);
+        let id = vm.child_id(&name).expect("the child is in the arena");
+        let (stated, held) = vm.in_interp(id, |child| {
+            (
+                child.runtime_context().clone(),
+                child.held_identity().clone(),
+            )
+        });
+        assert_eq!(stated, context);
+        assert_eq!(&held, vm.held_identity());
     }
 
     #[test]
@@ -13773,7 +13917,7 @@ mod family_b_tests {
         // holding a spec that declares an intrinsic, and a builtin of that name
         // in the VM.
         let overlaid = tcl_registry::registry_for_profile_with_overlay(
-            vm.dialect_profile,
+            vm.dialect_profile(),
             0xC0DE,
             |registry| {
                 registry.insert(CommandSpec {
@@ -13850,7 +13994,7 @@ mod family_b_tests {
     #[test]
     fn every_registered_builtin_with_an_intrinsic_is_attested_for_all_of_them() {
         let vm = Vm::new();
-        let registry = crate::environment::store_for_profile(vm.dialect_profile);
+        let registry = crate::environment::store_for_profile(vm.dialect_profile());
         let report = tcl_runtime_api::BackingReport::from_entries(vm.backing_report());
         let mut attested_names = 0;
         for name in registry.command_names() {
@@ -13886,7 +14030,7 @@ mod family_b_tests {
     #[test]
     fn a_spelled_builtin_names_a_spec_the_registry_has() {
         let vm = Vm::new();
-        let registry = crate::environment::store_for_profile(vm.dialect_profile);
+        let registry = crate::environment::store_for_profile(vm.dialect_profile());
         let spelled: Vec<&String> = vm
             .builtin_identities
             .values()

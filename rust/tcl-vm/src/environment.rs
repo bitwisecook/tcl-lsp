@@ -19,16 +19,18 @@
 //! The VM's dialect ingress — this engine's face of the one shared seam,
 //! [`tcl_registry::model::ingress`].
 //!
-//! Every dialect **name** the VM accepts (there is exactly one kind: the
-//! release name a [`TclVersion`] pin spells, [`Vm::set_runtime_version`])
-//! resolves here, once, through [`tcl_registry::model::resolve_environment`],
-//! and every registry access and availability point the engine reads is
-//! derived from the resolved environment rather than from a second lookup of
-//! the string.
+//! Every dialect **name** the VM accepts as a release (there is exactly one
+//! kind: the release name a [`TclVersion`] pin spells,
+//! [`Vm::set_runtime_version`]) resolves here, once, through
+//! [`tcl_registry::model::resolve_environment`], and every registry access and
+//! availability point the engine reads is derived from the resolved
+//! environment rather than from a second lookup of the string. A
+//! [`RuntimeContext`] ([`Vm::pin_context`]) resolves through the same ingress
+//! to any environment it knows ([`pin_context`]).
 //!
-//! Nothing in this module changes what the VM admits. The names it resolves
-//! are the closed set [`TclVersion::dialect_name`] spells, whose environments
-//! are their same-named catalogue entries, so [`profile_for_dialect`] returns
+//! The release-name helpers change nothing the VM admits. The names they
+//! resolve are the closed set [`TclVersion::dialect_name`] spells, whose
+//! environments are their same-named catalogue entries, so [`profile_for_dialect`] returns
 //! the same profile `DialectProfile::by_name` returns; the generation's
 //! command store is the same `Arc` the per-profile cache owns, so
 //! [`store_for_profile`] returns the allocation `registry_for_profile`
@@ -49,16 +51,20 @@
 //! nothing upstream changes: every consumer here already derives from the
 //! resolved environment, never from the name.
 //!
+//! [`RuntimeContext`]: tcl_runtime_api::RuntimeContext
+//! [`Vm::pin_context`]: crate::Vm::pin_context
 //! [`Vm::set_runtime_version`]: crate::Vm::set_runtime_version
 //! [`TclVersion`]: tcl_dialect::TclVersion
 //! [`TclVersion::dialect_name`]: tcl_dialect::TclVersion::dialect_name
 
 use std::sync::{Mutex, OnceLock};
 
-use tcl_dialect::DialectProfile;
 use tcl_dialect::model::SurfaceQuery;
 use tcl_dialect::model::surface_admits;
+use tcl_dialect::{DialectProfile, TclVersion};
 use tcl_registry::CommandRegistry;
+use tcl_registry::model::{PinError, PinnedContext};
+use tcl_runtime_api::RuntimeContext;
 
 /// Resolve a dialect **name** to the profile this VM pins.
 ///
@@ -71,6 +77,13 @@ use tcl_registry::CommandRegistry;
 /// [`unit_profile`]: tcl_registry::model::DocumentEnvironment::unit_profile
 pub(crate) fn profile_for_dialect(name: &str) -> &'static DialectProfile {
     tcl_registry::model::resolve_environment(name).unit_profile()
+}
+
+/// Resolve a [`RuntimeContext`] through the ingress — the environment-model
+/// form of a pin. An overlay nothing has installed is an error here and never
+/// the un-overlaid generation under another name.
+pub(crate) fn pin_context(context: &RuntimeContext) -> Result<PinnedContext, PinError> {
+    tcl_registry::model::pin(context)
 }
 
 /// The command **store** for `profile` — the resolved environment's
@@ -102,18 +115,24 @@ pub(crate) fn surface_point(profile: &'static DialectProfile) -> SurfaceQuery<'s
     tcl_registry::model::static_document_context_for_profile(profile).authoring_query()
 }
 
-/// [`surface_point`] keyed by a dialect **name** — for the native command
-/// handlers that gate a subcommand or option table on the emulated
-/// release ([`TclVersion::dialect_profile_name`]) rather than on a pinned
-/// profile handle.
+/// The profile a `namespace` or `trace` subcommand table is gated under: the
+/// profile the VM exposes commands under — the pinned dialect profile, unless
+/// a host broadened the surface — as it states one, and the plain profile of
+/// the release the VM emulates when that is the permissive fallback, which
+/// states none.
 ///
-/// One resolution of the name, not two: the resolved environment's
-/// document authoring point is the same point an availability-mask read
-/// over the resolved profile would give.
-///
-/// [`TclVersion::dialect_profile_name`]: tcl_dialect::TclVersion::dialect_profile_name
-pub(crate) fn surface_point_for_dialect(name: &str) -> SurfaceQuery<'static> {
-    tcl_registry::model::static_document_context_for(name).authoring_query()
+/// Reading the release name alone answered for a vendor pin with the plain
+/// release's table: an iRules VM, which emulates 8.4, took `trace add` from
+/// `tcl8.4` though the TMM's Tcl has only the three legacy forms.
+pub(crate) fn gate_profile(
+    surface: &'static DialectProfile,
+    release: TclVersion,
+) -> &'static DialectProfile {
+    if surface.is_fallback() {
+        profile_for_dialect(release.dialect_profile_name())
+    } else {
+        surface
+    }
 }
 
 /// One memoised answer: `(command, release name, the release's slice of the

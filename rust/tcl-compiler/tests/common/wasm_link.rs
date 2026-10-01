@@ -33,6 +33,10 @@
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::OnceLock;
+
+use tcl_runtime_api::codegen_abi::CodegenAbiImportId;
+use tcl_runtime_api::{ArtefactIdentityManifest, ManifestDecodeError, ManifestField};
 
 /// The environment variable that turns every real-link skip into a
 /// failure. Set it in any environment that is *supposed* to have the whole
@@ -302,4 +306,106 @@ pub fn build_reserved_runtime() -> Result<PathBuf, String> {
         ));
     }
     Ok(artifact)
+}
+
+/// Why a module was not linked against the runtime.
+#[derive(Debug, PartialEq, Eq)]
+pub enum LinkRefusal {
+    /// The module carries no manifest, so nothing says what it was emitted
+    /// against.
+    NoManifest,
+    /// The module's manifest section is not a manifest.
+    Unreadable(ManifestDecodeError),
+    /// A field the link rests on disagrees with the runtime's own statement.
+    Disagrees {
+        /// The field.
+        field: ManifestField,
+        /// What the module says.
+        module: String,
+        /// What the runtime says.
+        runtime: String,
+    },
+}
+
+/// The bootstrap that has the runtime state its own identity: create and
+/// select an interp, call `tcl_runtime_identity` into the reserved scratch
+/// gap, and write the bytes to stdout. A zero or oversized answer traps.
+fn identity_bootstrap_wat() -> String {
+    let create = CodegenAbiImportId::RuntimeCreateInterp.descriptor().name;
+    let set_current = CodegenAbiImportId::RuntimeSetCurrentInterp
+        .descriptor()
+        .name;
+    let identity = CodegenAbiImportId::RuntimeIdentity.descriptor().name;
+    format!(
+        r#"(module
+  (import "tcl" "memory" (memory 1))
+  (import "tcl" "{create}" (func $create (result i32)))
+  (import "tcl" "{set_current}" (func $setcur (param i32)))
+  (import "tcl" "{identity}" (func $identity (param i32 i32) (result i32)))
+  (import "wasi_snapshot_preview1" "fd_write" (func $fd_write (param i32 i32 i32 i32) (result i32)))
+  (export "memory" (memory 0))
+  (func (export "_start")
+    (local $len i32)
+    (call $setcur (call $create))
+    (local.set $len (call $identity (i32.const 0x170000) (i32.const 0x8000)))
+    (if (i32.eqz (local.get $len)) (then unreachable))
+    (if (i32.gt_u (local.get $len) (i32.const 0x8000)) (then unreachable))
+    (i32.store (i32.const 0x190008) (i32.const 0x170000))
+    (i32.store (i32.const 0x19000C) (local.get $len))
+    (drop (call $fd_write (i32.const 1) (i32.const 0x190008) (i32.const 1) (i32.const 0x190010)))))
+"#
+    )
+}
+
+/// What the real runtime states of itself: its own `tcl_runtime_identity`
+/// export, run under wasmtime and decoded — the ABI and intrinsic table the
+/// linked `tcl_runtime.wasm` was built against, not the ones this test
+/// binary was. Asked once per process.
+pub fn runtime_identity(runtime: &Path) -> ArtefactIdentityManifest {
+    static IDENTITY: OnceLock<ArtefactIdentityManifest> = OnceLock::new();
+    IDENTITY
+        .get_or_init(|| {
+            let boot = scratch("tcl_real_link_identity_boot.wat");
+            std::fs::write(&boot, identity_bootstrap_wat()).expect("write identity bootstrap");
+            let out = Command::new("wasmtime")
+                .arg("run")
+                .arg("--preload")
+                .arg(format!("tcl={}", runtime.display()))
+                .arg(&boot)
+                .output()
+                .expect("run wasmtime");
+            let _ = std::fs::remove_file(&boot);
+            assert!(
+                out.status.success(),
+                "the runtime would not state its identity:\n--- stderr ---\n{}",
+                String::from_utf8_lossy(&out.stderr),
+            );
+            ArtefactIdentityManifest::from_bytes(&out.stdout)
+                .expect("the runtime's identity is a manifest")
+        })
+        .clone()
+}
+
+/// The link check: a module states the ABI and the intrinsic table it was
+/// emitted against in its `tcl.manifest` section, the runtime states its own,
+/// and the two must agree before they are linked. A module built for another
+/// ABI imports what this runtime does not export; one keyed against another
+/// intrinsic table mis-dispatches a guarded fast path. Both are refused here,
+/// before wasmtime composes anything.
+pub fn check_manifest(runtime: &Path, module: &[u8]) -> Result<(), LinkRefusal> {
+    let artefact = ArtefactIdentityManifest::from_wasm(module)
+        .map_err(LinkRefusal::Unreadable)?
+        .ok_or(LinkRefusal::NoManifest)?;
+    let held = runtime_identity(runtime);
+    let disagreements = artefact.disagreements(&held);
+    for field in [ManifestField::AbiVersion, ManifestField::IntrinsicTableHash] {
+        if disagreements.contains(&field) {
+            return Err(LinkRefusal::Disagrees {
+                field,
+                module: artefact.describe(field),
+                runtime: held.describe(field),
+            });
+        }
+    }
+    Ok(())
 }

@@ -291,7 +291,7 @@ pub use handle_binding::{
     BoundHandle, HandleBindingSpec, HandleClassSource, HandleKeyword, HandleName,
 };
 pub use hover::{ArgValue, CallbackTaintInput, ScriptTiming, VariableScope};
-pub use intrinsic::{IntrinsicFamily, IntrinsicId};
+pub use intrinsic::{IntrinsicFamily, IntrinsicId, intrinsic_table_hash};
 pub use invocation_words::{
     CommandPrefixArguments, InvocationArgument, InvocationArguments, InvocationWord,
     InvocationWordKind, InvocationWords, VariableReadProjection, VariableWriteProjection,

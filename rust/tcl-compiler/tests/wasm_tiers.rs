@@ -80,7 +80,7 @@ use tcl_registry::CommandRegistry;
 use tcl_runtime_api::codegen_abi::CodegenAbiImportId;
 
 mod common;
-use common::wasm_link::{REQUIRE_VAR, real_link_runtime, scratch, workspace_root};
+use common::wasm_link::{REQUIRE_VAR, check_manifest, real_link_runtime, scratch, workspace_root};
 
 /// Set this to rewrite [`BUDGETS_PATH`] from the current emitter instead of
 /// asserting against it. Reviewing that diff is the point of the golden.
@@ -394,8 +394,12 @@ fn run_linked(runtime: &Path, sample: &Sample, plan: Plan) -> RunOutcome {
     let mut module = compile(sample, plan);
     let tag = format!("{}_{}_{}", sample.tier, sample.name, plan.as_str());
     let path = scratch(&format!("wasm_tiers_{tag}.wasm"));
-    std::fs::write(&path, module.to_bytes())
-        .unwrap_or_else(|e| panic!("write {}: {e}", path.display()));
+    let bytes = module.to_bytes();
+    // The runtime states the ABI and intrinsic table it was built against, and
+    // a sample emitted for another is not linked.
+    check_manifest(runtime, &bytes)
+        .unwrap_or_else(|refusal| panic!("{tag} was not linked: {refusal:?}"));
+    std::fs::write(&path, bytes).unwrap_or_else(|e| panic!("write {}: {e}", path.display()));
 
     let out = Command::new("wasmtime")
         .arg("run")

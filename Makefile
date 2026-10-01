@@ -948,7 +948,7 @@ check-release-dependency-graph: ## Verify release producers overlap safely witho
 	@echo "==> Checking release dependency graph"
 	@bash scripts/dev/test-release-dependency-graph.sh
 
-xtask-runtime-stdlib: ## Verify the embedded Tcl stdlib version, provenance, hashes, and FILES table
+xtask-runtime-stdlib: ## Verify the embedded Tcl stdlib version, provenance, hashes, FILES table, and artefact revision
 	@echo "==> Checking embedded Tcl standard-library provenance (cargo xtask)"
 	cd $(ROOT) && cargo xtask runtime-stdlib
 

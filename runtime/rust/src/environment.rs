@@ -38,7 +38,9 @@
 //!
 //! The `&'static DialectProfile` these helpers take and hand back is
 //! narrower than the interpreter's own pin, which carries a
-//! [`tcl_registry::model::DocumentEnvironment`] instead.
+//! [`tcl_registry::model::PinnedContext`] instead: [`pin_context`] resolves a
+//! [`tcl_runtime_api::RuntimeContext`] through the same ingress, to any
+//! environment it knows, and refuses a context it does not agree with.
 //!
 //! [`TclVersion::dialect_profile_name`]: tcl_dialect::TclVersion::dialect_profile_name
 
@@ -59,6 +61,34 @@ use tcl_registry::CommandRegistry;
 /// [`unit_profile`]: tcl_registry::model::DocumentEnvironment::unit_profile
 pub(crate) fn profile_for_dialect(name: &str) -> &'static DialectProfile {
     tcl_registry::model::resolve_environment(name).unit_profile()
+}
+
+/// Resolve a [`tcl_runtime_api::RuntimeContext`] through the ingress — the
+/// environment-model form of a pin. An overlay nothing has installed is an
+/// error here and never the un-overlaid generation under another name.
+pub(crate) fn pin_context(
+    context: &tcl_runtime_api::RuntimeContext,
+) -> Result<tcl_registry::model::PinnedContext, tcl_registry::model::PinError> {
+    tcl_registry::model::pin(context)
+}
+
+/// The profile a `trace` subcommand table is gated under: the pinned dialect
+/// profile as it states one, and the plain profile of the release the
+/// interpreter emulates when that is the permissive fallback, which states
+/// none.
+///
+/// Reading the release name alone answered for a vendor pin with the plain
+/// release's table: an iRules interpreter, which emulates 8.4, took `trace
+/// add` from `tcl8.4` though the TMM's Tcl has only the three legacy forms.
+pub(crate) fn gate_profile(
+    pinned: &'static DialectProfile,
+    release: tcl_dialect::TclVersion,
+) -> &'static DialectProfile {
+    if pinned.is_fallback() {
+        profile_for_dialect(release.dialect_profile_name())
+    } else {
+        pinned
+    }
 }
 
 /// The command **store** for `profile` — the resolved environment's

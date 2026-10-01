@@ -15,6 +15,7 @@ function and the VM-local facts that authorised it:
 | `profile_generation` | The selected dialect grammar and command surface. |
 | `command_epoch` | The command and inlined-procedure source bindings, selected targets, and trace mode last validated for the unit. |
 | `compiler` | Either the `CompileService` generation that produced the unit or the generation at which an embedder-owned artifact was explicitly admitted as foreign. |
+| `manifest` | The `ArtefactIdentityManifest` of the module the unit came from, so the rungs a disagreeing field rests on are refused again whenever the unit is re-checked. `None` for a plain-dispatch child and for a scanner placeholder, which rest on nothing the manifest covers. |
 
 `Vm::compiled_unit` is the production path for VM-compiled assembly;
 `Vm::admitted_foreign_unit` is the explicit public-artifact admission path. A
@@ -97,6 +98,39 @@ unit compiled without a pack — and refuses the rest like any other failed
 binding: plain dispatch when the unit carries source and a compile service
 is installed, an admission error otherwise.
 
+Every module a compiler emits states an `ArtefactIdentityManifest`
+(`ModuleAsm::manifest`, `tcl_runtime_api::manifest`): the ABI version
+(`CODEGEN_ABI_VERSION`, a fingerprint of `CodegenAbiImportId`'s table), the
+environment, release and build of the profile the module carries, the package
+floors in force, the pack facts any function's sites claim (the claims'
+stamps, sorted and without repeats), the hash of the intrinsic table the
+emitter keyed against (`tcl_registry::intrinsic_table_hash`), and the revision
+of the Tcl library both runtimes embed. The VM states the same fields of
+itself (`Vm::held_identity`): the `RuntimeContext` it is pinned to, the pack
+facts it holds, and this build's tables. `Vm::pin_context` pins a context
+resolved through `tcl_registry::model::ingress`, the ingress the compiler
+uses, where an overlay nothing has installed is a `PinError` and never the
+un-overlaid generation under another name; the generation at the context's
+overlay is held for as long as the pin stands. `Vm::set_dialect_profile` is
+the profile form of the same pin.
+
+The manifest is checked as a whole, and a field that disagrees refuses the
+rungs that rest on it and no others:
+
+| Field | Refuses |
+|---|---|
+| `abi_version`, `environment`, `release`, `build` | every rung, since they decide what every word of the unit decoded to: the module is not run, and the error names the field and both values (`validate_module_profile`) |
+| `packages`, `packs` | rungs 1 and 2: a function with a pack-fact or builtin-alias claim |
+| `intrinsic_table_hash`, `embedded_stdlib_revision` | rung 4: a function with command bindings, whose specialisations rest on a shipped implementation's identity |
+
+Every pack the artefact states must be one the VM holds, and a VM may hold
+more; every other field must be equal. A function's rungs are
+read off what it records (`FunctionAsm::rungs`), and a refused function is
+recompiled plain or, without source or a compile service, an admission error,
+as for any other failed binding; a function with only generic-dispatch sites
+is admitted under a changed pack set. Assembly no compiler emitted, which
+carries no manifest, is admitted by its profile, bindings and claims alone.
+
 `BytecodeCompileService::for_profile` follows the profile's shared registry.
 `BytecodeCompileService::new(custom_registry)` owns the embedder registry and
 keeps it when `compile_for_profile` selects the profile grammar. Profile
@@ -114,6 +148,7 @@ two services for the same profile, therefore advances `compiler_generation`.
 | Compile service | Clear | Recompile lazily | Fail closed |
 | Command/trace epoch | Revalidate, or compile plain dispatch | Recompile or revalidate lazily | Redispatch at a source-command boundary |
 | Pack facts (`set_pack_facts`) | Revalidate, or compile plain dispatch | Recompile or revalidate lazily | Redispatch at a source-command boundary |
+| Runtime context (`pin_context` to another context under the same profile) | Revalidate, or compile plain dispatch | Recompile or revalidate lazily | Redispatch at a source-command boundary |
 
 `set_compiler` clears both eval caches and `module_procs`. Procedures,
 methods, and function handles retain source and recompile on their next entry.
@@ -189,7 +224,28 @@ provenance changes must not bypass the central host bootstrap introduced by
 - terminal profile changes from inline and computed-head catch/try plus
   variable-trace paths; and
 - a module that claims no pack facts admitted under a VM holding facts for
-  a changed pack set (`a_rung_zero_module_is_admitted_under_a_changed_pack_set`).
+  a changed pack set (`a_rung_zero_module_is_admitted_under_a_changed_pack_set`);
+- the manifest's per-rung check: a manifest listing a pack the VM does not hold
+  refuses the unit with a pack-fact site and not the unit with only
+  generic-dispatch sites that carries it
+  (`a_manifest_disagreeing_on_packs_refuses_only_rung_one_sites`), a unit that
+  rests on no pack is admitted under every pack set
+  (`a_rung_zero_unit_is_admitted_under_a_changed_pack_set`), another ABI,
+  environment, release or build refuses the whole module
+  (`a_manifest_for_another_world_refuses_the_whole_module`), and another
+  intrinsic table refuses the unit whose specialisations rest on a shipped
+  implementation and no other
+  (`a_manifest_for_another_intrinsic_table_refuses_only_shipped_backing_sites`),
+  a pin to other package floors refuses the unit that rests on a pack
+  (`a_pin_to_other_package_floors_refuses_the_units_that_rest_on_packs`), and
+  a pin made part-way through a running function is seen at its next command
+  (`a_running_function_is_checked_against_its_manifest_when_the_pin_changes`).
+
+`rust/tcl-vm/tests/cross_version_command_surface_e2e.rs` covers the pin: the
+profile form is the context the profile names, the VM's held identity is the
+identity a module compiled for its pin states, a context the ingress refuses
+leaves the pin unchanged, and the `trace` option table is the pinned
+profile's and not the plain release its runtime version names.
 
 `rust/tcl-spectcl/tests/codegen_stamps.rs` covers a bundled spec pack's
 `alias_of lassign` command: its specialised site records `lassign`'s

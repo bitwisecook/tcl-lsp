@@ -108,8 +108,18 @@ use tcl_registry::CommandRegistry;
 use tcl_runtime_api::codegen_abi::CodegenAbiImportId;
 
 mod common;
-use common::wasm_link::{real_link_runtime, scratch};
+use common::wasm_link::{LinkRefusal, check_manifest, real_link_runtime, scratch};
 use tcl_runtime_api::codegen_abi::WASM32_FUNCTION_TABLE_IMPORT;
+
+/// Write an emitted module for linking, refusing first one whose manifest
+/// disagrees with the runtime's ABI or intrinsic table
+/// ([`check_manifest`]): every module this suite links is one the runtime
+/// agrees it was emitted for.
+fn write_linked(runtime: &Path, path: &Path, module: &[u8], what: &str) {
+    check_manifest(runtime, module)
+        .unwrap_or_else(|refusal| panic!("{what} was not linked: {refusal:?}"));
+    std::fs::write(path, module).expect("write user module");
+}
 
 /// The bootstrap WASI command (see the module docs): create + select an interp,
 /// run the emitted `::top`, then evaluate `query` against the same interp and
@@ -428,7 +438,7 @@ fn run_link_bytes(
 ) -> String {
     let user = scratch(&format!("tcl_real_link_user_{tag}.wasm"));
     let boot = scratch(&format!("tcl_real_link_boot_{tag}.wat"));
-    std::fs::write(&user, user_bytes).expect("write user module");
+    write_linked(runtime, &user, user_bytes, program);
     std::fs::write(&boot, bootstrap_wat(query)).expect("write bootstrap");
 
     let out = Command::new("wasmtime")
@@ -498,7 +508,7 @@ fn run_real_native_i64_add(runtime: &Path, program: &str) -> String {
     );
     let user = scratch("tcl_real_native_i64_user.wasm");
     let boot = scratch("tcl_real_native_i64_boot.wat");
-    std::fs::write(&user, output.to_bytes()).expect("write native i64 user module");
+    write_linked(runtime, &user, &output.to_bytes(), program);
     std::fs::write(&boot, native_i64_add_bootstrap_wat()).expect("write native i64 bootstrap");
     let out = Command::new("wasmtime")
         .arg("run")
@@ -534,7 +544,7 @@ fn run_real_generic_invoke(runtime: &Path, program: &str, expected_code: i32) ->
 
     let user = scratch("tcl_real_generic_user.wasm");
     let boot = scratch("tcl_real_generic_boot.wat");
-    std::fs::write(&user, user_bytes).expect("write generic user module");
+    write_linked(runtime, &user, &user_bytes, program);
     std::fs::write(&boot, generic_invoke_bootstrap_wat(expected_code)).expect("write bootstrap");
     let out = Command::new("wasmtime")
         .arg("run")
@@ -581,7 +591,7 @@ fn run_real_guarded_intrinsic_invoke(
 
     let user = scratch("tcl_real_guarded_user.wasm");
     let boot = scratch("tcl_real_guarded_boot.wat");
-    std::fs::write(&user, user_bytes).expect("write guarded user module");
+    write_linked(runtime, &user, &user_bytes, program);
     std::fs::write(&boot, semantic_invoke_bootstrap_wat(expected_code, setup))
         .expect("write guarded bootstrap");
     let out = Command::new("wasmtime")
@@ -658,6 +668,81 @@ fn emitted_modules_run_against_the_real_runtime() {
             "program {program:?}, query {query:?}"
         );
     }
+}
+
+/// A module states the ABI and the intrinsic table it was emitted against in
+/// its `tcl.manifest` section, the runtime states its own through
+/// `tcl_runtime_identity`, and a disagreement is refused before anything is
+/// linked. The matching module is the control: the same program, emitted for
+/// the runtime's own table, links and runs.
+#[test]
+fn a_module_with_a_foreign_intrinsic_table_is_refused() {
+    use tcl_runtime_api::ManifestField;
+
+    let Some(runtime) = real_link_runtime() else {
+        return;
+    };
+    let program = "set x 42\n";
+    let compile = |edit: fn(&mut tcl_runtime_api::ArtefactIdentityManifest)| {
+        let registry = CommandRegistry::build_default();
+        let unit = CompilationUnit::build_for_dialect(program, &registry, false, "tcl9.0");
+        let mut output = compile_wasm(&unit, &registry, WasmCompileOptions::runtime_linked());
+        edit(
+            output
+                .manifest
+                .as_mut()
+                .expect("the emitter states a manifest"),
+        );
+        output.to_bytes()
+    };
+
+    // The runtime's own statement is the table this checkout's compiler keyed
+    // against: the honest module agrees with it and links.
+    let honest = compile(|_| {});
+    assert_eq!(check_manifest(&runtime, &honest), Ok(()));
+    let identity = common::wasm_link::runtime_identity(&runtime);
+    assert_eq!(
+        identity.intrinsic_table_hash,
+        tcl_registry::intrinsic_table_hash()
+    );
+    assert_eq!(
+        run_link_bytes(&runtime, "manifest_control", &honest, program, "set x"),
+        "42"
+    );
+
+    // A module keyed against another intrinsic table is refused, naming both.
+    let foreign = compile(|manifest| manifest.intrinsic_table_hash[0] ^= 1);
+    match check_manifest(&runtime, &foreign) {
+        Err(LinkRefusal::Disagrees {
+            field: ManifestField::IntrinsicTableHash,
+            module,
+            runtime: held,
+        }) => {
+            assert_ne!(module, held);
+            assert_eq!(held.len(), 64, "the runtime's hash is 32 bytes of hex");
+        }
+        other => panic!("a foreign intrinsic table was not refused: {other:?}"),
+    }
+
+    // So is one emitted for another ABI, and one that states nothing.
+    let other_abi = compile(|manifest| manifest.abi_version ^= 1);
+    assert!(matches!(
+        check_manifest(&runtime, &other_abi),
+        Err(LinkRefusal::Disagrees {
+            field: ManifestField::AbiVersion,
+            ..
+        })
+    ));
+    let mut bare = {
+        let registry = CommandRegistry::build_default();
+        let unit = CompilationUnit::build_for_dialect(program, &registry, false, "tcl9.0");
+        compile_wasm(&unit, &registry, WasmCompileOptions::runtime_linked())
+    };
+    bare.manifest = None;
+    assert_eq!(
+        check_manifest(&runtime, &bare.to_bytes()),
+        Err(LinkRefusal::NoManifest)
+    );
 }
 
 /// The general tier's compiled prebuilt-argv path, running in the **real**
@@ -801,14 +886,15 @@ fn compiled_argv_balances_allocations_in_the_real_runtime() {
         // evaluation no transient frame is ever allocated, so the outstanding
         // count the bootstrap checks would balance at zero and the case would
         // pass while proving nothing about the compiled path's ownership.
-        std::fs::write(
+        write_linked(
+            &runtime,
             &user,
-            compile_argv_analysed(
+            &compile_argv_analysed(
                 program,
                 &["tcl_invoke_argv", "tcl_codegen_call_frame_alloc"],
             ),
-        )
-        .expect("write user module");
+            program,
+        );
         std::fs::write(&boot, leak_bootstrap_wat()).expect("write bootstrap");
         let out = Command::new("wasmtime")
             .arg("run")
@@ -1103,7 +1189,12 @@ fn run_real_native_proc(
 ) -> String {
     let user = scratch(&format!("tcl_real_link_user_{tag}.wasm"));
     let boot = scratch(&format!("tcl_real_link_boot_{tag}.wat"));
-    std::fs::write(&user, compile_native_bound(program, entries)).expect("write user module");
+    write_linked(
+        runtime,
+        &user,
+        &compile_native_bound(program, entries),
+        program,
+    );
     std::fs::write(&boot, native_dispatch_bootstrap_wat(query, minimum)).expect("write bootstrap");
     let out = Command::new("wasmtime")
         .arg("run")

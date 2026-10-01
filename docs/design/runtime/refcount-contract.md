@@ -131,6 +131,7 @@ a convention at the call site.
 |---|---|---|---|---|
 | `tcl_runtime_set_current_interp(interp)` | raw pointer, not retained | `void` | module-level current-interp cell | Null clears it. Every other export here no-ops or reports failure when it is null. |
 | `tcl_runtime_init_library()` | (n/a) | i32 (0 ok) | (n/a) | C's `Tcl_Init` equivalent: sources `$TCL_LIBRARY/init.tcl` (the embedded-stdlib VFS on the `wasm_stdlib` build). Returns 1 with no current interp. |
+| `tcl_runtime_identity(out, capacity)` | writable bytes, not retained | i32 (the encoding's byte length; 0 with no current interp) | (n/a) | What the runtime states of itself — the current interp's pinned context and this build's ABI, intrinsic table and embedded library — as an `ArtefactIdentityManifest`'s bytes, written only when `capacity` holds them, so a host asks once with a null buffer for the size and compares a module's own manifest before linking. No object is created or retained. |
 | `tcl_obj_new_string(ptr, len)` | copied bytes | `owned` (`rc 0`) | none | **Not retained.** Its consumer (`tcl_eval` / `tcl_eval_code` / `tcl_expr_bool`) *adopts* and frees it. |
 | `tcl_obj_new_string_owned(ptr, len)` | copied bytes | `owned` (`+1`) | none | The argv constructor for generic invocation. Deliberately unlike `tcl_obj_new_string`: `tcl_invoke_argv` **borrows** argv words, so generated cleanup must release this reference itself. |
 | `tcl_value_new_string(ptr, len)` | copied bytes | `owned` (`+1`) | none | The generated operand stack owns one reference per value. |

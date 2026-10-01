@@ -1133,6 +1133,67 @@ mod tests {
         }
     }
 
+    /// A module states the world its profile resolves to — environment,
+    /// release, build, package floors — beside this build's ABI, intrinsic
+    /// table and embedded library, whichever entry compiled it.
+    #[test]
+    fn a_module_states_the_world_it_was_compiled_for() {
+        for (name, release) in [
+            ("tcl8.4", "8.4"),
+            ("tcl8.6", "8.6"),
+            ("tcl9.0", "9.0"),
+            ("f5-irules", "tmm"),
+        ] {
+            let profile = tcl_dialect::DialectProfile::find(name).expect("catalogue profile");
+            let service = BytecodeCompileService::for_profile(profile);
+            let expected = tcl_registry::model::runtime_context_for_profile(profile)
+                .identity(&[], tcl_registry::intrinsic_table_hash());
+            assert_eq!(expected.environment, name);
+            assert_eq!(expected.release, release);
+            assert_eq!(
+                expected.abi_version,
+                tcl_runtime_api::codegen_abi::CODEGEN_ABI_VERSION
+            );
+            assert_eq!(
+                expected.embedded_stdlib_revision,
+                tcl_runtime_api::manifest::EMBEDDED_STDLIB_REVISION
+            );
+            let parameters = Vec::new();
+            let script = ScriptCompileTarget {
+                source: "set x 1",
+                namespace: "",
+            };
+            let procedure = ProcedureCompileTarget {
+                source: "set x 1",
+                parameters: &parameters,
+                namespace: "",
+            };
+            for (what, module) in [
+                ("compile", service.compile("set x 1")),
+                (
+                    "compile_for_profile",
+                    service.compile_for_profile("set x 1", profile),
+                ),
+                ("compile_traced", service.compile_traced("set x 1")),
+                (
+                    "compile_plain_script_for_profile",
+                    service.compile_plain_script_for_profile(script, profile),
+                ),
+                (
+                    "compile_procedure_for_profile",
+                    service.compile_procedure_for_profile(
+                        procedure,
+                        profile,
+                        ProcedureDispatch::Optimised,
+                    ),
+                ),
+            ] {
+                let module = module.unwrap_or_else(|e| panic!("{name} {what}: {}", e.0));
+                assert_eq!(module.manifest.as_deref(), Some(&expected), "{name} {what}");
+            }
+        }
+    }
+
     #[test]
     fn runtime_script_command_plan_uses_the_requested_release_grammar() {
         let tcl84 = tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile();

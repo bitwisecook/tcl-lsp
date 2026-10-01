@@ -498,6 +498,13 @@ pub use backing::{BackingReport, RegisteredBacking};
 mod site_claim;
 pub use site_claim::{PackFactStamp, SiteClaim};
 
+/// What an artefact says about the world it was compiled for, and the
+/// runtime's counterpart to compare it against.
+pub mod manifest;
+pub use manifest::{
+    ArtefactIdentityManifest, ManifestDecodeError, ManifestField, Rung, RungSet, RuntimeContext,
+};
+
 // -- Compile service (the EVAL_STK / dynamic-code injection point) --
 
 /// A compilation failure surfaced by [`CompileService`].

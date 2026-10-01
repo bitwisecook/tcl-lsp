@@ -1099,6 +1099,11 @@ pub struct InterpState {
     /// every profile an ingress can produce, pinned by the seam's own
     /// sweep.
     dialect_point: Cell<Option<tcl_dialect::model::SurfaceQuery<'static>>>,
+    /// The world this interpreter is pinned to ([`Interp::pin_context`]), the
+    /// registry generation it holds, and the identity those state — what the
+    /// runtime reports of itself to a host comparing a module's manifest
+    /// (`tcl_runtime_identity`). It holds no pack facts.
+    pin: RefCell<tcl_registry::model::PinnedContext>,
     /// The `Command::OoObject` entries the engine installs on the registry's
     /// behalf (the TclOO roots `::oo::object`, `::oo::class`,
     /// `::oo::configurable`, `::oo::abstract`, `::oo::singleton`) rather than
@@ -1425,6 +1430,9 @@ impl Interp {
             dialect_point: Cell::new(Some(crate::environment::surface_point(
                 crate::environment::profile_for_dialect(""),
             ))),
+            pin: RefCell::new(tcl_registry::model::PinnedContext::for_profile(
+                crate::environment::profile_for_dialect(""),
+            )),
             registry_object_roots: RefCell::new(std::collections::HashMap::new()),
             retiring_oo_commands: RefCell::new(std::collections::HashSet::new()),
         }));
@@ -1506,6 +1514,48 @@ impl Interp {
     /// profile's grammar, and the profile's availability mask becomes the
     /// builtin command-surface filter.
     pub fn set_dialect_profile(&mut self, profile: &'static tcl_dialect::DialectProfile) {
+        self.install_pin(tcl_registry::model::PinnedContext::for_profile(profile));
+    }
+
+    /// Pin the world this interpreter runs in: the environment, the release
+    /// point within it, the build, the package floors and the registry overlay
+    /// generation, resolved through the same ingress the compiler uses. The
+    /// profile the environment resolves to is what
+    /// [`Self::set_dialect_profile`] would pin, and the generation at the
+    /// context's overlay is held for as long as the pin stands.
+    ///
+    /// # Errors
+    ///
+    /// [`PinError`](tcl_registry::model::PinError) when the ingress does not
+    /// agree with the context — no such environment, a release or build that
+    /// is not the environment's point, or an overlay nothing has installed,
+    /// which is an error and never the un-overlaid generation under another
+    /// name. The pin is unchanged.
+    pub fn pin_context(
+        &mut self,
+        context: &tcl_runtime_api::RuntimeContext,
+    ) -> Result<(), tcl_registry::model::PinError> {
+        self.install_pin(crate::environment::pin_context(context)?);
+        Ok(())
+    }
+
+    /// The world this interpreter is pinned to.
+    #[must_use]
+    pub fn runtime_context(&self) -> tcl_runtime_api::RuntimeContext {
+        self.0.pin.borrow().context.clone()
+    }
+
+    /// The identity this interpreter states of itself — its pinned context,
+    /// this build's ABI, intrinsic table and embedded library, and no pack
+    /// facts — in the shape a compiled artefact states its own.
+    #[must_use]
+    pub fn held_identity(&self) -> tcl_runtime_api::ArtefactIdentityManifest {
+        self.0.pin.borrow().identity().clone()
+    }
+
+    fn install_pin(&mut self, pin: tcl_registry::model::PinnedContext) {
+        let profile = pin.profile;
+        *self.0.pin.borrow_mut() = pin;
         let version = profile.vm_runtime_version;
         // Ahead of the unchanged-profile short-circuit: the numeric grammar is
         // *thread*-ambient, not per-interp, so "this interp already emulates
@@ -8366,8 +8416,10 @@ impl Interp {
         // parent. Resolution still runs against the child's *own* global
         // namespace: the rule is shared, the variables are not. The whole
         // profile is inherited, not just the release, so a child's
-        // command-surface availability gate agrees too.
-        child.set_dialect_profile(self.dialect_profile());
+        // command-surface availability gate agrees too, and so is the
+        // context it is pinned to, so the identity it states is its parent's.
+        let pin = self.0.pin.borrow().clone();
+        child.install_pin(pin);
         child
             .channels
             .borrow_mut()
@@ -11390,6 +11442,30 @@ mod tests {
         });
     }
 
+    /// A child is another interpreter of the same build, so it states the
+    /// world its parent is pinned to, the overlay included.
+    #[test]
+    fn a_child_states_the_context_its_parent_is_pinned_to() {
+        const OVERLAY: u64 = 0x0C0_1705;
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").expect("catalogue profile");
+        tcl_registry::registry_for_profile_with_overlay(profile, OVERLAY, |_| {});
+        leak_free(|parent| {
+            let mut context = tcl_registry::model::runtime_context_for_profile(profile);
+            context.overlay_generation = OVERLAY;
+            context.packages = vec![("vendor".to_owned(), "2.1".to_owned())];
+            parent.pin_context(&context).expect("installed, so it pins");
+            parent.create_child(Some(b"child".to_vec()));
+            let child = parent
+                .children
+                .borrow()
+                .get(b"child".as_slice())
+                .expect("child")
+                .clone();
+            assert_eq!(child.runtime_context(), context);
+            assert_eq!(child.held_identity(), parent.held_identity());
+        });
+    }
+
     #[test]
     fn child_parent_association_stales_interpreter_guard() {
         leak_free(|parent| {
@@ -12772,5 +12848,98 @@ mod tests {
                 assert_eq!(ok(i, b"::tcl::build-info memdebug"), b"0");
             });
         }
+    }
+
+    /// `set_dialect_profile` is the profile form of `pin_context`: the context a
+    /// profile names, resolved through the ingress, pins the same profile, the
+    /// same release and the same identity.
+    #[test]
+    fn the_profile_form_of_a_pin_is_the_context_the_profile_names() {
+        for profile in tcl_dialect::DialectProfile::all().iter().chain([
+            tcl_dialect::DialectProfile::plain_tcl(),
+            tcl_dialect::DialectProfile::tk(),
+        ]) {
+            let mut by_profile = Interp::new();
+            by_profile.set_dialect_profile(profile);
+            let mut by_context = Interp::new();
+            by_context
+                .pin_context(&tcl_registry::model::runtime_context_for_profile(profile))
+                .unwrap_or_else(|error| panic!("{}: {error}", profile.name));
+
+            assert!(
+                std::ptr::eq(by_context.dialect_profile(), by_profile.dialect_profile()),
+                "{}",
+                profile.name
+            );
+            assert_eq!(by_context.runtime_version(), by_profile.runtime_version());
+            assert_eq!(by_context.runtime_context(), by_profile.runtime_context());
+            assert_eq!(by_context.held_identity(), by_profile.held_identity());
+        }
+    }
+
+    /// The runtime states the identity of the world it is pinned to: the
+    /// context's fields, this build's ABI, intrinsic table and embedded library,
+    /// and no pack facts.
+    #[test]
+    fn an_interp_states_the_identity_of_the_world_it_is_pinned_to() {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").expect("catalogue profile");
+        let mut interp = Interp::new();
+        interp.set_dialect_profile(profile);
+        let expected = tcl_registry::model::runtime_context_for_profile(profile)
+            .identity(&[], tcl_registry::intrinsic_table_hash());
+        assert_eq!(interp.held_identity(), expected);
+        assert_eq!(expected.environment, "tcl8.6");
+        assert_eq!(expected.release, "8.6");
+        assert_eq!(
+            expected.abi_version,
+            tcl_runtime_api::codegen_abi::CODEGEN_ABI_VERSION
+        );
+        assert!(expected.packs.is_empty());
+
+        interp.set_dialect_profile(tcl_dialect::DialectProfile::plain_tcl());
+        assert_eq!(interp.held_identity().environment, "tcl");
+    }
+
+    /// A context the ingress does not agree with is an error and leaves the pin
+    /// as it was; an overlay nothing has installed is one of them, and is never
+    /// the un-overlaid generation under another name.
+    #[test]
+    fn a_context_the_ingress_refuses_leaves_the_pin_unchanged() {
+        use tcl_registry::model::PinError;
+
+        const OVERLAY: u64 = 0x0C0_1704;
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").expect("catalogue profile");
+        let context = tcl_registry::model::runtime_context_for_profile(profile);
+        let mut interp = Interp::new();
+        interp
+            .pin_context(&context)
+            .expect("the profile's own context");
+
+        let mut unknown = context.clone();
+        unknown.environment = "no-such-environment".to_owned();
+        let mut wrong_build = context.clone();
+        wrong_build.build = tcl_dialect::model::BuildProfileId::JimFull;
+        let mut missing_overlay = context.clone();
+        missing_overlay.overlay_generation = OVERLAY;
+        for (what, refused) in [
+            ("unknown", unknown),
+            ("build", wrong_build),
+            ("overlay", missing_overlay.clone()),
+        ] {
+            assert!(interp.pin_context(&refused).is_err(), "{what}");
+            assert!(std::ptr::eq(interp.dialect_profile(), profile), "{what}");
+            assert_eq!(interp.runtime_context(), context, "{what}");
+        }
+        assert!(matches!(
+            interp.pin_context(&missing_overlay),
+            Err(PinError::OverlayMiss(miss)) if miss.overlay == OVERLAY
+        ));
+
+        tcl_registry::registry_for_profile_with_overlay(profile, OVERLAY, |_| {});
+        interp
+            .pin_context(&missing_overlay)
+            .expect("installed, so it pins");
+        assert_eq!(interp.runtime_context().overlay_generation, OVERLAY);
+        assert!(std::ptr::eq(interp.dialect_profile(), profile));
     }
 }

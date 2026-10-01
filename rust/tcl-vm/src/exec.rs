@@ -136,6 +136,8 @@ pub(crate) struct Frame {
     command_epoch: u64,
     /// Compiler-service generation that produced this activation's bytecode.
     compiler_generation: u64,
+    /// The manifest of the module this activation's unit came from.
+    manifest: Option<std::sync::Arc<tcl_runtime_api::ArtefactIdentityManifest>>,
     off2idx: Rc<HashMap<i32, usize>>,
     /// `FOREACH_START` index → paired `FOREACH_STEP` index (the implicit jump).
     foreach_pairs: Rc<HashMap<usize, usize>>,
@@ -384,6 +386,7 @@ impl Frame {
             command_epoch,
             compiler,
             fatal_tail,
+            manifest,
         } = unit;
         let off2idx = Rc::new(build_off2idx(&asm));
         let foreach_pairs = Rc::new(pair_foreach(&asm));
@@ -393,6 +396,7 @@ impl Frame {
             profile_generation,
             command_epoch,
             compiler_generation: compiler.generation(),
+            manifest,
             off2idx,
             foreach_pairs,
             pc: 0,
@@ -1272,7 +1276,7 @@ impl Vm {
         let namespace_mismatch = module.source_namespace != namespace;
         let replacement = if self.step_trace_active()
             || namespace_mismatch
-            || !self.function_command_bindings_match(&module.top_level)
+            || !self.function_command_bindings_match(&module.top_level, module.manifest.as_deref())
         {
             if module.source.is_empty() {
                 return err("stale bytecode module has no source for plain dispatch");
@@ -1294,10 +1298,12 @@ impl Vm {
         // top level as supplied; mark reusable procedures foreign so their
         // source is lazily recompiled through the current service on entry.
         self.merge_foreign_procs(module);
-        let unit = self.admitted_foreign_unit(
-            Rc::new(module.top_level.clone()),
-            module.source_namespace.clone(),
-        );
+        let unit = self
+            .admitted_foreign_unit(
+                Rc::new(module.top_level.clone()),
+                module.source_namespace.clone(),
+            )
+            .with_manifest(module.manifest.clone());
         self.run_compiled_unit(unit)
     }
 
@@ -1311,10 +1317,13 @@ impl Vm {
         }
         self.claim_number_grammar();
         self.merge_procs(module);
-        self.run_function_rc(
-            Rc::new(module.top_level.clone()),
-            module.source_namespace.clone(),
-        )
+        let unit = self
+            .compiled_unit(
+                Rc::new(module.top_level.clone()),
+                module.source_namespace.clone(),
+            )
+            .with_manifest(module.manifest.clone());
+        self.run_compiled_unit(unit)
     }
 
     /// Run one profile-less bytecode function to completion via the NRE
@@ -1340,22 +1349,11 @@ impl Vm {
         let namespace = self.current_ns().to_owned();
         if self.step_trace_active()
             || !Self::function_resolution_namespace_matches(asm, &namespace)
-            || !self.function_command_bindings_match(asm)
+            || !self.function_command_bindings_match(asm, None)
         {
             return err("stale profile-less bytecode has no source for plain dispatch");
         }
         let unit = self.admitted_foreign_unit(Rc::new(asm.clone()), namespace);
-        self.run_compiled_unit(unit)
-    }
-
-    /// Run an already-`Rc`-wrapped function to completion — the clone-free
-    /// path behind [`Vm::invoke_function`].
-    pub(crate) fn run_function_rc(
-        &mut self,
-        asm: Rc<FunctionAsm>,
-        source_namespace: impl Into<String>,
-    ) -> Completion<Value> {
-        let unit = self.compiled_unit(asm, source_namespace);
         self.run_compiled_unit(unit)
     }
 
@@ -2473,7 +2471,9 @@ impl Vm {
                 .any(|entered| entered.resume <= f.pc && f.pc < entered.continuation)
             && f.command_epoch != self.trace_deopt_epoch()
         {
-            if self.function_command_bindings_match(&asm) && !self.step_trace_active() {
+            if self.function_command_bindings_match(&asm, f.manifest.as_deref())
+                && !self.step_trace_active()
+            {
                 f.command_epoch = self.trace_deopt_epoch();
             } else {
                 let child = match self.compile_plain_function_cached(ScriptCompileTarget {
@@ -2659,7 +2659,9 @@ impl Vm {
                 // therefore are not safe acknowledgement/replay points. Leave
                 // the frame stale until a real source boundary is reached.
                 if f.command_epoch != current_epoch && !instr.source_cmd_text.is_empty() {
-                    if self.function_command_bindings_match(&asm) && !self.step_trace_active() {
+                    if self.function_command_bindings_match(&asm, f.manifest.as_deref())
+                        && !self.step_trace_active()
+                    {
                         f.command_epoch = current_epoch;
                     } else {
                         let Some(target) =

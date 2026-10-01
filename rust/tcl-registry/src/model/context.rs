@@ -374,6 +374,25 @@ impl ResolvedContext {
         }
     }
 
+    /// The package floors in force: each package axis whose floor names a
+    /// point, as `(package, version)`, by package name.
+    #[must_use]
+    pub fn package_floors(&self) -> Vec<(String, String)> {
+        let mut floors: Vec<(String, String)> = self
+            .floors
+            .entries()
+            .iter()
+            .filter_map(|floor| {
+                Some((
+                    floor.axis.package_name()?.to_owned(),
+                    floor.primary.as_ref()?.as_str().to_owned(),
+                ))
+            })
+            .collect();
+        floors.sort();
+        floors
+    }
+
     /// The environment's expected placement for `package`, if any.
     #[must_use]
     pub fn placement(&self, package: &str) -> Option<&PackagePlacement> {

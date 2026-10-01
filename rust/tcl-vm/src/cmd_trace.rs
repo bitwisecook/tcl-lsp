@@ -52,13 +52,13 @@ pub(crate) fn register(vm: &mut Vm) {
 /// legacy forms are gated to `SpecSurface::TCL8X`, so 9.0+ sees only
 /// `add`/`info`/`remove` (C drops them behind `TCL_REMOVE_OBSOLETE_TRACES`).
 fn visible_options(vm: &Vm) -> Vec<&'static str> {
-    // The emulated release's name resolves through the one ingress seam;
-    // the option table is gated on the resolved environment's document
-    // authoring mask, the same mask a `by_name(name).surface_query()` read
+    // The profile the VM exposes commands under resolves through the one
+    // ingress seam; the option table is gated on the resolved environment's
+    // document authoring mask, the same mask a `profile.surface_query()` read
     // would hand back.
-    let dialect = Some(crate::environment::surface_point_for_dialect(
-        vm.runtime_version().dialect_profile_name(),
-    ));
+    let profile =
+        crate::environment::gate_profile(vm.command_surface_profile(), vm.runtime_version());
+    let dialect = Some(crate::environment::surface_point(profile));
     let registry = tcl_registry::default_registry();
     let Some(spec) = registry.get_for_surface("trace", dialect) else {
         return Vec::new();

@@ -136,12 +136,24 @@ slices proceed without deciding anything here.
 > intrinsic guard identities by a sweep after registration, from the
 > generation it is pinned to and never from an overlay.
 >
-> The manifest is not built. Nor is the rest of the vocabulary, which names
-> nothing in the workspace:
+> Artefacts state the world they were compiled for, and runtimes are pinned to
+> one. `ArtefactIdentityManifest` (`tcl_runtime_api::manifest`) — the ABI
+> version, the environment, release and build, the package floors, the pack
+> facts any site claims, the intrinsic-table hash, and the embedded library
+> revision — rides on `ModuleAsm::manifest` and on the `CompiledUnit` made
+> from it, and is the `tcl.manifest` custom section of a WASM module. A
+> runtime states the same fields of itself from a `RuntimeContext` resolved
+> through the ingress the compiler uses (`Vm::pin_context`,
+> `Interp::pin_context`), where an overlay nothing has installed is an error.
+> The VM refuses, per rung, the sites resting on a field that disagrees, and
+> the WASM link harness refuses a module whose ABI version or intrinsic table
+> disagrees with what the linked runtime's `tcl_runtime_identity` states.
+>
+> The rest of the vocabulary is not built, and names nothing in the
+> workspace:
 >
 > - **Identity and backing** — the `ReferenceBody` and
->   `ShippedImplementation` claims, `IdentityKind`, and
->   `ArtefactIdentityManifest`.
+>   `ShippedImplementation` claims and `IdentityKind`.
 > - **Packages** — `SpecDirective` and the `tcl spec test` verb.
 >
 > `AnalysisContext`, `AnalysisInputs`, `PlanAnswer`, `OperandId`,
@@ -1505,7 +1517,10 @@ error.
   `rust/tcl-vm/src/exec.rs` recompiles plain when the unit carries source
   and the VM has a compile service, and otherwise fails with an admission
   error. This check re-resolves on every admission and survives command
-  mutation.
+  mutation. The same admission compares the module's
+  `ArtefactIdentityManifest` with the identity the VM states of itself, and
+  refuses, per rung, the functions whose sites rest on a field that
+  disagrees.
 - **Intrinsic guard eligibility.** `guarded_commands` in the same file is
   the intrinsic guard table: the identities a builtin is attested for, by
   the generation of the command token it was registered under. The table
@@ -1790,11 +1805,21 @@ otherwise.
 | 3 | `procedure_binding_matches` compares creation name, parameters, and body text against the live proc, *and* the backing is `TclBody` | `rust/tcl-vm/src/interp.rs` plus the backing query | the body differs, or the backing is `ShippedBuiltin`, `HostNative`, or `None` — a proc is then a model of a C command, not the command |
 | 4 | the runtime's loaded report equals the claimed backing, and the artefact's manifest matches the runtime's own context pin | the runtime's backing query and `ArtefactIdentityManifest` | the report names a different backing, or the manifest disagrees on ABI version, environment, release, packs, or the intrinsic-table hash |
 
-Rungs 1 and 2's checks are built (step 4). `Vm::set_pack_facts` replaces
+Rungs 1 and 2's checks are built. `Vm::set_pack_facts` replaces
 the facts a VM holds and advances its compilation-deopt epoch, so a unit
 admitted under the old facts is checked again at its next entry or
 source-command boundary. A VM that holds none admits exactly the units that
 claim nothing, which is every unit compiled without a pack.
+
+The manifest's check is built for every rung a unit has sites at. A module's
+manifest is compared with the identity the VM states of itself, and the fields
+that disagree refuse the rungs that rest on them: the packs and the package
+floors refuse rungs 1 and 2, the intrinsic table and the embedded library
+refuse rung 4 — every function with a command binding — and the ABI version,
+the environment, the release and the build refuse the module. Rung 4's claim
+variant and its comparison of the runtime's loaded report with the claimed
+backing are not built, so the manifest conjunct is the only one the
+specialisations that rest on a shipped builtin are admitted by today.
 
 Rung 3's extra conjunct is the one that is easy to lose: an exact body
 match is a true statement about a proc and says nothing about whether the
@@ -1961,49 +1986,78 @@ This is the runtime programme. Nothing on the analyser side waits for it.
   count differently — has more than one of. The VM's interpreter and
   object-dispatch guard domains stay permanently poisoned, which is why no
   TclOO fast path is guardable.
-- **The runtime pin becomes a context** — environment, release point,
-  build, package floors, and overlay generation — resolved through the same
-  ingress the compiler uses, at which an overlay miss is an error
-  (`OverlayMiss`) and never a fallback to overlay zero. It is the runtime's
-  counterpart of the analysis context. The `namespace` and `trace` subcommand gates
-  take their profile from the pinned dialect profile, not from the release
-  name.
+- **The runtime pin is a context** — environment, release point, build,
+  package floors, and overlay generation — resolved through the same ingress
+  the compiler uses, at which an overlay miss is an error (`OverlayMiss`) and
+  never a fallback to overlay zero. It is the runtime's counterpart of the
+  analysis context. `tcl_runtime_api::RuntimeContext` is the value and
+  `tcl_registry::model::pin` resolves it to the profile the runtime installs,
+  the generation it holds for as long as the pin stands, and the identity the
+  pin states. `Vm::pin_context` and `Interp::pin_context` install it, and
+  `set_dialect_profile` is the profile form of the same pin. A release that is
+  not the environment's point, a build that is not its build, and an
+  environment nothing answers to are refused too, and a refused context leaves
+  the pin as it was. The `namespace` and `trace` subcommand gates take their
+  profile from the profile the runtime exposes commands under — the pinned
+  dialect profile, which the VM's command surface may broaden — and from the
+  release the runtime emulates only when that is the permissive fallback,
+  which states none.
 - **Artefacts carry an identity manifest.** For bytecode that is an
-  in-process field on `CompiledUnit` beside the existing generations, because
-  no serialised bytecode artefact exists; for WASM it is a custom section.
+  in-process field on `ModuleAsm` and on the `CompiledUnit` made from it,
+  beside the existing generations, because no serialised bytecode artefact
+  exists; for WASM it is the custom section `tcl.manifest`, a length-prefixed
+  field list in declaration order that `ArtefactIdentityManifest::from_wasm`
+  reads.
 
 ```rust,ignore
-/// Proposed. What an artefact says about the world it was compiled for.
-/// On bytecode it sits on `CompiledUnit` beside `profile_generation`,
-/// `command_epoch`, and `compiler: CompilerProvenance`; on a WASM module
-/// it is a custom section.
+/// What an artefact says about the world it was compiled for. A runtime
+/// states the same fields of itself, from a `RuntimeContext` and the pack
+/// facts it holds (`RuntimeContext::identity`).
 struct ArtefactIdentityManifest {
-    /// The runtime ABI the module's imports were emitted against —
-    /// `CodegenAbiImportId`'s table version.
+    /// The runtime ABI the module's imports were emitted against:
+    /// `CODEGEN_ABI_VERSION`, a fingerprint of `CodegenAbiImportId`'s table
+    /// and the wasm32 layout constants, so an import that changes cannot
+    /// leave it where it was.
     abi_version: u32,
     /// The resolved environment id, as the ingress interns it.
     environment: String,
     /// The release point within that environment, so a per-target
     /// evaluation is re-checkable.
     release: String,
-    /// The build profile the environment resolved to.
+    /// The build profile the environment resolved to
+    /// (`tcl_dialect::model::BuildProfileId`).
     build: BuildProfileId,
-    /// Package floors in force at compile time, name and version.
+    /// Package floors in force at compile time, name and version, by name.
     packages: Vec<(String, String)>,
     /// One entry per pack any site rested on — the `SiteClaim` stamps,
-    /// deduplicated.
+    /// deduplicated. A WASM site records no claim, so a module's is empty.
     packs: Vec<PackFactStamp>,
-    /// The intrinsic table the emitter keyed against, so a runtime whose
-    /// table differs refuses rather than mis-dispatches.
+    /// The intrinsic table the emitter keyed against
+    /// (`tcl_registry::intrinsic_table_hash`: every member's stable identity,
+    /// family and guarded-semantics keys), so a runtime whose table differs
+    /// refuses rather than mis-dispatches.
     intrinsic_table_hash: [u8; 32],
-    /// The embedded stdlib revision the unit's `source` route assumed.
+    /// The embedded stdlib revision the unit's `source` route assumed
+    /// (`EMBEDDED_STDLIB_REVISION`, which `cargo xtask runtime-stdlib` holds
+    /// equal to the vendored library's manifest).
     embedded_stdlib_revision: String,
 }
 ```
 
   The manifest is checked as a whole at admission: a field that disagrees
-  is a refusal for the rung that rests on it, not a global refusal, so a
-  unit with rung-0 sites only is admitted under a changed pack set.
+  is a refusal for the rungs that rest on it, not a global refusal, so a
+  unit with rung-0 sites only is admitted under a changed pack set. The
+  ABI version, the environment, the release and the build decide what every
+  word of a unit decoded to, so they refuse every rung; the package floors
+  and the packs are what rungs 1 and 2 rest on; the intrinsic table and the
+  embedded library are what a specialisation resting on a shipped
+  implementation's identity assumes. A pack the artefact states must be one
+  the runtime holds, and a runtime may hold more; every other field must be
+  equal. The VM reads a function's rungs off what it records
+  (`FunctionAsm::rungs`). A WASM host reads the runtime's own statement
+  through `tcl_runtime_identity`, which every linked runtime exports, and the
+  link harness refuses a module whose ABI version or intrinsic-table hash
+  disagrees with it before anything is composed.
 - **The WASM runtime implements the engine interface**, so the hook host and
   the shim can target it and a body can be tested on two engines. The VM
   shipped to WASM (`rust/tcl-vm-wasm`) is a second WASM engine with a
@@ -2283,17 +2337,18 @@ and come before any runtime guard work.
 - `rust/tcl-compiler/src/dynamic_names.rs`, `analyser/diagnostics/security.rs` — the substitution barrier and W102
 - `rust/tcl-compiler/src/codegen/emitter/bytecoded.rs`, `codegen/cmd_subst.rs`, `codegen/statements.rs`, `codegen/values.rs` — the typed hook dispatch and the residual by-name sites
 - `rust/tcl-compiler/src/realm.rs`, `command_binding.rs` — alias knowledge and binding validity
-- `rust/tcl-runtime-api/src/lib.rs`, `guard.rs`, `codegen_abi.rs`, `site_claim.rs`, `backing.rs` — `CommandBindingIdentity`, `ProcedureBindingIdentity`, `GuardIdentity`, the ABI descriptor table, `SiteClaim` and `PackFactStamp`, and `RegisteredBacking` with `BackingReport`
+- `rust/tcl-runtime-api/src/lib.rs`, `guard.rs`, `codegen_abi.rs`, `site_claim.rs`, `backing.rs`, `manifest.rs` — `CommandBindingIdentity`, `ProcedureBindingIdentity`, `GuardIdentity`, the ABI descriptor table and its derived version, `SiteClaim` and `PackFactStamp`, `RegisteredBacking` with `BackingReport`, and `ArtefactIdentityManifest` with `RuntimeContext`, the rung sets and the WASM section reader
 - `rust/tcl-compiler/src/site_claims.rs`, `rust/tcl-registry/src/pack_origin.rs`, `codegen_stamp.rs` — the claims codegen records, the pack origin they are built from, and the one "same stamp, same site" predicate
+- `rust/tcl-compiler/src/codegen/emitter/mod.rs`, `codegen/wasm/backend.rs`, `ir.rs`, `rust/tcl-bytecode/src/lib.rs` — where each emitter states the manifest, the `tcl.manifest` section's encoding, and `ModuleAsm::manifest` with `FunctionAsm::rungs`
 - `rust/tcl-vm/src/interp.rs`, `exec.rs`, `command.rs`, `cmd_string.rs`, `environment.rs` — `command_binding_matches`, `procedure_binding_matches`, `guarded_commands`, `attach_identities`, `backing_report`, `bump_cmd_epoch`, registration, the pin
 - `runtime/rust/src/interp.rs`, `codegen_abi.rs`, `builtins.rs`, `embedded_stdlib.rs`, `capi.rs` — the WASM runtime's guard table, `attach_identities`, `backing_report`, `execute_intrinsic`, `invalidate_command_environment`, the commands the embedded Tcl library defines, and the C surface
 - `rust/tcl-spectcl/src/loader.rs`, `loader/eval.rs`, `loader/environment_block.rs`, `discovery.rs`, `install.rs`, `stamps.rs` — what a pack may write, tier to provenance, discovery and the dependency tier it reads beside a manifest, the floor's application, and the two gates a stamp or a declaration must pass
 - `rust/tcl-registry/src/runtime_backing.rs`, `rust/tcl-spectcl/src/backing.rs` — `RuntimeBacking` and `BodySource`, and `BackingSyntax`, the one spelling of the `runtime_backing` statement for the loader and the Spec Studio
 - `rust/tcl-spec-hooks/src/sandbox.rs`, `pack_eval.rs`, `host.rs` — the hook whitelist, the pack evaluator, and the hook host with its per-pack engines, budgets, and context keys
 - `rust/tcl-spec-studio/src/render_spectcl.rs`, `render_rs.rs`, `coverage.rs`, `schema.rs`, `draft.rs`, `help.rs` — `GAPS`, `GapKind`, the `.rs` contribution export, and the four studio surfaces
-- `rust/tcl-vm/src/compiled.rs` — `CompiledUnit`, `CompilerProvenance`, and the generations an identity manifest joins
+- `rust/tcl-vm/src/compiled.rs` — `CompiledUnit`, `CompilerProvenance`, and the generations and manifest a unit carries
 - `rust/tcl-engine-api/src/lib.rs`, `rust/tcl-engine-tclvm/src/lib.rs`, `rust/tcl-cshim/src/lib.rs`, `rust/tcl-cshim/src/ffi.rs`, `rust/tcl-cshim/src/obj.rs`, `rust/tcl-cshim/include/tclshim.h` — the engine interface, its one implementation, `Interp::load_static` and its `Loaded` report, the 34 exported symbols, and the header
-- `rust/tcl-dialect/src/version.rs`, `profile.rs`, `rust/tcl-registry/src/model/ingress.rs`, `assembly.rs`, `rust/tcl-compiler/src/compile_service.rs`, `rust/tcl-lsp-db/src/lib.rs` — the release, the pin, the overlay ingress and its `OverlayMiss`, the compile service's overlay door, and the salsa registry queries
+- `rust/tcl-dialect/src/version.rs`, `profile.rs`, `rust/tcl-registry/src/model/ingress.rs`, `assembly.rs`, `runtime_context.rs`, `rust/tcl-compiler/src/compile_service.rs`, `rust/tcl-lsp-db/src/lib.rs` — the release, the pin and the `RuntimeContext` it resolves, the overlay ingress and its `OverlayMiss`, the compile service's overlay door, and the salsa registry queries
 - `rust/tcl-pkg-model/src/manifest.rs`, `lockfile.rs`, `tier.rs`, `rust/tcl-pkg/src/docker.rs` — the package manager's data model and the derivation of a package's dependency tier, which the pack loader reads too, and the container generator
 - `rust/xtask/src/command_backing.rs`, `gen_irule_test_data.rs`, `docs/generated/wasm-command-backing.md` — the backing gate and its one waiver list, the registry-generated iRules mocks, and the rendered report
 - `rust/tcl-irule-test/tcl/command_mocks.tcl`, `_mock_stubs.tcl` — the simulator's hand-written and generated command backing
@@ -2302,7 +2357,7 @@ and come before any runtime guard work.
 
 - `rust/tcl-registry/tests/analyser_hooks.rs` — pins the analyser-hook stamps and, through `analyser_hook_stamps_are_disjoint_from_definer_families`, the member-axis separation; re-baselined as variants retire
 - `runtime/rust/src/interp.rs`, `rust/tcl-vm/src/interp.rs` — `an_unrelated_mutation_keeps_the_guard_and_a_rebinding_drops_it`, the per-token guard contract in each runtime
-- `rust/tcl-compiler/tests/wasm_real_link.rs` — `guarded_boxed_intrinsic_runs_and_falls_back_against_the_real_runtime`, the guarded path against the real runtime
+- `rust/tcl-compiler/tests/wasm_real_link.rs` — `guarded_boxed_intrinsic_runs_and_falls_back_against_the_real_runtime`, the guarded path against the real runtime, and `a_module_with_a_foreign_intrinsic_table_is_refused`, the link check against the runtime's own `tcl_runtime_identity`
 - `rust/tcl-cshim/tests/sandbox_isolation.rs` — a pack program and a hook body cannot reach a shimmed command
 - `rust/tcl-spectcl/tests/spec_corpus.rs` — every shipped pack loaded, analysed, and run through the hook host at budget; a loading and containment gate, not a value oracle
 - `rust/tcl-spectcl/src/loader.rs` — `native_hook_tables_cover_their_catalogues`, the gate the argument-role hook body keeps
@@ -2316,7 +2371,8 @@ and come before any runtime guard work.
 - `rust/tcl-cshim/tests/pkga_e2e.rs` — the byte-for-byte expectations captured against Tcl 9.0.4's own `tcl.h`, the shared conformance vectors for both C legs
 - `rust/tcl-spectcl/tests/i6_security_floor.rs` — the floor and its take-shipped extension
 - `rust/tcl-spectcl/tests/workspace_packs.rs`, `codegen_stamps.rs` — the stamp rejection rule's two witnesses: a refused stamp under the tier gate, and a bundled `alias_of` stamp whose recorded target identity the VM admits through its alias hop (refused for a proc at the pack name); the claims' admission: a changed pack refuses the site, and a pack's fold is admitted only under its facts; and, in `workspace_packs.rs`, the capability gate: `a_transitive_dependencys_alias_of_is_dropped` and `a_direct_dependency_keeps_alias_of_but_not_a_stamp`
-- `rust/tcl-vm/tests/command_mutation_deopt_e2e.rs` — `a_rung_zero_module_is_admitted_under_a_changed_pack_set`, the claims check's rung-0 floor
+- `rust/tcl-vm/tests/command_mutation_deopt_e2e.rs` — `a_rung_zero_module_is_admitted_under_a_changed_pack_set`, the claims check's rung-0 floor, and the manifest's per-rung check: `a_manifest_disagreeing_on_packs_refuses_only_rung_one_sites`, `a_rung_zero_unit_is_admitted_under_a_changed_pack_set`, `a_manifest_for_another_world_refuses_the_whole_module`, `a_manifest_for_another_intrinsic_table_refuses_only_shipped_backing_sites`, `a_pin_to_other_package_floors_refuses_the_units_that_rest_on_packs` and `a_running_function_is_checked_against_its_manifest_when_the_pin_changes`
+- `rust/tcl-vm/tests/cross_version_command_surface_e2e.rs` — the pin: `the_profile_form_of_a_pin_is_the_context_the_profile_names`, `a_context_the_ingress_refuses_leaves_the_pin_unchanged`, and `the_trace_gate_reads_the_pinned_profile_not_the_release_name`
 - `runtime/rust/src/interp.rs`, `rust/tcl-vm/src/interp.rs`, `rust/xtask/src/command_backing.rs` — the backing query and its gate: `identities_come_from_the_pinned_generation_never_an_overlay` and `the_sweep_attests_only_the_builtin_it_registered` in each runtime, `a_declared_builtin_the_runtime_lacks_is_drift_unless_waived` and `a_declared_none_the_runtime_registers_is_drift` in the gate
 - `rust/tcl-registry/src/model/ingress.rs`, `rust/tcl-compiler/src/compile_service.rs`, `rust/tcl-lsp-db/tests/overlay_generations.rs`, `dialect_seam.rs`, `rust/tcl-spectcl/tests/codegen_stamps.rs` — the overlay miss: `an_uninstalled_overlay_is_an_error_not_the_plain_generation`, the service's `a_service_whose_overlay_is_gone_declines_every_compile` and `a_service_for_the_packs_overlay_compiles_against_the_generation_they_installed`, the database's abstention, retry and retired-generation tests, and `the_compilation_unit_sees_the_packs_commands`
 

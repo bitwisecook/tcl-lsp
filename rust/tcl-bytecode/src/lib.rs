@@ -1510,6 +1510,35 @@ pub struct FunctionAsm {
     pub site_claims: Vec<tcl_runtime_api::SiteClaim>,
 }
 
+impl FunctionAsm {
+    /// The rungs this function's sites rest on, read off what it records.
+    ///
+    /// Generic dispatch, rung 0, is always among them: every function's words
+    /// were decoded under the release it was compiled for. A pack-fact claim
+    /// is rung 1, a builtin-alias claim rung 2, an inlined procedure body
+    /// rung 3, and a specialisation resting on a shipped implementation's
+    /// identity — every command binding — rung 4.
+    #[must_use]
+    pub fn rungs(&self) -> tcl_runtime_api::RungSet {
+        use tcl_runtime_api::{Rung, SiteClaim};
+
+        let mut rungs = tcl_runtime_api::RungSet::of(Rung::Generic);
+        for claim in &self.site_claims {
+            rungs = rungs.with(match claim {
+                SiteClaim::PackFacts(_) => Rung::PackFacts,
+                SiteClaim::BuiltinAlias { .. } => Rung::BuiltinAlias,
+            });
+        }
+        if !self.procedure_bindings.is_empty() {
+            rungs = rungs.with(Rung::ReferenceBody);
+        }
+        if !self.command_bindings.is_empty() {
+            rungs = rungs.with(Rung::ShippedBacking);
+        }
+        rungs
+    }
+}
+
 /// An inlined command body's instruction range and the `errorInfo` frame the
 /// enclosing command (`eval`/`while`/`for`/`foreach`) would add when its body
 /// errors — the compiled analogue of C's per-command `CmdFrame`. Populated by
@@ -1589,6 +1618,32 @@ pub struct ModuleAsm {
     /// use this to admit a fast precompiled body only for the exact `proc`
     /// definition that produced it, never by command name alone.
     pub procedure_provenance: HashMap<String, ProcedureProvenance>,
+    /// What this artefact says about the world it was compiled for: the
+    /// environment, release and build of [`Self::profile`], the package
+    /// floors, the pack facts any function's sites rest on, and the ABI,
+    /// intrinsic table and embedded library it assumed. A VM refuses the
+    /// rungs a disagreeing field rests on. Shared, because every unit made
+    /// from the module keeps it. `None` for assembly no compiler produced,
+    /// which is admitted on its profile and bindings alone.
+    pub manifest: Option<std::sync::Arc<tcl_runtime_api::ArtefactIdentityManifest>>,
+}
+
+impl ModuleAsm {
+    /// The pack facts any function of this module rests on: every site
+    /// claim's stamp, sorted and without repeats.
+    #[must_use]
+    pub fn claimed_packs(&self) -> Vec<tcl_runtime_api::PackFactStamp> {
+        let mut packs: Vec<tcl_runtime_api::PackFactStamp> =
+            [&self.top_level, &self.top_level_body]
+                .into_iter()
+                .chain(self.procedures.values())
+                .flat_map(|function| function.site_claims.iter())
+                .map(|claim| claim.facts().clone())
+                .collect();
+        packs.sort();
+        packs.dedup();
+        packs
+    }
 }
 
 /// Exact source provenance for a compiler-emitted procedure body.
@@ -2329,5 +2384,107 @@ mod tests {
         assert_eq!(instr.op, Op::PUSH1);
         assert_eq!(instr.offset, -1);
         assert!(!instr.no_fold);
+    }
+
+    fn pack_stamp(pack: &str, content_hash: u64) -> tcl_runtime_api::PackFactStamp {
+        tcl_runtime_api::PackFactStamp {
+            pack: pack.to_owned(),
+            content_hash,
+            vocabulary_version: "2".to_owned(),
+            overlay_generation: 9,
+            evaluator_revision: 0,
+        }
+    }
+
+    #[test]
+    fn a_functions_rungs_are_read_off_what_it_records() {
+        use tcl_runtime_api::{
+            CommandBindingIdentity, ProcedureBindingIdentity, Rung, RungSet, SiteClaim,
+        };
+
+        let generic = RungSet::of(Rung::Generic);
+        assert_eq!(FunctionAsm::default().rungs(), generic);
+
+        let mut claimed = FunctionAsm::default();
+        claimed
+            .site_claims
+            .push(SiteClaim::PackFacts(pack_stamp("vendor", 1)));
+        assert_eq!(claimed.rungs(), generic.with(Rung::PackFacts));
+
+        let mut aliased = FunctionAsm::default();
+        aliased.site_claims.push(SiteClaim::BuiltinAlias {
+            binding: CommandBindingIdentity::new("vendor::nth", "lindex"),
+            facts: pack_stamp("vendor", 1),
+        });
+        assert_eq!(aliased.rungs(), generic.with(Rung::BuiltinAlias));
+
+        let mut inlined = FunctionAsm::default();
+        inlined
+            .procedure_bindings
+            .push(ProcedureBindingIdentity::new(
+                "target",
+                "::target",
+                "",
+                "return OLD",
+            ));
+        assert_eq!(inlined.rungs(), generic.with(Rung::ReferenceBody));
+
+        let mut specialised = FunctionAsm::default();
+        specialised
+            .command_bindings
+            .push(CommandBindingIdentity::new("llength", "llength"));
+        assert_eq!(specialised.rungs(), generic.with(Rung::ShippedBacking));
+
+        let mut everything = claimed.clone();
+        everything.site_claims.extend(aliased.site_claims);
+        everything.procedure_bindings = inlined.procedure_bindings;
+        everything.command_bindings = specialised.command_bindings;
+        assert_eq!(everything.rungs(), RungSet::ALL);
+    }
+
+    #[test]
+    fn a_modules_claimed_packs_are_every_functions_stamps_sorted_and_once() {
+        use tcl_runtime_api::SiteClaim;
+
+        let claiming = |stamps: &[(&str, u64)]| {
+            let mut function = FunctionAsm::default();
+            for (pack, hash) in stamps {
+                function
+                    .site_claims
+                    .push(SiteClaim::PackFacts(pack_stamp(pack, *hash)));
+            }
+            function
+        };
+        let module = ModuleAsm {
+            profile: tcl_dialect::DialectProfile::plain_tcl(),
+            source: String::new(),
+            source_namespace: String::new(),
+            plain_command_dispatch: false,
+            top_level: claiming(&[("b", 2), ("a", 1)]),
+            top_level_body: claiming(&[("d", 4), ("b", 2)]),
+            procedures: HashMap::from([
+                ("::p".to_owned(), claiming(&[("c", 3), ("a", 1)])),
+                ("::q".to_owned(), FunctionAsm::default()),
+            ]),
+            procedure_provenance: HashMap::new(),
+            manifest: None,
+        };
+        assert_eq!(
+            module.claimed_packs(),
+            vec![
+                pack_stamp("a", 1),
+                pack_stamp("b", 2),
+                pack_stamp("c", 3),
+                pack_stamp("d", 4)
+            ]
+        );
+
+        let bare = ModuleAsm {
+            top_level: FunctionAsm::default(),
+            top_level_body: FunctionAsm::default(),
+            procedures: HashMap::new(),
+            ..module
+        };
+        assert!(bare.claimed_packs().is_empty());
     }
 }

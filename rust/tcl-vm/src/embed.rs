@@ -196,7 +196,10 @@ impl Vm {
         let epoch_changed = handle.state.borrow().unit.command_epoch != self.trace_deopt_epoch();
         let namespace = self.current_ns().to_owned();
         let namespace_changed = handle.state.borrow().unit.source_namespace != namespace;
-        let bindings_match = self.function_command_bindings_match(&handle.state.borrow().unit.asm);
+        let bindings_match = {
+            let state = handle.state.borrow();
+            self.function_command_bindings_match(&state.unit.asm, state.unit.manifest.as_deref())
+        };
         if profile_changed
             || compiler_changed
             || epoch_changed
@@ -208,26 +211,32 @@ impl Vm {
                 source: &handle.source,
                 namespace: &namespace,
             };
-            let asm = match if self.step_trace_active() {
-                self.compile_plain_function_cached(plain_target()).map(Some)
+            let (asm, manifest) = match if self.step_trace_active() {
+                self.compile_plain_function_cached(plain_target())
+                    .map(|asm| Some((asm, None)))
             } else if profile_changed || compiler_changed || namespace_changed {
                 self.compile_fast_function_for_namespace(&handle.source, &namespace)
             } else if !current_is_plain && !bindings_match {
-                self.compile_plain_function_cached(plain_target()).map(Some)
+                self.compile_plain_function_cached(plain_target())
+                    .map(|asm| Some((asm, None)))
             } else if epoch_changed && current_is_plain {
                 self.compile_fast_function_for_namespace(&handle.source, &namespace)
             } else {
-                Ok(Some(Rc::clone(&handle.state.borrow().unit.asm)))
+                let state = handle.state.borrow();
+                Ok(Some((
+                    Rc::clone(&state.unit.asm),
+                    state.unit.manifest.clone(),
+                )))
             } {
-                Ok(Some(asm)) => asm,
+                Ok(Some(compiled)) => compiled,
                 Ok(None) => match self.compile_plain_function_cached(plain_target()) {
-                    Ok(asm) => asm,
+                    Ok(asm) => (asm, None),
                     Err(error) => return crate::command::completion_from_tcl_error(error),
                 },
                 Err(error) => return crate::command::completion_from_tcl_error(error),
             };
             *handle.state.borrow_mut() = FunctionHandleState {
-                unit: self.compiled_unit(asm, namespace),
+                unit: self.compiled_unit(asm, namespace).with_manifest(manifest),
                 owner_nonce: self.owner_nonce,
             };
         }
