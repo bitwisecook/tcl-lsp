@@ -422,6 +422,8 @@ mod tests {
         "links a variable to widget state; Tk writes it later, from the event loop";
     const LOOP_VAR: &str = "binds a loop variable, which empty input leaves unset";
     const UNMEASURED: &str = "writes only on some paths; not measured, so left conservative";
+    const TCL91_UNMEASURED: &str =
+        "Tcl 9.1.0 only, which has no reference tclsh here to measure; left conservative";
 
     /// Writers left deliberately without a class, so every consumer treats
     /// their target as possibly unset afterwards.
@@ -458,6 +460,10 @@ mod tests {
         ("base32::core::valid", UNMEASURED),
         ("fileutil::test", UNMEASURED),
         ("tcltest::normalizePath", UNMEASURED),
+        ("::tcl::unsupported::grapheme next", TCL91_UNMEASURED),
+        ("::tcl::unsupported::grapheme prev", TCL91_UNMEASURED),
+        ("tcl::unsupported::grapheme next", TCL91_UNMEASURED),
+        ("tcl::unsupported::grapheme prev", TCL91_UNMEASURED),
         ("button", TK_LINK),
         ("checkbutton", TK_LINK),
         ("entry", TK_LINK),
