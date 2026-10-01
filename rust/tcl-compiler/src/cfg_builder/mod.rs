@@ -722,11 +722,15 @@ impl<'a> CfgBuilder<'a> {
             .any(|words| self.command_reaches_unseen(words, 0))
     }
 
-    /// Whether the command `words`, or a script it runs in this frame — the
-    /// body of a `catch` a substitution holds, a computed one included — runs
-    /// code the module cannot see: a literal head that
-    /// [`Self::runs_unseen_code`] says does, or a computed head outside a
-    /// procedure body.
+    /// Whether the command `words`, or code it runs, runs code the module cannot
+    /// see: a literal head that [`Self::runs_unseen_code`] says does, or a
+    /// computed head outside a procedure body. Every word the command runs as
+    /// code is read, whichever frame it runs in: a body of this frame (the script
+    /// of a `catch`), a body that runs in another (`uplevel`, `namespace eval`),
+    /// a lambda's body (`apply`), the commands in the text a `subst`
+    /// substitutes and those in an expression word, and a computed one outside a
+    /// procedure body. Whether such code runs is all this answers: the names the
+    /// commands of a substitution write are not stated.
     fn command_reaches_unseen(&self, words: &[crate::ir_helpers::CommandWord], depth: u32) -> bool {
         let Some(head) = words
             .first()
@@ -762,13 +766,48 @@ impl<'a> CfgBuilder<'a> {
         {
             return true;
         }
-        self.registry
-            .plain_body_arg_indices(head, &spellings)
+        let runs = |index: usize, text_runs: &dyn Fn(&str) -> bool| match words.get(index + 1) {
+            Some(word) if !word.substituted => text_runs(&word.text),
+            Some(_) => !self.is_proc_body,
+            None => false,
+        };
+        let role_indices = |role| self.registry.arg_indices_for_role(head, &spellings, role);
+        if role_indices(tcl_registry::ArgRole::Body)
             .into_iter()
+            .any(|index| runs(index, &reaches))
+        {
+            return true;
+        }
+        // A lambda literal is a list of its parameters, its body and a namespace.
+        let lambda_runs =
+            |text: &str| match tcl_syntax::list::split_list_in(text, self.config.escapes) {
+                Ok(elements) => elements.get(1).is_some_and(|body| reaches(body)),
+                Err(_) => true,
+            };
+        if role_indices(tcl_registry::ArgRole::LambdaLiteral)
+            .into_iter()
+            .any(|index| runs(index, &lambda_runs))
+        {
+            return true;
+        }
+        let substitutes = self
+            .registry
+            .substitutions_performed(head, &spellings)
+            .is_some_and(|kinds| kinds.commands);
+        let concatenates = self
+            .registry
+            .get(head)
+            .is_some_and(|spec| spec.traits.contains(Traits::EXPR_CONCATENATES_ARGS));
+        let expressions = role_indices(tcl_registry::ArgRole::Expr);
+        (0..spellings.len())
+            .filter(|index| substitutes || concatenates || expressions.contains(index))
             .any(|index| match words.get(index + 1) {
-                Some(word) if !word.substituted => reaches(&word.text),
-                Some(_) => !self.is_proc_body,
-                None => false,
+                Some(word) if !word.substituted => {
+                    crate::var_refs::command_subst_texts_with_config(&word.text, self.config)
+                        .iter()
+                        .any(|inner| reaches(inner))
+                }
+                _ => false,
             })
     }
 
@@ -5348,6 +5387,71 @@ mod tests {
             );
         }
         for src in ["$cmd", "puts [$cmd]", "set x [$cmd]"] {
+            let module = lower_module(&format!("proc p {{}} {{\n{src}\n}}"));
+            let cfg = build_cfg(&module, false);
+            assert!(!unseen(&cfg.procedures["::p"]), "proc: {src}");
+        }
+    }
+
+    /// A substitution's command reaches code the module cannot see through every
+    /// word it runs as code: a lambda's body, a body that runs in another frame
+    /// (`uplevel`, `namespace eval`), the commands in a `subst` text and in an
+    /// expression word of a body, as through a body of this frame. A body that
+    /// holds no such code, and a procedure's own locals, mark nothing.
+    #[test]
+    fn a_substitution_marks_the_unseen_code_in_every_word_its_command_runs() {
+        let unseen = |func: &Function| {
+            calls_in_order(func)
+                .iter()
+                .any(|(command, _)| *command == "<unseen-call>")
+        };
+        for src in [
+            "set x [apply {{} {foo}}]",
+            "set x [apply {{x} {foo $x}} 1]",
+            "set x [apply {{} {if {1} {foo}}}]",
+            "set x [namespace eval ns {foo}]",
+            "set x [namespace eval ns {namespace eval inner {foo}}]",
+            "set x [uplevel #0 {foo}]",
+            "set x [subst {[foo]}]",
+            "set x [subst -nobackslashes {a [foo] b}]",
+            "set x [catch {apply {{} {foo}}}]",
+            "set x [catch {if {[foo]} {puts a}}]",
+            "set x [catch {while {[foo]} {puts a}}]",
+            "set x [catch {expr {[foo] + 1}}]",
+            "set x [apply {{} {if {[foo]} {puts a}}}]",
+            "puts [apply {{} {foo}}]",
+            "if {[apply {{} {foo}}]} {puts a}",
+            "set x [apply $lambda]",
+            "set x [namespace eval ns $script]",
+        ] {
+            assert!(
+                unseen(&build_cfg(&lower_module(src), false).top_level),
+                "{src}"
+            );
+        }
+        for src in [
+            "set x [apply {{} {set y 1}}]",
+            "set x [apply {{x} {set y $x}} 1]",
+            "set x [namespace eval ns {set y 1}]",
+            "set x [uplevel #0 {set y 1}]",
+            "set x [subst {abc}]",
+            "set x [subst {[set y 1]}]",
+            "set x [subst -nocommands {a [foo] b}]",
+            "set x [catch {apply {{} {set y 1}}}]",
+            "set x [catch {if {[set y 1]} {puts a}}]",
+            "set x [apply {{} {if {[set y 1]} {puts a}}}]",
+        ] {
+            assert!(
+                !unseen(&build_cfg(&lower_module(src), false).top_level),
+                "{src}"
+            );
+        }
+        // A procedure's locals are out of every callee's reach.
+        for src in [
+            "set x [apply {{} {foo}}]",
+            "set x [namespace eval ns {foo}]",
+            "set x [subst {[foo]}]",
+        ] {
             let module = lower_module(&format!("proc p {{}} {{\n{src}\n}}"));
             let cfg = build_cfg(&module, false);
             assert!(!unseen(&cfg.procedures["::p"]), "proc: {src}");

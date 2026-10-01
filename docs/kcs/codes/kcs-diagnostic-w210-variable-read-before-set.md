@@ -255,6 +255,42 @@ Note the difference between `eval` and `uplevel`: `eval $script` runs in the
 procedure that writes it, so it can set that procedure's own locals;
 `uplevel 1 $script` runs one frame up, so it cannot.
 
+## A name only the body of a `catch` sets
+
+A `catch` runs its body until the first error, so a name only the body sets may
+still be unset after it, and a read of the name there is flagged — whether the
+analyser keeps the `catch` as one statement or inlines it:
+
+```tcl
+catch { set x 1 }
+puts $x            ;# flagged — the body may stop before it sets x
+```
+
+A name set before the `catch`, and the variables the `catch` itself assigns (its
+result and options variables), are set however the body ends and are not
+flagged.
+
+## Code the analyser cannot see may have set the name
+
+A call to a command the analyser cannot see — a `source`, a procedure defined in
+another file, a command whose name is computed — can create a global the file
+has not set by then. A read of a name nothing in the file has set, after such a
+call, is not flagged:
+
+```tcl
+source other.tcl
+puts $g            ;# not flagged — other.tcl may have set g
+```
+
+The same holds after a `catch` whose body runs such a call, and inside a
+procedure after a `source`, which runs its file in the procedure's own frame.
+The call has to come first on every path to the read. These are still flagged: a
+read in the words of the call itself (`foo $g`), a call on one branch of an `if`
+only, a read with no such call ahead of it at all (`puts $g` on its own), a name
+the file sets on some other path (`if {$argc} {set g 1}` before the call), and a
+read in a procedure after a call to a command the file does not define, because
+no callee reaches a procedure's locals.
+
 ## How to suppress
 
 Add `# noqa: W210` on the line **above** the offending command.

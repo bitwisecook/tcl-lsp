@@ -3981,6 +3981,57 @@ fn a_write_a_catch_body_or_a_computed_head_runs_is_never_folded_away() {
     }
 }
 
+/// A command the module cannot see — `foo` again, defined at run time — runs
+/// inside a body that is no body of the frame the substitution is written in:
+/// a lambda `apply` runs, a `namespace eval` or `uplevel` body, the text a
+/// `subst` substitutes, an expression word inside a body. It writes `::g`
+/// there as it does anywhere, so tclsh 8.4 to 9.1 print `six` and `6` for each
+/// program, where the value before the call was taken across it and the
+/// condition decided. A lambda body that writes a name of its own, and a
+/// `subst` of text that runs nothing unseen, leave the condition decided.
+#[test]
+fn a_substitution_runs_the_unseen_code_in_every_body_it_holds() {
+    let define = "set f [file join [file dirname [info script]] vt-unseen-[pid].tcl]\n\
+                  set fh [open $f w]\nputs $fh {proc foo {} {set ::g 6}}\nclose $fh\n\
+                  source $f\nfile delete $f\n";
+    let check = "if {$g == 6} {puts six} else {puts other}\nputs $g\n";
+    for form in [
+        "set x [namespace eval ns {foo}]",
+        "set x [uplevel #0 {foo}]",
+        "set x [subst {[foo]}]",
+        "set x [catch {expr {[foo] + 1}}]",
+        "set x [catch {if {[foo]} {set y 1}}]",
+    ] {
+        prints_under_every_release(&format!("{define}set g 5\n{form}\n{check}"), "six\n6\n");
+    }
+    for form in [
+        "set x [apply {{} {foo}}]",
+        "set x [catch {apply {{} {foo}}}]",
+        "set x [apply {{} {if {[foo]} {set y 1}}}]",
+        "set x [apply {{n} {foo}} 1]",
+    ] {
+        prints_under_releases_from(
+            &format!("{define}set g 5\n{form}\n{check}"),
+            "six\n6\n",
+            "8.5",
+        );
+    }
+    // A body with nothing unseen in it leaves the condition decided: the
+    // optimiser folds it, and the program prints the same.
+    let decided = "set g 5\nset x [namespace eval ns {set y 1}]\n\
+                   if {$g == 5} {puts five} else {puts other}\nputs $g\n";
+    let lambda = "set g 5\nset x [apply {{} {set y 1}}]\n\
+                  if {$g == 5} {puts five} else {puts other}\nputs $g\n";
+    let text = "set g 5\nset x [subst {[set y 1]}]\n\
+                if {$g == 5} {puts five} else {puts other}\nputs $g\n";
+    for (source, first) in [(decided, "8.4"), (lambda, "8.5"), (text, "8.4")] {
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            assert!(!optimised(source, dialect).0.contains("other"), "{source}");
+        }
+        prints_under_releases_from(source, "five\n5\n", first);
+    }
+}
+
 /// A name the body of a `catch` writes on one path only keeps the value it
 /// held before, so the store before the `catch` is read: tclsh prints `5` for
 /// each program, where taking the body's write as the one every path makes

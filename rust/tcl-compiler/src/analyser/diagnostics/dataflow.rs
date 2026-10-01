@@ -1444,7 +1444,7 @@ file; this call falls through to the 'unknown' handler."
         use crate::def_use::UseKind;
         use crate::ir::Statement;
 
-        let (var, _version) = &chain.key;
+        let (var, version) = &chain.key;
         for use_site in &chain.uses {
             if matches!(use_site.kind, UseKind::PhiIncoming) {
                 continue;
@@ -1486,6 +1486,17 @@ file; this call falls through to the 'unknown' handler."
                     use_site.statement_index,
                 )
             }) {
+                continue;
+            }
+            // A name nothing in the function assigns, read after code the module
+            // cannot see: the code may have set it, as a sourced file or a
+            // command the module does not define may set a global.
+            if *version == 0
+                && fu.cfg.block_id(&use_site.block).is_some_and(|block| {
+                    ctx.supp
+                        .unseen_call_before(&fu.ssa, block, use_site.statement_index)
+                })
+            {
                 continue;
             }
             let Some(block) = fu.cfg.block_by_name(&use_site.block) else {

@@ -15736,6 +15736,39 @@ fn i230_never_reports_a_condition_across_a_catch_body_or_a_computed_head() {
     }
 }
 
+/// A command the module cannot see runs inside a body that is no body of the
+/// frame the substitution is written in — a lambda's, a `namespace eval` or
+/// `uplevel` body, the text a `subst` substitutes, an expression word of a
+/// body — and may write a plain top-level name as it may `::g`: tclsh prints
+/// `b` where the `foo` of a sourced file sets `g` to 0. A body with nothing
+/// unseen in it leaves the condition decided.
+#[test]
+fn i230_never_reports_a_condition_across_unseen_code_in_a_body_a_substitution_runs() {
+    assert_no_i230(&[
+        "set g 5\nset x [apply {{} {foo}}]\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nset x [namespace eval ns {foo}]\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nset x [uplevel #0 {foo}]\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nset x [subst {[foo]}]\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nset x [catch {apply {{} {foo}}}]\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nset x [catch {if {[foo]} {puts a}}]\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nputs [apply {{} {foo}}]\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nif {[apply {{} {foo}}]} {puts x}\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nset x [apply $lambda]\nif {$g} {puts a} else {puts b}\n",
+    ]);
+    for src in [
+        "set g 5\nset x [apply {{} {set y 1}}]\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nset x [namespace eval ns {set y 1}]\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nset x [uplevel #0 {set y 1}]\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nset x [subst {[set y 1]}]\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nset x [catch {apply {{} {set y 1}}}]\nif {$g} {puts a} else {puts b}\n",
+    ] {
+        let (whole, per_item) = i230_on_both_paths(src);
+        assert_eq!(whole.len(), 1, "{src}: {whole:?}");
+        assert!(whole[0].contains("always true"), "{src}: {whole:?}");
+        assert_eq!(per_item, whole, "{src}");
+    }
+}
+
 /// A name only the body of an opaque `catch` sets may be unset after it, so
 /// the read draws W210 — as it does after an inlined `catch`, whose exception
 /// edge leaves from before the body — and a name set before it draws none.
@@ -15752,6 +15785,68 @@ fn a_read_after_an_opaque_catch_only_its_body_sets_draws_w210() {
     let found =
         lifecycle_findings("proc p {c} {\n catch { if {$c} { set x 1 } } msg\n puts $msg\n}\n");
     assert!(found.is_empty(), "{found:?}");
+}
+
+/// The names the W210 diagnostics of `src` report, on the whole-file path and
+/// on the per-item path.
+fn w210_names_on_both_paths(src: &str) -> (Vec<String>, Vec<String>) {
+    let names = |per_item: bool| -> Vec<String> {
+        let mut a = Analyser::new();
+        let result = if per_item {
+            a.analyse_per_item(src, "tcl8.6")
+        } else {
+            a.analyse(src, "tcl8.6")
+        };
+        result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W210)
+            .map(|d| d.message.clone())
+            .collect()
+    };
+    (names(false), names(true))
+}
+
+/// Code the module cannot see — a sourced file, a command it does not define, a
+/// computed head, the body of a `catch` that holds one — may set a global the
+/// file has not set by then, so a read of the name after it is no read before
+/// it is set. A read the code does not precede on every path is one (no code
+/// ahead of it, code after it, code on one branch only), and so is a read in a
+/// procedure, whose locals no callee reaches.
+#[test]
+fn a_read_after_code_the_module_cannot_see_is_no_read_before_set() {
+    for src in [
+        "source other.tcl\nputs $g\n",
+        "foo\nputs $g\n",
+        "set cmd foo\n$cmd\nputs $g\n",
+        "catch {foo}\nputs $g\n",
+        "set x [foo]\nputs $g\n",
+        "puts [foo]\nputs $g\n",
+        "if {[foo]} {puts yes}\nputs $g\n",
+        "foo\nset a 1\nputs $g\n",
+        "foo\nputs $g\nset g 1\n",
+        "foo\nif {$argc} {puts $g}\n",
+        "proc p {} {\n source other.tcl\n puts $g\n}\n",
+    ] {
+        let (whole, per_item) = w210_names_on_both_paths(src);
+        assert!(whole.is_empty(), "whole file: {src}\n{whole:?}");
+        assert_eq!(per_item, whole, "per item: {src}");
+    }
+    for src in [
+        "puts $g\n",
+        "set a 1\nputs $g\n",
+        "puts $g\nfoo\n",
+        "foo $g\n",
+        "proc foo {} {}\nfoo\nputs $g\n",
+        "if {$argc} {foo}\nputs $g\n",
+        "if {$argc} {set g 1}\nfoo\nputs $g\n",
+        "proc p {} {\n foo\n puts $g\n}\n",
+    ] {
+        let (whole, per_item) = w210_names_on_both_paths(src);
+        assert_eq!(whole.len(), 1, "whole file: {src}\n{whole:?}");
+        assert!(whole[0].contains("'g'"), "{src}: {whole:?}");
+        assert_eq!(per_item, whole, "per item: {src}");
+    }
 }
 
 /// The `(code, message)` of each W220 and W211 hint a program draws.

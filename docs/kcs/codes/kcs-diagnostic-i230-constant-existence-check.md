@@ -187,8 +187,12 @@ if {$g} { puts a } else { puts b }                 ;# no I230, as for $::g
   versions the name holds at that call are undecided, as a `$::g` is. So is a
   call whose command is computed (`$cmd`), and a call inside the body of a
   `catch`, whether the `catch` is a command of its own or one a condition
-  runs (`if {[catch {foo}]} …`). A name the body of a `catch` writes on some
-  path is undecided afterwards too, since the body stops at its first error. A
+  runs (`if {[catch {foo}]} …`), and a call inside any body a `[…]` substitution
+  runs, whatever frame the body runs in: a lambda's (`[apply {{} {foo}}]`), a
+  `namespace eval` or `uplevel` body, the text a `[subst {[foo]}]` substitutes
+  and an expression word inside a body (`[catch {if {[foo]} …}]`). A name the
+  body of a `catch` writes on some path is undecided afterwards too, since the
+  body stops at its first error. A
   procedure's own local is out of every callee's reach and is still folded;
   a `source` runs its file in the frame of the call, so a local is not safe
   across one.

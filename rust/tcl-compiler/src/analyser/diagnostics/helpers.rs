@@ -806,6 +806,11 @@ pub(super) struct UndefSuppression {
     /// expression or after it looks read-before-set; a read before it is
     /// still one. Suppress-only.
     cmd_sub_writes: FxHashMap<String, Vec<(BlockId, usize)>>,
+    /// Where code the module cannot see runs: each `(block, statement)` of a
+    /// marker for it ([`crate::ssa::is_unseen_call_marker`]). A name nothing in
+    /// the function assigns may be one that code set, so a read of it that
+    /// follows a marker is no read before it is set. Suppress-only.
+    unseen_call_sites: Vec<(BlockId, usize)>,
     /// Names written by a `Traits::SCRIPT_CONCATENATES_ARGS` call whose
     /// script the lowering left as an opaque barrier — `eval set l2 hello`
     /// really does set `l2` in the caller's own frame, but its words reach
@@ -915,6 +920,26 @@ impl UndefSuppression {
         })
     }
 
+    /// Whether code the module cannot see runs before the read at `index` of
+    /// `block` — earlier in the block, or in a block that dominates it; `index`
+    /// -1 is the block's terminator. A read in the statement a marker stands
+    /// ahead of is after it, as the marker for a substitution's command stands
+    /// ahead of its host.
+    pub(super) fn unseen_call_before(
+        &self,
+        ssa: &crate::ssa::SsaFunction,
+        block: BlockId,
+        index: i32,
+    ) -> bool {
+        self.unseen_call_sites.iter().any(|&(site, at)| {
+            if site == block {
+                usize::try_from(index).map_or(true, |index| at < index)
+            } else {
+                block_dominated_by(ssa, block, site)
+            }
+        })
+    }
+
     /// The name-level suppressions, none of them a substitution's write.
     fn suppresses_unsubstituted(&self, name: &str) -> bool {
         if self.alias_tails.contains(name)
@@ -927,6 +952,26 @@ impl UndefSuppression {
             && !self.explicitly_defined.contains(name)
             && self.dict_with_known_keys.contains(name)
     }
+}
+
+/// Each `(block, statement)` where code the module cannot see runs, in the
+/// blocks `considered`.
+fn collect_unseen_call_sites(
+    fu: &crate::compilation_unit::FunctionUnit,
+    considered: &HashSet<BlockId>,
+) -> Vec<(BlockId, usize)> {
+    let mut out = Vec::new();
+    for &bn in considered {
+        let Some(block) = fu.cfg.blocks.get(&bn) else {
+            continue;
+        };
+        for (index, stmt) in block.statements.iter().enumerate() {
+            if crate::ssa::is_unseen_call_marker(stmt) {
+                out.push((bn, index));
+            }
+        }
+    }
+    out
 }
 
 /// Where a command substitution buried inside an `expr` argument writes: per
@@ -1259,6 +1304,7 @@ pub(super) fn build_undef_suppression(
         build_loop_entry_only_undef(fu, &can_undef, &undef_ctx, rules, &mut memo);
     let mut s = UndefSuppression {
         cmd_sub_writes: collect_expr_cmd_sub_writes(fu, considered, commands),
+        unseen_call_sites: collect_unseen_call_sites(fu, considered),
         script_concat_writes: collect_script_concat_writes(fu, considered, commands),
         killed,
         can_undef,
