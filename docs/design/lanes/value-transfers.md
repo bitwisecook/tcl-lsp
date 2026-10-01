@@ -2,11 +2,11 @@
 
 The crash-insurance and handover note for the `value-transfers` lane. A
 fresh agent resumes from this file and the `wip(value-transfers):` commits.
-Slices 1 to 4 have landed, slice 4 with its review's fixes (§ *Slice 4* ›
-*Record (2026-09-23): the review of slice 4*); § *Plan for slices 2–13* is
-the plan for the rest. Slice 5 is in progress: § *Slice 5* › *Record
-(2026-09-23): the opus items of slice 5* has each checkpoint so far and is
-where to start.
+Slices 1 to 6, 8 and 9 have landed — each has a § *Status* section below, with
+the records and the decisions behind it; § *Plan for slices 2–13* is the plan
+for the rest. The next slice is slice 10, completion paths: § *Slice 9* ›
+*Record (2026-09-30): slice 9* › *What slice 10 starts from* is where to
+start.
 
 ## Goal
 
@@ -836,7 +836,137 @@ B2 by the first commit, B3 and S1 by the second, S2, S3, S4 and N1 by the third.
 
 A second review of the three commits (2026-10-01) found the lattice's rules sound for every shape it tried and two gaps in their reach, with two smaller items: B1, D195's marker never reached a call inside the body of an opaque `catch`, nor a computed head, and the `catch` recorded what its body writes as definite definitions; B2, a callback the scan could not read was taken to write nothing, the several-word form of `after` among them; S1, W220 and W211 did not read the record O109 reads; S2, a braced arm list's elements decoded under the default escapes. One commit, `wip(value-transfers): slice 6 — review fixes: an opaque catch, a computed head and a callback the scan cannot read state what they may write`, closes them (D205 to D212), recorded in the same § *Record (2026-09-30): review fixes for slice 6* as its fourth row.
 
+A third round (2026-10-01) closed three gaps left in the reach of those rules: a body a `[…]` substitution runs in another frame — a lambda's, a `namespace eval` or `uplevel` body, the text a `subst` substitutes, an expression word inside a body — held unseen code no marker preceded, so `set g 5; set x [apply {{} {foo}}]; if {$g} …` was folded where tclsh prints `b` (#2328); the W210 page said nothing of the body of an opaque top-level `catch`, whose writes are may-definitions; and a read of a name nothing had set yet, after unseen code, drew W210 at the top level (`source other.tcl; puts $g`). One commit, `wip(value-transfers): slice 6 — review fixes: a substitution marks the unseen code in every body it runs, and a read after unseen code is no read before it is set`, closes them (D207 amended, D215), recorded in the same § *Record (2026-09-30): review fixes for slice 6* as its fifth row. Closes #2328.
+
 Closes #2056. Closes #2057.
+
+## Status (2026-10-01): slice 9 landed
+
+One implementer ran the slice item by item, each its own commit, in the order
+the plan's checkpoints group them rather than the numeric one: `4e15af0a`
+(VT9.1, the ordered state admits local writes), `801d8fa8` (VT9.3, a read
+beside a nested write is read by name), `b95ca447` (VT9.4, a command
+substitution evaluates through the nested service), `f30f9abb` (VT9.2, the
+writes an expression's substitutions make are the definitions of its
+statement), `d256e8cc` (VT9.5, the seven ordered-state witnesses), and this
+docs commit, `wip(value-transfers): slice 9 — nested writes in expressions`
+(VT9.6, the landing). The run paused after VT9.1 for the slice 6 review's
+rework (D193 to D201) and was resumed once after a session restart, which also
+finished that review's third round (`58d5ab3d`). The decisions are D188 to D192,
+D202 to D204, D213 and D214 in § *Decisions taken*, the records § *Plan for
+slices 2–13* › *Slice 9* › *Record (2026-09-30): slice 9*.
+
+Behaviour changes, as the plan's landing message states them: nested `incr`
+and `set` inside `expr` fold with their writes — over `x` = 1, `set r [expr
+{$x + [incr x] + $x}]` gives `r` 5 and `x` 2 for every consumer, and `expr {0 &&
+[incr x]}` leaves `x` as it was — and O100 forwards the nested store's value
+into the reads after them; an error inside an expression ends the evaluation
+with the writes so far, in the driver, though no route yields an error
+completion yet. Beyond them: a statement's reads beside a write its own
+substitutions make are read by name, so the store ahead of `puts [expr {$x +
+[set x 10] + $x}]` stays, `foo $x [incr x] $x` is forwarded no earlier `x`, and
+O109, O126 and W211 keep `set n 1` in `set r [expr {$n + [incr n]}]` (D202 to
+D204); a command's own substituting words run before it, in order, under one
+state, so `set s a; set r [expr {[string length $s] + [string length [append s
+bc]]}]` is 4 and leaves `s` at `abc` (D214); and `command_substitution_is_none`
+became `command_substitution_evaluates_through_the_nested_service` (Q2).
+
+Things the plan did not say. The plan carried the host statement's index on the
+synthetic call; the host is found by adjacency and span instead (D192), which
+the SSA's by-name demotion and the solver's evaluation of the pair share. The
+slice 6 rework landed under the slice and moved what it builds on (§ *Record*,
+*What slice 10 starts from*): markers among the statements, an opaque
+`switch`'s definitions, a callback's writes in the escaping set, and the record
+of the versions live at a call the module cannot see, which makes a value the
+pair gives a top-level definition survive no such call. R6 allows one restated
+test, `command_substitution_is_none`; a second moved,
+`a_write_nested_in_a_braced_expr_word_keeps_its_feeding_store`
+(`tests/optimiser.rs`), whose assertion that nothing was rewritten became the
+forwarded values — the exit's own mandate. The witnesses could not take the
+interface page's statement forms as written: O101 rewrites a bare `expr {…}`
+statement whose value folds into the value alone (found, below), so each program
+puts its expression behind `set r` and `puts`, and the seventh, whose
+value-position form `puts [catch {…}]` is #2323's, is the statement form
+`catch {…} msg`.
+
+Green at the landing, the review checklist's suite plus every standing gate,
+run on the tree the landing commits — VT9.6 changes one constant and pages, so
+no test moves with it (the Green paragraphs in the slice's record have the
+per-item counts):
+
+- `cargo check --workspace --all-targets`: clean;
+- `cargo test -p tcl-registry -p tcl-compiler -p tcl-lsp-db -p tcl-cli`, with
+  the crates beside them: `tcl-compiler` 9967 passed across 67 binaries, 6
+  ignored, and 7 doctests (the library 6660, `value_transfer_witnesses` 86);
+  `tcl-registry` 1299 (the library 966, `differential_fold` 15,
+  `value_transfers` 45); `tcl-syntax` 557 and `tcl-cmd-core` 134; `tcl-lsp-db`
+  139, 5 ignored; `tcl-cli` 136 (`value_transfers_cli` 14); `tcl-explorer` 109;
+  `tcl-lsp-core --lib` 2350; `tcl-lsp-server --lib` 598 and, of its `e2e`
+  binary, the 527 tests that name a diagnostic; `tcl-vm --test language_e2e`
+  38; `tcl-spec-studio` 295, `tcl-spectcl` 369, 1 ignored, and `tcl-mcp` 114;
+  `xtask` 242 — no failure;
+- pedantic clippy (`--workspace --all-targets -D warnings`) after every item, no
+  `#[allow]` added anywhere in the slice, and `cargo fmt`;
+- `cargo xtask value-transfers --check`: 22 files clean, 19 sites waived, 83
+  pinned across 34 ratcheted files, 6607 inventory rows, the report and the
+  ratchet table unchanged since slice 6 — slice 9 retires no handler and pins
+  no file;
+- `cargo xtask registry-axes --check`: 7831 vocabulary words, 16 files clean,
+  36 sites waived, 893 pinned across 147 ratcheted files — `LANDED` gaining
+  `"slice 9"` expires no `until slice N` waiver, since none names slice 9, so
+  the counts and `docs/generated/registry-axes.md` do not move;
+- `cargo xtask pack-goldens`: 25 packs, 0 rewritten;
+- `cargo xtask kcs-index-links`: "KCS docs checks passed";
+- `cargo xtask owner-resolution`: OK, 45 owner rows;
+- `cargo xtask retired-api-gate`: OK;
+- `cargo xtask dialect-drift`: 8 sites, the eight pre-existing upstream ones,
+  none new;
+- `callback-inventory --check`, `number-drift`, `segmentation-drift`,
+  `resolution-drift`, `diag-tables --check`, `diag-emission-check` and
+  `gen-ai-diagnostics --check`: OK;
+- `scripts/dev/verify-nextest-binary-shards.py --metadata-only`: the shard
+  manifest covers the workspace's 330 test targets (the slice adds none).
+
+R1: no consumer matches `"incr"` or `"set"` inside an expression — the
+admission is by place ownership (`LatticeDriver::state_owns`), and the
+registry's routes for `incr` and `set` are what the nested outcomes come from.
+R6: two tests moved, named above. R7: a nested write to a traced, escaping,
+dynamic or qualified place declines (`a_nested_write_outside_the_state_declines`,
+in the driver and in a program); `0 && [incr x]` never applies the write; an
+error completion publishes only the writes so far
+(`an_error_completion_ends_the_evaluation_with_the_writes_so_far`).
+
+Left to later slices: the error path of the ordered state. No route yields an
+error completion, so an expression with an error in the middle is not
+evaluated and `catch {expr {[incr x] + [error mid]}}` leaves `x` unknown where
+tclsh leaves 2; slice 10's per-path publication makes it exact, and § *Record* ›
+*What slice 10 starts from* names the places it changes. The hosts other than an
+assignment of an expression, an `expr` on its own and an assignment of one
+`[expr …]` keep the effect-free policy
+([precision-limitations.md](../compiler/precision-limitations.md) § *Open — a
+statement's nested writes are evaluated for an assignment or an `expr` only*).
+
+Found and left, outside this slice's scope: the page's seventh program in value
+position, `puts [catch {expr {[incr x] + [error mid]}}]; puts $x`, has O109
+delete `set x 1` and O102 forward `puts 1` where tclsh prints `1` and `2` — a
+`catch` inside a substitution, #2323; and the same gap is wider than that issue
+says: a body a substitution runs states no write in any frame, so `set g 5; set x
+[if {1} {set g 0}]; if {$g} {puts a} else {puts b}` draws I230 where tclsh prints
+`b`, and so do `[eval {set g 0}]`, `[foreach i {1} {set g 0}]`, `[catch {incr g
+-5}]`, `[namespace eval ns {set ::g 0}]` and `[apply {{} {set ::g 0}}]`. O101
+rewrites a bare `expr {…}` statement whose value folds into the value alone,
+`expr {1 + 2}` into `3` and `expr {0 && [incr x]}` into `0`, which Tcl then runs
+as commands and raises `invalid command name`. A name set only after unseen
+code and read in a loop (`foo; while {1} {puts $g; set g 1}`) still draws W210,
+the read being of the loop's φ and not of version 0. A substitution that defines
+a procedure or a class (`[catch {proc foo {} {bar}}]`) marks unseen code,
+because its definition body is read as a script. The Green paragraphs of VT9.2
+and VT9.3 in the slice's record list the rest: the reads of a statement the lowering keeps no
+word structure for, a nested command's own reads, a procedure that writes the
+caller's place through `upvar` inside a `Call` host's expression, and
+`lassign $x a x`.
+
+Pins #2141 (closed on `rust` by #2215).
 
 ## Plan for slices 2–13
 
@@ -6366,17 +6496,18 @@ Pins #2141 (closed on rust by #2215).
 
 #### Record (2026-09-30): slice 9
 
-One implementer runs slice 9 item by item, each its own commit, in the order
+One implementer ran slice 9 item by item, each its own commit, in the order
 the plan's checkpoints group them — VT9.1, VT9.3, VT9.4, then VT9.2, VT9.5
 and VT9.6, the landing — and not in numeric order: VT9.2 lets the lattice
-hold a value for the definition a nested write makes, and VT9.3 must already
-keep every consumer from forwarding that value into a read the same
-statement's write precedes. The decisions are D188 onward in § *Decisions
-taken*. The run paused after VT9.1 at the coordinator's request, for the slice
-6 review's rework (D193 to D201), which changed `ssa.rs` and `sccp.rs`, and
-resumed on the reworked tree; § *The state the next items start from* below is
-what the run found and drafted before it paused, less what it has settled
-since.
+hold a value for the definition a nested write makes, and VT9.3 had to keep
+every consumer from forwarding that value into a read the same statement's
+write precedes first. The decisions are D188 to D192, D202 to D204, D213 and
+D214 in § *Decisions taken*. The run paused after VT9.1 at the coordinator's
+request, for the slice 6 review's rework (D193 to D201), which changed
+`ssa.rs` and `sccp.rs`; it resumed on the reworked tree, and was resumed once
+more after a session restart, which finished the third round of the slice 6
+review's fixes (D207 amended, D215) and landed VT9.5 and VT9.6. § *What slice
+10 starts from*, below the rows, is what the slice leaves for the next one.
 
 | Item | Commit | What landed | Its tests |
 |---|---|---|---|
@@ -6385,6 +6516,7 @@ since.
 | VT9.4 | ``wip(value-transfers): slice 9 — a command substitution evaluates through the nested service`` | `tcl_expr_eval.rs`: `command_substitution_is_none` is restated as `command_substitution_evaluates_through_the_nested_service` (Q2, as assumed). The evaluator reaches a command substitution only through the nested service, so the test asks the service: over `x` holding 1, `[incr x] + 1` is 3 under `LocalWrites` with the one write that makes `x` 2, and `StatefulNested` under `EffectFreeOnly`, and the old program, `[clock seconds] + 1`, which reads the wall clock, has no answer under either policy and makes no write; the bare evaluator, which has no service to ask, still answers neither program. The service needs the driver, so `evaluate_over_x`, which VT9.1's driver tests built inside `value_transfer.rs`'s test module, is a crate-visible `#[cfg(test)]` function beside it, and the tests that used it read it unchanged. The owner page's two mentions of the old name state the new test. No decision: the item moves no rule | `command_substitution_evaluates_through_the_nested_service` (`tcl_expr_eval.rs`, restated, the one test R6 allows to move). Mutation checks, each reverted: the expression services ignoring a nested command's result, the effect-free policy admitting a nested write, and the ordered state applying no write each fail it. No other test moved |
 | VT9.2 | ``wip(value-transfers): slice 9 — the writes an expression's substitutions make are the definitions of its statement`` | registry: `AnalysisInputs::word_state` (`inputs.rs`, defaulted `None`, forwarded by `PinnedInputs`), the state an invocation's own substituting words ran under, which `ExpressionEvaluation` starts its state from (D214). compiler: `ssa::effect_call_host` finds the statement an effect call stands ahead of — D192's adjacency and span — and `demote_reads_beside_writes` shares it; `LatticeDriver::evaluate_embedded` evaluates the call and its host once under `LocalWrites` from the versions the pair reads (`incoming_versions`), for an `AssignExpr`, an `ExprEval` and an `AssignValue` that is one `[expr …]` substitution (`embedded_pair`, `ordered_expression`, `ordered_script`): the call's definitions take what the state's writes left in each place, a place no write reached `Preserve`s (`embedded_defs`, over `defs_from_placed`, which `apply_outcome`'s definition loop shares), the members of a finite input join, and the host's definition takes the result and its folded type (`EmbeddedAnswer`); `sccp_process_statements` asks it at the call and holds the host's answer for the host (`prepared`), and `prior_version` is crate-visible (D213). `run_script` gives a command's words `Words::Ordered` under `LocalWrites`: every substituting operand evaluates once, in operand order, under one state (`evaluate_words`, `substituted_in`), the route's reads of a cell consult what they wrote (`prior_store`, `written_existence`), and `carrying_word_writes` puts their writes ahead of an outcome's own for every route but the expression engine (D214). Over `x` = 1, `set r [expr {$x + [incr x] + $x}]` has `r#1` 5 and `x#2` 2 in the shared lattice, `0 && [incr x]` leaves `x#2` the value of `x#1` (`SccpResult::preserved`), `set r [expr "$x + [incr x]"]` is 3, and O100 forwards the nested store's value to a later read: `puts $r; puts $n` after `set r [expr {$n + [incr n]}]` becomes `puts 3; puts 2`, and `puts 5; puts 3` after `set r [expr {[incr n] + [incr n]}]`, with O109 still keeping the store the first `$n` reads. A differential corpus of 45 programs — loops, branches, short-circuits, elements of arrays, places the frame does not own, writes a word's own command makes, substitutions inside substitutions, each kind of statement, quoted and unbraced operands, existence, non-integers — each run through `tcl opt` under tclsh 8.4 to 9.1, found one hole in the first form, and D214 closes it: a command's words were evaluated each on its own, so `set s a; set r [expr {[string length $s] + [string length [append s bc]]}]; puts "$r $s"` printed `4 a` where tclsh prints `4 abc`, and `lappend` the same; the run after it found no difference. Not in this item, and stated where the pair declines: a `Call` host (`puts [expr {…}]`), a `Return`, a condition and a value that is any other command keep the effect-free policy; a nested command that reads a variable no statement records as a use (`[string length $y]`, `[incr x $y]` — the effect call and the host record the reads of the places the words write and of the expression, not of a nested command's own words) leaves the expression undecided; an error completion declines the pair, which no route yields yet; `puts "$r $x"` is not rewritten where a name holds several constant versions, the projection `sccp_constants_from` makes being keyed by name. | `a_nested_write_is_the_definition_its_embedded_call_makes_and_the_host_takes_the_result` (`sccp.rs`, new: over `x` = 1 and `y` = 5, ten programs, in a procedure and at the top level — `$x + [incr x] + $x` is 5 with `x` 2, `0 && [incr x]` is 0 with `x` 1, `$x + [set x 10] + $x` is 21 with `x` 10, `[incr x] + [incr x]` is 5 with `x` 3, the two ternaries, `[expr {$x + [incr x]}] + [incr x]` is 6, `$y + [incr x] + $y` is 12 and `[set y] + [incr x]` is 7, a nested read the call's own reads supply — an expression statement leaves `x` 2, a quoted `expr` operand gives 3, a branch no write reaches `preserved`, and `$x + [incr x] + (0 && [foo])` is 3 with the unseen `foo` never run); `a_write_a_commands_word_makes_is_a_write_of_the_statement` (new: `string length [append s bc]` leaves `s` at `abc`, `incr x [incr x]` is 4, `expr {$x} + [incr x]` is `2 + 2`, and the words inside words of `append s [append s b]` leave `abab`); `a_write_only_some_inputs_make_is_joined_over_the_members` (new: `$c ? [incr x] : 7` over a `c` of 0 or 1 leaves `x` 1 or 2 and `r` 7 or 2); `what_the_state_cannot_own_keeps_the_conservative_answer` (new: a write to a global, a procedure that writes the caller's `x`, an error in the middle, a host that is a `puts` or an `if`, a loop that carries the write round, a value that is two substitutions in either order, a value that is another command, an unbound place and `expr` and its head rebound by the module stay undecided); `a_commands_words_run_before_it_and_their_writes_are_the_first_of_its_own` and `a_quoted_expr_operand_is_substituted_once_under_the_ordered_state` (`value_transfer.rs`, new: `incr x [incr x]` is 4, `list $x [incr x] $x` is `1 2 2`, `append s [append s b]` is `abab` with the two writes in order, each declining `StatefulNested` under `EffectFreeOnly`; `expr "$x + [incr x]"` is 3 with one write and `expr {$x} + [incr x]` is 4); `the_definitions_decline_a_write_none_of_them_can_carry` (new, over `embedded_defs`: a place no definition belongs to, a cell and its array, and a place no write names keeping what it held); `an_effect_call_stands_ahead_of_the_statement_that_shares_its_span` (`ssa.rs`, new: the host of each effect call, none for any other statement, none for a statement with another span); `a_nested_write_in_a_host_prints_what_tclsh_prints` (`value_transfer_witnesses.rs`, new: 42 programs of the corpus — a loop that carries the write round, a branch or a short-circuit that skips it, an input one member takes and another does not, an element of an array, a place the frame does not own, a write a word's own command makes, a substitution inside a substitution, each kind of statement, a quoted or unbraced operand, existence, a value that is not an integer — each printing what tclsh 8.4 to 9.1 print before and after the optimiser); `a_write_nested_in_a_braced_expr_word_keeps_its_feeding_store` (`tests/optimiser.rs`, moved: the later reads are forwarded the nested store's values where it asserted that nothing was rewritten). Mutation checks, each reverted and each failing the tests that name it: the pair never evaluated, `a_nested_write_is_the_definition_its_embedded_call_makes_and_the_host_takes_the_result`, `a_write_a_commands_word_makes_is_a_write_of_the_statement`, `a_write_only_some_inputs_make_is_joined_over_the_members` and the optimiser test; the host reading the call's own definitions, its own uses dropped, and the call's reads dropped, the first of those; the host's answer not taken from the pair, that test and the optimiser test; a place no write names not preserved, that test and `the_definitions_decline_a_write_none_of_them_can_carry`; a write to a place no definition belongs to taken, and a cell and its array composed as one place, the second of those; only the first member's writes kept, `a_write_only_some_inputs_make_is_joined_over_the_members`; the words' writes not carried ahead of a route's own, the witness, `a_write_a_commands_word_makes_is_a_write_of_the_statement` and `a_commands_words_run_before_it_and_their_writes_are_the_first_of_its_own`; a cell read ignoring the words' writes, the witness and the last; a word's command writing into a state of its own, the witness and the second; a variable a word reads ignoring the writes before it, the last; an existence read ignoring the words' writes, the second; the engine starting from no state of the words, `a_quoted_expr_operand_is_substituted_once_under_the_ordered_state`; a value of several substitutions read as its first, a value that is another command evaluated in order, an `expr` the module rebinds evaluated, and an unbound place ahead of the call waited for, each `what_the_state_cannot_own_keeps_the_conservative_answer`; an effect call's host that need not share its span, `an_effect_call_stands_ahead_of_the_statement_that_shares_its_span`. Four pieces of the first draft were removed because their mutations failed no test and no program could: a pre-pass that forced the words before the route ran, a by-name variable read that consulted the words' writes, an arm that kept the host's answer across a statement between the pair, and the check that a rebound head declined the host. Each is equivalent to what stays: every route reads all its operands before it reads a cell, the engine reads the words' writes from its own state, nothing sits between the pair when it evaluates, and a rebound head has no route. The existence read's use of the words' writes failed no test until `a_write_a_commands_word_makes_is_a_write_of_the_statement` took a program whose place is unbound before the statement (`unset -nocomplain u` ahead of `append u [set u 3]`). Not exercised by any program: the rule that declines an error completion, which no route yields yet. |
 | VT9.5 | ``wip(value-transfers): slice 9 — the seven ordered-state witnesses`` | The interface page's seven programs as one named witness through every path, and the decline at program level. No rule moves, so the item has no decision and no product code. Over `set x 1` the six whose expression runs to its end are `$x + [incr x] + $x` (5, `x` 2), `0 && [incr x]` (0, 1), `$x + [set x 10] + $x` (21, 10), `[incr x] + [incr x]` (5, 3), `$x ? [incr x] : [incr x 10]` (2, 2) and the quoted word `"$x + [incr x]"` (3, 2); the seventh, `catch {expr {[incr x] + [error mid]}}`, stops in the middle and leaves `x` at 2. Each is a procedure and a top-level script, each reads the value and `x` after the expression, and each prints the same under tclsh 8.4 to 9.1 before and after `tcl opt`. **The direct unit** holds the expression's value in `r#1` and the last write in `x#2` (`0 && [incr x]` leaves `x#2` what `x#1` held), under `tcl8.4`, `tcl8.6`, `tcl9.0`, `f5-irules` and the lenient `tcl` profile; O100 forwards both into the `puts` after it, in process (`optimised`) and through the built binary under every release. **The memoised unit** is the direct one value for value, in a procedure and at the top level, under `tcl8.6`, `tcl9.0`, `f5-irules` and `tcl`. **The registry** runs the six expressions through the shared walker's order over the registry's own routes — a read consults the state's writes before the value the expression began with, each nested `incr` and `set` takes the value the state gives `x` and applies the stores it makes in order, and `[error mid]` ends the evaluation with the writes so far — and the value, `x` afterwards and the number of writes (1, 0, 1, 2, 1, 1, and 1 for the seventh) are what each release's tclsh leaves. **The error path.** On the statement form, `catch {…} msg`, nothing forwards the earlier `x`: `x#2` is overdefined, from the `ArmWrites` marker the opaque `catch` states at the top level (D205) and from the `<upvar-invalidate>` call in a procedure, where the `catch` is inlined, and the optimised program keeps `set x 1` and `puts $x` and prints `mid` and 2; `catch {…} msg opts` and `puts [dict get $opts -code]` give the page's 1, from 8.5. **`a_nested_write_outside_the_state_declines`** at program level, beside the driver's test of the name (VT9.1, which pins `StatefulNested` for `$x + [incr ::g]` under both policies): `[set ::g 10]`, a `global` alias's `[set g 10]` and an `upvar` alias's `[set w 10]` in an expression decline the statement as `stateful-nested`, `[incr ::g]` as `not-exact` since the read of `::g` fails first, the nested write stays in the optimised program and it prints what tclsh prints, and `0 && [set ::g 10]` is 0. **#2141 through the CLI**: the issue's two programs, `puts [expr {$x + [incr x] + $x}]` and its `[set x 10]` form, print 5 and 2 and 21 and 10 optimised, with `puts $x` kept where it printed 1, and the issue's two further programs keep `set n 1` and print 3 and 5 where they raised `can't read "n"` and answered 3; `tcl diag` reports no W211 for any of them. **The exit evidence**: `tcl explore --source 'proc p {} {set x 1; set r [expr {$x + [incr x] + $x}]; return $x}' --show sccp --text --no-colour` prints `r#1 = const(5)` and `x#2 = const(2)`. Found and left, outside this change: the page's seventh program with its 1 in value position, `puts [catch {expr {[incr x] + [error mid]}}]; puts $x`, has O109 delete `set x 1` and O102 forward `puts 1` where tclsh prints `1` and `2` — the `catch` inside a substitution, #2323 — so the witness takes the statement form; and O101 rewrites a bare `expr {…}` statement whose value folds into the value alone, `expr {0 && [incr x]}` into `0` and `expr {1 + 2}` into `3`, which Tcl then runs as commands and raises `invalid command name`, so the page's statement forms could not run through `tcl opt` and each witness puts its expression behind `set r` and `puts`. | `the_seven_ordered_state_witnesses` and `a_nested_write_outside_the_state_declines` (`value_transfer_witnesses.rs`, new, with `top_value_at`: the direct unit in a procedure and at the top level under five dialects, the in-process optimiser and tclsh 8.4 to 9.1 for the assignment form, the `puts` argument form — the statement is not folded and `puts $x` stays, `0 && …` folded to 0 — and the error path; the decline under each dialect with its controls); `explore_sccp_prints_the_ordered_state`, `opt_prints_what_tclsh_prints_for_the_seven_ordered_state_programs` and `opt_keeps_what_the_issue_2141_programs_read` (`value_transfers_cli.rs`, new, the last two under every tclsh release on `PATH`); `the_seven_ordered_state_witnesses` (`value_transfer_parity.rs`, new, and `lattice_of` split into `lattice_values` and `top_lattice_of`); `the_seven_ordered_state_witnesses` (`differential_fold.rs`, new, over `ordered_route` and `OrderedProbe`, which drives `tcl_syntax::expr::eval` with the registry's routes and `EvaluationState`). No existing test moved. Mutation checks, each reverted and each failing the tests that name it: the pair never evaluated (`sccp.rs`, `driver.evaluate_embedded` filtered out) failed the compiler witness, the parity test, `explore_sccp_prints_the_ordered_state` and `opt_prints_what_tclsh_prints_for_the_seven_ordered_state_programs`; `ExprServices::var` ignoring the state's writes, the compiler witness and the parity test; the registry's `written_in` taking the first write in place of the last, the registry's witness; an opaque `catch` stating no effect of its body, the compiler witness, the parity test (its top-level form) and the CLI's seven programs; `state_owns` admitting every place, `a_nested_write_outside_the_state_declines`; and the writes inside a braced `expr` word not counted among a statement's (`embedded_subst_extras`), the compiler witness and `opt_keeps_what_the_issue_2141_programs_read`. Two mutations the new tests did not fail, each failed by a test of VT9.3: `demote_reads_beside_writes` demoting nothing, by `an_effect_call_reads_the_version_before_the_write_its_statement_reads`, and a `Call` host keeping its words as operands beside a write, by `a_braced_expr_read_keeps_its_store`; the effect call's own definition of the place is what keeps a later read off the earlier version in the issue's programs. |
+| VT9.6 | ``wip(value-transfers): slice 9 — nested writes in expressions`` | Docs and one constant; no test binary is added. `LANDED` (`rust/xtask/src/registry_axes.rs`) gains `"slice 9"`; no waiver names slice 9 — no source or page carries an `until slice 9`, and the one fixture that names a slice, `parse_waiver("options — x; until slice 4")`, names a landed one — so none expires, `docs/generated/registry-axes.md` is unchanged and so is the value-transfer ledger: no pin moves, no declaration changes. The design pages describe the code as it is, in current-state prose, per the owner's ruling for every file outside this directory: `value-transfers.md` § *`expr`* — the ordered-state paragraphs say which statements are evaluated with their writes and how (the synthetic call and its host, the members of a finite input, a command's own words), what keeps the effect-free policy, what the error path is today, and the tests, and the two "first demanding client" mentions of the section are plain references; `value-evaluation.md` — the `NestedPolicy` sentence; `optimisation-passes.md` — O100, O102 and O109 in § *Pass ownership* and the O100–O103 and O107–O109 rows; `pass-fact-ownership-matrix.md` — a row for the embedded pair and the `ssa.rs` row's unseen-call record and by-name reads; `value-transfers-migration.md` — the slice's entry (landed, with its record), the `sccp.rs` and `tcl_expr_eval.rs` rows and the O100, O102 and O109 / O126 rows; `value-transfers-examples.md` — the ordered-state rung's programs and prose; `precision-limitations.md` — a new open entry for the hosts the solver does not evaluate, and the #2231 passage no longer names a slice. KCS notes: none beyond those the items shipped — O100 at VT9.2, O102 and O109 at VT9.3 — and the I230 and W210 pages of the slice 6 review's third round; `cargo xtask kcs-index-links` passes. `docs/design/lanes/README.md`'s in-flight paragraph moves slice 9 to the landed list and names the review's later rounds; this document gains § *Status (2026-10-01): slice 9 landed*, names the third round in slice 6's status, and the Record's introduction and closing notes are rewritten as the landed record (§ *What slice 10 starts from*). Deviations: none from the plan's file list beyond `value-transfers-examples.md` and `precision-limitations.md`, whose passages stated the behaviour before the slice or named it | none (docs and one constant); G1 (`value-transfers --check`, unchanged), G5, G6 and the shard manifest proof (`verify-nextest-binary-shards.py --metadata-only`, 330 targets) green; G3 (no new test binary) and G4 (no catalogue text changed) not triggered |
 
 Green at VT9.1: `tcl-registry` 1276 passed across its binaries and a
 doctest (`value_transfers` 45); `tcl-compiler` 9834 passed, 6 ignored across
@@ -6405,89 +6537,83 @@ Green at VT9.2: `tcl-compiler` 9961 passed, 6 ignored across its 67 binaries and
 
 Green at VT9.5: `tcl-compiler` `value_transfer_witnesses` 86 (the other binaries as at review fixes, round 3: 9965 passed, 6 ignored across its 67 binaries and 7 doctests, the library 6660), `tcl-registry` 1299 passed across its binaries (the library 966, `differential_fold` 15, `value_transfers` 45), `tcl-lsp-db` 139, 5 ignored (the library 105), `tcl-cli` 136 (`value_transfers_cli` 14) and `tcl-explorer` 109; workspace clippy (`--all-targets -D warnings`), no `#[allow]` added, and `cargo fmt --check`; `value-transfers --check` (22 clean, 19 waived, 83 pinned across 34 files, 6607 rows) and `registry-axes --check` (7831 vocabulary words, 16 clean, 36 waived, 893 pinned across 147 files), both unchanged; `pack-goldens` (25 packs), `retired-api-gate`, `owner-resolution` (45 rows) and `kcs-index-links` pass; `dialect-drift` 8 sites, the eight pre-existing ones, none new; `cargo check --workspace --all-targets` clean.
 
-##### The state the next items start from
+Green at VT9.6: the suites and gates of § *Status (2026-10-01): slice 9 landed*, run on the tree this item commits; `cargo xtask registry-axes --check` and `value-transfers --check` unchanged, `kcs-index-links` and `owner-resolution` pass, `cargo test -p xtask` 242.
 
-What the run read and drafted after VT9.1, none of it built or committed
-(the drafts are `vt93_apply.py` and `vt92_apply.py` in the run's scratchpad,
-written against this tree; the rework moves their anchors, so they are notes,
-not patches):
+##### What slice 10 starts from
 
-- **The shapes.** A statement that embeds a command which writes the frame
-  gets a synthetic `<upvar-invalidate>` call ahead of it, defining the
-  written names and reading the read-before-write ones
-  (`cfg_builder/mod.rs`: `embedded_subst_extras`, `upvar_invalidated`,
-  `push_embedded_control_effects`); a `Call` host holds them in its own
-  `defs` and `reads` instead, with no call of its own. `expr {…}` alone is
-  an `ExprEval`, `set r [expr {…}]` an `AssignExpr`, `set r [expr "…"]` an
-  `AssignValue`, `expr "…"` and `puts [expr {…}]` are `Call`s, `return [expr
-  {…}]` a `Return` whose call is the block's last statement, and a condition
-  gets a `<cond>` call. The call and its host share one span and are
-  adjacent.
-- **VT9.3, settled.** A statement's reads beside a write its substitutions make
-  are read by name, and the call that carries the write reads the version before
-  it (D202 to D204): VT9.2's pair takes each place the call defines at the
-  version the call reads (`call.uses`), and a place the call does not read at
-  all is absent from the incoming versions. The call and its host are found as
-  D192 says, in `demote_reads_beside_writes`.
-- **VT9.4, settled.** `command_substitution_is_none` is
-  `command_substitution_evaluates_through_the_nested_service`, over the driver's
-  own harness (`value_transfer::evaluate_over_x`, a `#[cfg(test)]` function the
-  driver tests and `tcl_expr_eval.rs` share); VT9.5's direct-unit witnesses use
-  the same harness.
-- **VT9.2, settled.** The solver evaluates a synthetic embedded call and its host once, at the call (`LatticeDriver::evaluate_embedded`, D213), and a command's own substituting words run before it, in order, under one state (D214). The call's definitions take the last write the state holds per place, a place no write reached keeps what it held, and the host takes the result; only an `AssignExpr`, an `ExprEval` and an `AssignValue` that is one `[expr …]` are evaluated this way, and a `Call` host, a `Return`, a condition and any other value keep `EffectFreeOnly`, so `puts [expr {$x + [incr x] + $x}]; puts $x` still forwards nothing, as the examples page says, where `set r [expr {$x + [incr x] + $x}]; puts $x` forwards 2. The three-path witnesses of VT9.5 assert the values for the assignment forms and, for the `puts` forms, that the statement is not folded and that the optimised program prints what the original does. The host is found as D192 says; the plan's carried index was not built.
-- **Left for the sonnet items.** `a_nested_write_outside_the_state_declines`
-  exists at the driver; at program level an escaping global's read fails
-  first (`not-exact`), so the witness asserts the statement is not folded and
-  the optimised program prints as the original.
+What slice 9 built and what the slice 6 rework put under it, which slice 10's
+completion paths read or change:
 
-##### What the slice 6 rework changed under these notes
-
-The three review-fix commits of slice 6 landed on the tree these notes describe.
-The shapes above hold; five things moved under them, and the comments around
-them were rewritten:
-
-- **Markers sit among the statements.** `CfgBuilder::unseen_call_marker` puts a
-  `SyntheticMarker::UnseenCall` call where a command the module cannot see runs
-  — at the top level, and in a procedure where a file is sourced — ahead of a
-  statement and its synthetic `<upvar-invalidate>` call when a `[…]` word runs
-  such a command, after it when the statement's own head does
-  (`upvar_invalidated`). `opaque_arm_effects` puts an `ArmWrites` marker, and
-  where an arm may write any name a `CallerFrameOpaque` barrier, after an opaque
-  `switch`. A host and its synthetic call stay adjacent, but anything that reads
-  "the statement before or after" — VT9.2's host and call pairing, a `Return`
-  host whose call is the block's last statement — skips what
-  `ssa::is_effect_marker` says, as `unit_scope`'s call-site scan, codegen and
-  the wasm plan do.
-- **An opaque `switch` has definitions.** `ssa::switch_may_defs` gives it a new
-  version, in `SsaStatement::defs` and marked in `may_defs`, of every name an
-  arm may write, each reading its prior version as a `Quoted` use, so a
-  `Statement::Switch` is no statement without defs. Code that keys on a host's
-  defs, such as `uses_of_classified`'s final-def filter, sees them.
-- **A callback's writes escape.** `Module::deferred_writes`
-  (`deferred_writes.rs`) names what the scripts a command stores to run later
-  write; `TraceInputs::extend_module_escaping` adds them to the escaping set
-  (`writes_any_variable` covers a callback that writes a computed name), and
-  `LatticeDriver::is_escaping`, which `state_owns` asks, reads that set, so
-  `LocalWrites` answers `StatefulNested` for a nested write to such a name as it
-  does for a traced one.
-- **A top-level name survives no call the module cannot see.**
-  `SsaFunction::unseen_call_versions` records the versions live at each
-  `UnseenCall`; the solver makes a recorded definition or φ `Overdefined`
-  (`sccp_process_phis` and `record_phi_folded_types` take the SSA for it) and
-  O102 and O109 skip it, so a value VT9.2 gives a top-level definition is
-  forwarded across no such call, and VT9.3's O109 and O102 guards are in
-  addition to this rule, not in place of it.
-- **`upvar_invalidated` is shared.** The arms of an opaque `switch` ask
-  `apply_upvar_invalidation` of each nested statement, so a change VT9.3 makes
-  to what a statement's embedded commands write or read
-  (`embedded_subst_extras`, `upvar_effect_statements`) changes what an arm
-  contributes to the `ArmWrites` marker;
-  `an_opaque_switch_arm_that_calls_a_writer_may_define_the_name_it_writes`
-  (`ssa.rs`) and the opaque-arm witnesses pin it.
-- **Anchors.** The comment rewrite of the third commit changed the text of
-  comments in `value_transfer.rs`, `sccp.rs`, `dataflow.rs` and the tests: a
-  draft that anchors on a comment (`VT8.2`, `D166`, "since slice 8") must anchor
-  on the code beside it.
+- **The shapes.** A statement that embeds a command which writes the frame has
+  a synthetic `<upvar-invalidate>` call ahead of it, defining the written names
+  and reading by name those the statement reads (`cfg_builder/mod.rs`:
+  `embedded_subst_extras`, `upvar_invalidated`, `push_embedded_control_effects`);
+  a `Call` host holds them in its own `defs` and `reads` instead, with no call of
+  its own. `expr {…}` alone is an `ExprEval`, `set r [expr {…}]` an
+  `AssignExpr`, `set r [expr "…"]` an `AssignValue`; `expr "…"` and `puts [expr
+  {…}]` are `Call`s, `return [expr {…}]` a `Return` whose call is the block's
+  last statement, and a condition gets a `<cond>` call. The call and its host
+  share one span and are adjacent, and `ssa::effect_call_host` finds the host
+  (D192), skipping what `ssa::is_effect_marker` says: the `UnseenCall`,
+  `ArmWrites` and `CallerFrameOpaque` markers sit among the statements, ahead of
+  a statement and its call when a `[…]` word runs a command the module cannot
+  see, after it when the statement's own head does, as `unit_scope`'s call-site
+  scan, codegen and the wasm plan skip them too.
+- **The ordered state is complete up to the error path.** `EvaluationState`,
+  `ExprServices::var` reading the state's writes first, `ExprStop::Ended` and
+  `ExprAnswer::Ended`, `ExpressionEvaluation` turning an ended evaluation into
+  an outcome whose completion is `Error { written }` with the state's writes as
+  `nested_writes`, and `validate_outcome` counting the error prefix across
+  `nested_writes` and then `ordered_stores` are built and tested over a
+  scripted nested service (`an_error_completion_ends_the_evaluation_with_the_writes_so_far`).
+  No route yields an error completion — `error` has no route, and no builtin
+  that raises has one — so no program reaches the path: `embedded_pair` declines
+  a pair whose outcome completes with an error, since a definition cannot state
+  a prefix, the opaque `catch` states its body's writes as may-definitions
+  (D205), and an inlined `catch`'s exception edge leaves from
+  before its body, so after `catch {expr {[incr x] + [error mid]}}` the lattice
+  holds `x` unknown where tclsh leaves 2 (`the_seven_ordered_state_witnesses`
+  asserts the unknown, and that nothing forwards the earlier value). The per-path
+  publication is what makes it exact: it replaces that decline, gives a nested
+  route an error completion with its prefix, and moves the inlined `catch`'s
+  exception edge to the writes that ran.
+  `OrderedProbe` in `differential_fold.rs` already ends on `[error mid]` with
+  the writes so far and checks the result against each release.
+- **What the hosts evaluate.** Only an `AssignExpr`, an `ExprEval` and an
+  `AssignValue` that is one `[expr …]` are evaluated with their call (D213); a
+  `Call` host, a `Return`, a condition and any other value keep
+  `EffectFreeOnly`, so `puts [expr {$x + [incr x] + $x}]; puts $x` folds
+  nothing. A command's own substituting words run before it under one state
+  (D214, `Words::Ordered`, `carrying_word_writes`).
+- **An opaque statement has definitions.** `ssa::switch_may_defs` gives an
+  opaque `switch` a new version, marked in `may_defs`, of every name an arm may
+  write, each reading its prior version as a `Quoted` use, so a
+  `Statement::Switch` is no statement without defs and code that keys on a
+  host's defs, such as `uses_of_classified`'s final-def filter, sees them; the
+  opaque `catch` and the deferred `try` state their scripts' writes the same
+  way (`opaque_script_effects`, D205). That walk asks `apply_upvar_invalidation`
+  of each nested statement, so a change to what a statement's embedded commands
+  write or read (`embedded_subst_extras`, `upvar_effect_statements`) changes what
+  an arm or a body contributes to the `ArmWrites` marker.
+- **A callback's writes escape**, and a top-level name survives no call the
+  module cannot see. `Module::deferred_writes` names what the scripts a command
+  stores to run later write, and `TraceInputs::extend_module_escaping` adds them
+  to the escaping set, which `LatticeDriver::is_escaping` and so `state_owns`
+  read: `LocalWrites` answers `StatefulNested` for a nested write to such a name
+  as for a traced one. `SsaFunction::unseen_call_versions` records the versions
+  live at each `UnseenCall`; the solver makes a recorded definition or φ
+  `Overdefined` and O102 and O109 skip it, so a value the pair gives a top-level
+  definition is forwarded across no such call, and W210 reads the marker sites
+  for a name with no version (D215). A body a `[…]` substitution runs is read
+  for unseen code in every frame (D207) and states no write (#2323), which is
+  where the substitution's body walk and a path-exact `catch` protocol meet.
+- **The witnesses are the tests slice 10 extends.** `the_seven_ordered_state_witnesses`
+  in the compiler's witnesses, the memoised parity file, the CLI tests and the
+  registry's differential each hold the seventh program on the statement form
+  `catch {…} msg`; the value-position form (`puts [catch {…}]`) is #2323's and
+  forwards the earlier `x`. When a route yields an error completion the
+  seventh program's `x` becomes exactly 2 on the three paths, and the unknown
+  they assert moves to that value.
 
 ### Slice 10 — completion paths
 

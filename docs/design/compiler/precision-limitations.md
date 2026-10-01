@@ -132,8 +132,8 @@ frame is read.
 scan see a nested command's read or write only where the lowering places a
 synthetic statement for it: a condition's `<cond>`, a value word's or a
 `return` word's own `<upvar-invalidate>`, and a host statement's own uses.
-Slice 8's audit of every position an existence read can reach (VT8.5)
-found three positions with no synthetic statement at all, so **both** an
+An audit of every position an existence read can reach found three
+positions with no synthetic statement at all, so **both** an
 existence and a value read there are invisible — not a precision loss but
 a miscompile, verified against `tclsh` 8.6.18 (each pair below is the
 original's printed output, then the optimised program's):
@@ -159,12 +159,37 @@ original's printed output, then the optimised program's):
 
 Why it has not been done: each position needs the lowering to model a body
 it does not open a synthetic statement for at all, which is more than a
-scan-order fix — the nested-substitution case is tracked as #2231 and
-named for the interface contract's slice 9 (nested writes in expressions);
-`uplevel 0` (#2261) and the loop header's list word (#2262) are not yet
-assigned to a slice. Extend the synthetic-statement placement (or, for
+scan-order fix — the nested-substitution case is tracked as #2231 and its
+write side as #2323; `uplevel 0` (#2261) and the loop header's list word
+(#2262) are tracked on their own. Extend the synthetic-statement placement (or, for
 `uplevel 0`, model the body as reading and writing the *current* frame
 rather than a nested one) when one of these is the motivating case.
+
+## Open — a statement's nested writes are evaluated for an assignment or an `expr` only
+
+The solver evaluates the writes a statement's own `[…]` substitutions make —
+the ordered evaluation state under `LocalWrites` — only where the statement is
+an assignment of an expression, an `expr` on its own, or an assignment of one
+`[expr …]` substitution (`LatticeDriver::evaluate_embedded`). A `puts`
+argument, a `return`, a branch condition and any other command's value keep
+the effect-free policy, which declines a nested write that runs:
+`puts [expr {$x + [incr x] + $x}]; puts $x` folds nothing and forwards
+nothing past the statement, though it prints `5` and `2`, and `set r [expr
+{$x + [incr x] + $x}]; puts $r; puts $x` folds both reads. That is sound, and
+short of what the assignment form proves.
+
+Two shapes are left undecided as well. A nested command that reads a variable
+no statement records as a use (`[string length $y]`, `[incr x $y]`) leaves the
+expression unevaluated: the synthetic call and the host record the reads of the
+places the words write and of the expression's own variables, not of a nested
+command's own words. And an error completion, which no route yields, ends no
+evaluation with its prefix: `catch {expr {[incr x] + [error mid]}}` leaves `x`
+unknown rather than 2.
+
+Why it has not been done: each shape needs the host statement to state the
+reads of its own substitutions, or a route that raises with a prefix of
+stores, which is more than a policy change. Extend the host list, and the
+reads the call records, when one of these is the motivating case.
 
 ## Accepted — a nested unbind's kill is not a definition
 
