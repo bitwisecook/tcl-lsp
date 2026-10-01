@@ -33,7 +33,7 @@ use crate::defs::{
     Chr, DUPINF, DUPMAX, Err, REG_ADVANCED, REG_ADVF, REG_EXPANDED, REG_EXTENDED, REG_ICASE,
     REG_NEWLINE, REG_NLANCH, REG_NLSTOP, REG_NOSUB, REG_QUOTE, REG_UBACKREF, REG_UBBS, REG_UBOUNDS,
     REG_UBRACES, REG_UBSALNUM, REG_ULOCALE, REG_ULOOKAHEAD, REG_UNONPOSIX, REG_UPBOTCH,
-    REG_UUNPORT, REG_UUNSPEC,
+    REG_UUNPORT, REG_UUNSPEC, REG_ZANCHOR,
 };
 
 /// Lexical token kinds, mirroring the C `nexttype` codes.
@@ -939,6 +939,7 @@ impl Parser<'_> {
                 self.setv(Tok::NWbdry, 0);
             }
             Some(b'Z') => self.setv(Tok::Send, 0),
+            Some(b'z') if self.cflags & REG_ZANCHOR != 0 => self.setv(Tok::Send, 0),
             Some(d @ b'1'..=b'9') => {
                 let save = self.now;
                 self.now -= 1;

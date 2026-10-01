@@ -170,6 +170,18 @@ impl Family {
         }
     }
 
+    /// The family's name as a description shows it: `Tcl`, `F5 Tcl`,
+    /// `F5 iRules`, `Jim`.
+    #[must_use]
+    pub const fn display_name(self) -> &'static str {
+        match self {
+            Self::Tcl => "Tcl",
+            Self::F5Tcl => "F5 Tcl",
+            Self::F5Irules => "F5 iRules",
+            Self::Jim => "Jim",
+        }
+    }
+
     /// The family's release ladder, oldest first.
     #[must_use]
     pub const fn releases(self) -> &'static [Release] {
@@ -273,6 +285,49 @@ impl Family {
     #[must_use]
     pub const fn declaration_only_top_level(self) -> bool {
         matches!(self, Self::F5Irules)
+    }
+
+    /// Whether `self` and `other` sit on one derivation line: the same
+    /// family, or one is an ancestor of the other along
+    /// [`Family::ancestry`] edges of any [`Lineage`].
+    ///
+    /// The question "could a command of `other`'s core surface be meant for a
+    /// document in `self`?" — a `tcl8.6` document that writes an iRules
+    /// command, or a `jim` document that writes a Tcl command Jim omits, is
+    /// on the line of the family that has it, whereas `jim` and `f5-irules`
+    /// share only a common ancestor and are on no line together.
+    #[must_use]
+    pub const fn on_one_line_with(self, other: Self) -> bool {
+        self.derives_from(other, false) || other.derives_from(self, false)
+    }
+
+    /// Whether a document in `self` shares the package ecosystem of `other`:
+    /// the same family, or a **fork** descendant of it. A fork keeps the
+    /// ancestor's `package require` machinery (the F5 trunk is a fork of Tcl
+    /// 8.4.6), whereas a [`Lineage::Reimplementation`] shares no packages
+    /// with the language it reimplements — Jim has no Tk, no Expect, no
+    /// tcllib.
+    #[must_use]
+    pub const fn shares_packages_with(self, other: Self) -> bool {
+        self.derives_from(other, true)
+    }
+
+    /// Whether `self` is `ancestor` or derives from it along ancestry edges
+    /// (`forks_only`: through [`Lineage::Fork`] edges alone).
+    const fn derives_from(self, ancestor: Self, forks_only: bool) -> bool {
+        let mut family = self;
+        loop {
+            if family as u8 == ancestor as u8 {
+                return true;
+            }
+            let Some(edge) = family.ancestry() else {
+                return false;
+            };
+            if forks_only && !matches!(edge.lineage, Lineage::Fork) {
+                return false;
+            }
+            family = edge.parent;
+        }
     }
 }
 
@@ -976,6 +1031,46 @@ mod tests {
     use super::*;
     use crate::DialectProfile;
     use std::str::FromStr;
+
+    /// A family is on a line with itself and with every ancestor and
+    /// descendant, in both directions; two families that only share an
+    /// ancestor are on no line together.
+    #[test]
+    fn families_on_one_derivation_line_are_related_in_both_directions() {
+        for family in Family::ALL {
+            assert!(family.on_one_line_with(family), "{family}");
+        }
+        for (a, b) in [
+            (Family::Tcl, Family::F5Tcl),
+            (Family::Tcl, Family::F5Irules),
+            (Family::F5Tcl, Family::F5Irules),
+            (Family::Tcl, Family::Jim),
+        ] {
+            assert!(a.on_one_line_with(b), "{a} / {b}");
+            assert!(b.on_one_line_with(a), "{b} / {a}");
+        }
+        for (a, b) in [
+            (Family::Jim, Family::F5Tcl),
+            (Family::Jim, Family::F5Irules),
+        ] {
+            assert!(!a.on_one_line_with(b), "{a} / {b}");
+            assert!(!b.on_one_line_with(a), "{b} / {a}");
+        }
+    }
+
+    /// Fork descendants keep the ancestor's package ecosystem; a
+    /// reimplementation does not, and an ancestor does not gain its
+    /// descendants' packages.
+    #[test]
+    fn only_a_fork_shares_its_ancestors_packages() {
+        assert!(Family::F5Tcl.shares_packages_with(Family::Tcl));
+        assert!(Family::F5Irules.shares_packages_with(Family::Tcl));
+        assert!(Family::F5Irules.shares_packages_with(Family::F5Tcl));
+        assert!(Family::Tcl.shares_packages_with(Family::Tcl));
+        assert!(!Family::Jim.shares_packages_with(Family::Tcl));
+        assert!(!Family::Tcl.shares_packages_with(Family::F5Tcl));
+        assert!(!Family::Jim.shares_packages_with(Family::F5Tcl));
+    }
 
     #[test]
     fn ladders_are_ordered_and_complete() {

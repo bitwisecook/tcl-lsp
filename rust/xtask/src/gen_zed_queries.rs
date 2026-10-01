@@ -42,14 +42,15 @@
 use std::collections::BTreeSet;
 use std::fs;
 use std::process::ExitCode;
-use tcl_dialect::model::{SpecProvider, surface_provided_by};
 
 use anyhow::{Context, Result};
 use tcl_dialect::DialectProfile;
+use tcl_dialect::model::{LENIENT_ENVIRONMENT_ID, SpecProvider, surface_provided_by};
 use tcl_registry::CommandRegistry;
 use tcl_registry::model::ResolvedContext;
 use tcl_registry::traits::Traits;
 
+use crate::editor_extensions::{ZED_LANGUAGES, ZedSource};
 use crate::util::{self, repo_root, write_if_changed};
 
 /// A language directory we emit a query for, and the dialect profile whose
@@ -120,44 +121,44 @@ fn registry_for(profile: &'static DialectProfile) -> &'static CommandRegistry {
     crate::environment::store_for_profile(profile)
 }
 
-/// The languages we generate queries for. iRules/iApps/Expect share the `tcl`
-/// grammar and today ship *no* query files at all, so this also gives them a
-/// first-paint highlight layer for the first time.
+/// The Tcl grammar name in a Zed language's `config.toml`.
+const TCL_GRAMMAR: &str = "tcl";
+
+/// The `grammar = "…"` value of a Zed language directory's `config.toml`.
+fn zed_grammar(dir: &str) -> String {
+    let path = repo_root().join(format!("editors/zed/languages/{dir}/config.toml"));
+    let text = fs::read_to_string(&path)
+        .unwrap_or_else(|error| panic!("reading {}: {error}", path.display()));
+    text.lines()
+        .find_map(|line| line.strip_prefix("grammar = \""))
+        .and_then(|rest| rest.strip_suffix('"'))
+        .unwrap_or_else(|| panic!("{} names no grammar", path.display()))
+        .to_owned()
+}
+
+/// The languages we generate queries for: every Zed language directory that
+/// uses the Tcl grammar and whose registrations come from the plain Tcl
+/// environment or from one environment of its own (iRules, iApps, Expect).
+/// Those directories share the `tcl` grammar and would otherwise ship no query
+/// of their own, so this gives them a first-paint highlight layer. A directory
+/// on another grammar (BIG-IP configuration, APL) keeps a hand-written query
+/// for it.
 fn targets() -> Vec<Target> {
-    vec![
-        Target {
-            // The plain-Tcl profile: its grammar union is the whole Tcl
-            // ladder. Tk is filtered out by `required_package` (it needs
-            // `package require Tk`), so what is left is the ambient core.
-            dir: "tcl",
-            id: "tcl",
-            profile: crate::environment::profile_for_dialect("tcl"),
-        },
-        Target {
-            // iRules availability is stated per spec
-            // (dialect-profile-model.md §9), so the profile's grammar union
-            // names only the iRules family: a command is projected iff its
-            // own surface names iRules, minus the math-operator heads
-            // (`Traits::OPERATOR_COMMAND` — operators live only inside
-            // `expr` there). A sandbox-banned command such as `exec` simply
-            // does not name iRules, so there is no disable list to
-            // subtract, and post-8.4 commands (`dict`, `lassign`, `zipfs`)
-            // fall out the same way — iRules is the Tcl 8.4 base.
-            dir: "irules",
-            id: "f5-irules",
-            profile: crate::environment::profile_for_dialect("f5-irules"),
-        },
-        Target {
-            dir: "iapps",
-            id: "f5-iapps",
-            profile: crate::environment::profile_for_dialect("f5-iapps"),
-        },
-        Target {
-            dir: "expect",
-            id: "expect",
-            profile: crate::environment::profile_for_dialect("expect"),
-        },
-    ]
+    ZED_LANGUAGES
+        .iter()
+        .filter_map(|zed| {
+            let id = match zed.source {
+                ZedSource::Union => LENIENT_ENVIRONMENT_ID,
+                ZedSource::Environment(id) => id,
+                ZedSource::Extra(_) => return None,
+            };
+            (zed_grammar(zed.dir) == TCL_GRAMMAR).then(|| Target {
+                dir: zed.dir,
+                id,
+                profile: crate::environment::profile_for_dialect(id),
+            })
+        })
+        .collect()
 }
 
 /// The three command buckets projected from the registry for one dialect set.

@@ -22,16 +22,20 @@ speclib eda_cadence 2.0 {
 display_name {Cadence EDA Shells}
 
 environment cadence-eda-tcl {
-    display_name    {Cadence EDA Tcl}
+    display_name    {Cadence Genus / Innovus / Xcelium}
+    short_name      {Cadence}
+    kind            packages
     core            tcl 8.4
     version_ceiling 8.4
     editor_identity tcl-cadence
-    ambient         sdc keyed SdcVersion
-    ambient         upf keyed UpfVersion
     ambient         cadence-genus keyed ToolVersion
     ambient         cadence-common keyed ToolVersion
     ambient         cadence-innovus keyed ToolVersion
     ambient         cadence-xcelium keyed ToolVersion
+    ambient         sdc keyed SdcVersion
+    ambient         upf keyed UpfVersion
+    alias           genus
+    alias           innovus
     file_extension  globals -name {Innovus/Genus Globals}
     help_terms      {cadence genus innovus tempus xcelium encounter}
 }

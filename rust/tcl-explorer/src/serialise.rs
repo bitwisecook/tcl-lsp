@@ -68,7 +68,6 @@ use tcl_compiler::state_ssa::{CfgStatePosition, StateOp, StateSite};
 use tcl_compiler::taint::find_taint_warnings_for_cu;
 use tcl_compiler::world_state_ssa::{WorldStateSsaDecline, project_transition_facts};
 use tcl_lexer::{LexerConfig, LineIndex, Span, TokenType};
-use tcl_registry::available_dialects;
 // See the note in `lib.rs`: the explorer resolves against the active pack set.
 use tcl_spectcl::bundled::active_registry_for_dialect as registry_for_dialect;
 use tcl_syntax::expr::ast::render_expr;
@@ -83,20 +82,19 @@ use crate::views::{Severity, VIEW_META};
 /// Serialise the `meta` view: dialect list, view-tab table, and the
 /// severity vocabulary.
 ///
-/// Dialects carry their catalogue labels (`display_name` for menus,
-/// `short_name` for toolbars) exactly like the `views` entries carry
-/// theirs, so no GUI consumer needs its own name table. A name without a
-/// catalogue profile repeats itself as both labels.
+/// Dialects are the selectable environments in selectable order, each carrying
+/// its labels (`display_name` for menus, `short_name` for toolbars) exactly
+/// like the `views` entries carry theirs, so no GUI consumer needs its own
+/// name table.
 #[must_use]
 pub fn serialise_meta() -> Value {
-    let dialects: Vec<Value> = available_dialects()
+    let dialects: Vec<Value> = tcl_registry::model::selectable_environments()
         .iter()
-        .map(|d| {
-            let profile = crate::environment::catalogue_profile_for_dialect(d);
+        .map(|environment| {
             json!({
-                "name": *d,
-                "displayName": profile.map_or(*d, |p| p.display_name),
-                "shortName": profile.map_or(*d, |p| p.short_name),
+                "name": environment.id.as_str(),
+                "displayName": environment.display_name.as_ref(),
+                "shortName": environment.short_name.as_ref(),
             })
         })
         .collect();
@@ -3332,19 +3330,21 @@ mod tests {
     #[test]
     fn meta_lists_all_dialects_views_and_severities() {
         let meta = serialise_meta();
-        // Every dialect the registry offers is exposed, and in its order.
-        // Derived from `available_dialects` rather than pinned to a count:
-        // the invariant worth holding is "the explorer drops none of them",
-        // and a magic number only ever announces a new dialect (`spectcl`,
-        // most recently) by turning CI red on the branch that adds it.
+        // Every environment the registry offers is exposed, and in its order.
+        // Derived from the selectable set rather than pinned to a count: the
+        // invariant worth holding is "the explorer drops none of them".
         let dialects: Vec<&str> = meta["dialects"]
             .as_array()
             .unwrap()
             .iter()
             .map(|d| d["name"].as_str().unwrap())
             .collect();
-        assert_eq!(dialects, available_dialects());
-        // Every entry carries its catalogue labels, like the `views` entries.
+        let selectable: Vec<&str> = tcl_dialect::model::EnvironmentRegistry::compiled_selectable()
+            .iter()
+            .map(|environment| environment.id.as_str())
+            .collect();
+        assert_eq!(dialects, selectable);
+        // Every entry carries its labels, like the `views` entries.
         for entry in meta["dialects"].as_array().unwrap() {
             assert!(entry["displayName"].as_str().is_some_and(|s| !s.is_empty()));
             assert!(entry["shortName"].as_str().is_some_and(|s| !s.is_empty()));

@@ -16,6 +16,7 @@ fails — it returns `default` when nothing fires.
 | Priority | Source | Example |
 |----------|--------|---------|
 | −1 | **Per-document override** | `tcl-lsp.setDocumentDialectOverride(uri, dialect)` — a host naming one exact URI, above everything including the language id |
+| −0.5 | **Session override** | `tcl-lsp.setSessionDialectOverride(dialect)` / `tcl-lsp.setDialect` — re-tags every open buffer that has no per-document override |
 | 0 | **Editor language ID / explicit `--dialect`** | Applied by the *caller*, above `detect_dialect`, and overrides everything below |
 | 1 | **Comment directive** | `# tcl-dialect: tcl8.4` in the first 5 lines (`DIALECT_DIRECTIVE_SCAN_LINES`) |
 | 2 | **Shebang** | `#!/usr/bin/env tclsh8.5` or `#!/usr/bin/expect` (first line only) |
@@ -89,10 +90,11 @@ pack declares — matched case-sensitively, and answered as the resolved
 and detection falls through to the next tier rather than erroring.
 
 `tk` therefore resolves: it is a package plus an environment, never a
-dialect, and the directive selects environments. The dialect catalogue
-(`tcl_dialect::KNOWN_DIALECTS`, the same set as `DialectProfile::all()`,
-`spectcl` and `sslictcl` included) is what the CLI's `--dialect` choices and
-the MCP `dialect_schema` enum enumerate; it does not gate the directive.
+dialect, and the directive selects environments. The selectable set
+(`EnvironmentRegistry::selectable`: every environment except the lenient
+`tcl` sink, `jim` and `tk` included) is what the CLI's `--dialect` choices and
+the MCP `dialect_schema` enum enumerate; it does not gate the directive, which
+accepts every declared name.
 
 The directive takes priority over shebang detection.  This allows a file to
 have a generic `#!/usr/bin/tclsh` shebang while still targeting a specific
@@ -106,21 +108,26 @@ set x 1
 
 ## Shebang detection
 
-The first line only is checked, and only when it starts with `#!`. The line is
-lower-cased first, so matching is case-insensitive.
+The first line only is checked, and only when it starts with `#!`. The
+interpreter is the basename of the line's first token, or, when that is `env`,
+of the first token after it that is neither a flag (`-S`, `-i`) nor a
+`NAME=value` assignment. It is compared, ignoring ASCII case, with the whole
+of each environment's `shebang_words` in the live registry, so a directory
+(`/home/wish/bin/jimsh`), an argument or a longer name (`jimshell`) selects
+nothing. The registry refuses two environments that claim one word.
 
-- The word `expect` anywhere on the line (at word boundaries) → `expect`.
-  `#!/usr/bin/expect` and `#!/usr/bin/env expect` both match.
-- Otherwise, `tclsh<major>.<minor>` or `wish<major>.<minor>` — the shell
-  name at a left word boundary, followed by digits, a `.`, digits, and a right
-  word boundary. The version must then be exactly one of `8.4`, `8.5`, `8.6`,
-  `9.0`, or `9.1` to name a dialect. `wish` contributes only the version: Tk
-  is a library in this model, not a dialect.
+- `expect` → `expect` (`#!/usr/bin/expect` and `#!/usr/bin/env expect`).
+- `jimsh` → `jim`.
+- `wish` → `tk`; `tclsh<major>.<minor>` and `wish<major>.<minor>` → the
+  Tcl release of that version (`tclsh8.5` and `wish8.5` both select
+  `tcl8.5`), because each release environment lists both spellings.
 
-A plain `#!/usr/bin/tclsh` or `#!/usr/bin/wish` without a version number does
-not select a specific dialect and falls through to the next tier. So does a version this
-project does not model (`tclsh8.3`, `tclsh9.2`) — an unmodelled version is an
-abstention, not an error.
+A plain `#!/usr/bin/tclsh` selects nothing and falls through to the next
+tier: the lenient `tcl` sink declares `tclsh` as its shebang word — which
+is why the editor generators give the plain `tcl` language a first-line
+pattern — but the shebang tier skips the sink, because a fallback is not a
+choice. So does a version this project does not model (`tclsh8.3`,
+`tclsh9.2`) — an unmodelled version is an abstention, not an error.
 
 ## Per-document override (`tcl-lsp.setDocumentDialectOverride`)
 
@@ -144,7 +151,11 @@ nothing there.
 ## User setting (`tclLsp.dialect`)
 
 This setting acts as the default dialect for files that have no per-file
-hint.  Set it in your editor configuration:
+hint. A session-scope value is validated with `resolve_known_environment`:
+a value that names no environment is not stored, the server logs a WARNING
+naming it and the selectable ids, and the default applies; a folder-scope
+value that names no environment is dropped. Set it in your editor
+configuration:
 
 **VS Code** (`.vscode/settings.json`):
 ```json
@@ -191,17 +202,22 @@ Dialect is re-evaluated when:
 
 ## Editor language ID mapping
 
-`Backend::dialect_from_language_id` maps five ids by hand (`tcl` → `tcl8.6`,
-`tcl-apl` → `f5-iapps`, `tcl-bpf` → `bpf`, `tcl-libero` →
-`microchip-libero-eda-tcl`, `tcl-spec` → `spectcl`) and resolves every other
-id through `tcl_registry::model::resolve_known_environment`, keeping only a
-*contributed identity* — an environment's canonical id or its declared editor
-id, never a legacy alias such as `irules`. Each row's alternatives land on the
-same dialect.
+`Backend::dialect_from_language_id` treats the bare `tcl` id as the
+detection trigger (the content tiers run, and `DEFAULT_ENVIRONMENT_ID`
+applies when none fires) and resolves every other id through
+`tcl_registry::model::resolve_language_id`: `resolve_known_environment`
+keeping only a *contributed identity* — an environment's canonical id, its
+declared editor id, or a further language id it lists in
+`selecting_identities` (`tcl-apl` → `f5-iapps`, `tcl-bpf` → `bpf`,
+`tcl-libero` → `microchip-libero-eda-tcl`, `tcl-spec` → `spectcl`), never a
+plain alias such as `irules`. The registry index holds the selecting
+identities as its last name tier and rejects one another environment already
+owns. Each row's alternatives land on the same dialect.
 
 | Language ID | Dialect |
 |-------------|---------|
 | `tcl`, `tcl8.6`, `tcl86` | `tcl8.6` |
+| `tcl-jim`, `jim` | `jim` |
 | `tcl8.4`, `tcl84` | `tcl8.4` |
 | `tcl8.5`, `tcl85` | `tcl8.5` |
 | `tcl9.0`, `tcl90` | `tcl9.0` |

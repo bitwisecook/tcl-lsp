@@ -925,12 +925,51 @@ struct ProcBodyWalkArgs<'a> {
     /// from the raw written word.
     resolved_name: &'a str,
     body_span: Span,
-    arg_tokens: &'a [Token],
+    /// The parameter-list word's token.
+    params_tok: Token,
     name_tok: Token,
     params: &'a [crate::signature_scan::types::ParamDef],
-    args: &'a [String],
+    /// The static-variable list word and its token, when the definer takes one
+    /// and the call supplies it.
+    statics: Option<(&'a str, Token)>,
+    body_text: &'a str,
     body_tok: Token,
     ns_prefix: &'a str,
+}
+
+/// One element of a static-variable list.
+struct StaticVariable {
+    /// The name the body declares.
+    name: String,
+    /// Whether the element refers to the enclosing scope's variable of that
+    /// name, which is read when the procedure is defined: a bare `name` or
+    /// `&name`. A `{name value}` pair names its own initial value.
+    reads_enclosing: bool,
+}
+
+/// The variables a static-variable list declares: each element is a bare
+/// `name`, a `{name value}` pair, or `&name`, which refers to the enclosing
+/// scope's variable of that name and declares the same name in the body.
+fn static_variables(
+    text: &str,
+    rules: tcl_syntax::word_rules::WordValueRules,
+) -> Vec<StaticVariable> {
+    parse_param_list(text, rules)
+        .into_iter()
+        .map(|param| {
+            let reads_enclosing = !param.has_default;
+            match param.name.strip_prefix('&') {
+                Some(referenced) => StaticVariable {
+                    name: referenced.to_owned(),
+                    reads_enclosing,
+                },
+                None => StaticVariable {
+                    name: param.name,
+                    reads_enclosing,
+                },
+            }
+        })
+        .collect()
 }
 
 impl Analyser {
@@ -1808,6 +1847,7 @@ impl Analyser {
     /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Proc`].
     pub fn handle_proc_command(
         &mut self,
+        cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
         arg_single: &[bool],
@@ -1821,12 +1861,22 @@ impl Analyser {
         {
             return true;
         }
-        if args.len() < 3 || arg_tokens.len() < 3 {
+        // Where the name, parameter list, static-variable list and body sit is
+        // the definer's own role data: `proc name args body` puts the body at
+        // 2, a definer that also takes a static-variable list puts it at 3.
+        let arg_words: Vec<&str> = args.iter().map(String::as_str).collect();
+        let words = self
+            .registry
+            .as_deref()
+            .and_then(|registry| registry.procedure_definition_words(cmd_name, &arg_words))
+            .unwrap_or(tcl_registry::ProcedureWords::TCL_PROC);
+        let last = words.name.max(words.params).max(words.body);
+        if args.len() <= last || arg_tokens.len() <= last {
             return false;
         }
 
-        let raw_name = &args[0];
-        let name_tok = arg_tokens[0];
+        let raw_name = &args[words.name];
+        let name_tok = arg_tokens[words.name];
         // A constant-foldable dynamic name (`proc ::$wtype {args} {...}` with
         // `wtype` a known constant) resolves the same way `rename`'s operands
         // already do (`tk/library/accessibility.tcl`'s
@@ -1857,7 +1907,7 @@ impl Analyser {
         let qualified = qualify(&ns_prefix, &resolved_name);
         let simple = crate::naming::key_tail(&qualified).to_string();
         let name_span = name_tok.span;
-        let body_tok = arg_tokens[2];
+        let body_tok = arg_tokens[words.body];
         let body_span = body_tok.span;
 
         // **W113** — proc name shadows a built-in command.
@@ -1879,20 +1929,20 @@ impl Analyser {
         // this tier, the signature-scan tier, and the LSP's cursor classifier
         // all share.
         let params_computed = !crate::signature_scan::params::param_word_is_literal(
-            arg_tokens[1].kind,
-            arg_single.get(1).copied().unwrap_or(true),
+            arg_tokens[words.params].kind,
+            arg_single.get(words.params).copied().unwrap_or(true),
         );
         let params = if params_computed {
             Vec::new()
         } else {
-            parse_param_list(&args[1], self.word_rules())
+            parse_param_list(&args[words.params], self.word_rules())
         };
         // Doc string: prefer the preceding-comment harvest from
         // the segmenter; fall back to ``extract_body_docstring``
         // (leading comment block at the top of the body).
         let mut doc = std::mem::take(&mut self.last_comment);
-        if doc.is_empty() && args.len() >= 3 {
-            doc = super::utils::extract_body_docstring(&args[2]);
+        if doc.is_empty() {
+            doc = super::utils::extract_body_docstring(&args[words.body]);
         }
 
         // When a user defines the *global* unresolved-command handler,
@@ -1901,11 +1951,11 @@ impl Analyser {
         // user-supplied handler in place we cannot statically prove a
         // command is truly unresolved.
         if self.defines_global_unresolved_handler(&qualified) {
-            let info = self.extract_unknown_proc_info(&args[2], &params);
+            let info = self.extract_unknown_proc_info(&args[words.body], &params);
             self.result.unknown_proc_info = Some(info);
         }
 
-        let body_text = &args[2];
+        let body_text = &args[words.body];
         let (param_traits, caller_frame_params, caller_frame_literals) =
             self.infer_proc_param_traits(&params, body_text);
 
@@ -1929,6 +1979,7 @@ impl Analyser {
         // name. The full qualified name is still on
         // ``ProcDef.qualified_name`` for callers that need it.
         self.register_proc_definition(&qualified, &proc, name_span);
+        self.record_two_word_proc_member(&resolved_name, &proc, scope_path);
         let simple_key = proc.name.clone();
         let path = scope_path.to_vec();
         if let Some(scope) = super::scope::scope_at_mut(&mut self.result.global_scope, &path) {
@@ -1951,10 +2002,11 @@ impl Analyser {
                 path: &path,
                 resolved_name: &resolved_name,
                 body_span,
-                arg_tokens,
+                params_tok: arg_tokens[words.params],
                 name_tok,
                 params: &params,
-                args,
+                statics: words.statics.map(|at| (args[at].as_str(), arg_tokens[at])),
+                body_text: &args[words.body],
                 body_tok,
                 ns_prefix: &ns_prefix,
             });
@@ -2056,10 +2108,11 @@ impl Analyser {
             path,
             resolved_name,
             body_span,
-            arg_tokens,
+            params_tok,
             name_tok,
             params,
-            args,
+            statics,
+            body_text,
             body_tok,
             ns_prefix,
         } = ctx;
@@ -2083,10 +2136,9 @@ impl Analyser {
         // definition range is anchored to its *name* in the param-list
         // literal so go-to-definition / references / rename on
         // a formal parameter resolve to the parameter, not the proc name.
-        // The spans are recovered from the raw param-list word token
-        // (`arg_tokens[1]`); any param whose name can't be located falls
-        // back to the proc name token.
-        let params_tok = arg_tokens[1];
+        // The spans are recovered from the raw param-list word token; any
+        // param whose name can't be located falls back to the proc name
+        // token.
         let param_spans = param_name_spans_for_token(&self.source, params_tok);
         for (i, p) in params.iter().enumerate() {
             self.define_var(
@@ -2098,6 +2150,35 @@ impl Analyser {
             );
         }
         self.emit_w218_args_not_final(params, &param_spans, params_tok);
+
+        // Static variables are locals of the body too: declared once when the
+        // procedure is defined, kept between calls, and never an argument.
+        let static_names = statics.map_or_else(Vec::new, |(text, tok)| {
+            let variables = static_variables(text, self.word_rules());
+            let spans = param_name_spans_for_token(&self.source, tok);
+            for (i, variable) in variables.iter().enumerate() {
+                let span = spans.get(i).copied();
+                self.define_var(&variable.name, tok, &child_path, false, span);
+                // The definition reads the enclosing variable, so it is used
+                // there whether or not the body reads its own copy.
+                if variable.reads_enclosing
+                    && let Some(span) = span
+                {
+                    let named = self.source.get(span.as_range()).unwrap_or_default();
+                    let skipped = u32::try_from(named.len() - named.trim_start_matches('&').len())
+                        .unwrap_or(0);
+                    self.record_var_read(
+                        &variable.name,
+                        Span::new(span.start() + skipped, span.end()),
+                        path,
+                    );
+                }
+            }
+            variables
+                .into_iter()
+                .map(|variable| variable.name)
+                .collect()
+        });
 
         // Save / restore `last_comment` around the body walk so a
         // doc-comment inside the proc body doesn't bleed to whatever
@@ -2115,7 +2196,7 @@ impl Analyser {
         // dispatches each command at the new proc scope path.
         // Per-item shell pass: defer the body (its scope is already
         // created with params; a second pass fills it in place).
-        let body_text: std::sync::Arc<str> = std::sync::Arc::from(args[2].as_str());
+        let body_text: std::sync::Arc<str> = std::sync::Arc::from(body_text);
         if self.defer_proc_bodies {
             let safe_interp_ctx = self.safe_interp_ctx_snapshot();
             self.deferred_bodies.push(super::per_item::DeferredBody {
@@ -2127,7 +2208,7 @@ impl Analyser {
                 namespace: ns_prefix.to_string(),
                 scope_name: scope_name.to_string(),
                 params: params.to_vec(),
-                class_variables: Vec::new(),
+                seeded_variables: static_names,
                 // Attached later by `fill_deferred_bodies` for bodies with a
                 // fold candidate.
                 command_trust: None,
@@ -2296,7 +2377,7 @@ impl Analyser {
                     namespace: ns_prefix.clone(),
                     scope_name,
                     params: combined_params,
-                    class_variables: Vec::new(),
+                    seeded_variables: Vec::new(),
                     // Attached later by `fill_deferred_bodies` for bodies
                     // with a fold candidate.
                     command_trust: None,
@@ -2685,7 +2766,7 @@ impl Analyser {
                 namespace: body_ns,
                 scope_name,
                 params,
-                class_variables: Vec::new(),
+                seeded_variables: Vec::new(),
                 // Attached later by `fill_deferred_bodies` for bodies with a
                 // fold candidate.
                 command_trust: None,
@@ -4352,7 +4433,13 @@ impl Analyser {
                 let arg_single = seg.arg_single_token();
                 match hook {
                     Hook::Proc => {
-                        self.handle_proc_command(args, arg_tokens, arg_single, scope_path);
+                        self.handle_proc_command(
+                            seg.name(),
+                            args,
+                            arg_tokens,
+                            arg_single,
+                            scope_path,
+                        );
                     }
                     Hook::Rename => {
                         self.handle_rename(
@@ -9541,7 +9628,7 @@ impl Analyser {
 
     /// Keep the global class index and the enclosing lexical scope's class
     /// map in lockstep for any definition form that has produced a class fact.
-    fn register_defined_class(
+    pub(super) fn register_defined_class(
         &mut self,
         qualified: String,
         class_def: super::types::ClassDef,
@@ -10920,6 +11007,7 @@ mod tests {
         // (keyed by qualified name) only ever retains the winner's.
         let mut a = Analyser::new();
         a.handle_proc_command(
+            "proc",
             &["foo".to_string(), String::new(), "return ONE".to_string()],
             &[
                 esc_tok(span(5, 8)),
@@ -10930,6 +11018,7 @@ mod tests {
             &[],
         );
         a.handle_proc_command(
+            "proc",
             &["foo".to_string(), String::new(), "return TWO".to_string()],
             &[
                 esc_tok(span(30, 33)),
@@ -10957,6 +11046,7 @@ mod tests {
     fn handle_proc_records_proc_at_global() {
         let mut a = Analyser::new();
         let handled = a.handle_proc_command(
+            "proc",
             &["foo".to_string(), "a b".to_string(), "set x $a".to_string()],
             &[
                 esc_tok(span(5, 8)),
@@ -10985,6 +11075,7 @@ mod tests {
             .children
             .push(Scope::new(ScopeKind::Namespace, "ns1"));
         let handled = a.handle_proc_command(
+            "proc",
             &["foo".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 8)),
@@ -11011,6 +11102,7 @@ mod tests {
             .children
             .push(Scope::new(ScopeKind::Namespace, "ns1"));
         a.handle_proc_command(
+            "proc",
             &["foo".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 8)),
@@ -11046,6 +11138,7 @@ mod tests {
             .children
             .push(Scope::new(ScopeKind::Namespace, "outer"));
         let handled = a.handle_proc_command(
+            "proc",
             &["::other::foo".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 17)),
@@ -11066,6 +11159,7 @@ mod tests {
         let mut a = Analyser::new();
         a.last_comment = "doc string".to_string();
         a.handle_proc_command(
+            "proc",
             &["foo".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(0, 3)),
@@ -11083,7 +11177,13 @@ mod tests {
     #[test]
     fn handle_proc_too_few_args_returns_false() {
         let mut a = Analyser::new();
-        let handled = a.handle_proc_command(&["foo".to_string()], &[esc_tok(span(0, 3))], &[], &[]);
+        let handled = a.handle_proc_command(
+            "proc",
+            &["foo".to_string()],
+            &[esc_tok(span(0, 3))],
+            &[],
+            &[],
+        );
         assert!(!handled);
         assert!(a.result.all_procs.is_empty());
     }
@@ -11102,6 +11202,7 @@ mod tests {
         let mut a = Analyser::new();
         a.profile = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
         a.handle_proc_command(
+            "proc",
             &["set".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 8)),
@@ -11131,6 +11232,7 @@ mod tests {
         analyser.source = "proc set {} {}".to_owned();
         assert!(analyser.registry.is_none());
         let handled = analyser.handle_proc_command(
+            "proc",
             &["set".to_owned(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 8)),
@@ -11157,6 +11259,7 @@ mod tests {
         analyser.profile = tcl_dialect::DialectProfile::irules();
         assert!(analyser.registry.is_none());
         let handled = analyser.handle_proc_command(
+            "proc",
             &[
                 "set".to_owned(),
                 String::new(),
@@ -11184,6 +11287,7 @@ mod tests {
         let mut a = Analyser::new();
         a.profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
         a.handle_proc_command(
+            "proc",
             &["foo".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 8)),
@@ -11210,6 +11314,7 @@ mod tests {
         let mut a = Analyser::new();
         a.profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
         a.handle_proc_command(
+            "proc",
             &["::set".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 10)),
@@ -11233,6 +11338,7 @@ mod tests {
         let mut a = Analyser::new();
         // dialect intentionally left empty
         a.handle_proc_command(
+            "proc",
             &["set".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 8)),
@@ -11264,6 +11370,7 @@ mod tests {
         a.profile = tcl_dialect::DialectProfile::irules();
         a.source = "proc pool {} {}".to_owned();
         a.handle_proc_command(
+            "proc",
             &["pool".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 9)),
@@ -11285,6 +11392,7 @@ mod tests {
         let mut b = Analyser::new();
         b.profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
         b.handle_proc_command(
+            "proc",
             &["pool".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 9)),
@@ -11311,6 +11419,7 @@ mod tests {
         let mut a = Analyser::new();
         a.profile = tcl_dialect::DialectProfile::irules();
         a.handle_proc_command(
+            "proc",
             &["HTTP::respond".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 18)),
@@ -11338,6 +11447,7 @@ mod tests {
         // place to record locals.
         let mut a = Analyser::new();
         a.handle_proc_command(
+            "proc",
             &["foo".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 8)),
@@ -11360,6 +11470,7 @@ mod tests {
         // proc scope, not in the outer scope.
         let mut a = Analyser::new();
         a.handle_proc_command(
+            "proc",
             &["foo".to_string(), "a b".to_string(), String::new()],
             &[
                 esc_tok(span(5, 8)),
@@ -11388,6 +11499,7 @@ mod tests {
         // re-segmented inner runs at base 14.
         let mut a = Analyser::new();
         a.handle_proc_command(
+            "proc",
             &["foo".to_string(), String::new(), "set x 1".to_string()],
             &[
                 esc_tok(span(5, 8)),
@@ -11414,6 +11526,7 @@ mod tests {
         // (link to outer var) live with diagnostic emission later.
         let mut a = Analyser::new();
         a.handle_proc_command(
+            "proc",
             &["foo".to_string(), String::new(), "global a b".to_string()],
             &[
                 esc_tok(span(5, 8)),
@@ -11434,6 +11547,7 @@ mod tests {
         // creating a nested proc scope under the outer proc.
         let mut a = Analyser::new();
         a.handle_proc_command(
+            "proc",
             &[
                 "outer".to_string(),
                 String::new(),
@@ -11475,6 +11589,7 @@ mod tests {
         let mut a = Analyser::new();
         let var_tok = Token::new(TokenType::Var, span(13, 18));
         a.handle_proc_command(
+            "proc",
             &["foo".to_string(), String::new(), "$body".to_string()],
             &[esc_tok(span(5, 8)), str_tok(span(9, 11)), var_tok],
             &[],
@@ -11493,6 +11608,7 @@ mod tests {
         let mut a = Analyser::new();
         assert_eq!(a.body_depth, 0);
         a.handle_proc_command(
+            "proc",
             &["foo".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 8)),
@@ -11515,6 +11631,7 @@ mod tests {
         let mut a = Analyser::new();
         a.last_comment = "doc string".to_string();
         a.handle_proc_command(
+            "proc",
             &["foo".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 8)),
@@ -14478,6 +14595,7 @@ mod tests {
         // ``::foo`` resolves directly when registered.
         let mut a = Analyser::new();
         a.handle_proc_command(
+            "proc",
             &["foo".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 8)),
@@ -14503,6 +14621,7 @@ mod tests {
             .children
             .push(Scope::new(ScopeKind::Namespace, "ns1"));
         a.handle_proc_command(
+            "proc",
             &["foo".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 8)),
@@ -14524,6 +14643,7 @@ mod tests {
         use crate::analyser::types::{Scope, ScopeKind};
         let mut a = Analyser::new();
         a.handle_proc_command(
+            "proc",
             &["foo".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 8)),
@@ -14624,6 +14744,7 @@ mod tests {
         a.result.global_scope.children.push(ns_a);
         // scope_path [0] = ::a — define `foo` there.
         a.handle_proc_command(
+            "proc",
             &["foo".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 8)),
