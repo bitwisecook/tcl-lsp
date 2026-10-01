@@ -745,7 +745,8 @@ fn a_typed_assignment_reads_its_word_as_tcl_substitutes_it() {
 
 /// A braced `incr` amount is its own text: `incr x {$n}` raises `expected
 /// integer but got "$n"` in every release, so `x#2` has no value and the
-/// statement reads no `n`. Read as a substitution it folded to 4.
+/// statement reads no `n`; the route proves the error and answers it as the
+/// completion it is, after no store. Read as a substitution it folded to 4.
 #[test]
 fn a_braced_increment_amount_is_its_text() {
     let body = "proc p {} {set n 3; set x 1; incr x {$n}; return $x}\n";
@@ -758,7 +759,7 @@ fn a_braced_increment_amount_is_its_text() {
         );
         assert_eq!(
             answers_for(&unit, "::p", "incr"),
-            ["declined: wrong-representation"],
+            ["evaluated: error after 0 stores"],
             "{dialect}"
         );
         let function = &unit.procedures["::p"];
@@ -2663,8 +2664,9 @@ fn the_lines_every_release_reads_alike(releases: &[(&'static str, String)]) {
 }
 
 /// The release table's `incr` lines: the cell is created from 8.5, with
-/// the amount as its value, and the value declines as an unbound place
-/// under 8.4 and under the spanning profile, where `tclsh8.4` raises.
+/// the amount as its value; under 8.4, where `tclsh8.4` raises, the route
+/// answers the error after no store, and under the spanning profile, which
+/// cannot say which release runs, the value declines as an unbound place.
 fn the_increment_split(releases: &[(&'static str, String)]) {
     let increments: [(&str, &str, i64); 3] = [
         ("incr fresh", "fresh", 1),
@@ -2685,7 +2687,10 @@ fn the_increment_split(releases: &[(&'static str, String)]) {
                 assert_eq!(last_existence(&unit, "::p", "arr"), ARRAY, "{dialect}");
             }
         }
-        for dialect in ["tcl8.4", "tcl"] {
+        for (dialect, answer) in [
+            ("tcl8.4", "evaluated: error after 0 stores"),
+            ("tcl", "declined: unbound-place"),
+        ] {
             let unit = unit_of(&source, dialect);
             assert_eq!(
                 last_value(&source, dialect, "::p", place),
@@ -2694,10 +2699,8 @@ fn the_increment_split(releases: &[(&'static str, String)]) {
             );
             let answers = answers_for(&unit, "::p", "incr");
             assert!(
-                answers
-                    .iter()
-                    .any(|answer| answer == "declined: unbound-place"),
-                "{dialect}: `{body}` declines as an unbound place: {answers:?}"
+                answers.iter().any(|found| found == answer),
+                "{dialect}: `{body}` answers {answer}: {answers:?}"
             );
         }
         for (series, tclsh) in releases {

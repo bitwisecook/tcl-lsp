@@ -636,6 +636,29 @@ pub enum ExactValueOrUnavailable {
     Unavailable(FactBounds),
 }
 
+impl ExactValueOrUnavailable {
+    /// A string the route proves nothing of but that it is a string: bound,
+    /// typed as a string, no text. What an error's message or `-errorcode`
+    /// is where the route does not prove it under every release the profile
+    /// names.
+    #[must_use]
+    pub const fn unproven_string() -> Self {
+        Self::Unavailable(FactBounds {
+            existence: Existence::Bound(BindingKind::Scalar),
+            intrep: Some(TclType::String),
+            shape: None,
+            segments: None,
+            taint: None,
+        })
+    }
+
+    /// The exact text `text`.
+    #[must_use]
+    pub fn exact_text(text: impl Into<String>) -> Self {
+        Self::Exact(ExactValue::text(text))
+    }
+}
+
 /// How an evaluated invocation completes.
 #[derive(Debug, Clone, PartialEq)]
 pub enum CompletionOutcome {
@@ -659,6 +682,25 @@ pub enum CompletionOutcome {
         /// The `-errorcode`, when the route proves it.
         error_code: ExactValueOrUnavailable,
     },
+}
+
+impl CompletionOutcome {
+    /// `TCL_ERROR` after `written` stores, with the message and the
+    /// `-errorcode` unproven.
+    #[must_use]
+    pub const fn error_unproven(written: usize) -> Self {
+        Self::Error {
+            written,
+            message: ExactValueOrUnavailable::unproven_string(),
+            error_code: ExactValueOrUnavailable::unproven_string(),
+        }
+    }
+
+    /// Whether the invocation completed normally.
+    #[must_use]
+    pub const fn is_normal(&self) -> bool {
+        matches!(self, Self::Normal)
+    }
 }
 
 /// What happens to one place.

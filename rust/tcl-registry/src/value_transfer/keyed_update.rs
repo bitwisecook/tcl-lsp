@@ -50,6 +50,7 @@ use super::const_ops::{ConstOps, ConstValue, Needs};
 use super::context::Budget;
 use super::decline::DeclineReason;
 use super::inputs::{AnalysisInputs, DomainFact, FactDomain, FactView, OperandId, TargetId};
+use super::publication::stopped;
 use super::route::{EvalRoute, NativeEvalId};
 
 const NORMAL: &[CompletionCode] = &[CompletionCode::Ok];
@@ -201,9 +202,12 @@ impl KeyedUpdateSemantics {
         let target_semantics = *ops.target();
         let dictionary = prior.map_or_else(|| ConstValue::text(""), |v| ConstValue::from_exact(&v));
         let computed = self.apply(&mut ops, dictionary, &words);
-        let value = match computed.and_then(|value| ops.take(value)) {
-            Ok(value) => value,
-            Err(reason) => return EvalAnswer::Declined(reason),
+        let value = match computed {
+            Ok(value) => match ops.take(value) {
+                Ok(value) => value,
+                Err(reason) => return EvalAnswer::Declined(reason),
+            },
+            Err(reason) => return stopped(&mut ops, reason, self.evaluator(), REVISION),
         };
         EvalAnswer::Evaluated(Box::new(InvocationOutcome {
             completion: CompletionOutcome::Normal,

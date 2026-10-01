@@ -36,11 +36,14 @@ use crate::types::TclType;
 
 use super::CommandSemantics;
 use super::answers::EvalAnswer;
-use super::const_ops::{ConstOps, ConstValue, Needs, Representation};
+use super::const_ops::{ConstOps, ConstValue, Needs, Raised, Representation};
 use super::context::Budget;
 use super::decline::{Axis, DeclineReason};
 use super::inputs::{AnalysisInputs, OperandId, TargetId};
-use super::publication::{PendingStore, Publication, open_words, targets_are};
+use super::publication::{
+    ArrayWrite, Checked, PendingStore, Publication, open_words, raised_outcome, stopped,
+    targets_are,
+};
 use super::route::{EvalRoute, NativeEvalId};
 
 /// The revision of the four destructuring routes.
@@ -228,7 +231,16 @@ impl ScanSemantics {
                 stores,
             }
         };
-        publication.publish(ops, NativeEvalId::ScanFormat, DESTRUCTURE_REVISION)
+        let checked = Checked {
+            input,
+            write: ArrayWrite::Scan,
+        };
+        publication.publish(
+            ops,
+            Some(checked),
+            NativeEvalId::ScanFormat,
+            DESTRUCTURE_REVISION,
+        )
     }
 }
 
@@ -383,7 +395,15 @@ impl BinaryScanSemantics {
             result_type: TclType::Int,
             stores,
         }
-        .publish(ops, NativeEvalId::BinaryScan, DESTRUCTURE_REVISION)
+        .publish(
+            ops,
+            Some(Checked {
+                input,
+                write: ArrayWrite::Set,
+            }),
+            NativeEvalId::BinaryScan,
+            DESTRUCTURE_REVISION,
+        )
     }
 }
 
@@ -436,8 +456,17 @@ impl LassignSemantics {
         if !targets_are(&targets, 1, vars.len()) {
             return EvalAnswer::Declined(DeclineReason::Unsupported);
         }
-        let Ok(mut elements) = ops.list_elements(&ConstValue::text(list)) else {
-            return EvalAnswer::Declined(DeclineReason::WrongRepresentation);
+        let mut elements = match ops.list_elements(&ConstValue::text(list)) {
+            Ok(elements) => elements,
+            Err(error) => {
+                let reason = ops.decline_value(&error);
+                return stopped(
+                    &mut ops,
+                    reason,
+                    NativeEvalId::ListAssign,
+                    DESTRUCTURE_REVISION,
+                );
+            }
         };
         let rest = elements.split_off(vars.len().min(elements.len()));
         let mut elements = elements.into_iter();
@@ -456,7 +485,15 @@ impl LassignSemantics {
             result_type: TclType::List,
             stores,
         }
-        .publish(ops, NativeEvalId::ListAssign, DESTRUCTURE_REVISION)
+        .publish(
+            ops,
+            Some(Checked {
+                input,
+                write: ArrayWrite::Set,
+            }),
+            NativeEvalId::ListAssign,
+            DESTRUCTURE_REVISION,
+        )
     }
 }
 
@@ -503,11 +540,39 @@ impl ArraySetSemantics {
         if !targets_are(&targets, 1, 1) {
             return EvalAnswer::Declined(DeclineReason::Unsupported);
         }
-        let Ok(elements) = ops.list_elements(&ConstValue::text(list)) else {
-            return EvalAnswer::Declined(DeclineReason::WrongRepresentation);
+        let elements = match ops.list_elements(&ConstValue::text(list)) {
+            Ok(elements) => elements,
+            Err(error) => {
+                let reason = ops.decline_value(&error);
+                return stopped(
+                    &mut ops,
+                    reason,
+                    NativeEvalId::ArraySet,
+                    DESTRUCTURE_REVISION,
+                );
+            }
         };
+        // An odd count is the program's error, worded alike in every
+        // release; the `-errorcode` is 8.6's (measured, 8.4 to 9.1).
         if elements.len() % 2 != 0 {
-            return EvalAnswer::Declined(DeclineReason::WrongRepresentation);
+            let target = *ops.target();
+            let raised = Raised::unanimous(&target, |release| {
+                let code = if release >= TclVersion::V8_6 {
+                    "TCL ARGUMENT FORMAT"
+                } else {
+                    "NONE"
+                };
+                (
+                    "list must have an even number of elements".to_owned(),
+                    code.to_owned(),
+                )
+            });
+            return raised_outcome(
+                NativeEvalId::ArraySet,
+                DESTRUCTURE_REVISION,
+                &target,
+                raised,
+            );
         }
         let array = TargetId(OperandId(1));
         let mut pairs: Vec<(String, ConstValue)> = Vec::with_capacity(elements.len() / 2);
@@ -530,7 +595,7 @@ impl ArraySetSemantics {
                 .map(|(key, value)| PendingStore::WriteElement(array, key, value))
                 .collect(),
         }
-        .publish(ops, NativeEvalId::ArraySet, DESTRUCTURE_REVISION)
+        .publish(ops, None, NativeEvalId::ArraySet, DESTRUCTURE_REVISION)
     }
 }
 

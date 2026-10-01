@@ -55,7 +55,7 @@ use tcl_syntax::value::{DictPairs, ValueError, ValueOps, canonical_dict_slots};
 
 use crate::types::TclType;
 
-use super::answers::{ExactValue, NumericValue, RepresentationEvidence};
+use super::answers::{ExactValue, ExactValueOrUnavailable, NumericValue, RepresentationEvidence};
 use super::context::{AnalysisContext, Budget};
 use super::decline::{Axis, DeclineReason};
 
@@ -402,6 +402,98 @@ pub struct ConstOps<'ctx> {
     admitted: Needs,
     budget: &'ctx mut Budget,
     fault: Option<DeclineReason>,
+    raised: Option<Raised>,
+}
+
+/// The program's own error as a completion's payload: the message and the
+/// `-errorcode` the command raises, each exact only where the route proves
+/// it under every release the target names
+/// (`docs/design/compiler/value-transfers.md` § *`catch`, `try`, and
+/// completion*).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Raised {
+    /// The error message.
+    pub message: ExactValueOrUnavailable,
+    /// The `-errorcode`.
+    pub error_code: ExactValueOrUnavailable,
+}
+
+impl Raised {
+    /// An error whose message and `-errorcode` the route does not prove.
+    #[must_use]
+    pub const fn unproven() -> Self {
+        Self {
+            message: ExactValueOrUnavailable::unproven_string(),
+            error_code: ExactValueOrUnavailable::unproven_string(),
+        }
+    }
+
+    /// The error a parser's own failure raises — a list that does not split
+    /// (`unmatched open brace in list`) or a dict of odd length (`missing
+    /// value to go with key`): every release words them alike (measured, 8.4
+    /// to 9.1), and the `-errorcode` is `NONE` before 8.6 and the parser's
+    /// from it (`TCL VALUE LIST BRACE`, `TCL VALUE DICTIONARY`). A message
+    /// that is none of these is unproven.
+    #[must_use]
+    pub fn parse_failure(target: &TargetSemantics, message: &str) -> Self {
+        let code = tcl_syntax::list::ListError::from_message(message)
+            .map(tcl_syntax::list::ListError::error_code)
+            .or_else(|| {
+                (message == "missing value to go with key").then_some("TCL VALUE DICTIONARY")
+            });
+        let Some(code) = code else {
+            return Self::unproven();
+        };
+        Self::unanimous(target, |release| {
+            let code = if release >= TclVersion::V8_6 {
+                code
+            } else {
+                "NONE"
+            };
+            (message.to_owned(), code.to_owned())
+        })
+    }
+
+    /// An error with exactly this message and `-errorcode`.
+    #[must_use]
+    pub fn exact(message: impl Into<String>, error_code: impl Into<String>) -> Self {
+        Self {
+            message: ExactValueOrUnavailable::exact_text(message),
+            error_code: ExactValueOrUnavailable::exact_text(error_code),
+        }
+    }
+
+    /// The error `per_release` says a release raises, as every release the
+    /// target names agrees on it: the named release's own, or — with none
+    /// named — the one the whole ladder shares, field by field. A field the
+    /// releases disagree on is unproven.
+    #[must_use]
+    pub fn unanimous(
+        target: &TargetSemantics,
+        per_release: impl Fn(TclVersion) -> (String, String),
+    ) -> Self {
+        let releases: Vec<TclVersion> = target
+            .release
+            .map_or_else(|| TclVersion::ALL.to_vec(), |release| vec![release]);
+        let answers: Vec<(String, String)> = releases.into_iter().map(per_release).collect();
+        let agreed = |field: fn(&(String, String)) -> &String| {
+            let first = field(&answers[0]);
+            answers
+                .iter()
+                .all(|answer| field(answer) == first)
+                .then(|| first.clone())
+        };
+        let exact = |text: Option<String>| {
+            text.map_or_else(
+                ExactValueOrUnavailable::unproven_string,
+                ExactValueOrUnavailable::exact_text,
+            )
+        };
+        Self {
+            message: exact(agreed(|answer| &answer.0)),
+            error_code: exact(agreed(|answer| &answer.1)),
+        }
+    }
 }
 
 impl<'ctx> ConstOps<'ctx> {
@@ -438,6 +530,7 @@ impl<'ctx> ConstOps<'ctx> {
             admitted: needs,
             budget,
             fault: None,
+            raised: None,
         })
     }
 
@@ -562,24 +655,80 @@ impl<'ctx> ConstOps<'ctx> {
         if let Some(index) = resolved {
             Ok(ConstValue::int(index))
         } else {
-            self.poison(DeclineReason::WrongRepresentation);
-            Err(DeclineReason::WrongRepresentation)
+            // A malformed index is the program's error, worded by the
+            // release (measured, 8.4 to 9.1): 8.4 `must be integer or
+            // end?-integer?`, 8.5 on `must be integer?[+-]integer? or
+            // end?[+-]integer?`, with the `-errorcode` from 8.6.
+            let raised = Raised::unanimous(&self.target, |release| {
+                let wording = if release < TclVersion::V8_5 {
+                    "integer or end?-integer?"
+                } else {
+                    "integer?[+-]integer? or end?[+-]integer?"
+                };
+                let code = if release >= TclVersion::V8_6 {
+                    "TCL VALUE INDEX"
+                } else {
+                    "NONE"
+                };
+                (
+                    format!("bad index \"{text}\": must be {wording}"),
+                    code.to_owned(),
+                )
+            });
+            Err(self.decline_raising(raised))
         }
     }
 
     /// The decline a failed core call answers with: the run's fault when
-    /// one was recorded during the call, else the program's own error —
-    /// an error is never a value, and before the completion slice it is a
-    /// decline.
+    /// one was recorded during the call, else [`DeclineReason::
+    /// WrongRepresentation`] — the program's own error, which a route that
+    /// models completions takes as the error it is ([`Self::raised`]) and
+    /// every other route keeps a decline, an error being no value.
     #[must_use]
-    pub fn decline(&mut self, _error: &CmdError) -> DeclineReason {
-        self.fault.unwrap_or(DeclineReason::WrongRepresentation)
+    pub fn decline(&mut self, error: &CmdError) -> DeclineReason {
+        let raised = Raised::parse_failure(&self.target, error.message());
+        self.decline_raising(raised)
     }
 
     /// [`Self::decline`] for a seam error.
     #[must_use]
-    pub fn decline_value(&mut self, _error: &ValueError) -> DeclineReason {
-        self.fault.unwrap_or(DeclineReason::WrongRepresentation)
+    pub fn decline_value(&mut self, error: &ValueError) -> DeclineReason {
+        match error {
+            ValueError::BadList(message) => {
+                let raised = Raised::parse_failure(&self.target, message);
+                self.decline_raising(raised)
+            }
+            ValueError::NotInteger(_) | ValueError::NotDouble(_) | ValueError::NotBoolean(_) => {
+                self.decline_raising(Raised::unproven())
+            }
+            // The fixed-width tower's overflow is a value the target
+            // computes — 8.4 wraps where 8.5 widens — and no error the
+            // program raises: the model does not compute it, and the run
+            // declines.
+            ValueError::IntegerOverflow => self.fault.unwrap_or(DeclineReason::WrongRepresentation),
+        }
+    }
+
+    /// The decline for a failure that is the program's error, `raised`
+    /// being what it raises: the run's fault when one was recorded.
+    fn decline_raising(&mut self, raised: Raised) -> DeclineReason {
+        if let Some(fault) = self.fault {
+            return fault;
+        }
+        self.raised.get_or_insert(raised);
+        DeclineReason::WrongRepresentation
+    }
+
+    /// The error the run raised, when its last failure was the program's
+    /// own and no fault was recorded: the answer a route that models
+    /// completions gives in place of the decline. A fault — an inadmissible
+    /// axis, a budget — leaves nothing raised, and stays a decline.
+    #[must_use]
+    pub fn raised(&mut self) -> Option<Raised> {
+        if self.fault.is_some() {
+            return None;
+        }
+        self.raised.take()
     }
 
     /// Close the evaluation: the value, or the first recorded fault. A
@@ -1089,6 +1238,145 @@ mod tests {
             ops.index(&ConstValue::text("bogus"), 12),
             Err(DeclineReason::WrongRepresentation)
         );
+    }
+
+    /// A malformed index is the program's error, worded by the release
+    /// (measured, tclsh 8.4 to 9.1): 8.4 `must be integer or end?-integer?`,
+    /// 8.5 on `must be integer?[+-]integer? or end?[+-]integer?`, and the
+    /// `-errorcode` `TCL VALUE INDEX` from 8.6, `NONE` before it. A target
+    /// naming no release proves the message only where the releases agree.
+    #[test]
+    fn a_malformed_index_is_the_releases_error() {
+        let old = "bad index \"bogus\": must be integer or end?-integer?";
+        let new = "bad index \"bogus\": must be integer?[+-]integer? or end?[+-]integer?";
+        let raised = |dialect: Option<&str>| {
+            let mut budget = Budget::evaluation();
+            let mut ops = admit(dialect, &mut budget, Needs::INDEX_GRAMMAR);
+            let declined = ops.index(&ConstValue::text("bogus"), 3);
+            assert_eq!(declined, Err(DeclineReason::WrongRepresentation));
+            ops.raised().expect("the program's error")
+        };
+        let exact = ExactValueOrUnavailable::exact_text;
+        for (dialect, message, code) in [
+            (Some("tcl8.4"), old, "NONE"),
+            (Some("tcl8.5"), new, "NONE"),
+            (Some("tcl8.6"), new, "TCL VALUE INDEX"),
+            (Some("tcl9.0"), new, "TCL VALUE INDEX"),
+        ] {
+            let expected = Raised {
+                message: exact(message),
+                error_code: exact(code),
+            };
+            assert_eq!(raised(dialect), expected, "{dialect:?}");
+        }
+        let unnamed = raised(None);
+        assert_eq!(unnamed, Raised::unproven(), "no release: nothing agrees");
+    }
+
+    /// A failed core call is the program's own error, which a route that
+    /// models completions reads off the ops: the parsers' messages are every
+    /// release's, with the `-errorcode` of the release; a failure the route
+    /// cannot word is unproven; and a fault the run recorded wins, leaving
+    /// nothing raised. The fixed-width tower's overflow is no error: 8.4
+    /// wraps where 8.5 widens, so it stays a decline.
+    #[test]
+    fn a_failed_call_is_the_programs_error_unless_a_fault_stopped_the_run() {
+        let exact = ExactValueOrUnavailable::exact_text;
+        let unmatched = |dialect: Option<&str>| {
+            let mut budget = Budget::evaluation();
+            let mut ops = admit(dialect, &mut budget, Needs::LIST_RENDERING);
+            let bad = ops
+                .list_elements(&ConstValue::text("{"))
+                .expect_err("not a list");
+            assert_eq!(ops.decline_value(&bad), DeclineReason::WrongRepresentation);
+            ops.raised()
+        };
+        for (dialect, code) in [
+            (Some("tcl8.5"), exact("NONE")),
+            (Some("tcl8.6"), exact("TCL VALUE LIST BRACE")),
+            (Some("tcl9.1"), exact("TCL VALUE LIST BRACE")),
+            (None, ExactValueOrUnavailable::unproven_string()),
+        ] {
+            let expected = Raised {
+                message: exact("unmatched open brace in list"),
+                error_code: code,
+            };
+            assert_eq!(unmatched(dialect), Some(expected), "{dialect:?}");
+        }
+
+        let mut budget = Budget::evaluation();
+        let mut ops = admit(Some("tcl8.6"), &mut budget, Needs::NONE);
+        let odd = ValueError::BadList("missing value to go with key".to_owned());
+        assert_eq!(ops.decline_value(&odd), DeclineReason::WrongRepresentation);
+        let dict = Raised {
+            message: exact("missing value to go with key"),
+            error_code: exact("TCL VALUE DICTIONARY"),
+        };
+        assert_eq!(ops.raised(), Some(dict));
+        assert_eq!(ops.raised(), None, "the error is read once");
+        let unworded = ValueError::BadList("no such wording".to_owned());
+        assert_eq!(
+            ops.decline_value(&unworded),
+            DeclineReason::WrongRepresentation
+        );
+        assert_eq!(ops.raised(), Some(Raised::unproven()));
+        let command = CmdError::new("unmatched open quote in list");
+        assert_eq!(ops.decline(&command), DeclineReason::WrongRepresentation);
+        let quote = Raised {
+            message: exact("unmatched open quote in list"),
+            error_code: exact("TCL VALUE LIST QUOTE"),
+        };
+        assert_eq!(ops.raised(), Some(quote), "a core's own error is worded");
+
+        let mut budget = Budget::evaluation();
+        let mut ops = admit(None, &mut budget, Needs::NONE);
+        assert_eq!(
+            ops.decline_value(&ValueError::IntegerOverflow),
+            DeclineReason::WrongRepresentation
+        );
+        assert_eq!(ops.raised(), None, "an overflow is a model limit");
+
+        let mut budget = Budget::evaluation();
+        let mut ops = admit(None, &mut budget, Needs::NONE);
+        let _ = ops.as_int(&ConstValue::text("5"));
+        let bad = ValueError::NotInteger("x".to_owned());
+        assert_eq!(ops.decline_value(&bad), DeclineReason::MalformedAnswer);
+        assert_eq!(ops.raised(), None, "a fault is never an error");
+
+        // A fault recorded after the error stops the run all the same.
+        let mut budget = Budget::evaluation();
+        let mut ops = admit(None, &mut budget, Needs::NONE);
+        assert_eq!(ops.decline_value(&bad), DeclineReason::WrongRepresentation);
+        let _ = ops.as_int(&ConstValue::text("5"));
+        assert_eq!(ops.raised(), None, "the run's fault wins");
+    }
+
+    /// The error every release the target names agrees on, field by field:
+    /// the named release's own, or the ladder's shared answer, and a field
+    /// the releases disagree on is unproven.
+    #[test]
+    fn a_raised_error_is_exact_only_where_every_release_agrees() {
+        let exact = ExactValueOrUnavailable::exact_text;
+        let per_release = |release: TclVersion| {
+            let code = if release >= TclVersion::V8_6 {
+                "NEW"
+            } else {
+                "NONE"
+            };
+            ("always".to_owned(), code.to_owned())
+        };
+        let mut budget = Budget::evaluation();
+        let ops = admit(None, &mut budget, Needs::NONE);
+        let ladder = Raised::unanimous(&ops.target, per_release);
+        assert_eq!(ladder.message, exact("always"));
+        assert_eq!(
+            ladder.error_code,
+            ExactValueOrUnavailable::unproven_string()
+        );
+        let mut budget = Budget::evaluation();
+        let ops = admit(Some("tcl8.6"), &mut budget, Needs::NONE);
+        let named = Raised::unanimous(&ops.target, per_release);
+        assert_eq!(named.error_code, exact("NEW"));
     }
 
     #[test]

@@ -41,6 +41,7 @@ use super::const_ops::{ConstOps, ConstValue, Needs, TargetSemantics};
 use super::context::Budget;
 use super::decline::{Axis, DeclineReason, NoRouteReason};
 use super::inputs::{AnalysisInputs, FactDomain, InvocationLayout, OperandId, TargetId, WordPart};
+use super::publication::stopped;
 use super::route::{EvalRoute, LanguageProfileId, NativeEvalId};
 
 /// The revision of the registry-owned `string range` evaluator.
@@ -101,7 +102,7 @@ fn pure_outcome(
 
 /// Run `compute` over a value model admitted for `needs`: the exact value
 /// it returns, or the first recorded fault.
-fn run_core(
+fn run_core_declining(
     input: &dyn AnalysisInputs,
     budget: &mut Budget,
     needs: Needs,
@@ -111,6 +112,27 @@ fn run_core(
     let target = *ops.target();
     let value = compute(&mut ops)?;
     ops.take(value).map(|value| (value, target))
+}
+
+/// [`run_core_declining`] for a route on `id` at `revision` that models its
+/// core's error as the completion it is: the error the program raises
+/// ([`ConstOps::raised`]) is the answer, and every other failure a decline.
+fn run_core(
+    input: &dyn AnalysisInputs,
+    budget: &mut Budget,
+    (id, revision): (NativeEvalId, u64),
+    needs: Needs,
+    compute: impl FnOnce(&mut ConstOps<'_>) -> Result<ConstValue, DeclineReason>,
+) -> Result<(ExactValue, TargetSemantics), EvalAnswer> {
+    let mut ops = ConstOps::admit(input.context(), budget, needs).map_err(EvalAnswer::Declined)?;
+    let target = *ops.target();
+    let value = match compute(&mut ops) {
+        Ok(value) => value,
+        Err(reason) => return Err(stopped(&mut ops, reason, id, revision)),
+    };
+    ops.take(value)
+        .map(|value| (value, target))
+        .map_err(EvalAnswer::Declined)
 }
 
 /// The type transfer of a route that writes nothing: its result type.
@@ -171,9 +193,19 @@ impl StringRangeSemantics {
             tcl_cmd_core::string::range(&mut ops, subject, &first, &last)
                 .map_err(|error| ops.decline(&error))
         });
-        let value = match computed.and_then(|value| ops.take(value)) {
-            Ok(value) => value,
-            Err(reason) => return EvalAnswer::Declined(reason),
+        let value = match computed {
+            Ok(value) => match ops.take(value) {
+                Ok(value) => value,
+                Err(reason) => return EvalAnswer::Declined(reason),
+            },
+            Err(reason) => {
+                return stopped(
+                    &mut ops,
+                    reason,
+                    NativeEvalId::StringRange,
+                    STRING_RANGE_REVISION,
+                );
+            }
         };
         EvalAnswer::Evaluated(Box::new(InvocationOutcome {
             completion: CompletionOutcome::Normal,
@@ -271,9 +303,13 @@ impl CommandSemantics for ListOfArgsSemantics {
             Ok(args) => args,
             Err(answer) => return answer,
         };
-        match run_core(input, budget, Self::NEEDS, |ops| {
-            Ok(tcl_cmd_core::list::list(ops, &args))
-        }) {
+        match run_core(
+            input,
+            budget,
+            (NativeEvalId::ListOfArgs, LIST_AND_LENGTH_REVISION),
+            Self::NEEDS,
+            |ops| Ok(tcl_cmd_core::list::list(ops, &args)),
+        ) {
             Ok((value, target)) => pure_outcome(
                 NativeEvalId::ListOfArgs,
                 LIST_AND_LENGTH_REVISION,
@@ -284,7 +320,7 @@ impl CommandSemantics for ListOfArgsSemantics {
                     ..DependencyEvidence::default()
                 },
             ),
-            Err(reason) => EvalAnswer::Declined(reason),
+            Err(answer) => answer,
         }
     }
 }
@@ -331,9 +367,13 @@ impl CommandSemantics for ListLengthSemantics {
             Ok(mut args) => args.remove(0),
             Err(answer) => return answer,
         };
-        match run_core(input, budget, Self::NEEDS, |ops| {
-            tcl_cmd_core::list::llength(ops, &list).map_err(|error| ops.decline(&error))
-        }) {
+        match run_core(
+            input,
+            budget,
+            (NativeEvalId::ListLength, LIST_AND_LENGTH_REVISION),
+            Self::NEEDS,
+            |ops| tcl_cmd_core::list::llength(ops, &list).map_err(|error| ops.decline(&error)),
+        ) {
             Ok((value, target)) => pure_outcome(
                 NativeEvalId::ListLength,
                 LIST_AND_LENGTH_REVISION,
@@ -344,7 +384,7 @@ impl CommandSemantics for ListLengthSemantics {
                     ..DependencyEvidence::default()
                 },
             ),
-            Err(reason) => EvalAnswer::Declined(reason),
+            Err(answer) => answer,
         }
     }
 }
@@ -393,10 +433,16 @@ impl CommandSemantics for StringLengthSemantics {
             Ok(mut args) => args.remove(0),
             Err(answer) => return answer,
         };
-        match run_core(input, budget, Self::NEEDS, |ops| {
-            ops.admissible_text(&subject)?;
-            Ok(tcl_cmd_core::string::length(ops, &subject))
-        }) {
+        match run_core(
+            input,
+            budget,
+            (NativeEvalId::StringLength, LIST_AND_LENGTH_REVISION),
+            Self::NEEDS,
+            |ops| {
+                ops.admissible_text(&subject)?;
+                Ok(tcl_cmd_core::string::length(ops, &subject))
+            },
+        ) {
             Ok((value, target)) => pure_outcome(
                 NativeEvalId::StringLength,
                 LIST_AND_LENGTH_REVISION,
@@ -408,7 +454,7 @@ impl CommandSemantics for StringLengthSemantics {
                     ..DependencyEvidence::default()
                 },
             ),
-            Err(reason) => EvalAnswer::Declined(reason),
+            Err(answer) => answer,
         }
     }
 }
@@ -449,7 +495,7 @@ impl FormatTemplateSemantics {
         if gated.iter().any(|gated| gated.min > release) {
             return Err(DeclineReason::WrongRepresentation);
         }
-        run_core(input, budget, Self::NEEDS, |ops| {
+        run_core_declining(input, budget, Self::NEEDS, |ops| {
             tcl_cmd_core::format::format_cmd_with_syntax(ops, args, release.number_syntax())
                 .map_err(|error| ops.decline(&error))
         })

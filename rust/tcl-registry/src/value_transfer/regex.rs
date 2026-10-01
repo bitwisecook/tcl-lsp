@@ -42,11 +42,13 @@ use crate::types::TclType;
 
 use super::CommandSemantics;
 use super::answers::EvalAnswer;
-use super::const_ops::{ConstOps, ConstValue, Needs, TargetSemantics};
+use super::const_ops::{ConstOps, ConstValue, Needs, Raised, TargetSemantics};
 use super::context::Budget;
 use super::decline::{BudgetLimit, DeclineReason, NoRouteReason};
 use super::inputs::{AnalysisInputs, OperandId, TargetId};
-use super::publication::{PendingStore, Publication, open_words};
+use super::publication::{
+    ArrayWrite, Checked, PendingStore, Publication, open_words, raised_outcome,
+};
 use super::route::{EvalRoute, NativeEvalId};
 
 /// This module's revision of the two routes; the engine's own revision is
@@ -187,6 +189,18 @@ pub(super) fn failure_reason(ops: &ConstOps<'_>, failure: &RegexFailure) -> Decl
     }
 }
 
+/// What `regexp` and `regsub` answer for a run that failed: an error the
+/// command raises — a malformed pattern among them, worded by the engine —
+/// is the completion it is, with the message unproven; any other failure
+/// is [`failure_reason`]'s decline.
+fn failed(ops: &ConstOps<'_>, failure: &RegexFailure, id: NativeEvalId) -> EvalAnswer {
+    let reason = failure_reason(ops, failure);
+    if reason == DeclineReason::WrongRepresentation && ops.fault().is_none() {
+        return raised_outcome(id, route_revision(), ops.target(), Raised::unproven());
+    }
+    EvalAnswer::Declined(reason)
+}
+
 /// The exact words of every operand and the operands the resolver gives the
 /// `VarWrite` role, with a value model admitted for the routes' axes — or
 /// the answer that stands in for an input that is not exact, or a `-start`
@@ -232,7 +246,7 @@ impl RegexpSemantics {
         });
         let publication = match run {
             Err(reason) => return EvalAnswer::Declined(reason),
-            Ok(Err(failure)) => return EvalAnswer::Declined(failure_reason(&ops, &failure)),
+            Ok(Err(failure)) => return failed(&ops, &failure, NativeEvalId::RegexpMatch),
             Ok(Ok(RegexpResult::Inline(list))) => {
                 Publication::preserving(list, TclType::List, &targets)
             }
@@ -266,7 +280,16 @@ impl RegexpSemantics {
                 }
             }
         };
-        publication.publish(ops, NativeEvalId::RegexpMatch, route_revision())
+        let checked = Checked {
+            input,
+            write: ArrayWrite::Scan,
+        };
+        publication.publish(
+            ops,
+            Some(checked),
+            NativeEvalId::RegexpMatch,
+            route_revision(),
+        )
     }
 }
 
@@ -335,7 +358,7 @@ impl RegsubSemantics {
         });
         let substituted = match run {
             Err(reason) => return EvalAnswer::Declined(reason),
-            Ok(Err(failure)) => return EvalAnswer::Declined(failure_reason(&ops, &failure)),
+            Ok(Err(failure)) => return failed(&ops, &failure, NativeEvalId::RegsubSubstitute),
             Ok(Ok(substituted)) => substituted,
         };
         let Ok(text) = String::from_utf8(substituted.text) else {
@@ -357,7 +380,16 @@ impl RegsubSemantics {
                 }
             }
         };
-        publication.publish(ops, NativeEvalId::RegsubSubstitute, route_revision())
+        let checked = Checked {
+            input,
+            write: ArrayWrite::Scan,
+        };
+        publication.publish(
+            ops,
+            Some(checked),
+            NativeEvalId::RegsubSubstitute,
+            route_revision(),
+        )
     }
 }
 

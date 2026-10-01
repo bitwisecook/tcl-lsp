@@ -87,6 +87,24 @@ impl ListError {
         }
     }
 
+    /// The failure `message` is the complete message of: the fixed texts,
+    /// or a `…followed by "X" instead of space` one.
+    #[must_use]
+    pub fn from_message(message: &str) -> Option<Self> {
+        let fixed = [Self::UnmatchedBrace, Self::UnmatchedQuote];
+        let junk = [Self::BraceFollowedByJunk, Self::QuoteFollowedByJunk];
+        fixed
+            .into_iter()
+            .find(|error| message == error.message())
+            .or_else(|| {
+                junk.into_iter().find(|error| {
+                    message.strip_prefix(error.message()).is_some_and(|rest| {
+                        rest.starts_with(" \"") && rest.ends_with("\" instead of space")
+                    })
+                })
+            })
+    }
+
     /// Tcl's structured `-errorcode` for this list syntax failure.
     #[must_use]
     pub fn error_code(self) -> &'static str {
@@ -811,6 +829,35 @@ mod tests {
             .into_iter()
             .map(Cow::into_owned)
             .collect()
+    }
+
+    /// `from_message` names the failure `full_message` builds the message of,
+    /// and none for a text that merely starts or ends alike.
+    #[test]
+    fn a_list_error_message_is_recognised_whole() {
+        for (error, source) in [
+            (ListError::UnmatchedBrace, "{a"),
+            (ListError::UnmatchedQuote, "\"a"),
+            (ListError::BraceFollowedByJunk, "{b}x"),
+            (ListError::QuoteFollowedByJunk, "\"b\"x"),
+        ] {
+            assert_eq!(
+                ListError::from_message(&error.full_message(source)),
+                Some(error)
+            );
+        }
+        for text in [
+            "",
+            "bad index",
+            "unmatched open brace",
+            "unmatched open brace in list.",
+            "list element in braces followed by",
+            "list element in braces followed by \"x\"",
+            "list element in braces followed by x instead of space",
+            "list element in braces followed by x\" instead of space",
+        ] {
+            assert_eq!(ListError::from_message(text), None, "{text:?}");
+        }
     }
 
     /// The junk-fragment cap counts **bytes**, so it can land inside a

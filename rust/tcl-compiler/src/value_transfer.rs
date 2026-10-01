@@ -759,12 +759,31 @@ fn reason_label(reason: DeclineReason) -> String {
     }
 }
 
+/// The completion an evaluated outcome has, for an explanation: nothing for
+/// the normal one, which is what `evaluated` says, and the code or the
+/// number of stores that ran before the error otherwise.
+fn completion_label(completion: &CompletionOutcome) -> Option<String> {
+    match completion {
+        CompletionOutcome::Normal => None,
+        CompletionOutcome::Code { code, .. } => Some(format!("code {}", code.as_int())),
+        CompletionOutcome::Error { written, .. } => Some(format!(
+            "error after {written} store{}",
+            if *written == 1 { "" } else { "s" }
+        )),
+    }
+}
+
 /// The lifted answer's spelling for an explanation.
 fn answer_label(answer: &LiftedAnswer) -> String {
     match answer {
         LiftedAnswer::Pending => "pending".to_owned(),
         LiftedAnswer::Declined(reason) => format!("declined: {}", reason_label(*reason)),
-        LiftedAnswer::Evaluated(outcomes) if outcomes.len() == 1 => "evaluated".to_owned(),
+        LiftedAnswer::Evaluated(outcomes) if outcomes.len() == 1 => {
+            completion_label(&outcomes[0].completion).map_or_else(
+                || "evaluated".to_owned(),
+                |completion| format!("evaluated: {completion}"),
+            )
+        }
         LiftedAnswer::Evaluated(outcomes) => {
             format!("evaluated per member ({} members)", outcomes.len())
         }
@@ -1545,6 +1564,15 @@ impl<'a> LatticeDriver<'a> {
                 Some(route),
                 format!("declined: {}", reason_label(reason)),
             );
+            return self.transferred(semantics, defs, inputs, widened(defs));
+        }
+        // A completion that is not the normal one publishes no value for the
+        // statement's definitions, which widen; the explanation already says
+        // what the route proved.
+        if outcomes
+            .iter()
+            .any(|outcome| !outcome.completion.is_normal())
+        {
             return self.transferred(semantics, defs, inputs, widened(defs));
         }
         let mut joined: Option<Vec<DefAnswer>> = None;
@@ -6417,6 +6445,54 @@ mod tests {
                 [("x", StoreOutcome::Write { value, .. })] if value.as_int() == Some(2)
             ),
             "{writes:?}"
+        );
+    }
+
+    /// An integer division or remainder by zero is an error completion with
+    /// the wording every release shares — `divide by zero`, `-errorcode`
+    /// `ARITH DIVZERO {divide by zero}` — and the writes the expression's own
+    /// commands made before it are counted. A float operand makes the
+    /// operation floating point, which does not raise, and an operand that is
+    /// no integer raises another error the engine does not word.
+    #[test]
+    fn an_integer_division_by_zero_is_an_error_completion() {
+        let completion_of = |text: &str| {
+            let LiftedAnswer::Evaluated(outcomes) =
+                evaluate_over_x(text, NestedPolicy::LocalWrites)
+            else {
+                panic!("{text} evaluates");
+            };
+            let [outcome] = outcomes.as_slice() else {
+                panic!("one outcome for {text}: {outcomes:?}");
+            };
+            (outcome.completion.clone(), outcome.nested_writes.len())
+        };
+        let divide_by_zero = |written: usize| CompletionOutcome::Error {
+            written,
+            message: ExactValueOrUnavailable::exact_text("divide by zero"),
+            error_code: ExactValueOrUnavailable::exact_text("ARITH DIVZERO {divide by zero}"),
+        };
+        for (text, written) in [
+            ("1 / 0", 0),
+            ("$x % 0", 0),
+            ("0 / 0", 0),
+            ("[incr x] / 0", 1),
+            ("[incr x] + [incr x] % 0", 2),
+        ] {
+            let (completion, writes) = completion_of(text);
+            assert_eq!(completion, divide_by_zero(written), "{text}");
+            assert_eq!(writes, written, "{text}");
+        }
+        for text in ["1 / 0.0", "1.0 / 0", "$x / 2", "1 % 3"] {
+            let (completion, _) = completion_of(text);
+            assert_eq!(completion, CompletionOutcome::Normal, "{text}");
+        }
+        assert!(
+            matches!(
+                evaluate_over_x("{a} / 0", NestedPolicy::LocalWrites),
+                LiftedAnswer::Declined(_)
+            ),
+            "no integer is divided"
         );
     }
 

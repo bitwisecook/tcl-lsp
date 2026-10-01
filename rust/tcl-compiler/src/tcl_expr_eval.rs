@@ -1711,6 +1711,37 @@ impl<'a> ExprServices<'a> {
         }
     }
 
+    /// Whether `left / right` and `left % right` are integer operations
+    /// over a zero divisor: the one arithmetic failure whose completion every
+    /// release words alike. A float operand makes the operation floating
+    /// point (`1 / 0.0` is `Inf`), and an operand that reads as no integer
+    /// raises another error the engine does not word.
+    fn divides_integers_by_zero(&self, left: &FoldValue, right: &FoldValue) -> bool {
+        let integer = |value: &FoldValue| {
+            strict_number_for_dialect(value, self.fold.octal, self.fold.numbers)
+        };
+        matches!(
+            (integer(left), integer(right)),
+            (
+                Some(TclValue::Int(_) | TclValue::Big(_)),
+                Some(TclValue::Int(0))
+            )
+        )
+    }
+
+    /// The error a division by an integer zero raises: `divide by zero`,
+    /// `-errorcode` `ARITH DIVZERO {divide by zero}`, in every release
+    /// (tclsh 8.4 to 9.1), raised before any write the expression's own
+    /// commands have not already made.
+    fn divide_by_zero(&mut self) -> ExprStop {
+        self.ended = Some(CompletionOutcome::Error {
+            written: self.state.writes.len(),
+            message: ExactValueOrUnavailable::exact_text("divide by zero"),
+            error_code: ExactValueOrUnavailable::exact_text("ARITH DIVZERO {divide by zero}"),
+        });
+        ExprStop::Ended
+    }
+
     /// The expression's full value, as `expr` returns it: a string result
     /// that reads as a number under the target's grammar is that number's
     /// canonical form (`expr {"0x10"}` is 16, `expr {" 5 "}` is 5), and any
@@ -1889,6 +1920,9 @@ impl tcl_syntax::expr::ExprOps for ExprServices<'_> {
         right: FoldValue,
     ) -> Result<FoldValue, ExprStop> {
         self.tower(&[&left, &right])?;
+        if matches!(op, BinOp::Div | BinOp::Mod) && self.divides_integers_by_zero(&left, &right) {
+            return Err(self.divide_by_zero());
+        }
         let value = self.fold.arith(op, left, right).map_err(refused)?;
         self.tower(&[&value])?;
         Ok(value)

@@ -52,10 +52,13 @@ use super::answers::{
     ExactValueOrUnavailable, Existence, ExistenceOutcome, ExistenceTransfer, InvocationOutcome,
     PlanAnswer, RangeModel, RouteIdentity, StoreOutcome, TransferAnswer, TypeFacts,
 };
-use super::const_ops::{ConstOps, ConstValue, Needs, TargetSemantics};
+use super::const_ops::{ConstOps, ConstValue, Needs, Raised, TargetSemantics};
 use super::context::Budget;
 use super::decline::DeclineReason;
-use super::inputs::{AnalysisInputs, DomainFact, FactDomain, FactView, OperandId, TargetId};
+use super::inputs::{
+    AnalysisInputs, DomainFact, FactDomain, FactView, OperandId, PlaceRef, TargetId,
+};
+use super::publication::{ArrayWrite, raised_outcome, stopped};
 use super::route::{EvalRoute, NativeEvalId};
 
 const NORMAL: &[CompletionCode] = &[CompletionCode::Ok];
@@ -144,6 +147,31 @@ impl CellUpdateSemantics {
         }
     }
 
+    /// The answer for an update of an absent place no release the target
+    /// names creates: under a named release — 8.4's `incr` — the program
+    /// raises `can't read "fresh": no such variable`, which no release
+    /// words otherwise and 8.4 leaves no `-errorcode` for; with no release
+    /// named the releases disagree (8.5 creates the cell), and the answer
+    /// declines. An element's message says whether its array exists, which
+    /// the fact does not, so only its code is proven.
+    fn absent_cell_declines(self, target: &TargetSemantics, place: &PlaceRef) -> EvalAnswer {
+        if target.release.is_none() {
+            return EvalAnswer::Declined(DeclineReason::UnboundPlace);
+        }
+        let raised = if place.is_element() {
+            Raised {
+                message: ExactValueOrUnavailable::unproven_string(),
+                error_code: ExactValueOrUnavailable::exact_text("NONE"),
+            }
+        } else {
+            Raised::exact(
+                format!("can't read \"{}\": no such variable", place.name),
+                "NONE",
+            )
+        };
+        raised_outcome(self.evaluator(), REVISION, target, raised)
+    }
+
     fn evaluate_update(self, input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
         let operands = input.invocation().operands.len();
         if !self.accepts(operands) {
@@ -153,6 +181,22 @@ impl CellUpdateSemantics {
             Ok(place) => place,
             Err(reason) => return EvalAnswer::Declined(reason),
         };
+        // A place the analysis proves holds an array is the update's error,
+        // whichever the operation: `incr`, `append` and `lappend` all
+        // raise before they write.
+        if let Some(name) = ArrayWrite::array_place(input, Self::TARGET) {
+            let write = match self.update {
+                CellUpdate::Increment => ArrayWrite::Incr,
+                CellUpdate::Append | CellUpdate::ListAppend => ArrayWrite::Set,
+            };
+            let target = TargetSemantics::of(input.context().profile);
+            return raised_outcome(
+                self.evaluator(),
+                REVISION,
+                &target,
+                write.raised(&name, &target),
+            );
+        }
         // An unbound place is an absent cell, whose prior is no value at
         // all; any other fact reads the prior value, which the lattice
         // proves exactly only for a bound place.
@@ -184,7 +228,7 @@ impl CellUpdateSemantics {
         };
         let target = *ops.target();
         if absent && !self.creates_absent_under(&target) {
-            return EvalAnswer::Declined(DeclineReason::UnboundPlace);
+            return self.absent_cell_declines(&target, &place);
         }
         let current = prior.as_ref().map(ConstValue::from_exact);
         let computed = match self.update {
@@ -200,9 +244,12 @@ impl CellUpdateSemantics {
             CellUpdate::ListAppend => tcl_cmd_core::var::lappend_value(&mut ops, current, &values)
                 .map_err(|error| ops.decline(&error)),
         };
-        let value = match computed.and_then(|value| ops.take(value)) {
-            Ok(value) => value,
-            Err(reason) => return EvalAnswer::Declined(reason),
+        let value = match computed {
+            Ok(value) => match ops.take(value) {
+                Ok(value) => value,
+                Err(reason) => return EvalAnswer::Declined(reason),
+            },
+            Err(reason) => return stopped(&mut ops, reason, self.evaluator(), REVISION),
         };
         EvalAnswer::Evaluated(Box::new(InvocationOutcome {
             completion: CompletionOutcome::Normal,
