@@ -218,7 +218,8 @@ pub mod prelude {
     };
     pub use crate::symbol_def::{DefinedSymbolKind, SymbolDef};
     pub use crate::taint::{
-        SetterConstraint, TaintColour, TaintColourAtom, TaintTransformCondition,
+        SetterConstraint, TaintColour, TaintColourAtom, TaintNumericCoercion,
+        TaintTransformCondition,
     };
     pub use crate::tk_geometry::{
         GRID_GEOMETRY, PACK_GEOMETRY, PLACE_GEOMETRY, TkGeometryContainerPolicy,

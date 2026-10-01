@@ -51,7 +51,7 @@ use crate::representation::RepresentationEffect;
 use crate::side_effects::{SideEffect, StorageType};
 use crate::state_transition::StateTransitionDescriptor;
 use crate::symbol_def::SymbolDef;
-use crate::taint::{SetterConstraint, TaintColour, TaintTransformCondition};
+use crate::taint::{SetterConstraint, TaintColour, TaintNumericCoercion, TaintTransformCondition};
 use crate::traits::Traits;
 use crate::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
 use crate::world_effect::WorldEffectDescriptor;
@@ -445,6 +445,9 @@ pub struct CaseInvocation {
     pub inline_clause_start: Option<usize>,
     /// Comparison mode selected by registry-declared options.
     pub mode: CaseMatchMode,
+    /// The canonical [`CaseListSpec::special_match_options`] entry that
+    /// selected [`CaseMatchMode::Other`] (`-integer`), else `None`.
+    pub special_option: Option<&'static str>,
     /// Whether matching is case-insensitive.
     pub nocase: bool,
 }
@@ -584,6 +587,7 @@ impl CaseListSpec {
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<CaseInvocation> {
         let mut mode = CaseMatchMode::Exact;
+        let mut special_option = None;
         let mut saw_match_mode = false;
         let mut nocase = false;
         let mut saw_regex_value_option = false;
@@ -673,6 +677,7 @@ impl CaseListSpec {
                             }
                             saw_match_mode = true;
                             mode = CaseMatchMode::Other;
+                            special_option = Some(option_name);
                             i += 1;
                             continue;
                         }
@@ -743,6 +748,7 @@ impl CaseListSpec {
                 clause_list_index: Some(i),
                 inline_clause_start: None,
                 mode,
+                special_option,
                 nocase,
             })
         } else if remaining == 1 && !force_inline && (sole_clause_list || self.subject_args == 1) {
@@ -760,6 +766,7 @@ impl CaseListSpec {
                 clause_list_index: Some(i),
                 inline_clause_start: None,
                 mode,
+                special_option,
                 nocase,
             })
         } else if per_clause_flags {
@@ -772,6 +779,7 @@ impl CaseListSpec {
                 clause_list_index: None,
                 inline_clause_start: Some(i),
                 mode,
+                special_option,
                 nocase,
             })
         } else if remaining >= 2
@@ -783,6 +791,7 @@ impl CaseListSpec {
                 clause_list_index: None,
                 inline_clause_start: Some(i),
                 mode,
+                special_option,
                 nocase,
             })
         } else {
@@ -1876,6 +1885,12 @@ pub struct CommandSpec {
     /// `tcl_registry::commands::tcl::subst_::subst_evaluates_commands`.
     pub taint_sink_gate: Option<fn(&[&str]) -> bool>,
 
+    /// Which of a call's own argument words this command reads as numbers —
+    /// a T100 numeric-coercion sink when one carries taint, as an operand of a
+    /// braced `expr` is. `None` (the default) = the command coerces nothing a
+    /// caller controls. See [`TaintNumericCoercion`].
+    pub taint_numeric_coercion: Option<TaintNumericCoercion>,
+
     /// Option flags whose value carries a secret (e.g. `-password`,
     /// `-headers`) — drives credential-exposure checks. Empty = none.
     pub credential_options: &'static [&'static str],
@@ -2434,6 +2449,7 @@ impl CommandSpec {
         taint_double_encode_colour: None,
         taint_sink_safe_colour: None,
         taint_sink_gate: None,
+        taint_numeric_coercion: None,
         credential_options: &[],
         sensitive_headers: &[],
         setter_constraints: &[],
