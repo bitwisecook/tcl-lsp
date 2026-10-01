@@ -41,6 +41,7 @@ use crate::expr_ast::ExprNode;
 use crate::ir::{CommandBindingSite, CommandTokens, Module, Script, Statement};
 use crate::ir_helpers::defs_from_ir_script;
 use crate::naming::normalise_var_name;
+use crate::var_refs::{VarReferenceScanner, VarScanOptions};
 
 use self::global_write_info::GlobalWriteInfo;
 use self::upvar_info::{FrameReach, UpvarInfo};
@@ -165,7 +166,8 @@ struct ResolvedUpvarEffects {
 struct ConditionEffects {
     /// Variables the condition's substitutions write.
     defs: Vec<String>,
-    /// The subset of [`Self::defs`] read before being written.
+    /// What the condition reads of [`Self::defs`] ahead of their writes, as
+    /// [`EmbeddedSubstExtras::reads`] states it.
     reads: Vec<String>,
     /// An embedded callee runs an unreadable script at the global frame.
     opaque_global: bool,
@@ -178,9 +180,11 @@ struct ConditionEffects {
 struct EmbeddedSubstExtras {
     /// Variables an embedded substitution writes.
     defs: Vec<String>,
-    /// The subset of [`Self::defs`] the embedded command reads before
-    /// writing (`[incr n]`, `[append s x]`).
-    read_before_write: Vec<String>,
+    /// What the statement reads of [`Self::defs`] ahead of their writes: the
+    /// names an embedded command reads before it writes (`[incr n]`,
+    /// `[append s x]`), and those the statement's words read beside a write
+    /// ([`CfgBuilder::read_beside_writes`]).
+    reads: Vec<String>,
     /// An embedded callee runs an unreadable script at the global frame.
     opaque_global: bool,
     /// An embedded command is one the module cannot see.
@@ -941,7 +945,7 @@ impl<'a> CfgBuilder<'a> {
         //    `[upvar_proc arg]` / `[global_write_proc arg]` substitutions.
         let EmbeddedSubstExtras {
             defs: embedded_extras,
-            read_before_write: embedded_reads,
+            reads: embedded_reads,
             opaque_global: embedded_opaque_global,
             unseen: substitution_unseen,
         } = self.embedded_subst_extras(&stmt);
@@ -1223,12 +1227,61 @@ impl<'a> CfgBuilder<'a> {
                 reads.push(r);
             }
         }
+        let beside = self.read_beside_writes(&embedded_extras, |scanner| {
+            crate::ir_helpers::statement_substituted_reads(stmt, &embedded, scanner, self.registry)
+        });
+        for name in beside {
+            if !reads.contains(&name) {
+                reads.push(name);
+            }
+        }
         EmbeddedSubstExtras {
             defs: embedded_extras,
-            read_before_write: reads,
+            reads,
             opaque_global: embedded_opaque_global,
             unseen: self.substitutions_reach_unseen(&embedded),
         }
+    }
+
+    /// The places among `written`, which a statement's `[…]` substitutions
+    /// write, that `host_reads` — every variable the statement reads by
+    /// substitution — also holds.
+    ///
+    /// The words of one statement run before, between and after such a write,
+    /// and the SSA gives a statement one version of a name. The effect call
+    /// that carries the write is placed first and reads the version before
+    /// it, so the store feeding a word that runs ahead of the write stays
+    /// live. Which word runs where is not modelled: a read after the write is
+    /// counted too, and a place no word reads is not, so a store the
+    /// statement overwrites unread (`puts [set x 2]`, `[gets $fd line]`)
+    /// stays dead.
+    fn read_beside_writes(
+        &self,
+        written: &[String],
+        host_reads: impl FnOnce(&mut VarReferenceScanner) -> BTreeSet<String>,
+    ) -> Vec<String> {
+        if written.is_empty() {
+            return Vec::new();
+        }
+        let mut scanner = VarReferenceScanner::with_config(
+            VarScanOptions {
+                include_var_read_roles: true,
+                recurse_cmd_substitutions: true,
+                include_reads_before_write: false,
+                element_qualified: true,
+            },
+            self.config,
+        );
+        let base = |name: &str| normalise_var_name(name).trim_start_matches("::").to_owned();
+        let read: BTreeSet<String> = host_reads(&mut scanner)
+            .iter()
+            .map(|name| base(name))
+            .collect();
+        written
+            .iter()
+            .filter(|name| read.contains(&base(name)))
+            .cloned()
+            .collect()
     }
 
     fn upvar_effects_from_commands(
@@ -1388,6 +1441,19 @@ impl<'a> CfgBuilder<'a> {
         for r in role_reads.names {
             if !reads.contains(&r) {
                 reads.push(r);
+            }
+        }
+        let beside = self.read_beside_writes(&out, |scanner| {
+            crate::ir_helpers::condition_substituted_reads(
+                condition,
+                &embedded,
+                scanner,
+                self.registry,
+            )
+        });
+        for name in beside {
+            if !reads.contains(&name) {
+                reads.push(name);
             }
         }
         ConditionEffects {
@@ -1831,10 +1897,11 @@ impl<'a> CfgBuilder<'a> {
         self.record_alias_observed(stmt);
         let EmbeddedSubstExtras {
             defs: extras,
-            read_before_write: extra_reads,
+            reads: extra_reads,
             opaque_global: opaque,
             unseen,
         } = self.embedded_subst_extras(stmt);
+
         if unseen {
             self.block_mut(current)
                 .statements
@@ -4916,6 +4983,86 @@ mod tests {
         let cmd = find_call_with_def(&cfg.top_level, "caller_x")
             .expect("expected a Call carrying caller_x in defs");
         assert_eq!(cmd, "<upvar-invalidate>");
+    }
+
+    /// The `(defs, reads)` of the first call named `command` in `func`.
+    fn defs_and_reads<'a>(
+        func: &'a Function,
+        command: &str,
+    ) -> Option<(&'a [String], &'a [String])> {
+        func.blocks.values().find_map(|block| {
+            block.statements.iter().find_map(|stmt| match stmt {
+                Statement::Call {
+                    command: name,
+                    defs,
+                    reads,
+                    ..
+                } if name == command => Some((defs.as_slice(), reads.as_slice())),
+                _ => None,
+            })
+        })
+    }
+
+    /// Where a statement's `[…]` substitutions write a place its own words read,
+    /// the call that carries the write reads it too — the version before the
+    /// write feeds the word that runs ahead of it. A read inside a command the
+    /// statement runs, or inside the expression word of one, is a read of the
+    /// statement.
+    #[test]
+    fn the_call_carrying_a_write_reads_the_place_its_statement_reads() {
+        for (body, carrier) in [
+            ("set r [expr {$x + [set x 10] + $x}]", "<upvar-invalidate>"),
+            ("expr {$x + [set x 10]}", "<upvar-invalidate>"),
+            ("set r \"$x [set x 10]\"", "<upvar-invalidate>"),
+            ("incr r [expr {$x + [set x 10]}]", "<upvar-invalidate>"),
+            ("return [expr {$x + [set x 10]}]", "<upvar-invalidate>"),
+            (
+                "set r [expr {[string length $x] + [set x 10]}]",
+                "<upvar-invalidate>",
+            ),
+            (
+                "set r [expr {[expr {$x + 1}] + [set x 10]}]",
+                "<upvar-invalidate>",
+            ),
+            ("if {$x + [set x 10] > 3} {puts a}", "<cond>"),
+            ("while {$x + [set x 10] < 3} {break}", "<cond>"),
+            ("puts [expr {$x + [set x 10] + $x}]", "puts"),
+            ("foo $x [incr x] $x", "foo"),
+        ] {
+            let module = lower_module(&format!("proc p {{}} {{ set x 1; set r 5; {body} }}"));
+            let cfg = build_cfg(&module, false);
+            let p = cfg.procedures.get("::p").expect("::p CFG");
+            let (defs, reads) = defs_and_reads(p, carrier).expect(body);
+            assert!(defs.iter().any(|name| name == "x"), "{body}: {defs:?}");
+            assert!(reads.iter().any(|name| name == "x"), "{body}: {reads:?}");
+        }
+    }
+
+    /// A place no word of the statement reads is no read of the call that
+    /// carries its write: the store the write overwrites stays dead, as it was
+    /// before a statement's reads were told from its writes, and a `gets` that
+    /// fills a loop's variable reads nothing of it.
+    #[test]
+    fn the_call_carrying_a_write_leaves_a_place_its_statement_never_reads_alone() {
+        for (body, carrier, place) in [
+            ("set r [expr {[set x 10] + 1}]", "<upvar-invalidate>", "x"),
+            ("puts [set x 2]", "puts", "x"),
+            (
+                "while {[gets $fd line] >= 0} {puts $line}",
+                "<cond>",
+                "line",
+            ),
+            ("if {[set x 10] > $r} {puts a}", "<cond>", "x"),
+        ] {
+            let module = lower_module(&format!(
+                "proc p {{fd}} {{ set x 1; set r 5; set line {{}}; {body} }}"
+            ));
+            let cfg = build_cfg(&module, false);
+            let p = cfg.procedures.get("::p").expect("::p CFG");
+            let (defs, reads) = defs_and_reads(p, carrier).expect(body);
+            assert!(defs.iter().any(|name| name == place), "{body}: {defs:?}");
+            assert!(!reads.iter().any(|name| name == place), "{body}: {reads:?}");
+        }
     }
 
     #[test]

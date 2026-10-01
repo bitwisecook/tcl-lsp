@@ -73,8 +73,13 @@ value-identical to the original read, in every one of these senses:
   splicing the literal over one destroys the statement. Those reads carry
   their own `UseKind::VariableName` in the def-use chains precisely so no
   forwarding pass can mistake them for operands.
+- The statement that holds the read does not **write** the variable through
+  a `[…]` substitution in one of its own words. In `foo $x [incr x] $x` the
+  first `$x` is read before the increment and the last after it, so no word of
+  that statement is forwarded the earlier value.
 - No statement between the definition and the read (within the same
   block) is a **barrier** (`eval`/`uplevel`/`interp eval`/…) or a call
+
   the compiler cannot prove pure — including any call to a
   user-defined proc, since an unrecognised command is treated
   conservatively as an unproven write.

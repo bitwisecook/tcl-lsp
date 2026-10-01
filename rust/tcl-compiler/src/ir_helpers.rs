@@ -24,6 +24,8 @@
 //! modified before an exception, and at condition sites to track
 //! definitions produced by command substitutions.
 
+use std::collections::BTreeSet;
+
 use tcl_lexer::{LexerConfig, SourceMap, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry, InvocationWord, InvocationWords, Traits};
 
@@ -33,6 +35,7 @@ pub(crate) use crate::ir::ExecutionNamespace;
 use crate::ir::{CommandTokens, Script, Statement, WordExpr, WordPart};
 use crate::naming::normalise_var_name;
 use crate::segmenter::SegmentedCommand;
+use crate::var_refs::VarReferenceScanner;
 
 /// The nested script bodies a structured-control-flow statement contains —
 /// every shape a flow-*insensitive* whole-body walk needs to recurse into
@@ -1133,6 +1136,11 @@ pub(crate) struct EvaluatedCommandSubstitutions {
     /// Closing that second gap means fixing the recursion summary first; the
     /// two are separate, and this split says which is which.
     pub in_frame_expression_commands: Vec<Vec<CommandWord>>,
+    /// The brace-quoted words themselves — the text of each `{$x + [incr x]}`
+    /// a recovered command evaluates as an expression in this frame, which is
+    /// where the variable reads of that expression sit: no command word of
+    /// [`Self::in_frame_expression_commands`] holds them.
+    pub in_frame_expression_texts: Vec<String>,
     /// A malformed fragment or recursion-limit hit prevented complete recovery.
     pub opaque: bool,
 }
@@ -1318,6 +1326,7 @@ fn walk_braced_expr_words(
         else {
             continue;
         };
+        out.in_frame_expression_texts.push(word.text.clone());
         walk_text(&word.text, config, registry, heads, depth + 1, true, out);
     }
 }
@@ -1405,6 +1414,67 @@ pub(crate) fn expression_command_substitutions(
     let mut opaque = false;
     collect_expr_command_surface_refs(expr, &mut texts, &mut opaque, 0);
     command_substitutions_in_surfaces(&texts, opaque, registry, heads)
+}
+
+/// Every variable `stmt` may read by substitution, wherever the read sits: in
+/// its own words or expression, in the commands its `[…]` substitutions run,
+/// and in the expression words those commands evaluate in this frame
+/// (`embedded`, recovered from the same statement).
+///
+/// The statement's own uses cover its words. The commands its substitutions
+/// run and the expression words they evaluate are scanned as text, because the
+/// lowering keeps no word structure for them (an expression's
+/// `ExprNode::Command` is one opaque spelling, an `incr` amount is a string).
+/// The effect call that carries an embedded command's write needs the whole
+/// set: a name that write defines is read by the words before, between and
+/// after it.
+#[must_use]
+pub(crate) fn statement_substituted_reads(
+    stmt: &Statement,
+    embedded: &EvaluatedCommandSubstitutions,
+    scanner: &mut VarReferenceScanner,
+    registry: &CommandRegistry,
+) -> BTreeSet<String> {
+    let mut reads: BTreeSet<String> = crate::ssa::uses_of(stmt, scanner, registry)
+        .into_iter()
+        .collect();
+    let surfaces = evaluated_command_substitution_surfaces(stmt, registry);
+    for text in surfaces.texts.iter().copied().chain(
+        embedded
+            .in_frame_expression_texts
+            .iter()
+            .map(String::as_str),
+    ) {
+        reads.extend(scanner.scan_word(text, registry));
+    }
+    reads
+}
+
+/// [`statement_substituted_reads`] for a branch condition: its own variables,
+/// the commands its substitutions run, and the expression words they evaluate.
+#[must_use]
+pub(crate) fn condition_substituted_reads(
+    condition: &ExprNode,
+    embedded: &EvaluatedCommandSubstitutions,
+    scanner: &mut VarReferenceScanner,
+    registry: &CommandRegistry,
+) -> BTreeSet<String> {
+    let mut reads: BTreeSet<String> = condition
+        .vars_element_qualified_with_config(scanner.lexer_config())
+        .into_iter()
+        .collect();
+    let mut texts: Vec<&str> = Vec::new();
+    let mut opaque = false;
+    collect_expr_command_surface_refs(condition, &mut texts, &mut opaque, 0);
+    for text in texts.into_iter().chain(
+        embedded
+            .in_frame_expression_texts
+            .iter()
+            .map(String::as_str),
+    ) {
+        reads.extend(scanner.scan_word(text, registry));
+    }
+    reads
 }
 
 /// Map one segmented command onto its per-word [`CommandWord`] facts.

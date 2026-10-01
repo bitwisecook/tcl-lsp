@@ -573,17 +573,21 @@ puts $x                            ;# merged: not forwarded (#2141, fixed by #22
 ```tcl
 set x 1
 puts [expr {$x + [set x 10] + $x}]   ;# merged: not folded
-puts $x                              ;# merged: O109 deletes `set x 1`, and the optimised program raises `can't read "x"`
+puts $x                              ;# merged: `set x 1` is kept, and the program prints 21 and 10, optimised or not
 ```
 
 The first is `5` then `2` and the second `21` then `10` in every release.
 At `3b5eba8a` both rewrites changed the output: the nested `[incr x]` and
 `[set x 10]` were writes the forwarding never saw. The merged tree sees
-both writes, and the increment's read keeps its store; but the host
-statement's uses drop a name its nested `[set x 10]` defines, so the
-first `$x` is no use of `set x 1` and O109 finds the store dead — the gap
-slice 9's VT9.3 closes. Under the contracts they are the
+both writes, and the increment's read keeps its store. The statement's
+words read `x` before, between and after the nested `[set x 10]`, and the
+SSA gives a statement one version of a name, so the call that carries the
+write reads the version before it, by name, wherever a word of the
+statement reads the place, and no word of the statement is an operand to
+forward: `set x 1` stays, and nothing is forwarded the earlier value.
+Under the contracts they are the
 invocation's ordered stores — a read through the `variable` service
+
 consults the state's `writes` first, so `$x` after `[incr x]` is `2`, the
 expression folds to `5`, and the store the following `puts` forwards is
 the nested one's.

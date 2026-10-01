@@ -1952,6 +1952,12 @@ fn uses_in_call(
         // `puts [incr n]` looks overwritten-before-read (#2050).
         if defs.contains(name) {
             reads_own_def.insert(name.clone());
+            // …and the call's embedded commands write it: its words read it
+            // before, between and after that write, and which version a word
+            // names cannot be told, so no word of it is an operand to
+            // forward. The read stays one by name, of the version before the
+            // write.
+            found.substituted.remove(name);
         }
     }
     if *reads_own_defs {
@@ -3167,6 +3173,9 @@ impl RenameWalk {
                 let info = self.rename_statement(stmt, frame, registry, elems);
                 self.out.stmt_infos.get_mut(&bn).unwrap().push(info);
             }
+            if let Some(infos) = self.out.stmt_infos.get_mut(&bn) {
+                demote_reads_beside_writes(infos);
+            }
         }
 
         // Record exit versions.
@@ -3334,6 +3343,48 @@ pub fn build_ssa_with_config(
         var_names: walk.interner.names,
         var_to_symbol: walk.interner.to_symbol,
         unseen_call_versions,
+    }
+}
+
+/// A statement whose `[…]` substitutions write a name reads it before,
+/// between and after the write, and the effect call the CFG builder puts ahead
+/// of the statement defines the name, so the statement's own use names the
+/// version after the write. No word of it is an operand something may rewrite:
+/// each such use becomes a read by name, and the call reads the version before
+/// the write on the statement's behalf.
+fn demote_reads_beside_writes(infos: &mut [SsaStatement]) {
+    let synthetic = |stmt: &Statement| match stmt {
+        Statement::Call { tokens, .. } | Statement::Barrier { tokens, .. } => tokens
+            .as_ref()
+            .is_some_and(|tokens| tokens.synthetic.is_some()),
+        _ => false,
+    };
+    for call in 0..infos.len() {
+        let Statement::Call {
+            span,
+            tokens: Some(tokens),
+            ..
+        } = &infos[call].statement
+        else {
+            continue;
+        };
+        if tokens.synthetic != Some(crate::ir::SyntheticMarker::UpvarInvalidate) {
+            continue;
+        }
+        let span = *span;
+        let Some(host) = (call + 1..infos.len()).find(|&i| !synthetic(&infos[i].statement)) else {
+            continue;
+        };
+        if infos[host].statement.span() != span {
+            continue;
+        }
+        let written: Vec<Symbol> = infos[call].defs.keys().copied().collect();
+        for symbol in written {
+            if infos[host].uses.contains_key(&symbol) && !infos[host].quoted_uses.contains(&symbol)
+            {
+                infos[host].name_only_uses.insert(symbol);
+            }
+        }
     }
 }
 
@@ -5240,6 +5291,124 @@ mod tests {
         let reg = CommandRegistry::build_default();
         let cu = crate::compilation_unit::CompilationUnit::build_for(source, &reg, false);
         cu.function(name).expect("function analysed").ssa.clone()
+    }
+
+    /// The SSA statements of `ssa` whose statement satisfies `wanted`.
+    fn statements_where(
+        ssa: &SsaFunction,
+        wanted: impl Fn(&Statement) -> bool,
+    ) -> Vec<&SsaStatement> {
+        ssa.blocks
+            .values()
+            .flat_map(|block| &block.statements)
+            .filter(|statement| wanted(&statement.statement))
+            .collect()
+    }
+
+    /// The call the CFG builder puts ahead of a statement for what the
+    /// statement's `[…]` substitutions write.
+    fn is_effect_call(stmt: &Statement) -> bool {
+        matches!(
+            stmt,
+            Statement::Call { tokens: Some(tokens), .. }
+                if tokens.synthetic == Some(crate::ir::SyntheticMarker::UpvarInvalidate)
+        )
+    }
+
+    /// The words of a statement whose `[…]` substitutions write a place read it
+    /// before, between and after the write. The effect call ahead of the
+    /// statement reads the version before the write, by name, so the store
+    /// feeding the word that runs first stays live, and the statement's own use
+    /// names the version after the write by name as well: no word of it is an
+    /// operand something may forward.
+    #[test]
+    fn an_effect_call_reads_the_version_before_the_write_its_statement_reads() {
+        for (body, reads_it) in [
+            ("set r [expr {$x + [set x 10] + $x}]", true),
+            ("expr {$x + [set x 10] + $x}", true),
+            ("set r \"$x [set x 10] $x\"", true),
+            ("incr r [expr {$x + [set x 10]}]", false),
+            ("set r [expr {[string length $x] + [set x 10]}]", false),
+            ("set r [expr {[expr {$x + 1}] + [set x 10]}]", false),
+        ] {
+            let source = format!("proc p {{}} {{\n set x 1\n set r 5\n {body}\n puts $x\n}}\n");
+            let ssa = ssa_of_function(&source, "::p");
+            let x = ssa.var_symbol("x").expect("x");
+            let call = statements_where(&ssa, is_effect_call)[0];
+            assert_eq!(call.defs[&x], 2, "{body}");
+            assert_eq!(call.uses.get(&x), Some(&1), "{body}");
+            assert!(call.name_only_uses.contains(&x), "{body}");
+            if reads_it {
+                let host = statements_where(&ssa, |stmt| {
+                    matches!(
+                        stmt,
+                        Statement::AssignExpr { .. }
+                            | Statement::ExprEval { .. }
+                            | Statement::AssignValue { .. }
+                    ) && stmt.span() == call.statement.span()
+                })[0];
+                assert_eq!(host.uses.get(&x), Some(&2), "{body}");
+                assert!(host.name_only_uses.contains(&x), "{body}");
+            }
+        }
+    }
+
+    /// A place no word of the statement reads is not read by the call that
+    /// carries its write, so the store the write overwrites stays dead: the
+    /// call's read is for the words, not for every place it defines.
+    #[test]
+    fn an_effect_call_leaves_a_place_its_statement_never_reads_alone() {
+        for body in [
+            "set r [expr {[set x 10] + 1}]",
+            "set r \"[set x 10]\"",
+            "set r [expr {[gets $fd x] + 1}]",
+        ] {
+            let source = format!("proc p {{fd}} {{\n set x 1\n {body}\n puts $x\n}}\n");
+            let ssa = ssa_of_function(&source, "::p");
+            let x = ssa.var_symbol("x").expect("x");
+            let call = statements_where(&ssa, is_effect_call)[0];
+            assert_eq!(call.defs[&x], 2, "{body}");
+            assert_eq!(call.uses.get(&x), None, "{body}");
+        }
+    }
+
+    /// A call that embeds the write holds it among its own definitions, and its
+    /// words read the place before, between and after it. It reads the version
+    /// before the write by name, and none of its words is an operand to forward;
+    /// a place the call names itself, in the position its command reads or
+    /// writes, stays what it was.
+    #[test]
+    fn a_call_reads_a_place_its_embedded_command_writes_by_name() {
+        for (command, body) in [
+            ("puts", "puts [expr {$x + [set x 10] + $x}]"),
+            ("puts", "puts \"$x [incr x] $x\""),
+            ("foo", "foo $x [incr x] $x"),
+            ("lappend", "lappend l [incr x] $x"),
+        ] {
+            let source = format!("proc p {{}} {{\n set x 1\n set l {{}}\n {body}\n puts $x\n}}\n");
+            let ssa = ssa_of_function(&source, "::p");
+            let x = ssa.var_symbol("x").expect("x");
+            let host = statements_where(
+                &ssa,
+                |stmt| matches!(stmt, Statement::Call { command: name, .. } if name == command),
+            )[0];
+            assert_eq!(host.uses.get(&x), Some(&1), "{body}");
+            assert_eq!(host.defs[&x], 2, "{body}");
+            assert!(host.name_only_uses.contains(&x), "{body}");
+        }
+        let ssa = ssa_of_function(
+            "proc p {} {\n set l {}\n lappend l $l\n puts $l\n}\n",
+            "::p",
+        );
+        let l = ssa.var_symbol("l").expect("l");
+        let host = statements_where(
+            &ssa,
+            |stmt| matches!(stmt, Statement::Call { command, .. } if command == "lappend"),
+        )[0];
+        assert!(
+            !host.name_only_uses.contains(&l),
+            "the command's own target is read before it writes it: its word is an operand"
+        );
     }
 
     /// A `switch` the flow graph keeps as one statement defines, as may-defs,

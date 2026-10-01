@@ -3649,3 +3649,92 @@ fn a_subject_inside_the_scan_of_the_arms_as_words_is_not_folded_on_any_release()
     let (kept, _) = optimised(source, "tk");
     assert!(kept.contains("switch"), "a profile with no release: {kept}");
 }
+
+/// A read inside a braced `expr` is a use of the version it reads, and a read
+/// beside a write the same statement's substitutions make is read before,
+/// between and after it: the store feeding the word that runs first stays,
+/// and no word is forwarded the earlier value. Each program prints what
+/// tclsh 8.4 to 9.1 print, before and after the optimiser — where the
+/// statement was a `puts`, a `set` of an expression or of a string, an `expr`,
+/// a `return`, an `incr`, a condition, or a call to a procedure, the optimiser
+/// had deleted `set x 1` and the program raised `can't read "x"`, or forwarded
+/// `1` past the increment and printed `1 2 1`.
+#[test]
+fn a_braced_expr_read_keeps_its_store() {
+    // The two programs the examples page gives.
+    prints_under_every_release(
+        "proc p {} {\n set n 1\n set r [expr {$n + [incr n]}]\n return $r\n}\nputs [p]\n",
+        "3\n",
+    );
+    prints_under_every_release(
+        "proc q {} {\n set n 1\n set r [expr {[incr n] + [incr n]}]\n return $r\n}\nputs [q]\n",
+        "5\n",
+    );
+    for (body, expected) in [
+        ("puts [expr {$x + [set x 10] + $x}]\n puts $x", "21\n10\n"),
+        (
+            "set r [expr {$x + [set x 10] + $x}]\n puts $r\n puts $x",
+            "21\n10\n",
+        ),
+        ("expr {$x + [set x 10] + $x}\n puts $x", "10\n"),
+        ("if {$x + [set x 10] > 3} {puts yes}\n puts $x", "yes\n10\n"),
+        ("while {$x + [set x 10] < 3} {break}\n puts $x", "10\n"),
+        (
+            "set y 5\n incr y [expr {$x + [set x 10]}]\n puts \"$y $x\"",
+            "16 10\n",
+        ),
+        (
+            "set r \"$x [set x 10] $x\"\n puts \"$r|$x\"",
+            "1 10 10|10\n",
+        ),
+        ("foo $x [incr x] $x\n puts $x", "1 2 2\n2\n"),
+        (
+            "set l {}\n lappend l $x [incr x] $x\n puts \"$l|$x\"",
+            "1 2 2|2\n",
+        ),
+        (
+            "set r [expr {[string length $x] + [set x 10]}]\n puts \"$r $x\"",
+            "11 10\n",
+        ),
+        (
+            "set r [expr {[expr {$x + 1}] + [set x 10]}]\n puts \"$r $x\"",
+            "12 10\n",
+        ),
+    ] {
+        let source = format!(
+            "proc foo {{a b c}} {{puts \"$a $b $c\"}}\nproc p {{}} {{\n set x 1\n {body}\n}}\np\n"
+        );
+        prints_under_every_release(&source, expected);
+    }
+    prints_under_every_release(
+        "proc p {} {\n set x 1\n return [expr {$x + [set x 10]}]\n}\nputs [p]\n",
+        "11\n",
+    );
+    // At the top level the same statements print the same.
+    prints_under_every_release(
+        "set x 1\nputs [expr {$x + [set x 10] + $x}]\nputs $x\n",
+        "21\n10\n",
+    );
+}
+
+/// A write a statement makes that none of its words read overwrites the store
+/// before it, as it did: the call that carries the write reads the place only
+/// where a word does. `puts [set x 2]` and a `gets` that fills a loop's
+/// variable leave the stores before them dead, so O109 and O126 still remove
+/// them, and each program prints the same afterwards.
+#[test]
+fn a_store_a_nested_write_overwrites_unread_is_still_dead() {
+    let overwritten = "proc p {} {\n set x 1\n puts [set x 2]\n return $x\n}\nputs [p]\n";
+    let loop_variable = "proc p {fd} {\n set line {}\n set n 0\n \
+                         while {[gets $fd line] >= 0} {incr n}\n return $n\n}\n\
+                         set f [open /dev/null r]\nputs [p $f]\n";
+    for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+        assert!(removes_store(overwritten, dialect, "set x 1"), "{dialect}");
+        assert!(
+            removes_store(loop_variable, dialect, "set line {}"),
+            "{dialect}"
+        );
+    }
+    prints_under_every_release(overwritten, "2\n2\n");
+    prints_under_every_release(loop_variable, "0\n");
+}
