@@ -10,8 +10,8 @@
 #
 # Prerequisites:
 #   - Rust stable with cargo (via rustup).  The workspace tracks the floating
-#     `stable` channel pinned in rust-toolchain.toml; current stable is 1.98.1,
-#     released 2026-09-03.  `Cargo.toml` `rust-version` is authoritative.
+#     `stable` channel pinned in rust-toolchain.toml; current stable is 1.99.0,
+#     released 2026-10-01.  `Cargo.toml` `rust-version` is authoritative.
 #   - Node.js 24+ with npm
 #   - macOS WASM builds: `make ensure-rust-deps` installs the pinned wasi-sdk;
 #     stock Apple clang has no wasm32 backend.
@@ -19,6 +19,11 @@
 
 SHELL := /bin/bash
 .DELETE_ON_ERROR:
+
+# Clippy 1.99's assert_is_empty suggests assertions that do not compile for
+# some of our test types. Keep the existing assertion checks while the test
+# suite is migrated to a form that preserves useful failure output.
+CLIPPY_LINT_FLAGS := -D warnings -A clippy::assert_is_empty
 
 # ---------------------------------------------------------------------------
 # Directories
@@ -1417,7 +1422,7 @@ _check-rust-pr:
 	echo "==> Checking top-level Rust workspace (fmt + clippy)"; \
 	cd $(ROOT); \
 	cargo fmt --all --check; \
-	cargo clippy --workspace --all-targets -- -D warnings; \
+	cargo clippy --workspace --all-targets -- $(CLIPPY_LINT_FLAGS); \
 	if [ -f "$(RUNTIME_RUST_DIR)/Cargo.toml" ]; then \
 		echo "==> Checking runtime/rust (fmt + clippy)"; \
 		$(MAKE) --no-print-directory -C $(ROOT) runtime-rust-lint; \
@@ -1462,7 +1467,7 @@ check-rust: ensure-rust-deps ## Rust fmt-check + clippy on the workspace and exc
 		echo "==> Checking Zed extension (fmt + clippy --target wasm32-wasip2 + host tests)"; \
 		cd $(ZED_DIR); \
 		cargo fmt --all --check; \
-		cargo clippy --target wasm32-wasip2 --all-targets -- -D warnings; \
+		cargo clippy --target wasm32-wasip2 --all-targets -- $(CLIPPY_LINT_FLAGS); \
 		cargo test --lib; \
 	fi; \
 	if [ -f "$(EXPLORER_WASM_DIR)/Cargo.toml" ] && \
@@ -1470,35 +1475,35 @@ check-rust: ensure-rust-deps ## Rust fmt-check + clippy on the workspace and exc
 		echo "==> Checking tcl-explorer-wasm (fmt + clippy --target wasm32-unknown-unknown)"; \
 		cd $(EXPLORER_WASM_DIR); \
 		cargo fmt --all --check; \
-		cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings; \
+		cargo clippy --target wasm32-unknown-unknown --all-targets -- $(CLIPPY_LINT_FLAGS); \
 	fi; \
 	if [ -f "$(ROOT)rust/tcl-vm-wasm/Cargo.toml" ] && \
 			rustup target list --installed 2>/dev/null | grep -q wasm32-unknown-unknown; then \
 		echo "==> Checking tcl-vm-wasm (fmt + clippy --target wasm32-unknown-unknown)"; \
 		cd $(ROOT)rust/tcl-vm-wasm; \
 		cargo fmt --all --check; \
-		cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings; \
+		cargo clippy --target wasm32-unknown-unknown --all-targets -- $(CLIPPY_LINT_FLAGS); \
 	fi; \
 	if [ -f "$(ROOT)rust/tcl-spec-studio-wasm/Cargo.toml" ] && \
 			rustup target list --installed 2>/dev/null | grep -q wasm32-unknown-unknown; then \
 		echo "==> Checking tcl-spec-studio-wasm (fmt + clippy --target wasm32-unknown-unknown)"; \
 		cd $(ROOT)rust/tcl-spec-studio-wasm; \
 		cargo fmt --all --check; \
-		cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings; \
+		cargo clippy --target wasm32-unknown-unknown --all-targets -- $(CLIPPY_LINT_FLAGS); \
 	fi; \
 	if [ -f "$(ROOT)rust/tcl-lsp-server-wasm/Cargo.toml" ] && \
 			rustup target list --installed 2>/dev/null | grep -q wasm32-unknown-unknown; then \
 		echo "==> Checking tcl-lsp-server-wasm (fmt + clippy --target wasm32-unknown-unknown)"; \
 		cd $(ROOT)rust/tcl-lsp-server-wasm; \
 		cargo fmt --all --check; \
-		cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings; \
+		cargo clippy --target wasm32-unknown-unknown --all-targets -- $(CLIPPY_LINT_FLAGS); \
 	fi; \
 	if [ -f "$(ROOT)rust/tcl-lsp-server-wasi/Cargo.toml" ] && \
 			rustup target list --installed 2>/dev/null | grep -q wasm32-wasip1; then \
 		echo "==> Checking tcl-lsp-server-wasi (fmt + clippy --target wasm32-wasip1)"; \
 		cd $(ROOT)rust/tcl-lsp-server-wasi; \
 		cargo fmt --all --check; \
-		cargo clippy --target wasm32-wasip1 --all-targets -- -D warnings; \
+		cargo clippy --target wasm32-wasip1 --all-targets -- $(CLIPPY_LINT_FLAGS); \
 	fi; \
 	for manifest in \
 			rust/bigip-report-gen/python \
@@ -2770,7 +2775,7 @@ runtime-rust-test-no-tommath: ## Run the Rust runtime port's cargo test with lib
 	cd $(RUNTIME_RUST_DIR) && cargo test --locked
 
 runtime-rust-lint: ## Rust runtime port: cargo fmt --check + locked clippy -D warnings
-	cd $(RUNTIME_RUST_DIR) && cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings
+	cd $(RUNTIME_RUST_DIR) && cargo fmt --check && cargo clippy --locked --all-targets -- $(CLIPPY_LINT_FLAGS)
 
 zed-query-check: ## Validate the generated Zed highlight queries against the pinned tree-sitter grammar
 	cd $(ROOT)rust/zed-query-check && cargo test
@@ -2780,4 +2785,4 @@ vm-test: ## Run the bytecode VM crates' cargo test (tcl-bytecode + tcl-runtime-a
 
 vm-lint: ## Bytecode VM crates: cargo fmt --check + clippy -D warnings
 	cargo fmt -p tcl-bytecode -p tcl-runtime-api -p tcl-vm --check
-	cargo clippy -p tcl-bytecode -p tcl-runtime-api -p tcl-vm --all-targets -- -D warnings
+	cargo clippy -p tcl-bytecode -p tcl-runtime-api -p tcl-vm --all-targets -- $(CLIPPY_LINT_FLAGS)

@@ -28,7 +28,7 @@ static NEXT_GUARD_TOKEN: AtomicU64 = AtomicU64::new(1);
 
 fn allocate_guard_token(counter: &AtomicU64) -> Option<GuardToken> {
     counter
-        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+        .try_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
             current.checked_add(1)
         })
         .ok()
