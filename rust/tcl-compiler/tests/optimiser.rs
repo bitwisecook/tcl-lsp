@@ -3330,6 +3330,16 @@ fn a_try_handler_still_binds_only_on_the_path_that_runs_it() {
     );
 }
 
+/// An element index that substitutes selects the element by its value, so a
+/// constant stored under the index's literal spelling is not that element.
+#[test]
+fn a_substituting_element_index_is_not_its_literal_spelling() {
+    // tclsh 8.6.18 / 9.0.4: `v=6`.
+    let src = "set {arr($idx)} 5\nset idx k\nset arr(k) 6\nputs \"v=$arr($idx)\"\n";
+    let out = optimised(src, TCL);
+    assert!(out.contains("\"v=$arr($idx)\""), "{out}");
+}
+
 /// The empty variable name `{}` is a real variable: inlining it must keep the
 /// text after `${}`, and the dead-store coupling must not panic on the name.
 #[test]

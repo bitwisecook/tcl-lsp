@@ -2986,6 +2986,17 @@ fn collect_var_refs(
         let (start, end) = (tok.span.start() as usize, tok.span.end() as usize);
         match tok.kind {
             TokenType::Var => {
+                let name = sm.token_text(tok);
+                // An element index that substitutes (`$arr($idx)`, `$a([k])`,
+                // `$a(\x)`) names the element its value selects, not the one
+                // its spelling does, so it is left as written.
+                if tok.content_offset != 2
+                    && name
+                        .split_once('(')
+                        .is_some_and(|(_, index)| index.contains(['$', '[', '\\']))
+                {
+                    continue;
+                }
                 // A `${name}` span stops before its closing brace, but the
                 // empty `${}` span already covers it.
                 let close =
@@ -2993,7 +3004,7 @@ fn collect_var_refs(
                 out.push(VarRef {
                     start: base + start,
                     end: base + end + close,
-                    name: sm.token_text(tok).to_owned(),
+                    name: name.to_owned(),
                     cmd_depth,
                 });
             }
