@@ -24,8 +24,8 @@
 //! anything; a body of `-` falls through to the next pattern's body. The chosen
 //! body is a **script** evaluated in the current scope (transparent — its code,
 //! incl. `return`/`break`/`continue`, propagates). Modes: `-exact` (default),
-//! `-glob`, `-regexp`; plus `-nocase`, `--`, and the TIP #75 regexp side-channel
-//! options `-matchvar`/`-indexvar`.
+//! `-glob`, `-regexp`, and Tcl 9.1's `-integer`; plus `-nocase`, `--`, and the
+//! TIP #75 regexp side-channel options `-matchvar`/`-indexvar`.
 //!
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
@@ -48,7 +48,8 @@ const USAGE_LIST: &[u8] = b"switch ?-option ...? string {?pattern body ...? ?def
 fn switch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // Option parsing + the `string` index are the shared core (`argv[1..]` strips
     // the command name to the name-stripped slice the core expects).
-    let opts = match core_switch::parse_options(interp, &argv[1..]) {
+    let version = interp.runtime_version();
+    let opts = match core_switch::parse_options(interp, &argv[1..], version) {
         Ok(o) => o,
         Err(e) => return interp.report_cmd_error(e),
     };
@@ -510,6 +511,102 @@ mod tests {
                         "{verb} compile regular expression pattern: parentheses () not balanced"
                     ),
                     "{version:?}"
+                );
+            });
+        }
+    }
+
+    /// `-integer` (TIP 730) matches wide integers by value on Tcl 9.1, in both
+    /// the inline and list forms. tclsh 9.1.0 prints `b` for
+    /// `switch -integer 010 {8 {puts a} 10 {puts b}}`.
+    #[test]
+    fn switch_integer_matches_by_value_on_tcl91() {
+        leak_free(|i| {
+            i.set_runtime_version(tcl_dialect::TclVersion::V9_1);
+            assert_eq!(
+                run(i, b"switch -integer 010 {8 {subst a} 10 {subst b}}"),
+                b"b"
+            );
+            assert_eq!(
+                run(i, b"switch -int 0x10 16 {subst hex} 2 {subst two}"),
+                b"hex"
+            );
+            assert_eq!(run(i, b"switch -integer { 16 } {0x10 {subst ws}}"), b"ws");
+            assert_eq!(run(i, b"switch -integer 1_000 {1000 {subst us}}"), b"us");
+            assert_eq!(
+                run(i, b"switch -integer 2 {1 {subst a} default {subst d}}"),
+                b"d"
+            );
+            assert_eq!(run(i, b"switch -integer 3 {1 {subst a} 2 {subst b}}"), b"");
+            assert_eq!(run(i, b"switch -integer 2 {1 - 2 {subst ft}}"), b"ft");
+            // Only the patterns reached are coerced.
+            assert_eq!(
+                run(i, b"switch -integer 1 {1 {subst a} abc {subst b}}"),
+                b"a"
+            );
+        });
+    }
+
+    /// tclsh 9.1.0's error texts and codes for `-integer`.
+    #[test]
+    fn switch_integer_errors_match_tcl91() {
+        leak_free(|i| {
+            i.set_runtime_version(tcl_dialect::TclVersion::V9_1);
+            let cases: &[(&[u8], &[u8], &[u8])] = &[
+                (
+                    b"switch -integer abc {1 {subst a}}",
+                    b"expected integer but got \"abc\"",
+                    b"TCL VALUE NUMBER",
+                ),
+                (
+                    b"switch -integer 2 1 {subst a} abc {subst b} default {subst d}",
+                    b"expected integer but got \"abc\"",
+                    b"TCL VALUE NUMBER",
+                ),
+                (
+                    b"switch -integer 2 {default {subst d} 2 {subst two}}",
+                    b"expected integer but got \"default\"",
+                    b"TCL VALUE NUMBER",
+                ),
+                (
+                    b"switch -integer 1 {99999999999999999999 {subst a}}",
+                    b"integer value too large to represent",
+                    b"ARITH IOVERFLOW {integer value too large to represent}",
+                ),
+                (
+                    b"switch -nocase -integer 1 {1 {subst a}}",
+                    b"-nocase option cannot be used with -integer option",
+                    b"TCL OPERATION SWITCH MODERESTRICTION",
+                ),
+                (
+                    b"switch -integer -glob 1 {1 {subst a}}",
+                    b"bad option \"-glob\": -integer option already found",
+                    b"TCL OPERATION SWITCH DOUBLEOPT",
+                ),
+                (
+                    b"switch -i 1 {1 {subst a}}",
+                    b"ambiguous option \"-i\": must be -exact, -glob, -indexvar, -integer, \
+                      -matchvar, -nocase, -regexp, or --",
+                    b"TCL LOOKUP INDEX option -i",
+                ),
+            ];
+            for &(src, msg, code) in cases {
+                assert_eq!(err(i, src), msg, "{}", String::from_utf8_lossy(src));
+                assert_eq!(run(i, b"set ::errorCode"), code);
+            }
+        });
+    }
+
+    /// Before Tcl 9.1 `-integer` is an unknown option (tclsh 9.0.4 / 8.6.18).
+    #[test]
+    fn switch_integer_is_refused_before_tcl91() {
+        for version in [tcl_dialect::TclVersion::V8_6, tcl_dialect::TclVersion::V9_0] {
+            leak_free(|i| {
+                i.set_runtime_version(version);
+                assert_eq!(
+                    err(i, b"switch -integer 1 {1 {subst a}}"),
+                    b"bad option \"-integer\": must be -exact, -glob, -indexvar, \
+                      -matchvar, -nocase, -regexp, or --"
                 );
             });
         }

@@ -245,6 +245,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         taint_transform: _, taint_transform_when: _, taint_double_encode_colour: _,
         taint_sink_safe_colour: _,
         taint_sink_gate: _,
+        taint_numeric_coercion: _,
         credential_options: _,
         sensitive_headers: _,
         setter_constraints: _,
@@ -417,6 +418,10 @@ pub const COMMAND_SPEC: &[Field] = &[
         Surface::Key("taint_network_sink_args"),
     ),
     f("taint_code_sink_args", Surface::Key("taint_code_sink_args")),
+    f(
+        "taint_numeric_coercion",
+        Surface::Key("taint_numeric_coercion"),
+    ),
     f(
         "taint_interp_eval_subcommands",
         Surface::Key("taint_interp_eval_subcommands"),

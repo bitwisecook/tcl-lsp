@@ -1099,6 +1099,16 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "The specific slots where a tainted value reaches eval-style evaluation.",
     ),
     f(
+        "taint_numeric_coercion",
+        "Numeric-coercion operands",
+        TAINT,
+        FieldKind::Enum {
+            catalogue: "taintNumericCoercion",
+            optional: true,
+        },
+        "Which argument words a call reads as numbers — a T100 numeric-coercion sink.",
+    ),
+    f(
         "taint_interp_eval_subcommands",
         "Cross-interpreter eval subcommands",
         TAINT,
@@ -2194,7 +2204,7 @@ fn custom_catalogues() -> [(&'static str, Value); 5] {
 /// The variant catalogues the form's pickers read, keyed by catalogue id.
 #[must_use]
 pub fn catalogues() -> Value {
-    let standard: [(&str, &[catalogue::Variant]); 24] = [
+    let standard: [(&str, &[catalogue::Variant]); 25] = [
         ("argRole", catalogue::ARG_ROLES),
         ("tclType", catalogue::TCL_TYPES),
         ("bodyKind", catalogue::BODY_KINDS),
@@ -2209,6 +2219,7 @@ pub fn catalogues() -> Value {
             "taintTransformCondition",
             catalogue::TAINT_TRANSFORM_CONDITIONS,
         ),
+        ("taintNumericCoercion", catalogue::TAINT_NUMERIC_COERCIONS),
         ("formatType", catalogue::FORMAT_TYPES),
         ("formKind", catalogue::FORM_KINDS),
         ("definedSymbolKind", catalogue::DEFINED_SYMBOL_KINDS),

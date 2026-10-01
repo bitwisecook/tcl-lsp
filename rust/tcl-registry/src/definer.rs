@@ -2251,6 +2251,7 @@ const SPECTCL_COMMAND_MEMBERS: &[MemberSpec] = &[
     MemberSpec::keyword_only("taint_log_sink"),
     MemberSpec::keyword_only("taint_network_sink_args"),
     MemberSpec::keyword_only("taint_code_sink_args"),
+    MemberSpec::keyword_only("taint_numeric_coercion"),
     MemberSpec::keyword_only("taint_interp_eval_subcommands"),
     MemberSpec::keyword_only("taint_source"),
     MemberSpec::keyword_only("taint_transform"),

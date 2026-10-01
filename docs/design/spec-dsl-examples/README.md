@@ -1202,6 +1202,7 @@ schema order. "excluded" rows carry the reason.
 | `taint_log_sink` | `taint_log_sink CODE` |  |
 | `taint_network_sink_args` | `taint_network_sink_args {N …}` | tri-state: absent = unset, `{}` = declared empty |
 | `taint_code_sink_args` | `taint_code_sink_args {N …}` | same tri-state |
+| `taint_numeric_coercion` | `taint_numeric_coercion IntegerModeOperands` | the argument words a call reads as numbers (a T100 numeric-coercion sink); absent = none. Command-only |
 | `taint_interp_eval_subcommands` | `taint_interp_eval_subcommands {NAME …}` |  |
 | `taint_source` | `taint_source {COLOUR …}` |  |
 | `taint_transform` | `taint_transform {COLOUR …}` |  |
