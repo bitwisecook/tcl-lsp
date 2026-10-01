@@ -1784,8 +1784,10 @@ that call it, recording the procedure binding and a claim of the kind of
 backing so the runtime can attest it at admission or fall back to generic
 dispatch (`inline_reference_bodies`, `rust/tcl-compiler/src/inlining/`). A body the
 bounded host can run is also the command's declared implementation at analysis
-time (`rust/tcl-registry/src/value_transfer/reference_body.rs`). No other backing
-is read that way. See
+time when its author says `-evaluate` beside it
+(`rust/tcl-registry/src/value_transfer/reference_body.rs`); the author's word is
+required because the engine emulates an older release imperfectly. No other
+backing is read that way. See
 [Registry consumer contracts § What the artefact records per rung](design/compiler/registry-consumer-contracts.md#what-the-artefact-records-per-rung).
 
 KCS tag: `codegen`.

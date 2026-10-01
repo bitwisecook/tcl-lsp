@@ -859,11 +859,25 @@ fn a_pack_text_body_that_diverges_turns_the_site_plain() {
 /// A package on disk — a manifest, a pack in `specs/` whose backing points at
 /// a file of the package, and that file — and its directory.
 fn package_on_disk(name: &str, backing_path: &str, definition: Option<&str>) -> PathBuf {
+    package_on_disk_saying(name, backing_path, definition, "")
+}
+
+/// The same, with the author asserting that the body may be evaluated.
+fn package_on_disk_evaluable(name: &str, backing_path: &str, definition: Option<&str>) -> PathBuf {
+    package_on_disk_saying(name, backing_path, definition, " -evaluate")
+}
+
+fn package_on_disk_saying(
+    name: &str,
+    backing_path: &str,
+    definition: Option<&str>,
+    flag: &str,
+) -> PathBuf {
     let dir = scratch(name);
     std::fs::create_dir_all(dir.join("specs")).expect("specs dir");
     std::fs::create_dir_all(dir.join("lib")).expect("lib dir");
     std::fs::write(dir.join("tclpkg.tcl"), "package vendor 1.0\n").expect("manifest");
-    let backing = format!("tcl-body {{-package-source {backing_path}}}");
+    let backing = format!("tcl-body {{-package-source {backing_path}{flag}}}");
     std::fs::write(dir.join("specs/vendor.tclspec"), reference_pack(&backing)).expect("pack");
     if let Some(definition) = definition {
         std::fs::write(dir.join("lib/double.tcl"), definition).expect("library file");
@@ -1018,15 +1032,18 @@ fn a_package_source_that_cannot_be_read_is_said_and_not_inlined() {
 }
 
 /// The text a package source names is run as the command's declared
-/// implementation too: the load reads the file and derives the hook from it as it
-/// does from a pack-text body, and a file the load could not read, or a direct
-/// dependency's body, which the gate has dropped, supplies none to derive from.
+/// implementation too, where its author asserted the body may be evaluated: the
+/// load reads the file and derives the hook from it as it does from a pack-text
+/// body, and a file the load could not read, or a direct dependency's body, which
+/// the gate has dropped, supplies none to derive from. The same file without the
+/// author's word derives nothing.
 #[test]
 fn a_package_source_body_is_a_declared_implementation_too() {
     use tcl_registry::value_transfer::SemanticsDeclaration;
 
     let definition = "proc vdouble {x} {expr {$x * 2}}";
-    let dir = package_on_disk("package-implementation", "lib/double.tcl", Some(definition));
+    let dir =
+        package_on_disk_evaluable("package-implementation", "lib/double.tcl", Some(definition));
     let own = load_package_pack(&dir, Some(DependencyTier::Root));
     let command = own.packs[0].command("vdouble").expect("declared");
     assert!(
@@ -1036,7 +1053,22 @@ fn a_package_source_body_is_a_declared_implementation_too() {
     );
     assert_eq!(command.hooks.len(), 1, "{:?}", command.hooks);
 
-    let unread = package_on_disk("package-implementation-unread", "lib/double.tcl", None);
+    let silent = package_on_disk(
+        "package-implementation-unasserted",
+        "lib/double.tcl",
+        Some(definition),
+    );
+    let set = load_package_pack(&silent, Some(DependencyTier::Root));
+    let command = set.packs[0].command("vdouble").expect("declared");
+    assert_eq!(command.reference_text.as_deref(), Some(definition));
+    assert!(matches!(
+        command.spec.semantics,
+        SemanticsDeclaration::Inherited
+    ));
+    assert!(command.hooks.is_empty());
+    assert!(warnings(&set).is_empty(), "{:#?}", set.notices);
+
+    let unread = package_on_disk_evaluable("package-implementation-unread", "lib/double.tcl", None);
     let set = load_package_pack(&unread, Some(DependencyTier::Root));
     let command = set.packs[0].command("vdouble").expect("declared");
     assert!(matches!(

@@ -2493,15 +2493,16 @@ mod tests {
     }
 
     /// An implementation the registry derived from a command's reference body is
-    /// not a field the draft loses: the body is on the `runtime_backing` row,
-    /// which the draft carries, and the next load derives it again. The test
-    /// above is the control: one a pack wrote stays lost.
+    /// not a field the draft loses: the body and the author's `-evaluate` that
+    /// asked for it are on the `runtime_backing` row, which the draft carries, and
+    /// the next load derives it again. The test above is the control: one a pack
+    /// wrote stays lost.
     #[test]
     fn a_derived_implementation_is_not_lost_in_a_draft() {
         use tcl_registry::value_transfer::SemanticsDeclaration;
 
         let source = "speclib vendor 2.0 {\n    command vendor::double {\n        arity 1\n        \
-                      runtime_backing tcl-body {-pack-text {proc vendor::double {x} {expr {$x * 2}}}}\n    }\n}\n";
+                      runtime_backing tcl-body {-pack-text {proc vendor::double {x} {expr {$x * 2}}} -evaluate}\n    }\n}\n";
         let set = tcl_spectcl::pack::load_in_memory(vec![(
             tcl_spectcl::PackFile {
                 tier: tcl_spectcl::Tier::Workspace,
@@ -2520,12 +2521,10 @@ mod tests {
         let draft = from_command_spec(spec);
         assert_eq!(draft["semantics"], Value::Null);
         assert_eq!(draft[UNRENDERABLE_KEY], json!([]), "{draft:?}");
+        let backing = draft["runtime_backing"].to_string();
         assert!(
-            draft["runtime_backing"]
-                .to_string()
-                .contains("proc vendor::double"),
-            "the body is on the row the draft carries: {}",
-            draft["runtime_backing"]
+            backing.contains("proc vendor::double") && backing.contains("-evaluate"),
+            "the body and the assertion are on the row the draft carries: {backing}"
         );
     }
 

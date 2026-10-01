@@ -103,9 +103,10 @@ passes, and ownership matrices.
   per rung, the sites that rest on a field that disagrees), **built**; rung 3
   of a pack claim (a Tcl-body reference body inlined into the procedures that
   call it, claimed on the binding that holds the live command to that text,
-  and derived into the command's declared implementation where the sandbox
-  can run it), `tcl spec test`, and the manifest's `spec` directive with its
-  tier clamp and the lockfile's `spec_integrity`, **built**; the rest — rung
+  and, where its author asks, derived into the command's declared
+  implementation where the sandbox can run it), `tcl spec test`, and the
+  manifest's `spec` directive with its tier clamp and the lockfile's
+  `spec_integrity`, **built**; the rest — rung
   4's shipped implementation and the identity kind codegen chooses from the
   backing, the versioned codegen axis, and the C-extension follow-ons —
   **not built**.

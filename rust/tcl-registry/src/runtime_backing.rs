@@ -56,6 +56,12 @@ pub enum RuntimeBacking {
     TclBody {
         /// The source of the body text.
         source: BodySource,
+        /// Whether the pack's author asserts the body may be run to fold a call:
+        /// that when the analyser evaluates it under a release, in the engine
+        /// pinned to that release, it answers what that release's own shell
+        /// does. Nothing derives an implementation from a body whose author
+        /// did not say so.
+        evaluate: bool,
     },
     /// A command the host registered natively — a shimmed C command, an
     /// embedder's own handler — attested by a guard identity and never by a
@@ -79,7 +85,36 @@ impl RuntimeBacking {
     pub const fn package_source(relative_path: &'static str) -> Self {
         Self::TclBody {
             source: BodySource::PackageSource { relative_path },
+            evaluate: false,
         }
+    }
+
+    /// A Tcl body carried in the pack as `text`.
+    #[must_use]
+    pub const fn pack_text(text: &'static str) -> Self {
+        Self::TclBody {
+            source: BodySource::PackText { text },
+            evaluate: false,
+        }
+    }
+
+    /// This backing with its author's assertion that a Tcl body may be run to
+    /// fold a call. A backing that is not a Tcl body is returned as it is.
+    #[must_use]
+    pub const fn evaluated(self) -> Self {
+        match self {
+            Self::TclBody { source, .. } => Self::TclBody {
+                source,
+                evaluate: true,
+            },
+            other => other,
+        }
+    }
+
+    /// Whether the author asserted that the body may be run to fold a call.
+    #[must_use]
+    pub const fn evaluates(self) -> bool {
+        matches!(self, Self::TclBody { evaluate: true, .. })
     }
 
     /// Whether the spec declares no backing at all (also what a spec that
@@ -149,12 +184,7 @@ mod tests {
             BackingKind::TclBody
         );
         assert_eq!(
-            RuntimeBacking::TclBody {
-                source: BodySource::PackText {
-                    text: "proc p {} {}"
-                }
-            }
-            .kind(),
+            RuntimeBacking::pack_text("proc p {} {}").kind(),
             BackingKind::TclBody
         );
         assert_eq!(RuntimeBacking::HostNative.kind(), BackingKind::HostNative);
@@ -174,8 +204,37 @@ mod tests {
             RuntimeBacking::TclBody {
                 source: BodySource::PackageSource {
                     relative_path: "parray.tcl"
-                }
+                },
+                evaluate: false,
             }
         );
+    }
+
+    #[test]
+    fn only_a_tcl_body_carries_the_assertion_that_it_may_be_evaluated() {
+        let text = RuntimeBacking::pack_text("proc p {} {}");
+        assert!(
+            !text.evaluates(),
+            "no body is evaluated unless its author said so"
+        );
+        assert!(text.evaluated().evaluates());
+        assert_eq!(text.evaluated().kind(), text.kind());
+        assert!(
+            RuntimeBacking::package_source("a.tcl")
+                .evaluated()
+                .evaluates()
+        );
+        for other in [
+            RuntimeBacking::None,
+            RuntimeBacking::HostNative,
+            RuntimeBacking::shipped("set"),
+        ] {
+            assert_eq!(
+                other.evaluated(),
+                other,
+                "{other:?} has no body to evaluate"
+            );
+            assert!(!other.evaluates());
+        }
     }
 }

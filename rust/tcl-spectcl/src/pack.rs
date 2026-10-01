@@ -614,7 +614,8 @@ fn say_pack_text_backings(merged: &MergedPack, notices: &mut Vec<PackNotice>) {
         if matches!(
             command.spec.runtime_backing,
             tcl_registry::RuntimeBacking::TclBody {
-                source: tcl_registry::BodySource::PackText { .. }
+                source: tcl_registry::BodySource::PackText { .. },
+                ..
             }
         ) {
             notices.push(PackNotice::pack_text_backing(command));

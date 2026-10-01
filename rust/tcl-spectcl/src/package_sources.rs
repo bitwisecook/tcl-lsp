@@ -57,6 +57,7 @@ pub(crate) fn provision(
     for command in commands {
         let RuntimeBacking::TclBody {
             source: BodySource::PackageSource { relative_path },
+            ..
         } = command.spec.runtime_backing
         else {
             continue;

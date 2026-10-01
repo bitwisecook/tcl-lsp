@@ -981,9 +981,10 @@ rung* there).
 
 A pack may also say how a command's behaviour reaches the runtime, with
 `runtime_backing` — `none`, `host-native`, `shipped-builtin ID`,
-`tcl-body {-package-source PATH}`, or `tcl-body {-pack-text {TEXT}}` (a
-`RuntimeBacking`, rung 4 of the same page). Every shipped core command declares
-one and an override keeps the shipped command's (the security floor). A
+`tcl-body {-package-source PATH ?-evaluate?}`, or `tcl-body {-pack-text {TEXT}
+?-evaluate?}` (a `RuntimeBacking`, rung 4 of the same page). Every shipped core
+command declares one and an override keeps the shipped command's (the security
+floor). A
 `tcl-body` backing is a **reference body**: the text of the `proc` that defines
 the command, which the compiler inlines into the procedures that call it. The
 text is the pack's own for `-pack-text`, and for `-package-source` the file of
@@ -1002,18 +1003,23 @@ the site back to ordinary dispatch ([../compiler/registry-consumer-contracts.md]
 library upgrade makes diverge silently, is reported at load as an information
 notice on the command's row. A command backed any other way is never inlined.
 
-When the body is also one the bounded host can run — one `proc` with required
-parameters, every command on the hook host's whitelist, nothing reaching for the
-frame, a channel, a process or the world, `return` only as the last statement —
-the load derives the command's declared implementation from it, as an `evaluate
--implementation` written beside the body would, and the analyser evaluates a call
-whose arguments it knows by running the body
+When the author adds `-evaluate` beside the source and the body is also one the
+bounded host can run — one `proc` with required parameters, every command on the
+hook host's whitelist, nothing reaching for the frame, a channel, a process or
+the world, `return` only as the last statement — the load derives the command's
+declared implementation from it, as an `evaluate -implementation` written beside
+the body would, and the analyser evaluates a call whose arguments it knows by
+running the body in an engine pinned to the release the call is analysed under
 ([../compiler/value-evaluation.md](../compiler/value-evaluation.md) § *The
-declared-implementation route*). That needs the command's `arity` to be exactly
-the body's parameters. A command whose author wrote its `semantics` or `evaluate`
-is left as written; one with subcommands or forms, one with arity windows and one
-with another arity are left without, and so is a body the scan refuses, each with
-an information notice on the command's row that says why.
+declared-implementation route*). The flag is the author's assertion that the body
+answers what a real shell does under every release the pack is analysed for: the
+engine emulates an older release imperfectly, so nothing is derived from a body
+whose author did not say so, and such a body draws no notice. The derivation
+needs the command's `arity` to be exactly the body's parameters. A command whose
+author wrote its `semantics` or `evaluate` is left as written, and the flag
+beside either is a contradiction the notice says; one with subcommands or forms,
+one with arity windows and one with another arity are left without, and so is a
+body the scan refuses, each with a warning on the command's row that says why.
 
 How far the package that ships a pack sits from the workspace root narrows
 what the pack may declare, beside the gate above: a declaration must pass

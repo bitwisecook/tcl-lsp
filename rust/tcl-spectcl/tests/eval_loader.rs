@@ -1456,7 +1456,7 @@ fn from_frame_effect_derives_the_alias_pairs_resolver() {
 /// word is known to the static fast path as well as to the interpreter.
 #[test]
 fn runtime_backing_reads_each_shape_through_both_paths() {
-    use tcl_registry::{BodySource, RuntimeBacking};
+    use tcl_registry::RuntimeBacking;
 
     let source = r"speclib probe 2.1 {
     command probe::bare { arity 3 }
@@ -1470,6 +1470,11 @@ fn runtime_backing_reads_each_shape_through_both_paths() {
     return [list $a {b}]
 }}}
     }
+    command probe::asserted {
+        arity 3
+        runtime_backing tcl-body {-pack-text {proc p {a} {return $a}} -evaluate}
+    }
+    command probe::asserted_file { arity 3; runtime_backing tcl-body {-evaluate -package-source init.tcl} }
     command probe::unfinished { arity 3; runtime_backing tcl-body {-package-source} }
     command probe::unknown { arity 3; runtime_backing native }
 }
@@ -1492,11 +1497,17 @@ fn runtime_backing_reads_each_shape_through_both_paths() {
         );
         assert_eq!(
             backing("probe::text"),
-            RuntimeBacking::TclBody {
-                source: BodySource::PackText {
-                    text: "proc p {a} {\n    return [list $a {b}]\n}"
-                }
-            }
+            RuntimeBacking::pack_text("proc p {a} {\n    return [list $a {b}]\n}")
+        );
+        // The author's assertion that the body may be evaluated is its own bit,
+        // before or after the source.
+        assert_eq!(
+            backing("probe::asserted"),
+            RuntimeBacking::pack_text("proc p {a} {return $a}").evaluated()
+        );
+        assert_eq!(
+            backing("probe::asserted_file"),
+            RuntimeBacking::package_source("init.tcl").evaluated()
         );
         // A declaration that does not read claims nothing, and costs the
         // command no other fact.

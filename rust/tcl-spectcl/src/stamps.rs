@@ -320,9 +320,11 @@ impl Declaration {
             // The body is the pack's own text and can run to pages.
             Self::RuntimeBacking(RuntimeBacking::TclBody {
                 source: BodySource::PackText { .. },
+                ..
             })
             | Self::ReferenceBody(RuntimeBacking::TclBody {
                 source: BodySource::PackText { .. },
+                ..
             }) => "runtime_backing tcl-body {-pack-text …}".to_owned(),
             Self::RuntimeBacking(backing) | Self::ReferenceBody(backing) => format!(
                 "runtime_backing {}",
@@ -889,11 +891,7 @@ mod tests {
     }
 
     fn tcl_body() -> RuntimeBacking {
-        RuntimeBacking::TclBody {
-            source: BodySource::PackText {
-                text: "proc vendor::double {x} {expr {$x * 2}}",
-            },
-        }
+        RuntimeBacking::pack_text("proc vendor::double {x} {expr {$x * 2}}")
     }
 
     /// A Tcl body is a reference body, which only the workspace's own package
@@ -975,9 +973,7 @@ mod tests {
         );
 
         // A body carried in the pack is named, not quoted: it can run to pages.
-        let text = Declaration::RuntimeBacking(RuntimeBacking::TclBody {
-            source: BodySource::PackText { text: "return 1" },
-        });
+        let text = Declaration::RuntimeBacking(RuntimeBacking::pack_text("return 1"));
         assert_eq!(text.spelling(), "runtime_backing tcl-body {-pack-text …}");
     }
 

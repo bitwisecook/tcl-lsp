@@ -247,9 +247,7 @@ mod tests {
     fn body_backed(name: &'static str, text: &'static str) -> CommandSpec {
         CommandSpec {
             name,
-            runtime_backing: tcl_registry::RuntimeBacking::TclBody {
-                source: tcl_registry::BodySource::PackText { text },
-            },
+            runtime_backing: tcl_registry::RuntimeBacking::pack_text(text),
             ..CommandSpec::DEFAULT
         }
     }

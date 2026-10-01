@@ -4195,12 +4195,17 @@ fn case_selection_runs_tcl_case_obj_cmd() {
     );
 }
 
-/// A pack's `vendor::double`, backed by a Tcl body of `body`'s text, for a
-/// workspace the load trusts.
+/// A pack's `vendor::double`, backed by a Tcl body of `body`'s text that its
+/// author asserts may be evaluated, for a workspace the load trusts.
 fn reference_pack(command_rows: &str, body: &str) -> tcl_spectcl::pack::PackSet {
+    asserting_pack(command_rows, body, " -evaluate")
+}
+
+/// The same, with `flag` after the body: the author's assertion, or nothing.
+fn asserting_pack(command_rows: &str, body: &str, flag: &str) -> tcl_spectcl::pack::PackSet {
     let source = format!(
         "speclib vendor 2.0 {{\n    command vendor::double {{\n        arity 1\n        \
-         {command_rows}\n        runtime_backing tcl-body {{-pack-text {{{body}}}}}\n    }}\n}}\n"
+         {command_rows}\n        runtime_backing tcl-body {{-pack-text {{{body}}}{flag}}}\n    }}\n}}\n"
     );
     tcl_spectcl::pack::load_in_memory(vec![(
         tcl_spectcl::discovery::PackFile {
@@ -4213,13 +4218,14 @@ fn reference_pack(command_rows: &str, body: &str) -> tcl_spectcl::pack::PackSet 
     )])
 }
 
-/// A command a pack backs with a Tcl body is, when the sandbox can express the
-/// body, a declared implementation the driver runs as it runs any other: the
-/// route is the implementation route, its capability reads one exact operand
-/// for each of the body's parameters, and the pack's hook list holds the body
-/// the host will run. The same command with a body that reaches for the frame
-/// (`upvar`) derives nothing and says why; so does one whose declared arity is
-/// not the body's parameters, and one whose author stated its evaluation.
+/// A command a pack backs with a Tcl body its author asserts may be evaluated
+/// (`-evaluate`) is, when the sandbox can express the body, a declared
+/// implementation the driver runs as it runs any other: the route is the
+/// implementation route, its capability reads one exact operand for each of the
+/// body's parameters, and the pack's hook list holds the body the host will run.
+/// The same command with a body that reaches for the frame (`upvar`) derives
+/// nothing and says why; so does one whose declared arity is not the body's
+/// parameters, and one whose author stated its evaluation.
 #[test]
 fn a_reference_body_is_a_declared_implementation_when_the_sandbox_can_express_it() {
     use tcl_registry::pack_hooks::HookFamily;
@@ -4229,7 +4235,7 @@ fn a_reference_body_is_a_declared_implementation_when_the_sandbox_can_express_it
         !derived
             .notices
             .iter()
-            .any(|notice| notice.message.contains("not run as an implementation")),
+            .any(|notice| notice.message.contains("`-evaluate` asks")),
         "{:?}",
         derived.notices
     );
@@ -4287,7 +4293,7 @@ fn a_reference_body_is_a_declared_implementation_when_the_sandbox_can_express_it
     // A body for another arity than the command declares would answer a call the
     // declaration admits without being given its arguments.
     let source = "speclib vendor 2.0 {\n    command vendor::double {\n        arity 1..2\n        \
-                  runtime_backing tcl-body {-pack-text {proc vendor::double {x} {expr {$x * 2}}}}\n    }\n}\n";
+                  runtime_backing tcl-body {-pack-text {proc vendor::double {x} {expr {$x * 2}}} -evaluate}\n    }\n}\n";
     let wide = tcl_spectcl::pack::load_in_memory(vec![(
         tcl_spectcl::discovery::PackFile {
             tier: tcl_spectcl::discovery::Tier::Workspace,
@@ -4315,4 +4321,33 @@ fn a_reference_body_is_a_declared_implementation_when_the_sandbox_can_express_it
         SemanticsDeclaration::Declined
     ));
     assert!(command.hooks.is_empty(), "{:?}", command.hooks);
+}
+
+/// The negative the derivation turns on: a body its author did not assert is not
+/// run, however plainly the sandbox could, and nothing is said of it.
+#[test]
+fn a_body_nobody_asserted_is_not_derived_from_however_plain_it_is() {
+    use tcl_registry::value_transfer::SemanticsDeclaration;
+
+    for body in [
+        "proc vendor::double {x} {expr {$x * 2}}",
+        "proc vendor::double {x} {upvar 1 $x y; expr {$y * 2}}",
+    ] {
+        let silent = asserting_pack("", body, "");
+        let command = &silent.packs[0].commands[0];
+        assert!(
+            matches!(command.spec.semantics, SemanticsDeclaration::Inherited),
+            "{body}: {:?}",
+            command.spec.semantics
+        );
+        assert!(command.hooks.is_empty(), "{body}: {:?}", command.hooks);
+        assert!(
+            !silent
+                .notices
+                .iter()
+                .any(|notice| notice.message.contains("`-evaluate` asks")),
+            "{body}: {:?}",
+            silent.notices
+        );
+    }
 }

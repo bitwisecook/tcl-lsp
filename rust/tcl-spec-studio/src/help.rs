@@ -1031,10 +1031,13 @@ command's name. `shipped-builtin ID` is a builtin the runtime registers, \
 known by its registry identity; `tcl-body {-package-source PATH}` is a Tcl \
 body the package's own installed source supplies, and `tcl-body {-pack-text \
 {TEXT}}` one carried in the pack (reported at load, because a library \
-upgrade then diverges from it silently); `host-native` is a command the \
-host registered natively, attested by a guard identity and never by a \
-procedure definition; `none`, the default, says nothing executes it in the \
-target runtime. A shipped command keeps its backing through any override.",
+upgrade then diverges from it silently); `-evaluate` after either source is \
+the author's assertion that the analyser may run the body to fold a call under \
+the release it analyses for, and nothing is run whose author did not say so; \
+`host-native` is a command the host registered natively, attested by a guard \
+identity and never by a procedure definition; `none`, the default, says \
+nothing executes it in the target runtime. A shipped command keeps its \
+backing through any override.",
     ),
     (
         "byte_array_payload",

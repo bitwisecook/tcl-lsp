@@ -151,8 +151,9 @@ checkpoint compiling.
   into the procedures that call it and claimed on the binding that holds the
   live command to that text, a `-package-source` body read once at load, and
   the VM's `source` reading through the host's filesystem; the body also
-  derived into the command's declared implementation where the sandbox can run
-  it, and read for proposals by the studio's import; `tcl spec test`, the CLI
+  derived into the command's declared implementation where its author asks
+  with `-evaluate` and the sandbox can run it, and read for proposals by the
+  studio's import; `tcl spec test`, the CLI
   verb that holds a pack's declared facts to the package in a real shell under
   the package manager's opt-in; and the manifest's `spec` directive with its
   tier clamp, the lockfile's `spec_integrity` and the container generator's

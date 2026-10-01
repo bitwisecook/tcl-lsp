@@ -247,7 +247,7 @@ fn a_pack_timing_hook_controls_a_live_command_prefix_position() {
 fn reference_source(definition: &str, arity: usize) -> String {
     format!(
         "\nspeclib vendor 2.0 {{\n    command vendor::f {{\n        arity {arity}\n        \
-         runtime_backing tcl-body {{-pack-text {{{definition}}}}}\n    }}\n}}\n"
+         runtime_backing tcl-body {{-pack-text {{{definition}}} -evaluate}}\n    }}\n}}\n"
     )
 }
 
@@ -403,12 +403,73 @@ fn a_reference_body_answers_through_the_host_as_the_procedure_does() {
     );
 }
 
+/// What `release`'s own `tclsh` did when `definition` was the procedure and
+/// `call` was run.
+#[derive(Debug, PartialEq, Eq)]
+enum Shell {
+    /// No shell of that release on `PATH`, which skips the row.
+    Absent,
+    /// The shell raised.
+    Raised,
+    /// The shell answered the value.
+    Answered(String),
+}
+
+impl Shell {
+    /// The answer, or `None` for a shell that raised.
+    fn answer(self) -> Option<String> {
+        match self {
+            Self::Answered(value) => Some(value),
+            Self::Absent | Self::Raised => None,
+        }
+    }
+}
+
+/// Run `call` after `definition` in `release`'s own `tclsh`.
+fn real_shell(release: &str, definition: &str, call: &str) -> Shell {
+    use std::io::Write as _;
+
+    let run = || -> Option<Shell> {
+        let shell = format!("tclsh{release}");
+        let mut child = std::process::Command::new(&shell)
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .ok()?;
+        let script = format!(
+            "puts -nonewline \"[info patchlevel]|\"\nnamespace eval vendor {{}}\n{definition}\n\
+             if {{[catch {{{call}}} answer]}} {{puts -nonewline ERR}} else {{puts -nonewline OK:$answer}}\n"
+        );
+        child.stdin.take()?.write_all(script.as_bytes()).ok()?;
+        let output = String::from_utf8(child.wait_with_output().ok()?.stdout).ok()?;
+        let (patchlevel, outcome) = output.split_once('|')?;
+        patchlevel.starts_with(release).then(|| {
+            outcome
+                .strip_prefix("OK:")
+                .map_or(Shell::Raised, |value| Shell::Answered(value.to_owned()))
+        })
+    };
+    run().unwrap_or(Shell::Absent)
+}
+
 /// The body runs under the release the call is analysed under: `string cat` is
 /// 8.6's, so a body that calls it answers under 8.6 and later and abstains under
 /// 8.4 and 8.5, and a leading zero is octal up to 8.6 and decimal from 9.0, so one
 /// body answers differently under 8.6 and 9.0.
+///
+/// The derivation is the author's to ask for because the engine under the host
+/// emulates an older release imperfectly (issue #2333: `string is integer`'s width,
+/// `tcl_precision` under 8.4, `incr` of an unset local, `lreplace` and `lindex`
+/// bounds and index forms, `1.0/0`, `int(1e20)` and `1<<64` under 8.4, `format
+/// %c`), so the rows below are those that hold, and each is held to the real shell
+/// of the release it is analysed under: the analysis answers what the shell does,
+/// or abstains where the shell raises. A release with no shell on `PATH` skips its
+/// rows.
 #[test]
 fn a_derived_body_runs_under_the_release_the_call_is_analysed_under() {
+    const ALL: &[&str] = &["8.4", "8.5", "8.6", "9.0", "9.1"];
+
     let cat = "proc vendor::f {a b} {string cat $a $b}";
     for (dialect, expected) in [
         ("tcl8.4", None),
@@ -429,6 +490,74 @@ fn a_derived_body_runs_under_the_release_the_call_is_analysed_under() {
             proved_under(dialect, leading_zero, 1, "vendor::f 0").as_deref(),
             Some(expected),
             "{dialect}"
+        );
+    }
+
+    // What the real shell of each release answers.
+    let rows: &[(&str, &str, usize, &str, &[&str])] = &[
+        (
+            "string cat",
+            "proc vendor::f {a b} {string cat $a $b}",
+            2,
+            "vendor::f x y",
+            ALL,
+        ),
+        (
+            "octal",
+            "proc vendor::f {x} {expr {$x + 010}}",
+            1,
+            "vendor::f 0",
+            ALL,
+        ),
+        (
+            "digit separator",
+            "proc vendor::f {x} {expr {$x + 1_000}}",
+            1,
+            "vendor::f 0",
+            ALL,
+        ),
+        (
+            "format %x",
+            "proc vendor::f {x} {format %x $x}",
+            1,
+            "vendor::f -1",
+            ALL,
+        ),
+        (
+            "an astral character's length",
+            "proc vendor::f {x} {string length \"\\U1F600$x\"}",
+            1,
+            "vendor::f a",
+            ALL,
+        ),
+        (
+            "a float past a word",
+            "proc vendor::f {x} {expr {int($x)}}",
+            1,
+            "vendor::f 1e20",
+            &["9.0", "9.1"],
+        ),
+    ];
+    for (row, definition, arity, call, releases) in rows {
+        let (mut compared, mut answered) = (0, 0);
+        for release in *releases {
+            let shell = real_shell(release, definition, call);
+            if shell == Shell::Absent {
+                eprintln!("skipped: no tclsh{release} on PATH ({row})");
+                continue;
+            }
+            let shell = shell.answer();
+            let analysed = proved_under(&format!("tcl{release}"), definition, *arity, call);
+            assert_eq!(
+                analysed, shell,
+                "{row} under {release}: the analysis against the shell's own answer\n{definition}\n{call}"
+            );
+            answered += usize::from(shell.is_some());
+            compared += 1;
+        }
+        assert!(
+            compared == 0 || answered > 0,
+            "{row}: no release answered a value, so nothing was compared"
         );
     }
 }

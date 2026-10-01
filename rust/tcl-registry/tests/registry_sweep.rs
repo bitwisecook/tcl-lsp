@@ -1132,6 +1132,7 @@ fn a_shipped_builtin_is_attested_by_the_commands_own_name() {
             }
             RuntimeBacking::TclBody {
                 source: BodySource::PackageSource { relative_path },
+                ..
             } => assert!(
                 ["init.tcl", "package.tcl", "parray.tcl"].contains(&relative_path),
                 "{}: {relative_path:?} is not a library file the runtime embeds",

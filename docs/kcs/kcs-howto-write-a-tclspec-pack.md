@@ -95,11 +95,22 @@ command's line. A call at the top level of a script is not inlined.
 When the body is plain value-position Tcl — commands a hook body may call (`set`,
 `expr`, `if`, `string`, `dict` and the like), no `upvar`, `uplevel`, `global`,
 `variable`, channel or `exec`, no namespace-qualified variable, `return` only as
-the last statement, and parameters with no defaults — the analyser also evaluates
-a call whose arguments it knows by running the body, so give the command an
+the last statement, and parameters with no defaults — you can also have the
+analyser evaluate a call whose arguments it knows by running the body. Say so
+with `-evaluate` beside the source: `tcl-body {-pack-text {proc NAME args body}
+-evaluate}` or `tcl-body {-package-source PATH -evaluate}`. Give the command an
 `arity` that is exactly its parameters and leave `semantics` and `evaluate` off
-it. A body the analyser cannot run draws an information notice on the command's
-line that names the reason, and the call is compiled as it was.
+it. Nothing is run unless you say so, because the engine that runs the body
+emulates an older release imperfectly (`string is integer`'s width before 9.0,
+`tcl_precision`, `format %c`, the index and bound forms of `lindex` and
+`lreplace`, floating-point division by zero), and only you know whether your
+body meets one of those. `-evaluate` is your word that the body answers what a
+real shell does under every release your package is used with, so compare what
+`tcl opt --dialect tclX.Y` folds a call to with what that release's own `tclsh`
+prints before you add it. A body the analyser cannot run draws a warning on the
+command's line that names the reason (a command off the list, a text that is not
+one `proc`), and so does `-evaluate` beside a command that states its own
+`semantics` or `evaluate`; the call is compiled as it was.
 
 ### Validating a pack
 

@@ -181,16 +181,20 @@ slices proceed without deciding anything here.
 > declared `pure` writes a global; it prints one row per divergence and exits 1
 > on any. It is a CLI verb, and nothing the editor runs executes a package.
 >
-> A reference body the sandbox can express is also the command's declared
-> implementation. `reference_body::derive`
+> A reference body is also the command's declared implementation when its author
+> asks with `-evaluate` beside the backing and the sandbox can express it.
+> `reference_body::derive`
 > (`rust/tcl-registry/src/value_transfer/reference_body.rs`) reads the `proc`
 > against the hook host's command whitelist and admits only a body that is a
 > function of its parameters; the loader
 > (`rust/tcl-spectcl/src/loader/reference.rs`) gives the command the declaration
 > and the hook body that run it, and the analyser's answer to a call whose
-> arguments it knows is the body's, under the target release. `infer_from_body`
-> (`rust/tcl-spec-studio/src/infer.rs`) reads a body's purity, effects, return
-> type and callbacks for an import's drafts.
+> arguments it knows is the body's, run in an engine pinned to the target
+> release. The assertion is the author's because that engine emulates an older
+> release imperfectly and only the author can vouch that the body does not meet
+> the difference; the scan is the precondition and never the licence.
+> `infer_from_body` (`rust/tcl-spec-studio/src/infer.rs`) reads a body's purity,
+> effects, return type and callbacks for an import's drafts.
 >
 > The rest of the vocabulary is not built, and names nothing in the
 > workspace: the `ShippedImplementation` claim and `IdentityKind`.
@@ -1810,8 +1814,9 @@ struct PackFactStamp {
 enum RuntimeBacking {
     /// A shipped builtin, attested by its registry identity.
     ShippedBuiltin { identity: &'static str },
-    /// A Tcl body, with where the body text comes from.
-    TclBody { source: BodySource },
+    /// A Tcl body, with where the body text comes from and whether its
+    /// author asserts it may be run to fold a call (`-evaluate`).
+    TclBody { source: BodySource, evaluate: bool },
     /// A command the host registered natively — a shimmed C command, an
     /// embedder's own handler — attested by a guard identity and never by
     /// a procedure definition.
@@ -1986,12 +1991,22 @@ Rules 1 to 4 are built.
   variable, an expression function off its list, a `return` that is not the
   last statement (`rust/tcl-registry/src/value_transfer/reference_body.rs`).
   The loader gives an admitted body's command the declaration and the hook
-  body that runs it (`rust/tcl-spectcl/src/loader/reference.rs`), after the
-  capability gate and the read of the package's files, so it derives from the
-  bodies in force; a command whose author stated its evaluation keeps it, and
-  a command with subcommands or forms, with arity windows, or whose arity is
-  not exactly the body's parameters has none, which one information notice on
-  its row says, as it says why a body was refused. As code, a reference body
+  body that runs it (`rust/tcl-spectcl/src/loader/reference.rs`) where the
+  author wrote `-evaluate` beside the backing, after the capability gate and the
+  read of the package's files, so it derives from the bodies in force. The
+  author's word is required because the engine under the host emulates an older
+  release imperfectly (`string is integer`'s width, `tcl_precision` under 8.4,
+  `incr` of an unset local, the bounds and index forms of `lreplace` and
+  `lindex`, `1.0/0`, `int(1e20)` and `1<<64` under 8.4, `format %c`): the rows on
+  which the analysis answers as each release's own shell does — `string cat`, a
+  leading zero, a digit separator, `format %x -1`, the length of an astral
+  character, `int(1e20)` from 9.0 — are held to those shells by a test
+  (`rust/tcl-spectcl/tests/pack_source_e2e.rs`). A command whose author stated
+  its evaluation keeps it, and the assertion beside it is a contradiction the
+  warning says; a command with subcommands or forms, with arity windows, or whose
+  arity is not exactly the body's parameters has none, as has a body the scan
+  refuses, each with one warning on its row that says why. A body whose author
+  did not assert it is not derived from and draws no notice. As code, a reference body
   is built. `procedure_binding_matches` in `rust/tcl-vm/src/interp.rs`
   compares creation name, parameters, and body text against the live proc, and
   the definition the compiler inlines comes from the spec's backing: from

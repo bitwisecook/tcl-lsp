@@ -92,9 +92,13 @@ warning. The compiler inlines such a body into the code that calls the command,
 and when the body is value-position Tcl the bounded host can run — only commands
 on the sandbox's list, no `upvar`, `uplevel`, `global`, `variable`, channel or
 `exec`, no namespace-qualified variable, `return` only as the last statement —
-the analyser evaluates a call whose arguments it knows, so declare `arity` as
-exactly the body's parameters. A pack-text body is a copy: it goes stale when
-the library changes, and the load says so.
+the author can add `-evaluate` beside the source (`tcl-body {-package-source PATH
+-evaluate}`) and the analyser then evaluates a call whose arguments it knows, so
+declare `arity` as exactly the body's parameters. Without `-evaluate` nothing is
+run, because the engine emulates an older release imperfectly and only the
+author can vouch that the body does not meet the difference: leave it off unless
+the user asks for it. A pack-text body is a copy: it goes stale when the library
+changes, and the load says so.
 
 ## Vocabulary versions
 

@@ -1835,9 +1835,11 @@ impl CommandRegistry {
         match spec.runtime_backing {
             RuntimeBacking::TclBody {
                 source: BodySource::PackText { text },
+                ..
             } => Some(text),
             RuntimeBacking::TclBody {
                 source: BodySource::PackageSource { .. },
+                ..
             } => self
                 .reference_texts
                 .get(&std::ptr::from_ref(spec).addr())
@@ -6431,9 +6433,7 @@ mod tests {
     }
 
     fn text_backing(text: &'static str) -> crate::RuntimeBacking {
-        crate::RuntimeBacking::TclBody {
-            source: crate::BodySource::PackText { text },
-        }
+        crate::RuntimeBacking::pack_text(text)
     }
 
     fn origin() -> crate::pack_origin::PackOrigin {

@@ -468,17 +468,14 @@ fn check_command(
         "expr" => args
             .iter()
             .try_for_each(|word| expression(lexed, Some(word), depth)),
-        "dict" => match args.first().and_then(|word| lexed.literal(word)).as_deref() {
-            Some("for" | "map" | "with" | "update" | "filter") => Err(Inexpressible::Script(
+        "dict" => match args.first().and_then(|word| lexed.literal(word)) {
+            Some(word) if dict_runs_a_script(&word) => Err(Inexpressible::Script(
                 "a `dict` subcommand that runs a body".to_owned(),
             )),
             _ => Ok(()),
         },
         "lsort" | "lsearch" | "regsub" => {
-            if args
-                .iter()
-                .any(|word| lexed.literal(word).as_deref() == Some("-command"))
-            {
+            if takes_a_callback(&name, args, lexed) {
                 Err(Inexpressible::Script(format!(
                     "`{name} -command` runs a callback"
                 )))
@@ -488,6 +485,48 @@ fn check_command(
         }
         _ => Ok(()),
     }
+}
+
+/// The `dict` subcommands that run a script of the caller's.
+const DICT_SCRIPT_SUBCOMMANDS: &[&str] = &["for", "map", "with", "update", "filter"];
+
+/// Whether `word` is, as the ensemble reads it, a `dict` subcommand that runs a
+/// script: the exact name, or any abbreviation that resolves to one or could
+/// (`dict fo` is `for`, and `dict f` is ambiguous between a script's and a
+/// value's, which no release is read to settle). Every subcommand of every
+/// release is a candidate, so an abbreviation one release makes unique and a later
+/// one ambiguous is held to the stricter answer.
+fn dict_runs_a_script(word: &str) -> bool {
+    use crate::abbrev::KeywordMatch;
+    let Some(spec) = crate::cache::default_registry().get("dict") else {
+        return true;
+    };
+    match spec.resolve_subcommand_word(word, None, None, None) {
+        KeywordMatch::Unique(name) => DICT_SCRIPT_SUBCOMMANDS.contains(&name),
+        KeywordMatch::Ambiguous(names) => names
+            .iter()
+            .any(|name| DICT_SCRIPT_SUBCOMMANDS.contains(name)),
+        KeywordMatch::Unknown => false,
+    }
+}
+
+/// Whether the switches in front of a call's operands include `-command`, as the
+/// command's own option table reads them: an abbreviation counts exactly when the
+/// real command accepts one, and a switch's value is not a switch.
+fn takes_a_callback(
+    command: &str,
+    args: &[tcl_lexer::script::WordSpan],
+    lexed: &Lexed<'_>,
+) -> bool {
+    let Some(spec) = crate::cache::default_registry().get(command) else {
+        return true;
+    };
+    let words: Vec<String> = args
+        .iter()
+        .map(|word| lexed.literal(word).unwrap_or_default())
+        .collect();
+    let words: Vec<&str> = words.iter().map(String::as_str).collect();
+    spec.leading_switch_names(&words).contains(&"-command")
 }
 
 /// Read a nested script.
@@ -969,6 +1008,58 @@ mod tests {
                 matches!(refused(body), Inexpressible::Command { .. }),
                 "{body}: {:?}",
                 refused(body)
+            );
+        }
+    }
+
+    /// A subcommand and a switch are read as the command reads them, so an
+    /// abbreviation that runs a callback is refused as the exact spelling is, and
+    /// one that cannot is not refused for looking like it.
+    #[test]
+    fn a_callback_is_found_under_any_abbreviation_the_command_accepts() {
+        let body = |inner: &str| format!("proc vendor::f {{x}} {{{inner}}}");
+        for callback in [
+            "dict for {k v} $x {set y $v}",
+            "dict fo {k v} $x {set y $v}",
+            "dict map {k v} $x {set v}",
+            "dict ma {k v} $x {set v}",
+            "dict wi x {set y 1}",
+            "dict w x {set y 1}",
+            "dict update x k v {set y 1}",
+            "dict upd x k v {set y 1}",
+            "dict fi $x key *",
+            // Ambiguous between a script's and a value's: no release is read to settle it.
+            "dict f $x key *",
+            "dict m {k v} $x {set v}",
+            "lsort -command cmp $x",
+            "lsort -comm cmp $x",
+            "lsort -c cmp $x",
+            "lsort -nocase -comm cmp $x",
+            "lsort -index 1 -command cmp $x",
+        ] {
+            assert!(
+                matches!(derived(&body(callback)), Err(Inexpressible::Script(_))),
+                "{callback}: {:?}",
+                derived(&body(callback))
+            );
+        }
+        for plain in [
+            "dict get $x k",
+            "dict ge $x k",
+            "dict mer $x $x",
+            "dict v $x",
+            "dict k $x",
+            "lsort -nocase $x",
+            "lsort -d $x",
+            "lsort -integer $x",
+            // After the switches a word is data, whatever it looks like.
+            "lsearch $x -command",
+            "lsort -decreasing -index 0 $x",
+        ] {
+            assert!(
+                derived(&body(plain)).is_ok(),
+                "{plain}: {:?}",
+                derived(&body(plain))
             );
         }
     }

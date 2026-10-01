@@ -3092,7 +3092,8 @@ fn runtime_backing_row(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
         Err(_) => out.comment(&format!(
             "TODO(spectcl): `runtime_backing {spelling}` does not read; the loader \
              takes `none`, `host-native`, `shipped-builtin ID`, `tcl-body \
-             {{-package-source PATH}}` or `tcl-body {{-pack-text {{TEXT}}}}`."
+             {{-package-source PATH ?-evaluate?}}` or `tcl-body {{-pack-text {{TEXT}} \
+             ?-evaluate?}}`."
         )),
     }
 }

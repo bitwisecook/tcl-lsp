@@ -123,9 +123,11 @@ pub fn probes_of(set: &PackSet) -> Vec<CommandProbe> {
                     } => Some(text.to_owned()),
                     RuntimeBacking::TclBody {
                         source: BodySource::PackageSource { .. },
+                        ..
                     } => command.reference_text.as_deref().map(str::to_owned),
                     _ => None,
                 },
+                        ..
             }
         })
         .collect()

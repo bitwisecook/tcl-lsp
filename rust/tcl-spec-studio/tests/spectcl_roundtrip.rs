@@ -447,21 +447,19 @@ fn alias_of_survives_the_round_trip() {
 /// command, but no shipped spec declares the other three.
 #[test]
 fn runtime_backing_survives_the_round_trip() {
-    use tcl_registry::{BodySource, RuntimeBacking};
+    use tcl_registry::RuntimeBacking;
 
     for backing in [
         RuntimeBacking::shipped("lassign"),
         RuntimeBacking::package_source("init.tcl"),
         RuntimeBacking::HostNative,
-        RuntimeBacking::TclBody {
-            source: BodySource::PackText {
-                text: "proc p {a} {\n    return [list $a {b}]\n}",
-            },
-        },
+        RuntimeBacking::pack_text("proc p {a} {\n    return [list $a {b}]\n}"),
         // Unbalanced braces are backslash-quoted, not braced.
-        RuntimeBacking::TclBody {
-            source: BodySource::PackText { text: "puts \"{\"" },
-        },
+        RuntimeBacking::pack_text("puts \"{\""),
+        // The author's assertion that the body may be evaluated is part of the
+        // statement, whichever source the body has.
+        RuntimeBacking::pack_text("proc p {a} {return $a}").evaluated(),
+        RuntimeBacking::package_source("init.tcl").evaluated(),
     ] {
         let spec = tcl_registry::CommandSpec {
             name: "vendor::unpack",

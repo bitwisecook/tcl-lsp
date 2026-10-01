@@ -17,21 +17,31 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! A reference body, run as the declared implementation of the command it
-//! backs.
+//! backs, where its author said it may be.
 //!
 //! A command a pack backs with a Tcl body says what runs when it is called. When
-//! the registry's scan reads that body to the end and finds only commands the
-//! bounded host runs ([`tcl_registry::value_transfer::reference_body`]), the
-//! host can run it too, and the analyser asks it the answer to a call whose
-//! arguments it knows. The derivation is an `evaluate -implementation` the pack
-//! did not write: the same declaration, the same hook body on the same host, and
-//! nothing for the author to maintain beside the body.
+//! the author adds `-evaluate` to the backing, asserting that the body gives the
+//! answer a real shell does under every release the pack is analysed for, and the
+//! registry's scan reads the body to the end and finds only commands the bounded
+//! host runs ([`tcl_registry::value_transfer::reference_body`]), the host runs it
+//! too, and the analyser asks it the answer to a call whose arguments it knows.
+//! The derivation is an `evaluate -implementation` the pack did not write: the
+//! same declaration, the same hook body on the same host, and nothing for the
+//! author to maintain beside the body.
+//!
+//! The assertion is the author's because the engine under the host emulates an
+//! older release imperfectly, and a body that meets the difference folds a value
+//! the shell does not give: nothing is derived from a body whose author did not
+//! say so, as a `const_fold` hook exists only where one was written. The scan
+//! stays the precondition, never the licence: an asserted body the scan refuses
+//! derives nothing and draws a warning naming why.
 //!
 //! It runs on the merged commands, after the capability gate has taken a body
 //! the package may not declare and after the load has read the files a package
 //! source names, so it sees exactly the bodies that are in force. A command whose
 //! author stated its evaluation — a `semantics` row, an `evaluate` statement or
-//! `semantics none` — is left as written.
+//! `semantics none` — is left as written, and the assertion beside it is a
+//! contradiction the warning says.
 
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock, PoisonError};
@@ -40,16 +50,17 @@ use tcl_registry::arity::Arity;
 use tcl_registry::pack_hooks::{HookInput, HookInputs};
 use tcl_registry::spec::CommandSpec;
 use tcl_registry::value_transfer::SemanticsDeclaration;
-use tcl_registry::value_transfer::reference_body::{self, Inexpressible};
+use tcl_registry::value_transfer::reference_body;
 use tcl_registry::{BodySource, RuntimeBacking};
 
 use super::semantics::EVALUATE_FIELD;
 use super::{HookDecl, HookFamily, HookOwner, HookSource, PackCommand};
 use crate::pack::{PackNotice, Severity};
 
-/// Give each command of `commands` whose reference body the sandbox can run a
-/// declared implementation and the hook body that is its text, and say on the
-/// command's row why one the sandbox cannot run has none.
+/// Give each command of `commands` whose backing says its body may be evaluated,
+/// and whose body the sandbox can run, a declared implementation and the hook
+/// body that is its text, and say on the command's row why one asked for and not
+/// given has none.
 pub(crate) fn derive_implementations(commands: &mut [PackCommand], notices: &mut Vec<PackNotice>) {
     for command in commands {
         if let Some(why) = derive(command) {
@@ -58,32 +69,41 @@ pub(crate) fn derive_implementations(commands: &mut [PackCommand], notices: &mut
                 line: command.line,
                 context: format!("command {}", command.spec.name),
                 message: format!(
-                    "the reference body is not run as an implementation at analysis time: {why}"
+                    "`-evaluate` asks for the reference body to be run as an implementation at \
+                     analysis time, and it is not: {why}"
                 ),
-                severity: Severity::Information,
+                severity: Severity::Warning,
             });
         }
     }
 }
 
-/// The reason `command` has no derived implementation, when it is one the
-/// author can act on: nothing is said of a command with no body in hand or one
-/// whose evaluation the author stated.
+/// The reason `command` has no derived implementation although its author asked
+/// for one. Nothing is said of a command whose author did not ask, or whose body
+/// is not in hand (a package source the load could not read has said so).
 fn derive(command: &mut PackCommand) -> Option<String> {
     let spec = command.spec;
+    if !spec.runtime_backing.evaluates() {
+        return None;
+    }
     let text = match spec.runtime_backing {
         RuntimeBacking::TclBody {
             source: BodySource::PackText { text },
+            ..
         } => text,
         RuntimeBacking::TclBody {
             source: BodySource::PackageSource { .. },
+            ..
         } => command.reference_text.as_deref()?,
         _ => return None,
     };
     // Whatever the author said of the command's evaluation — a `semantics` row,
     // an `evaluate` statement, `semantics none` — is the command's declaration.
     if !matches!(spec.semantics, SemanticsDeclaration::Inherited) {
-        return None;
+        return Some(
+            "the command states its own evaluation, which the reference body does not replace"
+                .to_owned(),
+        );
     }
     if !spec.subcommands.is_empty() || !spec.command_forms.is_empty() {
         return Some(
@@ -94,9 +114,6 @@ fn derive(command: &mut PackCommand) -> Option<String> {
     }
     let (implementation, hook) = match reference_body::derive(spec.name, text) {
         Ok(derived) => derived,
-        // A text that is not one `proc` is not a body at all, and nothing reads it
-        // as code either.
-        Err(Inexpressible::NotOneProc) => return None,
         Err(why) => return Some(why.to_string()),
     };
     let parameters = u16::try_from(hook.params.len()).unwrap_or(u16::MAX);
@@ -169,10 +186,19 @@ mod tests {
     use super::*;
     use crate::discovery::{Origin, PackFile, Tier};
 
+    /// What a notice of this pass says first.
+    const ASKED: &str = "`-evaluate` asks for the reference body";
+
+    /// A pack whose command is backed by `body`, evaluable by its author's word.
     fn load(rows: &str, body: &str) -> crate::pack::PackSet {
+        load_asserting(rows, body, true)
+    }
+
+    fn load_asserting(rows: &str, body: &str, evaluate: bool) -> crate::pack::PackSet {
+        let flag = if evaluate { " -evaluate" } else { "" };
         let source = format!(
             "speclib vendor 2.0 {{\n    command vendor::f {{\n        {rows}\n        \
-             runtime_backing tcl-body {{-pack-text {{{body}}}}}\n    }}\n}}\n"
+             runtime_backing tcl-body {{-pack-text {{{body}}}{flag}}}\n    }}\n}}\n"
         );
         crate::pack::load_in_memory(vec![(
             PackFile {
@@ -186,9 +212,15 @@ mod tests {
     }
 
     fn says(set: &crate::pack::PackSet, needle: &str) -> bool {
-        set.notices.iter().any(|notice| {
-            notice.severity == Severity::Information && notice.message.contains(needle)
-        })
+        set.notices
+            .iter()
+            .any(|notice| notice.severity == Severity::Warning && notice.message.contains(needle))
+    }
+
+    fn says_nothing_of_it(set: &crate::pack::PackSet) -> bool {
+        !set.notices
+            .iter()
+            .any(|notice| notice.message.contains(ASKED))
     }
 
     #[test]
@@ -218,15 +250,35 @@ mod tests {
         };
         assert_eq!(params, &["a".to_owned(), "b".to_owned()]);
         assert_eq!(inputs, &HookInputs::declared([HookInput::Words]));
-        assert!(
-            !says(&set, "not run as an implementation"),
-            "{:?}",
-            set.notices
-        );
+        assert!(says_nothing_of_it(&set), "{:?}", set.notices);
+    }
+
+    /// The derivation is the author's to ask for: the same bodies, with the same
+    /// rows, derive nothing and draw nothing when the backing does not say
+    /// `-evaluate`.
+    #[test]
+    fn a_body_nobody_asked_to_have_evaluated_derives_nothing_and_says_nothing() {
+        for body in [
+            "proc vendor::f {x} {expr {$x * 2}}",
+            "proc vendor::f {x} {upvar 1 $x y; set y}",
+            "return 1",
+        ] {
+            let set = load_asserting("arity 1", body, false);
+            let command = &set.packs[0].commands[0];
+            assert!(
+                matches!(command.spec.semantics, SemanticsDeclaration::Inherited),
+                "{body}"
+            );
+            assert!(command.hooks.is_empty(), "{body}: {:?}", command.hooks);
+            assert!(says_nothing_of_it(&set), "{body}: {:?}", set.notices);
+            assert!(!command.spec.runtime_backing.evaluates());
+        }
+        let asked = load("arity 1", "proc vendor::f {x} {expr {$x * 2}}");
+        assert!(asked.packs[0].commands[0].spec.runtime_backing.evaluates());
     }
 
     #[test]
-    fn a_body_the_sandbox_cannot_run_is_said_on_the_commands_row_and_derives_nothing() {
+    fn a_body_the_sandbox_cannot_run_is_a_warning_on_the_commands_row_and_derives_nothing() {
         for (body, reason) in [
             ("proc vendor::f {x} {upvar 1 $x y; set y}", "`upvar`"),
             ("proc vendor::f {x} {clock seconds}", "`clock`"),
@@ -249,15 +301,16 @@ mod tests {
             let row = set
                 .notices
                 .iter()
-                .find(|notice| notice.message.contains("not run as an implementation"))
+                .find(|notice| notice.message.contains(ASKED))
                 .expect("said");
             assert_eq!(row.context, "command vendor::f");
             assert_eq!(row.line, command.line);
+            assert_eq!(row.severity, Severity::Warning, "the author asked");
         }
     }
 
     #[test]
-    fn a_text_that_is_not_one_proc_is_no_body_and_draws_no_notice_of_this_kind() {
+    fn an_asserted_text_that_is_not_one_proc_says_so() {
         for body in [
             "return 1",
             "proc other::g {x} {set x}",
@@ -265,7 +318,7 @@ mod tests {
         ] {
             let set = load("arity 1", body);
             assert!(
-                !says(&set, "not run as an implementation"),
+                says(&set, "not exactly one `proc`"),
                 "{body}: {:?}",
                 set.notices
             );
@@ -274,7 +327,8 @@ mod tests {
     }
 
     #[test]
-    fn what_the_author_states_about_evaluation_is_left_as_written() {
+    fn what_the_author_states_about_evaluation_is_left_as_written_and_the_assertion_is_a_contradiction()
+     {
         let body = "proc vendor::f {x} {expr {$x * 2}}";
 
         // `semantics none` abstains, and stays that way.
@@ -326,11 +380,7 @@ mod tests {
         assert!(body.contains("mine"), "{body}");
 
         for set in [&none, &rows, &written] {
-            assert!(
-                !says(set, "not run as an implementation"),
-                "{:?}",
-                set.notices
-            );
+            assert!(says(set, "states its own evaluation"), "{:?}", set.notices);
         }
     }
 

@@ -530,17 +530,25 @@ fn runtime_backing_expr(value: &Value) -> Option<String> {
         BackingSyntax::ShippedBuiltin { identity } => {
             format!("RuntimeBacking::shipped({})", rust_string(&identity))
         }
-        BackingSyntax::PackageSource { relative_path } => {
-            format!(
-                "RuntimeBacking::package_source({})",
-                rust_string(&relative_path)
-            )
-        }
-        BackingSyntax::PackText { text } => format!(
-            "RuntimeBacking::TclBody {{ source: BodySource::PackText {{ text: {} }} }}",
-            rust_string(&text)
+        BackingSyntax::PackageSource {
+            relative_path,
+            evaluate,
+        } => format!(
+            "RuntimeBacking::package_source({}){}",
+            rust_string(&relative_path),
+            evaluated(evaluate)
+        ),
+        BackingSyntax::PackText { text, evaluate } => format!(
+            "RuntimeBacking::pack_text({}){}",
+            rust_string(&text),
+            evaluated(evaluate)
         ),
     })
+}
+
+/// The call that carries the author's assertion that a Tcl body may be evaluated.
+const fn evaluated(evaluate: bool) -> &'static str {
+    if evaluate { ".evaluated()" } else { "" }
 }
 
 /// A `semantic_operation` value (`{kind, detail}`) as its
@@ -2059,6 +2067,32 @@ mod tests {
         draft.insert("name".into(), serde_json::json!("probe"));
         draft.insert("options".into(), Value::Array(vec![option]));
         draft
+    }
+
+    /// A Tcl body is rendered as the `const` call that builds it, and its author's
+    /// `-evaluate` as the `.evaluated()` that carries the assertion; a spelling that
+    /// does not read renders nothing.
+    #[test]
+    fn a_tcl_body_backing_is_rendered_with_its_authors_assertion() {
+        let rendered = |spelling: &str| runtime_backing_expr(&serde_json::json!(spelling));
+        assert_eq!(rendered("none").as_deref(), Some("RuntimeBacking::None"));
+        assert_eq!(
+            rendered("tcl-body {-pack-text {proc p {} {}}}").as_deref(),
+            Some("RuntimeBacking::pack_text(\"proc p {} {}\")")
+        );
+        assert_eq!(
+            rendered("tcl-body {-pack-text {proc p {} {}} -evaluate}").as_deref(),
+            Some("RuntimeBacking::pack_text(\"proc p {} {}\").evaluated()")
+        );
+        assert_eq!(
+            rendered("tcl-body {-package-source lib/a.tcl}").as_deref(),
+            Some("RuntimeBacking::package_source(\"lib/a.tcl\")")
+        );
+        assert_eq!(
+            rendered("tcl-body {-evaluate -package-source lib/a.tcl}").as_deref(),
+            Some("RuntimeBacking::package_source(\"lib/a.tcl\").evaluated()")
+        );
+        assert_eq!(rendered("tcl-body {-evaluate}"), None);
     }
 
     #[test]

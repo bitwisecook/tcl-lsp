@@ -905,22 +905,36 @@ reaches the compiler through the per-thread `pack_hooks` installer
 (`set_installer`, `install_host`), which is how the crate cycle is broken.
 
 A command a pack backs with a Tcl body is one more source of a declared
-implementation, and the pack writes nothing beside the body. The registry's
-scan (`rust/tcl-registry/src/value_transfer/reference_body.rs`) reads the body:
+implementation when its author says so, and the pack writes nothing beside the
+body but `-evaluate`. The flag is an assertion the scan cannot make: the engine
+under the host emulates an older release imperfectly, so a body that meets a
+difference folds a value the release's own shell does not give, and only the
+author can vouch that it does not. Nothing is derived from a body whose author
+did not say so, as a `const_fold` hook exists only where one was written. The
+registry's scan (`rust/tcl-registry/src/value_transfer/reference_body.rs`) stays
+the precondition and never the licence; it reads the body:
 exactly one `proc` that defines the command, with required parameters and a body
 of commands on the hook host's whitelist, none reaching for the frame, a
 channel, a process or the world, no namespace-qualified variable, `return` only
 as the last statement. The list is a whitelist the host's own list is held equal
 to, so a command the host gains is a decision made in both places; a body the
-scan cannot read to the end derives nothing. The loader
+scan cannot read to the end derives nothing, and says why where the author
+asked. A callback is found under any spelling the command accepts: `dict fo` is
+`for` and `lsort -comm` is `-command`, read through the commands' own
+subcommand and option tables. The loader
 (`rust/tcl-spectcl/src/loader/reference.rs`) gives the command a declaration —
 identity `COMMAND.reference` with the body's content hash, one exact operand
 input per parameter, `depends {tcl_profile implementation_identity}`, normal
 completion — and the `evaluate` hook body `fold [ BODY ]`, a final `return V`
 standing as a `set` of `V`, so the host plan, the driver and the dormant-hook
 notice for an untrusted workspace treat it as one the pack wrote. A command
-whose author stated its `semantics` or `evaluate` keeps them, and the derivation
-needs the command's `arity` to be exactly the body's parameters.
+whose author stated its `semantics` or `evaluate` keeps them, and the flag beside
+either is a contradiction the loader's warning says; the derivation needs the
+command's `arity` to be exactly the body's parameters. The body runs in an engine
+pinned to the release the call is analysed under, and the rows on which that
+engine answers as each release's own `tclsh` does — `string cat`, a leading
+zero, a digit separator, `format %x -1`, the length of an astral character,
+`int(1e20)` from 9.0 — are held to those shells by a test that runs them.
 
 ### Per-evaluation state: writes outside the activation are denied
 
@@ -2044,8 +2058,9 @@ body states — whether it is side-effect free, the state it touches outside its
 frame, the type it answers and the parameters it calls — as proposals with their
 evidence. For a command implemented in value-position Tcl over whitelisted
 commands, a pack need not author the declared implementation: a `runtime_backing
-tcl-body` that carries the body derives one (§ *The declared-implementation
-route*), keyed by the target release and its own identity. Purity inferred from
+tcl-body` that carries the body and says `-evaluate` derives one (§ *The
+declared-implementation route*), keyed by the target release and its own
+identity. Purity inferred from
 a summary is classification only, and the pack's differential corpus proves an
 implementation against the library's real behaviour.
 
@@ -2111,7 +2126,7 @@ onward.
 - `rust/tcl-spec-hooks/tests/containment_e2e.rs` — the budget, quarantine, and poison paths the route's isolation rule extends
 - `rust/tcl-spectcl/tests/spec_corpus.rs` — every shipped pack's hooks through the sandboxed host at budget: a loading and containment gate, not a value oracle
 - `rust/tcl-spectcl/src/loader.rs` — `native_hook_tables_cover_their_catalogues`, `value_tables_cover_their_catalogues`
-- `rust/tcl-registry/src/value_transfer/reference_body.rs` — `every_command_the_registry_knows_is_refused_unless_the_whitelist_lists_it`, the scan's refusals; `rust/tcl-spectcl/src/loader/reference.rs` — `the_scans_whitelist_is_the_hosts`; `rust/tcl-spectcl/tests/pack_source_e2e.rs` — `a_reference_body_answers_through_the_host_as_the_procedure_does`, the parity of a derived body with the procedure it came from; `rust/tcl-engine-tclvm/src/lib.rs` — `a_whitelisted_ensembles_subcommands_run_wherever_they_are_called`
+- `rust/tcl-registry/src/value_transfer/reference_body.rs` — `every_command_the_registry_knows_is_refused_unless_the_whitelist_lists_it`, the scan's refusals; `rust/tcl-spectcl/src/loader/reference.rs` — `the_scans_whitelist_is_the_hosts`; `rust/tcl-spectcl/tests/pack_source_e2e.rs` — `a_reference_body_answers_through_the_host_as_the_procedure_does`, the parity of a derived body with the procedure it came from, and `a_derived_body_runs_under_the_release_the_call_is_analysed_under`, the rows that hold against each release's own `tclsh`; `rust/tcl-engine-tclvm/src/lib.rs` — `a_whitelisted_ensembles_subcommands_run_wherever_they_are_called`
 - `rust/tcl-spec-studio/tests/spectcl_roundtrip.rs` — the four-surface round trip
 - `rust/tcl-spec-studio/tests/reference_doc.rs` — the generated field reference
 - `rust/tcl-vm/tests/dict_canonicalisation_parity.rs` — the list-rendering parity the folders depend on

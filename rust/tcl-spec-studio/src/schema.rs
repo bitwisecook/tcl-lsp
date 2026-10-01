@@ -136,8 +136,9 @@ pub enum FieldKind {
     SemanticOperation,
     /// [`tcl_registry::RuntimeBacking`] — how the command's behaviour reaches
     /// the runtime, held as the statement's own spelling (`none`,
-    /// `host-native`, `shipped-builtin ID`, `tcl-body {-package-source PATH}`,
-    /// `tcl-body {-pack-text {TEXT}}`) and edited as text.
+    /// `host-native`, `shipped-builtin ID`, `tcl-body {-package-source PATH
+    /// ?-evaluate?}`, `tcl-body {-pack-text {TEXT} ?-evaluate?}`) and edited as
+    /// text.
     RuntimeBacking,
     /// A field the studio cannot model as data — a function pointer or a
     /// reference to a `&'static` descriptor. Held (and emitted) as a verbatim
@@ -1357,9 +1358,9 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         FieldKind::RuntimeBacking,
         "How the command's behaviour reaches the runtime: `none`, \
          `host-native`, `shipped-builtin ID`, `tcl-body {-package-source \
-         PATH}` or `tcl-body {-pack-text {TEXT}}`. Every shipped core \
-         command declares it; a command that declares nothing reads as \
-         `none` — nothing executes it.",
+         PATH ?-evaluate?}` or `tcl-body {-pack-text {TEXT} ?-evaluate?}`. \
+         Every shipped core command declares it; a command that declares \
+         nothing reads as `none` — nothing executes it.",
     ),
     f(
         "byte_array_payload",
