@@ -166,6 +166,34 @@ const GRAMMAR_F5_TCL: LexerGrammar = LexerGrammar {
     list_parse: ListParse::Strict,
 };
 
+/// What stands behind a profile's evaluation semantics: the evidence gate a
+/// compile-time fold passes before it evaluates under the profile's release.
+///
+/// [`DialectProfile::runtime_base`] says which Tcl release a profile's runtime
+/// was *modelled* on, and nothing in it says the model was ever compared with the
+/// real thing. A fold bakes a value into a program, and is only as sound as that
+/// comparison, so [`DialectProfile::evaluation_point`] answers a release only
+/// where one of these says there was.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EvaluationEvidence {
+    /// The profile is a Tcl release itself, and `data/reference-toolchains.tsv`
+    /// pins an interpreter for it that the differential suites run.
+    ReferenceToolchain,
+    /// A vendor fork of a Tcl release, measured on the real environment.
+    MeasuredFork {
+        /// Where the measurement is recorded.
+        note: &'static str,
+    },
+    /// Nothing measured: the runtime base is a claim and not evidence.
+    Unmeasured,
+}
+
+/// Where the F5 fork's release was measured: every context reports patchlevel
+/// 8.4.6 and behaves as 8.4 on each 8.4 / 8.5 discriminator probed.
+const F5_FORK_MEASURED: EvaluationEvidence = EvaluationEvidence::MeasuredFork {
+    note: "docs/design/f5/bigip-irule-parser-measurements.md §4 and §4a",
+};
+
 /// One filename extension a dialect owns, with its human-facing name —
 /// the catalogue analogue of a `SpecTcl` pack's
 /// `file_extension upf -name {Unified Power Format}` row.
@@ -343,6 +371,9 @@ pub struct DialectProfile {
     /// Keeping the selected release on the profile lets all runtime consumers
     /// share one version decision rather than interpreting a dialect name.
     pub vm_runtime_version: TclVersion,
+    /// Whether anything measured [`Self::runtime_base`], which is what lets a
+    /// compile-time fold evaluate under it ([`Self::evaluation_point`]).
+    pub evaluation_evidence: EvaluationEvidence,
 
     // AXIS C: versioned libraries (§7.1, D5).
     /// The library packages this profile models, each with its version pin
@@ -413,6 +444,7 @@ static CATALOG: [DialectProfile; 19] = [
         tcloo: true,
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V9_0,
+        evaluation_evidence: EvaluationEvidence::Unmeasured,
         libraries: &[],
         help_terms: &["bpf", "ebpf"],
     },
@@ -445,6 +477,7 @@ static CATALOG: [DialectProfile; 19] = [
         tcloo: false,
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V8_4,
+        evaluation_evidence: EvaluationEvidence::Unmeasured,
         libraries: &[
             LibraryPin {
                 package: "sdc",
@@ -523,6 +556,7 @@ static CATALOG: [DialectProfile; 19] = [
         tcloo: true,
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V8_6,
+        evaluation_evidence: EvaluationEvidence::Unmeasured,
         libraries: &[LibraryPin {
             package: "Expect",
             version: LibraryVersion::Pinned("5.45.4"),
@@ -570,6 +604,7 @@ static CATALOG: [DialectProfile; 19] = [
         tcloo: false,
         has_fixed_ensembles: true,
         vm_runtime_version: TclVersion::V9_0,
+        evaluation_evidence: EvaluationEvidence::Unmeasured,
         libraries: &[LibraryPin {
             package: "f5-bigip-schema",
             version: LibraryVersion::Keyed(VersionKey::BigipVersion),
@@ -625,6 +660,7 @@ static CATALOG: [DialectProfile; 19] = [
         tcloo: false,
         has_fixed_ensembles: true,
         vm_runtime_version: TclVersion::V8_4,
+        evaluation_evidence: F5_FORK_MEASURED,
         libraries: &[LibraryPin {
             package: "f5-iapps-cmds",
             version: LibraryVersion::Keyed(VersionKey::BigipVersion),
@@ -676,6 +712,7 @@ static CATALOG: [DialectProfile; 19] = [
         tcloo: false,
         has_fixed_ensembles: true,
         vm_runtime_version: TclVersion::V8_4,
+        evaluation_evidence: F5_FORK_MEASURED,
         libraries: &[LibraryPin {
             package: "f5-irules-cmds",
             version: LibraryVersion::Keyed(VersionKey::BigipVersion),
@@ -722,6 +759,7 @@ static CATALOG: [DialectProfile; 19] = [
         tcloo: false,
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V8_4,
+        evaluation_evidence: F5_FORK_MEASURED,
         libraries: &[LibraryPin {
             package: "f5-tmsh-cmds",
             version: LibraryVersion::Keyed(VersionKey::BigipVersion),
@@ -764,6 +802,7 @@ static CATALOG: [DialectProfile; 19] = [
         tcloo: false,
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V8_5,
+        evaluation_evidence: EvaluationEvidence::Unmeasured,
         libraries: &[
             LibraryPin {
                 package: "sdc",
@@ -841,6 +880,7 @@ static CATALOG: [DialectProfile; 19] = [
         tcloo: true,
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V8_6,
+        evaluation_evidence: EvaluationEvidence::Unmeasured,
         libraries: &[
             LibraryPin {
                 package: "sdc",
@@ -897,6 +937,7 @@ static CATALOG: [DialectProfile; 19] = [
         tcloo: false,
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V8_5,
+        evaluation_evidence: EvaluationEvidence::Unmeasured,
         libraries: &[
             LibraryPin {
                 package: "sdc",
@@ -959,6 +1000,7 @@ static CATALOG: [DialectProfile; 19] = [
         tcloo: true,
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V9_0,
+        evaluation_evidence: EvaluationEvidence::Unmeasured,
         libraries: &[],
         help_terms: &["spectcl", "speclib", "tclspec"],
     },
@@ -1003,6 +1045,7 @@ static CATALOG: [DialectProfile; 19] = [
         tcloo: true,
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V9_0,
+        evaluation_evidence: EvaluationEvidence::Unmeasured,
         libraries: &[],
         help_terms: &["sslictcl", "tls", "certificate", "endpoint"],
     },
@@ -1037,6 +1080,7 @@ static CATALOG: [DialectProfile; 19] = [
         tcloo: true,
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V8_6,
+        evaluation_evidence: EvaluationEvidence::Unmeasured,
         libraries: &[
             LibraryPin {
                 package: "sdc",
@@ -1112,6 +1156,7 @@ static CATALOG: [DialectProfile; 19] = [
         tcloo: false,
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V8_4,
+        evaluation_evidence: EvaluationEvidence::ReferenceToolchain,
         libraries: LIBS_TCL84_85,
         help_terms: &["tcl", "tk"],
     },
@@ -1140,6 +1185,7 @@ static CATALOG: [DialectProfile; 19] = [
         tcloo: false,
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V8_5,
+        evaluation_evidence: EvaluationEvidence::ReferenceToolchain,
         libraries: LIBS_TCL84_85,
         help_terms: &["tcl", "tk"],
     },
@@ -1168,6 +1214,7 @@ static CATALOG: [DialectProfile; 19] = [
         tcloo: true,
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V8_6,
+        evaluation_evidence: EvaluationEvidence::ReferenceToolchain,
         libraries: LIBS_TCL86_PLUS,
         help_terms: &["tcl", "tk"],
     },
@@ -1196,6 +1243,7 @@ static CATALOG: [DialectProfile; 19] = [
         tcloo: true,
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V9_0,
+        evaluation_evidence: EvaluationEvidence::ReferenceToolchain,
         libraries: LIBS_TCL86_PLUS,
         help_terms: &["tcl", "tk"],
     },
@@ -1226,6 +1274,7 @@ static CATALOG: [DialectProfile; 19] = [
         tcloo: true,
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V9_1,
+        evaluation_evidence: EvaluationEvidence::ReferenceToolchain,
         libraries: LIBS_TCL86_PLUS,
         help_terms: &["tcl", "tk"],
     },
@@ -1254,6 +1303,7 @@ static CATALOG: [DialectProfile; 19] = [
         tcloo: false,
         has_fixed_ensembles: false,
         vm_runtime_version: TclVersion::V8_5,
+        evaluation_evidence: EvaluationEvidence::Unmeasured,
         libraries: &[
             LibraryPin {
                 package: "sdc",
@@ -1301,6 +1351,7 @@ static PLAIN_TCL: DialectProfile = DialectProfile {
     tcloo: true,
     has_fixed_ensembles: false,
     vm_runtime_version: TclVersion::V9_0,
+    evaluation_evidence: EvaluationEvidence::Unmeasured,
     libraries: &[],
     help_terms: &[],
 };
@@ -1354,6 +1405,7 @@ static TK_PROFILE: DialectProfile = DialectProfile {
     tcloo: true,
     has_fixed_ensembles: false,
     vm_runtime_version: TclVersion::V8_6,
+    evaluation_evidence: EvaluationEvidence::Unmeasured,
     libraries: LIBS_TCL86_PLUS,
     help_terms: &["tk"],
 };
@@ -1408,6 +1460,7 @@ impl DialectProfile {
             tcloo: PLAIN_TCL.tcloo,
             has_fixed_ensembles: PLAIN_TCL.has_fixed_ensembles,
             vm_runtime_version: tcl_version.unwrap_or(PLAIN_TCL.vm_runtime_version),
+            evaluation_evidence: EvaluationEvidence::Unmeasured,
             libraries: &[],
             help_terms: &[],
         }
@@ -1627,17 +1680,38 @@ impl DialectProfile {
         }
     }
 
-    /// The version-aware *compile-time fold* projection — deliberately
-    /// exact: `Some` only for the plain versioned-Tcl
-    /// profiles, `None` for every vendor dialect (including iRules, whose
-    /// [`Self::runtime_base`] is a real `V8_4`) so versioned const-folds
-    /// keep returning the dialect-invariant subset there until the
-    /// optimiser/SCCP output is verified against real 8.4/8.5/8.6
-    /// interpreters. The modelled runtime is `runtime_base`; this accessor
-    /// is the *fold* policy.
+    /// The release a compile-time fold evaluates under for this profile: its
+    /// [`Self::runtime_base`] where [`Self::evaluation_evidence`] says the base
+    /// was measured, and `None` where it was not, so a fold keeps to the answer
+    /// every modelled release gives.
+    ///
+    /// Decided per measured row and never by the profile's name: a Tcl release
+    /// has its row in `data/reference-toolchains.tsv`, and a vendor fork has its
+    /// own measured-fork note. The release a profile *models* for the
+    /// value-transfer routes stays [`Self::runtime_version`].
+    #[must_use]
+    pub fn evaluation_point(&self) -> Option<TclVersion> {
+        match self.evaluation_evidence {
+            EvaluationEvidence::ReferenceToolchain | EvaluationEvidence::MeasuredFork { .. } => {
+                self.runtime_base
+            }
+            EvaluationEvidence::Unmeasured => None,
+        }
+    }
+
+    /// Whether this profile is a Tcl release itself, with an interpreter pinned
+    /// for it in `data/reference-toolchains.tsv`, as against a vendor fork or an
+    /// environment that models a release.
+    #[must_use]
+    pub fn is_tcl_release(&self) -> bool {
+        self.evaluation_evidence == EvaluationEvidence::ReferenceToolchain
+    }
+
+    /// The version-aware *compile-time fold* projection: the profile's
+    /// [`Self::evaluation_point`].
     #[must_use]
     pub fn const_fold_version(&self) -> Option<TclVersion> {
-        TclVersion::from_profile(self)
+        self.evaluation_point()
     }
 
     /// The [`LibraryPin`] this profile declares for `package`, if any
@@ -1763,6 +1837,7 @@ pub fn available_dialects() -> &'static [&'static str] {
 #[cfg(test)]
 mod tests {
     use super::DialectProfile;
+    use super::EvaluationEvidence;
     use super::KNOWN_DIALECTS;
     use crate::grammar::{BracedVarStyle, EscapeSyntax, ExprCommentStyle, NumberSyntax};
     use crate::library::{LibraryVersion, LibraryVersionOverrides, VersionKey};
@@ -2497,12 +2572,9 @@ mod tests {
     }
 
     #[test]
-    fn const_fold_version_stays_bit_identical_to_from_dialect() {
-        // The const-fold guardrail: versioned const-folds keep the
-        // exact `TclVersion::from_dialect` behaviour — plain versioned Tcl
-        // resolves, every vendor dialect (iRules included, despite its
-        // modelled V8_4 runtime) stays None until tclsh-verified.
+    fn const_fold_version_is_the_evaluation_point_and_the_release_the_name_parses_to() {
         for p in all_with_fallback() {
+            assert_eq!(p.const_fold_version(), p.evaluation_point(), "{}", p.name);
             assert_eq!(
                 p.const_fold_version(),
                 TclVersion::from_dialect(Some(p.name)),
@@ -2511,15 +2583,89 @@ mod tests {
             );
         }
         assert_eq!(
-            DialectProfile::irules().const_fold_version(),
-            None,
-            "iRules const-folds stay dialect-invariant this milestone"
-        );
-        assert_eq!(
             DialectProfile::find("tcl8.4")
                 .expect("catalogue profile")
                 .const_fold_version(),
             Some(TclVersion::V8_4)
+        );
+    }
+
+    /// A vendor profile whose release was measured folds under it: iRules, iApps
+    /// and tmsh are an 8.4 fork that every F5 context reports as 8.4.6 and that
+    /// fails every 8.5 discriminator probed, so a versioned fold answers as 8.4.
+    #[test]
+    fn a_measured_vendor_profile_has_an_evaluation_point() {
+        for name in ["f5-irules", "f5-iapps", "f5-tmsh"] {
+            let p = DialectProfile::find(name).expect("catalogue profile");
+            let EvaluationEvidence::MeasuredFork { note } = p.evaluation_evidence else {
+                panic!("{name} carries no measured-fork note");
+            };
+            assert!(
+                note.contains("bigip-irule-parser-measurements.md"),
+                "{name}: {note}"
+            );
+            assert_eq!(p.evaluation_point(), Some(TclVersion::V8_4), "{name}");
+            assert_eq!(p.evaluation_point(), p.runtime_base, "{name}");
+            assert!(!p.is_tcl_release(), "{name} is a fork and not a release");
+        }
+        assert_eq!(
+            TclVersion::from_dialect(Some("irules")),
+            Some(TclVersion::V8_4),
+            "an alias resolves through the catalogue to the same point"
+        );
+    }
+
+    /// A profile nothing measured has no evaluation point, whatever base it
+    /// models: the evidence is the gate, and the base alone is not.
+    #[test]
+    fn an_unmeasured_profile_has_none() {
+        let mut modelled = 0;
+        for p in all_with_fallback() {
+            if p.evaluation_evidence != EvaluationEvidence::Unmeasured {
+                continue;
+            }
+            assert_eq!(p.evaluation_point(), None, "{}", p.name);
+            assert_eq!(TclVersion::from_dialect(Some(p.name)), None, "{}", p.name);
+            modelled += usize::from(p.runtime_base.is_some());
+        }
+        assert!(
+            modelled >= 5,
+            "the gate is not vacuous: unmeasured profiles still model a base ({modelled})"
+        );
+        for name in ["expect", "bpf", "cadence-eda-tcl", "spectcl"] {
+            let p = DialectProfile::find(name).expect("catalogue profile");
+            assert!(p.runtime_base.is_some(), "{name} models a base");
+            assert_eq!(p.evaluation_point(), None, "{name}");
+        }
+        assert_eq!(DialectProfile::plain_tcl().evaluation_point(), None);
+        assert_eq!(DialectProfile::tk().evaluation_point(), None);
+    }
+
+    /// An evaluation point is the runtime base and nothing else, and a Tcl release
+    /// claims its reference toolchain exactly where the manifest pins one.
+    #[test]
+    fn an_evaluation_point_is_the_runtime_base_and_a_release_claims_a_pinned_toolchain() {
+        for p in all_with_fallback() {
+            if let Some(point) = p.evaluation_point() {
+                assert_eq!(Some(point), p.runtime_base, "{}", p.name);
+            }
+            if p.is_tcl_release() {
+                let base = p.runtime_base.expect("a Tcl release has a base");
+                assert_eq!(Some(base), p.signature_base, "{}", p.name);
+                assert!(p.vendor_surface.is_none(), "{}", p.name);
+                assert!(
+                    !base.patchlevel().is_empty(),
+                    "{}: no pinned patchlevel",
+                    p.name
+                );
+                assert_eq!(p.name, format!("tcl{}", base.version_string()));
+            }
+        }
+        let releases = all_with_fallback().filter(|p| p.is_tcl_release()).count();
+        assert_eq!(
+            releases,
+            TclVersion::ALL.len(),
+            "one profile per pinned release"
         );
     }
 

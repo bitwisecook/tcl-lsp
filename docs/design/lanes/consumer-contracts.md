@@ -2445,6 +2445,15 @@ against the landed tree with evidence:
   with a line of evidence, and never over a field the draft already states; a
   draft no longer counts a derived implementation among the fields it loses.
 
+## Step 9 — progress
+
+Item order follows § *Plan for steps 2–10* › *Step 9* § *Ordering and
+checkpoints*: CC9.2 first, then CC9.3, then CC9.1.
+
+| Item | State | Checkpoint | Notes |
+|---|---|---|---|
+| CC9.2 the evidence gate | landed | `wip(consumer-contracts): step 9 — evaluation points through the evidence gate` | **The gate.** `rust/tcl-dialect/src/profile.rs`: `EvaluationEvidence { ReferenceToolchain, MeasuredFork { note }, Unmeasured }` and `DialectProfile::evaluation_evidence`, written out on every catalogue entry — the five Tcl releases `ReferenceToolchain`, iRules, iApps and tmsh `MeasuredFork` with a note citing `docs/design/f5/bigip-irule-parser-measurements.md` §4 and §4a, and the other eleven, the permissive fallback, `tk` and a profile projected from a point `Unmeasured`. `evaluation_point()` is `runtime_base` where the evidence is not `Unmeasured`; `is_tcl_release()` says the evidence is a pinned reference toolchain. `TclVersion::from_profile` is `profile.evaluation_point()` where it matched five names (D9.2), `from_dialect` resolves a name through the catalogue to it, and `const_fold_version` is the same call. **What it changes.** The versioned folds (`const_fold_versioned`: `string is`, `string range`, `format`, `regsub`, and the `tcl-version` a pack's versioned hook is given) now answer under 8.4 for `f5-irules`, `f5-iapps` and `f5-tmsh` where they answered the invariant subset (D9.3); a profile nothing measured (`expect`, the EDA shells, `bpf`, the SpecTcl hosts) is unchanged. `TargetSemantics::of` still reads `runtime_version`, so the value-transfer routes are as they were (D9.4). Two readers of the old answer moved with it: `tcl registry-dump --all-dialects` and `tcl-fuzz`'s release spelling ask `is_tcl_release()` (D9.5). **The iRules rows** (`rust/tcl-registry/tests/differential_fold.rs`): `versioned_folds_under_irules_match_tclsh84` runs the broad fold matrix, the `format` matrix and seven release-dependent rows through `registry_fold_under` at iRules' point against the real `tclsh8.4`, and holds the dependent rows to answering where, with no release, they decline; `an_unmeasured_vendor_base_leaves_a_versioned_fold_to_the_invariant_subset` is its negative (`expect` models an 8.6 base and `string is integer 4294967296` does not fold); `format_witnesses_match_every_release_on_path` takes the iRules profile against `tclsh8.4` beside the five releases. **A defect the rows found** (D9.6): the `format` fold under 8.4 answered `%.0d` of 0 as `0` where `tclsh8.4` prints nothing, so plain `tcl8.4` documents folded it wrong already and the three F5 profiles now would have; `apply_precision` (`format_.rs`) answers the empty digits through 8.4 and declines with no release, and the matrix has the six rows. The harness's reference treated an error as an empty answer on 8.x (a `tclsh` reading its script from standard input exits 0 after an error); `tcl_value` catches the call. **Tests.** `tcl-dialect`: `profile.rs` `a_measured_vendor_profile_has_an_evaluation_point` and `an_unmeasured_profile_has_none` (the plan's two: the three forks answer 8.4 from a note that names the measurement, an alias resolves to the same point, and every unmeasured profile that models a base answers none), `an_evaluation_point_is_the_runtime_base_and_a_release_claims_a_pinned_toolchain` (new: the point is the base and nothing else, a Tcl release has a pinned patchlevel, no vendor surface and its own name, and there are exactly five), `const_fold_version_is_the_evaluation_point_and_the_release_the_name_parses_to` (was `…_stays_bit_identical_to_from_dialect`), `version.rs` `from_dialect_maps_every_versioned_tcl` (iRules, and `expect` as the negative); `tcl-registry`: the two differential tests above and `format_.rs` `a_zero_precision_of_zero_is_empty_through_8_4_and_a_zero_after`; `tcl-spec-hooks`: `const_fold_e2e.rs` `a_versioned_pack_fold_is_told_the_profiles_evaluation_point` (a pack's versioned hook through the optimiser: `8.6`, `9.0`, `8.4` for the three forks, and none for `expect`, an EDA shell and the fallback); `tcl-compiler`: `analyser.rs` `a_vendor_profile_folds_a_version_sensitive_constant_only_where_its_release_was_measured` (was `…_abstains_from_…`, whose guard said what this item changes: `format %d 010` is 8 under iRules and unresolved under `expect`, D9.7); `tcl-cli`: `registry.rs` `all_dialects_is_the_tcl_releases_and_not_a_measured_fork`; `tcl-fuzz`'s release spelling refuses `f5-irules`. **Mutation checks**, each switched on through an environment variable compiled into the files for the run and removed by restoring them: the gate ignoring the evidence (`an_unmeasured_profile_has_none`, `from_dialect_maps_every_versioned_tcl`, the unmeasured differential test and the pack-hook test), a measured fork answering none (`a_measured_vendor_profile_has_an_evaluation_point`, `from_dialect_maps_…`, `versioned_folds_under_irules_match_tclsh84`, the pack-hook test), `from_profile` read off the profile's name again (`a_measured_vendor_profile_…`, `const_fold_version_is_the_evaluation_point_…`, `from_dialect_maps_…`), `is_tcl_release` true for any measured profile (`a_measured_vendor_profile_…`, `an_evaluation_point_is_the_runtime_base_…`, `all_dialects_is_the_tcl_releases_…`), the 8.4 zero-precision rule off, applied to every release and answered with no release (`a_zero_precision_of_zero_…`, with `versioned_folds_under_irules_match_tclsh84` for the first and `format_folds_match_tcl9` and `format_folds_integer_flag_width_precision` for the second). Seven mutants, all killed. **Gates.** `cargo test`, under `LANG=C.UTF-8` with `TCL_REQUIRE_WASM_LINK=1`, `TCL_TOMMATH_DIR` and the `tmp` oracle tree linked, in batches of twelve binaries: `-p tcl-dialect` (169 tests with the doc test; lib 156, was 153), `-p tcl-registry` (1316, was 1313; `differential_fold` 16, was 14), `-p tcl-spec-hooks` (49, was 48), `-p tcl-compiler` (68 binaries, 9941, unchanged), `-p tcl-irule-test` (29), `-p tcl-irules` (80), `-p tcl-lsp-core` (3578), `-p tcl-cli` (156, was 155) and `-p tcl-fuzz` (106); `cargo check --workspace --all-targets`; clippy (`--workspace --all-targets -- -D warnings`, no new `#[allow]`; two lints answered in the code, `redundant_closure` and a dead helper removed) and `cargo fmt --all` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389), `owner-resolution` (45), `retired-api-gate`, `runtime-stdlib`, `kcs-index-links` and `gen-irule-test-data --check` green, `dialect-drift` at its 8 sites. Deviations: three forks are measured, not two (D9.3); the const-ops call the plan names is no longer a caller of `from_profile` (D9.4); the fuzz parser, the dump predicate and a fold defect are beyond the plan's list (D9.5, D9.6). D9.2–D9.7 |
+
 ## Plan for steps 2–10
 
 Steps 2 to 10 of [registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
@@ -6929,8 +6938,64 @@ everything else in this lane is independent of both.
   declared of few commands. `demo::cached` and `demo::counted` in the facts test are
   the namespace memo and the namespace counter the old probe passed.
 - **D9.1** Versioned stamps are `StampWindow<T>` slices mirroring
-  `ArityWindow`. **D9.2** `DialectProfile::evaluation_point` is the
-  evidence gate; `TclVersion::from_profile` delegates.
+  `ArityWindow`.
+- **D9.2** The evidence gate is data on the profile, never a function of its name.
+  `EvaluationEvidence { ReferenceToolchain, MeasuredFork { note }, Unmeasured }` is
+  a field of `DialectProfile`, written out on every catalogue entry, and
+  `evaluation_point()` is `runtime_base` where the evidence is not `Unmeasured`.
+  The plan reads "`runtime_base` when the profile's row in
+  `data/reference-toolchains.tsv` or the profile's own measured-fork note marks it
+  measured" as two sources, and they are two variants: the manifest pins one
+  interpreter for each Tcl release, so the five profiles that are those releases
+  claim it (`is_tcl_release`; a test holds each to a pinned patchlevel, to no
+  vendor surface and to being named for its release), and a fork claims a note that
+  cites the measurement. `TclVersion::from_profile` is `profile.evaluation_point()`
+  where it matched five names, `from_dialect` resolves a name through the catalogue
+  to it, and `const_fold_version` is the same call.
+- **D9.3** Three forks are measured, and not two. The plan's expected deltas name
+  iRules and iApps; the measurement document's §4 table and §4a measure tmsh the
+  same way — patchlevel 8.4.6, every 8.4 / 8.5 discriminator probed behaving as
+  8.4, one parser across the three contexts — so the gate marks it, and a versioned
+  fold under `f5-tmsh` answers as 8.4 too. The profiles that stay out model a base
+  with no measurement behind it, or none: the EDA shells, `expect`, `bpf`,
+  `spectcl`, `sslictcl`, `f5-bigip`, `tk` and the fallback.
+- **D9.4** `TargetSemantics::of` is not behind the gate. B-CC8 recorded that since
+  the value-transfers lane's ruling 8 (D72) the routes read
+  `DialectProfile::runtime_version`, so a gate that holds an unmeasured base back
+  would have to reach `TargetSemantics::of`. It does not: that would change what
+  `expect`, the EDA shells, `bpf` and the SpecTcl hosts answer on every route, a
+  delta the plan does not list, in the value-transfers lane's file. The plan's
+  "`const_ops.rs:325`, unchanged call, new answer" no longer holds either, since
+  that file does not call `from_profile`. The gate is the versioned folds' alone;
+  the design page's "release for versioned evaluation" row says so and names what
+  is left, and whether the routes' unmeasured bases should reach it is the owner's
+  to say.
+- **D9.5** What `from_profile` answers moved other readers, and each is a decision.
+  `tcl registry-dump --all-dialects` took `const_fold_version().is_some()` for
+  "this is a plain Tcl release", which would now snapshot the three forks: it asks
+  `is_tcl_release()`, with a unit test. `tcl-fuzz`'s release spelling went through
+  `from_dialect`, which would now accept `f5-irules` as 8.4: it asks
+  `is_tcl_release()` too, and its test says a fork is not a release a campaign can
+  name. The language server's package view takes `from_dialect(Some(dialect.name))`
+  as its target release: for an iRules, iApps or tmsh document it is 8.4 where it
+  was none, the release those documents run on, and is accepted.
+- **D9.6** The iRules rows found a defect the gate made reachable. The registry's
+  `format` fold, run under 8.4, answered `%.0d` of 0 as `0` where `tclsh8.4` prints
+  nothing — 8.5 changed it, for `%.0x`, `%.0o` and `%.0u` too, and the flags and the
+  width act on what is left — so a plain `tcl8.4` document had folded it wrong all
+  along and the three F5 profiles would now have too. The fold answers the empty
+  digits through 8.4 and declines with no release, as it must where the releases
+  differ. The same run showed that `tcl_value`, the harness's reference, took an
+  error for an empty answer on 8.x: a `tclsh` that reads its script from standard
+  input carries on after an error and exits 0, so it now catches the call and exits
+  1. Neither is the item's file list; both are what an 8.4 row against the real shell
+  is for.
+- **D9.7** The compiler's guard
+  `a_vendor_profile_abstains_from_version_sensitive_const_substitution` said an
+  iRules fold projection "is deliberately unknown until versioned folds are
+  verified for that shell". That is what this item changes, so the test states the
+  new rule: a measured fork folds `format %d 010` as 8 and an unmeasured base
+  leaves it.
 - **D10.1** The authored header is `runtime/rust/include/tcl.h` (the ABI
   § 4.1 places it with the runtime); the shim includes it by path.
 

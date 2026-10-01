@@ -223,12 +223,35 @@ impl Conversion {
             None => u64::try_from(signed).ok()?, // unversioned: non-negative only
         };
         let mut digits = n.to_string();
-        if let Some(p) = self.precision
-            && digits.len() < p
-        {
-            digits = "0".repeat(p - digits.len()) + &digits;
-        }
+        self.apply_precision(&mut digits, n == 0, version)?;
         Some(self.pad("", &digits, self.int_zero_pad()))
+    }
+
+    /// Give an integer conversion's `digits` its precision: a minimum digit
+    /// count, zero-padded. A precision of 0 on a zero value prints no digit through
+    /// 8.4 — C's rule, which 8.5 dropped for the `0` — so the digits are empty
+    /// there (`%.0d 0` is empty, `%+.0d 0` is `+`), and an unversioned dialect,
+    /// which cannot say which, bails.
+    fn apply_precision(
+        &self,
+        digits: &mut String,
+        zero: bool,
+        version: Option<TclVersion>,
+    ) -> Option<()> {
+        let Some(p) = self.precision else {
+            return Some(());
+        };
+        if p == 0 && zero {
+            match version {
+                Some(TclVersion::V8_4) => digits.clear(),
+                Some(_) => {}
+                None => return None,
+            }
+        }
+        if digits.len() < p {
+            *digits = "0".repeat(p - digits.len()) + digits;
+        }
+        Some(())
     }
 
     /// Render a float conversion — `%f` (fixed; `%F` is *not* a valid Tcl
@@ -303,11 +326,7 @@ impl Conversion {
         }
         let n = parse_format_int(value, version)?;
         let mut digits = n.unsigned_abs().to_string();
-        if let Some(p) = self.precision
-            && digits.len() < p
-        {
-            digits = "0".repeat(p - digits.len()) + &digits;
-        }
+        self.apply_precision(&mut digits, n == 0, version)?;
         let sign = if n < 0 {
             "-"
         } else if self.flags.contains(FmtFlags::PLUS) {
@@ -365,11 +384,7 @@ impl Conversion {
         } else {
             ""
         };
-        if let Some(p) = self.precision
-            && digits.len() < p
-        {
-            digits = "0".repeat(p - digits.len()) + &digits;
-        }
+        self.apply_precision(&mut digits, n == 0, version)?;
         Some(self.pad(prefix, &digits, self.int_zero_pad()))
     }
 
@@ -667,6 +682,58 @@ mod tests {
         assert_eq!(f(&["%5.3d", "42"]).as_deref(), Some("  042"));
         assert_eq!(f(&["%05.3d", "42"]).as_deref(), Some("  042"));
         assert_eq!(f(&["%.0d", "0"]).as_deref(), Some("0"));
+    }
+
+    /// A precision of 0 on a zero value prints no digit through Tcl 8.4 and a `0`
+    /// from 8.5, as `tclsh8.4` and `tclsh8.5` print them; a dialect with no release
+    /// cannot say which, so the fold bails.
+    #[test]
+    fn a_zero_precision_of_zero_is_empty_through_8_4_and_a_zero_after() {
+        let under = |release: Option<TclVersion>, args: &[&str]| fold_format(args, release);
+        for args in [
+            &["%.0d", "0"][..],
+            &["%.0x", "0"],
+            &["%.0X", "0"],
+            &["%.0o", "0"],
+            &["%.0u", "0"],
+        ] {
+            assert_eq!(
+                under(Some(TclVersion::V8_4), args).as_deref(),
+                Some(""),
+                "{args:?}"
+            );
+            for release in [
+                TclVersion::V8_5,
+                TclVersion::V8_6,
+                TclVersion::V9_0,
+                TclVersion::V9_1,
+            ] {
+                assert_eq!(
+                    under(Some(release), args).as_deref(),
+                    Some("0"),
+                    "{release:?} {args:?}"
+                );
+            }
+            assert_eq!(under(None, args), None, "{args:?}: no release, no answer");
+        }
+        // The flags and the width act on what is left.
+        assert_eq!(
+            under(Some(TclVersion::V8_4), &["%5.0d", "0"]).as_deref(),
+            Some("     ")
+        );
+        assert_eq!(
+            under(Some(TclVersion::V8_4), &["%+.0d", "0"]).as_deref(),
+            Some("+")
+        );
+        assert_eq!(
+            under(Some(TclVersion::V8_4), &["%-3.0d|", "0"]).as_deref(),
+            Some("   |")
+        );
+        // A non-zero value, or any other precision, is the same on every release.
+        for release in [None, Some(TclVersion::V8_4), Some(TclVersion::V9_0)] {
+            assert_eq!(under(release, &["%.0d", "5"]).as_deref(), Some("5"));
+            assert_eq!(under(release, &["%.2d", "0"]).as_deref(), Some("00"));
+        }
     }
 
     #[test]

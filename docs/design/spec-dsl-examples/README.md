@@ -592,7 +592,7 @@ That is exactly the `args: &[&str]` every current hook receives.
 | `subcommand` | the resolved subcommand word, or empty |
 | `nwords` | `[llength $words]`, for symmetry with the argv-shaped hooks |
 | `kinds` | one word per element of `words`: `literal`, `dynamic`, `expanded`, or `opaque` |
-| `tcl-version` | `8.4` … `9.1`, or empty when the profile names no release |
+| `tcl-version` | `8.4` … `9.1`, or empty when the profile has no evaluation point: a Tcl release gives its own, a vendor fork whose release was measured (iRules, iApps, tmsh) gives that release, and a profile nothing measured gives none |
 | `dialect` | the active dialect member word |
 | `in-event-body` | `0` / `1` — the one lexical fact `context_gate` takes today |
 

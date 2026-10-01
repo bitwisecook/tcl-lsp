@@ -40,7 +40,15 @@ grammar applies.
 A dialect that declares a base release evaluates under it. iRules, iApps
 and tmsh embed a Tcl 8.4, so `incr` of `010` is 9 under `f5-irules`, as
 `tclsh8.4` prints; `expect` evaluates as 8.6 and each EDA shell as the
-release its vendor ships. Where a vendor dialect declares an answer of its
+release its vendor ships. The folds that read the release by name — `string
+is`, `string range`, `format` and `regsub`, and the `tcl-version` a pack's
+versioned hook is given — ask the profile for its *evaluation point*, which is
+its base only where something measured it: a Tcl release has the `tclsh` the
+differential suites run, and iRules, iApps and tmsh were measured on a BIG-IP
+(every context reports 8.4.6 and fails every 8.5 discriminator probed). So
+`string is integer 4294967296` is 0 under `f5-irules`, as `tclsh8.4` prints,
+and does not fold under `expect`, whose 8.6 base nobody measured, because 8.x
+and 9.x disagree. Where a vendor dialect declares an answer of its
 own on one axis that its base release does not give — the F5 dialects'
 character model, which no TMOS measurement settles yet — that axis falls
 back to the rule below, so the declaration blocks the base release's
