@@ -3276,8 +3276,8 @@ impl<'r> Lowerer<'r> {
         // unused-variable analysis does not treat a feeding `set` as dead.
         let reads_before_write = self
             .registry
-            .get(&role_cmd)
-            .is_some_and(|s| s.traits.contains(tcl_registry::Traits::READS_BEFORE_WRITE));
+            .invocation_traits(&role_cmd, &role_args_ref, self.registry.own_surface_query())
+            .contains(tcl_registry::Traits::READS_BEFORE_WRITE);
 
         // A stored callback is data for this invocation, not executable code
         // that can complete or mutate the caller before the command returns.

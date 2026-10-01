@@ -2958,6 +2958,26 @@ fn a_dead_copy_of_a_tcl9_writer_target_is_still_deleted() {
     }
 }
 
+/// `grapheme next|prev` read their cursor and then write it, so the cursor is
+/// set afterwards exactly when it was set before, and the store feeding it is
+/// live.
+#[test]
+fn a_grapheme_cursor_carries_its_definedness() {
+    let copy = "proc p {s i} {\n    ::tcl::unsupported::grapheme next $s i\n    set dead $i\n    puts hi\n}\n";
+    assert!(
+        opt_fires(copy, "tcl9.1", "O126"),
+        "a copy of a bound cursor goes: {:?}",
+        opt_codes(copy, "tcl9.1")
+    );
+    let feed =
+        "proc p {s} {\n    set i 2\n    tcl::unsupported::grapheme prev $s i\n    return $i\n}\n";
+    assert!(
+        !opt_fires(feed, "tcl9.1", "O109"),
+        "the store feeding the cursor stays: {:?}",
+        opt_codes(feed, "tcl9.1")
+    );
+}
+
 /// `string is class -failindex var` writes `var` only when the test fails and
 /// leaves it as it was otherwise, so a store before it is not dead. tclsh
 /// 8.5.19 to 9.1b0 print `keep`; O109 deleted `set fi keep` and the program
