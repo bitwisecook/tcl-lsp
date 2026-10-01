@@ -2854,6 +2854,11 @@ fn a_dead_element_or_startup_read_that_can_raise_is_kept() {
             "set dead $a(k)",
         ),
         (
+            "an element of the empty-named scalar",
+            "proc p {i} {\n    set {} scalar\n    set dead x$($i)\n    puts hi\n}\n",
+            "set dead x$($i)",
+        ),
+        (
             "a startup name in a procedure that shares the top level's `::top` name",
             "proc ::top {} {\n    set dead $argv\n    puts hi\n}\n",
             "set dead $argv",

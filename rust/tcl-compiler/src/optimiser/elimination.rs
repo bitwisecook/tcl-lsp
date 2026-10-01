@@ -494,9 +494,9 @@ impl<'a> RaiseProof<'a> {
     }
 }
 
-/// Whether a word substitutes an array element: an unescaped `$name(`. A
-/// braced `${a(k)}` names a scalar and is not one; a false positive only
-/// keeps a store.
+/// Whether a word substitutes an array element: an unescaped `$name(`, or
+/// `$(` for the empty-named array. A braced `${a(k)}` names a scalar and is
+/// not one; a false positive only keeps a store.
 fn has_element_substitution(word: &str) -> bool {
     let bytes = word.as_bytes();
     let mut i = 0;
@@ -510,7 +510,7 @@ fn has_element_substitution(word: &str) -> bool {
                 {
                     j += 1;
                 }
-                if j > i + 1 && bytes.get(j) == Some(&b'(') {
+                if bytes.get(j) == Some(&b'(') {
                     return true;
                 }
                 i = j.max(i + 1);
