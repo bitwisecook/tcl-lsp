@@ -137,6 +137,11 @@ pub enum GapKind {
     LoaderGap,
     /// The design excludes the field from what a pack may author at all.
     Excluded,
+    /// The field is a row of a pack-level block (`environment`, `dialect`),
+    /// and a draft is one command's model, so no draft key holds it. The
+    /// studio carries the block through an edit unchanged, and `tcl spec
+    /// export` writes its rows as the pack declared them.
+    PackLevel,
 }
 
 impl GapKind {
@@ -148,6 +153,7 @@ impl GapKind {
             }
             Self::LoaderGap => "the loader has no reader for that property word yet",
             Self::Excluded => "a pack may not author this field",
+            Self::PackLevel => "a draft is one command's model, and this is a pack-level row",
         }
     }
 }
@@ -164,7 +170,8 @@ pub struct Gap {
     pub kind: GapKind,
 }
 
-/// Every field a draft can hold that a rendered pack cannot carry.
+/// Every field a draft can hold that a rendered pack cannot carry, and every
+/// pack-level row that has no draft key.
 ///
 /// This is the renderer's half of the round-trip contract: the gate in
 /// `tests/spectcl_roundtrip.rs` allows a rendered-then-reloaded draft to differ
@@ -337,6 +344,24 @@ pub const GAPS: &[Gap] = &[
         key: "native_lowering",
         spelling: "",
         kind: GapKind::Excluded,
+    },
+    // Rows of the pack-level `environment NAME { … }` block. The studio's
+    // forms edit commands; an environment block is carried through an edit
+    // untouched, and `tcl spec export` writes its rows as declared.
+    Gap {
+        key: "environment_kind",
+        spelling: "kind language|packages",
+        kind: GapKind::PackLevel,
+    },
+    Gap {
+        key: "environment_short_name",
+        spelling: "short_name TEXT",
+        kind: GapKind::PackLevel,
+    },
+    Gap {
+        key: "environment_selecting_identity",
+        spelling: "selecting_identity ID",
+        kind: GapKind::PackLevel,
     },
 ];
 

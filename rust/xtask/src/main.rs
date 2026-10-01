@@ -46,8 +46,19 @@
 //!   documents exactly the builtins `tcl-bigip-query` registers.
 //! - `bigip-data-schema` — verify the hand-maintained BIG-IP object-spec data
 //!   is internally consistent.
+//! - `catalogue-callers` — hold every spelling of `DialectProfile::all()`,
+//!   `KNOWN_DIALECTS` and `available_dialects(` to an allowlist (`--check` is
+//!   accepted for symmetry; the gate only verifies).
 //! - `gen-editor-catalogs` — generate the VS Code iRules-event catalog JSON
 //!   from the registry (`--check` to verify instead of write).
+//! - `gen-editor-configs` — generate the Zed `extension.toml` language table,
+//!   the Helix, Emacs, Neovim and Sublime guides' configuration and dialect
+//!   lists, and `INSTALL-editors.md`'s extension lists from the environment
+//!   registry (`--check` to verify instead of write).
+//! - `gen-environment-docs` — generate the README dialect tables,
+//!   `docs/generated/environments.md`, the dialect-selection KCS note's lists,
+//!   and `ai/prompts/manifest.json` from the environment registry (`--check`
+//!   to verify instead of write).
 //! - `number-drift` — flag hand-rolled Tcl radix-prefix recognition outside
 //!   `tcl_syntax::number`, and verify expression boundaries use
 //!   `tcl_dialect::scan_expr_number`.
@@ -73,6 +84,7 @@ mod callback_coverage;
 mod callback_inventory;
 #[path = "smoke_targets.rs"]
 mod cargo_smoke;
+mod catalogue_callers;
 mod command_backing;
 mod diag_emission;
 mod diag_tables;
@@ -84,8 +96,10 @@ mod fp_sweep;
 mod gen_ai;
 mod gen_bundled_environments;
 mod gen_editor_catalogs;
+mod gen_editor_configs;
 mod gen_editor_dialects;
 mod gen_editor_settings;
+mod gen_environment_docs;
 mod gen_irule_test_data;
 mod gen_jetbrains;
 mod gen_tmlanguage_keywords;
@@ -237,6 +251,27 @@ enum Command {
         check: bool,
     },
 
+    /// Generate the configuration the editor guides and manifests without a
+    /// generator of their own carry (Zed `extension.toml`, Helix, Emacs,
+    /// Neovim and Sublime guides, `INSTALL-editors.md`) from the compiled
+    /// environment registry.
+    GenEditorConfigs {
+        /// Verify the committed regions are in sync instead of rewriting them;
+        /// exit non-zero on drift.
+        #[arg(long)]
+        check: bool,
+    },
+
+    /// Generate the README dialect tables, `docs/generated/environments.md`,
+    /// the dialect-selection KCS note's lists, and the AI prompt manifest from
+    /// the compiled environment registry.
+    GenEnvironmentDocs {
+        /// Verify the committed documentation and manifest are in sync instead
+        /// of rewriting them; exit non-zero on drift.
+        #[arg(long)]
+        check: bool,
+    },
+
     /// Generate selectable editor dialect lists from `DialectProfile::all`.
     GenEditorDialects {
         /// Verify the committed projections are in sync instead of rewriting them.
@@ -360,6 +395,17 @@ enum Command {
         check: bool,
     },
 
+    /// Hold every caller of `DialectProfile::all()`, `KNOWN_DIALECTS` and
+    /// `available_dialects(` to the allowlist in `rust/xtask/src/catalogue_callers.rs`: a list of names
+    /// shown to a user reads the environment registry, not the catalogue.
+    #[command(name = "catalogue-callers")]
+    CatalogueCallers {
+        /// Accepted for symmetry with the other gates (the gate always
+        /// verifies; it never rewrites).
+        #[arg(long)]
+        check: bool,
+    },
+
     /// Verify that the shared semantic-owner contract resolves to live source
     /// files, public entry points, and registered Makefile drift gates.
     #[command(name = "owner-resolution")]
@@ -475,7 +521,9 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::GenEditorCatalogs { check } => gen_editor_catalogs::run(check),
         Command::GenEditorExtensions { check } => editor_extensions::run(check),
         Command::GenBundledEnvironments { check } => gen_bundled_environments::run(check),
+        Command::GenEditorConfigs { check } => gen_editor_configs::run(check),
         Command::GenEditorDialects { check } => gen_editor_dialects::run(check),
+        Command::GenEnvironmentDocs { check } => gen_environment_docs::run(check),
         Command::GenIruleTestData { check } => gen_irule_test_data::run(check),
         Command::GenZedQueries { check } => gen_zed_queries::run(check),
         Command::GenTmlanguageKeywords { check } => gen_tmlanguage_keywords::run(check),
@@ -490,6 +538,7 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::SegmentationDrift { check } => Ok(segmentation_drift::run(check)),
         Command::RetiredApiGate { check } => Ok(retired_api_gate::run(check)),
         Command::RuntimeStdlib => runtime_stdlib::run(),
+        Command::CatalogueCallers { check } => Ok(catalogue_callers::run(check)),
         Command::OwnerResolution => owner_resolution::run(),
         Command::PackGoldens { check } => Ok(pack_goldens::run(check)),
         Command::SslictclData {

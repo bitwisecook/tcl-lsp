@@ -17,8 +17,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 // Backward-compatible wrapper — prefer buildPrompt(dialect) from ./promptLoader.
+import { DEFAULT_DIALECT } from "./dialectCatalog";
 import { buildPrompt } from "./promptLoader";
 
 export function buildTclSystemPrompt(): string {
-  return buildPrompt("tcl8.6");
+  return buildPrompt(DEFAULT_DIALECT);
 }

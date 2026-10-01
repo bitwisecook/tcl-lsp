@@ -59,7 +59,9 @@ object PackAssociationReconciler {
     /** The plugin's F5 iRule file type, as `FileType.getName()` spells it. */
     const val IRULE_FILE_TYPE: String = "iRule"
 
+    // @generated:irule-language-id:begin -- cargo xtask gen-editor-extensions
     private const val IRULE_LANGUAGE_ID = "tcl-irule"
+    // @generated:irule-language-id:end
 
     /**
      * The file type an advertised row rides.

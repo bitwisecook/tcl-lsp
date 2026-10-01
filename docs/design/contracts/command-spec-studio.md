@@ -951,7 +951,9 @@ The only sanctioned exception is an explicit entry in `render_spectcl.rs`'s
 `GAPS` table naming the field, its documented spelling, and why it cannot
 round-trip yet (`DraftOpaque` for a function pointer or named descriptor the
 draft cannot recover, `LoaderGap` for a documented spelling the loader has no
-reader for yet, `Excluded` for a deliberate design exclusion); a
+reader for yet, `Excluded` for a deliberate design exclusion, `PackLevel` for a
+row of a pack-level block such as `environment` that no per-command draft key
+holds); a
 `TODO(spectcl)` comment in rendered output is the visible trace. A field native specs can set but a pack
 cannot say, with no `GAPS` entry, is a bug. New DSL words are **additive**:
 the `speclib` version word revs (1.0 → 1.1), `VOCABULARY_VERSION` bumps only

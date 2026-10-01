@@ -59,6 +59,40 @@ fn temp_dir(tag: &str) -> PathBuf {
     dir
 }
 
+/// `pkg discover --dialect` is validated by the one resolver: a language id
+/// that only selects an environment and an environment a workspace pack
+/// declares are accepted, and an unknown name is refused.
+#[test]
+fn pkg_discover_validates_its_dialect_after_the_packs_are_published() {
+    let dir = temp_dir("pkg-discover-dialect");
+    std::fs::write(
+        dir.join("tclpkg.tcl"),
+        "package demo\nversion 1.0.0\nlicense MIT\n",
+    )
+    .unwrap();
+    std::fs::write(dir.join("main.tcl"), "package require json 1.2\n").unwrap();
+    std::fs::create_dir_all(dir.join(".tcl-lsp")).unwrap();
+    std::fs::write(
+        dir.join(".tcl-lsp/mypack.tclspec"),
+        "speclib mypack 2.0 {\n\
+             environment mypack-shell {\n\
+                 display_name {Mypack Shell}\n\
+                 core         tcl 8.6\n\
+             }\n\
+         }\n",
+    )
+    .unwrap();
+
+    for dialect in ["tcl-bpf", "mypack-shell"] {
+        let (_stdout, stderr, code) = run_in(&dir, &["pkg", "discover", "--dialect", dialect]);
+        assert_eq!(code, 0, "`--dialect {dialect}`: {stderr}");
+    }
+    let (_stdout, stderr, code) = run_in(&dir, &["pkg", "discover", "--dialect", "nonsense"]);
+    assert_eq!(code, 2, "{stderr}");
+    assert!(stderr.contains("unknown dialect `nonsense`"), "{stderr}");
+    std::fs::remove_dir_all(&dir).ok();
+}
+
 #[test]
 fn pkg_discover_uses_analysis_and_optimisation() {
     let dir = temp_dir("pkg-discover-analysis");

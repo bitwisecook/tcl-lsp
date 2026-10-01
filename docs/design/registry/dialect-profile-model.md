@@ -89,7 +89,13 @@ flags nothing — the highest-visibility behaviour in W123/W002 (§8).
 A spec **states** its availability as `SpecSurface` rows — a provider
 (`Core(Family)` or `Package(name)`) over version windows. A profile **asks**
 at a `SurfaceQuery` point — which family at which release, with which
-packages. Adding a dialect is additive (§4). EDA shells are a base Tcl
+packages. A point carries its core families **nearest first**: a family that
+inherits a command surface and adds to it (`jim`, over the Tcl 8.6 anchor)
+asks at itself, then at the anchor. A row naming either admits, and where
+rows of both offer one command the nearer wins before breadth is compared
+(`surface_nearness`). A point with a single core family ranks every admitted
+row alike, so no other environment's selection moves. Adding a dialect is
+additive (§4). EDA shells are a base Tcl
 release plus `required_package`-gated command libraries
 ([eda-library-packages.md](eda-library-packages.md)).
 
@@ -300,7 +306,9 @@ impl DialectProfile {
 ```
 
 `all()` excludes `PLAIN_TCL` and `TK_PROFILE`: the fallback is a resolution
-sink and `tk` is an environment, not a selectable dialect. `find` resolves
+sink, and `tk` is an environment with no catalogue row — a user selects it
+through the environment registry (`EnvironmentRegistry::selectable`), never
+through the catalogue, which is an identity key only. `find` resolves
 an **environment id**, never a user-written string; user strings go through
 `resolve_environment`, whose alias table canonicalises `irules` and
 `tcl-irule` → `f5-irules`, `wish` → `tk`, and the undotted editor language

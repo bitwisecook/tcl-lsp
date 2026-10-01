@@ -31,13 +31,16 @@ speclib eda_xilinx 2.0 {
 display_name {AMD Xilinx Vivado}
 
 environment xilinx-eda-tcl {
-    display_name    {Xilinx EDA Tcl}
+    display_name    {Xilinx Vivado}
+    short_name      {Vivado}
+    kind            packages
     core            tcl 8.5
     version_ceiling 8.5
     editor_identity tcl-xilinx
+    ambient         vivado keyed ToolVersion
     ambient         sdc keyed SdcVersion
     ambient         upf keyed UpfVersion
-    ambient         vivado keyed ToolVersion
+    alias           vivado
     file_extension  xdc -name {Xilinx Design Constraints}
     help_terms      {xilinx vivado vitis amd fpga ise}
 }

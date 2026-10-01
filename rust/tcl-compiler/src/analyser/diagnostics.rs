@@ -101,6 +101,7 @@ pub(in crate::analyser::diagnostics) use usage::{
 pub(in crate::analyser::diagnostics) use validity::contains_gated_word;
 pub(in crate::analyser) use validity::{
     emit_invalid_formal_parameter_list_diagnostics, emit_invalid_lambda_parameter_list_diagnostics,
+    emit_invalid_static_variable_list_diagnostics,
 };
 
 // The W110 operator-anchor selector is consumed by the EXPR-argument

@@ -323,7 +323,11 @@ pub(crate) fn is_unnormalised_getter(
 /// naming it once keeps the five gates reading the same way and keeps the
 /// family comparison in one place.
 fn is_irules(dialect: Option<SurfaceQuery<'_>>) -> bool {
-    dialect.is_some_and(|q| q.core.is_some_and(|(family, _)| family == Family::F5Irules))
+    dialect.is_some_and(|q| {
+        q.core
+            .nearest()
+            .is_some_and(|(family, _)| family == Family::F5Irules)
+    })
 }
 
 /// Find IRULE3102 warnings across every function in `cu`.
