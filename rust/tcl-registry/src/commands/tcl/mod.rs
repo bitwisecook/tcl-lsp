@@ -168,6 +168,7 @@ mod tcl_findlibrary;
 mod tcl_idna;
 mod tcl_process;
 mod tcl_unsupported_corotype;
+mod tcl_unsupported_grapheme;
 mod tcl_zipfs;
 mod tcllog;
 mod tclpkgsetup;
@@ -380,6 +381,8 @@ fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
         tcl_process::spec_qualified(),
         tcl_unsupported_corotype::spec(),
         tcl_unsupported_corotype::spec_qualified(),
+        tcl_unsupported_grapheme::spec(),
+        tcl_unsupported_grapheme::spec_qualified(),
         tcl_zipfs::spec(),
         tcl_zipfs::spec_qualified(),
         tell_::spec(),

@@ -16,10 +16,13 @@ return {
 
   settings = {
     tclLsp = {
-      dialect = 'tcl8.6',       -- tcl8.4 | tcl8.5 | tcl8.6 | tcl9.0 | tcl9.1 | f5-irules | f5-iapps
-                                -- f5-tmsh | f5-bigip | bpf | expect | spectcl | sslictcl
-                                -- cadence-eda-tcl | intel-quartus-eda-tcl | mentor-eda-tcl
-                                -- microchip-libero-eda-tcl | synopsys-eda-tcl | xilinx-eda-tcl
+      -- <generated: neovim-dialects>
+      -- Valid dialects: bpf, expect, f5-bigip, f5-iapps, f5-irules, f5-tmsh,
+      -- jim, spectcl, sslictcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1,
+      -- cadence-eda-tcl, intel-quartus-eda-tcl, mentor-eda-tcl,
+      -- microchip-libero-eda-tcl, synopsys-eda-tcl, tk, xilinx-eda-tcl
+      -- </generated>
+      dialect = 'tcl8.6',
       extraCommands = {},
       libraryPaths = {},
 

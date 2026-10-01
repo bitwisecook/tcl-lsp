@@ -97,6 +97,7 @@ combine them when more than one form helps:
 - [kcs-feature-tk-preview.md](kcs-feature-tk-preview.md)
 - [kcs-feature-runtime-validation.md](kcs-feature-runtime-validation.md)
 - [kcs-feature-dialect-selection.md](kcs-feature-dialect-selection.md)
+- [kcs-feature-tool-environments.md](kcs-feature-tool-environments.md)
 - [kcs-feature-text-transforms.md](kcs-feature-text-transforms.md)
 - [kcs-feature-irule-extraction.md](kcs-feature-irule-extraction.md)
 - [kcs-feature-irule-skeleton.md](kcs-feature-irule-skeleton.md)

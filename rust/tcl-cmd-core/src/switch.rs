@@ -37,6 +37,7 @@
 // stays module-scoped. (The regexp offset cast is narrowed to `regexp_writes`.)
 #![allow(clippy::similar_names)]
 
+use tcl_dialect::TclVersion;
 use tcl_syntax::glob::string_case_match;
 use tcl_syntax::value::ValueOps;
 
@@ -210,6 +211,7 @@ pub fn select<O, E, V>(
     opts: &Options<V>,
     value: &V,
     patterns: &[V],
+    version: TclVersion,
 ) -> Result<Selection<V>, CmdError>
 where
     O: ValueOps<Value = V>,
@@ -262,7 +264,7 @@ where
             Mode::Regexp => {
                 let flags = RegexFlags {
                     nocase: opts.nocase,
-                    ..RegexFlags::default()
+                    ..RegexFlags::for_release(version)
                 };
                 let mut re = E::compile(pat.as_bytes(), flags).map_err(|d| compile_error(&d))?;
                 let value_bytes = ops.as_bytes(value);
@@ -521,7 +523,8 @@ mod tests {
         let mut ops = StrOps;
         let opts = exact_opts();
         let value = String::from("anything");
-        let result = select::<_, NoEngine, _>(&mut ops, &opts, &value, &[]).unwrap();
+        let result =
+            select::<_, NoEngine, _>(&mut ops, &opts, &value, &[], TclVersion::V9_0).unwrap();
         assert!(matches!(result, Selection::NoMatch));
     }
 
@@ -537,13 +540,13 @@ mod tests {
             String::from("b"),
             String::from("default"),
         ];
-        match select::<_, NoEngine, _>(&mut ops, &opts, &value, &pats).unwrap() {
+        match select::<_, NoEngine, _>(&mut ops, &opts, &value, &pats, TclVersion::V9_0).unwrap() {
             Selection::Matched { index, .. } => assert_eq!(index, 1),
             Selection::NoMatch => panic!("expected a match"),
         }
         // No literal hit ⇒ the final `default` matches.
         let value = String::from("zzz");
-        match select::<_, NoEngine, _>(&mut ops, &opts, &value, &pats).unwrap() {
+        match select::<_, NoEngine, _>(&mut ops, &opts, &value, &pats, TclVersion::V9_0).unwrap() {
             Selection::Matched { index, .. } => assert_eq!(index, 2),
             Selection::NoMatch => panic!("expected default to match"),
         }
@@ -567,7 +570,8 @@ mod tests {
         let hit = |ops: &mut StrOps, value: &str, pat: &str| {
             let pats = vec![pat.to_owned()];
             matches!(
-                select::<_, NoEngine, _>(ops, &opts, &value.to_owned(), &pats).unwrap(),
+                select::<_, NoEngine, _>(ops, &opts, &value.to_owned(), &pats, TclVersion::V9_0)
+                    .unwrap(),
                 Selection::Matched { .. }
             )
         };

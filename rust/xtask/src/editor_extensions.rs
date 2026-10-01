@@ -17,168 +17,437 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Generate the editors' registered file-extension and language lists from
-//! their two sources of truth: the [`tcl_dialect::DialectProfile`] catalogue
-//! (each profile's `display_name` / `editor_language_id` /
-//! `file_extensions`) and the bundled `SpecTcl` packs' `file_extension` rows
-//! (`specs/*.tclspec`).  The core Tcl source extensions come from
-//! [`tcl_registry::dialects::TCL_SOURCE_EXTENSIONS`], minus the ones a
-//! dialect owns.
+//! the compiled environment registry
+//! ([`tcl_dialect::model::EnvironmentRegistry`]): each selectable
+//! environment's `display_name`, editor identity, `file_extensions`,
+//! `filenames` and `shebang_words`, plus the bundled `SpecTcl` packs'
+//! `file_extension` rows (`specs/*.tclspec`). The core Tcl source extensions
+//! come from [`tcl_registry::dialects::TCL_SOURCE_EXTENSIONS`], minus the
+//! ones an environment owns.
+//!
+//! One language is not an environment: `tcl-apl`, the iApp presentation
+//! language, is kept as an explicit extra ([`EXTRA_LANGUAGES`]) whose
+//! dialect the language-id table names.
 //!
 //! Projections:
 //! - VS Code `package.json` `contributes.languages` (one language per
-//!   profile with an `editor_language_id`, carrying its extensions and its
-//!   whole-basename `filenames`), `contributes.grammars` (a `source.tcl`
-//!   grammar row for any language that lacks one), and the
-//!   `onLanguage:` half of `activationEvents`.
+//!   environment with an editor identity, carrying its extensions, its
+//!   whole-basename `filenames` and a `firstLine` pattern built from its
+//!   shebang words; the plain `tcl` language takes the stems of every
+//!   environment without a language of its own, under any version),
+//!   `contributes.grammars` (a `source.tcl` grammar row for
+//!   any language that lacks one), `contributes.semanticTokenScopes` (one
+//!   block per language), the `onLanguage:` half of `activationEvents`, the
+//!   per-language `configurationDefaults`, and the language-id pattern every
+//!   `editorLangId =~` menu clause tests.
 //! - VS Code `src/languageIds.ts` `TCL_LANGUAGE_IDS`,
-//!   `src/extension.ts` `LANGUAGE_ID_DIALECTS`, and
-//!   `src/languageIds.ts` `EXTENSION_LANGUAGE_IDS` (marked blocks).
+//!   `LANGUAGE_ID_DIALECTS`, `EXTENSION_LANGUAGE_IDS` and
+//!   `FILENAME_LANGUAGE_IDS` (marked blocks).
 //! - `JetBrains` `plugin.xml`: the `Tcl` and `iRule` fileType
-//!   `extensions="…"` attributes, `TclFileType.SUPPORTED_EXTENSIONS`, and the
-//!   `TextMate` bundle manifest that binds them all to the `source.tcl` grammar.
-//! - Sublime's minimal `LSP-Tcl` helper suffix bridge and Zed's
-//!   `languages/tcl/config.toml` `path_suffixes` (single-syntax editors get
-//!   the full union).
-//! - Zed's **per-dialect** secondary `languages/*/config.toml` surfaces,
-//!   each carrying exactly the extensions its one dialect owns.
+//!   `extensions="…"` attributes, `TclFileType.SUPPORTED_EXTENSIONS`, the
+//!   `TextMate` bundle manifest that binds them all to the `source.tcl`
+//!   grammar, and the iRule language id the pack-association reconciler
+//!   compares against.
+//! - Sublime's minimal `LSP-Tcl` helper suffix bridge.
+//! - Zed's `languages/*/config.toml` `path_suffixes` and `first_line_pattern`:
+//!   the plain `tcl` language takes the union of every extension and the
+//!   shebang words of every environment without a language directory of its
+//!   own; each other directory carries exactly what its one environment owns.
 //!
 //! Run `cargo xtask gen-editor-extensions`; `--check` makes the committed
 //! projections a drift gate.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::fs;
 use std::process::ExitCode;
 
 use anyhow::{Context, Result, anyhow, bail};
-use serde_json::Value;
-use tcl_dialect::DialectProfile;
+use regex::Regex;
+use serde_json::{Map, Value};
+use tcl_dialect::model::{
+    EditorLanguageIdentityId, EnvironmentDefinition, EnvironmentRegistry, Family,
+    LENIENT_ENVIRONMENT_ID,
+};
 
-use crate::util::repo_root;
+use crate::util::{replace_marked_block, repo_root};
 
 const VSCODE_PACKAGE: &str = "editors/vscode/package.json";
-const VSCODE_RUNTIME: &str = "editors/vscode/src/extension.ts";
 const VSCODE_LANGUAGE_IDS: &str = "editors/vscode/src/languageIds.ts";
 const JETBRAINS_PLUGIN: &str = "editors/jetbrains/src/main/resources/META-INF/plugin.xml";
 const JETBRAINS_FILETYPE: &str =
     "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/TclFileType.kt";
 const JETBRAINS_TEXTMATE: &str = "editors/jetbrains/src/main/resources/textmate/package.json";
+const JETBRAINS_RECONCILER: &str =
+    "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/packs/PackAssociationReconciler.kt";
 const SUBLIME_PLUGIN: &str = "editors/sublime-text/plugin.py";
-const ZED_CONFIG: &str = "editors/zed/languages/tcl/config.toml";
-const HELIX_README: &str = "editors/helix/README.md";
-const INSTALL_EDITORS: &str = "INSTALL-editors.md";
+const ZED_LANGUAGES_DIR: &str = "editors/zed/languages";
 
-/// The per-dialect editor surfaces: one file, one canonical dialect whose
-/// extensions it registers.
-///
-/// These were once hand-maintained and are now generated from the catalogue.
-const DIALECT_SURFACES: &[(&str, &str, Surface)] = &[
-    (
-        "editors/zed/languages/irules/config.toml",
-        "f5-irules",
-        Surface::ZedConfig,
-    ),
-    (
-        "editors/zed/languages/expect/config.toml",
-        "expect",
-        Surface::ZedConfig,
-    ),
-    (
-        "editors/zed/languages/iapps/config.toml",
-        "f5-iapps",
-        Surface::ZedConfig,
-    ),
-    (
-        "editors/zed/languages/tmsh/config.toml",
-        "f5-tmsh",
-        Surface::ZedConfig,
-    ),
-];
+/// The environment `JetBrains` gives a file type of its own; every other
+/// extension rides its plain `Tcl` file type and the server routes the
+/// dialect.
+const JETBRAINS_IRULE_ENVIRONMENT: &str = "f5-irules";
 
-/// How a per-dialect surface spells its extension list.
+/// Where a Zed language directory's extensions come from.
 #[derive(Clone, Copy)]
-enum Surface {
-    /// A `path_suffixes = […]` TOML array.
-    ZedConfig,
+pub enum ZedSource {
+    /// Every extension any language registers, and the shebang words of every
+    /// environment without a directory of its own: the plain `Tcl` language,
+    /// where a file with no language of its own lands.
+    Union,
+    /// The extensions and shebang words of one environment.
+    Environment(&'static str),
+    /// The extensions of the extra language with this editor id.
+    Extra(&'static str),
 }
 
-/// `.apl` (the iApp presentation language) has an editor language of its own
-/// (`tcl-apl`, hand-maintained: it is an iApp *sublanguage*, not a dialect
-/// profile), so the generated `tcl` language must not also claim it.
-const HAND_MAINTAINED_EXTENSIONS: &[&str] = &["apl"];
+/// One `editors/zed/languages/<dir>` directory: the language id Zed sends the
+/// server for it and where its registrations come from. The set of
+/// directories on disk must equal this table; the language's display name and
+/// grammar are read from the directory's own `config.toml`.
+#[derive(Clone, Copy)]
+pub struct ZedLanguage {
+    pub dir: &'static str,
+    pub language_id: &'static str,
+    pub source: ZedSource,
+}
 
-/// Language entries the generator preserves verbatim rather than rebuilding
-/// from a profile: sublanguages with no catalogue profile behind them.
-const HAND_MAINTAINED_LANGUAGES: &[&str] = &["tcl-apl"];
+/// Every Zed language directory, in the order `extension.toml` lists them.
+///
+/// The `tmsh` directory registers the extensions of `f5-tmsh` but sends the
+/// `tcl-bigip` language id: it is backed by the BIG-IP configuration grammar,
+/// so the server must analyse its buffers as BIG-IP configuration.
+pub const ZED_LANGUAGES: &[ZedLanguage] = &[
+    ZedLanguage {
+        dir: "tcl",
+        language_id: "tcl",
+        source: ZedSource::Union,
+    },
+    ZedLanguage {
+        dir: "expect",
+        language_id: "tcl-expect",
+        source: ZedSource::Environment("expect"),
+    },
+    ZedLanguage {
+        dir: "iapps",
+        language_id: "tcl-iapp",
+        source: ZedSource::Environment("f5-iapps"),
+    },
+    ZedLanguage {
+        dir: "irules",
+        language_id: "tcl-irule",
+        source: ZedSource::Environment("f5-irules"),
+    },
+    ZedLanguage {
+        dir: "tmsh",
+        language_id: "tcl-bigip",
+        source: ZedSource::Environment("f5-tmsh"),
+    },
+    ZedLanguage {
+        dir: "apl",
+        language_id: "tcl-apl",
+        source: ZedSource::Extra("tcl-apl"),
+    },
+];
+
+/// Which set of `TextMate` scopes a language maps its semantic token types to.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum ScopeShape {
+    /// The token types every Tcl-family language shares.
+    Tcl,
+    /// The shared set plus the BIG-IP `object` token: plain Tcl, which hosts
+    /// F5 rules, and every environment on an F5 core.
+    TclWithObjects,
+    /// BIG-IP configuration, which adds a token type per object kind. An
+    /// environment with no Tcl core is the configuration surface.
+    Bigip,
+    /// The iApp presentation language's own token types.
+    Apl,
+}
+
+/// The shared token types that precede the BIG-IP object token.
+const HEAD_TOKEN_SCOPES: &[(&str, &str)] = &[
+    ("regexp", "string.regexp.tcl"),
+    ("escape", "constant.character.escape.tcl"),
+    ("number", "constant.numeric.tcl"),
+    ("event", "entity.name.tag.event.tcl"),
+];
+
+/// The BIG-IP `object` token.
+const OBJECT_TOKEN_SCOPE: (&str, &str) = ("object", "entity.name.type.bigip");
+
+/// The token types BIG-IP configuration adds, one per object kind.
+const BIGIP_TOKEN_SCOPES: &[(&str, &str)] = &[
+    ("fqdn", "string.unquoted.hostname.bigip"),
+    ("ipAddress", "constant.numeric.ip-address.bigip"),
+    ("port", "constant.numeric.port.bigip"),
+    ("routeDomain", "entity.name.type.route-domain.bigip"),
+    ("partition", "entity.name.namespace.partition.bigip"),
+    ("username", "variable.other.username.bigip"),
+    ("encrypted", "string.other.encrypted.bigip"),
+    ("pool", "entity.name.type.pool.bigip"),
+    ("monitor", "entity.name.type.monitor.bigip"),
+    ("profile", "entity.name.type.profile.bigip"),
+    ("vlan", "entity.name.type.vlan.bigip"),
+    ("bigipInterface", "entity.name.type.interface.bigip"),
+];
+
+/// The shared token types for the sub-languages inside a Tcl string
+/// (regular expressions, `binary`, `format` and `clock` specifiers).
+const TAIL_TOKEN_SCOPES: &[(&str, &str)] = &[
+    ("regexpGroup", "keyword.operator.regexp.group.tcl"),
+    ("regexpCharClass", "constant.other.regexp.charclass.tcl"),
+    ("regexpQuantifier", "keyword.operator.regexp.quantifier.tcl"),
+    ("regexpAnchor", "keyword.operator.regexp.anchor.tcl"),
+    ("regexpEscape", "constant.character.escape.regexp.tcl"),
+    ("regexpBackref", "constant.other.regexp.backref.tcl"),
+    (
+        "regexpAlternation",
+        "keyword.operator.regexp.alternation.tcl",
+    ),
+    ("binarySpec", "keyword.operator.binary.specifier.tcl"),
+    ("binaryCount", "constant.numeric.binary.count.tcl"),
+    ("binaryFlag", "keyword.operator.binary.flag.tcl"),
+    ("formatPercent", "keyword.operator.format.percent.tcl"),
+    ("formatSpec", "keyword.operator.format.specifier.tcl"),
+    ("formatFlag", "keyword.operator.format.flag.tcl"),
+    ("formatWidth", "constant.numeric.format.width.tcl"),
+    ("clockPercent", "keyword.operator.clock.percent.tcl"),
+    ("clockSpec", "keyword.operator.clock.specifier.tcl"),
+    ("clockModifier", "keyword.operator.clock.modifier.tcl"),
+];
+
+/// The iApp presentation language's token types.
+const APL_TOKEN_SCOPES: &[(&str, &str)] = &[
+    ("escape", "constant.character.escape.apl"),
+    ("number", "constant.numeric.apl"),
+    ("aplSection", "keyword.control.apl"),
+    ("aplFieldType", "keyword.other.apl"),
+    ("aplAttribute", "entity.other.attribute-name.apl"),
+    ("aplSectionName", "entity.name.section.apl"),
+    ("aplFieldName", "variable.other.field.apl"),
+    ("aplDefine", "keyword.other.define.apl"),
+    ("aplDefineName", "entity.name.function.apl"),
+    ("aplDirective", "keyword.control.directive.apl"),
+    ("aplOptional", "keyword.control.optional.apl"),
+    ("aplValidator", "support.constant.validator.apl"),
+];
+
+fn token_scopes(shape: ScopeShape) -> Vec<(&'static str, &'static str)> {
+    let mut scopes = Vec::new();
+    match shape {
+        ScopeShape::Tcl => {
+            scopes.extend_from_slice(HEAD_TOKEN_SCOPES);
+            scopes.extend_from_slice(TAIL_TOKEN_SCOPES);
+        }
+        ScopeShape::TclWithObjects => {
+            scopes.push(OBJECT_TOKEN_SCOPE);
+            scopes.extend_from_slice(HEAD_TOKEN_SCOPES);
+            scopes.extend_from_slice(TAIL_TOKEN_SCOPES);
+        }
+        ScopeShape::Bigip => {
+            scopes.extend_from_slice(HEAD_TOKEN_SCOPES);
+            scopes.push(OBJECT_TOKEN_SCOPE);
+            scopes.extend_from_slice(BIGIP_TOKEN_SCOPES);
+            scopes.extend_from_slice(TAIL_TOKEN_SCOPES);
+        }
+        ScopeShape::Apl => scopes.extend_from_slice(APL_TOKEN_SCOPES),
+    }
+    scopes
+}
+
+/// The shape an environment's language takes: BIG-IP configuration has no Tcl
+/// core, and an F5 core carries the BIG-IP object token.
+fn scope_shape(environment: &EnvironmentDefinition) -> ScopeShape {
+    match environment.core.map(|core| core.family) {
+        None => ScopeShape::Bigip,
+        Some(Family::F5Tcl | Family::F5Irules) => ScopeShape::TclWithObjects,
+        Some(_) => ScopeShape::Tcl,
+    }
+}
+
+/// An editor language that is not an environment.
+///
+/// `tcl-apl` is the iApp presentation language: the `.apl` files and the
+/// `presentation` file of an iApp template. It has its own editor language
+/// (grammar, language configuration and token scopes) but no dialect of its
+/// own: the environment that lists it in
+/// [`EnvironmentDefinition::selecting_identities`] is the one it selects.
+struct ExtraLanguage {
+    id: &'static str,
+    aliases: &'static [&'static str],
+    extensions: &'static [&'static str],
+    filenames: &'static [&'static str],
+    configuration: &'static str,
+    scopes: ScopeShape,
+}
+
+const EXTRA_LANGUAGES: &[ExtraLanguage] = &[ExtraLanguage {
+    id: "tcl-apl",
+    aliases: &["iApp APL", "apl", "presentation"],
+    extensions: &["apl"],
+    filenames: &["presentation"],
+    configuration: "./apl-language-configuration.json",
+    scopes: ScopeShape::Apl,
+}];
 
 /// Everything the editors register for one language id.
-struct Language {
-    id: String,
+#[derive(Clone)]
+pub struct Language {
+    pub id: String,
     /// Menu labels, most human first (`["F5 iRules", "irule"]`).
-    aliases: Vec<String>,
+    pub aliases: Vec<String>,
     /// Lower-case extensions without dots.
-    extensions: Vec<String>,
+    pub extensions: Vec<String>,
     /// Whole basenames the language claims by name rather than by extension
-    /// (`bigip.conf`), from the catalogue's `filenames` axis.
-    filenames: Vec<String>,
-    /// The canonical dialect the language pins, if any (`None` for plain
+    /// (`bigip.conf`), from the environment's `filenames` axis.
+    pub filenames: Vec<String>,
+    /// Whether the basenames are also contributed case-folded.
+    fold_filename_case: bool,
+    /// A language configuration of its own, when it is not the shared one.
+    configuration: Option<String>,
+    /// The canonical environment the language pins, if any (`None` for plain
     /// `tcl`, whose dialect is detected).
-    dialect: Option<String>,
+    pub dialect: Option<String>,
+    /// Interpreter words a shebang line names to select the language.
+    pub shebang_words: Vec<String>,
+    /// Interpreter stems a shebang line may follow with any version
+    /// (`tclsh` covers `tclsh8.7`), on the plain language only: an interpreter
+    /// no environment models still means Tcl. When set, `firstLine` reads these
+    /// instead of [`Language::shebang_words`].
+    pub shebang_stems: Vec<String>,
+    /// Whether this is one of the [`EXTRA_LANGUAGES`]: a language that selects
+    /// an environment without being its editor identity.
+    pub is_extra: bool,
+    scopes: ScopeShape,
+}
+
+fn strings<T: AsRef<str>>(items: impl IntoIterator<Item = T>) -> Vec<String> {
+    items
+        .into_iter()
+        .map(|item| item.as_ref().to_owned())
+        .collect()
+}
+
+fn language_of(environment: &EnvironmentDefinition, id: &str) -> Language {
+    // The compact menu alias VS Code already used (`synopsys`, `irule`,
+    // `jim`): the language id minus its `tcl-` prefix, when it has one.
+    let mut aliases = vec![environment.display_name.to_string()];
+    if let Some(short) = id.strip_prefix("tcl-") {
+        aliases.push(short.to_owned());
+    }
+    Language {
+        id: id.to_owned(),
+        aliases,
+        extensions: strings(
+            environment
+                .server_detection
+                .file_extensions
+                .iter()
+                .map(|claim| claim.extension.as_ref()),
+        ),
+        filenames: strings(&environment.server_detection.filenames),
+        fold_filename_case: true,
+        configuration: None,
+        dialect: Some(environment.id.to_string()),
+        shebang_words: strings(&environment.server_detection.shebang_words),
+        shebang_stems: Vec::new(),
+        is_extra: false,
+        scopes: scope_shape(environment),
+    }
+}
+
+/// Every language id an environment lists as selecting it, paired with the
+/// canonical id of that environment, in language-id order.
+fn selecting_language_ids() -> Vec<(String, String)> {
+    let mut rows: Vec<(String, String)> = EnvironmentRegistry::compiled()
+        .definitions()
+        .iter()
+        .flat_map(|environment| {
+            environment
+                .selecting_identities
+                .iter()
+                .map(|identity| (identity.as_str().to_owned(), environment.id.to_string()))
+        })
+        .collect();
+    rows.sort();
+    rows
+}
+
+fn extra_language(extra: &ExtraLanguage) -> Result<Language> {
+    let (_, dialect) = selecting_language_ids()
+        .into_iter()
+        .find(|(id, _)| id == extra.id)
+        .with_context(|| format!("{} is not a selecting language id", extra.id))?;
+    Ok(Language {
+        id: extra.id.to_owned(),
+        aliases: strings(extra.aliases),
+        extensions: strings(extra.extensions),
+        filenames: strings(extra.filenames),
+        fold_filename_case: false,
+        configuration: Some(extra.configuration.to_owned()),
+        dialect: Some(dialect),
+        shebang_words: Vec::new(),
+        shebang_stems: Vec::new(),
+        is_extra: true,
+        scopes: extra.scopes,
+    })
 }
 
 /// The assembled model: every language the editors register, in stable
-/// order — `tcl` first, then the catalogue profiles in catalogue order.
-fn languages() -> Result<Vec<Language>> {
+/// order — plain `tcl` first, then each environment with an editor identity
+/// in selectable order, then the extra languages.
+pub fn languages() -> Result<Vec<Language>> {
     let root = repo_root();
     let set = tcl_spectcl::bundled::load_from(&root.join("specs"));
+    let registry = EnvironmentRegistry::compiled();
+    let lenient = registry
+        .resolve(LENIENT_ENVIRONMENT_ID)
+        .context("the compiled registry has no plain `tcl` environment")?;
 
-    // extension → owning language id, catalogue first (its invariant tests
-    // guarantee one owner per extension), packs second.
-    let language_for_profile = |name: &str| -> Option<&'static str> {
-        DialectProfile::all()
-            .iter()
-            .find(|p| p.name == name)
-            .and_then(|p| p.editor_language_id)
+    let language_for_environment = |name: &str| -> Option<&'static str> {
+        registry
+            .resolve(name)
+            .and_then(|environment| environment.editor_identity)
+            .map(EditorLanguageIdentityId::as_str)
     };
 
     let mut langs: Vec<Language> = Vec::new();
     langs.push(Language {
         id: "tcl".to_owned(),
         aliases: vec!["Tcl".to_owned(), "tcl".to_owned()],
-        extensions: Vec::new(),
-        filenames: Vec::new(),
-        dialect: None,
-    });
-    for profile in DialectProfile::all() {
-        let Some(id) = profile.editor_language_id else {
-            continue;
-        };
-        // The compact menu alias VS Code already used (`synopsys`,
-        // `irule`): the language id minus its `tcl-` prefix, when that
-        // differs from the display name's own spelling.
-        let mut aliases = vec![profile.display_name.to_owned()];
-        if let Some(short) = id.strip_prefix("tcl-") {
-            aliases.push(short.to_owned());
-        }
-        langs.push(Language {
-            id: id.to_owned(),
-            aliases,
-            extensions: profile
+        extensions: strings(
+            lenient
+                .server_detection
                 .file_extensions
                 .iter()
-                .map(|row| row.extension.to_owned())
-                .collect(),
-            filenames: profile.filenames.iter().map(|n| (*n).to_owned()).collect(),
-            dialect: Some(profile.name.to_owned()),
-        });
+                .map(|claim| claim.extension.as_ref()),
+        ),
+        filenames: Vec::new(),
+        fold_filename_case: true,
+        configuration: None,
+        dialect: None,
+        shebang_words: strings(&lenient.server_detection.shebang_words),
+        shebang_stems: Vec::new(),
+        is_extra: false,
+        scopes: ScopeShape::TclWithObjects,
+    });
+    for environment in EnvironmentRegistry::compiled_selectable() {
+        let Some(identity) = environment.editor_identity else {
+            continue;
+        };
+        langs.push(language_of(environment, identity.as_str()));
+    }
+    for extra in EXTRA_LANGUAGES {
+        langs.push(extra_language(extra)?);
     }
 
-    // Pack-declared extensions land on the language of the dialect their
-    // row routes to; rows with no `-dialect`, or whose dialect has no
+    // Pack-declared extensions land on the language of the environment their
+    // row routes to; rows with no `-dialect`, or whose environment has no
     // dedicated language, ride plain `tcl`. An `environment` block's own
     // `file_extension` claims route the same way, to the language of the
-    // environment that declares them — the pack-declared environments'
-    // door into the generated editor manifests (D17).
+    // environment that declares them — the pack-declared environments' door
+    // into the generated editor manifests.
     let owned: Vec<String> = langs.iter().flat_map(|l| l.extensions.clone()).collect();
     for pack in &set.packs {
         let mut claims: Vec<(String, Option<&str>)> = pack
@@ -199,7 +468,7 @@ fn languages() -> Result<Vec<Language>> {
                 continue;
             }
             let target = dialect
-                .and_then(language_for_profile)
+                .and_then(language_for_environment)
                 .unwrap_or("tcl")
                 .to_owned();
             let lang = langs
@@ -212,28 +481,64 @@ fn languages() -> Result<Vec<Language>> {
         }
     }
 
-    // The core Tcl source extensions that no dialect or pack owns are the
+    // The core Tcl source extensions that no environment or pack owns are the
     // plain-`tcl` language's registration list.
     let owned: Vec<String> = langs.iter().flat_map(|l| l.extensions.clone()).collect();
     for ext in tcl_registry::dialects::TCL_SOURCE_EXTENSIONS {
-        if owned.iter().any(|o| o == ext) || HAND_MAINTAINED_EXTENSIONS.contains(ext) {
+        if owned.iter().any(|o| o == ext) {
             continue;
         }
         langs[0].extensions.push((*ext).to_owned());
     }
+    langs[0].shebang_stems = plain_tcl_shebang_stems(&langs);
 
     Ok(langs)
 }
 
-/// Rebuild `contributes.languages` and `contributes.grammars`: generated
-/// entries from the model, hand-maintained entries (`tcl-apl`) preserved
-/// verbatim in their original positions at the tail.
+/// The interpreter stems of every environment that has no language of its own
+/// (the plain `tcl` language is the identity of the lenient environment, and
+/// `tk` and `bpf` have none): `tclsh` and `wish`. The plain language recognises
+/// them under any version, so `#!/usr/bin/wish` and a `tclsh8.7` no environment
+/// models both open as Tcl.
+fn plain_tcl_shebang_stems(langs: &[Language]) -> Vec<String> {
+    let registry = EnvironmentRegistry::compiled();
+    let stems: BTreeSet<&str> = registry
+        .definitions()
+        .iter()
+        .filter(|environment| {
+            language_of_environment(langs, environment.id.as_str())
+                .is_none_or(|lang| lang.dialect.is_none())
+        })
+        .flat_map(|environment| environment.server_detection.shebang_words.iter())
+        .map(|word| shebang_stem(word))
+        .collect();
+    strings(stems)
+}
+
+/// An interpreter word without its version suffix: `tclsh8.6` is `tclsh`.
+pub fn shebang_stem(word: &str) -> &str {
+    word.trim_end_matches(|c: char| c.is_ascii_digit() || c == '.')
+}
+
+/// `^#!.*\bjimsh\b`: a first line whose interpreter is one of `words`. With
+/// `stems`, the words are stems and any version follows them:
+/// `^#!.*\b(?:tclsh|wish)[0-9.]*\b`.
+fn first_line_pattern(words: &[String], stems: bool) -> Option<String> {
+    let escaped: Vec<String> = words.iter().map(|word| regex::escape(word)).collect();
+    let version = if stems { "[0-9.]*" } else { "" };
+    match escaped.as_slice() {
+        [] => None,
+        [word] => Some(format!(r"^#!.*\b{word}{version}\b")),
+        many => Some(format!(r"^#!.*\b(?:{}){version}\b", many.join("|"))),
+    }
+}
+
 /// One `contributes.languages` entry: the two file-recognition axes plus the
 /// shared language configuration.
 ///
 /// The basename axis is contributed **twice**, on purpose. `filenames` is an
 /// exact, case-*sensitive* match on a case-sensitive filesystem, while the
-/// catalogue and the server deliberately compare basenames case-insensitively
+/// registry and the server deliberately compare basenames case-insensitively
 /// — so on `filenames` alone a `BIGIP.CONF` would match nothing, open as
 /// plaintext, and never even activate the extension, leaving the client's
 /// own case-insensitive lookup unreachable.
@@ -247,8 +552,11 @@ fn languages() -> Result<Vec<Language>> {
 /// `filenames` stays beside it because it is the axis VS Code shows in
 /// "Configure File Association" and the one older clients understand; the
 /// pattern is the superset that makes the promise true.
+///
+/// `firstLine` names the interpreter words a shebang line selects the
+/// language by, so a script with no extension still opens in its language.
 fn contributed_language(lang: &Language, configuration: &str) -> Value {
-    let mut entry = serde_json::Map::new();
+    let mut entry = Map::new();
     entry.insert("id".to_owned(), Value::String(lang.id.clone()));
     entry.insert(
         "aliases".to_owned(),
@@ -270,53 +578,184 @@ fn contributed_language(lang: &Language, configuration: &str) -> Value {
             "filenames".to_owned(),
             Value::Array(lang.filenames.iter().cloned().map(Value::String).collect()),
         );
-        entry.insert(
-            "filenamePatterns".to_owned(),
-            Value::Array(
-                lang.filenames
-                    .iter()
-                    .map(|name| Value::String(tcl_registry::dialects::fold_case_in_glob(name)))
-                    .collect(),
-            ),
-        );
+        if lang.fold_filename_case {
+            entry.insert(
+                "filenamePatterns".to_owned(),
+                Value::Array(
+                    lang.filenames
+                        .iter()
+                        .map(|name| Value::String(tcl_registry::dialects::fold_case_in_glob(name)))
+                        .collect(),
+                ),
+            );
+        }
+    }
+    let pattern = if lang.shebang_stems.is_empty() {
+        first_line_pattern(&lang.shebang_words, false)
+    } else {
+        first_line_pattern(&lang.shebang_stems, true)
+    };
+    if let Some(pattern) = pattern {
+        entry.insert("firstLine".to_owned(), Value::String(pattern));
     }
     entry.insert(
         "configuration".to_owned(),
-        Value::String(configuration.to_owned()),
+        Value::String(
+            lang.configuration
+                .clone()
+                .unwrap_or_else(|| configuration.to_owned()),
+        ),
     );
     Value::Object(entry)
+}
+
+/// One `contributes.semanticTokenScopes` block per language: the token types
+/// the server emits, mapped to the `TextMate` scopes a theme colours.
+fn semantic_token_scopes(langs: &[Language]) -> Value {
+    Value::Array(
+        langs
+            .iter()
+            .map(|lang| {
+                let scopes: Map<String, Value> = token_scopes(lang.scopes)
+                    .into_iter()
+                    .map(|(token, scope)| {
+                        (
+                            token.to_owned(),
+                            Value::Array(vec![Value::String(scope.to_owned())]),
+                        )
+                    })
+                    .collect();
+                let mut block = Map::new();
+                block.insert("language".to_owned(), Value::String(lang.id.clone()));
+                block.insert("scopes".to_owned(), Value::Object(scopes));
+                Value::Object(block)
+            })
+            .collect(),
+    )
+}
+
+/// The regex every `editorLangId =~` menu clause tests a language id against:
+/// one anchored prefix per group of ids — `tcl` covers `tcl-irule`, `tcl84`
+/// and `tclspec`; `sslictcl` covers itself.
+fn language_id_pattern(langs: &[Language]) -> Result<String> {
+    let mut ids: Vec<&str> = langs.iter().map(|l| l.id.as_str()).collect();
+    if let Some(bad) = ids
+        .iter()
+        .find(|id| !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'))
+    {
+        bail!("language id {bad:?} is not a plain identifier a when-clause regex can hold");
+    }
+    ids.sort_by_key(|id| (id.len(), *id));
+    let mut roots: Vec<&str> = Vec::new();
+    for id in ids {
+        if !roots.iter().any(|root| id.starts_with(root)) {
+            roots.push(id);
+        }
+    }
+    roots.sort_unstable();
+    Ok(match roots.as_slice() {
+        [root] => format!("^{root}"),
+        many => format!("^(?:{})", many.join("|")),
+    })
+}
+
+fn when_clause_regex() -> Regex {
+    Regex::new(r"editorLangId =~ /([^/]*)/").expect("the when-clause pattern is a valid regex")
+}
+
+/// Rewrite the language-id regex of every `editorLangId =~` clause under a
+/// `when` key.
+fn rewrite_when_clauses(value: &mut Value, clause: &Regex, pattern: &str) {
+    match value {
+        Value::Object(map) => {
+            for (key, child) in map {
+                match child {
+                    Value::String(text) if key == "when" => {
+                        *text = clause
+                            .replace_all(text, |_: &regex::Captures| {
+                                format!("editorLangId =~ /{pattern}/")
+                            })
+                            .into_owned();
+                    }
+                    _ => rewrite_when_clauses(child, clause, pattern),
+                }
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                rewrite_when_clauses(item, clause, pattern);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn collect_when_clauses<'a>(value: &'a Value, out: &mut Vec<&'a str>) {
+    match value {
+        Value::Object(map) => {
+            for (key, child) in map {
+                match child {
+                    Value::String(text) if key == "when" => out.push(text),
+                    _ => collect_when_clauses(child, out),
+                }
+            }
+        }
+        Value::Array(items) => items
+            .iter()
+            .for_each(|item| collect_when_clauses(item, out)),
+        _ => {}
+    }
+}
+
+/// Every `editorLangId =~ /re/` clause in the manifest must match every
+/// language the manifest contributes; otherwise a menu entry meant for every
+/// Tcl-family file is missing from a language whose id the regex misses.
+fn check_when_clauses(manifest: &Value, langs: &[Language]) -> Result<()> {
+    let mut clauses = Vec::new();
+    collect_when_clauses(manifest, &mut clauses);
+    let clause = when_clause_regex();
+    let mut seen = BTreeSet::new();
+    for text in clauses {
+        for captures in clause.captures_iter(text) {
+            let pattern = &captures[1];
+            if !seen.insert(pattern.to_owned()) {
+                continue;
+            }
+            let re = Regex::new(pattern)
+                .with_context(|| format!("the when-clause regex /{pattern}/ does not compile"))?;
+            let missed: Vec<&str> = langs
+                .iter()
+                .map(|l| l.id.as_str())
+                .filter(|id| !re.is_match(id))
+                .collect();
+            if !missed.is_empty() {
+                bail!(
+                    "{VSCODE_PACKAGE}: `editorLangId =~ /{pattern}/` matches none of {missed:?}, \
+                     so a menu entry for every Tcl-family file is missing from those languages"
+                );
+            }
+        }
+    }
+    Ok(())
 }
 
 fn render_vscode_package(original: &str, langs: &[Language]) -> Result<String> {
     let mut root: Value = serde_json::from_str(original).context("parsing VS Code package.json")?;
 
-    let existing = root["contributes"]["languages"]
+    let configuration = root["contributes"]["languages"]
         .as_array()
         .context("contributes.languages must be an array")?
-        .clone();
-    let configuration = existing
         .first()
         .and_then(|l| l["configuration"].as_str())
         .unwrap_or("./language-configuration.json")
         .to_owned();
 
-    let mut out: Vec<Value> = langs
-        .iter()
-        .map(|lang| contributed_language(lang, &configuration))
-        .collect();
-    for entry in &existing {
-        let id = entry["id"].as_str().unwrap_or_default();
-        if HAND_MAINTAINED_LANGUAGES.contains(&id) {
-            out.push(entry.clone());
-        } else if !langs.iter().any(|l| l.id == id) {
-            bail!(
-                "contributes.languages entry {id:?} is neither generated from the \
-                 dialect catalog nor listed in HAND_MAINTAINED_LANGUAGES — add it \
-                 to a profile (editor_language_id) or to the hand-maintained list"
-            );
-        }
-    }
-    root["contributes"]["languages"] = Value::Array(out);
+    root["contributes"]["languages"] = Value::Array(
+        langs
+            .iter()
+            .map(|lang| contributed_language(lang, &configuration))
+            .collect(),
+    );
 
     // Grammars: keep every existing row (some languages carry their own
     // scope — `source.tcl-apl`, `source.tcl-bigip`); add a `source.tcl` row
@@ -331,11 +770,7 @@ fn render_vscode_package(original: &str, langs: &[Language]) -> Result<String> {
         .context("grammar for language `tcl` missing")?
         .clone();
     let mut out = grammars;
-    let all_ids: Vec<&str> = langs
-        .iter()
-        .map(|l| l.id.as_str())
-        .chain(HAND_MAINTAINED_LANGUAGES.iter().copied())
-        .collect();
+    let all_ids: Vec<&str> = langs.iter().map(|l| l.id.as_str()).collect();
     for id in &all_ids {
         if !out.iter().any(|g| g["language"] == *id) {
             let mut row = tcl_grammar.clone();
@@ -349,22 +784,38 @@ fn render_vscode_package(original: &str, langs: &[Language]) -> Result<String> {
     // existing languages carry — sticky scroll follows the LSP folding
     // provider, not the outline (`[tcl]` set the pattern). Adding a
     // language without this block regresses it to outlineModel, which the
-    // extension's stickyScroll suite pins per language id.
+    // extension's stickyScroll suite pins per language id. Keys that are not a
+    // language block (`editor.semanticTokenColorCustomizations`) keep their
+    // place ahead of the language blocks.
     let defaults = root["contributes"]["configurationDefaults"]
         .as_object_mut()
         .context("contributes.configurationDefaults must be an object")?;
-    for id in &all_ids {
-        let key = format!("[{id}]");
-        let entry = defaults
-            .entry(key)
-            .or_insert_with(|| Value::Object(serde_json::Map::new()));
+    let previous = std::mem::take(defaults);
+    let language_keys: Vec<String> = all_ids.iter().map(|id| format!("[{id}]")).collect();
+    for (key, value) in &previous {
+        if !language_keys.contains(key) {
+            defaults.insert(key.clone(), value.clone());
+        }
+    }
+    for key in language_keys {
+        let mut entry = previous
+            .get(&key)
+            .cloned()
+            .unwrap_or_else(|| Value::Object(Map::new()));
         if entry.get("editor.stickyScroll.defaultModel").is_none() {
             entry["editor.stickyScroll.defaultModel"] =
                 Value::String("foldingProviderModel".into());
         }
+        defaults.insert(key, entry);
     }
 
     set_on_language_events(&mut root, &all_ids)?;
+    root["contributes"]["semanticTokenScopes"] = semantic_token_scopes(langs);
+    rewrite_when_clauses(
+        &mut root,
+        &when_clause_regex(),
+        &language_id_pattern(langs)?,
+    );
 
     let mut rendered =
         serde_json::to_string_pretty(&root).context("serialising VS Code package.json")?;
@@ -433,34 +884,10 @@ fn prettier_key(key: &str) -> String {
     }
 }
 
-fn replace_marked_block(text: &str, begin: &str, end: &str, body: &str) -> Result<String> {
-    let start = text
-        .find(begin)
-        .with_context(|| format!("missing {begin:?}"))?;
-    let body_start = text[start..]
-        .find('\n')
-        .map(|n| start + n + 1)
-        .ok_or_else(|| anyhow!("{begin:?} must end in a newline"))?;
-    let end_tag_start = text[body_start..]
-        .find(end)
-        .map(|n| body_start + n)
-        .with_context(|| format!("missing {end:?} after {begin:?}"))?;
-    let end_line_start = text[..end_tag_start].rfind('\n').map_or(0, |n| n + 1);
-    Ok(format!(
-        "{}{}{}",
-        &text[..body_start],
-        body,
-        &text[end_line_start..]
-    ))
-}
-
 fn render_language_ids(original: &str, langs: &[Language]) -> Result<String> {
     let mut rows = String::new();
     for lang in langs {
         let _ = writeln!(rows, "  \"{}\",", lang.id);
-    }
-    for id in HAND_MAINTAINED_LANGUAGES {
-        let _ = writeln!(rows, "  \"{id}\",");
     }
     let body = format!("export const TCL_LANGUAGE_IDS = new Set([\n{rows}]);\n");
     replace_marked_block(
@@ -471,17 +898,51 @@ fn render_language_ids(original: &str, langs: &[Language]) -> Result<String> {
     )
 }
 
+/// The language ids that select an environment: every environment's editor
+/// identity, then the spellings a client may send that are not an
+/// environment's identity ([`EnvironmentDefinition::selecting_identities`]).
+fn language_id_dialects(langs: &[Language]) -> Vec<(String, String)> {
+    let selecting = selecting_language_ids();
+    let mut rows: Vec<(String, String)> = langs
+        .iter()
+        .filter_map(|lang| {
+            let dialect = lang.dialect.as_ref()?;
+            let is_selecting = selecting.iter().any(|(id, _)| *id == lang.id);
+            (!is_selecting).then(|| (lang.id.clone(), dialect.clone()))
+        })
+        .collect();
+    rows.extend(selecting);
+    rows
+}
+
+/// Which environment a language id implies, for the status bar before the
+/// server has answered.
+fn render_language_id_dialects(original: &str, langs: &[Language]) -> Result<String> {
+    let mut rows = String::new();
+    for (id, dialect) in language_id_dialects(langs) {
+        let _ = writeln!(rows, "  {}: \"{dialect}\",", prettier_key(&id));
+    }
+    let body =
+        format!("export const LANGUAGE_ID_DIALECTS: Record<string, string> = {{\n{rows}}};\n");
+    replace_marked_block(
+        original,
+        "// @generated:language-id-dialects:begin",
+        "// @generated:language-id-dialects:end",
+        &body,
+    )
+}
+
 /// The `.ext` → language-id and basename → language-id maps the extension's
 /// runtime resolves a file with no (or a lost) association through.
 fn render_extension_language_ids(original: &str, langs: &[Language]) -> Result<String> {
     let mut ext_rows = String::new();
     let mut name_rows = String::new();
-    for (id, extensions, filenames) in owned_paths(langs) {
-        for ext in extensions {
-            let _ = writeln!(ext_rows, "  \".{ext}\": \"{id}\",");
+    for lang in langs {
+        for ext in &lang.extensions {
+            let _ = writeln!(ext_rows, "  \".{ext}\": \"{}\",", lang.id);
         }
-        for name in filenames {
-            let _ = writeln!(name_rows, "  {}: \"{id}\",", prettier_key(&name));
+        for name in &lang.filenames {
+            let _ = writeln!(name_rows, "  {}: \"{}\",", prettier_key(name), lang.id);
         }
     }
     let text = replace_marked_block(
@@ -499,53 +960,6 @@ fn render_extension_language_ids(original: &str, langs: &[Language]) -> Result<S
         &format!(
             "export const FILENAME_LANGUAGE_IDS: Record<string, string> = {{\n{name_rows}}};\n"
         ),
-    )
-}
-
-/// Every `(language id, extensions, filenames)` triple the editors register,
-/// including the hand-maintained sublanguages the catalogue has no profile for.
-fn owned_paths(langs: &[Language]) -> Vec<(String, Vec<String>, Vec<String>)> {
-    let mut out: Vec<(String, Vec<String>, Vec<String>)> = langs
-        .iter()
-        .map(|l| (l.id.clone(), l.extensions.clone(), l.filenames.clone()))
-        .collect();
-    // `tcl-apl` is the iApp presentation language: an iApp *sublanguage* with
-    // no dialect profile of its own, so its `.apl` extension and its
-    // `presentation` basename are hand-maintained here rather than projected.
-    out.push((
-        "tcl-apl".to_owned(),
-        HAND_MAINTAINED_EXTENSIONS
-            .iter()
-            .map(|e| (*e).to_owned())
-            .collect(),
-        vec!["presentation".to_owned()],
-    ));
-    out
-}
-
-fn render_vscode_runtime(original: &str, langs: &[Language]) -> Result<String> {
-    let mut rows = String::new();
-    for lang in langs {
-        let Some(dialect) = &lang.dialect else {
-            continue;
-        };
-        // Prettier key style: ids with punctuation stay quoted.
-        let key = if lang.id.chars().all(|c| c.is_ascii_alphanumeric()) {
-            lang.id.clone()
-        } else {
-            format!("\"{}\"", lang.id)
-        };
-        let _ = writeln!(rows, "  {key}: \"{dialect}\",");
-    }
-    // `tcl-apl` is the APL (iApp presentation language) editor id — an iApp
-    // sublanguage, so it analyses as `f5-iapps`.
-    let _ = writeln!(rows, "  \"tcl-apl\": \"f5-iapps\",");
-    let body = format!("const LANGUAGE_ID_DIALECTS: Record<string, string> = {{\n{rows}}};\n");
-    replace_marked_block(
-        original,
-        "// @generated:language-id-dialects:begin",
-        "// @generated:language-id-dialects:end",
-        &body,
     )
 }
 
@@ -577,29 +991,30 @@ fn set_jetbrains_filetype_extensions(text: &str, name: &str, extensions: &str) -
     ))
 }
 
+fn is_irule(lang: &Language) -> bool {
+    lang.dialect.as_deref() == Some(JETBRAINS_IRULE_ENVIRONMENT)
+}
+
 fn render_jetbrains(original: &str, langs: &[Language]) -> Result<String> {
     // JetBrains keeps two fileTypes: `iRule` (its own icon/type) and `Tcl`
     // (everything else — JetBrains routes dialects server-side).
     let irule: Vec<String> = langs
         .iter()
-        .filter(|l| l.dialect.as_deref() == Some("f5-irules"))
+        .filter(|l| is_irule(l))
         .flat_map(|l| l.extensions.clone())
         .collect();
-    let mut main: Vec<String> = langs
+    let main: Vec<String> = langs
         .iter()
-        .filter(|l| l.dialect.as_deref() != Some("f5-irules"))
+        .filter(|l| !is_irule(l))
         .flat_map(|l| l.extensions.clone())
         .collect();
-    main.extend(HAND_MAINTAINED_EXTENSIONS.iter().map(|e| (*e).to_owned()));
     let text = set_jetbrains_filetype_extensions(original, "Tcl", &main.join(";"))?;
     set_jetbrains_filetype_extensions(&text, "iRule", &irule.join(";"))
 }
 
 /// Every registered extension, for the single-syntax editors.
-fn all_extensions(langs: &[Language]) -> Vec<String> {
-    let mut out: Vec<String> = langs.iter().flat_map(|l| l.extensions.clone()).collect();
-    out.extend(HAND_MAINTAINED_EXTENSIONS.iter().map(|e| (*e).to_owned()));
-    out
+pub fn all_extensions(langs: &[Language]) -> Vec<String> {
+    langs.iter().flat_map(|l| l.extensions.clone()).collect()
 }
 
 /// The `JetBrains` plugin's Kotlin-side recognition gate mirrors the union
@@ -615,6 +1030,25 @@ fn render_jetbrains_kotlin(original: &str, langs: &[Language]) -> Result<String>
         original,
         "// @generated:supported-extensions:begin",
         "// @generated:supported-extensions:end",
+        &body,
+    )
+}
+
+/// The language id the pack-association reconciler maps to the iRule file
+/// type: the editor identity of the environment `JetBrains` types on its own.
+fn render_jetbrains_reconciler(original: &str, langs: &[Language]) -> Result<String> {
+    let irule = langs
+        .iter()
+        .find(|l| is_irule(l))
+        .with_context(|| format!("no language for {JETBRAINS_IRULE_ENVIRONMENT}"))?;
+    let body = format!(
+        "    private const val IRULE_LANGUAGE_ID = \"{}\"\n",
+        irule.id
+    );
+    replace_marked_block(
+        original,
+        "// @generated:irule-language-id:begin",
+        "// @generated:irule-language-id:end",
         &body,
     )
 }
@@ -664,6 +1098,69 @@ fn set_zed_suffixes(original: &str, extensions: &[String]) -> Result<String> {
     ))
 }
 
+/// Set a Zed `config.toml`'s `first_line_pattern`, inserting the key after
+/// `path_suffixes` when the file has none, or dropping it when there is no
+/// pattern to state.
+fn set_zed_first_line(original: &str, pattern: Option<&str>) -> Result<String> {
+    let key = "first_line_pattern = ";
+    if let Some(start) = original.find(key) {
+        let end = original[start..]
+            .find('\n')
+            .map_or(original.len(), |n| start + n + 1);
+        let replacement = pattern.map_or_else(String::new, |p| format!("{key}\"{p}\"\n"));
+        return Ok(format!(
+            "{}{replacement}{}",
+            &original[..start],
+            &original[end..]
+        ));
+    }
+    let Some(pattern) = pattern else {
+        return Ok(original.to_owned());
+    };
+    let suffixes = original
+        .find("path_suffixes = [")
+        .context("missing path_suffixes")?;
+    let line_end = original[suffixes..]
+        .find('\n')
+        .map(|n| suffixes + n + 1)
+        .context("path_suffixes must end in a newline")?;
+    Ok(format!(
+        "{}{key}\"{pattern}\"\n{}",
+        &original[..line_end],
+        &original[line_end..]
+    ))
+}
+
+/// The first-line pattern a Zed language uses: the interpreter names,
+/// without a version suffix (`tclsh8.6` is covered by `tclsh` because the
+/// pattern is not anchored after the word).
+fn zed_first_line_pattern(words: &[String]) -> Option<String> {
+    let stems: BTreeSet<&str> = words.iter().map(|word| shebang_stem(word)).collect();
+    if stems.is_empty() {
+        return None;
+    }
+    let alternatives: Vec<String> = stems.into_iter().map(regex::escape).collect();
+    Some(format!("^#!.*(?:{})", alternatives.join("|")))
+}
+
+/// The shebang words of every environment that has no language directory of
+/// its own: the ones the plain Zed `Tcl` language has to recognise.
+fn zed_union_shebang_words() -> Vec<String> {
+    let owned: Vec<&str> = ZED_LANGUAGES
+        .iter()
+        .filter_map(|zed| match zed.source {
+            ZedSource::Environment(id) => Some(id),
+            ZedSource::Union | ZedSource::Extra(_) => None,
+        })
+        .collect();
+    EnvironmentRegistry::compiled()
+        .definitions()
+        .iter()
+        .filter(|environment| !owned.contains(&environment.id.as_str()))
+        .flat_map(|environment| strings(&environment.server_detection.shebang_words))
+        .collect()
+}
+
 fn render_sublime_plugin(original: &str, langs: &[Language]) -> Result<String> {
     let mut rows = String::new();
     for extension in all_extensions(langs) {
@@ -677,150 +1174,49 @@ fn render_sublime_plugin(original: &str, langs: &[Language]) -> Result<String> {
     )
 }
 
-fn render_zed(original: &str, langs: &[Language]) -> Result<String> {
-    set_zed_suffixes(original, &all_extensions(langs))
-}
-
-/// Helix has no extension of its own: its support is a block of `languages.toml`
-/// users copy out of the README, one `[[language]]` entry per dialect. So the
-/// README *is* the configuration surface, and a stale `file-types` line there
-/// is a real routing bug rather than a documentation nit: a missing
-/// extension there is a file Helix never opens as Tcl.
-///
-/// Every `[[language]]` block whose `name` is a catalogue dialect (or plain
-/// `tcl`) has its `file-types` rewritten from the catalogue; a dialect that owns
-/// extensions and has **no** block is a hard error, so adding a profile can
-/// never silently leave Helix behind.
-fn render_helix_readme(original: &str, langs: &[Language]) -> Result<String> {
-    let mut out = original.to_owned();
-    for lang in langs {
-        let dialect = lang.dialect.as_deref().unwrap_or("tcl");
-        let mut extensions = lang.extensions.clone();
-        // The iApp presentation language has no Helix entry of its own (nor a
-        // dialect profile); its files analyse as `f5-iapps`, so that is the
-        // block they ride — the arrangement `render_jetbrains` uses for the
-        // same sublanguage.
-        if dialect == "f5-iapps" {
-            extensions.extend(HAND_MAINTAINED_EXTENSIONS.iter().map(|e| (*e).to_owned()));
+/// One Zed language directory's `config.toml`: the extensions and shebang
+/// words its source owns.
+fn render_zed_language(original: &str, langs: &[Language], zed: &ZedLanguage) -> Result<String> {
+    let (extensions, words) = match zed.source {
+        ZedSource::Union => (all_extensions(langs), zed_union_shebang_words()),
+        ZedSource::Environment(id) => {
+            let lang = language_of_environment(langs, id)
+                .ok_or_else(|| anyhow!("no editor language for environment {id}"))?;
+            (lang.extensions.clone(), lang.shebang_words.clone())
         }
-        let anchor = format!("\nname = \"{dialect}\"\n");
-        let Some(start) = out.find(&anchor) else {
-            if extensions.is_empty() {
-                continue;
-            }
-            bail!(
-                "editors/helix/README.md has no `[[language]]` block for {dialect:?}, \
-                 which owns {extensions:?} — add one beside the others"
-            );
-        };
-        if extensions.is_empty() {
-            continue;
+        ZedSource::Extra(id) => {
+            let lang = langs
+                .iter()
+                .find(|l| l.id == id)
+                .ok_or_else(|| anyhow!("no editor language {id}"))?;
+            (lang.extensions.clone(), Vec::new())
         }
-        let key = "\nfile-types = [";
-        let line_start = out[start..]
-            .find(key)
-            .map(|n| start + n + 1)
-            .with_context(|| format!("the {dialect:?} Helix block has no file-types"))?;
-        let line_end = out[line_start..]
-            .find('\n')
-            .map(|n| line_start + n)
-            .with_context(|| format!("the {dialect:?} Helix file-types line is unterminated"))?;
-        let quoted: Vec<String> = extensions.iter().map(|e| format!("\"{e}\"")).collect();
-        out.replace_range(
-            line_start..line_end,
-            &format!("file-types = [{}]", quoted.join(", ")),
-        );
+    };
+    if extensions.is_empty() {
+        bail!("{} owns no extensions to register", zed.dir);
     }
-    Ok(out)
+    let text = set_zed_suffixes(original, &extensions)?;
+    set_zed_first_line(&text, zed_first_line_pattern(&words).as_deref())
 }
 
-/// The generic-client extension lists in the installation guide — Vim/Neovim
-/// `au BufRead`, coc-settings' `fileExtensions`, and the Lua `file_patterns`.
-///
-/// Four identical nine-item lists, hand-maintained. They
-/// are configuration users paste, so a missing entry is a client that never
-/// attaches, not a documentation nit.
-///
-/// These name [`tcl_registry::dialects::TCL_SOURCE_EXTENSIONS`] rather than
-/// the full registered union, and deliberately: each attaches **one** filetype
-/// or language to everything it lists, which is the "project source we index"
-/// question, not the "which dialect owns this suffix" one. That is also what
-/// keeps the vendor suffixes that collide with foreign files (`.do`,
-/// `.globals`, `.sdc`) out of a blanket `set filetype=tcl`.
-fn render_install_editors(original: &str, _langs: &[Language]) -> Result<String> {
-    let extensions = tcl_registry::dialects::TCL_SOURCE_EXTENSIONS;
-    let mut out = original.to_owned();
-    let renders: [(&str, &str, String); 3] = [
-        (
-            "au BufRead,BufNewFile ",
-            " set filetype=tcl",
-            extensions
-                .iter()
-                .map(|e| format!("*.{e}"))
-                .collect::<Vec<_>>()
-                .join(","),
-        ),
-        (
-            "      \"fileExtensions\": [",
-            "],",
-            extensions
-                .iter()
-                .map(|e| format!("\".{e}\""))
-                .collect::<Vec<_>>()
-                .join(", "),
-        ),
-        (
-            "  file_patterns = { ",
-            " },",
-            extensions
-                .iter()
-                .map(|e| format!("\"%.{e}$\""))
-                .collect::<Vec<_>>()
-                .join(", "),
-        ),
-    ];
-    for (prefix, suffix, body) in &renders {
-        let mut at = 0;
-        let mut rewrote = false;
-        while let Some(found) = out[at..].find(prefix) {
-            let list_start = at + found + prefix.len();
-            let Some(list_end) = out[list_start..]
-                .find(suffix)
-                .map(|n| list_start + n)
-                .filter(|end| !out[list_start..*end].contains('\n'))
-            else {
-                at = list_start;
-                continue;
-            };
-            out.replace_range(list_start..list_end, body);
-            at = list_start + body.len();
-            rewrote = true;
-        }
-        if !rewrote {
-            bail!("{INSTALL_EDITORS} has no `{prefix}…{suffix}` extension list to generate");
-        }
-    }
-    Ok(out)
-}
-
-/// One per-dialect surface: exactly the extensions its dialect owns, in
-/// catalogue order.
-fn render_dialect_surface(
-    original: &str,
-    langs: &[Language],
-    dialect: &str,
-    surface: Surface,
-) -> Result<String> {
-    let lang = langs
+/// The language an environment's editor identity names: the one its
+/// documents open under. Not the extra languages, which select an
+/// environment without being its identity.
+pub fn language_of_environment<'a>(
+    langs: &'a [Language],
+    environment: &str,
+) -> Option<&'a Language> {
+    let identity = EnvironmentRegistry::compiled()
+        .resolve(environment)?
+        .editor_identity?;
+    langs
         .iter()
-        .find(|l| l.dialect.as_deref() == Some(dialect))
-        .ok_or_else(|| anyhow!("no editor language for dialect {dialect}"))?;
-    if lang.extensions.is_empty() {
-        bail!("dialect {dialect} owns no extensions to register");
-    }
-    match surface {
-        Surface::ZedConfig => set_zed_suffixes(original, &lang.extensions),
-    }
+        .find(|l| !l.is_extra && l.id == identity.as_str())
+}
+
+/// The `config.toml` of each Zed language directory, repo-relative.
+pub fn zed_config_path(zed: &ZedLanguage) -> String {
+    format!("{ZED_LANGUAGES_DIR}/{}/config.toml", zed.dir)
 }
 
 /// Every language the manifest contributes must also have an `onLanguage:`
@@ -860,43 +1256,57 @@ fn verify_every_language_activates(root: &std::path::Path, langs: &[Language]) -
             bail!("{VSCODE_PACKAGE} activates on language {id:?}, which it does not contribute");
         }
     }
-    if contributed.len() != langs.len() + HAND_MAINTAINED_LANGUAGES.len() {
+    if contributed.len() != langs.len() {
         bail!(
-            "{VSCODE_PACKAGE} contributes {} languages; the catalog model has {}",
+            "{VSCODE_PACKAGE} contributes {} languages; the registry model has {}",
             contributed.len(),
-            langs.len() + HAND_MAINTAINED_LANGUAGES.len()
+            langs.len()
         );
     }
-    Ok(())
+    check_when_clauses(&manifest, langs)
 }
 
-/// Every per-dialect editor surface on disk must be one this generator owns.
+/// Every Zed language directory on disk must be one this generator owns, and
+/// every one it owns must exist and name a language id an editor contributes.
 ///
-/// The inverse of the drift check, and the half it cannot do: a surface that
-/// quietly drops out of [`DIALECT_SURFACES`] goes back to being
-/// hand-maintained and nothing ever notices — the state Zed's secondary
-/// configs and Sublime's `iRule` / `Expect` syntaxes were once found in.
-fn verify_every_per_dialect_surface_is_generated(root: &std::path::Path) -> Result<()> {
-    let generated: Vec<&str> = DIALECT_SURFACES.iter().map(|(rel, _, _)| *rel).collect();
-
-    // Zed: every secondary language directory beside `tcl/`.
-    let zed = root.join("editors/zed/languages");
+/// The inverse of the drift check, and the half it cannot do: a directory
+/// that quietly drops out of [`ZED_LANGUAGES`] has nothing generating its
+/// registrations, and nothing notices.
+fn verify_every_zed_directory_is_wired(root: &std::path::Path) -> Result<()> {
+    let zed = root.join(ZED_LANGUAGES_DIR);
     for entry in fs::read_dir(&zed).with_context(|| format!("reading {}", zed.display()))? {
-        let name = entry?.file_name().to_string_lossy().into_owned();
-        let rel = format!("editors/zed/languages/{name}/config.toml");
-        // `apl` is the iApp presentation sublanguage: no dialect profile, so
-        // no catalogue row to project — the one hand-maintained Zed config.
-        if !root.join(&rel).is_file() || rel == ZED_CONFIG || name == "apl" {
+        let entry = entry?;
+        if !entry.path().join("config.toml").is_file() {
             continue;
         }
-        if !generated.contains(&rel.as_str()) {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if !ZED_LANGUAGES.iter().any(|z| z.dir == name) {
             bail!(
-                "{rel} registers extensions but is not in DIALECT_SURFACES — \
-                 add it (with its dialect) or record the exemption there"
+                "{ZED_LANGUAGES_DIR}/{name} is a Zed language directory that ZED_LANGUAGES does \
+                 not name — add it with the language id it sends and the environment it owns"
             );
         }
     }
-
+    for entry in ZED_LANGUAGES {
+        if !root.join(zed_config_path(entry)).is_file() {
+            bail!(
+                "ZED_LANGUAGES names {}, which has no config.toml",
+                entry.dir
+            );
+        }
+        if EditorLanguageIdentityId::new(entry.language_id).is_none() {
+            bail!(
+                "{}: {:?} is not a language id an editor contributes",
+                entry.dir,
+                entry.language_id
+            );
+        }
+        if let ZedSource::Environment(id) = entry.source
+            && tcl_registry::model::resolve_known_environment(id).is_none()
+        {
+            bail!("{}: {id:?} is not an environment", entry.dir);
+        }
+    }
     Ok(())
 }
 
@@ -906,27 +1316,42 @@ type Render = Box<dyn Fn(&str, &[Language]) -> Result<String>>;
 ///
 /// Extracted from [`run`] so a test can assert on the *set* of targets. The
 /// drift gate cannot: deleting a target leaves its committed file matching
-/// itself, so the projection silently reverts to hand-maintained without
-/// any check noticing.
-fn render_targets() -> Vec<(&'static str, Render)> {
-    let mut renders: Vec<(&str, Render)> = vec![
-        (VSCODE_PACKAGE, Box::new(render_vscode_package)),
-        (VSCODE_LANGUAGE_IDS, Box::new(render_language_ids)),
-        (VSCODE_LANGUAGE_IDS, Box::new(render_extension_language_ids)),
-        (VSCODE_RUNTIME, Box::new(render_vscode_runtime)),
-        (JETBRAINS_PLUGIN, Box::new(render_jetbrains)),
-        (JETBRAINS_FILETYPE, Box::new(render_jetbrains_kotlin)),
-        (JETBRAINS_TEXTMATE, Box::new(render_jetbrains_textmate)),
-        (SUBLIME_PLUGIN, Box::new(render_sublime_plugin)),
-        (ZED_CONFIG, Box::new(render_zed)),
-        (HELIX_README, Box::new(render_helix_readme)),
-        (INSTALL_EDITORS, Box::new(render_install_editors)),
+/// itself, so the projection silently stops being generated.
+fn render_targets() -> Vec<(String, Render)> {
+    let mut renders: Vec<(String, Render)> = vec![
+        (VSCODE_PACKAGE.to_owned(), Box::new(render_vscode_package)),
+        (
+            VSCODE_LANGUAGE_IDS.to_owned(),
+            Box::new(render_language_ids),
+        ),
+        (
+            VSCODE_LANGUAGE_IDS.to_owned(),
+            Box::new(render_extension_language_ids),
+        ),
+        (
+            VSCODE_LANGUAGE_IDS.to_owned(),
+            Box::new(render_language_id_dialects),
+        ),
+        (JETBRAINS_PLUGIN.to_owned(), Box::new(render_jetbrains)),
+        (
+            JETBRAINS_FILETYPE.to_owned(),
+            Box::new(render_jetbrains_kotlin),
+        ),
+        (
+            JETBRAINS_TEXTMATE.to_owned(),
+            Box::new(render_jetbrains_textmate),
+        ),
+        (
+            JETBRAINS_RECONCILER.to_owned(),
+            Box::new(render_jetbrains_reconciler),
+        ),
+        (SUBLIME_PLUGIN.to_owned(), Box::new(render_sublime_plugin)),
     ];
-    for (rel, dialect, surface) in DIALECT_SURFACES {
+    for zed in ZED_LANGUAGES {
         renders.push((
-            rel,
+            zed_config_path(zed),
             Box::new(move |original: &str, langs: &[Language]| {
-                render_dialect_surface(original, langs, dialect, *surface)
+                render_zed_language(original, langs, zed)
             }),
         ));
     }
@@ -938,9 +1363,9 @@ pub fn run(check: bool) -> Result<ExitCode> {
     let langs = languages()?;
     let renders = render_targets();
 
-    let mut drifted: Vec<&str> = Vec::new();
+    let mut drifted: Vec<String> = Vec::new();
     for (rel, render) in renders {
-        let path = root.join(rel);
+        let path = root.join(&rel);
         let original =
             fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
         let rendered = render(&original, &langs).with_context(|| format!("rendering {rel}"))?;
@@ -958,11 +1383,15 @@ pub fn run(check: bool) -> Result<ExitCode> {
     }
 
     // Belt and braces: the model itself must be one-owner-per-extension
-    // (the catalogue's invariant tests cover the profiles; packs could still
+    // (the registry's invariant tests cover the environments; two packs could
     // collide with each other here).
     let mut owners: BTreeMap<String, String> = BTreeMap::new();
     let mut named: BTreeMap<String, String> = BTreeMap::new();
+    let mut ids: BTreeSet<&str> = BTreeSet::new();
     for lang in &langs {
+        if !ids.insert(&lang.id) {
+            bail!("language id {:?} is registered twice", lang.id);
+        }
         for ext in &lang.extensions {
             if let Some(prior) = owners.insert(ext.clone(), lang.id.clone()) {
                 bail!(
@@ -984,11 +1413,11 @@ pub fn run(check: bool) -> Result<ExitCode> {
     }
 
     // The drift gate compares each render against the file it owns, which
-    // catches a *stale* projection but not a *missing* one. These two assert
-    // the structural facts the projections exist to guarantee, against the
-    // committed tree, in both modes.
+    // catches a *stale* projection but not a *missing* one. These
+    // assert the structural facts the projections exist to guarantee, against
+    // the committed tree, in both modes.
     verify_every_language_activates(&root, &langs)?;
-    verify_every_per_dialect_surface_is_generated(&root)?;
+    verify_every_zed_directory_is_wired(&root)?;
 
     if check && !drifted.is_empty() {
         for rel in &drifted {
@@ -998,7 +1427,7 @@ pub fn run(check: bool) -> Result<ExitCode> {
     }
     println!(
         "gen-editor-extensions: {} languages, {} extensions{}",
-        langs.len() + HAND_MAINTAINED_LANGUAGES.len(),
+        langs.len(),
         owners.len(),
         if check { " — in sync" } else { "" }
     );
@@ -1021,6 +1450,17 @@ mod tests {
         fs::read_to_string(repo_root().join(rel)).expect("committed surface")
     }
 
+    fn manifest_language(rendered: &str, id: &str) -> Value {
+        let manifest: Value = serde_json::from_str(rendered).expect("manifest parses");
+        manifest["contributes"]["languages"]
+            .as_array()
+            .expect("languages")
+            .iter()
+            .find(|l| l["id"] == id)
+            .unwrap_or_else(|| panic!("{id} is contributed"))
+            .clone()
+    }
+
     #[test]
     fn the_render_restores_a_missing_on_language_activation() {
         let original = committed(VSCODE_PACKAGE);
@@ -1038,8 +1478,8 @@ mod tests {
             rendered.contains("\"onLanguage:tcl-tmsh\""),
             "the render must restore the dropped activation event"
         );
-        // And it is the *catalogue* that decides, not the input: an event for a
-        // language we no longer contribute is dropped rather than preserved.
+        // And it is the *registry* that decides, not the input: an event for a
+        // language we do not contribute is dropped rather than preserved.
         let stray = original.replace(
             "    \"onLanguage:tcl\",\n",
             "    \"onLanguage:tcl\",\n    \"onLanguage:tcl-nonesuch\",\n",
@@ -1052,82 +1492,232 @@ mod tests {
     }
 
     #[test]
-    fn the_render_restores_a_missing_per_dialect_extension() {
+    fn the_render_restores_a_missing_zed_extension() {
         let langs = languages().unwrap();
-        for (rel, dialect, surface) in DIALECT_SURFACES {
-            let original = committed(rel);
-            let lang = langs
-                .iter()
-                .find(|l| l.dialect.as_deref() == Some(*dialect))
-                .expect("a language for every surface's dialect");
-            let last = lang.extensions.last().expect("extensions");
+        for zed in ZED_LANGUAGES {
+            let rel = zed_config_path(zed);
+            let original = committed(&rel);
+            let last = original
+                .lines()
+                .find_map(|line| line.strip_prefix("path_suffixes = ["))
+                .and_then(|rest| rest.strip_suffix(']'))
+                .and_then(|list| list.rsplit(", ").next())
+                .expect("path_suffixes")
+                .to_owned();
 
-            // Drop the dialect's last extension — registered by the catalogue,
-            // absent from the surface.
-            // A surface whose dialect owns exactly one extension has nothing
-            // to drop without emptying the list (which the renders reject on
-            // its own account), so its single entry is corrupted instead.
-            let broken = if lang.extensions.len() > 1 {
-                match surface {
-                    Surface::ZedConfig => original.replace(&format!(", \"{last}\"]"), "]"),
-                }
+            // Drop the language's last extension — registered by the
+            // registry, absent from the surface. A directory that owns
+            // exactly one extension has nothing to drop without emptying the
+            // list, so its single entry is corrupted instead.
+            let broken = if original.contains(&format!(", {last}]")) {
+                original.replace(&format!(", {last}]"), "]")
             } else {
-                match surface {
-                    Surface::ZedConfig => {
-                        original.replace(&format!("[\"{last}\"]"), "[\"zzbogus\"]")
-                    }
-                }
+                original.replace(&format!("[{last}]"), "[\"zzbogus\"]")
             };
             assert_ne!(broken, original, "{rel}: nothing was broken");
 
-            let rendered = render_dialect_surface(&broken, &langs, dialect, *surface).unwrap();
-            assert_eq!(rendered, original, "{rel}: the render must restore .{last}");
+            let rendered = render_zed_language(&broken, &langs, zed).unwrap();
+            assert_eq!(rendered, original, "{rel}: the render must restore {last}");
         }
     }
 
     #[test]
-    fn the_render_restores_a_missing_helix_file_type() {
-        let original = committed(HELIX_README);
-        // Helix's README *is* the configuration users copy out, so a stale
-        // `file-types` there is a routing bug: it was missing `test`.
-        let broken = original.replace(
-            "file-types = [\"tcl\", \"tk\", \"itcl\", \"tm\", \"test\"]",
-            "file-types = [\"tcl\", \"tk\", \"itcl\", \"tm\"]",
+    fn jim_is_contributed_with_a_shebang_pattern_and_no_extension() {
+        let langs = languages().unwrap();
+        let rendered = render_vscode_package(&committed(VSCODE_PACKAGE), &langs).unwrap();
+        let jim = manifest_language(&rendered, "tcl-jim");
+        assert_eq!(jim["aliases"], serde_json::json!(["Jim Tcl", "jim"]));
+        assert!(jim.get("extensions").is_none(), "Jim owns no extension");
+        assert_eq!(jim["firstLine"], r"^#!.*\bjimsh\b");
+        assert!(
+            language_id_dialects(&langs).contains(&("tcl-jim".to_owned(), "jim".to_owned())),
+            "the Jim language id selects the jim environment"
         );
-        assert_ne!(broken, original, "the README must carry the entry to drop");
+    }
+
+    #[test]
+    fn the_selecting_spellings_join_the_identities_in_the_language_id_table() {
+        let rows = language_id_dialects(&languages().unwrap());
+        let selecting = selecting_language_ids();
+        assert!(!selecting.is_empty());
+        for row in &selecting {
+            assert!(rows.contains(row), "{row:?}");
+        }
         assert_eq!(
-            render_helix_readme(&broken, &languages().unwrap()).unwrap(),
-            original,
-            "the render must restore the dropped Helix file type"
+            rows.iter().filter(|(id, _)| id == "tcl-apl").count(),
+            1,
+            "a selecting spelling appears once"
         );
+    }
+
+    #[test]
+    fn every_language_with_shebang_words_carries_a_first_line_pattern() {
+        let langs = languages().unwrap();
+        let rendered = render_vscode_package(&committed(VSCODE_PACKAGE), &langs).unwrap();
+        for lang in &langs {
+            let contributed = manifest_language(&rendered, &lang.id);
+            assert_eq!(
+                contributed.get("firstLine").is_some(),
+                !lang.shebang_words.is_empty(),
+                "{}",
+                lang.id
+            );
+        }
+        let expect = manifest_language(&rendered, "tcl-expect");
+        assert_eq!(expect["firstLine"], r"^#!.*\bexpect\b");
+        let tcl86 = manifest_language(&rendered, "tcl86");
+        assert_eq!(tcl86["firstLine"], r"^#!.*\b(?:tclsh8\.6|wish8\.6)\b");
+    }
+
+    /// The plain `tcl` language recognises the interpreter stems of every
+    /// environment without a language of its own under any version, so a
+    /// `wish` script and a `tclsh` release the registry does not model open as
+    /// Tcl; an interpreter another language owns is left to it.
+    #[test]
+    fn the_plain_tcl_language_recognises_the_shebang_stems_no_other_language_owns() {
+        let langs = languages().unwrap();
+        let rendered = render_vscode_package(&committed(VSCODE_PACKAGE), &langs).unwrap();
+        let pattern = manifest_language(&rendered, "tcl")["firstLine"]
+            .as_str()
+            .expect("the plain language has a firstLine")
+            .to_owned();
+        assert_eq!(pattern, r"^#!.*\b(?:tclsh|wish)[0-9.]*\b");
+        let plain = Regex::new(&pattern).unwrap();
+        for shebang in [
+            "#!/usr/bin/tclsh",
+            "#!/usr/bin/wish",
+            "#!/usr/bin/env tclsh",
+            "#!/usr/bin/tclsh8.7",
+            "#!/usr/bin/env wish8.6 -f",
+        ] {
+            assert!(plain.is_match(shebang), "{shebang}");
+        }
+        for shebang in [
+            "#!/usr/bin/jimsh",
+            "#!/usr/bin/expect",
+            "#!/usr/bin/tclshell",
+            "#!/bin/sh",
+        ] {
+            assert!(!plain.is_match(shebang), "{shebang}");
+        }
+    }
+
+    #[test]
+    fn every_language_has_a_semantic_token_block() {
+        let langs = languages().unwrap();
+        let broken = {
+            let mut manifest: Value = serde_json::from_str(&committed(VSCODE_PACKAGE)).unwrap();
+            manifest["contributes"]["semanticTokenScopes"] = Value::Array(Vec::new());
+            serde_json::to_string_pretty(&manifest).unwrap() + "\n"
+        };
+        let rendered: Value =
+            serde_json::from_str(&render_vscode_package(&broken, &langs).unwrap()).unwrap();
+        let blocks = rendered["contributes"]["semanticTokenScopes"]
+            .as_array()
+            .unwrap();
+        let block_languages: Vec<&str> = blocks
+            .iter()
+            .map(|b| b["language"].as_str().unwrap())
+            .collect();
+        let ids: Vec<&str> = langs.iter().map(|l| l.id.as_str()).collect();
+        assert_eq!(block_languages, ids);
+        let scopes_of = |id: &str| -> Vec<String> {
+            blocks.iter().find(|b| b["language"] == id).unwrap()["scopes"]
+                .as_object()
+                .unwrap()
+                .keys()
+                .cloned()
+                .collect()
+        };
+        for id in [
+            "tcl-tmsh",
+            "tcl-microchip",
+            "tclspec",
+            "sslictcl",
+            "tcl-jim",
+        ] {
+            assert!(scopes_of(id).contains(&"regexp".to_owned()), "{id}");
+        }
+        assert!(scopes_of("tcl-tmsh").contains(&"object".to_owned()));
+        assert!(!scopes_of("tcl-jim").contains(&"object".to_owned()));
+        assert!(scopes_of("tcl-bigip").contains(&"vlan".to_owned()));
+        assert!(scopes_of("tcl-apl").contains(&"aplSection".to_owned()));
+    }
+
+    #[test]
+    fn a_menu_clause_that_misses_a_language_is_refused_and_repaired() {
+        let langs = languages().unwrap();
+        let original = committed(VSCODE_PACKAGE);
+        let pattern = language_id_pattern(&langs).unwrap();
+        let clause = format!("editorLangId =~ /{pattern}/");
+        assert!(
+            original.contains(&clause),
+            "the manifest carries the clause"
+        );
+
+        // The clause the manifest carried before: a bare `tcl` prefix, which
+        // `sslictcl` does not begin with.
+        let narrow = original.replace(&clause, "editorLangId =~ /^tcl/");
+        let narrow_manifest: Value = serde_json::from_str(&narrow).unwrap();
+        let err = check_when_clauses(&narrow_manifest, &langs)
+            .expect_err("a clause missing a language id must fail");
+        assert!(format!("{err}").contains("sslictcl"), "{err}");
+
+        assert_eq!(
+            render_vscode_package(&narrow, &langs).unwrap(),
+            original,
+            "the render regenerates every clause"
+        );
+        let manifest: Value = serde_json::from_str(&original).unwrap();
+        check_when_clauses(&manifest, &langs).expect("the committed clauses cover every language");
+    }
+
+    #[test]
+    fn the_language_id_pattern_groups_ids_by_prefix() {
+        let langs = languages().unwrap();
+        assert_eq!(language_id_pattern(&langs).unwrap(), "^(?:sslictcl|tcl)");
+    }
+
+    #[test]
+    fn a_zed_directory_absent_from_the_table_is_an_error() {
+        // A directory the table does not name.
+        let dir =
+            std::env::temp_dir().join(format!("tcl-xtask-zed-{}-{}", std::process::id(), line!()));
+        let languages = dir.join(ZED_LANGUAGES_DIR);
+        fs::create_dir_all(languages.join("nonesuch")).unwrap();
+        fs::write(languages.join("nonesuch/config.toml"), "name = \"X\"\n").unwrap();
+        let err =
+            verify_every_zed_directory_is_wired(&dir).expect_err("an unnamed directory must fail");
+        assert!(format!("{err}").contains("nonesuch"), "{err}");
+        fs::remove_dir_all(dir).unwrap();
     }
 
     /// The generator's *coverage* — which files it owns at all.
     ///
     /// The drift gate is blind here: a target dropped from the list leaves its
-    /// committed file matching itself, so a projection can silently revert to
-    /// hand-maintained without anything failing. Naming the roster explicitly
-    /// is what makes that deletion a test failure, and the list is short
-    /// enough that a reviewer can check it against the surfaces that exist.
+    /// committed file matching itself, so a projection can silently stop being
+    /// generated without anything failing. Naming the roster explicitly is
+    /// what makes that deletion a test failure, and the list is short enough
+    /// that a reviewer can check it against the surfaces that exist.
     #[test]
     fn every_generated_surface_has_a_render_target() {
-        let mut covered: Vec<&str> = render_targets().iter().map(|(rel, _)| *rel).collect();
+        let mut covered: Vec<String> = render_targets().into_iter().map(|(rel, _)| rel).collect();
         covered.sort_unstable();
         covered.dedup();
 
-        let mut expected: Vec<&str> = vec![
+        let mut expected: Vec<String> = [
             VSCODE_PACKAGE,
             VSCODE_LANGUAGE_IDS,
-            VSCODE_RUNTIME,
             JETBRAINS_PLUGIN,
             JETBRAINS_FILETYPE,
             JETBRAINS_TEXTMATE,
+            JETBRAINS_RECONCILER,
             SUBLIME_PLUGIN,
-            ZED_CONFIG,
-            HELIX_README,
-            INSTALL_EDITORS,
-        ];
-        expected.extend(DIALECT_SURFACES.iter().map(|(rel, _, _)| *rel));
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+        expected.extend(ZED_LANGUAGES.iter().map(zed_config_path));
         expected.sort_unstable();
         expected.dedup();
 
@@ -1146,17 +1736,17 @@ mod tests {
     }
 
     /// The structural gate over the committed tree, as a test rather than only
-    /// a CLI check — this is what catches a per-dialect surface dropping out
-    /// of `DIALECT_SURFACES` and quietly going back to hand-maintained.
+    /// a CLI check — this is what catches a Zed directory dropping out of
+    /// [`ZED_LANGUAGES`] and being left with nothing that generates it.
     #[test]
-    fn every_per_dialect_surface_on_disk_is_generated() {
-        verify_every_per_dialect_surface_is_generated(&repo_root())
-            .expect("every per-dialect editor surface must be one the generator owns");
+    fn every_zed_directory_on_disk_is_generated() {
+        verify_every_zed_directory_is_wired(&repo_root())
+            .expect("every Zed language directory must be one the generator owns");
     }
 
-    /// Review finding P2-2: the contributed basename axis has to match any
-    /// casing, or a `BIGIP.CONF` opens as plaintext on a case-sensitive
-    /// filesystem and never even activates the extension.
+    /// The contributed basename axis has to match any casing, or a
+    /// `BIGIP.CONF` opens as plaintext on a case-sensitive filesystem and never
+    /// even activates the extension.
     #[test]
     fn contributed_filenames_carry_case_folded_patterns() {
         // Asserted on the **render**, not the committed bytes. Reading the
@@ -1183,13 +1773,7 @@ mod tests {
         );
 
         let rendered = render_vscode_package(&broken, &languages().unwrap()).unwrap();
-        let manifest: Value = serde_json::from_str(&rendered).expect("rendered parses");
-        let bigip = manifest["contributes"]["languages"]
-            .as_array()
-            .expect("languages")
-            .iter()
-            .find(|l| l["id"] == "tcl-bigip")
-            .expect("tcl-bigip is contributed");
+        let bigip = manifest_language(&rendered, "tcl-bigip");
         let patterns: Vec<&str> = bigip["filenamePatterns"]
             .as_array()
             .expect("tcl-bigip must contribute filenamePatterns")
@@ -1211,16 +1795,36 @@ mod tests {
         }
     }
 
-    /// A profile that owns extensions and has no Helix block is a hard error,
-    /// so adding one can never silently leave Helix behind — that is how
-    /// `f5-bigip` came to have no entry at all.
     #[test]
-    fn a_dialect_with_no_helix_block_is_an_error() {
-        let original = committed(HELIX_README);
-        let without_bigip = original.replace("name = \"f5-bigip\"", "name = \"f5-nonesuch\"");
-        assert_ne!(without_bigip, original);
-        let err = render_helix_readme(&without_bigip, &languages().unwrap())
-            .expect_err("a missing Helix block must fail the generator");
-        assert!(format!("{err}").contains("f5-bigip"), "{err}");
+    fn the_zed_tcl_language_recognises_every_shebang_word_without_its_own_directory() {
+        let langs = languages().unwrap();
+        let tcl = ZED_LANGUAGES.iter().find(|z| z.dir == "tcl").unwrap();
+        let rendered = render_zed_language(&committed(&zed_config_path(tcl)), &langs, tcl).unwrap();
+        assert!(
+            rendered.contains("first_line_pattern = \"^#!.*(?:jimsh|tclsh|wish)\""),
+            "{rendered}"
+        );
+        let expect = ZED_LANGUAGES.iter().find(|z| z.dir == "expect").unwrap();
+        let rendered =
+            render_zed_language(&committed(&zed_config_path(expect)), &langs, expect).unwrap();
+        assert!(
+            rendered.contains("first_line_pattern = \"^#!.*(?:expect)\""),
+            "{rendered}"
+        );
+    }
+
+    #[test]
+    fn the_irule_language_id_is_read_from_the_registry() {
+        let langs = languages().unwrap();
+        let original = committed(JETBRAINS_RECONCILER);
+        let broken = original.replace(
+            "private const val IRULE_LANGUAGE_ID = \"tcl-irule\"",
+            "private const val IRULE_LANGUAGE_ID = \"tcl-stale\"",
+        );
+        assert_ne!(broken, original);
+        assert_eq!(
+            render_jetbrains_reconciler(&broken, &langs).unwrap(),
+            original
+        );
     }
 }

@@ -71,6 +71,22 @@ pub struct RegexFlags {
     pub linestop: bool,
     /// `-lineanchor` — `^`/`$` match at line boundaries.
     pub lineanchor: bool,
+    /// `\z` is an end-of-string anchor ([`TclVersion::regex_z_anchor`]).
+    pub z_anchor: bool,
+}
+
+impl RegexFlags {
+    /// No switches, with the escapes `version` accepts.
+    #[must_use]
+    pub const fn for_release(version: TclVersion) -> Self {
+        Self {
+            nocase: false,
+            expanded: false,
+            linestop: false,
+            lineanchor: false,
+            z_anchor: version.regex_z_anchor(),
+        }
+    }
 }
 
 /// A compiled-regex provider. Stateless at the type level (compiling is a pure
@@ -234,11 +250,20 @@ fn resolve_start_checked(spec: &[u8], char_len: usize) -> Result<usize, RegexErr
 }
 
 /// The compile flags + `-all`/`-start` shared by both commands' option sets.
-#[derive(Default)]
 struct Common {
     all: bool,
     flags: RegexFlags,
     start: Option<Vec<u8>>,
+}
+
+impl Common {
+    const fn for_release(version: TclVersion) -> Self {
+        Self {
+            all: false,
+            flags: RegexFlags::for_release(version),
+            start: None,
+        }
+    }
 }
 
 fn wrong_args(usage: &[u8]) -> RegexError {
@@ -291,8 +316,8 @@ const REGEXP_NAMES: [&str; 11] = [
 ];
 const REGEXP_OPTIONS: OptionTable<'static> = OptionTable::exact_only("option", &REGEXP_NAMES);
 
-/// Drive `regexp` over the engine `E` and value-ops `O`. `args` is the
-/// command's arguments **without** the command name.
+/// Drive `regexp` over the engine `E` and value-ops `O` for `version`. `args`
+/// is the command's arguments **without** the command name.
 ///
 /// # Errors
 /// Option/arg/compile errors as ready-to-report [`RegexError`] messages.
@@ -300,8 +325,9 @@ const REGEXP_OPTIONS: OptionTable<'static> = OptionTable::exact_only("option", &
 pub fn regexp<O: ValueOps, E: RegexEngine>(
     ops: &mut O,
     args: &[&[u8]],
+    version: TclVersion,
 ) -> Result<RegexpResult<O::Value>, RegexError> {
-    let mut c = Common::default();
+    let mut c = Common::for_release(version);
     let mut indices = false;
     let mut inline = false;
     let mut about = false;
@@ -618,9 +644,10 @@ fn command_prefix(subspec: &[u8]) -> Result<Vec<Vec<u8>>, RegexError> {
 /// A bad option, in `options`' own noun and enumeration.
 fn regsub_option_scan(
     args: &[&[u8]],
-    options: &OptionTable<'static>,
+    version: TclVersion,
 ) -> Result<(Common, bool, usize), RegexError> {
-    let mut c = Common::default();
+    let options = regsub_options(version);
+    let mut c = Common::for_release(version);
     let mut command = false;
     let mut i = 0;
     while i < args.len() {
@@ -705,7 +732,7 @@ pub fn regsub_eval<E: RegexEngine, Err>(
     version: TclVersion,
     mut eval: impl FnMut(&[Vec<u8>]) -> Result<Vec<u8>, Err>,
 ) -> Result<RegsubResult, RegsubError<Err>> {
-    let (c, command, i) = regsub_option_scan(args, regsub_options(version))?;
+    let (c, command, i) = regsub_option_scan(args, version)?;
 
     let rest = &args[i..];
     if rest.len() < 3 || rest.len() > 4 {
@@ -1106,7 +1133,7 @@ mod tests {
 
     fn about(args: &[&[u8]]) -> Result<String, String> {
         let mut ops = ListOps;
-        match regexp::<ListOps, LiteralEngine>(&mut ops, args) {
+        match regexp::<ListOps, LiteralEngine>(&mut ops, args, TclVersion::V9_0) {
             Ok(RegexpResult::Inline(v)) => Ok(v),
             Ok(RegexpResult::Count { count, .. }) => Ok(count.to_string()),
             Err(RegexError(m)) => Err(String::from_utf8_lossy(&m).into_owned()),
@@ -1138,7 +1165,7 @@ mod tests {
         // The engine's `re_info` names become the second element, in order.
         let mut ops = ListOps;
         let Ok(RegexpResult::Inline(v)) =
-            regexp::<ListOps, FlaggyEngine>(&mut ops, &[b"-about", b"(a)"])
+            regexp::<ListOps, FlaggyEngine>(&mut ops, &[b"-about", b"(a)"], TclVersion::V9_0)
         else {
             panic!("-about must answer")
         };

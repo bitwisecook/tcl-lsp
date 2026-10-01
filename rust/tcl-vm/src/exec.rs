@@ -4547,7 +4547,7 @@ impl Vm {
                 let nocase = imm0(instr) & TCL_REG_NOCASE != 0;
                 let s = pop(f).to_str();
                 let pat = pop(f).to_str();
-                match crate::cmd_regexp::regexp_matches(&pat, &s, nocase) {
+                match crate::cmd_regexp::regexp_matches(&pat, &s, nocase, self.runtime_version()) {
                     Ok(m) => f.stack.push(Value::bool(m)),
                     Err(msg) => return Tick::Return(err(msg)),
                 }

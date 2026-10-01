@@ -19,6 +19,7 @@
 name = "Expect"
 grammar = "tcl"
 path_suffixes = ["exp", "expect"]
+first_line_pattern = "^#!.*(?:expect)"
 line_comments = ["#"]
 tab_size = 4
 hard_tabs = false

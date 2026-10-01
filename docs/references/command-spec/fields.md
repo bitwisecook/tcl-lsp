@@ -1064,6 +1064,7 @@ What an argument position *is*. Roles are how the tools know `while`'s second wo
 | `VarRead` | names a variable the command reads |
 | `LoopVarList` | loop variable list (foreach / lmap) |
 | `ParamList` | procedure parameter list |
+| `StaticVarList` | procedure static-variable list (`proc name args statics body`) |
 | `Name` | symbolic name (proc, namespace, class) |
 | `Pattern` | glob or regex pattern |
 | `Option` | option flag word |
