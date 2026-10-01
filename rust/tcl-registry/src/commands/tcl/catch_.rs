@@ -67,7 +67,8 @@ pub fn spec() -> CommandSpec {
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::CONTROL_FLOW
-            | Traits::LANGUAGE_KEYWORD,
+            | Traits::LANGUAGE_KEYWORD
+            | Traits::UNCONDITIONAL_VARIABLE_WRITE,
         arity: Arity::new(1, 3),
         arg_roles: &[
             (0, ArgRole::Body),

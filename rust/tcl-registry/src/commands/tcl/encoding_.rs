@@ -139,7 +139,7 @@ const CONVERTTO_OPTIONS: &[OptionSpec] = &[
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "convertfrom",
-        traits: Traits::TAINT_SOURCE,
+        traits: Traits::TAINT_SOURCE.union(Traits::UNCONDITIONAL_VARIABLE_WRITE),
         // Base form is 1 ("data" alone) to 2 ("encoding data") positional
         // words; the Tcl 9.0+ `-profile`/`-failindex` pair (each a flag +
         // value, TCL90_PLUS-gated on the options below) can add up to 4
@@ -163,6 +163,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "convertto",
+        traits: Traits::UNCONDITIONAL_VARIABLE_WRITE,
         arity: Arity::new(1, 6),
         detail: "Convert a Tcl string to the specified encoding, returning a byte sequence; if encoding is omitted, uses the current system encoding.",
         synopsis: "encoding convertto ?encoding? data",

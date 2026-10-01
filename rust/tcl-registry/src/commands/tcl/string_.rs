@@ -1146,6 +1146,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "is",
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::StringIs)),
+        // `-failindex` is written only when the class test fails.
+        traits: Traits::CONDITIONAL_VARIABLE_WRITE,
         arity: Arity::at_least(2),
         detail: "Test if string is a member of a character class.",
         synopsis: "string is class ?-strict? ?-failindex varname? string",
