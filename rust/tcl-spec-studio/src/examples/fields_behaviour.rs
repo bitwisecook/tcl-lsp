@@ -882,6 +882,24 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
         },
     ),
     (
+        "taint_numeric_coercion",
+        Example {
+            code: "set n [gets stdin]\nswitch -integer -- $n {1 {puts one}}\nswitch -- $n {1 {puts one}}",
+            focuses: &[
+                focus(
+                    1,
+                    "-integer",
+                    "the subject is read as a wide integer, so a tainted one raises T100",
+                ),
+                focus(
+                    2,
+                    "--",
+                    "the default mode compares text: nothing is coerced and T100 stays quiet",
+                ),
+            ],
+        },
+    ),
+    (
         "taint_transform_when",
         Example {
             code: "puts [string map {\"\\n\" \"\" \"\\r\" \"\"} $line]\nputs [string map {a b} $line]",

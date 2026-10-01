@@ -2519,6 +2519,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     text(out, ctx, draft, "taint_log_sink");
     index_list(out, ctx, draft, "taint_network_sink_args");
     index_list(out, ctx, draft, "taint_code_sink_args");
+    enum_word(out, ctx, draft, "taint_numeric_coercion");
     text_list(out, ctx, draft, "taint_interp_eval_subcommands");
     set_word(out, ctx, draft, "taint_source");
     set_word(out, ctx, draft, "taint_transform");

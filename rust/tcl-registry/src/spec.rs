@@ -51,7 +51,7 @@ use crate::representation::RepresentationEffect;
 use crate::side_effects::{SideEffect, StorageType};
 use crate::state_transition::StateTransitionDescriptor;
 use crate::symbol_def::SymbolDef;
-use crate::taint::{SetterConstraint, TaintColour, TaintTransformCondition};
+use crate::taint::{SetterConstraint, TaintColour, TaintNumericCoercion, TaintTransformCondition};
 use crate::traits::Traits;
 use crate::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
 use crate::world_effect::WorldEffectDescriptor;
@@ -1876,6 +1876,12 @@ pub struct CommandSpec {
     /// `tcl_registry::commands::tcl::subst_::subst_evaluates_commands`.
     pub taint_sink_gate: Option<fn(&[&str]) -> bool>,
 
+    /// Which of a call's own argument words this command reads as numbers —
+    /// a T100 numeric-coercion sink when one carries taint, as an operand of a
+    /// braced `expr` is. `None` (the default) = the command coerces nothing a
+    /// caller controls. See [`TaintNumericCoercion`].
+    pub taint_numeric_coercion: Option<TaintNumericCoercion>,
+
     /// Option flags whose value carries a secret (e.g. `-password`,
     /// `-headers`) — drives credential-exposure checks. Empty = none.
     pub credential_options: &'static [&'static str],
@@ -2372,6 +2378,7 @@ impl CommandSpec {
         taint_double_encode_colour: None,
         taint_sink_safe_colour: None,
         taint_sink_gate: None,
+        taint_numeric_coercion: None,
         credential_options: &[],
         sensitive_headers: &[],
         setter_constraints: &[],

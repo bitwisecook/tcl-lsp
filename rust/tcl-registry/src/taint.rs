@@ -784,6 +784,81 @@ pub fn taint_double_encode_colour(
     spec.taint_double_encode_colour
 }
 
+/// A call shape in which a command reads some of its own argument words as
+/// numbers — the T100 numeric-coercion hazard outside `expr`.
+///
+/// A tainted operand of a braced `expr` is flagged because Tcl's numeric
+/// reading of it (`0x10` is 16, ` 16 ` is 16, a non-number raises) can subvert
+/// the decision taken on it. A command whose option switches it into reading
+/// its operands as numbers carries the same hazard, but only for the calls
+/// that pass that option, and only on the releases that have it. This closed
+/// vocabulary is how a spec says which words those are, keeping the fact in
+/// the registry rather than as a command name matched inside the analyser.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum TaintNumericCoercion {
+    /// With `-integer` among the call's leading options, and available on the
+    /// active surface, the subject (the first word after the options) and, in
+    /// the inline `pattern body ...` form, every pattern word are read with
+    /// `Tcl_GetWideIntFromObj` — `switch -integer` (TIP 730, Tcl 9.1).
+    IntegerModeOperands,
+}
+
+impl TaintNumericCoercion {
+    /// Every shape, in declaration order — the closed vocabulary a pack may
+    /// name (by variant spelling, as every catalogued enum is named) and the
+    /// studio may offer.
+    pub const ALL: [Self; 1] = [Self::IntegerModeOperands];
+
+    /// The option whose presence makes a call coerce.
+    #[must_use]
+    pub const fn option(self) -> &'static str {
+        match self {
+            Self::IntegerModeOperands => "-integer",
+        }
+    }
+
+    /// The indices into `args` (command name excluded) of the words this call
+    /// reads as numbers on `dialect`; empty when the call does not coerce.
+    #[must_use]
+    pub fn coerced_args(
+        self,
+        spec: &crate::CommandSpec,
+        args: &[&str],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Vec<usize> {
+        match self {
+            Self::IntegerModeOperands => integer_mode_operands(spec, args, dialect),
+        }
+    }
+}
+
+/// [`TaintNumericCoercion::IntegerModeOperands`]. The option run is the
+/// spec's own scan, which stops short of the operands C reserves, so a subject
+/// spelled `-integer` is never read as the option.
+fn integer_mode_operands(
+    spec: &crate::CommandSpec,
+    args: &[&str],
+    dialect: Option<SurfaceQuery<'_>>,
+) -> Vec<usize> {
+    const OPTION: &str = TaintNumericCoercion::IntegerModeOperands.option();
+    if !spec.leading_switch_names(args).contains(&OPTION)
+        || spec.find_option(OPTION, dialect, None).is_none()
+    {
+        return Vec::new();
+    }
+    let subject = spec.switch_word_count(args);
+    if subject >= args.len() {
+        return Vec::new();
+    }
+    let mut coerced = vec![subject];
+    // One word after the subject is the braced list, whose patterns are
+    // literal; more are inline pattern/body pairs.
+    if args.len() - subject > 2 {
+        coerced.extend((subject + 1..args.len()).step_by(2));
+    }
+    coerced
+}
+
 /// Colour that suppresses the T100 dangerous-sink warning for
 /// `command` (e.g. `SHELL_ATOM` for `exec`).
 ///
@@ -1180,5 +1255,53 @@ y"}"#,
         assert_eq!(uri[0].required_prefix, "/");
         assert_eq!(uri[0].code.as_str(), "IRULE3101");
         assert_eq!(setter_constraints(&registry, "HTTP::path").len(), 1);
+    }
+
+    fn switch_coerced(release: Option<&str>, args: &[&str]) -> Vec<usize> {
+        let registry = CommandRegistry::build_default();
+        let profile =
+            release.map(|name| tcl_dialect::DialectProfile::find(name).expect("catalogue profile"));
+        let spec = registry.get("switch").expect("switch in registry");
+        spec.taint_numeric_coercion
+            .expect("switch declares its numeric coercion")
+            .coerced_args(
+                spec,
+                args,
+                profile.map(tcl_dialect::DialectProfile::surface_query),
+            )
+    }
+
+    #[test]
+    fn switch_integer_coerces_the_subject_and_inline_patterns_on_tcl91() {
+        let v91 = Some("tcl9.1");
+        assert_eq!(switch_coerced(v91, &["-integer", "$x", "{1 a}"]), [1]);
+        assert_eq!(switch_coerced(v91, &["-int", "--", "$x", "{1 a}"]), [2]);
+        // Inline form: the patterns are read as integers too, bodies are not.
+        assert_eq!(
+            switch_coerced(v91, &["-integer", "--", "$x", "$p", "a", "default", "b"]),
+            [2, 3, 5]
+        );
+        // An unknown surface widens rather than hides the hazard.
+        assert_eq!(switch_coerced(None, &["-integer", "$x", "{1 a}"]), [1]);
+    }
+
+    #[test]
+    fn switch_without_a_live_integer_option_coerces_nothing() {
+        let v91 = Some("tcl9.1");
+        // String modes compare text.
+        assert!(switch_coerced(v91, &["-glob", "$x", "{1 a}"]).is_empty());
+        assert!(switch_coerced(v91, &["$x", "{1 a}"]).is_empty());
+        // `-i` is ambiguous between `-indexvar` and `-integer` on 9.1.
+        assert!(switch_coerced(v91, &["-i", "$x", "{1 a}"]).is_empty());
+        // C reserves the last two words: `-integer` here is the subject.
+        assert!(switch_coerced(v91, &["-integer", "{1 a}"]).is_empty());
+        assert!(switch_coerced(v91, &["--", "-integer", "{1 a}"]).is_empty());
+        // Before 9.1 the option does not exist, so the call fails instead.
+        for release in ["tcl8.6", "tcl9.0"] {
+            assert!(
+                switch_coerced(Some(release), &["-integer", "$x", "{1 a}"]).is_empty(),
+                "{release}"
+            );
+        }
     }
 }

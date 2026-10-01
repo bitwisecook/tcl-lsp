@@ -140,7 +140,7 @@ use tcl_registry::spec::{
     SubSubCommand,
 };
 use tcl_registry::symbol_def::{DefinedSymbolKind, SymbolDef};
-use tcl_registry::taint::{SetterConstraint, TaintTransformCondition};
+use tcl_registry::taint::{SetterConstraint, TaintNumericCoercion, TaintTransformCondition};
 use tcl_registry::traits::Traits;
 use tcl_registry::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
 use tcl_registry::world_effect::WorldEffectDescriptor;
@@ -5368,6 +5368,15 @@ fn apply_command_stmt(
         }
         "taint_code_sink_args" => {
             spec.taint_code_sink_args = Some(leak_slice(index_list(&value)));
+        }
+        "taint_numeric_coercion" => {
+            spec.taint_numeric_coercion = enum_by_name(
+                TaintNumericCoercion::ALL.as_slice(),
+                &value,
+                "taint numeric coercion",
+                stmt.line,
+                log,
+            );
         }
         "callback_taint_inputs" => {
             log.v12(stmt.line, "callback_taint_inputs");
