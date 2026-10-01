@@ -2199,12 +2199,21 @@ fn a_write_nested_in_a_braced_expr_word_kills_the_reaching_definition() {
 }
 
 /// The same family, in the two other shapes the issue lists. Each was checked
-/// against tclsh 9.0.4: `3`/`2` for the first, `5`/`3` for the second.
+/// against tclsh 9.0.4: `3`/`2` for the first, `5`/`3` for the second. The
+/// store the first `[incr n]` reads stays, and the later reads are of the
+/// nested store: each is forwarded the value the expression left, which the
+/// statement's definitions hold.
 #[test]
 fn a_write_nested_in_a_braced_expr_word_keeps_its_feeding_store() {
-    for src in [
-        "set n 1\nset r [expr {$n + [incr n]}]\nputs $r\nputs $n\n",
-        "set n 1\nset r [expr {[incr n] + [incr n]}]\nputs $r\nputs $n\n",
+    for (src, forwarded) in [
+        (
+            "set n 1\nset r [expr {$n + [incr n]}]\nputs $r\nputs $n\n",
+            "set n 1\nset r [expr {$n + [incr n]}]\nputs 3\nputs 2\n",
+        ),
+        (
+            "set n 1\nset r [expr {[incr n] + [incr n]}]\nputs $r\nputs $n\n",
+            "set n 1\nset r [expr {[incr n] + [incr n]}]\nputs 5\nputs 3\n",
+        ),
     ] {
         assert!(
             !opt_fires(src, TCL, "O109"),
@@ -2213,8 +2222,8 @@ fn a_write_nested_in_a_braced_expr_word_keeps_its_feeding_store() {
         );
         assert_eq!(
             optimised(src, TCL),
-            src,
-            "{src}: nothing is safe to rewrite"
+            forwarded,
+            "{src}: the later reads are the nested store's"
         );
     }
 }

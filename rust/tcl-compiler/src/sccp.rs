@@ -2289,7 +2289,7 @@ fn sccp_process_statements(
     driver: &LatticeDriver<'_>,
     mut existence: Option<&mut ExistenceAt<'_>>,
 ) -> bool {
-    let mut changed = false;
+    let (mut changed, mut prepared) = (false, None);
     for (index, stmt_ssa) in ssa_block.statements.iter().enumerate() {
         if let Some(at) = existence.as_deref_mut() {
             at.record_reads(index, stmt_ssa, driver);
@@ -2359,7 +2359,7 @@ fn sccp_process_statements(
         };
         // The statement is evaluated once, when a definition first needs
         // it: a call's ordered stores give each definition its own value.
-        let mut evaluated: Option<DefValues> = None;
+        let mut evaluated = pair_answer(&mut prepared, (ssa_block, index), values, (ssa, driver));
         for (&var, &ver) in &stmt_ssa.defs {
             let mut value_of = |values: &HashMap<ValueKey, LatticeValue>| {
                 let evaluated = evaluated
@@ -2465,10 +2465,35 @@ fn assignment_existence(
     })
 }
 
+/// The evaluation the statement at `index` of `block` starts with when it is
+/// one of a synthetic embedded call and its host, which are one evaluation: the
+/// call's definitions are what the host's words write, and the host's are its
+/// result. At the call this evaluates the pair and holds the host's answer in
+/// `prepared`; at the host it hands that answer over. `None` for any other
+/// statement and wherever the pair declines.
+fn pair_answer(
+    prepared: &mut Option<(usize, DefValues)>,
+    (block, index): (&crate::ssa::SsaBlock, usize),
+    values: &HashMap<ValueKey, LatticeValue>,
+    (ssa, driver): (&SsaFunction, &LatticeDriver<'_>),
+) -> Option<DefValues> {
+    let host = prepared.take().filter(|(at, _)| *at == index);
+    if let Some((_, answer)) = host {
+        return Some(answer);
+    }
+    let (host, pair) = driver.evaluate_embedded(block, index, values, ssa)?;
+    *prepared = Some((host, pair.host));
+    Some(DefValues::PerDef(pair.call))
+}
+
 /// The version of `var` the statement at `index` of `block` finds in its
 /// place: the block's latest earlier definition, else the version the block
 /// enters with, else the undefined root.
-fn prior_version(block: &crate::ssa::SsaBlock, index: usize, var: Symbol) -> crate::ssa::Version {
+pub(crate) fn prior_version(
+    block: &crate::ssa::SsaBlock,
+    index: usize,
+    var: Symbol,
+) -> crate::ssa::Version {
     block.statements[..index]
         .iter()
         .rev()
@@ -6297,6 +6322,228 @@ p
         assert_eq!(
             last_value(f, "unrelated"),
             LatticeValue::Const(ConstValue::Int(0))
+        );
+    }
+
+    /// The values the solver gives the last definitions of `names` in the
+    /// function `name` of `source`.
+    fn last_values(source: &str, name: &str, names: &[&str]) -> Vec<LatticeValue> {
+        let registry = CommandRegistry::build_default();
+        let cu = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false);
+        let f = cu.function(name).expect("function analysed");
+        names
+            .iter()
+            .map(|variable| last_value(f, variable))
+            .collect()
+    }
+
+    /// An expression, the function that holds it and the final value of each
+    /// of two places it leaves.
+    type NestedWriteCase = (&'static str, &'static str, [(&'static str, i64); 2]);
+
+    /// A statement's substitutions run in the engine's left-to-right order
+    /// under one ordered state, so the writes they make are the definitions
+    /// the statement's embedded call makes and the host takes the result:
+    /// over `x` = 1, `$x + [incr x] + $x` is 5 and leaves `x` at 2. A branch
+    /// the engine never reaches writes nothing, and the place keeps what it
+    /// held. The host is an assignment of an expression, an expression
+    /// statement, or an assignment of one `expr` substitution, whose quoted
+    /// operand is substituted first; at the top level and in a procedure.
+    #[test]
+    fn a_nested_write_is_the_definition_its_embedded_call_makes_and_the_host_takes_the_result() {
+        let int = |n: i64| LatticeValue::Const(ConstValue::Int(n));
+        let cases: [NestedWriteCase; 10] = [
+            ("$x + [incr x] + $x", "::p", [("r", 5), ("x", 2)]),
+            ("$y + [incr x] + $y", "::p", [("r", 12), ("x", 2)]),
+            ("[set y] + [incr x]", "::p", [("r", 7), ("x", 2)]),
+            ("0 && [incr x]", "::p", [("r", 0), ("x", 1)]),
+            ("$x + [set x 10] + $x", "::p", [("r", 21), ("x", 10)]),
+            ("[incr x] + [incr x]", "::p", [("r", 5), ("x", 3)]),
+            ("$x ? [incr x] : [incr x 10]", "::p", [("r", 2), ("x", 2)]),
+            (
+                "!$x ? [incr x] : [incr x 10]",
+                "::p",
+                [("r", 11), ("x", 11)],
+            ),
+            (
+                "[expr {$x + [incr x]}] + [incr x]",
+                "::p",
+                [("r", 6), ("x", 3)],
+            ),
+            ("$x + [incr x] + $x", "::top", [("r", 5), ("x", 2)]),
+        ];
+        for (expr, function, expected) in cases {
+            let names = expected.map(|(name, _)| name);
+            let want: Vec<LatticeValue> = expected.map(|(_, value)| int(value)).to_vec();
+            let source = if function == "::top" {
+                format!("set x 1\nset y 5\nset r [expr {{{expr}}}]\n")
+            } else {
+                format!("proc p {{}} {{set x 1; set y 5; set r [expr {{{expr}}}]; return $x}}\n")
+            };
+            assert_eq!(last_values(&source, function, &names), want, "{source}");
+        }
+        let statement = "proc p {} {set x 1; expr {$x + [incr x] + $x}; return $x}\n";
+        assert_eq!(
+            last_values(statement, "::p", &["x"]),
+            [int(2)],
+            "{statement}"
+        );
+        let quoted = "proc p {} {set x 1; set r [expr \"$x + [incr x]\"]; return $x}\n";
+        assert_eq!(
+            last_values(quoted, "::p", &["r", "x"]),
+            [int(3), int(2)],
+            "{quoted}"
+        );
+        let skipped =
+            "proc p {} {set x 1; set r [expr {$x + [incr x] + (0 && [foo])}]; return $r}\n";
+        assert_eq!(last_values(skipped, "::p", &["r"]), [int(3)], "{skipped}");
+        let preserved = "proc p {} {set x 1; set r [expr {0 && [incr x]}]; return $x}\n";
+        let registry = CommandRegistry::build_default();
+        let cu = crate::compilation_unit::CompilationUnit::build_for(preserved, &registry, false);
+        let f = cu.function("::p").expect("analysed");
+        let x = f.ssa.var_symbol("x").expect("x");
+        assert_eq!(
+            f.sccp.preserved.get(&(x, 2)),
+            Some(&1),
+            "the call leaves `x` as it was where no write ran"
+        );
+    }
+
+    /// The writes a word's own command makes are the command's, ahead of its
+    /// own: `string length [append s bc]` in an expression leaves `s` at
+    /// `abc`, and `incr x [incr x]` reads `x` after the inner `incr` ran, so
+    /// over `x` = 1 it is 4.
+    #[test]
+    fn a_write_a_commands_word_makes_is_a_write_of_the_statement() {
+        let text = |value: &str| LatticeValue::Const(ConstValue::String(value.to_owned()));
+        let int = |n: i64| LatticeValue::Const(ConstValue::Int(n));
+        let appended = "proc p {} {set s a; set r [expr {[string length [append s bc]] + [string length $s]}]; return $s}\n";
+        assert_eq!(
+            last_values(appended, "::p", &["r", "s"]),
+            [int(6), text("abc")]
+        );
+        let first = "proc p {} {set s a; set r [expr {[string length $s] + [string length [append s bc]]}]; return $s}\n";
+        assert_eq!(
+            last_values(first, "::p", &["r", "s"]),
+            [int(4), text("abc")]
+        );
+        let reads_after = "proc p {} {set x 1; set r [expr {[incr x [incr x]]}]; return $x}\n";
+        assert_eq!(
+            last_values(reads_after, "::p", &["r", "x"]),
+            [int(4), int(4)]
+        );
+        let braced = "proc p {} {set x 1; set r [expr {$x} + [incr x]]; return $x}\n";
+        assert_eq!(last_values(braced, "::p", &["r", "x"]), [int(4), int(2)]);
+        let created = "proc p {} {unset -nocomplain u; set r [expr {[string length [append u [set u 3]]]}]; return $u}\n";
+        assert_eq!(last_values(created, "::p", &["r", "u"]), [int(2), int(33)]);
+        let inside = "proc p {} {set s a; set r [expr {[string length [append s [append s b]]]}]; return $s}\n";
+        assert_eq!(
+            last_values(inside, "::p", &["r", "s"]),
+            [int(4), text("abab")]
+        );
+    }
+
+    /// A statement the engine evaluates for each of several possible inputs
+    /// leaves each place the join of what every member left: `$c ? [incr x] :
+    /// 7` writes `x` for the input that takes the branch and leaves it alone
+    /// for the other, so `x` is 1 or 2 and the result 7 or 2.
+    #[test]
+    fn a_write_only_some_inputs_make_is_joined_over_the_members() {
+        let source = "proc p {n} {set x 1; if {$n} {set c 0} else {set c 1}; \
+                      set r [expr {$c ? [incr x] : 7}]; return $x}\n";
+        let ints = |value: &LatticeValue| -> Vec<i64> {
+            let LatticeValue::ConstSet(members) = value else {
+                panic!("a set of constants: {value:?}");
+            };
+            let mut ints: Vec<i64> = members
+                .iter()
+                .map(|member| match member {
+                    ConstValue::Int(n) => *n,
+                    other => panic!("an integer: {other:?}"),
+                })
+                .collect();
+            ints.sort_unstable();
+            ints
+        };
+        let values = last_values(source, "::p", &["r", "x"]);
+        assert_eq!(
+            (ints(&values[0]), ints(&values[1])),
+            (vec![2, 7], vec![1, 2])
+        );
+    }
+
+    /// What the statement's evaluation cannot own, or is not an evaluation of,
+    /// keeps the conservative answer: a write to a global, a command the
+    /// module defines, an error in the middle, a host that is a call or a
+    /// condition, whose substitutions run under the effect-free policy, and a
+    /// value that is two substitutions rather than one `expr`. A loop
+    /// carries the write round, so neither the first iteration's value nor
+    /// the last's is a constant.
+    #[test]
+    fn what_the_state_cannot_own_keeps_the_conservative_answer() {
+        let widened = |source: &str, names: &[&str]| {
+            let values = last_values(source, "::p", names);
+            assert!(
+                values
+                    .iter()
+                    .all(|value| *value == LatticeValue::Overdefined),
+                "{source}: {values:?}"
+            );
+        };
+        widened(
+            "proc p {} {set x 1; set r [expr {$x + [incr ::g]}]; return $x}\n",
+            &["r"],
+        );
+        widened(
+            "proc bump {} {upvar 1 x x; incr x}\nproc p {} {set x 1; set r [expr {[bump] + $x}]; return $x}\n",
+            &["r", "x"],
+        );
+        widened(
+            "proc p {} {set x 1; catch {set r [expr {[incr x] + [error mid]}]}; return $x}\n",
+            &["x"],
+        );
+        widened(
+            "proc p {} {set x 1; puts [expr {$x + [incr x]}]; return $x}\n",
+            &["x"],
+        );
+        widened(
+            "proc p {} {set x 1; if {[incr x] > 1} {puts a}; return $x}\n",
+            &["x"],
+        );
+        widened(
+            "proc p {} {set s a; set r [string length [append s bc]]; return $s}\n",
+            &["s"],
+        );
+        widened(
+            "proc p {} {set r [expr {[incr x] + 1}]; return $x}\n",
+            &["x"],
+        );
+        // A place no statement reads or defines ahead of the call has no value
+        // to keep where the expression leaves it alone.
+        widened(
+            "proc p {} {set r [expr {0 && [set y 3]}]; return 1}\n",
+            &["y"],
+        );
+        // A module that defines `expr` runs its own.
+        for source in [
+            "proc expr {args} {return 9}\nproc p {} {set x 1; set r [expr \"$x + [incr x]\"]; return $x}\n",
+            "proc expr {args} {return 9}\nproc p {} {set x 1; set r [expr {$x + [incr x]}]; return $x}\n",
+            "proc expr {args} {return 9}\nproc p {} {set x 1; expr {$x + [incr x]}; return $x}\n",
+        ] {
+            widened(source, &["x"]);
+        }
+        // A value that is two substitutions is not one `expr`.
+        widened(
+            "proc p {} {set x 1; set r [expr {1}][incr x]; return $x}\n",
+            &["x"],
+        );
+        widened(
+            "proc p {} {set x 1; set r [incr x][expr {1}]; return $x}\n",
+            &["x"],
+        );
+        widened(
+            "proc p {} {set x 0; for {set i 0} {$i < 3} {incr i} {set r [expr {[incr x] * 2}]}; return $x}\n",
+            &["r", "x"],
         );
     }
 

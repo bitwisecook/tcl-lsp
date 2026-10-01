@@ -3464,26 +3464,9 @@ fn words_read_by_call(
 /// the write on the statement's behalf.
 fn demote_reads_beside_writes(infos: &mut [SsaStatement]) {
     for call in 0..infos.len() {
-        let Statement::Call {
-            span,
-            tokens: Some(tokens),
-            ..
-        } = &infos[call].statement
-        else {
+        let Some(host) = effect_call_host(infos, call) else {
             continue;
         };
-        if tokens.synthetic != Some(crate::ir::SyntheticMarker::UpvarInvalidate) {
-            continue;
-        }
-        let span = *span;
-        let Some(host) =
-            (call + 1..infos.len()).find(|&i| !is_synthetic_statement(&infos[i].statement))
-        else {
-            continue;
-        };
-        if infos[host].statement.span() != span {
-            continue;
-        }
         let written: Vec<Symbol> = infos[call].defs.keys().copied().collect();
         for symbol in written {
             if infos[host].uses.contains_key(&symbol) && !infos[host].quoted_uses.contains(&symbol)
@@ -3492,6 +3475,26 @@ fn demote_reads_beside_writes(infos: &mut [SsaStatement]) {
             }
         }
     }
+}
+
+/// The statement the effect call at `call` ([`crate::ir::SyntheticMarker::
+/// UpvarInvalidate`]) stands ahead of: the first statement after it that is
+/// no marker, when it shares the call's span, as the CFG builder puts them.
+/// `None` for a statement that is no such call and for a call with no host.
+pub(crate) fn effect_call_host(infos: &[SsaStatement], call: usize) -> Option<usize> {
+    let Statement::Call {
+        span,
+        tokens: Some(tokens),
+        ..
+    } = &infos.get(call)?.statement
+    else {
+        return None;
+    };
+    if tokens.synthetic != Some(crate::ir::SyntheticMarker::UpvarInvalidate) {
+        return None;
+    }
+    let host = (call + 1..infos.len()).find(|&i| !is_synthetic_statement(&infos[i].statement))?;
+    (infos[host].statement.span() == *span).then_some(host)
 }
 
 /// Whether `stmt` is the marker the CFG builder puts where a call to a
@@ -5430,6 +5433,67 @@ mod tests {
             Statement::Call { tokens: Some(tokens), .. }
                 if tokens.synthetic == Some(crate::ir::SyntheticMarker::UpvarInvalidate)
         )
+    }
+
+    /// The host an effect call stands ahead of is the first statement after it
+    /// that is no marker, when it shares the call's span — a marker for unseen
+    /// code among the statements included — and no other statement has one. A
+    /// statement with another span is no host.
+    #[test]
+    fn an_effect_call_stands_ahead_of_the_statement_that_shares_its_span() {
+        let effect_block = |source: &str, name: &str| {
+            let ssa = ssa_of_function(source, name);
+            let block = ssa
+                .blocks
+                .values()
+                .find(|block| {
+                    block
+                        .statements
+                        .iter()
+                        .any(|info| is_effect_call(&info.statement))
+                })
+                .expect("a block with an effect call");
+            let call = block
+                .statements
+                .iter()
+                .position(|info| is_effect_call(&info.statement))
+                .expect("the effect call");
+            (block.statements.clone(), call)
+        };
+        for (source, name) in [
+            (
+                "proc p {} {set x 1; set r [expr {$x + [incr x]}]; return $x}\n",
+                "::p",
+            ),
+            ("set x 1\nset r [expr {[incr x] + [foo]}]\n", "::top"),
+            ("set x 1\nexpr {$x + [incr x]}\n", "::top"),
+        ] {
+            let (statements, call) = effect_block(source, name);
+            let host = effect_call_host(&statements, call).expect("the call has a host");
+            assert!(host > call, "{source}");
+            assert!(
+                !is_synthetic_statement(&statements[host].statement),
+                "{source}"
+            );
+            assert_eq!(
+                statements[host].statement.span(),
+                statements[call].statement.span(),
+                "{source}"
+            );
+            for other in (0..statements.len()).filter(|&index| index != call) {
+                assert_eq!(effect_call_host(&statements, other), None, "{source}");
+            }
+        }
+        let (mut statements, call) = effect_block(
+            "proc p {} {set x 1; set r [expr {$x + [incr x]}]; return $x}\n",
+            "::p",
+        );
+        let host = effect_call_host(&statements, call).expect("the call has a host");
+        let Statement::AssignExpr { span, .. } = &mut statements[host].statement else {
+            panic!("an assignment of an expression hosts the call");
+        };
+        *span = tcl_lexer::Span::new(span.start() + 1, span.end());
+        assert_eq!(effect_call_host(&statements, call), None);
     }
 
     /// The words of a statement whose `[…]` substitutions write a place read it

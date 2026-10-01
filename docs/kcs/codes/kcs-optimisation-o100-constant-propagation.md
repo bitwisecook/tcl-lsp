@@ -52,6 +52,33 @@ literal is a different rewrite —
 [O102](kcs-optimisation-o102-load-forwarding.md). O100 covers the reads
 whose value had to be proved rather than read off the source.
 
+## A name a statement's own substitutions write
+
+The `[…]` substitutions of an expression run in order, so a place they write
+holds, after the statement, what the last write left there. With `x` at 1,
+`set r [expr {$x + [incr x]}]` leaves `r` at 3 and `x` at 2, and O100 inlines
+both into the reads after it:
+
+```tcl
+set x 1
+set r [expr {$x + [incr x]}]
+puts $r
+puts $x
+```
+
+becomes `puts 3` and `puts 2`. The `$x` inside the statement is read before the
+increment, so it is left alone
+([O102](kcs-optimisation-o102-load-forwarding.md)), and the `set x 1` that feeds
+it stays. A branch the expression never reaches writes nothing: after
+`expr {0 && [incr x]}` the place still holds what it held.
+
+This holds for an assignment of an expression, for an `expr` on its own, and for
+an assignment of one `[expr …]` substitution, whose quoted or unbraced words
+substitute first. A statement that carries the expression in a `puts` or a
+`return`, a condition, a nested write to a global, a command the file defines
+and a nested command the analyser cannot evaluate leave the places they write
+unknown after them, and nothing is inlined.
+
 ## Safety conditions
 
 - Skipped when the variable is aliased (`global`, `variable`, `upvar`) or traced anywhere in its own procedure, or — for a top-level variable specifically — when *any* procedure in the file reassigns it via `global`. A top-level name already lives in the global frame, so a procedure elsewhere can rewrite it between the assignment and a later top-level use even though the top-level code itself never mentions `global`.

@@ -458,6 +458,13 @@ pub trait AnalysisInputs {
     fn body(&self, id: OperandId) -> Result<BodyRegion, DeclineReason>;
     /// A nested `[…]` script evaluated under the ordered evaluation state.
     fn nested(&self, script: &str, state: &mut EvaluationState) -> EvalAnswer;
+    /// The ordered state the invocation's own substituting words ran under,
+    /// once they have been evaluated: what their commands wrote, and the
+    /// bindings those commands rest on. `None` for inputs whose words
+    /// substitute independently, as the effect-free policy has them.
+    fn word_state(&self) -> Option<EvaluationState> {
+        None
+    }
     /// A math function with the binding evidence for what the analysed
     /// program calls.
     fn math_function(&self, name: &str) -> Result<BindingIdentity, DeclineReason>;

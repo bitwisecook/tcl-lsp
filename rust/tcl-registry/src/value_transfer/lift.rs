@@ -107,6 +107,10 @@ impl AnalysisInputs for PinnedInputs<'_> {
         self.inner.nested(script, state)
     }
 
+    fn word_state(&self) -> Option<EvaluationState> {
+        self.inner.word_state()
+    }
+
     fn math_function(&self, name: &str) -> Result<BindingIdentity, DeclineReason> {
         self.inner.math_function(name)
     }

@@ -3740,6 +3740,210 @@ fn a_store_a_nested_write_overwrites_unread_is_still_dead() {
     prints_under_every_release(loop_variable, "0\n");
 }
 
+/// The programs of [`a_nested_write_in_a_host_prints_what_tclsh_prints`], each with what
+/// tclsh 8.4 to 9.1 print.
+const NESTED_WRITE_PROGRAMS: &[(&str, &str)] = &[
+    // a loop carries the write round
+    (
+        "set x 0\nfor {set i 0} {$i < 3} {incr i} { set r [expr {[incr x] * 2}] }\nputs \"$r $x\"\n",
+        "6 3\n",
+    ),
+    (
+        "set x 0\nset i 0\nwhile {$i < 4} { expr {[incr x 2] + 0}; incr i }\nputs $x\n",
+        "8\n",
+    ),
+    (
+        "proc p {n} {set x 0; for {set i 0} {$i < $n} {incr i} {set r [expr {$x + [incr x]}]}; return \"$r $x\"}\nputs [p 3]\nputs [p 1]\n",
+        "5 3\n1 1\n",
+    ),
+    // a branch the engine takes or skips
+    (
+        "proc p {c} { set x 1; if {$c} { set r [expr {[incr x] + 1}] } else { set r 0 }; return \"$r $x\" }\nputs [p 1]\nputs [p 0]\n",
+        "3 2\n0 1\n",
+    ),
+    (
+        "proc p {c} { set x 1; set r [expr {$c ? [incr x] : 0}]; return \"$r $x\" }\nputs [p 1]\nputs [p 0]\n",
+        "2 2\n0 1\n",
+    ),
+    (
+        "proc p {c} { set x 1; set r [expr {$c && [incr x]}]; return \"$r $x\" }\nputs [p 1]\nputs [p 0]\n",
+        "1 2\n0 1\n",
+    ),
+    (
+        "proc p {c} { set x 1; set r [expr {$c || [incr x]}]; return \"$r $x\" }\nputs [p 1]\nputs [p 0]\n",
+        "1 1\n1 2\n",
+    ),
+    (
+        "set x 1\nset r [expr {1 ? [incr x] : [incr x 10]}]\nputs \"$r $x\"\n",
+        "2 2\n",
+    ),
+    (
+        "set x 1\nset r [expr {0 || [incr x]}]\nputs \"$r $x\"\n",
+        "1 2\n",
+    ),
+    (
+        "set x 1\nset r [expr {1 || [incr x]}]\nputs \"$r $x\"\n",
+        "1 1\n",
+    ),
+    // an input the engine takes on one member and not on another
+    (
+        "proc p {n} {set x 1; if {$n} {set c 0} else {set c 1}; set r [expr {$c ? [incr x] : 7}]; return \"$r $x\"}\nputs [p 0]\nputs [p 1]\n",
+        "2 2\n7 1\n",
+    ),
+    // an element of an array
+    (
+        "set a(1) 5\nset r [expr {$a(1) + [incr a(1)]}]\nputs \"$r $a(1)\"\n",
+        "11 6\n",
+    ),
+    (
+        "set a(k) 1\nset r [expr {[incr a(k)] + [incr a(k)]}]\nputs \"$r $a(k)\"\n",
+        "5 3\n",
+    ),
+    (
+        "array set a {1 5 2 6}\nset r [expr {$a(1) + [set a(2) 9] + $a(2)}]\nputs \"$r $a(1) $a(2)\"\n",
+        "23 5 9\n",
+    ),
+    // a place the frame does not own is left alone
+    (
+        "set ::g 5\nset r [expr {$::g + [incr ::g]}]\nputs \"$r $::g\"\n",
+        "11 6\n",
+    ),
+    (
+        "proc p {} {global g; set g 1; set r [expr {$g + [incr g]}]; return \"$r $g\"}\nputs [p]\n",
+        "3 2\n",
+    ),
+    (
+        "proc p {} {upvar 1 v w; set w 1; set r [expr {$w + [incr w]}]; return \"$r $w\"}\nset v 0\nputs [p]\nputs $v\n",
+        "3 2\n2\n",
+    ),
+    // a write a word's own command makes
+    (
+        "set s a\nset r [expr {[string length [append s bc]] + [string length $s]}]\nputs \"$r $s\"\n",
+        "6 abc\n",
+    ),
+    (
+        "set s a\nset r [expr {[string length $s] + [string length [append s bc]]}]\nputs \"$r $s\"\n",
+        "4 abc\n",
+    ),
+    (
+        "set l {}\nset r [expr {[llength [lappend l a]] + [llength $l]}]\nputs \"$r $l\"\n",
+        "2 a\n",
+    ),
+    (
+        "set x 5\nset r [expr {$x * [set x 2] + $x}]\nputs \"$r $x\"\n",
+        "12 2\n",
+    ),
+    (
+        "set s a\nset r [expr {[string length [append s [append s b]]]}]\nputs \"$r $s\"\n",
+        "4 abab\n",
+    ),
+    (
+        "set x 1\nset r [expr {$x} + [incr x]]\nputs \"$r $x\"\n",
+        "4 2\n",
+    ),
+    (
+        "unset -nocomplain u\nset r [expr {[string length [append u [set u 3]]]}]\nputs \"$r $u\"\n",
+        "2 33\n",
+    ),
+    // substitutions inside substitutions
+    (
+        "set x 1\nset r [expr {[expr {$x + [incr x]}] + [incr x]}]\nputs \"$r $x\"\n",
+        "6 3\n",
+    ),
+    (
+        "set x 1\nset r [expr {[set y [incr x]] + $y + $x}]\nputs \"$r $x $y\"\n",
+        "6 2 2\n",
+    ),
+    (
+        "set x 1\nset r [expr {[incr x] * [incr x] * [incr x]}]\nputs \"$r $x\"\n",
+        "24 4\n",
+    ),
+    // the statements a substitution sits in
+    ("set x 1\nexpr {[incr x] + [incr x]}\nputs $x\n", "3\n"),
+    (
+        "set x 1\nif {[incr x] == 2} { puts yes } else { puts no }\nputs $x\n",
+        "yes\n2\n",
+    ),
+    ("set x 1\nwhile {[incr x] < 5} { }\nputs $x\n", "5\n"),
+    (
+        "proc p {} {set x 1; return [expr {[incr x] + $x}]}\nputs [p]\n",
+        "4\n",
+    ),
+    (
+        "proc p {} {set x 1; set y [expr {[incr x] + $x}]; return \"$y $x\"}\nputs [p]\n",
+        "4 2\n",
+    ),
+    ("set x 1\nputs [expr {$x + [incr x]}]\nputs $x\n", "3\n2\n"),
+    (
+        "set x 1\nset y [list [expr {[incr x] + 1}] $x]\nputs $y\n",
+        "3 2\n",
+    ),
+    ("set x 1\nputs \"[expr {[incr x] + 1}] $x\"\n", "3 2\n"),
+    (
+        "set x 1\nset r [expr \"$x + [incr x] + $x\"]\nputs \"$r $x\"\n",
+        "5 2\n",
+    ),
+    (
+        "set x 1\nset r [expr {\"$x [incr x]\" eq {1 2}}]\nputs \"$r $x\"\n",
+        "1 2\n",
+    ),
+    // a quoted or unbraced operand
+    (
+        "set x 1\nset r [expr $x + [incr x]]\nputs \"$r $x\"\n",
+        "3 2\n",
+    ),
+    (
+        "set x 1\nset r [expr $x \"+\" [incr x]]\nputs \"$r $x\"\n",
+        "3 2\n",
+    ),
+    (
+        "set x 1\nset r [expr {[incr x] + [info exists x]}]\nputs \"$r $x\"\n",
+        "3 2\n",
+    ),
+    (
+        "unset -nocomplain x\nset r [expr {[info exists x] + [set x 3]}]\nputs \"$r $x\"\n",
+        "3 3\n",
+    ),
+    (
+        "unset -nocomplain x\nset r [expr {[set x 3] + [info exists x]}]\nputs \"$r $x\"\n",
+        "4 3\n",
+    ),
+    // existence
+    (
+        "set x 1\ncatch {set r [expr {[incr x] + [error mid]}]}\nputs $x\n",
+        "2\n",
+    ),
+    (
+        "set x 1\ncatch {set r [expr {1 / 0 + [incr x]}]}\nputs $x\n",
+        "1\n",
+    ),
+    (
+        "set x 1\ncatch {set r [expr {[incr x] + 1 / 0}]}\nputs $x\n",
+        "2\n",
+    ),
+    // a value that is not an integer
+    (
+        "set x 1.5\nset r [expr {$x + [set x 2.5] + $x}]\nputs \"$r $x\"\n",
+        "6.5 2.5\n",
+    ),
+];
+
+/// A write a substitution inside an expression makes is a definition of the
+/// statement that holds the expression, made before the statement takes the
+/// result: each program prints what tclsh 8.4 to 9.1 print, before and after
+/// the optimiser forwards the values the shared lattice now knows. They cover
+/// a loop that carries the write round, a branch or a short-circuit that
+/// skips it, an element of an array, a place the frame does not own, a write a
+/// word's own command makes, a substitution inside a substitution, each kind
+/// of statement that holds an expression, an operand that is quoted or
+/// unbraced, a place the write creates, and a value that is not an integer.
+#[test]
+fn a_nested_write_in_a_host_prints_what_tclsh_prints() {
+    for &(source, expected) in NESTED_WRITE_PROGRAMS {
+        prints_under_every_release(source, expected);
+    }
+}
+
 /// A command the module cannot see — here `foo`, defined at run time from a
 /// file the program writes and sources — writes a plain top-level name as it
 /// writes `::g` when it runs inside the body of a `catch` the flow graph
