@@ -297,7 +297,9 @@ fn cmd_set(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// as a script in the current context.
 ///
 /// The file is read through the host's filesystem and decoded as the named
-/// encoding, which is UTF-8 from Tcl 9 and the system encoding before it. A
+/// encoding, which is UTF-8 from Tcl 9 and the system encoding before it. The
+/// names are the four `encoding system` accepts (`utf-8`, `iso8859-1`, `ascii`
+/// and `unicode`), and any other is Tcl's `unknown encoding`. A
 /// host with no filesystem reads nothing, as the other runtime's host does.
 /// Tcl 9's `-nopkg` suppresses package bookkeeping that this VM does not
 /// otherwise perform, so it takes the same read path.

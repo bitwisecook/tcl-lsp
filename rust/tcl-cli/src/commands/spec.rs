@@ -176,13 +176,21 @@ fn run_export(args: &crate::cli::SpecExportArgs) -> anyhow::Result<u8> {
 /// is a CLI verb and nothing the editor runs: loading a pack never executes the
 /// package it describes.
 ///
-/// One row is printed per divergence, and the status is 1 when there is any, or
-/// when the package could not be required at all.
+/// The policy that opts the package in is the operator's: the project `tcl pkg`
+/// works in, found from the working directory, and never a tree the pack was
+/// found in. A package someone else ships, vendored into the project, has a
+/// `tclpkg.toml` of its own, and it must not be the thing that lets it run.
+///
+/// One row is printed per divergence. The status is 1 when there is any, when the
+/// package could not be required at all, and when the shell stopped before it had
+/// asked every command, whatever status it stopped with; it is 2 when the verb
+/// itself could not run — a pack that is not a file, no shell, a package that did
+/// not finish in the time the policy allows.
 fn run_test(args: &SpecTestArgs) -> anyhow::Result<u8> {
     let Some(target) = test_target(args)? else {
         return Ok(0);
     };
-    let dir = project_of(&args.pack);
+    let dir = operator_project()?;
     let loaded = tcl_pkg::policy::load(Some(&dir));
     let package = &target.package;
     if !loaded.config.build_script_allowed(package) {
@@ -296,51 +304,85 @@ fn test_profile(
 }
 
 /// Print one row per divergence the shell reported and the summary line, and
-/// return the status: 1 for any divergence, or for a shell that stopped before it
-/// reported anything.
+/// return the status: 1 for any divergence, and for a shell that stopped before it
+/// had asked every command.
+///
+/// The probe's closing `done` line is the proof the shell finished, so it is
+/// required whatever status the shell exited with: a package that calls `exit 0`
+/// is a shell that stopped, and one that dies after a row has not been asked the
+/// rest. The summary counts the commands the shell asked, which is what was
+/// tested, and not the commands the pack declares.
 fn report_test(args: &SpecTestArgs, target: &TestTarget, outcome: &tcl_sandbox::Outcome) -> u8 {
-    let divergences =
+    let report =
         crate::commands::spec_test::parse_report(&String::from_utf8_lossy(&outcome.stdout));
-    for divergence in &divergences {
+    for divergence in &report.divergences {
         println!("{divergence}");
     }
-    if divergences.is_empty() && !outcome.success {
-        let stderr = String::from_utf8_lossy(&outcome.stderr);
-        eprint_status(
-            warn_style(),
-            format!(
-                "the shell exited with status {} before reporting: {}",
-                outcome
-                    .code
-                    .map_or_else(|| "?".to_owned(), |code| code.to_string()),
-                stderr.trim()
-            ),
+    // A package the shell could not require has nothing more asked of it.
+    let wanted = if report.package_missing() {
+        0
+    } else {
+        target.probes.len()
+    };
+    let asked = report.asked.len();
+    let finished = report.done == Some(wanted) && asked == wanted;
+    if finished {
+        if !outcome.success {
+            eprint_status(
+                warn_style(),
+                format!(
+                    "the shell exited with status {} after it had reported",
+                    exit_status(outcome)
+                ),
+            );
+        }
+        println!(
+            "{}: {asked} command(s) tested against '{}', {} divergence(s)",
+            args.pack.display(),
+            target.package,
+            report.divergences.len()
         );
-        return 1;
+        return u8::from(!report.divergences.is_empty());
     }
-    println!(
-        "{}: {} command(s) tested against '{}', {} divergence(s)",
-        args.pack.display(),
-        target.probes.len(),
-        target.package,
-        divergences.len()
+    let missing: Vec<&str> = target
+        .probes
+        .iter()
+        .map(|probe| probe.name.as_str())
+        .filter(|name| !report.asked.iter().any(|asked| asked == name))
+        .collect();
+    eprint_status(
+        warn_style(),
+        format!(
+            "the shell exited with status {} before it had asked every command \
+             ({asked} of {wanted} asked; not asked: {}): {}",
+            exit_status(outcome),
+            missing.join(", "),
+            String::from_utf8_lossy(&outcome.stderr).trim()
+        ),
     );
-    u8::from(!divergences.is_empty())
+    println!(
+        "{}: {asked} of {wanted} command(s) tested against '{}', {} divergence(s)",
+        args.pack.display(),
+        target.package,
+        report.divergences.len()
+    );
+    1
 }
 
-/// The project a pack belongs to: the nearest directory above it that holds a
-/// `tclpkg.tcl`, or the pack's own directory when none does. Its `tclpkg.toml` is
-/// the project layer of the policy that decides whether the package runs.
-fn project_of(pack: &Path) -> PathBuf {
-    let own = pack
-        .parent()
-        .filter(|dir| !dir.as_os_str().is_empty())
-        .map_or_else(|| PathBuf::from("."), Path::to_path_buf);
-    let absolute = own.canonicalize().unwrap_or_else(|_| own.clone());
-    absolute
-        .ancestors()
-        .find(|dir| dir.join("tclpkg.tcl").is_file())
-        .map_or(own, Path::to_path_buf)
+fn exit_status(outcome: &tcl_sandbox::Outcome) -> String {
+    outcome
+        .code
+        .map_or_else(|| "?".to_owned(), |code| code.to_string())
+}
+
+/// The operator's project: the one `tcl pkg` works in, or the working directory
+/// when there is none. Its `tclpkg.toml` is the project layer of the policy that
+/// decides whether the package runs.
+fn operator_project() -> anyhow::Result<PathBuf> {
+    match crate::commands::pkg::find_project_root() {
+        Some(root) => Ok(root),
+        None => std::env::current_dir().context("cannot read the working directory"),
+    }
 }
 
 /// `tcl spec upgrade` — rewrite a 1.x pack into `SpecTcl` 2.0.
@@ -1044,6 +1086,82 @@ mod tests {
                 "`{name}` must still be accepted"
             );
         }
+    }
+
+    fn finished_outcome(stdout: &str, code: i32) -> tcl_sandbox::Outcome {
+        tcl_sandbox::Outcome {
+            code: Some(code),
+            success: code == 0,
+            stdout: stdout.as_bytes().to_vec(),
+            stderr: Vec::new(),
+            timed_out: false,
+            isolation: tcl_sandbox::IsolationLevel::Baseline,
+            network_enforced: false,
+        }
+    }
+
+    /// The probe's closing `done` line is what says the shell finished: every
+    /// command asked and a clean exit are not enough, since a shell can stop at
+    /// any point after the last question, and the count it ends on is the one the
+    /// pack declares or, for a package the shell could not require, none.
+    #[test]
+    fn a_shell_is_finished_when_it_says_done_for_every_command_it_was_to_ask() {
+        let probe = |name: &str| crate::commands::spec_test::CommandProbe {
+            name: name.to_owned(),
+            arity: None,
+            pure: false,
+            return_type: None,
+            examples: Vec::new(),
+            reference: None,
+        };
+        let args = SpecTestArgs {
+            pack: PathBuf::from("demo.tclspec"),
+            tclsh: None,
+            package: None,
+        };
+        let target = TestTarget {
+            package: "demo".to_owned(),
+            probes: vec![probe("demo::a"), probe("demo::b")],
+        };
+        let asked = "SPEC-TEST\tasked\tdemo::a\t\nSPEC-TEST\tasked\tdemo::b\t\n";
+        let status =
+            |stdout: &str, code| report_test(&args, &target, &finished_outcome(stdout, code));
+
+        assert_eq!(status(&format!("{asked}SPEC-TEST\tdone\t-\t2\n"), 0), 0);
+        assert_eq!(
+            status(asked, 0),
+            1,
+            "every command asked and a clean exit, but no done line"
+        );
+        assert_eq!(
+            status(&format!("{asked}SPEC-TEST\tdone\t-\t1\n"), 0),
+            1,
+            "a done line that counts another number of commands"
+        );
+        assert_eq!(
+            status("SPEC-TEST\tasked\tdemo::a\t\nSPEC-TEST\tdone\t-\t2\n", 0),
+            1,
+            "a done line with a command never asked"
+        );
+        assert_eq!(
+            status(&format!("{asked}SPEC-TEST\tdone\t-\t2\n"), 3),
+            0,
+            "a shell that stopped after it had finished is a warning, not a failure"
+        );
+        // A package the shell could not require has nothing asked of it, and says so.
+        assert_eq!(
+            status(
+                "SPEC-TEST\tload\t-\tcan't find package demo\nSPEC-TEST\tdone\t-\t0\n",
+                0
+            ),
+            1,
+            "the missing package is a divergence"
+        );
+        assert_eq!(
+            status("SPEC-TEST\tload\t-\tcan't find package demo\n", 0),
+            1,
+            "and a missing package that never said done has not finished either"
+        );
     }
 
     #[test]

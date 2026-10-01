@@ -662,10 +662,24 @@ fn spec_export_reports_a_pack_whose_evaluation_failed() {
     assert!(stderr.contains("determinism axis"), "{stderr}");
 }
 
+/// Where a pack sits relative to the project `tcl spec test` is run in.
+#[derive(Clone, Copy)]
+enum Layout {
+    /// In the project directory, which has no manifest.
+    Flat,
+    /// In a `specs` directory below the project's manifest.
+    Nested,
+    /// In a dependency vendored into the project, which has a manifest and a
+    /// policy of its own.
+    Vendored,
+}
+
 /// A Tcl package on disk, a pack that describes it and the project policy that
 /// opts the package in, for `tcl spec test`.
 struct Described {
     tree: Tree,
+    /// The operator's project, which the verb is run in.
+    project: PathBuf,
     pack: PathBuf,
     library: PathBuf,
 }
@@ -674,16 +688,41 @@ impl Described {
     /// `package` is the Tcl source of the `demo` package, `pack` the pack that
     /// describes it, and `trusted` the packages the project's policy opts in.
     fn new(tag: &str, package: &str, pack: &str, trusted: &[&str]) -> Self {
-        Self::build(tag, package, pack, trusted, false)
+        Self::build(tag, package, pack, trusted, Layout::Flat)
     }
 
     /// The same, with the pack in a `specs` directory below a project that has a
     /// manifest and holds the policy: the project is not the pack's directory.
     fn nested(tag: &str, package: &str, pack: &str, trusted: &[&str]) -> Self {
-        Self::build(tag, package, pack, trusted, true)
+        Self::build(tag, package, pack, trusted, Layout::Nested)
     }
 
-    fn build(tag: &str, package: &str, pack: &str, trusted: &[&str], nested: bool) -> Self {
+    /// The same, with the pack in a dependency vendored into the project. `trusted`
+    /// is the dependency's own policy, and the project's says nothing until
+    /// [`Self::trust_in_the_project`].
+    fn vendored(tag: &str, package: &str, pack: &str, trusted: &[&str]) -> Self {
+        Self::build(tag, package, pack, trusted, Layout::Vendored)
+    }
+
+    /// Write `tclpkg.toml` in `dir`, opting the named packages in.
+    fn write_policy(dir: &Path, trusted: &[&str]) {
+        let names: Vec<String> = trusted.iter().map(|name| format!("{name:?}")).collect();
+        std::fs::write(
+            dir.join("tclpkg.toml"),
+            format!(
+                "[build]\nallow-build-scripts = true\ntrusted = [{}]\n",
+                names.join(", ")
+            ),
+        )
+        .expect("write the policy");
+    }
+
+    /// The operator's own policy opts the named packages in.
+    fn trust_in_the_project(&self, trusted: &[&str]) {
+        Self::write_policy(&self.project, trusted);
+    }
+
+    fn build(tag: &str, package: &str, pack: &str, trusted: &[&str], layout: Layout) -> Self {
         let tree = Tree::new(tag);
         let library = tree.path().join("lib");
         let package_dir = library.join("demo");
@@ -695,30 +734,33 @@ impl Described {
         .expect("write the index");
         std::fs::write(package_dir.join("demo.tcl"), package).expect("write the package");
         let project_dir = tree.path().join("project");
-        let pack_dir = if nested {
-            std::fs::create_dir_all(&project_dir).expect("project dir");
-            std::fs::write(project_dir.join("tclpkg.tcl"), "package demo 1.0\n")
-                .expect("write the manifest");
-            project_dir.join("specs")
-        } else {
-            project_dir.clone()
+        std::fs::create_dir_all(&project_dir).expect("project dir");
+        let (pack_dir, policy_dir) = match layout {
+            Layout::Flat => (project_dir.clone(), project_dir.clone()),
+            Layout::Nested => {
+                std::fs::write(project_dir.join("tclpkg.tcl"), "package demo 1.0\n")
+                    .expect("write the manifest");
+                (project_dir.join("specs"), project_dir.clone())
+            }
+            Layout::Vendored => {
+                std::fs::write(project_dir.join("tclpkg.tcl"), "package app 1.0\n")
+                    .expect("write the project's manifest");
+                let dependency = project_dir.join("vendor").join("demo");
+                std::fs::create_dir_all(&dependency).expect("dependency dir");
+                std::fs::write(dependency.join("tclpkg.tcl"), "package demo 1.0\n")
+                    .expect("write the dependency's manifest");
+                (dependency.join("specs"), dependency)
+            }
         };
         std::fs::create_dir_all(&pack_dir).expect("pack dir");
         let pack_path = pack_dir.join("demo.tclspec");
         std::fs::write(&pack_path, pack).expect("write the pack");
         if !trusted.is_empty() {
-            let names: Vec<String> = trusted.iter().map(|name| format!("{name:?}")).collect();
-            std::fs::write(
-                project_dir.join("tclpkg.toml"),
-                format!(
-                    "[build]\nallow-build-scripts = true\ntrusted = [{}]\n",
-                    names.join(", ")
-                ),
-            )
-            .expect("write the policy");
+            Self::write_policy(&policy_dir, trusted);
         }
         Self {
             tree,
+            project: project_dir,
             pack: pack_path,
             library,
         }
@@ -731,6 +773,7 @@ impl Described {
         std::fs::create_dir_all(&home).expect("home");
         let mut command = Command::new(env!("CARGO_BIN_EXE_tcl"));
         command
+            .current_dir(&self.project)
             .args(["spec", "test", &self.pack.to_string_lossy()])
             .env("TCLLIBPATH", &self.library)
             .env("HOME", &home)
@@ -858,11 +901,11 @@ fn spec_test_reports_a_command_the_package_does_not_define() {
     );
 }
 
-/// The policy that decides is the project's that holds the pack — the nearest
-/// directory above it with a manifest — and not the directory the pack happens
-/// to be in.
+/// The policy that decides is the operator's: the project `tcl` is run in, whose
+/// manifest is found from the working directory as `tcl pkg` finds it, and not the
+/// directory the pack happens to be in.
 #[test]
-fn spec_test_reads_the_policy_of_the_project_that_holds_the_pack() {
+fn spec_test_reads_the_policy_of_the_project_it_is_run_in() {
     let Some(tclsh) = tclsh_on_path() else {
         eprintln!("skipped: no tclsh on PATH");
         return;
@@ -873,7 +916,45 @@ fn spec_test_reads_the_policy_of_the_project_that_holds_the_pack() {
         &demo_pack("1..3", "2"),
         &["demo"],
     );
-    let (stdout, stderr, code) = held.run(&tclsh);
+    // Run from a directory below the manifest, which is where the policy is.
+    let mut command = held.command();
+    command
+        .current_dir(held.pack.parent().expect("the specs directory"))
+        .arg("--tclsh")
+        .arg(&tclsh);
+    let (stdout, stderr, code) = finished(&mut command);
+    assert_eq!(code, 0, "stdout: {stdout}\nstderr: {stderr}");
+    assert!(
+        stdout.contains("2 command(s) tested against 'demo', 0 divergence(s)"),
+        "{stdout}"
+    );
+}
+
+/// A dependency vendored into the project has a manifest and a `tclpkg.toml` of
+/// its own, and neither can be what lets it run: the policy is the operator's,
+/// which says nothing of the package until the operator does.
+#[test]
+fn spec_test_ignores_the_policy_of_the_tree_the_pack_was_found_in() {
+    let Some(tclsh) = tclsh_on_path() else {
+        eprintln!("skipped: no tclsh on PATH");
+        return;
+    };
+    let vendored = Described::vendored(
+        "spec-test-vendored",
+        DEMO_PACKAGE,
+        &demo_pack("1..3", "2"),
+        &["demo"],
+    );
+    let (stdout, stderr, code) = vendored.run(&tclsh);
+    assert_eq!(code, 1, "stdout: {stdout}\nstderr: {stderr}");
+    assert!(
+        stderr.contains("running the package 'demo' is not permitted by policy"),
+        "the dependency opted itself in: {stderr}"
+    );
+    assert!(stdout.is_empty(), "nothing ran: {stdout}");
+
+    vendored.trust_in_the_project(&["demo"]);
+    let (stdout, stderr, code) = vendored.run(&tclsh);
     assert_eq!(code, 0, "stdout: {stdout}\nstderr: {stderr}");
     assert!(
         stdout.contains("2 command(s) tested against 'demo', 0 divergence(s)"),
@@ -883,13 +964,15 @@ fn spec_test_reads_the_policy_of_the_project_that_holds_the_pack() {
 
 const BEHAVING_PACKAGE: &str = "package provide demo 1.0\n\
 puts -nonewline \"demo loaded, with no newline\"\n\
-namespace eval demo {}\n\
+namespace eval demo {variable cache; variable count 0}\n\
 proc demo::double {x} {expr {$x * 2}}\n\
 proc demo::label {x} {return \"value $x\"}\n\
 proc demo::remember {x} {set ::remembered $x; return $x}\n\
 proc demo::raises {x} {error \"no such thing\"}\n\
 proc demo::memo {x} {if {![info exists ::memoised]} {set ::memoised $x}; return $x}\n\
-proc demo::tidy {x} {set local $x; return $local}\n";
+proc demo::tidy {x} {set local $x; return $local}\n\
+proc demo::cached {x} {variable cache; if {![info exists cache($x)]} {set cache($x) [expr {$x + 1}]}; return $cache($x)}\n\
+proc demo::counted {x} {variable count; incr count; return $x}\n";
 
 const BEHAVING_PACK: &str = "speclib demo 2.0 {\n\
     command demo::double {\n\
@@ -928,12 +1011,25 @@ const BEHAVING_PACK: &str = "speclib demo 2.0 {\n\
         traits {PURE}\n\
         hover { example {demo::tidy 4} }\n\
     }\n\
+    command demo::cached {\n\
+        arity 1\n\
+        required_package demo\n\
+        traits {PURE}\n\
+        hover { example {demo::cached 4} }\n\
+    }\n\
+    command demo::counted {\n\
+        arity 1\n\
+        required_package demo\n\
+        traits {PURE}\n\
+        hover { example {demo::counted 4} }\n\
+    }\n\
 }\n";
 
 /// The other questions: a `returns` type the answer is not a value of, an
-/// `example` that raises, a command declared `pure` that writes a global, and a
-/// Tcl-body reference body that answers differently from the command it
-/// describes, each one row naming the command and what the shell did.
+/// `example` that raises, a command declared `pure` that writes a global or fills
+/// a namespace variable its first call, and a Tcl-body reference body that answers
+/// differently from the command it describes, each one row naming the command and
+/// what the shell did.
 #[test]
 fn spec_test_reports_what_the_examples_the_purity_and_the_reference_body_disagree_on() {
     let Some(tclsh) = tclsh_on_path() else {
@@ -950,9 +1046,11 @@ fn spec_test_reports_what_the_examples_the_purity_and_the_reference_body_disagre
     assert_eq!(code, 1, "stdout: {stdout}\nstderr: {stderr}");
     for row in [
         "demo::label: returns: declares it returns int, but `demo::label 7` answered `value 7`",
-        "demo::remember: pure: declared pure, but `demo::remember 5` wrote the global(s) remembered",
+        "demo::remember: pure: declared pure, but `demo::remember 5` wrote the variable(s) remembered",
         "demo::raises: example: `demo::raises 1` raised: no such thing",
-        "demo::memo: pure: declared pure, but running it created or changed the global(s) memoised",
+        "demo::memo: pure: declared pure, but running it created or changed the variable(s) memoised",
+        "demo::cached: pure: declared pure, but running it created or changed the variable(s) ::demo::cache",
+        "demo::counted: pure: declared pure, but `demo::counted 4` wrote the variable(s) ::demo::count",
         "demo::double: reference: `demo::double 21` answers `42` (0) as the command and `63` (0) as its reference body",
     ] {
         assert!(stdout.contains(row), "missing {row:?} in:\n{stdout}");
@@ -964,7 +1062,7 @@ fn spec_test_reports_what_the_examples_the_purity_and_the_reference_body_disagre
         "a command the pack describes truthfully has no row: {stdout}"
     );
     assert!(
-        stdout.contains("6 command(s) tested against 'demo', 5 divergence(s)"),
+        stdout.contains("8 command(s) tested against 'demo', 7 divergence(s)"),
         "{stdout}"
     );
 }
@@ -1052,8 +1150,8 @@ fn spec_test_says_when_the_package_cannot_be_required() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("2 command(s) tested against 'absent', 1 divergence(s)"),
-        "the package is not there, so nothing more is asked: {stdout}"
+        stdout.contains("0 command(s) tested against 'absent', 1 divergence(s)"),
+        "the package is not there, so nothing is asked: {stdout}"
     );
 
     let unnamed = Described::new(
@@ -1103,10 +1201,11 @@ fn spec_test_says_when_there_is_nothing_to_test() {
     assert!(stderr.contains("not a file"), "{stderr}");
 }
 
-/// A shell that stops before it reports anything is not a pass: the verb says what
-/// the shell said and exits 1.
+/// A shell that stops before it has asked every command is not a pass, whatever
+/// status it stops with: the verb says what the shell said and which commands it
+/// never asked, and exits 1.
 #[test]
-fn spec_test_says_when_the_shell_stops_before_it_reports() {
+fn spec_test_says_when_the_shell_stops_before_it_has_asked_every_command() {
     let Some(tclsh) = tclsh_on_path() else {
         eprintln!("skipped: no tclsh on PATH");
         return;
@@ -1120,11 +1219,65 @@ fn spec_test_says_when_the_shell_stops_before_it_reports() {
     let (stdout, stderr, code) = stopping.run(&tclsh);
     assert_eq!(code, 1, "stdout: {stdout}\nstderr: {stderr}");
     assert!(
-        stderr.contains("the shell exited with status 3 before reporting")
+        stderr.contains("the shell exited with status 3 before it had asked every command")
+            && stderr.contains("0 of 2 asked; not asked: demo::flex, demo::fixed")
             && stderr.contains("demo is leaving"),
         "{stderr}"
     );
-    assert!(!stdout.contains("tested against"), "{stdout}");
+    assert!(
+        stdout.contains("0 of 2 command(s) tested against 'demo', 0 divergence(s)"),
+        "{stdout}"
+    );
+}
+
+/// A package that ends the shell with status 0 — when it is required, or when one
+/// of its commands is asked — has not passed, and the commands it never let the
+/// verb ask are named, not counted as tested.
+#[test]
+fn spec_test_does_not_pass_a_package_that_exits_the_shell_with_status_0() {
+    let Some(tclsh) = tclsh_on_path() else {
+        eprintln!("skipped: no tclsh on PATH");
+        return;
+    };
+    let on_require = Described::new(
+        "spec-test-exit-require",
+        "package provide demo 1.0\nexit 0\n",
+        &demo_pack("1..3", "2"),
+        &["demo"],
+    );
+    let (stdout, stderr, code) = on_require.run(&tclsh);
+    assert_eq!(code, 1, "stdout: {stdout}\nstderr: {stderr}");
+    assert!(
+        stderr.contains("the shell exited with status 0 before it had asked every command")
+            && stderr.contains("not asked: demo::flex, demo::fixed"),
+        "{stderr}"
+    );
+
+    // The second command ends the shell when it is asked, so the first was asked
+    // and its row is there, and the second and the third were not.
+    let package = "package provide demo 1.0\nnamespace eval demo {}\n\
+                   proc demo::flex {a {b x} {c y}} {return \"$a$b$c\"}\n\
+                   proc demo::fixed {a b} {exit 0}\n\
+                   proc demo::last {a} {return $a}\n";
+    let pack = "speclib demo 2.0 {\n    command demo::flex {\n        arity 2\n        \
+                required_package demo\n    }\n    command demo::fixed {\n        arity 2\n        \
+                required_package demo\n    }\n    command demo::last {\n        arity 1\n        \
+                required_package demo\n    }\n}\n";
+    let part_way = Described::new("spec-test-exit-part-way", package, pack, &["demo"]);
+    let (stdout, stderr, code) = part_way.run(&tclsh);
+    assert_eq!(code, 1, "stdout: {stdout}\nstderr: {stderr}");
+    assert!(
+        stdout.contains("demo::flex: arity: declares at least 2 argument(s)"),
+        "the row found before the shell stopped is kept: {stdout}"
+    );
+    assert!(
+        stdout.contains("1 of 3 command(s) tested against 'demo'"),
+        "{stdout}"
+    );
+    assert!(
+        stderr.contains("1 of 3 asked; not asked: demo::fixed, demo::last"),
+        "{stderr}"
+    );
 }
 
 /// With no shell named, the verb runs the one in the active virtual environment

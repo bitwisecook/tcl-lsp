@@ -169,7 +169,9 @@ slices proceed without deciding anything here.
 > `reference_body` row decides at load whether a pack may declare one, a
 > `PackageSource` body is read at load, through the store that read the pack
 > (`tcl_spectcl::package_sources`), and the VM's `source` command reads through
-> the host's filesystem and honours `-encoding`.
+> the host's filesystem and honours `-encoding` for the four names `encoding
+> system` accepts (`utf-8`, `iso8859-1`, `ascii` and `unicode`), refusing any
+> other as Tcl's `unknown encoding`.
 >
 > A pack's declared facts are held to the package they describe. `tcl spec
 > test` (`rust/tcl-cli/src/commands/spec.rs`, the probe in
@@ -178,8 +180,16 @@ slices proceed without deciding anything here.
 > command the pack declares whether the package defines it, what its arity
 > refuses, what its examples answer and whether the answers have the declared
 > type, whether a Tcl-body reference body agrees with it, and whether a command
-> declared `pure` writes a global; it prints one row per divergence and exits 1
-> on any. It is a CLI verb, and nothing the editor runs executes a package.
+> declared `pure` writes a variable of any namespace but the shell's own `::tcl`.
+> The policy is the operator's: the project `tcl pkg` works in from the working
+> directory, never the tree the pack was found in, so a dependency vendored into
+> the project cannot opt itself in. It prints one row per divergence and the
+> number of commands the shell actually asked, and exits 1 on any divergence and
+> on a shell that stopped before it had asked them all, whatever status it
+> stopped with; the probe ends with a line that counts the commands asked, which a
+> package that calls `exit` cannot print. It exits 2 when the verb could not run:
+> no shell, or one that outlives the policy's timeout. It is a CLI verb, and
+> nothing the editor runs executes a package.
 >
 > A reference body is also the command's declared implementation when its author
 > asks with `-evaluate` beside the backing and the sandbox can express it.
@@ -2020,8 +2030,8 @@ Rules 1 to 4 are built.
   appending its text there (`ReferenceBodies`, `rust/tcl-compiler/src/ir.rs`),
   and inlines only where the caller has a local variable table — a procedure
   body — never at a script's global level. The VM defines no procedure from a
-  claim, and refuses a claim whose backing is not `TclBody`, or the check
-  admits a model of a C command. Only a pack's commands are inlined: a
+  claim, and refuses a claim whose backing is not `TclBody`; otherwise the check
+  would admit a model of a C command. Only a pack's commands are inlined: a
   `TclBody` command the shipped registry declares has no pack facts for a claim
   to carry. As a derivation source, analysing the body yields purity, effects,
   return type, callback slots, and the transfer: the transfer is the declared
@@ -2179,7 +2189,9 @@ struct ArtefactIdentityManifest {
   run time, reads through the host filesystem seam
   (`rust/tcl-vm/src/command.rs`), so a host with no filesystem, such as a
   browser, reads nothing, and decodes the file as the encoding `-encoding`
-  names — UTF-8 from Tcl 9, the system encoding before. `runtime/rust`'s
+  names — UTF-8 from Tcl 9, the system encoding before — where the names are the
+  four `encoding system` accepts (`utf-8`, `iso8859-1`, `ascii` and `unicode`) and
+  any other is Tcl's `unknown encoding`. `runtime/rust`'s
   `source` reads through its host too and still ignores the option.
 - **Jim and every non-Tcl point execute as Tcl 9 by decision**
   (`vm_runtime_version` in `rust/tcl-dialect/src/profile.rs`), so a Jim

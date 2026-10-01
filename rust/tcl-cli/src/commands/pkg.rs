@@ -214,7 +214,9 @@ pub fn run(action: &PkgCommand) -> anyhow::Result<u8> {
     }
 }
 
-fn find_project_root() -> Option<PathBuf> {
+/// The directory `tcl pkg` treats as the project: the nearest one at or above the
+/// working directory that holds a `tclpkg.tcl`.
+pub(crate) fn find_project_root() -> Option<PathBuf> {
     let mut current = std::env::current_dir().ok()?.canonicalize().ok()?;
     for _ in 0..20 {
         if current.join("tclpkg.tcl").is_file() {

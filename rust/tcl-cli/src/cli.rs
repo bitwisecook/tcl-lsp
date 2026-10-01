@@ -639,9 +639,12 @@ pub enum SpecCommand {
     /// package defines it, its arity against the shell's `wrong # args`, each
     /// `example` row against the answer and the declared `return_type`, a
     /// Tcl-body reference body against the command on the same inputs, and a
-    /// `pure` command against a write trace on every global and the globals it
-    /// created. One row is printed per divergence, and the exit status is 1 if
-    /// there is any. Nothing here runs at editor load.
+    /// `pure` command against a write trace on every variable of every
+    /// namespace and the variables it created. One row is printed per
+    /// divergence, and the exit status is 1 if there is any, or if the shell
+    /// stopped before it had asked every command. The policy that opts the
+    /// package in is the operator's project's, found from the working
+    /// directory. Nothing here runs at editor load.
     Test(SpecTestArgs),
 }
 

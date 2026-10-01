@@ -24,9 +24,11 @@
 //! generated from what the pack declares and fed to the shell on standard
 //! input; it requires the package, asks each command the questions below, and
 //! prints one `SPEC-TEST` line per divergence, which [`parse_report`] reads. It
-//! is written for every shell the pack's package may target, 8.4 to 9.1, so it
-//! uses no command a release added since 8.4 and never relies on one's
-//! absence.
+//! says each command it has finished with, and ends with a `done` line that
+//! counts them, so a shell the package stopped is told from one that finished
+//! whatever status it exited with. It is written for every shell the pack's
+//! package may target, 8.4 to 9.1, so it uses no command a release added since
+//! 8.4 and never relies on one's absence.
 //!
 //! The questions, per command:
 //!
@@ -43,9 +45,12 @@
 //!   in a child interpreter that has the package, on each example, and must
 //!   answer as the command does;
 //! - **purity** — a command declared `pure` is run again on each example with a
-//!   write trace on every global, and must change none; the questions above
-//!   are asked inside the same window, so a first call that creates a global is
-//!   caught too. `errorInfo` and `errorCode` are the shell's own and not counted.
+//!   write trace on every variable of every namespace, and must change none;
+//!   the questions above are asked inside the same window, so a first call that
+//!   creates a variable is caught too. The probe's own namespace, the shell's own
+//!   `::tcl`, where one that reads its script from standard input keeps the
+//!   history of every statement it reads, and the global `errorInfo` and
+//!   `errorCode`, which the shell writes, are not counted.
 
 use std::fmt::Write as _;
 
@@ -120,6 +125,7 @@ pub fn probes_of(set: &PackSet) -> Vec<CommandProbe> {
                 reference: match spec.runtime_backing {
                     RuntimeBacking::TclBody {
                         source: BodySource::PackText { text },
+                        ..
                     } => Some(text.to_owned()),
                     RuntimeBacking::TclBody {
                         source: BodySource::PackageSource { .. },
@@ -127,7 +133,6 @@ pub fn probes_of(set: &PackSet) -> Vec<CommandProbe> {
                     } => command.reference_text.as_deref().map(str::to_owned),
                     _ => None,
                 },
-                        ..
             }
         })
         .collect()
@@ -150,12 +155,21 @@ pub fn required_package(set: &PackSet) -> Option<String> {
 /// The shell-side half of the probe: the reporter and one procedure per
 /// question. `@PACKAGE@` is the package to require.
 const PRELUDE: &str = r#"namespace eval ::__spec_test {}
+set ::__spec_test::count 0
 proc ::__spec_test::say {kind command detail} {
     set detail [string map [list "\\" "\\\\" "\t" "\\t" "\n" "\\n" "\r" "\\r"] $detail]
     puts "\nSPEC-TEST\t$kind\t$command\t$detail"
 }
+proc ::__spec_test::asked {name} {
+    incr ::__spec_test::count
+    ::__spec_test::say asked $name {}
+}
+proc ::__spec_test::finish {} {
+    ::__spec_test::say done - $::__spec_test::count
+}
 if {[catch {package require @PACKAGE@} ::__spec_test::loaded]} {
     ::__spec_test::say load - $::__spec_test::loaded
+    ::__spec_test::finish
     exit 0
 }
 proc ::__spec_test::words {count} {
@@ -244,18 +258,40 @@ proc ::__spec_test::reference {name text lines} {
     interp delete $child
 }
 proc ::__spec_test::ours {name} {
+    set name [string trimleft $name :]
     return [expr {[string match __spec_test* $name] || [lsearch -exact {errorInfo errorCode} $name] >= 0}]
+}
+proc ::__spec_test::namespaces {ns} {
+    set found [list $ns]
+    foreach child [namespace children $ns] {
+        if {$child eq "::__spec_test" || $child eq "::tcl"} continue
+        foreach inner [::__spec_test::namespaces $child] {lappend found $inner}
+    }
+    return $found
+}
+proc ::__spec_test::variables {} {
+    set names {}
+    foreach ns [::__spec_test::namespaces ::] {
+        foreach name [info vars [expr {$ns eq "::" ? "::*" : "${ns}::*"}]] {
+            if {![::__spec_test::ours $name]} {lappend names $name}
+        }
+    }
+    return [lsort -unique $names]
+}
+proc ::__spec_test::shown {name} {
+    set bare [string trimleft $name :]
+    if {[string first :: $bare] < 0} {return $bare}
+    return $name
 }
 proc ::__spec_test::snapshot {} {
     set state {}
-    foreach name [lsort [info globals]] {
-        if {[::__spec_test::ours $name]} continue
-        if {[array exists ::$name]} {
+    foreach name [::__spec_test::variables] {
+        if {[array exists $name]} {
             set pairs {}
-            foreach key [lsort [array names ::$name]] {lappend pairs $key [set ::${name}($key)]}
+            foreach key [lsort [array names $name]] {lappend pairs $key [set ${name}($key)]}
             lappend state $name [list array $pairs]
-        } elseif {[info exists ::$name]} {
-            lappend state $name [list scalar [set ::$name]]
+        } elseif {[info exists $name]} {
+            lappend state $name [list scalar [set $name]]
         }
     }
     return $state
@@ -275,8 +311,8 @@ proc ::__spec_test::begin {} {
     if {$::__spec_test::skip} return
     set ::__spec_test::mark [::__spec_test::snapshot]
 }
-proc ::__spec_test::wrote {args} {
-    lappend ::__spec_test::writes [string trimleft [lindex $args 0] :]
+proc ::__spec_test::wrote {name args} {
+    lappend ::__spec_test::writes $name
 }
 proc ::__spec_test::pure {name lines} {
     if {$::__spec_test::skip} return
@@ -284,26 +320,28 @@ proc ::__spec_test::pure {name lines} {
     foreach line $lines {
         set ::__spec_test::writes {}
         set traced {}
-        foreach global [info globals] {
-            if {[::__spec_test::ours $global]} continue
-            if {![catch {trace add variable ::$global {write unset} ::__spec_test::wrote}]} {lappend traced $global}
+        foreach qualified [::__spec_test::variables] {
+            set prefix [list ::__spec_test::wrote $qualified]
+            if {![catch {trace add variable $qualified {write unset} $prefix}]} {lappend traced $qualified $prefix}
         }
         catch {uplevel #0 $line}
-        foreach global $traced {
-            catch {trace remove variable ::$global {write unset} ::__spec_test::wrote}
+        foreach {qualified prefix} $traced {
+            catch {trace remove variable $qualified {write unset} $prefix}
         }
-        set names [lsort -unique $::__spec_test::writes]
+        set names {}
+        foreach written [lsort -unique $::__spec_test::writes] {lappend names [::__spec_test::shown $written]}
         if {[llength $names] > 0} {
             eval lappend reported $names
-            ::__spec_test::say pure $name "declared pure, but `$line` wrote the global(s) $names"
+            ::__spec_test::say pure $name "declared pure, but `$line` wrote the variable(s) $names"
         }
     }
     set names {}
-    foreach global [::__spec_test::changed $::__spec_test::mark [::__spec_test::snapshot]] {
-        if {[lsearch -exact $reported $global] < 0} {lappend names $global}
+    foreach qualified [::__spec_test::changed $::__spec_test::mark [::__spec_test::snapshot]] {
+        set shown [::__spec_test::shown $qualified]
+        if {[lsearch -exact $reported $shown] < 0} {lappend names $shown}
     }
     if {[llength $names] > 0} {
-        ::__spec_test::say pure $name "declared pure, but running it created or changed the global(s) $names"
+        ::__spec_test::say pure $name "declared pure, but running it created or changed the variable(s) $names"
     }
 }
 "#;
@@ -364,7 +402,9 @@ pub fn render_script(package: &str, probes: &[CommandProbe]) -> String {
         if probe.pure {
             let _ = writeln!(script, "::__spec_test::pure {name} {examples}");
         }
+        let _ = writeln!(script, "::__spec_test::asked {name}");
     }
+    script.push_str("::__spec_test::finish\n");
     script
 }
 
@@ -387,24 +427,57 @@ impl std::fmt::Display for Divergence {
     }
 }
 
-/// The `SPEC-TEST` lines a probe printed, in order. Anything else the package
-/// printed is not a divergence and is ignored.
+/// The divergence the probe reports when the shell cannot require the package.
+const UNREQUIRABLE: &str = "load";
+
+/// What a probe reported: the divergences it found, the commands it finished
+/// asking about, and the count it ended on when the shell got that far.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Report {
+    /// The divergences, in the order they were found.
+    pub divergences: Vec<Divergence>,
+    /// The commands the shell finished asking, in the order it asked them.
+    pub asked: Vec<String>,
+    /// The `done` line's count, which is the last thing a probe says: absent
+    /// when the shell stopped first, whatever status it stopped with.
+    pub done: Option<usize>,
+}
+
+impl Report {
+    /// Whether the shell could not require the package, in which case nothing
+    /// more was asked of it.
+    #[must_use]
+    pub fn package_missing(&self) -> bool {
+        self.divergences.iter().any(|row| row.kind == UNREQUIRABLE)
+    }
+}
+
+/// The `SPEC-TEST` lines a probe printed. Anything else the package printed is
+/// not part of the report and is ignored.
 #[must_use]
-pub fn parse_report(output: &str) -> Vec<Divergence> {
-    output
-        .lines()
-        .filter_map(|line| {
-            let mut fields = line.strip_prefix("SPEC-TEST\t")?.splitn(3, '\t');
-            let kind = fields.next()?.to_owned();
-            let command = fields.next()?.to_owned();
-            let detail = unescape(fields.next()?);
-            Some(Divergence {
-                kind,
-                command,
-                detail,
-            })
-        })
-        .collect()
+pub fn parse_report(output: &str) -> Report {
+    let mut report = Report::default();
+    for line in output.lines() {
+        let Some(rest) = line.strip_prefix("SPEC-TEST\t") else {
+            continue;
+        };
+        let mut fields = rest.splitn(3, '\t');
+        let (Some(kind), Some(command), Some(detail)) =
+            (fields.next(), fields.next(), fields.next())
+        else {
+            continue;
+        };
+        match kind {
+            "asked" => report.asked.push(command.to_owned()),
+            "done" => report.done = detail.parse().ok(),
+            _ => report.divergences.push(Divergence {
+                kind: kind.to_owned(),
+                command: command.to_owned(),
+                detail: unescape(detail),
+            }),
+        }
+    }
+    report
 }
 
 /// Undo the probe's escaping of backslash, tab, newline and carriage return.
@@ -459,23 +532,45 @@ mod tests {
         let output = "hello from the package\n\
                       SPEC-TEST\tarity\tdemo::two\tdeclares at most 2, but `demo::two x x x` was accepted\n\
                       noise SPEC-TEST\tarity\tx\tnot at the start\n\
-                      SPEC-TEST\texample\tdemo::two\tline one\\nline two\\ttabbed\\\\slash\n";
+                      SPEC-TEST\texample\tdemo::two\tline one\\nline two\\ttabbed\\\\slash\n\
+                      SPEC-TEST\tasked\tdemo::two\t\n\
+                      SPEC-TEST\tdone\t-\t1\n";
         assert_eq!(
             parse_report(output),
-            vec![
-                Divergence {
-                    kind: "arity".to_owned(),
-                    command: "demo::two".to_owned(),
-                    detail: "declares at most 2, but `demo::two x x x` was accepted".to_owned(),
-                },
-                Divergence {
-                    kind: "example".to_owned(),
-                    command: "demo::two".to_owned(),
-                    detail: "line one\nline two\ttabbed\\slash".to_owned(),
-                },
-            ]
+            Report {
+                divergences: vec![
+                    Divergence {
+                        kind: "arity".to_owned(),
+                        command: "demo::two".to_owned(),
+                        detail: "declares at most 2, but `demo::two x x x` was accepted".to_owned(),
+                    },
+                    Divergence {
+                        kind: "example".to_owned(),
+                        command: "demo::two".to_owned(),
+                        detail: "line one\nline two\ttabbed\\slash".to_owned(),
+                    },
+                ],
+                asked: vec!["demo::two".to_owned()],
+                done: Some(1),
+            }
         );
-        assert_eq!(parse_report(""), Vec::new());
+        assert_eq!(parse_report(""), Report::default());
+    }
+
+    #[test]
+    fn a_report_without_its_done_line_is_one_the_shell_did_not_finish() {
+        // The package printed a `done` of its own in the middle of a line, which is
+        // not the probe's; the real one never came.
+        let output = "text SPEC-TEST\tdone\t-\t2\n\
+                      SPEC-TEST\tasked\tdemo::one\t\n";
+        let report = parse_report(output);
+        assert_eq!(report.done, None);
+        assert_eq!(report.asked, ["demo::one"]);
+        assert_eq!(
+            parse_report("SPEC-TEST\tdone\t-\tmany\n").done,
+            None,
+            "a count that is not a number says nothing"
+        );
     }
 
     #[test]
@@ -527,6 +622,21 @@ mod tests {
                 && script.contains("::__spec_test::present demo::full\n"),
             "but the package must define it: {script}"
         );
+        // Each command says it is finished with, in order, and the script ends
+        // with the count: a shell that stops anywhere before that line is known
+        // to have.
+        let finished: Vec<&str> = script
+            .lines()
+            .filter(|line| line.starts_with("::__spec_test::asked "))
+            .collect();
+        assert_eq!(
+            finished,
+            [
+                "::__spec_test::asked demo::full",
+                "::__spec_test::asked demo::bare"
+            ]
+        );
+        assert!(script.ends_with("::__spec_test::finish\n"), "{script}");
         // An unlimited maximum is the sentinel the probe skips.
         let mut open = probe("demo::open");
         open.arity = Some(ArityProbe {
