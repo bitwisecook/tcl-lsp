@@ -4159,3 +4159,187 @@ fn a_braced_arm_list_decodes_its_elements_under_the_releases_escapes() {
         }
     }
 }
+
+/// The shared lattice's value for `var`'s version `version` at the top level.
+fn top_value_at(unit: &CompilationUnit, var: &str, version: u32) -> Option<LatticeValue> {
+    let function = &unit.top_level;
+    let symbol = function.ssa.var_symbol(var).expect("the variable");
+    function.sccp.values.get(&(symbol, version)).cloned()
+}
+
+/// The interface page's ordered-state programs, each over `set x 1`: the
+/// expression, the value it has and what `x` holds after it. The seventh
+/// program stops at an error in the middle of its expression and is read
+/// apart.
+const ORDERED_STATE: [(&str, &str, &str); 6] = [
+    ("{$x + [incr x] + $x}", "5", "2"),
+    ("{0 && [incr x]}", "0", "1"),
+    ("{$x + [set x 10] + $x}", "21", "10"),
+    ("{[incr x] + [incr x]}", "5", "3"),
+    ("{$x ? [incr x] : [incr x 10]}", "2", "2"),
+    ("\"$x + [incr x]\"", "3", "2"),
+];
+
+/// The seven programs of the interface page's ordered-state paragraph reach
+/// every consumer: the shared lattice holds the expression's value in `r#1`
+/// and the last write the expression made in `x#2`, in a procedure and at the
+/// top level and under every dialect; the optimiser forwards both into the
+/// reads after it; and each optimised program prints what tclsh 8.4 to 9.1
+/// print. Where the expression is a `puts` argument the statement is not
+/// evaluated, no nested write is folded and `puts $x` still reads `x`, and the
+/// program prints the same. The seventh program, an error between a write and
+/// the end of its expression inside a `catch`, leaves `x` at 2 where it was
+/// taken for 1 before: nothing forwards the earlier value to the read.
+#[test]
+fn the_seven_ordered_state_witnesses() {
+    for (expression, value, after) in ORDERED_STATE {
+        let int = |text: &str| Some(LatticeValue::Const(ConstValue::Int(text.parse().unwrap())));
+        let top = format!("set x 1\nset r [expr {expression}]\nputs $r\nputs $x\n");
+        let in_proc = format!(
+            "proc p {{}} {{\n    set x 1\n    set r [expr {expression}]\n    puts $r\n    puts $x\n}}\np\n"
+        );
+        let shown = format!("{value}\n{after}\n");
+        for dialect in DIALECTS {
+            let unit = unit_of(&in_proc, dialect);
+            assert_eq!(
+                value_at(&unit, "::p", "r", 1),
+                int(value),
+                "{dialect}: {expression}"
+            );
+            assert_eq!(
+                value_at(&unit, "::p", "x", 2),
+                int(after),
+                "{dialect}: {expression}"
+            );
+            let unit = unit_of(&top, dialect);
+            assert_eq!(
+                top_value_at(&unit, "r", 1),
+                int(value),
+                "{dialect}: {expression}"
+            );
+            assert_eq!(
+                top_value_at(&unit, "x", 2),
+                int(after),
+                "{dialect}: {expression}"
+            );
+            for source in [&top, &in_proc] {
+                let (rewritten, rewrites) = optimised(source, dialect);
+                assert!(
+                    rewrites.iter().any(|o| o.code == DiagCode::O100)
+                        && rewritten.contains(&format!("puts {value}"))
+                        && rewritten.contains(&format!("puts {after}"))
+                        && !rewritten.contains("puts $"),
+                    "{dialect}: {expression}\n{rewritten}"
+                );
+            }
+        }
+        prints_under_every_release(&top, &shown);
+        prints_under_every_release(&in_proc, &shown);
+
+        let argument = format!("set x 1\nputs [expr {expression}]\nputs $x\n");
+        for dialect in DIALECTS.iter().filter(|_| value != "0") {
+            let (rewritten, _) = optimised(&argument, dialect);
+            assert!(
+                rewritten.contains("puts $x") && rewritten.contains("expr"),
+                "{dialect}: {expression}\n{rewritten}"
+            );
+        }
+        prints_under_every_release(&argument, &shown);
+    }
+
+    let caught = [
+        "set x 1\ncatch {expr {[incr x] + [error mid]}} msg\nputs $msg\nputs $x\n",
+        "proc p {} {\n    set x 1\n    catch {expr {[incr x] + [error mid]}} msg\n    puts $msg\n    puts $x\n}\np\n",
+    ];
+    for dialect in DIALECTS {
+        assert_eq!(
+            top_value_at(&unit_of(caught[0], dialect), "x", 2),
+            Some(LatticeValue::Overdefined),
+            "{dialect}"
+        );
+        assert_eq!(
+            value_at(&unit_of(caught[1], dialect), "::p", "x", 2),
+            Some(LatticeValue::Overdefined),
+            "{dialect}"
+        );
+        for source in caught {
+            let (rewritten, _) = optimised(source, dialect);
+            assert!(
+                rewritten.contains("set x 1") && rewritten.contains("puts $x"),
+                "{dialect}: nothing forwards the earlier x\n{rewritten}"
+            );
+        }
+    }
+    for source in caught {
+        prints_under_every_release(source, "mid\n2\n");
+    }
+    // The completion code, 1, is read from the options.
+    let coded = "set x 1\ncatch {expr {[incr x] + [error mid]}} msg opts\nputs $msg\n\
+                 puts [dict get $opts -code]\nputs $x\n";
+    assert!(optimised(coded, "tcl8.6").0.contains("puts $x"));
+    prints_under_releases_from(coded, "mid\n1\n2\n", "8.5");
+}
+
+/// A nested write to a place the ordered state cannot own — a qualified
+/// global, a `global` or an `upvar` alias — declines the expression whatever
+/// the write's own answer: the statement is not folded, its nested write stays,
+/// and the optimised program prints what tclsh 8.4 to 9.1 print. Where the
+/// write also reads a place nothing proves (`incr ::g`) the read is what
+/// declines, and a branch the expression never reaches owns nothing, so
+/// `0 && [set ::g 10]` is 0.
+#[test]
+fn a_nested_write_outside_the_state_declines() {
+    let programs = [
+        (
+            "proc p {} {\n set x 1\n set r [expr {$x + [set ::g 10]}]\n puts \"$r $::g\"\n}\np\n",
+            "11 10\n",
+            "declined: stateful-nested",
+        ),
+        (
+            "proc p {} {\n global g\n set x 1\n set r [expr {$x + [set g 10]}]\n puts \"$r $g\"\n}\np\n",
+            "11 10\n",
+            "declined: stateful-nested",
+        ),
+        (
+            "proc p {} {\n upvar 1 v w\n set x 1\n set r [expr {$x + [set w 10]}]\n puts \"$r $w\"\n}\nset v 0\np\n",
+            "11 10\n",
+            "declined: stateful-nested",
+        ),
+        (
+            "set ::g 5\nproc p {} {\n set x 1\n set r [expr {$x + [incr ::g]}]\n puts \"$r $::g\"\n}\np\n",
+            "7 6\n",
+            "declined: not-exact",
+        ),
+    ];
+    for (source, printed, answer) in programs {
+        for dialect in DIALECTS {
+            let unit = unit_of(source, dialect);
+            assert_eq!(
+                answers_for(&unit, "::p", "expr"),
+                [answer],
+                "{dialect}:\n{source}"
+            );
+            assert_eq!(
+                value_at(&unit, "::p", "r", 1),
+                Some(LatticeValue::Overdefined),
+                "{dialect}:\n{source}"
+            );
+            let (rewritten, _) = optimised(source, dialect);
+            assert!(
+                rewritten.contains("expr {$x + [") && rewritten.contains("puts \"$r "),
+                "{dialect}: the statement is kept\n{rewritten}"
+            );
+        }
+        prints_under_every_release(source, printed);
+    }
+
+    let unreached = "proc p {} {\n set r [expr {0 && [set ::g 10]}]\n puts $r\n}\np\n";
+    for dialect in DIALECTS {
+        assert_eq!(
+            value_at(&unit_of(unreached, dialect), "::p", "r", 1),
+            Some(LatticeValue::Const(ConstValue::Int(0))),
+            "{dialect}"
+        );
+    }
+    prints_under_every_release(unreached, "0\n");
+}

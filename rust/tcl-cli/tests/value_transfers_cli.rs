@@ -797,3 +797,156 @@ fn diag_reads_the_decided_loop_header_and_the_dead_respond() {
     assert_eq!(irules(dead), 0);
     assert_eq!(irules(live), 1);
 }
+
+/// `tcl opt --profile full` over `source` under `series`' dialect: the
+/// rewritten program, with the report the verb appends as comments.
+fn opt_under(source: &str, series: &str) -> String {
+    run_tcl(&[
+        "opt",
+        "--source",
+        source,
+        "--profile",
+        "full",
+        "--dialect",
+        &format!("tcl{series}"),
+    ])
+}
+
+/// `opt`'s program without its trailing report.
+fn statements_of(optimised: &str) -> String {
+    optimised
+        .lines()
+        .filter(|line| !line.starts_with('#'))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// The ordered evaluation state's exit evidence: `tcl explore --show sccp`
+/// over the expression that reads `x`, increments it and reads it again
+/// prints the expression's value, 5, as `r#1` and the last write the
+/// expression made, 2, as `x#2`.
+#[test]
+fn explore_sccp_prints_the_ordered_state() {
+    let text = run_tcl(&[
+        "explore",
+        "--source",
+        "proc p {} {set x 1; set r [expr {$x + [incr x] + $x}]; return $x}",
+        "--show",
+        "sccp",
+        "--text",
+        "--no-colour",
+    ]);
+    assert!(text.contains("r#1 = const(5)"), "{text}");
+    assert!(text.contains("x#2 = const(2)"), "{text}");
+}
+
+/// The interface page's seven ordered-state programs through `tcl opt`,
+/// each printing under tclsh 8.4 to 9.1 what the original prints: the value
+/// of the expression and what `x` holds after it, 5 and 2, 0 and 1, 21 and
+/// 10, 5 and 3, 2 and 2, 3 and 2, and — for an error between a write and the
+/// end of the expression inside a `catch` — the message and 2. Both reads
+/// after the expression are the proved values, and the error path's is not.
+#[test]
+fn opt_prints_what_tclsh_prints_for_the_seven_ordered_state_programs() {
+    let expressions = [
+        ("{$x + [incr x] + $x}", "5", "2"),
+        ("{0 && [incr x]}", "0", "1"),
+        ("{$x + [set x 10] + $x}", "21", "10"),
+        ("{[incr x] + [incr x]}", "5", "3"),
+        ("{$x ? [incr x] : [incr x 10]}", "2", "2"),
+        ("\"$x + [incr x]\"", "3", "2"),
+    ];
+    let mut programs: Vec<(String, String, bool)> = expressions
+        .iter()
+        .map(|(expression, value, after)| {
+            (
+                format!("set x 1\nset r [expr {expression}]\nputs $r\nputs $x\n"),
+                format!("{value}\n{after}\n"),
+                true,
+            )
+        })
+        .collect();
+    programs.push((
+        "set x 1\ncatch {expr {[incr x] + [error mid]}} msg\nputs $msg\nputs $x\n".to_owned(),
+        "mid\n2\n".to_owned(),
+        false,
+    ));
+    for (source, printed, forwarded) in &programs {
+        for (series, tclsh) in tclshs_from("8.4") {
+            let optimised = opt_under(source, series);
+            let statements = statements_of(&optimised);
+            let (value, after) = printed.split_once('\n').expect("two lines");
+            if *forwarded {
+                assert!(
+                    statements.contains(&format!("puts {value}\nputs {after}")),
+                    "tcl{series}:\n{optimised}"
+                );
+            } else {
+                assert!(
+                    statements.contains("set x 1") && statements.contains("puts $x"),
+                    "tcl{series}: no earlier x is forwarded\n{optimised}"
+                );
+            }
+            for program in [source.as_str(), optimised.as_str()] {
+                assert_eq!(
+                    run_tclsh(&tclsh, program),
+                    Some((true, printed.clone())),
+                    "tclsh{series}:\n{program}"
+                );
+            }
+        }
+    }
+}
+
+/// #2141's programs through the shipped binary: a write nested in a braced
+/// `expr` word is a write of the frame, so `tcl opt` forwards nothing past it
+/// to the `puts $x` that follows a `puts` argument — `5` then `2` where it
+/// printed `5` then `1` — and keeps the stores the expression reads, so the
+/// optimised program neither raises `can't read "n"` nor answers 3 for
+/// `[incr n] + [incr n]`; `tcl diag` calls neither store unused.
+#[test]
+fn opt_keeps_what_the_issue_2141_programs_read() {
+    let programs = [
+        (
+            "set x 1\nputs [expr {$x + [incr x] + $x}]\nputs $x\n",
+            "5\n2\n",
+            "puts $x",
+        ),
+        (
+            "set x 1\nputs [expr {$x + [set x 10] + $x}]\nputs $x\n",
+            "21\n10\n",
+            "puts $x",
+        ),
+        (
+            "proc p {} {\n    set n 1\n    set r [expr {$n + [incr n]}]\n    return $r\n}\nputs [p]\n",
+            "3\n",
+            "set n 1",
+        ),
+        (
+            "proc q {} {\n    set n 1\n    set r [expr {[incr n] + [incr n]}]\n    return $r\n}\nputs [q]\n",
+            "5\n",
+            "set n 1",
+        ),
+    ];
+    for (source, printed, kept) in programs {
+        for (series, tclsh) in tclshs_from("8.4") {
+            let optimised = opt_under(source, series);
+            assert!(
+                statements_of(&optimised).contains(kept),
+                "tcl{series}:\n{optimised}"
+            );
+            for program in [source, optimised.as_str()] {
+                assert_eq!(
+                    run_tclsh(&tclsh, program),
+                    Some((true, printed.to_owned())),
+                    "tclsh{series}:\n{program}"
+                );
+            }
+        }
+        let found = diagnostics_at(source, "tcl8.6", &[]);
+        assert!(
+            !found.iter().any(|(_, _, code)| code == "W211"),
+            "no store is unused: {found:?}\n{source}"
+        );
+    }
+}
