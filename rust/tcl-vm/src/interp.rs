@@ -861,6 +861,24 @@ struct PackageState {
 /// A compiled function and the manifest of the module it came from.
 pub(crate) type CompiledFunction = (Rc<FunctionAsm>, Option<Arc<ArtefactIdentityManifest>>);
 
+/// The guard machinery's record of command tokens, by token generation.
+#[derive(Default)]
+struct GuardedCommands {
+    /// The stable semantic identities attested for each command token, by the
+    /// token's generation. A generation follows its command through rename and
+    /// hide, and a replacement or deletion leaves the old entry unreachable, so
+    /// an attestation lasts exactly as long as the command it describes.
+    /// Ordinary command registration cannot authorise a fast path.
+    attested: std::cell::RefCell<HashMap<u64, BTreeSet<GuardIdentity>>>,
+    /// The command tokens an embedder registered through
+    /// [`Vm::register_guarded_builtin`]. Such a handler is the embedder's
+    /// implementation of a command and never this VM's own, so a unit
+    /// specialised for the shipped builtin of its name is not admitted over it,
+    /// as it is not over a native command or a procedure. It follows its token
+    /// through rename and hide, as an attestation does.
+    host: HashSet<u64>,
+}
+
 pub struct InterpState {
     /// The Tcl release whose number/expr grammar this VM emulates —
     /// threaded from `DialectProfile::vm_runtime_version` (dialect-profile
@@ -1110,12 +1128,9 @@ pub struct InterpState {
     cmd_epoch: std::cell::Cell<u64>,
     /// Runtime-issued speculative guard tokens and mutation-domain snapshots.
     guards: std::cell::RefCell<GuardManager>,
-    /// The stable semantic identities attested for each command token, by the
-    /// token's generation. A generation follows its command through rename and
-    /// hide, and a replacement or deletion leaves the old entry unreachable, so
-    /// an attestation lasts exactly as long as the command it describes.
-    /// Ordinary command registration cannot authorise a fast path.
-    guarded_commands: std::cell::RefCell<HashMap<u64, BTreeSet<GuardIdentity>>>,
+    /// What is known of command tokens by generation: their guard
+    /// attestations and which of them an embedder registered.
+    guarded_commands: GuardedCommands,
     /// Resolved variable cells whose traces are currently firing. Tcl's guard
     /// lives on each `Var`, so distinct elements of one array remain distinct.
     active_traces: Vec<VarId>,
@@ -2152,7 +2167,7 @@ impl InterpState {
             cmd_resolve_cache: std::cell::RefCell::new((0, HashMap::new())),
             cmd_epoch: std::cell::Cell::new(0),
             guards: std::cell::RefCell::new(guards),
-            guarded_commands: std::cell::RefCell::new(HashMap::new()),
+            guarded_commands: GuardedCommands::default(),
             active_traces: Vec::new(),
             ns_script_frames: Vec::new(),
             out,
@@ -2761,9 +2776,17 @@ impl Vm {
     /// Ordinary builtins deliberately have no such identity. Adding one is an
     /// explicit runtime implementation decision, not an inference from the
     /// command's spelling or handler address.
+    ///
+    /// The handler is the embedder's, whatever its name: compiled code
+    /// specialised for the shipped builtin at the same registry name is not
+    /// admitted over it ([`Self::command_binding_matches`]), so the handler
+    /// answers.
     pub fn register_guarded_builtin(&mut self, name: &str, f: BuiltinFn, identity: GuardIdentity) {
         let canonical = name.strip_prefix("::").unwrap_or(name);
         self.register_attested(canonical, canonical, f, BTreeSet::from([identity]));
+        if let Some(generation) = self.visible_command_generation(canonical).copied() {
+            self.guarded_commands.host.insert(generation);
+        }
     }
 
     /// Register a builtin under its registry's own spelling — rooted, as
@@ -2791,7 +2814,10 @@ impl Vm {
         if let Some(generation) = self.visible_command_generation(&key).copied() {
             self.attest(generation, displaced, identities);
         } else if let Some(displaced) = displaced {
-            self.guarded_commands.borrow_mut().remove(&displaced);
+            self.guarded_commands
+                .attested
+                .borrow_mut()
+                .remove(&displaced);
         }
     }
 
@@ -2799,7 +2825,7 @@ impl Vm {
     /// command token `generation` and drop the entry of the token it displaced.
     /// What is already attested for `generation` stays.
     fn attest(&self, generation: u64, displaced: Option<u64>, identities: BTreeSet<GuardIdentity>) {
-        let mut attested = self.guarded_commands.borrow_mut();
+        let mut attested = self.guarded_commands.attested.borrow_mut();
         if let Some(displaced) = displaced {
             attested.remove(&displaced);
         }
@@ -2897,7 +2923,11 @@ impl Vm {
     fn attested_identities(&self, name: &str) -> Option<BTreeSet<GuardIdentity>> {
         let key = self.resolve_command_fqn(self.current_ns(), name)?;
         let generation = *self.visible_command_generation(&key)?;
-        self.guarded_commands.borrow().get(&generation).cloned()
+        self.guarded_commands
+            .attested
+            .borrow()
+            .get(&generation)
+            .cloned()
     }
 
     /// Verify the live command identity and snapshot the requested mutation
@@ -4671,6 +4701,13 @@ impl Vm {
         })
     }
 
+    /// Whether the builtin bound at `key` is an embedder's handler
+    /// ([`Self::register_guarded_builtin`]) and not one this VM registered.
+    fn is_host_builtin(&self, key: &str) -> bool {
+        self.visible_command_generation(key)
+            .is_some_and(|generation| self.guarded_commands.host.contains(generation))
+    }
+
     /// Whether every executable namespace recorded by a bare function agrees
     /// with the namespace in which an embedder wants to admit it.
     ///
@@ -4718,9 +4755,10 @@ impl Vm {
             }
             match self.commands.get(&key) {
                 Some(Command::Builtin(_)) => {
-                    return self
-                        .builtin_identity_for_key(&key)
-                        .is_some_and(|found| found == binding.identity);
+                    return !self.is_host_builtin(&key)
+                        && self
+                            .builtin_identity_for_key(&key)
+                            .is_some_and(|found| found == binding.identity);
                 }
                 Some(Command::Object(_)) => {
                     return self

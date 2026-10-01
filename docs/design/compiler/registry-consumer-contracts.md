@@ -1551,8 +1551,18 @@ error.
   (`attach_identities` in `runtime/rust/src/interp.rs`), to every builtin
   whose spec declares an intrinsic, from the generation it is pinned to and
   never from a pack overlay, and `execute_intrinsic` implements one of the 28
-  `IntrinsicId` members. Its emitted modules carry no identity: no ABI
-  version, no dialect pin, no registry generation, no pack hashes.
+  `IntrinsicId` members. Each emitted module carries the `tcl.manifest`
+  custom section, written last by `WasmModule::to_bytes` and read by
+  `ArtefactIdentityManifest::from_wasm`: the ABI version, the environment,
+  release and build the unit's dialect resolves to, the package floors, the
+  intrinsic-table hash and the embedded library's revision. Its pack list is
+  empty, because a WASM site records no claim — a guarded fast path is
+  checked against the live command on every call. The runtime exports
+  `tcl_runtime_identity`, and the link harness
+  (`rust/tcl-compiler/tests/common/wasm_link.rs`) refuses a module whose ABI
+  version or intrinsic-table hash disagrees with it, or that states no
+  manifest, before anything is composed; the other fields are the VM's to
+  check.
 - A pack's `codegen_hook`, `inline_codegen_hook`, and `semantic_operation
   {Intrinsic …}` stamps survive the load only as a bundled pack's
   `alias_of` target's own, and are dropped with a warning naming the
