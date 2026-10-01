@@ -728,6 +728,15 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Target-neutral operation identity selected before backend dispatch.",
     ),
     f(
+        "semantic_operation_windows",
+        "Semantic operation windows",
+        HOOKS,
+        FieldKind::RustExpr {
+            hint: "SEMANTIC_OPERATION_WINDOWS",
+        },
+        "Per-release semantic operations, for a command whose target-neutral operation differs across Tcl releases. Empty unless it does; the plain operation is the fallback where no window covers the primary release, and a point that does not settle the release dispatches plain.",
+    ),
+    f(
         "completion",
         "Completion contract",
         EFFECTS,
@@ -792,6 +801,15 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Per-command TclVM bytecode emitter. Unset uses the generic invoke emitter.",
     ),
     f(
+        "codegen_hook_windows",
+        "Bytecode codegen hook windows",
+        HOOKS,
+        FieldKind::RustExpr {
+            hint: "CODEGEN_HOOK_WINDOWS",
+        },
+        "Per-release bytecode emitters, for a command whose TclVM emitter differs across Tcl releases. Empty unless it does; the plain hook is the fallback where no window covers the primary release, and a point that does not settle the release dispatches plain.",
+    ),
+    f(
         "inline_codegen_hook",
         "Inline codegen hook",
         HOOKS,
@@ -800,6 +818,15 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
             optional: true,
         },
         "Emitter for the value-position and catch-body paths.",
+    ),
+    f(
+        "inline_codegen_hook_windows",
+        "Inline codegen hook windows",
+        HOOKS,
+        FieldKind::RustExpr {
+            hint: "INLINE_CODEGEN_HOOK_WINDOWS",
+        },
+        "Per-release value-position emitters; the contract of the bytecode codegen hook windows.",
     ),
     f(
         "bpf_op",
@@ -818,6 +845,15 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
             hint: "Some(NativeLowering::Structured(LoweringHookId::Set))",
         },
         "Which native code shape the executable-IR lowering gives this command; stamped beside the lowering hook or intrinsic it mirrors. Unset is the generic argv invocation.",
+    ),
+    f(
+        "native_lowering_windows",
+        "Native lowering windows",
+        HOOKS,
+        FieldKind::RustExpr {
+            hint: "NATIVE_LOWERING_WINDOWS",
+        },
+        "Per-release native lowering shapes; the contract of the bytecode codegen hook windows. A windowed shape is not a basis for a derived value-transfer specialisation.",
     ),
     f(
         "semantics",
@@ -1737,6 +1773,15 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "TclVM bytecode emitter for this subcommand.",
     ),
     f(
+        "codegen_hook_windows",
+        "Bytecode codegen hook windows",
+        HOOKS,
+        FieldKind::RustExpr {
+            hint: "CODEGEN_HOOK_WINDOWS",
+        },
+        "Per-release bytecode emitters for this subcommand. A subcommand whose windows state nothing at the primary release inherits the command's hook; one whose windows the point does not settle dispatches plain.",
+    ),
+    f(
         "inline_codegen_hook",
         "Inline codegen hook",
         HOOKS,
@@ -1745,6 +1790,15 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
             optional: true,
         },
         "Value-position emitter, overriding the command's when this subcommand matches.",
+    ),
+    f(
+        "inline_codegen_hook_windows",
+        "Inline codegen hook windows",
+        HOOKS,
+        FieldKind::RustExpr {
+            hint: "INLINE_CODEGEN_HOOK_WINDOWS",
+        },
+        "Per-release value-position emitters for this subcommand; the contract of its bytecode codegen hook windows.",
     ),
     f(
         "semantics",
@@ -1864,6 +1918,15 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         HOOKS,
         FieldKind::SemanticOperation,
         "Target-neutral operation identity overriding the parent command.",
+    ),
+    f(
+        "semantic_operation_windows",
+        "Semantic operation windows",
+        HOOKS,
+        FieldKind::RustExpr {
+            hint: "SEMANTIC_OPERATION_WINDOWS",
+        },
+        "Per-release semantic operations for this subcommand; the contract of its bytecode codegen hook windows.",
     ),
     f(
         "completion",

@@ -590,6 +590,12 @@ Named entry points into the compiler for commands that need special-cased loweri
 
 Names the abstract operation the command performs ("list length", "dict get") so the compiler backends can share one implementation across spellings. A closed vocabulary: `invoke` (the generic call every command falls back to), one of the registry's intrinsics, or one of its structured lowerings — SpecTcl writes it `semantic_operation Invoke`, `{Intrinsic ID}` or `{StructuredLowering ID}`. Only meaningful for commands the compiler executes; user packages leave it unset.
 
+### `semantic_operation_windows` — Semantic operation windows
+
+*command and subcommand* — Per-release semantic operations, for a command whose target-neutral operation differs across Tcl releases. Empty unless it does; the plain operation is the fallback where no window covers the primary release, and a point that does not settle the release dispatches plain.
+
+Per-release semantic operations, for the rare command or subcommand whose operation differs between Tcl releases. SpecTcl writes one `semantic_operation SPELLING -introduced V ?-deprecated V? ?-retired V?` row per window, beside the plain row, which stays the operation for every release no window covers. Windows must not overlap. A point that does not settle the release — none pinned, or the whole ladder across a window's edge — selects nothing and the call is dispatched plain, never by a guess between windows. Bundled packs only: the stamp rejection rule treats a windowed stamp as it treats the plain one.
+
 ### `lowering_hook` — Lowering hook
 
 *command and subcommand* — Per-command lowering specialisation in the compiler's dispatch table.
@@ -602,11 +608,23 @@ Compiler internals: picks a specialised translation of this command into the com
 
 Compiler internals: a specialised bytecode emitter for the Tcl VM, mirroring the commands C Tcl byte-compiles specially. Leave unset; the generic "invoke the command" path is always correct.
 
+### `codegen_hook_windows` — Bytecode codegen hook windows
+
+*command and subcommand* — Per-release bytecode emitters, for a command whose TclVM emitter differs across Tcl releases. Empty unless it does; the plain hook is the fallback where no window covers the primary release, and a point that does not settle the release dispatches plain.
+
+Compiler internals: per-release bytecode emitters, for the rare command or subcommand whose Tcl VM emitter differs between Tcl releases. SpecTcl writes one `codegen_hook -native ID -introduced V ?-deprecated V? ?-retired V?` row per window, beside the plain row, which stays the emitter for every release no window covers. Windows must not overlap. A point that does not settle the release — none pinned, or the whole ladder across a window's edge — selects nothing and the call is dispatched plain, never by a guess between windows. Bundled packs only: the stamp rejection rule treats a windowed stamp as it treats the plain one.
+
 ### `inline_codegen_hook` — Inline codegen hook
 
 *command and subcommand* — Emitter for the value-position and catch-body paths.
 
 Compiler internals: the bytecode emitter used when the command sits in value position (`set x [llength $l]`) or in a catch body. Leave unset for user packages.
+
+### `inline_codegen_hook_windows` — Inline codegen hook windows
+
+*command and subcommand* — Per-release value-position emitters; the contract of the bytecode codegen hook windows.
+
+Compiler internals: per-release value-position emitters, written as `inline_codegen_hook -native ID -introduced V ?-deprecated V? ?-retired V?` rows with the contract of the bytecode codegen hook windows.
 
 ### `bpf_op` — BPF-Tcl lowering descriptor
 
@@ -619,6 +637,12 @@ Only for the BPF-Tcl dialect: how this command lowers to a BPF operation. Anythi
 *command only* — Which native code shape the executable-IR lowering gives this command; stamped beside the lowering hook or intrinsic it mirrors. Unset is the generic argv invocation.
 
 Compiler internals: which native code shape the executable-IR lowering gives this command — a structural hook, a cell read-modify-write, an intrinsic, a fixed completion, a scope link, or a definition. It is stamped beside the lowering hook or intrinsic it mirrors; unset means the generic argv invocation through runtime dispatch.
+
+### `native_lowering_windows` — Native lowering windows
+
+*command only* — Per-release native lowering shapes; the contract of the bytecode codegen hook windows. A windowed shape is not a basis for a derived value-transfer specialisation.
+
+Compiler internals: per-release native lowering shapes, with the contract of the bytecode codegen hook windows. Like the plain shape it has no SpecTcl spelling — a pack has nothing to say about the compiler's own native tier. A windowed shape is not a basis for a derived value-transfer specialisation, which reads the plain shape only.
 
 ### `semantics` — Value-transfer declaration
 

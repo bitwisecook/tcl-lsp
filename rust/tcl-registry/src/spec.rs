@@ -49,6 +49,7 @@ use crate::relation::{Relation, RelationFactSource, RelationTermKind, TermHolds}
 use crate::repeated::RepeatedArgLayout;
 use crate::representation::RepresentationEffect;
 use crate::side_effects::{SideEffect, StorageType};
+use crate::stamp_window::StampSelection;
 use crate::state_transition::StateTransitionDescriptor;
 use crate::symbol_def::SymbolDef;
 use crate::taint::{SetterConstraint, TaintColour, TaintTransformCondition};
@@ -1592,6 +1593,13 @@ pub struct CommandSpec {
     /// existing common lowering descriptor supplies a structured operation.
     pub semantic_operation: Option<crate::semantic_operation::SemanticOperationId>,
 
+    /// Per-release semantic operations, for a command whose operation differs
+    /// across Tcl releases. See [`Self::codegen_hook_windows`] for the contract
+    /// every stamp window list shares.
+    pub semantic_operation_windows: &'static [crate::stamp_window::StampWindow<
+        crate::semantic_operation::SemanticOperationId,
+    >],
+
     /// Target-neutral completion semantics for this command.
     ///
     /// A resolved subcommand or invocation form can supply a more-specific
@@ -1636,6 +1644,21 @@ pub struct CommandSpec {
     /// `None` means the generic invoke emitter handles this command.
     pub codegen_hook: Option<CodegenHookId>,
 
+    /// Per-release codegen hooks, for a command whose bytecode emitter differs
+    /// across Tcl releases.
+    ///
+    /// Empty for every shipped command: a stamp that never varied needs no
+    /// windows, and [`Self::codegen_hook`] alone answers. When non-empty, the
+    /// window covering the primary release wins and the unversioned field
+    /// stands where none does; a query that does not settle the release — none
+    /// pinned, or the whole ladder across a window's edge — selects nothing and
+    /// the call is dispatched plain, never by a guess between windows. See
+    /// [`crate::stamp_window::StampSelection`], and read the answer through
+    /// [`Self::codegen_hook_at`]. Windows must not overlap, which the loader
+    /// notices for packs and `registry_sweep` rejects outright for shipped
+    /// specs.
+    pub codegen_hook_windows: &'static [crate::stamp_window::StampWindow<CodegenHookId>],
+
     /// Inline (value-position / catch-body) bytecode codegen hook ID —
     /// picks the per-command emitter on the compiler's
     /// command-substitution and catch-body paths
@@ -1643,6 +1666,11 @@ pub struct CommandSpec {
     /// `tcl_compiler::codegen::control_flow`). `None` means those
     /// paths use their generic invoke emission for this command.
     pub inline_codegen_hook: Option<InlineCodegenHookId>,
+
+    /// Per-release inline codegen hooks; the contract of
+    /// [`Self::codegen_hook_windows`].
+    pub inline_codegen_hook_windows:
+        &'static [crate::stamp_window::StampWindow<InlineCodegenHookId>],
 
     /// Target-neutral native lowering shape — which native code shape the
     /// executable-IR lowering (`tcl_compiler::native_lowering`) gives an
@@ -1652,6 +1680,13 @@ pub struct CommandSpec {
     /// invocation ([`crate::native_lowering::NativeLowering::Generic`]); read
     /// it through [`Self::native_lowering`].
     pub native_lowering: Option<crate::native_lowering::NativeLowering>,
+
+    /// Per-release native lowering shapes; the contract of
+    /// [`Self::codegen_hook_windows`], read through [`Self::native_lowering_at`].
+    /// A windowed shape is not a basis for a derived value-transfer
+    /// specialisation, which reads the unversioned field only.
+    pub native_lowering_windows:
+        &'static [crate::stamp_window::StampWindow<crate::native_lowering::NativeLowering>],
 
     /// The value-transfer specialisation declared at command scope — what an
     /// invocation computes, which storage it writes, and the evaluator route
@@ -2463,6 +2498,7 @@ impl CommandSpec {
         forms: &[],
         command_forms: &[],
         semantic_operation: None,
+        semantic_operation_windows: &[],
         completion: None,
         result_stability: None,
         assigns_variable_at: None,
@@ -2472,8 +2508,11 @@ impl CommandSpec {
         lowering_hook: None,
         bpf_op: None,
         codegen_hook: None,
+        codegen_hook_windows: &[],
         inline_codegen_hook: None,
+        inline_codegen_hook_windows: &[],
         native_lowering: None,
+        native_lowering_windows: &[],
         semantics: SemanticsDeclaration::Inherited,
         analyser_hook: None,
         command_table_effect: None,
@@ -2599,13 +2638,9 @@ impl CommandSpec {
         self.subcommands.iter().find(|s| s.name == name)
     }
 
-    /// All target-neutral intrinsic identities declared anywhere in this
-    /// command's command, subcommand, or invocation-form descriptors.
-    ///
-    /// The result is deduplicated and ordered by [`crate::IntrinsicId`], so a
-    /// runtime can attach every semantic identity to one live implementation
     /// The native lowering shape this command's invocations take, defaulting
-    /// to the generic argv invocation when no descriptor is stamped.
+    /// to the generic argv invocation when no descriptor is stamped. The plain
+    /// field alone: [`Self::native_lowering_at`] reads the windows too.
     #[must_use]
     pub const fn native_lowering(&self) -> crate::native_lowering::NativeLowering {
         match self.native_lowering {
@@ -2614,6 +2649,100 @@ impl CommandSpec {
         }
     }
 
+    /// What this command says about its codegen hook at the point `query` asks
+    /// about: the first [`Self::codegen_hook_windows`] window covering the
+    /// primary release, the unversioned [`Self::codegen_hook`] where none does,
+    /// and a decline where the point does not settle which.
+    #[must_use]
+    pub fn codegen_hook_selection(
+        &self,
+        query: Option<&SurfaceQuery<'_>>,
+    ) -> StampSelection<CodegenHookId> {
+        StampSelection::of(self.codegen_hook, self.codegen_hook_windows, query)
+    }
+
+    /// [`Self::codegen_hook_selection`] as the hook to act on, if any.
+    #[must_use]
+    pub fn codegen_hook_at(&self, query: Option<&SurfaceQuery<'_>>) -> Option<CodegenHookId> {
+        self.codegen_hook_selection(query).stamp()
+    }
+
+    /// [`Self::codegen_hook_selection`] for the inline codegen hook.
+    #[must_use]
+    pub fn inline_codegen_hook_selection(
+        &self,
+        query: Option<&SurfaceQuery<'_>>,
+    ) -> StampSelection<InlineCodegenHookId> {
+        StampSelection::of(
+            self.inline_codegen_hook,
+            self.inline_codegen_hook_windows,
+            query,
+        )
+    }
+
+    /// [`Self::inline_codegen_hook_selection`] as the hook to act on, if any.
+    #[must_use]
+    pub fn inline_codegen_hook_at(
+        &self,
+        query: Option<&SurfaceQuery<'_>>,
+    ) -> Option<InlineCodegenHookId> {
+        self.inline_codegen_hook_selection(query).stamp()
+    }
+
+    /// [`Self::codegen_hook_selection`] for the semantic operation.
+    #[must_use]
+    pub fn semantic_operation_selection(
+        &self,
+        query: Option<&SurfaceQuery<'_>>,
+    ) -> StampSelection<crate::semantic_operation::SemanticOperationId> {
+        StampSelection::of(
+            self.semantic_operation,
+            self.semantic_operation_windows,
+            query,
+        )
+    }
+
+    /// The native lowering shape this command's invocations take at the point
+    /// `query` asks about, the generic argv invocation where it states none or
+    /// the point does not settle which. [`Self::native_lowering`] is the
+    /// unversioned field alone.
+    #[must_use]
+    pub fn native_lowering_at(
+        &self,
+        query: Option<&SurfaceQuery<'_>>,
+    ) -> crate::native_lowering::NativeLowering {
+        StampSelection::of(self.native_lowering, self.native_lowering_windows, query)
+            .stamp()
+            .unwrap_or(crate::native_lowering::NativeLowering::Generic)
+    }
+
+    /// Every `(semantic operation, codegen hook, inline codegen hook)` this
+    /// command's own descriptors could resolve to at some release: the
+    /// unversioned stamps and each window's, in every combination. What a
+    /// surface-blind question asks of a command that may be stamped
+    /// differently at different releases.
+    pub(crate) fn descriptor_combinations(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            Option<crate::semantic_operation::SemanticOperationId>,
+            Option<CodegenHookId>,
+            Option<InlineCodegenHookId>,
+        ),
+    > + '_ {
+        descriptor_combinations(
+            (self.semantic_operation, self.semantic_operation_windows),
+            (self.codegen_hook, self.codegen_hook_windows),
+            (self.inline_codegen_hook, self.inline_codegen_hook_windows),
+        )
+    }
+
+    /// All target-neutral intrinsic identities declared anywhere in this
+    /// command's command, subcommand, or invocation-form descriptors, plain or
+    /// in a stamp window.
+    ///
+    /// The result is deduplicated and ordered by [`crate::IntrinsicId`], so a
+    /// runtime can attach every semantic identity to one live implementation
     /// without knowing the command's subcommand layout.
     #[must_use]
     pub fn intrinsic_ids(&self) -> Vec<crate::IntrinsicId> {
@@ -2625,12 +2754,9 @@ impl CommandSpec {
                 ids.insert(id);
             }
         };
-        add(
-            self.semantic_operation,
-            self.lowering_hook,
-            self.codegen_hook,
-            self.inline_codegen_hook,
-        );
+        for (semantic, codegen, inline_codegen) in self.descriptor_combinations() {
+            add(semantic, self.lowering_hook, codegen, inline_codegen);
+        }
         for form in self.command_forms {
             add(
                 form.semantic_operation,
@@ -2640,12 +2766,9 @@ impl CommandSpec {
             );
         }
         for subcommand in self.subcommands {
-            add(
-                subcommand.semantic_operation,
-                subcommand.lowering_hook,
-                subcommand.codegen_hook,
-                subcommand.inline_codegen_hook,
-            );
+            for (semantic, codegen, inline_codegen) in subcommand.descriptor_combinations() {
+                add(semantic, subcommand.lowering_hook, codegen, inline_codegen);
+            }
             for form in subcommand.subcommand_forms {
                 add(
                     form.semantic_operation,
@@ -3555,11 +3678,22 @@ pub struct SubCommand {
     /// [`CommandSpec::codegen_hook`].
     pub codegen_hook: Option<CodegenHookId>,
 
+    /// Per-release codegen hooks; the contract of
+    /// [`CommandSpec::codegen_hook_windows`]. A subcommand whose windows state
+    /// nothing at the point inherits its command's hook, and one that declines
+    /// does not.
+    pub codegen_hook_windows: &'static [crate::stamp_window::StampWindow<CodegenHookId>],
+
     /// Inline (value-position / catch-body) bytecode codegen hook ID.
     /// See [`CommandSpec::inline_codegen_hook`]. Overrides the
     /// parent's when the call resolves to this subcommand
     /// (`dict get` / `info exists`).
     pub inline_codegen_hook: Option<InlineCodegenHookId>,
+
+    /// Per-release inline codegen hooks; the contract of
+    /// [`CommandSpec::codegen_hook_windows`].
+    pub inline_codegen_hook_windows:
+        &'static [crate::stamp_window::StampWindow<InlineCodegenHookId>],
 
     /// Analyser handler-family hook ID.
     /// See [`CommandSpec::analyser_hook`]. Overrides the parent's when
@@ -3631,6 +3765,12 @@ pub struct SubCommand {
     /// A matching form may override it. `None` inherits the parent command's
     /// semantic operation or its common structural-lowering descriptor.
     pub semantic_operation: Option<crate::semantic_operation::SemanticOperationId>,
+
+    /// Per-release semantic operations; the contract of
+    /// [`CommandSpec::codegen_hook_windows`].
+    pub semantic_operation_windows: &'static [crate::stamp_window::StampWindow<
+        crate::semantic_operation::SemanticOperationId,
+    >],
 
     /// Target-neutral completion semantics for this subcommand.
     ///
@@ -3916,6 +4056,95 @@ impl SubSubCommand {
     }
 }
 
+/// The product of three levels' candidate stamps. See
+/// [`CommandSpec::descriptor_combinations`].
+fn descriptor_combinations<'a>(
+    semantic: (
+        Option<crate::semantic_operation::SemanticOperationId>,
+        &'a [crate::stamp_window::StampWindow<crate::semantic_operation::SemanticOperationId>],
+    ),
+    codegen: (
+        Option<CodegenHookId>,
+        &'a [crate::stamp_window::StampWindow<CodegenHookId>],
+    ),
+    inline_codegen: (
+        Option<InlineCodegenHookId>,
+        &'a [crate::stamp_window::StampWindow<InlineCodegenHookId>],
+    ),
+) -> impl Iterator<
+    Item = (
+        Option<crate::semantic_operation::SemanticOperationId>,
+        Option<CodegenHookId>,
+        Option<InlineCodegenHookId>,
+    ),
+> + 'a {
+    use crate::stamp_window::candidates;
+    candidates(semantic.0, semantic.1).flat_map(move |semantic| {
+        candidates(codegen.0, codegen.1).flat_map(move |codegen| {
+            candidates(inline_codegen.0, inline_codegen.1)
+                .map(move |inline_codegen| (semantic, codegen, inline_codegen))
+        })
+    })
+}
+
+impl SubCommand {
+    /// The subcommand's own descriptor combinations; see
+    /// [`CommandSpec::descriptor_combinations`].
+    pub(crate) fn descriptor_combinations(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            Option<crate::semantic_operation::SemanticOperationId>,
+            Option<CodegenHookId>,
+            Option<InlineCodegenHookId>,
+        ),
+    > + '_ {
+        descriptor_combinations(
+            (self.semantic_operation, self.semantic_operation_windows),
+            (self.codegen_hook, self.codegen_hook_windows),
+            (self.inline_codegen_hook, self.inline_codegen_hook_windows),
+        )
+    }
+
+    /// What this subcommand says about its codegen hook at the point `query`
+    /// asks about; see [`CommandSpec::codegen_hook_selection`]. A subcommand
+    /// that states nothing there inherits its command's answer, and one that
+    /// declines does not.
+    #[must_use]
+    pub fn codegen_hook_selection(
+        &self,
+        query: Option<&SurfaceQuery<'_>>,
+    ) -> StampSelection<CodegenHookId> {
+        StampSelection::of(self.codegen_hook, self.codegen_hook_windows, query)
+    }
+
+    /// [`Self::codegen_hook_selection`] for the inline codegen hook.
+    #[must_use]
+    pub fn inline_codegen_hook_selection(
+        &self,
+        query: Option<&SurfaceQuery<'_>>,
+    ) -> StampSelection<InlineCodegenHookId> {
+        StampSelection::of(
+            self.inline_codegen_hook,
+            self.inline_codegen_hook_windows,
+            query,
+        )
+    }
+
+    /// [`Self::codegen_hook_selection`] for the semantic operation.
+    #[must_use]
+    pub fn semantic_operation_selection(
+        &self,
+        query: Option<&SurfaceQuery<'_>>,
+    ) -> StampSelection<crate::semantic_operation::SemanticOperationId> {
+        StampSelection::of(
+            self.semantic_operation,
+            self.semantic_operation_windows,
+            query,
+        )
+    }
+}
+
 impl SubCommand {
     /// Default value for all fields.
     pub const DEFAULT: Self = Self {
@@ -3948,7 +4177,9 @@ impl SubCommand {
         const_fold_versioned: None,
         lowering_hook: None,
         codegen_hook: None,
+        codegen_hook_windows: &[],
         inline_codegen_hook: None,
+        inline_codegen_hook_windows: &[],
         analyser_hook: None,
         semantics: SemanticsDeclaration::Inherited,
         command_table_effect: None,
@@ -3963,6 +4194,7 @@ impl SubCommand {
         versioned_arg_values: &[],
         subcommand_forms: &[],
         semantic_operation: None,
+        semantic_operation_windows: &[],
         completion: None,
         result_stability: None,
         surface: None,

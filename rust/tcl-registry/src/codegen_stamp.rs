@@ -38,6 +38,7 @@ use crate::intrinsic::IntrinsicId;
 use crate::registry::{CommandRegistry, ResolvedCall};
 use crate::semantic_operation::SemanticOperationId;
 use crate::spec::{CommandSpec, SubCommand};
+use crate::stamp_window::{StampWindow, stamps};
 
 /// One codegen-axis stamp, as the row that states it names it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -73,37 +74,53 @@ pub enum StampSite {
     Form(&'static str),
 }
 
-fn intrinsic(operation: Option<SemanticOperationId>) -> Option<CodegenStamp> {
+fn intrinsic(operation: SemanticOperationId) -> Option<CodegenStamp> {
     match operation {
-        Some(SemanticOperationId::Intrinsic(id)) => Some(CodegenStamp::Intrinsic(id)),
+        SemanticOperationId::Intrinsic(id) => Some(CodegenStamp::Intrinsic(id)),
         _ => None,
     }
 }
 
-fn command_level(spec: &CommandSpec) -> impl Iterator<Item = CodegenStamp> {
-    [
-        spec.codegen_hook.map(CodegenStamp::Codegen),
-        spec.inline_codegen_hook.map(CodegenStamp::InlineCodegen),
-        intrinsic(spec.semantic_operation),
-    ]
-    .into_iter()
-    .flatten()
+/// The stamps one command or subcommand level carries: the unversioned fields
+/// and every window's value, so a windowed stamp is held to the same rule as an
+/// unversioned one and cannot be a way round it.
+fn level_stamps<'a>(
+    codegen: (Option<CodegenHookId>, &'a [StampWindow<CodegenHookId>]),
+    inline_codegen: (
+        Option<InlineCodegenHookId>,
+        &'a [StampWindow<InlineCodegenHookId>],
+    ),
+    semantic: (
+        Option<SemanticOperationId>,
+        &'a [StampWindow<SemanticOperationId>],
+    ),
+) -> impl Iterator<Item = CodegenStamp> + 'a {
+    stamps(codegen.0, codegen.1)
+        .map(CodegenStamp::Codegen)
+        .chain(stamps(inline_codegen.0, inline_codegen.1).map(CodegenStamp::InlineCodegen))
+        .chain(stamps(semantic.0, semantic.1).filter_map(intrinsic))
 }
 
-fn subcommand_level(sub: &SubCommand) -> impl Iterator<Item = CodegenStamp> {
-    [
-        sub.codegen_hook.map(CodegenStamp::Codegen),
-        sub.inline_codegen_hook.map(CodegenStamp::InlineCodegen),
-        intrinsic(sub.semantic_operation),
-    ]
-    .into_iter()
-    .flatten()
+fn command_level(spec: &CommandSpec) -> impl Iterator<Item = CodegenStamp> + '_ {
+    level_stamps(
+        (spec.codegen_hook, spec.codegen_hook_windows),
+        (spec.inline_codegen_hook, spec.inline_codegen_hook_windows),
+        (spec.semantic_operation, spec.semantic_operation_windows),
+    )
+}
+
+fn subcommand_level(sub: &SubCommand) -> impl Iterator<Item = CodegenStamp> + '_ {
+    level_stamps(
+        (sub.codegen_hook, sub.codegen_hook_windows),
+        (sub.inline_codegen_hook, sub.inline_codegen_hook_windows),
+        (sub.semantic_operation, sub.semantic_operation_windows),
+    )
 }
 
 fn form_level(form: &CommandForm) -> impl Iterator<Item = CodegenStamp> {
     [
         form.codegen_hook.map(CodegenStamp::Codegen),
-        intrinsic(form.semantic_operation),
+        form.semantic_operation.and_then(intrinsic),
     ]
     .into_iter()
     .flatten()
@@ -124,6 +141,16 @@ impl CommandSpec {
         for form in self.command_forms {
             out.extend(form_level(form).map(|stamp| (StampSite::Form(form.name), stamp)));
         }
+        // A stamp a level carries in two windows, or beside its unversioned
+        // field, is one stamp at one site.
+        let mut seen = Vec::with_capacity(out.len());
+        out.retain(|entry| {
+            let fresh = !seen.contains(entry);
+            if fresh {
+                seen.push(*entry);
+            }
+            fresh
+        });
         out
     }
 
@@ -245,6 +272,112 @@ mod tests {
             .expect("lassign resolves");
         let stamp = CodegenStamp::Codegen(call.codegen_hook.expect("lassign's own hook"));
         assert_eq!(call.stamp_identity(&registry, stamp), "lassign");
+    }
+
+    /// A stamp in a window is a stamp: a spec carries it, lists it once however
+    /// many windows or fields hold it, and a rule that reads the list sees it.
+    #[test]
+    fn a_windowed_stamp_is_carried_and_listed_once() {
+        use crate::lifecycle::Lifecycle;
+        use crate::semantic_operation::SemanticOperationId;
+        use crate::stamp_window::StampWindow;
+
+        const LASSIGN: &[StampWindow<CodegenHookId>] = &[
+            StampWindow {
+                lifecycle: Lifecycle::UNSPECIFIED.retired_from("9.0"),
+                value: CodegenHookId::Lassign,
+            },
+            StampWindow {
+                lifecycle: Lifecycle::introduced_in("9.0"),
+                value: CodegenHookId::Lassign,
+            },
+        ];
+        const LENGTH: &[StampWindow<SemanticOperationId>] = &[StampWindow {
+            lifecycle: Lifecycle::introduced_in("9.0"),
+            value: SemanticOperationId::Intrinsic(IntrinsicId::StringLength),
+        }];
+        let stamp = CodegenStamp::Codegen(CodegenHookId::Lassign);
+        let length = CodegenStamp::Intrinsic(IntrinsicId::StringLength);
+
+        let windowed_only = CommandSpec {
+            name: "vendor::unpack",
+            codegen_hook_windows: LASSIGN,
+            semantic_operation_windows: LENGTH,
+            ..CommandSpec::DEFAULT
+        };
+        assert!(windowed_only.carries_codegen_stamp_at(StampSite::Command, stamp));
+        assert!(windowed_only.carries_codegen_stamp_at(StampSite::Command, length));
+        assert_eq!(
+            windowed_only.codegen_stamps(),
+            [(StampSite::Command, stamp), (StampSite::Command, length)],
+            "two windows holding one hook are one stamp"
+        );
+
+        let beside = CommandSpec {
+            codegen_hook: Some(CodegenHookId::Lassign),
+            ..windowed_only
+        };
+        assert_eq!(
+            beside.codegen_stamps(),
+            [(StampSite::Command, stamp), (StampSite::Command, length)],
+            "and so is the plain field beside them"
+        );
+
+        let sub = SubCommand {
+            name: "length",
+            semantic_operation_windows: LENGTH,
+            ..SubCommand::DEFAULT
+        };
+        let ensemble = CommandSpec {
+            name: "vendor::str",
+            subcommands: Box::leak(Box::new([sub])),
+            ..CommandSpec::DEFAULT
+        };
+        assert!(ensemble.carries_codegen_stamp_at(StampSite::Subcommand("length"), length));
+        assert!(!ensemble.carries_codegen_stamp_at(StampSite::Command, length));
+        assert_eq!(
+            ensemble.codegen_stamps(),
+            [(StampSite::Subcommand("length"), length)]
+        );
+    }
+
+    /// A call that took its hook from a window records the `alias_of` target's
+    /// identity where the target carries the same stamp, as a plain one does.
+    #[test]
+    fn a_windowed_stamp_records_the_target_s_identity_where_it_is_the_target_s_own() {
+        use crate::lifecycle::Lifecycle;
+        use crate::stamp_window::StampWindow;
+        use tcl_dialect::model::{Family, SurfaceQuery};
+
+        const FROM_9: &[StampWindow<CodegenHookId>] = &[StampWindow {
+            lifecycle: Lifecycle::introduced_in("9.0"),
+            value: CodegenHookId::Lassign,
+        }];
+        let registry = registry_with(CommandSpec {
+            name: "vendor::unpack",
+            alias_of: Some("lassign"),
+            codegen_hook_windows: FROM_9,
+            ..CommandSpec::DEFAULT
+        });
+        let stamp = CodegenStamp::Codegen(CodegenHookId::Lassign);
+        let at_9 = registry
+            .resolve_call(
+                "vendor::unpack",
+                &["$l", "a"],
+                Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+            )
+            .expect("the pack command resolves");
+        assert_eq!(at_9.codegen_hook, Some(CodegenHookId::Lassign));
+        assert_eq!(at_9.stamp_site(stamp), StampSite::Command);
+        assert_eq!(at_9.stamp_identity(&registry, stamp), "lassign");
+        let at_8 = registry
+            .resolve_call(
+                "vendor::unpack",
+                &["$l", "a"],
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            )
+            .expect("the pack command resolves");
+        assert_eq!(at_8.codegen_hook, None, "no window covers 8.6");
     }
 
     /// Sites are matched by name: `string length`'s intrinsic is carried at

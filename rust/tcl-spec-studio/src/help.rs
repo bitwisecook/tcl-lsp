@@ -374,6 +374,18 @@ or `{StructuredLowering ID}`. Only meaningful for commands the compiler \
 executes; user packages leave it unset.",
     ),
     (
+        "semantic_operation_windows",
+        "Per-release semantic operations, for the rare command or subcommand \
+whose operation differs between Tcl releases. SpecTcl writes one \
+`semantic_operation SPELLING -introduced V ?-deprecated V? ?-retired V?` row \
+per window, beside the plain row, which stays the operation for every release \
+no window covers. Windows must not overlap. A point that does not settle the \
+release — none pinned, or the whole ladder across a window's edge — selects \
+nothing and the call is dispatched plain, never by a guess between windows. \
+Bundled packs only: the stamp rejection rule treats a windowed stamp as it \
+treats the plain one.",
+    ),
+    (
         "completion",
         "Which of Tcl's completion codes the command can finish with — \
 normal return, `error`, `break`, `continue`, `return` — and what it \
@@ -428,10 +440,28 @@ mirroring the commands C Tcl byte-compiles specially. Leave unset; the \
 generic \"invoke the command\" path is always correct.",
     ),
     (
+        "codegen_hook_windows",
+        "Compiler internals: per-release bytecode emitters, for the rare command \
+or subcommand whose Tcl VM emitter differs between Tcl releases. SpecTcl \
+writes one `codegen_hook -native ID -introduced V ?-deprecated V? ?-retired V?` \
+row per window, beside the plain row, which stays the emitter for every \
+release no window covers. Windows must not overlap. A point that does not \
+settle the release — none pinned, or the whole ladder across a window's edge — \
+selects nothing and the call is dispatched plain, never by a guess between \
+windows. Bundled packs only: the stamp rejection rule treats a windowed stamp \
+as it treats the plain one.",
+    ),
+    (
         "inline_codegen_hook",
         "Compiler internals: the bytecode emitter used when the command sits \
 in value position (`set x [llength $l]`) or in a catch body. Leave unset \
 for user packages.",
+    ),
+    (
+        "inline_codegen_hook_windows",
+        "Compiler internals: per-release value-position emitters, written as \
+`inline_codegen_hook -native ID -introduced V ?-deprecated V? ?-retired V?` \
+rows with the contract of the bytecode codegen hook windows.",
     ),
     (
         "bpf_op",
@@ -445,6 +475,14 @@ gives this command — a structural hook, a cell read-modify-write, an \
 intrinsic, a fixed completion, a scope link, or a definition. It is stamped \
 beside the lowering hook or intrinsic it mirrors; unset means the generic \
 argv invocation through runtime dispatch.",
+    ),
+    (
+        "native_lowering_windows",
+        "Compiler internals: per-release native lowering shapes, with the \
+contract of the bytecode codegen hook windows. Like the plain shape it has no \
+SpecTcl spelling — a pack has nothing to say about the compiler's own native \
+tier. A windowed shape is not a basis for a derived value-transfer \
+specialisation, which reads the plain shape only.",
     ),
     (
         "semantics",

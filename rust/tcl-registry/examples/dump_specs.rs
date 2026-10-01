@@ -625,7 +625,10 @@ fn main() {
         fields.push(format!("\"body_kind\":{}", json_str(&body_kind)));
         // codegen-registry dimensions.
         fields.push(format!("\"has_lowering\":{}", spec.lowering_hook.is_some()));
-        fields.push(format!("\"has_codegen\":{}", spec.codegen_hook.is_some()));
+        fields.push(format!(
+            "\"has_codegen\":{}",
+            spec.codegen_hook.is_some() || !spec.codegen_hook_windows.is_empty()
+        ));
         fields.push(format!(
             "\"has_const_fold\":{}",
             spec.const_fold.is_some() || spec.const_fold_versioned.is_some()

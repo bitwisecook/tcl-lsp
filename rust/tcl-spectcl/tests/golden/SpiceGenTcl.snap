@@ -11,8 +11,8 @@ dialects []
 registrations 5
 notices 0
 commands 5
-command ::SpiceGenTcl::Ngspice::BasicDevices::Resistor line 41 overrides false degraded false spec bcb198b6fd60d967 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
-command ::SpiceGenTcl::Ngspice::BasicDevices::R line 138 overrides false degraded false spec 7e73b5b1bb318909 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
-command ::SpiceGenTcl::Device line 164 overrides false degraded false spec 20bff73f0b573043 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
-command ::SpiceGenTcl::Ngspice::Simulators::Batch line 226 overrides false degraded false spec 4b3b1fd74c2f0aa4 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
-command ::SpiceGenTcl::Ngspice::Simulators::BatchLiveLog line 277 overrides false degraded false spec 4a09ead7375082d8 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command ::SpiceGenTcl::Ngspice::BasicDevices::Resistor line 41 overrides false degraded false spec 29c0358f46a500ec hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command ::SpiceGenTcl::Ngspice::BasicDevices::R line 138 overrides false degraded false spec ceaef0d6db83b1f5 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command ::SpiceGenTcl::Device line 164 overrides false degraded false spec d16f4e3f7d493441 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command ::SpiceGenTcl::Ngspice::Simulators::Batch line 226 overrides false degraded false spec 186f460b5cc64887 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command ::SpiceGenTcl::Ngspice::Simulators::BatchLiveLog line 277 overrides false degraded false spec c79c1111582e219e hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9

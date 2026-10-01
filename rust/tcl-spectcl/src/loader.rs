@@ -148,6 +148,7 @@ use tcl_registry::spec::{
     BytePayloadSpec, CaseListSpec, CommandSpec, DefaultFormFirstWord, OptionPlacement, SubCommand,
     SubSubCommand,
 };
+use tcl_registry::stamp_window::StampWindow;
 use tcl_registry::state_transition::{
     StateTransitionArgumentShape, StateTransitionCommit, StateTransitionComposition,
     StateTransitionDescriptor, StateTransitionDomain, StateTransitionOperandLayout,
@@ -2207,6 +2208,128 @@ fn checked_arity_windows(
                     "{what} arity window {:?} overlaps {:?}, which would make the \
                      signature depend on declaration order; the later one is dropped",
                     window.arity, clash.arity
+                ),
+            );
+            continue;
+        }
+        kept.push(window);
+    }
+    leak_slice(kept)
+}
+
+/// How a stamp statement is gated: not at all, to a window, or not usably.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StampGate {
+    /// No lifecycle flag: the stamp is the command's plain one, for every
+    /// release.
+    Plain,
+    /// `-introduced V ?-deprecated V? ?-retired V?`: one window of the stamp.
+    Window(Lifecycle),
+    /// A lifecycle that cannot be selected at any release; the row is dropped.
+    Dropped,
+}
+
+/// The lifecycle flags a stamp statement may end with, read from word `from`
+/// on (`SpecTcl` 2.2).
+///
+/// A gated row is one *window* of a stamp that is not the same at every
+/// release, and several may be declared for one command. An impossibly ordered
+/// window is dropped and not widened to every release, unlike an `arity`
+/// window, which degrades to the plain arity: a stamp applied at a release its
+/// author never meant it for specialises there, where a signature only gates
+/// less.
+fn stamp_gate(stmt: &Stmt, from: usize, what: &str, log: &mut Log) -> StampGate {
+    let words = &stmt.words;
+    let mut lifecycle = Lifecycle::UNSPECIFIED;
+    let mut gated = false;
+    let mut i = from;
+    while i < words.len() {
+        let flag = words[i].text.clone();
+        if lifecycle_flag(&mut lifecycle, &flag, words, &mut i) {
+            log.since(stmt.line, &flag, "2.2");
+            gated = true;
+        } else {
+            log.unknown_flag(stmt.word_text(0), stmt.line, &flag);
+        }
+        i += 1;
+    }
+    if !gated {
+        return StampGate::Plain;
+    }
+    let lifecycle = checked_lifecycle(lifecycle, &format!("{what} window"), stmt.line, log);
+    if lifecycle == Lifecycle::UNSPECIFIED {
+        log.say(
+            stmt.line,
+            format!(
+                "{what} window dropped: a stamp widened to every release would specialise \
+                 where its author never meant it to"
+            ),
+        );
+        return StampGate::Dropped;
+    }
+    StampGate::Window(lifecycle)
+}
+
+/// Whether a form's stamp statement is the plain, ungated row a form can carry.
+///
+/// A form is already a shape picked out by the call's arguments, and it has no
+/// window list to put a gated row in. A row that asks for one is dropped with a
+/// notice and not read as an ungated stamp, which would apply it at every
+/// release.
+fn form_stamp_is_plain(stmt: &Stmt, from: usize, what: &str, log: &mut Log) -> bool {
+    if stamp_gate(stmt, from, what, log) == StampGate::Plain {
+        return true;
+    }
+    log.say(
+        stmt.line,
+        format!(
+            "{what} on a form takes no lifecycle window; the row is dropped — declare the \
+             windows on the command or the subcommand"
+        ),
+    );
+    false
+}
+
+/// Put one stamp statement's value where its gate says: the unversioned field
+/// for a plain row, the window list for a gated one, nowhere for a dropped one.
+fn place_stamp<T: Copy>(
+    value: Option<T>,
+    gate: StampGate,
+    unversioned: &mut Option<T>,
+    windows: &mut Vec<StampWindow<T>>,
+) {
+    match gate {
+        StampGate::Plain => *unversioned = value,
+        StampGate::Window(lifecycle) => {
+            if let Some(value) = value {
+                windows.push(StampWindow { lifecycle, value });
+            }
+        }
+        StampGate::Dropped => {}
+    }
+}
+
+/// The stamp windows a body declared, with overlapping ones dropped.
+///
+/// The twin of [`checked_arity_windows`]: two windows covering one release make
+/// the stamp depend on declaration order, which a pack cannot have meant. The
+/// pack keeps the first and gets a notice naming the one dropped.
+fn checked_stamp_windows<T: Copy + fmt::Debug>(
+    windows: Vec<StampWindow<T>>,
+    what: &str,
+    field: &str,
+    line: u32,
+    log: &mut Log,
+) -> &'static [StampWindow<T>] {
+    let mut kept: Vec<StampWindow<T>> = Vec::with_capacity(windows.len());
+    for window in windows {
+        if let Some(clash) = kept.iter().find(|other| other.overlaps(&window)) {
+            log.say(
+                line,
+                format!(
+                    "{what} {field} window {:?} overlaps {:?}, which would make the stamp \
+                     depend on declaration order; the later one is dropped",
+                    window.value, clash.value
                 ),
             );
             continue;
@@ -5764,6 +5887,9 @@ fn scoped_command_row(
 struct CommandAcc {
     args: ArgRows,
     arity_windows: Vec<ArityWindow>,
+    codegen_hook_windows: Vec<StampWindow<CodegenHookId>>,
+    inline_codegen_hook_windows: Vec<StampWindow<InlineCodegenHookId>>,
+    semantic_operation_windows: Vec<StampWindow<SemanticOperationId>>,
     options: Vec<OptionSpec>,
     forms: Vec<FormSpec>,
     refinements: Vec<CommandForm>,
@@ -5878,6 +6004,27 @@ fn command_from_parts(
         spec.command_prefixes = leak_slice(args.prefixes);
         spec.callback_taint_inputs = leak_slice(callback_taint_inputs);
         spec.arity_windows = checked_arity_windows(acc.arity_windows, "command", line, log);
+        spec.codegen_hook_windows = checked_stamp_windows(
+            acc.codegen_hook_windows,
+            "command",
+            "codegen_hook",
+            line,
+            log,
+        );
+        spec.inline_codegen_hook_windows = checked_stamp_windows(
+            acc.inline_codegen_hook_windows,
+            "command",
+            "inline_codegen_hook",
+            line,
+            log,
+        );
+        spec.semantic_operation_windows = checked_stamp_windows(
+            acc.semantic_operation_windows,
+            "command",
+            "semantic_operation",
+            line,
+            log,
+        );
         spec.options = checked_option_effect_families(
             acc.options,
             &acc.option_effect_families,
@@ -6665,16 +6812,38 @@ fn apply_command_stmt(
         // A codegen-axis stamp is read as written; whether it survives is
         // the stamp rejection rule's call, made on the merged command at its
         // provenance (`crate::stamps`), which reports a refusal on this row.
-        "codegen_hook" => spec.codegen_hook = native_id(stmt, CODEGEN_HOOKS, "codegen hook", log),
+        "codegen_hook" => {
+            let gate = stamp_gate(stmt, 3, "codegen hook", log);
+            let id = native_id(stmt, CODEGEN_HOOKS, "codegen hook", log);
+            place_stamp(
+                id,
+                gate,
+                &mut spec.codegen_hook,
+                &mut acc.codegen_hook_windows,
+            );
+        }
         "inline_codegen_hook" => {
-            spec.inline_codegen_hook =
-                native_id(stmt, INLINE_CODEGEN_HOOKS, "inline codegen hook", log);
+            let gate = stamp_gate(stmt, 3, "inline codegen hook", log);
+            let id = native_id(stmt, INLINE_CODEGEN_HOOKS, "inline codegen hook", log);
+            place_stamp(
+                id,
+                gate,
+                &mut spec.inline_codegen_hook,
+                &mut acc.inline_codegen_hook_windows,
+            );
         }
         "analyser_hook" => {
             spec.analyser_hook = native_id(stmt, ANALYSER_HOOKS, "analyser hook", log);
         }
         "semantic_operation" => {
-            spec.semantic_operation = parse_semantic_operation(&value, stmt.line, log);
+            let gate = stamp_gate(stmt, 2, "semantic operation", log);
+            let operation = parse_semantic_operation(&value, stmt.line, log);
+            place_stamp(
+                operation,
+                gate,
+                &mut spec.semantic_operation,
+                &mut acc.semantic_operation_windows,
+            );
         }
 
         // Tcl-body hooks.
@@ -7779,9 +7948,7 @@ fn apply_refine_stmt(
                 );
             }
         }
-        "semantic_operation" => {
-            form.semantic_operation = parse_semantic_operation(&value, stmt.line, log);
-        }
+        "semantic_operation" => form_semantic_operation(form, stmt, &value, log),
         "result_stability" => {
             if let Some(stability) = result_stability_row(stmt, log) {
                 form.result_stability = Some(stability);
@@ -7797,10 +7964,22 @@ fn apply_refine_stmt(
         "lowering_hook" => {
             form.lowering_hook = native_id(stmt, LOWERING_HOOKS, "lowering hook", log);
         }
-        "codegen_hook" => {
-            form.codegen_hook = native_id(stmt, CODEGEN_HOOKS, "codegen hook", log);
-        }
+        "codegen_hook" => form_codegen_hook(form, stmt, log),
         _ => log.unknown_property(stmt),
+    }
+}
+
+/// A form's `semantic_operation` row, which is the plain stamp or nothing.
+fn form_semantic_operation(form: &mut CommandForm, stmt: &Stmt, value: &str, log: &mut Log) {
+    if form_stamp_is_plain(stmt, 2, "semantic operation", log) {
+        form.semantic_operation = parse_semantic_operation(value, stmt.line, log);
+    }
+}
+
+/// A form's `codegen_hook` row, which is the plain stamp or nothing.
+fn form_codegen_hook(form: &mut CommandForm, stmt: &Stmt, log: &mut Log) {
+    if form_stamp_is_plain(stmt, 3, "codegen hook", log) {
+        form.codegen_hook = native_id(stmt, CODEGEN_HOOKS, "codegen hook", log);
     }
 }
 
@@ -7835,6 +8014,9 @@ fn selector_row(stmt: &Stmt, log: &mut Log) -> Option<LiteralArgumentPrefix> {
 struct SubAcc {
     args: ArgRows,
     arity_windows: Vec<ArityWindow>,
+    codegen_hook_windows: Vec<StampWindow<CodegenHookId>>,
+    inline_codegen_hook_windows: Vec<StampWindow<InlineCodegenHookId>>,
+    semantic_operation_windows: Vec<StampWindow<SemanticOperationId>>,
     options: Vec<OptionSpec>,
     refinements: Vec<CommandForm>,
     side_effects: Vec<SideEffect>,
@@ -7914,6 +8096,22 @@ fn subcommand_from_parts(
         sub.command_prefixes = leak_slice(args.prefixes);
         sub.callback_taint_inputs = leak_slice(callback_taint_inputs);
         sub.arity_windows = checked_arity_windows(acc.arity_windows, kind, line, log);
+        sub.codegen_hook_windows =
+            checked_stamp_windows(acc.codegen_hook_windows, kind, "codegen_hook", line, log);
+        sub.inline_codegen_hook_windows = checked_stamp_windows(
+            acc.inline_codegen_hook_windows,
+            kind,
+            "inline_codegen_hook",
+            line,
+            log,
+        );
+        sub.semantic_operation_windows = checked_stamp_windows(
+            acc.semantic_operation_windows,
+            kind,
+            "semantic_operation",
+            line,
+            log,
+        );
         sub.options = checked_option_effect_families(
             acc.options,
             &acc.option_effect_families,
@@ -8175,16 +8373,38 @@ fn apply_subcommand_stmt(
         "lowering_hook" => {
             sub.lowering_hook = native_id(stmt, LOWERING_HOOKS, "lowering hook", log);
         }
-        "codegen_hook" => sub.codegen_hook = native_id(stmt, CODEGEN_HOOKS, "codegen hook", log),
+        "codegen_hook" => {
+            let gate = stamp_gate(stmt, 3, "codegen hook", log);
+            let id = native_id(stmt, CODEGEN_HOOKS, "codegen hook", log);
+            place_stamp(
+                id,
+                gate,
+                &mut sub.codegen_hook,
+                &mut acc.codegen_hook_windows,
+            );
+        }
         "inline_codegen_hook" => {
-            sub.inline_codegen_hook =
-                native_id(stmt, INLINE_CODEGEN_HOOKS, "inline codegen hook", log);
+            let gate = stamp_gate(stmt, 3, "inline codegen hook", log);
+            let id = native_id(stmt, INLINE_CODEGEN_HOOKS, "inline codegen hook", log);
+            place_stamp(
+                id,
+                gate,
+                &mut sub.inline_codegen_hook,
+                &mut acc.inline_codegen_hook_windows,
+            );
         }
         "analyser_hook" => {
             sub.analyser_hook = native_id(stmt, ANALYSER_HOOKS, "analyser hook", log);
         }
         "semantic_operation" => {
-            sub.semantic_operation = parse_semantic_operation(&value, stmt.line, log);
+            let gate = stamp_gate(stmt, 2, "semantic operation", log);
+            let operation = parse_semantic_operation(&value, stmt.line, log);
+            place_stamp(
+                operation,
+                gate,
+                &mut sub.semantic_operation,
+                &mut acc.semantic_operation_windows,
+            );
         }
         "callback_taint_inputs" => {
             log.v12(stmt.line, "callback_taint_inputs");
@@ -10020,6 +10240,205 @@ mod tests {
         );
         let said = |needle: &str| pack.notices.iter().any(|n| n.message.contains(needle));
         assert!(said("arity window"), "{:?}", pack.notices);
+    }
+
+    /// A stamp and its three releases, as the tests read a window.
+    type StampRow<T> = (
+        T,
+        Option<&'static str>,
+        Option<&'static str>,
+        Option<&'static str>,
+    );
+
+    fn stamp_rows<T: Copy>(windows: &[StampWindow<T>]) -> Vec<StampRow<T>> {
+        windows
+            .iter()
+            .map(|window| {
+                (
+                    window.value,
+                    window.lifecycle.introduced,
+                    window.lifecycle.deprecated,
+                    window.lifecycle.retired,
+                )
+            })
+            .collect()
+    }
+
+    /// A stamp statement that ends in lifecycle flags is one window of the
+    /// stamp, and the plain statement beside it stays the stamp for every
+    /// release no window covers (`SpecTcl` 2.2). The same at command and
+    /// subcommand scope.
+    #[test]
+    fn stamp_windows_load_beside_the_plain_stamp() {
+        let pack = evaluate_pack(
+            "speclib probe 2.2 {\n command demo {\n \
+             codegen_hook -native Lassign\n \
+             codegen_hook -native Llength -introduced 9.0\n \
+             inline_codegen_hook -native Expr -retired 9.0\n \
+             semantic_operation {Intrinsic StringLength} -introduced 9.0 -deprecated 9.1\n \
+             subcommand get {\n \
+             codegen_hook -native Dict -introduced 9.0\n \
+             inline_codegen_hook -native Expr -introduced 8.6 -retired 9.0\n \
+             semantic_operation {Intrinsic Concat} -introduced 9.0\n \
+             }\n }\n}",
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        let spec = pack.command("demo").expect("demo loads").spec;
+        assert_eq!(spec.codegen_hook, Some(CodegenHookId::Lassign));
+        assert_eq!(
+            stamp_rows(spec.codegen_hook_windows),
+            [(CodegenHookId::Llength, Some("9.0"), None, None)]
+        );
+        assert_eq!(spec.inline_codegen_hook, None);
+        assert_eq!(
+            stamp_rows(spec.inline_codegen_hook_windows),
+            [(InlineCodegenHookId::Expr, None, None, Some("9.0"))]
+        );
+        assert_eq!(spec.semantic_operation, None);
+        assert_eq!(
+            stamp_rows(spec.semantic_operation_windows),
+            [(
+                SemanticOperationId::Intrinsic(IntrinsicId::StringLength),
+                Some("9.0"),
+                Some("9.1"),
+                None
+            )]
+        );
+        let sub = &spec.subcommands[0];
+        assert_eq!(sub.codegen_hook, None);
+        assert_eq!(
+            stamp_rows(sub.codegen_hook_windows),
+            [(CodegenHookId::Dict, Some("9.0"), None, None)]
+        );
+        assert_eq!(
+            stamp_rows(sub.inline_codegen_hook_windows),
+            [(InlineCodegenHookId::Expr, Some("8.6"), None, Some("9.0"))]
+        );
+        assert_eq!(
+            stamp_rows(sub.semantic_operation_windows),
+            [(
+                SemanticOperationId::Intrinsic(IntrinsicId::Concat),
+                Some("9.0"),
+                None,
+                None
+            )]
+        );
+    }
+
+    /// Two windows covering one release make the stamp depend on declaration
+    /// order. The pack keeps the first and is told.
+    #[test]
+    fn overlapping_stamp_windows_draw_a_notice_and_the_later_one_is_dropped() {
+        let pack = evaluate_pack(
+            "speclib probe 2.2 {\n command demo {\n \
+             codegen_hook -native Lassign -introduced 8.6\n \
+             codegen_hook -native Llength -introduced 9.0\n \
+             }\n}",
+        );
+        let spec = pack.command("demo").expect("demo loads").spec;
+        assert_eq!(
+            stamp_rows(spec.codegen_hook_windows),
+            [(CodegenHookId::Lassign, Some("8.6"), None, None)],
+            "the first"
+        );
+        assert!(
+            pack.notices
+                .iter()
+                .any(|n| n.message.contains("codegen_hook window")
+                    && n.message.contains("overlaps")
+                    && n.message.contains("dropped")),
+            "{:?}",
+            pack.notices
+        );
+    }
+
+    /// A rejected lifecycle comes back UNSPECIFIED, which as a window would
+    /// cover every release. An arity window degrades to the plain arity, which
+    /// only gates less; a stamp widened to every release would specialise where
+    /// its author never meant it to, so the row is dropped.
+    #[test]
+    fn a_stamp_window_with_an_impossible_lifecycle_is_dropped_and_not_widened() {
+        let pack = evaluate_pack(
+            "speclib probe 2.2 {\n command demo {\n \
+             codegen_hook -native Lassign -introduced 9.0 -retired 8.6\n \
+             }\n}",
+        );
+        let spec = pack.command("demo").expect("demo loads").spec;
+        assert_eq!(spec.codegen_hook, None, "not the plain stamp");
+        assert!(spec.codegen_hook_windows.is_empty());
+        let said = |needle: &str| pack.notices.iter().any(|n| n.message.contains(needle));
+        assert!(said("codegen hook window"), "{:?}", pack.notices);
+        assert!(said("dropped"), "{:?}", pack.notices);
+    }
+
+    /// A form is already a shape the call's arguments pick out and has no window
+    /// list, so a gated stamp on one is dropped with a notice — never read as an
+    /// ungated stamp that applies at every release.
+    #[test]
+    fn a_stamp_on_a_form_takes_no_window() {
+        let pack = evaluate_pack(
+            "speclib probe 2.2 {\n command demo {\n arity 0..\n \
+             refine pair {\n arity 2\n codegen_hook -native Lassign -introduced 9.0\n }\n \
+             refine whole {\n arity 1\n codegen_hook -native Llength\n }\n }\n}",
+        );
+        let spec = pack.command("demo").expect("demo loads").spec;
+        let hook = |name: &str| {
+            spec.command_forms
+                .iter()
+                .find(|form| form.name == name)
+                .expect("the form loads")
+                .codegen_hook
+        };
+        assert_eq!(hook("pair"), None, "the gated stamp is not applied");
+        assert_eq!(
+            hook("whole"),
+            Some(CodegenHookId::Llength),
+            "an ungated one is"
+        );
+        assert!(
+            pack.notices
+                .iter()
+                .any(|n| n.message.contains("takes no lifecycle window")),
+            "{:?}",
+            pack.notices
+        );
+    }
+
+    /// Anything after a stamp's id that is not a lifecycle flag is a notice, not
+    /// silence: a mistyped flag would otherwise leave a window ungated.
+    #[test]
+    fn an_unknown_flag_on_a_stamp_statement_is_noticed() {
+        let pack = evaluate_pack(
+            "speclib probe 2.2 {\n command demo {\n \
+             codegen_hook -native Lassign -introdced 9.0\n \
+             }\n}",
+        );
+        assert!(
+            pack.notices
+                .iter()
+                .any(|n| n.message.contains("unknown flag") && n.message.contains("codegen_hook")),
+            "{:?}",
+            pack.notices
+        );
+    }
+
+    /// The window flags are 2.2 vocabulary, noticed per site under an older
+    /// declaration as every newer word is.
+    #[test]
+    fn stamp_window_flags_under_an_older_declaration_draw_a_per_site_notice() {
+        let pack = evaluate_pack(
+            "speclib probe 2.0 {\n command demo {\n \
+             codegen_hook -native Lassign -introduced 9.0\n \
+             }\n}",
+        );
+        assert!(
+            pack.notices
+                .iter()
+                .any(|n| n.message.contains("is SpecTcl 2.2 vocabulary")
+                    && n.message.contains("declare `speclib probe 2.2`")),
+            "{:?}",
+            pack.notices
+        );
     }
 
     /// An impossibly-ordered window lifecycle comes back UNSPECIFIED, which

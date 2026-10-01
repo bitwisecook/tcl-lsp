@@ -113,6 +113,7 @@ pub mod side_effects;
 pub mod snapshot;
 pub mod spec;
 pub mod special_vars;
+pub mod stamp_window;
 pub mod state_transition;
 pub mod substitution;
 pub mod symbol_def;

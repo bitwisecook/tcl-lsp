@@ -3303,4 +3303,40 @@ command add_parameter {\narity 1..\n}\n}\n";
         assert_eq!(installed.arity.min, 2, "and keeps every other fact");
         assert_eq!(installed.alias_of, Some("lassign"));
     }
+
+    /// A stamp in a window is a stamp: the draft keeps the row, the report
+    /// names it, and the installed world drops it from the windows.
+    #[test]
+    fn a_windowed_stamp_is_kept_in_the_document_and_dropped_from_the_installed_world() {
+        let store = PackStore::from_source(
+            "speclib vendor 2.2 {\n    command vendor::unpack {\n        arity 2..\n        \
+             alias_of lassign\n        codegen_hook -native Lassign -introduced 9.0\n    }\n}\n",
+        );
+        let draft = store.draft("vendor::unpack").expect("a draft");
+        assert_eq!(
+            draft["codegen_hook_windows"][0]["value"],
+            serde_json::json!("Lassign"),
+            "the draft keeps the window as written: {draft:?}"
+        );
+        assert_eq!(
+            store.stamp_refusals(),
+            vec![(
+                2,
+                "`codegen_hook Lassign` refused for `vendor::unpack`: a trusted workspace pack \
+                 may not name a codegen catalogue member; only a bundled pack may carry \
+                 `alias_of lassign`'s own stamp"
+                    .to_owned()
+            )]
+        );
+
+        let registry =
+            tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &store.pack_set());
+        let installed = registry.get("vendor::unpack").expect("installed");
+        assert!(
+            installed.codegen_hook_windows.is_empty(),
+            "no window survives"
+        );
+        assert_eq!(installed.arity.min, 2, "and every other fact does");
+        assert_eq!(installed.alias_of, Some("lassign"));
+    }
 }

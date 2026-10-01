@@ -216,6 +216,35 @@ pub(crate) fn arity_windows(windows: &[tcl_registry::arity::ArityWindow]) -> Val
     )
 }
 
+/// One list of [`tcl_registry::stamp_window::StampWindow`]s as a draft value —
+/// the stamps a command or subcommand carries over spans of the Tcl releases,
+/// each as the value the plain stamp's own draft key holds.
+pub(crate) fn stamp_windows<T: Copy>(
+    windows: &[tcl_registry::stamp_window::StampWindow<T>],
+    value: impl Fn(T) -> Value,
+) -> Value {
+    Value::Array(
+        windows
+            .iter()
+            .map(|window| {
+                json!({
+                    "value": value(window.value),
+                    "lifecycle": {
+                        "introduced": opt_str(window.lifecycle.introduced),
+                        "deprecated": opt_str(window.lifecycle.deprecated),
+                        "retired": opt_str(window.lifecycle.retired),
+                    },
+                })
+            })
+            .collect::<Vec<_>>(),
+    )
+}
+
+/// A hook id as the draft holds it: its catalogue variant's name.
+fn hook_name<T: std::fmt::Debug + Copy + 'static>(hook: T) -> Value {
+    json!(catalogue::variant_name(&hook))
+}
+
 fn appended_arity(value: AppendedArity) -> Value {
     match value {
         AppendedArity::Exactly(n) => json!({ "kind": "Exactly", "n": n }),
@@ -1521,6 +1550,12 @@ fn subcommand_hooks(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
         semantic_operation(sub.semantic_operation),
     );
     d.insert(
+        "semantic_operation_windows".into(),
+        stamp_windows(sub.semantic_operation_windows, |operation| {
+            semantic_operation(Some(operation))
+        }),
+    );
+    d.insert(
         "completion".into(),
         lost.expr("completion", sub.completion.is_some()),
     );
@@ -1538,6 +1573,14 @@ fn subcommand_hooks(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
         "inline_codegen_hook".into(),
         sub.inline_codegen_hook
             .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
+    );
+    d.insert(
+        "codegen_hook_windows".into(),
+        stamp_windows(sub.codegen_hook_windows, hook_name),
+    );
+    d.insert(
+        "inline_codegen_hook_windows".into(),
+        stamp_windows(sub.inline_codegen_hook_windows, hook_name),
     );
     d.insert("semantics".into(), semantics_value(sub.semantics, lost));
     d.insert(
@@ -1868,6 +1911,13 @@ fn command_identity(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         "native_lowering".into(),
         lost.expr("native_lowering", spec.native_lowering.is_some()),
     );
+    d.insert(
+        "native_lowering_windows".into(),
+        lost.expr(
+            "native_lowering_windows",
+            !spec.native_lowering_windows.is_empty(),
+        ),
+    );
     d.insert("semantics".into(), semantics_value(spec.semantics, lost));
     d.insert(
         "clause_shape_check".into(),
@@ -1994,6 +2044,12 @@ fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         semantic_operation(spec.semantic_operation),
     );
     d.insert(
+        "semantic_operation_windows".into(),
+        stamp_windows(spec.semantic_operation_windows, |operation| {
+            semantic_operation(Some(operation))
+        }),
+    );
+    d.insert(
         "completion".into(),
         lost.expr("completion", spec.completion.is_some()),
     );
@@ -2011,6 +2067,14 @@ fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         "inline_codegen_hook".into(),
         spec.inline_codegen_hook
             .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
+    );
+    d.insert(
+        "codegen_hook_windows".into(),
+        stamp_windows(spec.codegen_hook_windows, hook_name),
+    );
+    d.insert(
+        "inline_codegen_hook_windows".into(),
+        stamp_windows(spec.inline_codegen_hook_windows, hook_name),
     );
     d.insert(
         "analyser_hook".into(),

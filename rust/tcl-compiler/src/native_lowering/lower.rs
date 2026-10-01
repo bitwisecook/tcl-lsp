@@ -839,7 +839,7 @@ impl<'a> Lowerer<'a> {
                             .iter()
                             .all(|domain| site.covers.contains(domain))
                 });
-            match spec.native_lowering() {
+            match spec.native_lowering_at(self.input.registry.own_surface_query().as_ref()) {
                 NativeLowering::Intrinsic {
                     id: IntrinsicId::ChannelWrite,
                     arity,
@@ -1332,7 +1332,8 @@ impl<'a> Lowerer<'a> {
         if let Ok(RegistryInvocationResolution::Resolved(facts)) =
             resolve_word_exprs(self.input.registry, self.input.context, &inner)
             && let Some(spec) = self.input.registry.get(&facts.canonical_command)
-            && spec.native_lowering() == NativeLowering::Structured(LoweringHookId::Expr)
+            && spec.native_lowering_at(self.input.registry.own_surface_query().as_ref())
+                == NativeLowering::Structured(LoweringHookId::Expr)
             && inner.len() == 2
             && let WordExpr::BracedLiteral { text, .. } = &inner[1]
             && self.command_trusted(&facts.canonical_command)

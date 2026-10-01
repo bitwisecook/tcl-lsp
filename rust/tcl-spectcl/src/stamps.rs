@@ -90,7 +90,9 @@ use tcl_dialect::model::Provenance;
 use tcl_registry::forms::CommandForm;
 use tcl_registry::model::capability::{CodegenCapability, DependencyTier, ReferenceBodies};
 use tcl_registry::registry::CommandRegistry;
+use tcl_registry::semantic_operation::SemanticOperationId;
 use tcl_registry::spec::{CommandSpec, SubCommand};
+use tcl_registry::stamp_window::StampWindow;
 use tcl_registry::{BodySource, RuntimeBacking};
 
 use crate::backing::BackingSyntax;
@@ -575,20 +577,69 @@ fn drop_stamp(spec: &mut CommandSpec, site: StampSite, stamp: CodegenStamp) {
     }
 }
 
+/// Clear the unversioned field when it holds `stamp`'s value, and every window
+/// that does: a windowed stamp is the same stamp, and refusing one must not
+/// leave it standing in a window.
 fn clear_command(spec: &mut CommandSpec, stamp: CodegenStamp) {
     match stamp {
-        CodegenStamp::Codegen(_) => spec.codegen_hook = None,
-        CodegenStamp::InlineCodegen(_) => spec.inline_codegen_hook = None,
-        CodegenStamp::Intrinsic(_) => spec.semantic_operation = None,
+        CodegenStamp::Codegen(id) => {
+            clear_field(&mut spec.codegen_hook, &id);
+            spec.codegen_hook_windows = without_windows(spec.codegen_hook_windows, id);
+        }
+        CodegenStamp::InlineCodegen(id) => {
+            clear_field(&mut spec.inline_codegen_hook, &id);
+            spec.inline_codegen_hook_windows =
+                without_windows(spec.inline_codegen_hook_windows, id);
+        }
+        CodegenStamp::Intrinsic(id) => {
+            let operation = SemanticOperationId::Intrinsic(id);
+            clear_field(&mut spec.semantic_operation, &operation);
+            spec.semantic_operation_windows =
+                without_windows(spec.semantic_operation_windows, operation);
+        }
     }
 }
 
 fn clear_subcommand(sub: &mut SubCommand, stamp: CodegenStamp) {
     match stamp {
-        CodegenStamp::Codegen(_) => sub.codegen_hook = None,
-        CodegenStamp::InlineCodegen(_) => sub.inline_codegen_hook = None,
-        CodegenStamp::Intrinsic(_) => sub.semantic_operation = None,
+        CodegenStamp::Codegen(id) => {
+            clear_field(&mut sub.codegen_hook, &id);
+            sub.codegen_hook_windows = without_windows(sub.codegen_hook_windows, id);
+        }
+        CodegenStamp::InlineCodegen(id) => {
+            clear_field(&mut sub.inline_codegen_hook, &id);
+            sub.inline_codegen_hook_windows = without_windows(sub.inline_codegen_hook_windows, id);
+        }
+        CodegenStamp::Intrinsic(id) => {
+            let operation = SemanticOperationId::Intrinsic(id);
+            clear_field(&mut sub.semantic_operation, &operation);
+            sub.semantic_operation_windows =
+                without_windows(sub.semantic_operation_windows, operation);
+        }
     }
+}
+
+fn clear_field<T: PartialEq>(field: &mut Option<T>, stamp: &T) {
+    if field.as_ref() == Some(stamp) {
+        *field = None;
+    }
+}
+
+/// `windows` without the ones that carry `stamp`, leaking a new slice only when
+/// one was there to drop.
+fn without_windows<T: Copy + PartialEq>(
+    windows: &'static [StampWindow<T>],
+    stamp: T,
+) -> &'static [StampWindow<T>] {
+    if windows.iter().all(|window| window.value != stamp) {
+        return windows;
+    }
+    let kept: Vec<StampWindow<T>> = windows
+        .iter()
+        .filter(|window| window.value != stamp)
+        .copied()
+        .collect();
+    Box::leak(kept.into_boxed_slice())
 }
 
 fn clear_form(form: &mut CommandForm, stamp: CodegenStamp) {
@@ -752,6 +803,166 @@ mod tests {
             "the second reload leaks nothing"
         );
         assert_eq!(first.codegen_hook, None);
+    }
+
+    /// A stamp in a window is held to the same two gates and the same target
+    /// rule as the plain one, and a refusal drops it from the windows — and
+    /// leaves every other stamp and window where it was.
+    #[test]
+    fn a_windowed_stamp_is_refused_and_dropped_as_the_plain_one_is() {
+        use tcl_registry::lifecycle::Lifecycle;
+
+        const FROM_9: &[StampWindow<CodegenHookId>] = &[StampWindow {
+            lifecycle: Lifecycle::introduced_in("9.0"),
+            value: CodegenHookId::Lassign,
+        }];
+        const LLENGTH_FROM_9: &[StampWindow<CodegenHookId>] = &[StampWindow {
+            lifecycle: Lifecycle::introduced_in("9.0"),
+            value: CodegenHookId::Llength,
+        }];
+        let windowed = |alias_of, plain| CommandSpec {
+            name: "vendor::unpack",
+            alias_of,
+            codegen_hook: plain,
+            codegen_hook_windows: FROM_9,
+            ..CommandSpec::DEFAULT
+        };
+
+        // `lassign`'s own stamp, in a window, from a bundled pack.
+        let mut kept = command(windowed(Some("lassign"), None));
+        let before = kept.spec;
+        assert!(admit_codegen_stamps(&mut kept, Provenance::BundledPack, shipped()).is_empty());
+        assert!(
+            std::ptr::eq(kept.spec, before),
+            "an admitted stamp keeps its spec"
+        );
+
+        // The same from the workspace tier: refused, and the window goes with
+        // the plain stamp beside it.
+        let mut tiered = command(windowed(Some("lassign"), Some(CodegenHookId::Llength)));
+        let refusals = admit_codegen_stamps(&mut tiered, Provenance::WorkspaceTrusted, shipped());
+        assert_eq!(refusals.len(), 2);
+        assert!(
+            refusals
+                .iter()
+                .all(|refusal| refusal.reason == RefusalReason::TierGate)
+        );
+        assert_eq!(tiered.spec.codegen_hook, None);
+        assert!(tiered.spec.codegen_hook_windows.is_empty());
+        assert!(!carries_stamp(tiered.spec));
+
+        // A bundled pack's plain stamp that is not its target's own goes, and
+        // the window that is stays.
+        let mut partly = command(windowed(Some("lassign"), Some(CodegenHookId::Llength)));
+        let refusals = admit_codegen_stamps(&mut partly, Provenance::BundledPack, shipped());
+        assert_eq!(refusals.len(), 1);
+        assert_eq!(
+            refusals[0].stamp,
+            CodegenStamp::Codegen(CodegenHookId::Llength)
+        );
+        assert_eq!(
+            refusals[0].reason,
+            RefusalReason::NotTheTargetsOwn("lassign")
+        );
+        assert_eq!(partly.spec.codegen_hook, None);
+        assert_eq!(partly.spec.codegen_hook_windows, FROM_9);
+
+        // Refusing a window's stamp leaves a different plain stamp alone.
+        let mut mixed = command(CommandSpec {
+            name: "vendor::unpack",
+            alias_of: Some("lassign"),
+            codegen_hook: Some(CodegenHookId::Lassign),
+            codegen_hook_windows: LLENGTH_FROM_9,
+            ..CommandSpec::DEFAULT
+        });
+        let refusals = admit_codegen_stamps(&mut mixed, Provenance::BundledPack, shipped());
+        assert_eq!(refusals.len(), 1);
+        assert_eq!(
+            refusals[0].stamp,
+            CodegenStamp::Codegen(CodegenHookId::Llength)
+        );
+        assert_eq!(
+            mixed.spec.codegen_hook,
+            Some(CodegenHookId::Lassign),
+            "the plain stamp is the target's own and stays"
+        );
+        assert!(mixed.spec.codegen_hook_windows.is_empty());
+
+        // A windowed stamp is not the target's own where the target is not the
+        // builtin that carries it.
+        let mut foreign = command(windowed(Some("lsort"), None));
+        let refusals = admit_codegen_stamps(&mut foreign, Provenance::BundledPack, shipped());
+        assert_eq!(refusals.len(), 1);
+        assert_eq!(refusals[0].reason, RefusalReason::NotTheTargetsOwn("lsort"));
+        assert!(foreign.spec.codegen_hook_windows.is_empty());
+
+        // And none at all without an `alias_of`.
+        let mut bare = command(windowed(None, None));
+        let refusals = admit_codegen_stamps(&mut bare, Provenance::BundledPack, shipped());
+        assert_eq!(refusals[0].reason, RefusalReason::NoAliasOf);
+        assert!(bare.spec.codegen_hook_windows.is_empty());
+    }
+
+    /// A subcommand's windows are the same stamps at the subcommand's site.
+    #[test]
+    fn a_windowed_subcommand_stamp_is_dropped_at_its_own_site_only() {
+        use tcl_registry::lifecycle::Lifecycle;
+
+        const LENGTH_FROM_9: &[StampWindow<SemanticOperationId>] = &[StampWindow {
+            lifecycle: Lifecycle::introduced_in("9.0"),
+            value: SemanticOperationId::Intrinsic(IntrinsicId::StringLength),
+        }];
+        let length = SubCommand {
+            name: "length",
+            semantic_operation_windows: LENGTH_FROM_9,
+            ..SubCommand::DEFAULT
+        };
+        let other = SubCommand {
+            name: "range",
+            semantic_operation_windows: LENGTH_FROM_9,
+            ..SubCommand::DEFAULT
+        };
+        let mut refused = command(CommandSpec {
+            name: "vendor::str",
+            alias_of: None,
+            subcommands: Box::leak(Box::new([length, other])),
+            ..CommandSpec::DEFAULT
+        });
+        let refusals = admit_codegen_stamps(&mut refused, Provenance::BundledPack, shipped());
+        assert_eq!(refusals.len(), 2);
+        assert!(
+            refused
+                .spec
+                .subcommands
+                .iter()
+                .all(|sub| sub.semantic_operation_windows.is_empty())
+        );
+        assert_eq!(
+            refused
+                .spec
+                .subcommands
+                .iter()
+                .map(|sub| sub.name)
+                .collect::<Vec<_>>(),
+            ["length", "range"],
+            "only the stamps go"
+        );
+
+        let mut admitted = command(CommandSpec {
+            name: "vendor::str",
+            alias_of: Some("string"),
+            subcommands: Box::leak(Box::new([SubCommand {
+                name: "length",
+                semantic_operation_windows: LENGTH_FROM_9,
+                ..SubCommand::DEFAULT
+            }])),
+            ..CommandSpec::DEFAULT
+        });
+        assert!(admit_codegen_stamps(&mut admitted, Provenance::BundledPack, shipped()).is_empty());
+        assert_eq!(
+            admitted.spec.subcommands[0].semantic_operation_windows,
+            LENGTH_FROM_9
+        );
     }
 
     /// A command a package ships, at `tier`: `lassign`'s own stamp, `alias_of

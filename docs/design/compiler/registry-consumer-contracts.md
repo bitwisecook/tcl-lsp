@@ -1929,7 +1929,14 @@ refuses survives:
    the command itself, its subcommand of the same name, or its form of the
    same name. `CodegenHookId::Lassign` on a pack's `vendor::unpack` is
    refused unless that command declares `alias_of lassign`, and the
-   refusal names the target it would have had to name.
+   refusal names the target it would have had to name. A stamp in a window
+   (`codegen_hook -native ID -introduced V`) is the same stamp: a level's
+   stamps are its plain fields and every window's value, so the rule holds a
+   windowed stamp to the same target and the same gates, lists one that
+   several windows hold once, and drops it from the windows when it refuses.
+   The rule compares the stamp's identity with the target's and not the
+   window it sits in, so a bundled pack's window is reviewed against its
+   target's and not compared by the loader.
 2. **A tier gate decides who may stamp at all.** A codegen-axis stamp is
    admitted from `Provenance::BuiltIn` and `Provenance::BundledPack`
    (`stamps_admitted_from`) and refused from `User`, `WorkspaceTrusted`,
@@ -1953,9 +1960,12 @@ refuses survives:
    `lowering_hook`, `analyser_hook`, `semantic_operation`,
    `state_transitions`, `native_lowering`, `bpf_op`, and `runtime_backing`
    through any override, from any tier: an override keeps the shipped
-   command's value for each whenever the shipped command has one. The floor
-   reads command-level values; the same fields on a subcommand or a form are
-   not restored, and the stamp rule above covers only the stamps among them.
+   command's value for each whenever the shipped command has one. The
+   windows beside the four stamps follow them: a command that ships a stamp,
+   plain or in a window, takes the shipped windows over the override's, which
+   would select a different stamp at some release. The floor reads
+   command-level values; the same fields on a subcommand or a form are not
+   restored, and the stamp rule above covers only the stamps among them.
 
 Rules 1 to 4 are built.
 
@@ -2204,15 +2214,22 @@ struct ArtefactIdentityManifest {
 Every spec fact is scoped as availability rows asked at the point the
 environment resolves, with package placements as floors and realms deciding
 binding at the call site. A codegen-axis fact is versioned the way arity
-already is: ordered rows, first covering row wins, selected at the primary,
-and declining to plain dispatch whenever a declared target range disagrees
-with the primary — a decline the per-target evaluator narrows once it
-exists, and never a silent choice of one row.
+already is: ordered windows beside the plain field, first covering window
+wins, selected at the primary release the call is resolved at. It differs from
+arity in what a doubt costs, because a stamp applied at a release that does not
+have it emits wrong code. A point that does not settle the release — a query
+with none pinned, or one over the whole ladder across a window's edge — selects
+nothing and the call is dispatched plain, and a subcommand whose windows decline
+is not answered by its command's stamp: a decline is never a silent choice of
+one row. A target range a document or project declares has no reader here,
+because no host that compiles takes one; a per-target evaluator would narrow
+the decline once it exists.
 
 | Plumbing gap | Today | Fix |
 |---|---|---|
 | release for versioned evaluation | `TclVersion::from_profile` answers the profile's `DialectProfile::evaluation_point`: a Tcl release's own, the base of a vendor fork whose release was measured (iRules, iApps and tmsh answer 8.4), and none for a profile nothing measured, whose folds keep to the answer every modelled release gives. The value-transfer routes' own base-release rule reads `DialectProfile::runtime_version` directly (`TargetSemantics::of`, `docs/design/compiler/value-evaluation.md` § *Target semantics*), so a vendor base nothing measured (`expect`, the EDA shells) is held back for the versioned folds and not for the routes | the routes' unmeasured bases reach the same gate, or the catalogue records their measurement; the hook context already carries `dialect` and `tcl-version` keys |
 | package version windows | `SurfaceQuery::packages` holds each package with the floor the context guarantees of it (`PackageFloor`), from a pack's `ambient_package` row and the profile's library pin, and a package row windowed on the package's own axis is admitted only where the floor lies in a window; a package with no stated floor admits every window. A pack's own `available {package NAME RANGE}` still validates the range and drops it, and the assembled registry's declaration lowering still covers a package's whole axis | the loader projects the range onto the row it builds, and `declarations_for_spec` answers the same windows against the package axis's primary |
+| codegen stamp windows | `StampWindow<T>` slices beside `codegen_hook`, `inline_codegen_hook`, `semantic_operation` and `native_lowering` on a command and the first three on a subcommand, read through `StampSelection` at the point `resolve_call` and `resolve_invocation` are asked at. A pack states a window as `-introduced` / `-deprecated` / `-retired` on the three statements, overlapping ones are noticed and an impossible one is dropped, and the stamp rule and the security floor see windows as they see the plain stamps. The value-transfer derivation reads the plain `native_lowering` only | a declared target range that disagrees with the primary; a stamp rule that compares a window with its target's; a spelling for a native lowering window |
 | the shared compilation unit | `compilation_unit` resolves the overlay's registry, keyed on the analysis context, and abstains with no unit when the overlay is not installed; `BytecodeCompileService::for_profile_with_overlay` gives the compile service the same generation and declines to compile without it. No shipped host builds that service: the `tclvm` engine takes an owned registry and the language server compiles no bytecode | a host that runs code compiled against a workspace's packs takes the overlay by key through that door; delivering it is a prerequisite for every rung above zero *for emitted code* |
 | implemented in C, Tcl, or built in | no declaration anywhere | `RuntimeBacking` on the package placement row for the registry and on the manifest and lockfile for the package manager; evidence, not proof; consumed by the resolver's load edge, realm binding knowledge, and the container generator |
 | packages shipping specs | beside a `tclpkg.tcl` manifest and in library installs. A manifest's `spec` directive names the packs it ships and the tier it asks for them at, and the lockfile records a hash of each; a manifest without one keeps the scan of every pack beside it. Discovery places a pack beside a manifest by the lockfile's graph (`PackFile::dependency_tier`), held to the tier the package's position gives it when the directive asks for a nearer one, and the load applies the capability matrix to its codegen-axis stamps, `alias_of` and `runtime_backing` | the matrix extended to reference bodies; native-identity resolution for the body families; and `tcl spec test`, which runs the package's implementation under the package manager's sandbox policy, never at editor load |

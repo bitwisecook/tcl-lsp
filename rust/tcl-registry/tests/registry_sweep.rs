@@ -65,6 +65,7 @@ use tcl_registry::hover::FormKind;
 use tcl_registry::lifecycle::Lifecycle;
 use tcl_registry::profiles::ProfileRegistry;
 use tcl_registry::side_effects::SideEffectTarget;
+use tcl_registry::stamp_window::StampWindow;
 use tcl_registry::taint::TaintColour;
 // `registry_for_dialect` is deliberately *not* imported: this file defines its
 // own below, routing the sweep through the shipped `.tclspec` loadables so the
@@ -350,6 +351,127 @@ fn arity_window_gate_rejects_each_malformed_shape() {
         &[window(None, None, Arity::new(5, 2))],
         Lifecycle::UNSPECIFIED,
         "a window whose own arity has min > max",
+    );
+}
+
+/// Assert the invariants of a list of codegen-axis stamp windows.
+///
+/// A shipped-spec hard gate, like the arity windows': a pack degrades with a
+/// notice, a compiled-in spec fails the suite. Two properties, each a way a
+/// window set can be meaningless rather than merely unusual:
+///
+/// 1. every window's `Lifecycle` is ordered — an impossible window can never be
+///    selected;
+/// 2. no two windows overlap, because two stamps claiming one release make the
+///    selection depend on declaration order.
+///
+/// There is no containment check against the owner's own lifecycle: a stamp
+/// window is on the Tcl core's axis, and a package-owned command's lifecycle is
+/// on its package's.
+fn assert_stamp_windows_consistent<T: Copy>(windows: &[StampWindow<T>], what: &str) {
+    for (i, window) in windows.iter().enumerate() {
+        assert!(
+            window.lifecycle.validate().is_ok(),
+            "{what}: stamp window {i} has an impossible lifecycle"
+        );
+        for (j, other) in windows.iter().enumerate().skip(i + 1) {
+            assert!(
+                !window.overlaps(other),
+                "{what}: stamp windows {i} and {j} both cover a release"
+            );
+        }
+    }
+}
+
+/// Every stamp window list a command and its subcommands carry, through the
+/// gate above.
+fn assert_spec_stamp_windows_consistent(spec: &tcl_registry::CommandSpec, what: &str) {
+    assert_stamp_windows_consistent(spec.codegen_hook_windows, &format!("{what} codegen_hook"));
+    assert_stamp_windows_consistent(
+        spec.inline_codegen_hook_windows,
+        &format!("{what} inline_codegen_hook"),
+    );
+    assert_stamp_windows_consistent(
+        spec.semantic_operation_windows,
+        &format!("{what} semantic_operation"),
+    );
+    assert_stamp_windows_consistent(
+        spec.native_lowering_windows,
+        &format!("{what} native_lowering"),
+    );
+    for sub in spec.subcommands {
+        let what = format!("{what} {}", sub.name);
+        assert_stamp_windows_consistent(sub.codegen_hook_windows, &format!("{what} codegen_hook"));
+        assert_stamp_windows_consistent(
+            sub.inline_codegen_hook_windows,
+            &format!("{what} inline_codegen_hook"),
+        );
+        assert_stamp_windows_consistent(
+            sub.semantic_operation_windows,
+            &format!("{what} semantic_operation"),
+        );
+    }
+}
+
+/// No shipped spec carries two stamp windows that cover one release, or one
+/// that cannot be selected at any — and the gate that says so is live, not
+/// vacuous.
+///
+/// Every shipped spec currently declares empty stamp windows, so the sweep
+/// passes trivially and would keep passing if the gate's body were deleted.
+/// The malformed shapes below are what it exists to reject.
+#[test]
+fn stamp_windows_never_overlap() {
+    fn window(
+        introduced: Option<&'static str>,
+        retired: Option<&'static str>,
+        value: u8,
+    ) -> StampWindow<u8> {
+        StampWindow {
+            lifecycle: Lifecycle {
+                introduced,
+                deprecated: None,
+                retired,
+                deprecation_fix: None,
+            },
+            value,
+        }
+    }
+    fn rejects(windows: &[StampWindow<u8>], why: &str) {
+        let caught = std::panic::catch_unwind(|| {
+            assert_stamp_windows_consistent(windows, "probe");
+        });
+        assert!(caught.is_err(), "the gate must reject {why}");
+    }
+
+    let reg = CommandRegistry::build_default();
+    for name in reg.command_names() {
+        for spec in reg.specs(name) {
+            assert_spec_stamp_windows_consistent(spec, name);
+        }
+    }
+
+    // A well-formed pair is accepted, so the cases below fail for their stated
+    // reason and not because the helper rejects everything.
+    assert_stamp_windows_consistent(
+        &[window(None, Some("9.0"), 1), window(Some("9.0"), None, 2)],
+        "probe",
+    );
+    rejects(
+        &[window(Some("9.0"), Some("8.6"), 1)],
+        "a window retired before it was introduced",
+    );
+    rejects(
+        &[window(None, Some("9.0"), 1), window(Some("8.6"), None, 2)],
+        "two windows that both cover 8.6",
+    );
+    rejects(
+        &[window(None, None, 1), window(None, None, 2)],
+        "two unbounded windows",
+    );
+    rejects(
+        &[window(Some("9.0"), None, 1), window(Some("9.1"), None, 1)],
+        "two windows of one stamp that both cover 9.1",
     );
 }
 
