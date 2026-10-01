@@ -198,7 +198,7 @@ fn case_list_head(
             switch_mode_of(case.default_mode).ok_or("case list with a specialised comparison")?;
         return Ok((0, mode, false));
     }
-    let (i, mode, nocase, unknown) = parse_switch_options(args);
+    let (i, mode, nocase, unknown, _) = parse_switch_options(args);
     // An unrecognised / arg-taking option (`-foo`, `-matchvar`, …): bail to
     // the runtime `switch`, which validates options and does the var writes.
     if unknown {
@@ -235,25 +235,29 @@ fn case_list_unrepresentable(case: &CaseListSpec, pairs: &[SwitchPair]) -> Optio
 }
 
 /// Parse switch options, returning `(first_non_option_index, mode, nocase,
-/// unknown)`. `unknown` is set when a leading `-word` is not one of the options
-/// the compiler inlines (`-exact`/`-glob`/`-regexp`/`-nocase`/`--`) — an
-/// arg-taking `-indexvar`/`-matchvar`, or an invalid option such as `-foo`. The
-/// caller bails the whole switch to the runtime command, which validates the
-/// option set (tclsh rejects `-foo`) and handles the side-channel writes.
+/// unknown, ended)`. `unknown` is set when a leading `-word` is not one of the
+/// options the compiler inlines (`-exact`/`-glob`/`-regexp`/`-nocase`/`--`) —
+/// an arg-taking `-indexvar`/`-matchvar`, or an invalid option such as `-foo`.
+/// The caller bails the whole switch to the runtime command, which validates
+/// the option set (tclsh rejects `-foo`) and handles the side-channel writes.
+/// `ended` is set when `--` closed the options, so the next word is the
+/// subject whatever it spells.
 ///
-/// `pub(crate)` so the opaque-switch emitter can ask the same question this
-/// answers for lowering — which argument the subject is — rather than keeping
-/// a second copy of the option rule. There is one owner of "where do the
-/// options end", and this is it.
-pub(crate) fn parse_switch_options(args: &[String]) -> (usize, SwitchMode, bool, bool) {
+/// `pub(crate)` so the dispatch chain's lowering can ask the same question
+/// this answers for this lowering — which argument the subject is, and whether
+/// `--` stands before it — rather than keeping a second copy of the option
+/// rule. There is one owner of "where do the options end", and this is it.
+pub(crate) fn parse_switch_options(args: &[String]) -> (usize, SwitchMode, bool, bool, bool) {
     let mut i = 0;
     let mut mode = SwitchMode::Exact;
     let mut nocase = false;
     let mut unknown = false;
+    let mut ended = false;
     while i < args.len() && args[i].starts_with('-') {
         match args[i].as_str() {
             "--" => {
                 i += 1;
+                ended = true;
                 break;
             }
             "-exact" => mode = SwitchMode::Exact,
@@ -267,7 +271,7 @@ pub(crate) fn parse_switch_options(args: &[String]) -> (usize, SwitchMode, bool,
         }
         i += 1;
     }
-    (i, mode, nocase, unknown)
+    (i, mode, nocase, unknown, ended)
 }
 
 /// The pattern/body pairs of `switch`'s multi-word form, from word `start`

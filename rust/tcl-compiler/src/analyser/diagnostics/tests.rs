@@ -7224,6 +7224,152 @@ fn an_opaque_switch_reports_the_arms_it_never_selects() {
     assert!(reported(quoted, "tcl9.1").is_empty());
 }
 
+/// The I231 messages `source` draws under `dialect`, which the whole-file walk
+/// and the per-item walk must draw alike.
+fn i231_messages(source: &str, dialect: &str) -> Vec<String> {
+    let collect = |result: crate::analyser::types::AnalysisResult| -> Vec<String> {
+        result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::I231)
+            .map(|d| d.message.clone())
+            .collect()
+    };
+    let whole = collect(Analyser::new().analyse(source, dialect));
+    let per_item = collect(Analyser::new().analyse_per_item(source, dialect));
+    assert_eq!(whole, per_item, "{dialect}: the two walks agree\n{source}");
+    whole
+}
+
+/// `source` as the body of a procedure, which the per-item walk analyses on
+/// its own.
+fn in_proc(source: &str) -> String {
+    format!("proc p {{}} {{\n{source}\n}}\n")
+}
+
+/// I231 reads the words of a flattened `switch` by their values: each program
+/// selects its `hit` arm whichever way its subject and pattern are spelled, so
+/// the one claim is that the default after it is unreachable. The dispatch
+/// chain compared the subject's spelling — `a\nb` is four characters there —
+/// to the decoded pattern and reported the `hit` arm unreachable. The opaque
+/// `-glob` form reads the same words and reports no arm. Each program prints
+/// `hit` under tclsh 8.4 to 9.1.
+#[test]
+fn i231_reads_a_switch_words_by_their_values() {
+    let programs = [
+        r#"switch -- a\nb {"a\nb" {puts hit} default {puts miss}}"#,
+        r#"switch -exact -- "a\tb" {a\tb {puts hit} default {puts miss}}"#,
+        r#"switch a\nb {"a\nb" {puts hit} default {puts miss}}"#,
+        r#"switch "a\nb" {a\nb {puts hit} default {puts miss}}"#,
+        r#"switch "a\tb" {a\tb {puts hit} default {puts miss}}"#,
+        r#"switch a\tb {"a\tb" {puts hit} default {puts miss}}"#,
+        r#"switch "a\\b" {{a\b} {puts hit} default {puts miss}}"#,
+        r#"switch {a\b} {"a\\b" {puts hit} default {puts miss}}"#,
+        "switch \"a\\nb\" {{a\nb} {puts hit} default {puts miss}}",
+        "switch {a\nb} {\"a\\nb\" {puts hit} default {puts miss}}",
+        "switch {a\\\nb} {{a b} {puts hit} default {puts miss}}",
+        r#"switch "a\tb" a\tb {puts hit} default {puts miss}"#,
+        r#"switch a\tb "a\tb" {puts hit} default {puts miss}"#,
+        r"switch a\$b {a\$b {puts hit} default {puts miss}}",
+        r"switch a\[b {a\[b {puts hit} default {puts miss}}",
+    ];
+    for source in programs {
+        for program in [source.to_owned(), in_proc(source)] {
+            for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+                let reported = i231_messages(&program, dialect);
+                assert!(
+                    matches!(reported.as_slice(), [one] if one.contains("is always true here")),
+                    "{dialect}: {program}\n{reported:?}"
+                );
+            }
+        }
+    }
+    // A variable subject is read by the lattice, and is flattened from 8.5.
+    let variable = "set s \"a\\nb\"\nswitch $s {a\\nb {puts hit} default {puts miss}}";
+    for program in [variable.to_owned(), in_proc(variable)] {
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let reported = i231_messages(&program, dialect);
+            assert!(
+                matches!(reported.as_slice(), [one] if one.contains("is always true here")),
+                "{dialect}: {program}\n{reported:?}"
+            );
+        }
+    }
+    let glob = r#"switch -glob -- a\nb {"a\nb" {puts hit} default {puts miss}}"#;
+    for source in [variable, glob] {
+        for program in [source.to_owned(), in_proc(source)] {
+            for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+                let reported = i231_messages(&program, dialect);
+                assert!(
+                    reported.iter().all(|one| !one.contains("always false")),
+                    "{dialect}: {program}\n{reported:?}"
+                );
+            }
+        }
+    }
+    assert!(i231_messages(glob, "tcl8.6").is_empty());
+}
+
+/// Before 8.5 `switch` reads every leading word that starts with `-` as an
+/// option, however many words follow, so the subject below is one: tclsh 8.4
+/// rejects the program with `bad option`, where 8.5 to 9.1 select the `-glob`
+/// arm and print `G`. A release that may be 8.4 — `tcl8.4`, the iRules base, a
+/// profile that names no release — reports nothing of the statement; from 8.5
+/// the arm is reported as the one selected. `--` ends the run, so the claim is
+/// made under every release, and a subject that does not start with `-` keeps
+/// the verdict of the statement's own record, which names the arm never
+/// selected.
+#[test]
+fn i231_never_reports_a_switch_over_a_subject_a_release_may_read_as_an_option() {
+    let bare = "set x -glob\nswitch $x {-glob {puts G} default {puts D}}\n";
+    let ended = "set x -glob\nswitch -- $x {-glob {puts G} default {puts D}}\n";
+    let escaped = "switch \\x2dglob {-glob {puts G} default {puts D}}\n";
+    let plain = "set x a\nswitch $x {a {puts A} b {puts B} default {puts D}}\n";
+    for wrap in [str::to_owned, in_proc] {
+        for dialect in ["tcl8.4", "f5-irules", "tk"] {
+            let reported = i231_messages(&wrap(bare), dialect);
+            assert!(reported.is_empty(), "{dialect}: {reported:?}");
+        }
+        for dialect in ["tcl8.5", "tcl8.6", "tcl9.0"] {
+            let reported = i231_messages(&wrap(bare), dialect);
+            assert!(
+                matches!(reported.as_slice(), [one] if one.contains("is always true here")),
+                "{dialect}: {reported:?}"
+            );
+        }
+        for dialect in ["tcl8.4", "tcl8.6", "tk"] {
+            assert_eq!(
+                i231_messages(&wrap(ended), dialect).len(),
+                1,
+                "{dialect}: `--` ends the options"
+            );
+        }
+        assert!(i231_messages(&wrap(escaped), "tcl8.4").is_empty());
+        assert_eq!(i231_messages(&wrap(escaped), "tcl8.6").len(), 1);
+        for dialect in ["tcl8.4", "tk"] {
+            let reported = i231_messages(&wrap(plain), dialect);
+            assert!(
+                matches!(reported.as_slice(), [one] if one.contains("'b' is never selected")),
+                "{dialect}: {reported:?}"
+            );
+        }
+        // With pattern and body words the subject is inside the scan on every
+        // release: tclsh rejects `words`, and the arm a plain value never
+        // selects is reported from its record alone.
+        let words = "set x -glob\nswitch $x a {puts A} default {puts D}\n";
+        let words_plain = "set x a\nswitch $x a {puts A} b {puts B} default {puts D}\n";
+        for dialect in ["tcl8.4", "f5-irules", "tk", "tcl8.5", "tcl8.6", "tcl9.0"] {
+            let reported = i231_messages(&wrap(words), dialect);
+            assert!(reported.is_empty(), "{dialect}: {reported:?}");
+            let reported = i231_messages(&wrap(words_plain), dialect);
+            assert!(
+                matches!(reported.as_slice(), [one] if one.contains("'b' is never selected")),
+                "{dialect}: {reported:?}"
+            );
+        }
+    }
+}
+
 #[test]
 fn info_exists_folds_false_for_never_defined_local() {
     // A never-defined non-parameter never

@@ -3014,6 +3014,43 @@ pub(crate) fn literal_token_value<'t>(
     }
 }
 
+/// The value of a word a case-list statement recorded as `text`, when the
+/// source states one: a braced word is its content with backslash-newlines
+/// collapsed; a bare or quoted word with nothing to substitute is its escapes
+/// decoded under the document's grammar; `None` for a word that substitutes.
+/// The one decoder of a recorded word, read by the selection's arguments
+/// ([`switch_arguments`]) and by the flattened `switch` chain's operands, so
+/// the two cannot read one word two ways: `a\nb` is three characters and
+/// `{a\b}` is three characters, whichever way the statement is analysed.
+pub(crate) fn recorded_word_value<'t>(
+    text: &'t str,
+    braced: bool,
+    config: &LexerConfig,
+) -> Option<Cow<'t, str>> {
+    if braced {
+        return Some(WordValueRules::from_config(config).collapse_braced_word(text));
+    }
+    (!substitutes(text)).then(|| tcl_lexer::backslash_subst_in(text, config.escapes))
+}
+
+/// Whether a bare or quoted word still has a substitution to make: a `$` or
+/// `[` that no backslash escapes, so `a\$b` is the literal `a$b`. A backslash
+/// escapes the byte after it, and all three bytes are ASCII, so walking bytes
+/// never splits a character.
+fn substitutes(text: &str) -> bool {
+    let mut bytes = text.bytes();
+    while let Some(byte) = bytes.next() {
+        match byte {
+            b'\\' => {
+                bytes.next();
+            }
+            b'$' | b'[' => return true,
+            _ => {}
+        }
+    }
+    false
+}
+
 /// What the source says about how an operand's word substitutes, for the
 /// inputs that answer its structure ([`AnalysisInputs::word_structure`])
 /// and a substituted word's value.
@@ -3165,42 +3202,37 @@ fn call_arguments<'t>(
 
 /// A case-list statement's words as its lowering recorded them
 /// (`Statement::Switch`'s `raw_args` with the per-word braced and quoted
-/// flags, which the caller has checked cover every word): a braced word's
-/// content is its value, with backslash-newlines collapsed; a bare or
-/// quoted word with nothing to substitute is its escapes decoded, its
-/// source saying which of the two it was; any other word is substituted
-/// from its spelling.
+/// flags, which the caller has checked cover every word), each read by
+/// [`recorded_word_value`]: a word with a value is that value, its source
+/// saying whether it was braced, quoted or bare; any other word is
+/// substituted from its spelling.
 fn switch_arguments<'t>(
     raw_args: &'t [String],
     (braced, quoted): (&[bool], &[bool]),
     config: &LexerConfig,
 ) -> Vec<ArgWord<'t>> {
+    let flag = |flags: &[bool], index: usize| flags.get(index).copied().unwrap_or(false);
     raw_args
         .iter()
         .enumerate()
         .map(|(index, text)| {
-            if braced.get(index).copied().unwrap_or(false) {
-                return ArgWord {
-                    text: WordValueRules::from_config(config).collapse_braced_word(text),
-                    kind: InvocationWordKind::Literal,
-                    source: OperandSource::BracedLiteral,
-                };
-            }
-            match word_of(text) {
-                InvocationWord::Literal(_) => ArgWord {
-                    text: tcl_lexer::backslash_subst_in(text, config.escapes),
-                    kind: InvocationWordKind::Literal,
-                    source: if quoted.get(index).copied().unwrap_or(false) {
-                        OperandSource::QuotedLiteral
-                    } else {
-                        OperandSource::Literal
-                    },
-                },
-                _ => ArgWord::spelled(
+            let braced = flag(braced, index);
+            let Some(value) = recorded_word_value(text, braced, config) else {
+                return ArgWord::spelled(
                     text,
                     InvocationWordKind::Dynamic,
                     OperandSource::Substituted,
-                ),
+                );
+            };
+            let source = match (braced, flag(quoted, index)) {
+                (true, _) => OperandSource::BracedLiteral,
+                (false, true) => OperandSource::QuotedLiteral,
+                (false, false) => OperandSource::Literal,
+            };
+            ArgWord {
+                text: value,
+                kind: InvocationWordKind::Literal,
+                source,
             }
         })
         .collect()
@@ -4711,6 +4743,38 @@ mod tests {
     thread_local! {
         /// The request size the next driver on this thread opens, when set.
         pub(super) static REQUEST_WORK: Cell<Option<u64>> = const { Cell::new(None) };
+    }
+
+    /// A recorded word has the value Tcl substitutes, or none: a bare or
+    /// quoted word has its escapes decoded, and an escaped `$` or `[` is data;
+    /// a braced word is its content with the line continuation collapsed and
+    /// nothing else decoded; a word with a live substitution, which an escaped
+    /// backslash before the `$` does not hide, has no value.
+    #[test]
+    fn a_recorded_word_has_the_value_tcl_substitutes() {
+        let config = LexerConfig::default();
+        let value = |text: &str, braced: bool| {
+            recorded_word_value(text, braced, &config).map(Cow::into_owned)
+        };
+        for (text, braced, expected) in [
+            (r"a\nb", false, Some("a\nb")),
+            (r"a\tb", false, Some("a\tb")),
+            (r"a\\b", false, Some(r"a\b")),
+            (r"a\$b", false, Some("a$b")),
+            (r"a\[b", false, Some("a[b")),
+            (r"a\b", true, Some(r"a\b")),
+            ("a\\\nb", true, Some("a b")),
+            ("${x}", true, Some("${x}")),
+            ("a${x}b", false, None),
+            ("a[b]", false, None),
+            (r"\\$x", false, None),
+        ] {
+            assert_eq!(
+                value(text, braced).as_deref(),
+                expected,
+                "{text:?} braced: {braced}"
+            );
+        }
     }
 
     /// A run whose evaluations spend its request declines the rest with

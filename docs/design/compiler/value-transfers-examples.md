@@ -221,17 +221,22 @@ proc p {x} {
 
 ```tcl
 set x b
-switch $x {
-    a { puts A }           ;# today: no O107 and no I231 — the CFG subject is a Raw operand
+switch -- $x {
+    a { puts A }           ;# I231 reports the arm and O107 removes its body
     b { puts B }
-    default { puts D }
-}                          ;# today: O112 eliminates the whole switch from its own Env
+    default { puts D }     ;# unreachable after `b`: O107 removes it too
+}                          ;# O112 folds the whole switch to `puts B`, which subsumes both removals
 ```
 
-Under the contracts step 1 of the `switch` plan resolves the whole-variable
-`Raw` operand, the dead arm bodies leave `executable_blocks`, and O107 and
-I231 fire; O112 consumes the same selection fact instead of its private
-`Env`.
+The CFG subject of a whole-variable `switch` is a `Raw` operand that the
+lattice reads as the one variable it names, so the dispatch chain decides per
+arm, the dead arm bodies leave `executable_blocks`, and O107 and I231 fire;
+O112 reads the same decided branches — for an opaque form, the same selection
+record — and keeps no `Env` of its own. Where the option scan may read the
+subject — a release that may be before 8.5, or pattern and body words on any
+release — a variable subject with no `--` before it stays one statement and
+its selection record decides it: I231 names the arms never selected and O112
+folds the statement, but no arm has a block for O107 to remove.
 
 ### O108 · eliminate transitively dead code
 
@@ -772,13 +777,13 @@ switch -- 1 {
 
 ```tcl
 set x b
-switch $x { a { puts A } b { puts B } default { puts D } }   ;# today: O112 fires; no I231
-switch -glob -- $x { a* { puts A } b* { puts B } }           ;# today: O112 fires; no I231
+switch $x { a { puts A } b { puts B } default { puts D } }   ;# I231: arm `a` is unreachable, and so are the arms after `b`; O112 folds to `puts B`
+switch -glob -- $x { a* { puts A } b* { puts B } }           ;# I231: arm 'a*' is never selected; O112 folds to `puts B`
 ```
 
-Under the contracts the whole-variable `Raw` case decides in the CFG, and
-the opaque `-glob` form gets a selection fact from `tcl_cmd_core::switch`
-that I231, O112, and the analyser consume together.
+The whole-variable `Raw` case decides in the CFG, and the opaque `-glob` form
+gets a selection fact from `tcl_cmd_core::switch` that I231, O112, and the
+analyser consume together.
 
 ### Predicate refinement · rung
 

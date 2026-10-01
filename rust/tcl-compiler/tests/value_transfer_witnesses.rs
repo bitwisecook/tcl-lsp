@@ -3511,3 +3511,144 @@ fn a_write_a_sourced_file_makes_is_never_folded_away() {
     );
     prints_under_every_release(&in_proc, "six\n6\n");
 }
+
+/// Each program selects its `hit` arm of a `switch` whose subject and pattern
+/// are the same characters spelled two ways: a bare or quoted word is its
+/// escapes decoded, a braced word its content, and an element of a braced arm
+/// list either. The flattened dispatch compared the subject's spelling — `a\nb`
+/// is four characters there — to the decoded pattern, so the analyser called
+/// the `hit` arm unreachable (I231) and the optimiser rewrote the program to
+/// its `miss` default, where tclsh 8.4 to 9.1 print `hit`.
+const SAME_CHARACTERS: [&str; 18] = [
+    r#"switch -- a\nb {"a\nb" {puts hit} default {puts miss}}"#,
+    r#"switch -exact -- "a\tb" {a\tb {puts hit} default {puts miss}}"#,
+    r#"switch a\nb {"a\nb" {puts hit} default {puts miss}}"#,
+    r#"switch "a\nb" {a\nb {puts hit} default {puts miss}}"#,
+    r#"switch "a\tb" {a\tb {puts hit} default {puts miss}}"#,
+    r#"switch a\tb {"a\tb" {puts hit} default {puts miss}}"#,
+    r#"switch "a\\b" {{a\b} {puts hit} default {puts miss}}"#,
+    r#"switch {a\b} {"a\\b" {puts hit} default {puts miss}}"#,
+    "switch \"a\\nb\" {{a\nb} {puts hit} default {puts miss}}",
+    "switch {a\nb} {\"a\\nb\" {puts hit} default {puts miss}}",
+    "switch {a\\\nb} {{a b} {puts hit} default {puts miss}}",
+    r#"switch "a\tb" a\tb {puts hit} default {puts miss}"#,
+    r#"switch a\tb "a\tb" {puts hit} default {puts miss}"#,
+    r"switch a\$b {a\$b {puts hit} default {puts miss}}",
+    r"switch a\[b {a\[b {puts hit} default {puts miss}}",
+    "set s \"a\\nb\"\nswitch $s {a\\nb {puts hit} default {puts miss}}",
+    r#"switch -glob -- a\nb {"a\nb" {puts hit} default {puts miss}}"#,
+    r"switch -glob -- a\$b {a\$b {puts hit} default {puts miss}}",
+];
+
+/// A `switch` compares the values of its words however they are spelled: every
+/// program of [`SAME_CHARACTERS`] prints `hit` under every release, before and
+/// after the optimiser, which keeps the matching arm and nothing else, and no
+/// O107 rewrite removes the arm that runs.
+#[test]
+fn a_switch_compares_the_values_of_its_words_however_they_are_spelled() {
+    for source in SAME_CHARACTERS {
+        for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+            let (rewritten, _) = optimised(source, dialect);
+            assert!(
+                rewritten.trim().ends_with("puts hit")
+                    && !rewritten.contains("switch")
+                    && !rewritten.contains("miss"),
+                "{dialect}: {source}\n{rewritten}"
+            );
+            for dead in rewrites_of(source, dialect)
+                .iter()
+                .filter(|rewrite| rewrite.code == DiagCode::O107)
+            {
+                let removed = &source[dead.span.start() as usize..dead.span.end() as usize];
+                assert!(
+                    !removed.contains("hit"),
+                    "{dialect}: O107 removes the arm that runs: {source}\n{removed}"
+                );
+            }
+        }
+        prints_under_every_release(source, "hit\n");
+    }
+}
+
+/// Before 8.5 `switch` reads every leading word that starts with `-` as an
+/// option, however many words follow, so a subject holding `-glob` is one:
+/// tclsh 8.4 rejects the program with `bad option`, where 8.5 to 9.1 select
+/// the `-glob` arm and print `G`. A release that may be 8.4 — `tcl8.4`, a
+/// profile that names none — keeps the statement as it is, and from 8.5 the
+/// optimiser keeps the arm. `--` ends the run, so the subject is one under
+/// every release and the statement folds under all of them; a subject that
+/// does not start with `-` is selected through the statement's own record
+/// where the flattened chain is not built; and a literal subject is read by
+/// its decoded value, so `\x2dglob` is an option as `-glob` is.
+#[test]
+fn a_subject_a_release_may_read_as_an_option_is_not_folded_before_8_5() {
+    let bare = "set x -glob\nswitch $x {-glob {puts G} default {puts D}}\n";
+    let escaped = "switch \\x2dglob {-glob {puts G} default {puts D}}\n";
+    for source in [bare, escaped] {
+        for (series, tclsh) in releases_on_path() {
+            let before_85 = series == "8.4";
+            let expected = if before_85 {
+                (false, String::new())
+            } else {
+                (true, "G\n".to_owned())
+            };
+            let (rewritten, _) = optimised(source, &dialect_of(series));
+            for program in [source, rewritten.as_str()] {
+                assert_eq!(
+                    run_script(&tclsh, program),
+                    Some(expected.clone()),
+                    "tclsh{series}:\n{program}"
+                );
+            }
+            assert_eq!(
+                rewritten.contains("switch"),
+                before_85,
+                "{series}: {rewritten}"
+            );
+        }
+        let (kept, _) = optimised(source, "tk");
+        assert!(kept.contains("switch"), "a profile with no release: {kept}");
+    }
+    let ended = "set x -glob\nswitch -- $x {-glob {puts G} default {puts D}}\n";
+    for dialect in ["tcl8.4", "tcl8.6", "tk"] {
+        let (rewritten, _) = optimised(ended, dialect);
+        assert!(
+            rewritten.contains("puts G") && !rewritten.contains("switch"),
+            "{dialect}: {rewritten}"
+        );
+    }
+    prints_under_every_release(ended, "G\n");
+    let plain = "set x a\nswitch $x {a {puts A} default {puts D}}\n";
+    for dialect in ["tcl8.4", "tk", "tcl9.0"] {
+        let (rewritten, _) = optimised(plain, dialect);
+        assert!(
+            rewritten.contains("puts A") && !rewritten.contains("switch"),
+            "{dialect}: {rewritten}"
+        );
+    }
+    prints_under_every_release(plain, "A\n");
+}
+
+/// With pattern and body words the subject is inside the option scan on every
+/// release — 8.5 to 9.1 stop the scan with two words left, and a pattern and
+/// its body are two words — so a variable holding `-glob` is an option there
+/// too: every tclsh rejects the program below with `extra switch pattern with
+/// no body`, where the default arm would print `D`. The statement is kept
+/// under every release's profile and under one that names none.
+#[test]
+fn a_subject_inside_the_scan_of_the_arms_as_words_is_not_folded_on_any_release() {
+    let source = "set x -glob\nswitch $x a {puts A} default {puts D}\n";
+    for (series, tclsh) in releases_on_path() {
+        let (rewritten, _) = optimised(source, &dialect_of(series));
+        for program in [source, rewritten.as_str()] {
+            assert_eq!(
+                run_script(&tclsh, program),
+                Some((false, String::new())),
+                "tclsh{series}:\n{program}"
+            );
+        }
+        assert!(rewritten.contains("switch"), "{series}: {rewritten}");
+    }
+    let (kept, _) = optimised(source, "tk");
+    assert!(kept.contains("switch"), "a profile with no release: {kept}");
+}

@@ -1878,18 +1878,52 @@ same target rules.
 ### `switch`
 
 The CFG builder flattens only an exact, case-sensitive, no-fall-through
-`switch` into a dispatch chain of `StrEq` branches; glob, regexp,
-`-nocase`, and any fall-through arm stay one opaque `Statement::Switch`,
-and `lower_opaque_switch` stores that structured statement in one block —
-it creates no CFG block per arm. A flattened form's whole-variable subject
-lowers to `ExprNode::Raw`, deliberately, because `Raw` is the only operand
-that preserves a backslash-bearing `${…}` name under both 8.x and 9.x close
-rules.
+`switch` whose subject no option scan of the target release may read into a
+dispatch chain of `StrEq` branches (`cfg_builder::switch_is_flattened`);
+glob, regexp, `-nocase`, any fall-through arm, and such a subject stay one
+opaque `Statement::Switch`, and `lower_opaque_switch` stores that structured
+statement in one block — it creates no CFG block per arm. A flattened form's
+whole-variable subject lowers to `ExprNode::Raw`, deliberately, because `Raw`
+is the only operand that preserves a backslash-bearing `${…}` name under both
+8.x and 9.x close rules.
+
+Before 8.5 `switch` scans every leading word that starts with `-` as an
+option, however many words follow (`for (i = 1; i < objc; i++)`); from 8.5 the
+scan stops with two words left (`i < objc - 2`). A subject whose value starts
+with `-` is an option — a mode, or `bad option` — unless `--` ended the run,
+wherever the subject is inside the scan: before 8.5 always, and from 8.5
+whenever the arms are pattern and body words, since the two words the scan
+leaves are then a pattern and its body and the subject is not one of them.
+`set x -glob; switch $x {-glob {puts G} default {puts D}}` is an error on 8.4
+and prints `G` from 8.5, and `set x -glob; switch $x a {puts A} default {puts
+D}` is `extra switch pattern with no body` from 8.4 to 9.1. The chain cannot
+state a variable's value, so where the subject may be inside the scan — the
+arms are words, or the profile does not declare a release from 8.5 (`tcl8.4`,
+the iRules base, and a profile that declares none, the reading the selection
+transfer makes of it: `bounded_scan` in `selection.rs`, and the core's own
+option scan for the arms as words) — a whole-variable subject with no `--`
+before it, or a literal whose escape decodes to `-`, stays opaque, and the
+statement's selection record, which declines a member the scan reads as an
+option, decides it: O112 and the arms never selected (I231) survive, the
+chain's "subsequent arms are unreachable" and O107 do not. A registry with no
+profile declares no target and keeps the chain.
+
+The chain compares values. The statement records each word as a spelling with
+its delimiter flags, and one decoder, `value_transfer::recorded_word_value`,
+says what it is: a braced word's content with line continuations collapsed,
+a bare or quoted word with no live substitution — no `$` or `[` a backslash
+does not escape — its escapes decoded under the document's grammar, and none
+for a word that substitutes. The selection (`switch_arguments`) and the
+chain (`cfg_lower::word_operand`) both read it, so `a\nb`, `"a\nb"` and an
+arm-list element holding a newline compare equal as they do in tclsh, and
+`a\$b` is the three characters `a$b`. The chain carries the value as a braced
+`CompiledWord`, which no later stage decodes again; a word that substitutes
+keeps its spelling, which the evaluators decline to fold.
 
 | Form | Decided through | O112 | I231 | O107 |
 |---|---|---|---|---|
-| exact, literal or `$var` subject | the dispatch chain's `Applied` branches, one per arm | fires | fires | fires on a dead arm's body |
-| `-glob`, `-regexp`, `-nocase`, a fall-through arm, `case` | the selection record at the statement | fires | fires, from a `Selected` fact | never — no block stands for an arm |
+| exact, a literal subject, or a `$var` subject the option scan cannot read | the dispatch chain's `Applied` branches, one per arm | fires | fires | fires on a dead arm's body |
+| `-glob`, `-regexp`, `-nocase`, a fall-through arm, `case`, a `$var` subject the option scan may read | the selection record at the statement | fires | fires, from a `Selected` fact | never — no block stands for an arm |
 
 Each needs a subject the solver proves — a `Const`, or a `ConstSet` every
 member of which the selection can decide. A subject it does not prove is

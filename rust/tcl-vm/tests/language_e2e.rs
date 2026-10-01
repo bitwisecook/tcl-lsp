@@ -215,6 +215,40 @@ fn switch_dispatch() {
     assert_eq!(out, "B\n");
 }
 
+/// A `switch` compares the values of its words however they are spelled: a
+/// bare or quoted word is its escapes decoded, a braced word its content, and
+/// an element of a braced arm list either. The dispatch chain compiled the
+/// subject's spelling as the word's finished value, so `a\nb` was four
+/// characters against the decoded arm and the program took its default.
+/// tclsh 8.4 to 9.1 print `hit` for each.
+#[test]
+fn switch_compares_the_values_of_its_words() {
+    for source in [
+        r#"switch -- a\nb {"a\nb" {puts hit} default {puts miss}}"#,
+        r#"switch -exact -- "a\tb" {a\tb {puts hit} default {puts miss}}"#,
+        r#"switch a\nb {"a\nb" {puts hit} default {puts miss}}"#,
+        r#"switch "a\nb" {a\nb {puts hit} default {puts miss}}"#,
+        r#"switch "a\tb" {a\tb {puts hit} default {puts miss}}"#,
+        r#"switch a\tb {"a\tb" {puts hit} default {puts miss}}"#,
+        r#"switch "a\\b" {{a\b} {puts hit} default {puts miss}}"#,
+        r#"switch {a\b} {"a\\b" {puts hit} default {puts miss}}"#,
+        "switch \"a\\nb\" {{a\nb} {puts hit} default {puts miss}}",
+        "switch {a\nb} {\"a\\nb\" {puts hit} default {puts miss}}",
+        "switch {a\\\nb} {{a b} {puts hit} default {puts miss}}",
+        r#"switch "a\tb" a\tb {puts hit} default {puts miss}"#,
+        r#"switch a\tb "a\tb" {puts hit} default {puts miss}"#,
+        r"switch a\$b {a\$b {puts hit} default {puts miss}}",
+        r"switch a\[b {a\[b {puts hit} default {puts miss}}",
+        "set s \"a\\nb\"\nswitch $s {a\\nb {puts hit} default {puts miss}}",
+        r#"switch -glob -- a\nb {"a\nb" {puts hit} default {puts miss}}"#,
+        r"switch -glob -- a\$b {a\$b {puts hit} default {puts miss}}",
+    ] {
+        let (ok, _r, out) = run(source);
+        assert!(ok, "{source}");
+        assert_eq!(out, "hit\n", "{source}");
+    }
+}
+
 #[test]
 fn global_scoping() {
     let (ok, _r, out) = run("set g 10\nproc bump {} { global g\nincr g }\nbump\nputs $g\n");

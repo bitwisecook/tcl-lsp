@@ -954,7 +954,10 @@ pub struct TryHandler {
 /// A `switch` arm: pattern + body.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SwitchArm {
-    /// Pattern text — the word's *value*.
+    /// Pattern text: an element of a braced arm list is its decoded value,
+    /// and a pattern given as a separate word is its spelling with the
+    /// delimiters removed, as the subject of a `Statement::Switch` is —
+    /// `value_transfer::recorded_word_value` gives that word's value.
     pub pattern: String,
     /// Whether this arm's pattern word was braced, so its value is literal.
     ///
@@ -1410,8 +1413,11 @@ pub enum Statement {
     Switch {
         /// Source span.
         span: Span,
-        /// Subject text being matched — the word's *value*, with any
-        /// delimiters already removed.
+        /// The subject word as the source spells it, its delimiters removed:
+        /// a bare or quoted word's escapes are not decoded and a braced
+        /// word's continuations are not collapsed, so this is a spelling, not
+        /// a value. `value_transfer::recorded_word_value` gives the value the
+        /// selection and the dispatch chain read it by.
         subject: String,
         /// `true` when the subject came from a braced word, so its value is
         /// literal and suppresses substitution.

@@ -52,8 +52,8 @@ use tcl_syntax::word_rules::WordValueRules;
 
 pub(crate) mod hooks;
 // `pub(crate)` for one item: `structured::parse_switch_options`, which the
-// opaque-switch emitter asks where a `switch`'s options end rather than
-// carrying a second copy of that rule.
+// dispatch chain's lowering asks where a `switch`'s options end, and whether
+// `--` closed them, rather than carrying a second copy of that rule.
 pub(crate) mod structured;
 
 /// Stand-in `Script` for a body past [`MAX_LOWER_NEST_DEPTH`]: a single

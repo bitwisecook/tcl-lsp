@@ -87,7 +87,12 @@ checkpoint compiling.
   in place of three private matchers, and of which I231 reports the
   unselected arms without dropping a block; W240 and W241 reading the loop
   header's branch fact, either replacing W242; and the iRules flow checks
-  reading applied reachability), and slice 8 (the existence rung: a
+  reading applied reachability, with the review's fixes — the lattice
+  states what an opaque `switch`, a callback script and a call the module
+  cannot see write; and the flattened chain compares the values of its
+  words, and a subject the option scan may read — on a release before 8.5,
+  or with the arms as words — stays to the selection record), and slice 8
+  (the existence rung: a
   flow-sensitive bound / unbound / may-bound fact per place and per SSA
   version, owned by the solver and fed by storage outcomes, the entry
   states, the join,

@@ -119,14 +119,24 @@ fn all_str_tokens(cmd: &str, args: &[String]) -> CommandTokens {
 
 /// Whether a `switch` lowers to a dispatch chain of `StrEq` branches, one
 /// per arm, rather than to one opaque statement: only an exact,
-/// case-sensitive one with no fall-through arm does. Its selection is then
-/// the chain's decided branches; the opaque forms' is the selection record.
+/// case-sensitive one with no fall-through arm, whose subject no option scan
+/// of the registry's release may read, does. Its selection is then the
+/// chain's decided branches; the opaque forms' is the selection record.
 pub(crate) fn switch_is_flattened(
-    mode: crate::ir::SwitchMode,
-    nocase: bool,
-    arms: &[crate::ir::SwitchArm],
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    config: &tcl_lexer::LexerConfig,
 ) -> bool {
-    mode == crate::ir::SwitchMode::Exact && !nocase && !arms.iter().any(|arm| arm.fallthrough)
+    let Statement::Switch {
+        mode, nocase, arms, ..
+    } = stmt
+    else {
+        return false;
+    };
+    *mode == crate::ir::SwitchMode::Exact
+        && !*nocase
+        && !arms.iter().any(|arm| arm.fallthrough)
+        && !cfg_lower::subject_may_scan_as_option(stmt, registry, config)
 }
 
 mod cfg_lower;

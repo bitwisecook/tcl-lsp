@@ -436,19 +436,13 @@ fn chain_decision(fu: &FunctionUnit, stmt: &Statement) -> Option<Decided> {
     })
 }
 
-/// The selection the solver decided for `stmt`, whichever way it states it.
+/// The selection the solver decided for `stmt`, whichever way it states it:
+/// the dispatch chain's decided branches where the lowering made one, else
+/// the selection record. A statement has only one of the two — the lowering
+/// (`cfg_builder::switch_is_flattened`) chose its form under the registry's
+/// release, which this pass does not see — so the facts there are the answer.
 fn decided(fu: &FunctionUnit, stmt: &Statement) -> Option<Decided> {
-    let Statement::Switch {
-        arms, mode, nocase, ..
-    } = stmt
-    else {
-        return None;
-    };
-    if crate::cfg_builder::switch_is_flattened(*mode, *nocase, arms) {
-        chain_decision(fu, stmt)
-    } else {
-        record_decision(fu, stmt)
-    }
+    chain_decision(fu, stmt).or_else(|| record_decision(fu, stmt))
 }
 
 /// The diagnostic's account of a decided selection: the pattern every member
@@ -816,6 +810,103 @@ mod tests {
         }
         for dialect in ["tcl8.6", "tcl9.0", "tcl9.1", "tcl"] {
             assert_eq!(the_fold(list, dialect).replacement, "puts B", "{dialect}");
+        }
+    }
+
+    /// O112 reads the words of a flattened `switch` by their values: each
+    /// program selects its `hit` arm whichever way its subject and pattern are
+    /// spelled, where the dispatch chain compared the subject's spelling to the
+    /// decoded pattern and kept the default. Each prints `hit` under tclsh 8.4
+    /// to 9.1.
+    #[test]
+    fn a_switch_is_selected_by_the_values_of_its_words() {
+        let programs = [
+            r#"switch -- a\nb {"a\nb" {puts hit} default {puts miss}}"#,
+            r#"switch -exact -- "a\tb" {a\tb {puts hit} default {puts miss}}"#,
+            r#"switch a\nb {"a\nb" {puts hit} default {puts miss}}"#,
+            r#"switch "a\nb" {a\nb {puts hit} default {puts miss}}"#,
+            r#"switch "a\tb" {a\tb {puts hit} default {puts miss}}"#,
+            r#"switch a\tb {"a\tb" {puts hit} default {puts miss}}"#,
+            r#"switch "a\\b" {{a\b} {puts hit} default {puts miss}}"#,
+            r#"switch {a\b} {"a\\b" {puts hit} default {puts miss}}"#,
+            "switch \"a\\nb\" {{a\nb} {puts hit} default {puts miss}}",
+            "switch {a\nb} {\"a\\nb\" {puts hit} default {puts miss}}",
+            "switch {a\\\nb} {{a b} {puts hit} default {puts miss}}",
+            r#"switch "a\tb" a\tb {puts hit} default {puts miss}"#,
+            r#"switch a\tb "a\tb" {puts hit} default {puts miss}"#,
+            r"switch a\$b {a\$b {puts hit} default {puts miss}}",
+            r"switch a\[b {a\[b {puts hit} default {puts miss}}",
+            "set s \"a\\nb\"\nswitch $s {a\\nb {puts hit} default {puts miss}}",
+            r#"switch -glob -- a\nb {"a\nb" {puts hit} default {puts miss}}"#,
+            r"switch -glob -- a\$b {a\$b {puts hit} default {puts miss}}",
+        ];
+        for source in programs {
+            for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+                assert_eq!(
+                    the_fold(source, dialect).replacement,
+                    "puts hit",
+                    "{dialect}: {source}"
+                );
+            }
+        }
+    }
+
+    /// Before 8.5 `switch` reads every leading word that starts with `-` as an
+    /// option, however many words follow, so a subject holding `-glob` is one:
+    /// tclsh 8.4 rejects the program with `bad option`, where 8.5 to 9.1 select
+    /// the `-glob` arm and print `G`. A release that may be 8.4 leaves the
+    /// statement alone; `--` ends the run and a subject that does not start with
+    /// `-` is read by no scan, so those fold under every release.
+    #[test]
+    fn a_subject_a_release_may_read_as_an_option_is_left_alone_before_8_5() {
+        let bare = "set x -glob\nswitch $x {-glob {puts G} default {puts D}}\n";
+        let escaped = "switch \\x2dglob {-glob {puts G} default {puts D}}\n";
+        for source in [bare, escaped] {
+            for dialect in ["tcl8.4", "f5-irules", "tk"] {
+                assert!(
+                    run_pass_in(source, dialect)
+                        .iter()
+                        .all(|o| o.code != DiagCode::O112),
+                    "{dialect}: {source}"
+                );
+            }
+            for dialect in ["tcl8.5", "tcl8.6", "tcl9.0"] {
+                assert_eq!(
+                    the_fold(source, dialect).replacement,
+                    "puts G",
+                    "{dialect}: {source}"
+                );
+            }
+        }
+        let ended = "set x -glob\nswitch -- $x {-glob {puts G} default {puts D}}\n";
+        let plain = "set x a\nswitch $x {a {puts A} default {puts D}}\n";
+        for dialect in ["tcl8.4", "tcl8.6", "tk"] {
+            assert_eq!(the_fold(ended, dialect).replacement, "puts G", "{dialect}");
+            assert_eq!(the_fold(plain, dialect).replacement, "puts A", "{dialect}");
+        }
+    }
+
+    /// With pattern and body words the subject is inside the option scan on
+    /// every release — 8.5 to 9.1 stop the scan with two words left, and a
+    /// pattern and its body are two words — so a variable holding `-glob` is an
+    /// option there too: every tclsh rejects the program below with `extra
+    /// switch pattern with no body`. The statement is left alone under every
+    /// profile; a value that does not start with `-` folds through the
+    /// statement's selection record, and `--` ends the run.
+    #[test]
+    fn a_subject_inside_the_scan_of_the_arms_as_words_is_left_alone_on_every_release() {
+        let bare = "set x -glob\nswitch $x a {puts A} default {puts D}\n";
+        let plain = "set x a\nswitch $x a {puts A} default {puts D}\n";
+        let ended = "set x -glob\nswitch -- $x -glob {puts G} default {puts D}\n";
+        for dialect in ["tcl8.4", "f5-irules", "tk", "tcl8.5", "tcl8.6", "tcl9.0"] {
+            assert!(
+                run_pass_in(bare, dialect)
+                    .iter()
+                    .all(|o| o.code != DiagCode::O112),
+                "{dialect}"
+            );
+            assert_eq!(the_fold(plain, dialect).replacement, "puts A", "{dialect}");
+            assert_eq!(the_fold(ended, dialect).replacement, "puts G", "{dialect}");
         }
     }
 
