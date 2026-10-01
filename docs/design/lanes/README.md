@@ -105,7 +105,7 @@ checkpoint compiling.
   and `array default` have semantics; a fast-tier request reads
   `Unavailable`) have landed; the slices after them are planned item by
   item in the tracking document's § *Plan for slices 2–13*.
-- [consumer-contracts.md](consumer-contracts.md) — steps 1 to 7 of
+- [consumer-contracts.md](consumer-contracts.md) — steps 1 to 8 of
   [registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
   § *Build order*: step 1 (the four rulings taken as decided, and the
   documents whose stated rule they replace repaired), step 2 (the
@@ -146,9 +146,19 @@ checkpoint compiling.
   module and as a WASM custom section, the runtime pinned to a
   `RuntimeContext` resolved through the ingress the compiler uses, and the VM
   refusing, per rung, the functions that rest on a field that disagrees; and a
-  fuzz campaign over the two runtimes as the exit) have landed, item by item
-  in the tracking document's § *Step 2 — progress* (with the review's fixes
-  applied after it), § *Step 3 — progress*, § *Step 4 — progress*, § *Step 5
-  — progress*, § *Step 6 — progress* and § *Step 7 — progress*, planned in its
-  § *Plan for steps 2–10*. Step 8 (reference bodies, `tcl spec test`, the
-  manifest `spec` directive) is next.
+  fuzz campaign over the two runtimes as the exit) and step 8 (reference
+  bodies and `tcl spec test` — a command a pack backs with a Tcl body inlined
+  into the procedures that call it and claimed on the binding that holds the
+  live command to that text, a `-package-source` body read once at load, and
+  the VM's `source` reading through the host's filesystem; the body also
+  derived into the command's declared implementation where the sandbox can run
+  it, and read for proposals by the studio's import; `tcl spec test`, the CLI
+  verb that holds a pack's declared facts to the package in a real shell under
+  the package manager's opt-in; and the manifest's `spec` directive with its
+  tier clamp, the lockfile's `spec_integrity` and the container generator's
+  native-extension check) have landed, item by item in the tracking document's
+  § *Step 2 — progress* (with the review's fixes applied after it), § *Step 3 —
+  progress*, § *Step 4 — progress*, § *Step 5 — progress*, § *Step 6 —
+  progress*, § *Step 7 — progress* and § *Step 8 — progress*, planned in its
+  § *Plan for steps 2–10*. Step 9 (the codegen axis versioned; evaluation
+  points through the evidence gate) is next.

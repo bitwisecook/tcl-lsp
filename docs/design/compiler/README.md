@@ -122,9 +122,14 @@ User-facing compiler troubleshooting and how-tos live in
   intrinsic table split by family, and the artefact manifest with the
   runtime's context pin (a compiled module states the world it was compiled
   for, and the VM refuses, per rung, the sites that rest on a field that
-  disagrees), **built**; the rest — rungs 3 and 4 of a pack claim reaching
-  emitted code and the identity kind codegen chooses from the backing, and
-  the dialect, package, and C-extension follow-ons — **not built**.
+  disagrees), **built**; rung 3 of a pack claim (a Tcl-body reference body
+  inlined into the procedures that call it, claimed on the binding that holds
+  the live command to that text, and derived into the command's declared
+  implementation where the sandbox can run it), `tcl spec test`, and the
+  manifest's `spec` directive with its tier clamp and the lockfile's
+  `spec_integrity`, **built**; the rest — rung 4's shipped implementation and
+  the identity kind codegen chooses from the backing, the versioned codegen
+  axis, and the C-extension follow-ons — **not built**.
 - [value-transfers-review.md](value-transfers-review.md) — review of those
   proposals against registry-owned specialisation, with shared expression
   and regexp evaluation, analysis/diagnostic separation, correctness findings,
