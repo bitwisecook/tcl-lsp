@@ -610,8 +610,12 @@ fn lremove(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// core (`lsearch` never writes a variable); this adapter only maps the result
 /// onto `set_result` and the error onto `set_error`/`error_with_code`.
 fn lsearch(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    match tcl_cmd_core::lsearch::lsearch::<Interp, crate::cmd_regex::AreEngine>(interp, &argv[1..])
-    {
+    let version = interp.runtime_version();
+    match tcl_cmd_core::lsearch::lsearch::<Interp, crate::cmd_regex::AreEngine>(
+        interp,
+        &argv[1..],
+        version,
+    ) {
         Ok(v) => {
             interp.set_result(v);
             Code::Ok

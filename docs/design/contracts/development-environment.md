@@ -39,7 +39,7 @@ idempotent; a warm container re-runs it in seconds.
 | Binaryen | 132 | `/opt/binaryen-132/`, `wasm-opt` / `wasm-merge` on `PATH` |
 | wasi-sdk | 34.0 | `/opt/wasi-sdk` (found by `runtime/rust/build.rs`) |
 | Rust | floating `stable` | `/root/.rustup`, `/root/.cargo` |
-| Tcl + Tk source trees | 8.4.20, 8.5.19, 8.6.18, 9.0.4, 9.1b0 | `tmp/tcl<ver>/`, `tmp/tk<ver>/` |
+| Tcl + Tk source trees | 8.4.20, 8.5.19, 8.6.18, 9.0.4, 9.1.0 | `tmp/tcl<ver>/`, `tmp/tk<ver>/` |
 | tcllib | 2.0 | `tmp/tcllib-2.0/` |
 | host test tools | distro | via `ensure-test-deps.sh` |
 

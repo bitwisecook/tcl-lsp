@@ -91,7 +91,10 @@ fn cmd_switch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 
     let patterns: Vec<Value> = pairs.iter().map(|(p, _)| p.clone()).collect();
-    let sel = match core_switch::select::<Vm, CrateEngine, Value>(vm, &opts, &value, &patterns) {
+    let version = vm.runtime_version();
+    let sel = match core_switch::select::<Vm, CrateEngine, Value>(
+        vm, &opts, &value, &patterns, version,
+    ) {
         Ok(s) => s,
         Err(e) => return crate::command::completion_from_cmd_error(e),
     };
