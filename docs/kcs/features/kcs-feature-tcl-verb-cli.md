@@ -39,6 +39,7 @@ tcl explore script.tcl --show ir,cfg,opt
 tcl explore script.tcl --json --codegen-passes native-lowering,cell-demotion
 tcl help taint analysis --dialect f5-irules
 tcl help taint --json
+tcl spec test pack.tclspec --package demo
 
 # Package management and virtual environments (tclpkg)
 tcl pkg init --name myapp --version 1.0.0
@@ -119,9 +120,10 @@ any, which is the shape a CI step wants.
 - `diff`: compares two inputs at parser AST, lowered IR, and CFG layers (`--show` and `--json` supported).
 - `explore`: forwards combined source into compiler-explorer views. `--codegen-passes` applies to the `wasm` views, and the `semanticOptimisations` view lists every pass with the state the shown module was built with.
 - `help`: searches the KCS help database embedded in the binary at build time and reports KCS feature matches (`--dialect` optionally narrows matches).
+- `spec test`: holds a `.tclspec` pack's declared facts to the Tcl package they describe, in a real shell (`--tclsh`, else `TCL_VENV` or the newest `tclsh` on `PATH`; reach the package with `TCLLIBPATH`). It requires the package (`--package`, else the one every command's `required_package` names), then asks each command: its arity against the shell's `wrong # args` one word under the declared minimum, one over the declared maximum, and at the minimum and the maximum (the calls that must succeed pass the placeholder word `x`, so run it only for a package whose commands tolerate that); each `example` row against the answer and the declared `return_type` (checked for `Int`, `Double`, `Boolean`, `Numeric`, `List` and `Dict`, the types a shell can decide); a Tcl-body reference body against the command on the same examples, in a child interpreter; and a command declared `pure` against a write trace on every global during a second run of its examples and against the globals it created or changed from its first question to its last. It prints one row per divergence (`COMMAND: KIND: what the pack said and what the shell did`) and exits 1 on any, or when the package cannot be required. Requiring a package runs its Tcl, so the verb runs only for a package the package-manager policy opts in (`[build] allow-build-scripts = true` and `tcl pkg trust NAME`, the project layer being the `tclpkg.toml` of the project that holds the pack), through the same sandboxed chokepoint a build script uses (the environment scrubbed, a timeout, and the network denied where the host's confinement can enforce it). It is a CLI verb: nothing the editor runs ever executes the package a pack describes.
 
 ## Exit-code contract
 
 - `0`: command succeeded.
-- `1`: diagnostics found for `diag`/`lint`/`validate`, semantic differences for `diff`, or unknown lookup target for `event-info`/`command-info`.
+- `1`: diagnostics found for `diag`/`lint`/`validate`, a divergence or a package that cannot be required for `spec test`, semantic differences for `diff`, or unknown lookup target for `event-info`/`command-info`.
 - `2`: input resolution failure or command execution error.

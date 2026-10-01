@@ -171,12 +171,18 @@ slices proceed without deciding anything here.
 > (`tcl_spectcl::package_sources`), and the VM's `source` command reads through
 > the host's filesystem and honours `-encoding`.
 >
-> The rest of the vocabulary is not built, and names nothing in the
-> workspace:
+> A pack's declared facts are held to the package they describe. `tcl spec
+> test` (`rust/tcl-cli/src/commands/spec.rs`, the probe in
+> `commands/spec_test.rs`) requires the package in a real shell, under the
+> package manager's opt-in policy because that runs its code, and asks each
+> command the pack declares whether the package defines it, what its arity
+> refuses, what its examples answer and whether the answers have the declared
+> type, whether a Tcl-body reference body agrees with it, and whether a command
+> declared `pure` writes a global; it prints one row per divergence and exits 1
+> on any. It is a CLI verb, and nothing the editor runs executes a package.
 >
-> - **Identity and backing** — the `ShippedImplementation` claim and
->   `IdentityKind`.
-> - **Packages** — the `tcl spec test` verb.
+> The rest of the vocabulary is not built, and names nothing in the
+> workspace: the `ShippedImplementation` claim and `IdentityKind`.
 >
 > `AnalysisContext`, `AnalysisInputs`, `PlanAnswer`, `OperandId`,
 > `TemplateWordPlan`, and `EvalAnswer` are the types
@@ -1934,10 +1940,9 @@ Rules 1 to 4 are built.
   (`rust/tcl-registry/src/security_floor.rs`) is a codegen-axis contract
   about which stamps may change emitted code, not a trust gate on analysis
   facts, and § *The loader's stamp rejection rule* above is what widens it.
-  The `tcl spec test` verb, which runs the package's own implementation
-  under the real shell and diffs it against the pack's declared facts, is
-  a quality tool for shipped packs, not a prerequisite for a workspace
-  author's facts.
+  `tcl spec test` runs the package's own implementation under a real shell
+  and diffs it against the pack's declared facts; it is a quality tool, not a
+  prerequisite for a workspace author's facts.
 - **Rung 2** needed two corrections, and both are built. The loader
   refuses a stamp whose hook is not the target builtin's own (rule 1
   above). And codegen records the alias target's identity where it used to

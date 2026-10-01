@@ -43,6 +43,7 @@ tcl-lsp-core = { path = "../tcl-lsp-core" }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-explorer = { path = "../tcl-explorer" }
 tcl-lexer = { path = "../tcl-lexer" }
+tcl-syntax = { path = "../tcl-syntax" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-pkg = { path = "../tcl-pkg" }
 # `tcl spec import` labels its release snapshots with the studio's versioned

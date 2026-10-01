@@ -610,7 +610,11 @@ message. See [W139](../../kcs/codes/kcs-diagnostic-w139-retired-at-resolved-vers
   1.x pack to the newest vocabulary (`--check`, `--verify`, `--restyle`;
   [dialect-and-package-registry-centralisation.md](dialect-and-package-registry-centralisation.md)
   §6); `tcl spec export` renders a pack as canonical SpecTcl — its
-  expansion, if it is a program. The MCP server carries `spectcl_check`
+  expansion, if it is a program; `tcl spec test` requires the package a pack
+  describes in a real shell — only under the package manager's opt-in policy,
+  because that runs the package's code — and reports each declared fact
+  (arity, examples, return type, purity, a Tcl-body reference body) the
+  package does not bear out. The MCP server carries `spectcl_check`
   (evaluate a pack and report notices, `load_error`, target-dependence,
   and — for a caller-chosen `tier`/`trust` pair, defaulting to a trusted
   workspace — the provenance an `-override`/`dialect`/reserved-name

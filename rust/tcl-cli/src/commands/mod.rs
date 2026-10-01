@@ -40,5 +40,6 @@ pub mod pkg_discover;
 pub mod policy;
 pub mod registry;
 pub mod spec;
+pub mod spec_test;
 pub mod transform;
 pub mod venv;

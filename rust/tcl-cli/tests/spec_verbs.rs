@@ -661,3 +661,563 @@ fn spec_export_reports_a_pack_whose_evaluation_failed() {
     assert_eq!(code, 1, "a failed evaluation exits non-zero: {stderr}");
     assert!(stderr.contains("determinism axis"), "{stderr}");
 }
+
+/// A Tcl package on disk, a pack that describes it and the project policy that
+/// opts the package in, for `tcl spec test`.
+struct Described {
+    tree: Tree,
+    pack: PathBuf,
+    library: PathBuf,
+}
+
+impl Described {
+    /// `package` is the Tcl source of the `demo` package, `pack` the pack that
+    /// describes it, and `trusted` the packages the project's policy opts in.
+    fn new(tag: &str, package: &str, pack: &str, trusted: &[&str]) -> Self {
+        Self::build(tag, package, pack, trusted, false)
+    }
+
+    /// The same, with the pack in a `specs` directory below a project that has a
+    /// manifest and holds the policy: the project is not the pack's directory.
+    fn nested(tag: &str, package: &str, pack: &str, trusted: &[&str]) -> Self {
+        Self::build(tag, package, pack, trusted, true)
+    }
+
+    fn build(tag: &str, package: &str, pack: &str, trusted: &[&str], nested: bool) -> Self {
+        let tree = Tree::new(tag);
+        let library = tree.path().join("lib");
+        let package_dir = library.join("demo");
+        std::fs::create_dir_all(&package_dir).expect("package dir");
+        std::fs::write(
+            package_dir.join("pkgIndex.tcl"),
+            "package ifneeded demo 1.0 [list source [file join $dir demo.tcl]]\n",
+        )
+        .expect("write the index");
+        std::fs::write(package_dir.join("demo.tcl"), package).expect("write the package");
+        let project_dir = tree.path().join("project");
+        let pack_dir = if nested {
+            std::fs::create_dir_all(&project_dir).expect("project dir");
+            std::fs::write(project_dir.join("tclpkg.tcl"), "package demo 1.0\n")
+                .expect("write the manifest");
+            project_dir.join("specs")
+        } else {
+            project_dir.clone()
+        };
+        std::fs::create_dir_all(&pack_dir).expect("pack dir");
+        let pack_path = pack_dir.join("demo.tclspec");
+        std::fs::write(&pack_path, pack).expect("write the pack");
+        if !trusted.is_empty() {
+            let names: Vec<String> = trusted.iter().map(|name| format!("{name:?}")).collect();
+            std::fs::write(
+                project_dir.join("tclpkg.toml"),
+                format!(
+                    "[build]\nallow-build-scripts = true\ntrusted = [{}]\n",
+                    names.join(", ")
+                ),
+            )
+            .expect("write the policy");
+        }
+        Self {
+            tree,
+            pack: pack_path,
+            library,
+        }
+    }
+
+    /// `tcl spec test` on the pack, with the package's directory named and every
+    /// per-user directory pointed into the tree, and no shell named.
+    fn command(&self) -> Command {
+        let home = self.tree.path().join("home");
+        std::fs::create_dir_all(&home).expect("home");
+        let mut command = Command::new(env!("CARGO_BIN_EXE_tcl"));
+        command
+            .args(["spec", "test", &self.pack.to_string_lossy()])
+            .env("TCLLIBPATH", &self.library)
+            .env("HOME", &home)
+            .env("XDG_CONFIG_HOME", home.join("config"))
+            .env("XDG_STATE_HOME", home.join("state"))
+            .env("XDG_CACHE_HOME", home.join("cache"))
+            .env_remove("TCL_VENV");
+        command
+    }
+
+    /// The same, with the shell named.
+    fn run(&self, tclsh: &Path) -> (String, String, i32) {
+        let mut command = self.command();
+        command.arg("--tclsh").arg(tclsh);
+        finished(&mut command)
+    }
+}
+
+/// Run `command` to its end: its standard output and error, and its status.
+fn finished(command: &mut Command) -> (String, String, i32) {
+    let output = command.output().expect("failed to spawn tcl binary");
+    (
+        String::from_utf8_lossy(&output.stdout).into_owned(),
+        String::from_utf8_lossy(&output.stderr).into_owned(),
+        output.status.code().unwrap_or(-1),
+    )
+}
+
+/// The first `tclsh` on `PATH`, when there is one.
+fn tclsh_on_path() -> Option<PathBuf> {
+    std::env::split_paths(&std::env::var_os("PATH")?)
+        .map(|dir| dir.join("tclsh"))
+        .find(|candidate| candidate.is_file())
+}
+
+const DEMO_PACKAGE: &str = "package provide demo 1.0\n\
+namespace eval demo {}\n\
+# One to three words.\n\
+proc demo::flex {a {b x} {c y}} {return \"$a$b$c\"}\n\
+# Exactly two.\n\
+proc demo::fixed {a b} {return \"$a$b\"}\n";
+
+fn demo_pack(flex: &str, fixed: &str) -> String {
+    format!(
+        "speclib demo 2.0 {{\n    command demo::flex {{\n        arity {flex}\n        \
+         required_package demo\n    }}\n    command demo::fixed {{\n        arity {fixed}\n        \
+         required_package demo\n    }}\n}}\n"
+    )
+}
+
+/// A pack whose arity is narrower than the package's, and one wider, are each
+/// reported against the real shell: `demo::flex` takes one to three words and the
+/// pack says two, so a call with one and a call with three are accepted where the
+/// pack says they are errors; `demo::fixed` takes two and the pack says one or
+/// two, so a call with one is refused where the pack says it is valid. A pack
+/// that describes the package truthfully has no row and exits 0.
+#[test]
+fn spec_test_reports_an_arity_divergence() {
+    let Some(tclsh) = tclsh_on_path() else {
+        eprintln!("skipped: no tclsh on PATH");
+        return;
+    };
+    let wrong = Described::new(
+        "spec-test-arity",
+        DEMO_PACKAGE,
+        &demo_pack("2", "1..2"),
+        &["demo"],
+    );
+    let (stdout, stderr, code) = wrong.run(&tclsh);
+    assert_eq!(code, 1, "stdout: {stdout}\nstderr: {stderr}");
+    for row in [
+        "demo::flex: arity: declares at least 2 argument(s), but `demo::flex x` was not refused as `wrong # args`",
+        "demo::flex: arity: declares at most 2 argument(s), but `demo::flex x x x` was not refused as `wrong # args`",
+        "demo::fixed: arity: declares 1 argument(s) valid, but `demo::fixed x` was refused as `wrong # args`",
+        "2 command(s) tested against 'demo', 3 divergence(s)",
+    ] {
+        assert!(stdout.contains(row), "missing {row:?} in:\n{stdout}");
+    }
+    assert_eq!(
+        stdout.matches("arity:").count(),
+        3,
+        "one row per divergence: {stdout}"
+    );
+
+    let truthful = Described::new(
+        "spec-test-truth",
+        DEMO_PACKAGE,
+        &demo_pack("1..3", "2"),
+        &["demo"],
+    );
+    let (stdout, stderr, code) = truthful.run(&tclsh);
+    assert_eq!(code, 0, "stdout: {stdout}\nstderr: {stderr}");
+    assert!(
+        stdout.contains("2 command(s) tested against 'demo', 0 divergence(s)"),
+        "{stdout}"
+    );
+}
+
+/// A command the pack declares and the package does not define is one row and no
+/// other question, and the rest of the pack is still held to the package.
+#[test]
+fn spec_test_reports_a_command_the_package_does_not_define() {
+    let Some(tclsh) = tclsh_on_path() else {
+        eprintln!("skipped: no tclsh on PATH");
+        return;
+    };
+    let pack = "speclib demo 2.0 {\n    command demo::fixed {\n        arity 2\n        \
+                required_package demo\n    }\n    command demo::ghost {\n        arity 1\n        \
+                required_package demo\n        traits {PURE}\n        hover { example {demo::ghost 1} }\n    }\n}\n";
+    let ghost = Described::new("spec-test-ghost", DEMO_PACKAGE, pack, &["demo"]);
+    let (stdout, stderr, code) = ghost.run(&tclsh);
+    assert_eq!(code, 1, "stdout: {stdout}\nstderr: {stderr}");
+    assert!(
+        stdout.contains("demo::ghost: missing: declared, but the package does not define it"),
+        "{stdout}"
+    );
+    assert_eq!(
+        stdout.matches("demo::ghost:").count(),
+        1,
+        "one row, and no question asked of a command that is not there: {stdout}"
+    );
+    assert!(
+        stdout.contains("2 command(s) tested against 'demo', 1 divergence(s)"),
+        "{stdout}"
+    );
+}
+
+/// The policy that decides is the project's that holds the pack — the nearest
+/// directory above it with a manifest — and not the directory the pack happens
+/// to be in.
+#[test]
+fn spec_test_reads_the_policy_of_the_project_that_holds_the_pack() {
+    let Some(tclsh) = tclsh_on_path() else {
+        eprintln!("skipped: no tclsh on PATH");
+        return;
+    };
+    let held = Described::nested(
+        "spec-test-project",
+        DEMO_PACKAGE,
+        &demo_pack("1..3", "2"),
+        &["demo"],
+    );
+    let (stdout, stderr, code) = held.run(&tclsh);
+    assert_eq!(code, 0, "stdout: {stdout}\nstderr: {stderr}");
+    assert!(
+        stdout.contains("2 command(s) tested against 'demo', 0 divergence(s)"),
+        "{stdout}"
+    );
+}
+
+const BEHAVING_PACKAGE: &str = "package provide demo 1.0\n\
+puts -nonewline \"demo loaded, with no newline\"\n\
+namespace eval demo {}\n\
+proc demo::double {x} {expr {$x * 2}}\n\
+proc demo::label {x} {return \"value $x\"}\n\
+proc demo::remember {x} {set ::remembered $x; return $x}\n\
+proc demo::raises {x} {error \"no such thing\"}\n\
+proc demo::memo {x} {if {![info exists ::memoised]} {set ::memoised $x}; return $x}\n\
+proc demo::tidy {x} {set local $x; return $local}\n";
+
+const BEHAVING_PACK: &str = "speclib demo 2.0 {\n\
+    command demo::double {\n\
+        arity 1\n\
+        required_package demo\n\
+        return_type Int\n\
+        runtime_backing tcl-body {-pack-text {proc demo::double {x} {expr {$x * 3}}}}\n\
+        hover { example {demo::double 21} }\n\
+    }\n\
+    command demo::label {\n\
+        arity 1\n\
+        required_package demo\n\
+        return_type Int\n\
+        hover { example {demo::label 7} }\n\
+    }\n\
+    command demo::remember {\n\
+        arity 1\n\
+        required_package demo\n\
+        traits {PURE}\n\
+        hover { example {demo::remember 5} }\n\
+    }\n\
+    command demo::raises {\n\
+        arity 1\n\
+        required_package demo\n\
+        hover { example {demo::raises 1} }\n\
+    }\n\
+    command demo::memo {\n\
+        arity 1\n\
+        required_package demo\n\
+        traits {PURE}\n\
+        hover { example {demo::memo 3} }\n\
+    }\n\
+    command demo::tidy {\n\
+        arity 1\n\
+        required_package demo\n\
+        traits {PURE}\n\
+        hover { example {demo::tidy 4} }\n\
+    }\n\
+}\n";
+
+/// The other questions: a `returns` type the answer is not a value of, an
+/// `example` that raises, a command declared `pure` that writes a global, and a
+/// Tcl-body reference body that answers differently from the command it
+/// describes, each one row naming the command and what the shell did.
+#[test]
+fn spec_test_reports_what_the_examples_the_purity_and_the_reference_body_disagree_on() {
+    let Some(tclsh) = tclsh_on_path() else {
+        eprintln!("skipped: no tclsh on PATH");
+        return;
+    };
+    let behaving = Described::new(
+        "spec-test-facts",
+        BEHAVING_PACKAGE,
+        BEHAVING_PACK,
+        &["demo"],
+    );
+    let (stdout, stderr, code) = behaving.run(&tclsh);
+    assert_eq!(code, 1, "stdout: {stdout}\nstderr: {stderr}");
+    for row in [
+        "demo::label: returns: declares it returns int, but `demo::label 7` answered `value 7`",
+        "demo::remember: pure: declared pure, but `demo::remember 5` wrote the global(s) remembered",
+        "demo::raises: example: `demo::raises 1` raised: no such thing",
+        "demo::memo: pure: declared pure, but running it created or changed the global(s) memoised",
+        "demo::double: reference: `demo::double 21` answers `42` (0) as the command and `63` (0) as its reference body",
+    ] {
+        assert!(stdout.contains(row), "missing {row:?} in:\n{stdout}");
+    }
+    assert!(
+        !stdout.contains("demo::double: returns")
+            && !stdout.contains("demo::double: example")
+            && !stdout.contains("demo::tidy"),
+        "a command the pack describes truthfully has no row: {stdout}"
+    );
+    assert!(
+        stdout.contains("6 command(s) tested against 'demo', 5 divergence(s)"),
+        "{stdout}"
+    );
+}
+
+/// A reference body a pack takes from a file of the package it ships is read when
+/// the pack loads and held to the command as one written in the pack is.
+#[test]
+fn spec_test_compares_a_reference_body_the_pack_takes_from_a_package_file() {
+    let Some(tclsh) = tclsh_on_path() else {
+        eprintln!("skipped: no tclsh on PATH");
+        return;
+    };
+    let pack = "speclib demo 2.0 {\n    command demo::double {\n        arity 1\n        \
+                required_package demo\n        runtime_backing tcl-body {-package-source src/double.tcl}\n        \
+                hover { example {demo::double 21} }\n    }\n}\n";
+    let held = Described::nested(
+        "spec-test-package-source",
+        BEHAVING_PACKAGE,
+        pack,
+        &["demo"],
+    );
+    let project = held
+        .pack
+        .parent()
+        .and_then(Path::parent)
+        .expect("the project that holds the pack");
+    std::fs::create_dir_all(project.join("src")).expect("src");
+    std::fs::write(
+        project.join("src").join("double.tcl"),
+        "proc demo::double {x} {expr {$x * 3}}\n",
+    )
+    .expect("write the body");
+    let (stdout, stderr, code) = held.run(&tclsh);
+    assert_eq!(code, 1, "stdout: {stdout}\nstderr: {stderr}");
+    assert!(
+        stdout.contains(
+            "demo::double: reference: `demo::double 21` answers `42` (0) as the command and `63` (0) as its reference body"
+        ),
+        "{stdout}"
+    );
+}
+
+/// Requiring a package runs its Tcl, so the verb runs only for a package the
+/// project's policy opts in; nothing runs and the exit is 1 when it does not.
+#[test]
+fn spec_test_runs_only_a_package_the_policy_opts_in() {
+    let Some(tclsh) = tclsh_on_path() else {
+        eprintln!("skipped: no tclsh on PATH");
+        return;
+    };
+    let unlisted = Described::new(
+        "spec-test-policy",
+        DEMO_PACKAGE,
+        &demo_pack("2", "1..2"),
+        &[],
+    );
+    let (stdout, stderr, code) = unlisted.run(&tclsh);
+    assert_eq!(code, 1, "stdout: {stdout}\nstderr: {stderr}");
+    assert!(
+        stderr.contains("running the package 'demo' is not permitted by policy"),
+        "{stderr}"
+    );
+    assert!(stderr.contains("tcl pkg trust demo"), "{stderr}");
+    assert!(stdout.is_empty(), "nothing ran: {stdout}");
+}
+
+/// A package the shell cannot require is one row and exit 1, and a pack with
+/// no `required_package` agreement needs the package named.
+#[test]
+fn spec_test_says_when_the_package_cannot_be_required() {
+    let Some(tclsh) = tclsh_on_path() else {
+        eprintln!("skipped: no tclsh on PATH");
+        return;
+    };
+    let missing = Described::new(
+        "spec-test-missing",
+        "package provide demo 1.0\n",
+        &demo_pack("2", "2").replace("required_package demo", "required_package absent"),
+        &["absent"],
+    );
+    let (stdout, stderr, code) = missing.run(&tclsh);
+    assert_eq!(code, 1, "stdout: {stdout}\nstderr: {stderr}");
+    assert!(
+        stdout.contains("-: load: can't find package absent"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("2 command(s) tested against 'absent', 1 divergence(s)"),
+        "the package is not there, so nothing more is asked: {stdout}"
+    );
+
+    let unnamed = Described::new(
+        "spec-test-unnamed",
+        DEMO_PACKAGE,
+        "speclib demo 2.0 {\n    command demo::flex {\n        arity 1\n    }\n}\n",
+        &["demo"],
+    );
+    let (_stdout, stderr, code) = unnamed.run(&tclsh);
+    assert_ne!(code, 0);
+    assert!(
+        stderr.contains("name the Tcl package with --package"),
+        "{stderr}"
+    );
+}
+
+/// A pack that declares no command has nothing to ask a shell, and a file that is
+/// not there is an error, not an empty pack.
+#[test]
+fn spec_test_says_when_there_is_nothing_to_test() {
+    let Some(tclsh) = tclsh_on_path() else {
+        eprintln!("skipped: no tclsh on PATH");
+        return;
+    };
+    let empty = Described::new(
+        "spec-test-empty",
+        DEMO_PACKAGE,
+        "speclib demo 2.0 {\n}\n",
+        &["demo"],
+    );
+    let (stdout, stderr, code) = empty.run(&tclsh);
+    assert_eq!(code, 0, "stdout: {stdout}\nstderr: {stderr}");
+    assert!(
+        stdout.contains("the pack declares no command to test"),
+        "{stdout}"
+    );
+
+    let absent = empty.pack.with_file_name("absent.tclspec");
+    let (stdout, stderr, code) = run(&[
+        "spec",
+        "test",
+        &absent.to_string_lossy(),
+        "--tclsh",
+        &tclsh.to_string_lossy(),
+    ]);
+    assert_eq!(code, 2, "stdout: {stdout}\nstderr: {stderr}");
+    assert!(stderr.contains("not a file"), "{stderr}");
+}
+
+/// A shell that stops before it reports anything is not a pass: the verb says what
+/// the shell said and exits 1.
+#[test]
+fn spec_test_says_when_the_shell_stops_before_it_reports() {
+    let Some(tclsh) = tclsh_on_path() else {
+        eprintln!("skipped: no tclsh on PATH");
+        return;
+    };
+    let stopping = Described::new(
+        "spec-test-stops",
+        "package provide demo 1.0\nputs stderr {demo is leaving}\nexit 3\n",
+        &demo_pack("1..3", "2"),
+        &["demo"],
+    );
+    let (stdout, stderr, code) = stopping.run(&tclsh);
+    assert_eq!(code, 1, "stdout: {stdout}\nstderr: {stderr}");
+    assert!(
+        stderr.contains("the shell exited with status 3 before reporting")
+            && stderr.contains("demo is leaving"),
+        "{stderr}"
+    );
+    assert!(!stdout.contains("tested against"), "{stdout}");
+}
+
+/// With no shell named, the verb runs the one in the active virtual environment
+/// (`TCL_VENV`), which here is a wrapper that records its use.
+#[cfg(unix)]
+#[test]
+fn spec_test_uses_the_shell_of_the_active_venv_when_none_is_named() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let Some(tclsh) = tclsh_on_path() else {
+        eprintln!("skipped: no tclsh on PATH");
+        return;
+    };
+    let described = Described::new(
+        "spec-test-venv",
+        DEMO_PACKAGE,
+        &demo_pack("1..3", "2"),
+        &["demo"],
+    );
+    let venv = described.tree.path().join("venv");
+    let bin = venv.join("bin");
+    std::fs::create_dir_all(&bin).expect("venv bin");
+    let wrapper = bin.join("tclsh");
+    std::fs::write(
+        &wrapper,
+        format!(
+            "#!/bin/sh\necho used >> '{}'\nexec '{}' \"$@\"\n",
+            venv.join("used").display(),
+            tclsh.display()
+        ),
+    )
+    .expect("write the wrapper");
+    std::fs::set_permissions(&wrapper, std::fs::Permissions::from_mode(0o755))
+        .expect("make the wrapper executable");
+    let mut command = described.command();
+    command.env("TCL_VENV", &venv);
+    let (stdout, stderr, code) = finished(&mut command);
+    assert_eq!(code, 0, "stdout: {stdout}\nstderr: {stderr}");
+    assert!(
+        stdout.contains("2 command(s) tested against 'demo', 0 divergence(s)"),
+        "{stdout}"
+    );
+    assert!(venv.join("used").is_file(), "the venv's shell ran");
+}
+
+/// `--package` names the package to require, and what it names wins over the
+/// `required_package` the pack's commands declare.
+#[test]
+fn spec_test_takes_the_package_from_the_flag() {
+    let Some(tclsh) = tclsh_on_path() else {
+        eprintln!("skipped: no tclsh on PATH");
+        return;
+    };
+    let flagged = Described::new(
+        "spec-test-flag",
+        DEMO_PACKAGE,
+        &demo_pack("1..3", "2").replace("required_package demo", "required_package absent"),
+        &["demo"],
+    );
+    let mut command = flagged.command();
+    command.args(["--package", "demo", "--tclsh"]).arg(&tclsh);
+    let (stdout, stderr, code) = finished(&mut command);
+    assert_eq!(code, 0, "stdout: {stdout}\nstderr: {stderr}");
+    assert!(
+        stdout.contains("2 command(s) tested against 'demo', 0 divergence(s)"),
+        "{stdout}"
+    );
+}
+
+/// The shell runs under the package manager's timeout, so a package that does
+/// not finish is stopped and said so, and is not a pass.
+#[test]
+fn spec_test_stops_a_package_that_does_not_finish_in_time() {
+    let Some(tclsh) = tclsh_on_path() else {
+        eprintln!("skipped: no tclsh on PATH");
+        return;
+    };
+    let slow = Described::new(
+        "spec-test-timeout",
+        "package provide demo 1.0\nafter 20000\n",
+        &demo_pack("1..3", "2"),
+        &["demo"],
+    );
+    let policy = slow.pack.parent().expect("the project").join("tclpkg.toml");
+    let mut text = std::fs::read_to_string(&policy).expect("the policy");
+    text.push_str("[sandbox]\nmax-timeout-secs = 1\n");
+    std::fs::write(&policy, text).expect("write the policy");
+    let started = std::time::Instant::now();
+    let (stdout, stderr, code) = slow.run(&tclsh);
+    assert_eq!(code, 2, "stdout: {stdout}\nstderr: {stderr}");
+    assert!(
+        stderr.contains("did not finish testing 'demo' in time"),
+        "{stderr}"
+    );
+    assert!(started.elapsed() < std::time::Duration::from_secs(15));
+}

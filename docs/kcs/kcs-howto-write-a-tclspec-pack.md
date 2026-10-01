@@ -102,7 +102,9 @@ declared and whether it is cheap to call repeatedly; any name collision
 with a shipped command; and any codegen row the pack's tier may not keep
 ([why a codegen hook is refused](kcs-qa-why-was-my-pack-codegen-hook-refused.md)).
 Fix every notice — a dropped word is otherwise silent. The MCP tool is the only validator; `tcl spec` itself has
-`import`, `upgrade`, and `export`.
+`import`, `upgrade`, `export`, and `test`, which runs the package in a real shell
+and reports each declared fact — arity, examples, return type, purity, a Tcl
+reference body — that the package does not bear out.
 
 ### The server loads your pack automatically
 

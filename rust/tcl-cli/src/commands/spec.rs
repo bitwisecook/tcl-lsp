@@ -18,7 +18,7 @@
 
 //! `tcl spec` verb group — authoring `.tclspec` command packs.
 //!
-//! Three sub-actions:
+//! Four sub-actions:
 //!
 //! - `tcl spec import` reads *several releases* of a Tcl package and renders a
 //!   pack whose `introduced_version` / `retired_version` fields carry the
@@ -28,6 +28,8 @@
 //! - `tcl spec upgrade` rewrites a 1.x pack's source into `SpecTcl` 2.0.
 //! - `tcl spec export` renders a pack's loaded snapshot back out as canonical
 //!   2.0 source, which for a pack written as a program is its expansion.
+//! - `tcl spec test` holds a pack's declared facts to the Tcl package they
+//!   describe, in a real shell the project's policy has opted in.
 //!
 //! Two ways to name the releases:
 //!
@@ -60,7 +62,7 @@ use tcl_spec_studio::versions::VersionedSnapshot;
 use tcl_registry::command_snapshot::command_entry_json;
 use tcl_spectcl::{UpgradeOptions, UpgradeOutcome, UpgradeStatus, upgrade_source};
 
-use crate::cli::{SpecCommand, SpecImportArgs, SpecUpgradeArgs};
+use crate::cli::{SpecCommand, SpecImportArgs, SpecTestArgs, SpecUpgradeArgs};
 
 /// GitHub's maximum page size for `/tags`; fewer requests, same answer.
 const TAGS_PER_PAGE: usize = 100;
@@ -76,6 +78,7 @@ pub fn run(action: &SpecCommand) -> anyhow::Result<u8> {
         SpecCommand::Import(args) => run_import(args),
         SpecCommand::Upgrade(args) => run_upgrade(args),
         SpecCommand::Export(args) => run_export(args),
+        SpecCommand::Test(args) => run_test(args),
     }
 }
 
@@ -159,6 +162,185 @@ fn run_export(args: &crate::cli::SpecExportArgs) -> anyhow::Result<u8> {
         );
     }
     Ok(u8::from(!losses.is_empty()))
+}
+
+/// `tcl spec test` — a pack's declared facts held to the package they describe.
+///
+/// The one place a pack's claims meet the code they are about: the package is
+/// required in a real shell and each declared command is asked what the pack
+/// says of it ([`crate::commands::spec_test`] has the questions). Requiring a
+/// package runs its Tcl, which is the decision the package manager keeps for
+/// the operator — packages are data until policy says otherwise — so the verb
+/// runs only for a package `[build] allow-build-scripts` and `tcl pkg trust`
+/// have opted in, through the same sandboxed chokepoint a build script uses. It
+/// is a CLI verb and nothing the editor runs: loading a pack never executes the
+/// package it describes.
+///
+/// One row is printed per divergence, and the status is 1 when there is any, or
+/// when the package could not be required at all.
+fn run_test(args: &SpecTestArgs) -> anyhow::Result<u8> {
+    let Some(target) = test_target(args)? else {
+        return Ok(0);
+    };
+    let dir = project_of(&args.pack);
+    let loaded = tcl_pkg::policy::load(Some(&dir));
+    let package = &target.package;
+    if !loaded.config.build_script_allowed(package) {
+        eprintln!("error: running the package '{package}' is not permitted by policy");
+        eprintln!(
+            "  hint: set [build] allow-build-scripts = true and run 'tcl pkg trust {package}'"
+        );
+        return Ok(1);
+    }
+    let profile = test_profile(args, &dir, &target)?;
+    let outcome = tcl_pkg::exec::execute(&profile, &loaded.config.sandbox_policy())
+        .map_err(|error| anyhow!("{error}"))?;
+    if outcome.timed_out {
+        bail!("the shell did not finish testing '{package}' in time");
+    }
+    Ok(report_test(args, &target, &outcome))
+}
+
+/// What `tcl spec test` asks of a shell: the package to require and the
+/// questions the pack's commands raise.
+struct TestTarget {
+    package: String,
+    probes: Vec<crate::commands::spec_test::CommandProbe>,
+}
+
+/// Load the pack and name the package it describes. `None` when the pack declares
+/// no command, which is said on the way out.
+fn test_target(args: &SpecTestArgs) -> anyhow::Result<Option<TestTarget>> {
+    use crate::commands::spec_test::{probes_of, required_package};
+
+    if !args.pack.is_file() {
+        bail!("cannot read {}: not a file", args.pack.display());
+    }
+    // The file is named on the command line by its author, so it loads as the
+    // workspace's own pack: nothing narrows it.
+    let set = tcl_spectcl::pack::load(&[tcl_spectcl::PackFile {
+        tier: tcl_spectcl::Tier::Workspace,
+        path: args.pack.clone(),
+        origin: tcl_spectcl::discovery::Origin::Setting,
+        dependency_tier: None,
+    }]);
+    let probes = probes_of(&set);
+    if probes.is_empty() {
+        for notice in &set.notices {
+            eprint_status(
+                warn_style(),
+                format!(
+                    "{}:{}: {}",
+                    args.pack.display(),
+                    notice.line,
+                    notice.message
+                ),
+            );
+        }
+        println!(
+            "{}: the pack declares no command to test",
+            args.pack.display()
+        );
+        return Ok(None);
+    }
+    let Some(package) = args.package.clone().or_else(|| required_package(&set)) else {
+        bail!(
+            "name the Tcl package with --package: no command of {} agrees on a `required_package`",
+            args.pack.display()
+        );
+    };
+    Ok(Some(TestTarget { package, probes }))
+}
+
+/// The sandboxed shell that runs the probe: the probe on its standard input, no
+/// network, the environment a Tcl shell needs to find its library and the
+/// package, and read access to the project and the directories `TCLLIBPATH`
+/// names.
+fn test_profile(
+    args: &SpecTestArgs,
+    dir: &Path,
+    target: &TestTarget,
+) -> anyhow::Result<tcl_sandbox::Profile> {
+    let tclsh = match &args.tclsh {
+        Some(path) => path.clone(),
+        None => match std::env::var_os("TCL_VENV") {
+            Some(venv) => PathBuf::from(venv).join("bin").join("tclsh"),
+            None => tcl_pkg::venv::find_tclsh()
+                .ok_or_else(|| anyhow!("tclsh not found on PATH; name one with --tclsh"))?,
+        },
+    };
+    let script = crate::commands::spec_test::render_script(&target.package, &target.probes);
+    let mut profile = tcl_sandbox::Profile::new("spec-test", &tclsh, dir)
+        .arg("-")
+        .network(false)
+        .stdin_bytes(script.into_bytes());
+    for name in [
+        "PATH",
+        "HOME",
+        "TCL_LIBRARY",
+        "TCLLIBPATH",
+        "TMPDIR",
+        "LANG",
+        "LC_ALL",
+    ] {
+        profile = profile.pass_env(name);
+    }
+    profile.fs_read = std::iter::once(dir.to_path_buf())
+        .chain(
+            std::env::var_os("TCLLIBPATH")
+                .iter()
+                .flat_map(std::env::split_paths),
+        )
+        .collect();
+    Ok(profile)
+}
+
+/// Print one row per divergence the shell reported and the summary line, and
+/// return the status: 1 for any divergence, or for a shell that stopped before it
+/// reported anything.
+fn report_test(args: &SpecTestArgs, target: &TestTarget, outcome: &tcl_sandbox::Outcome) -> u8 {
+    let divergences =
+        crate::commands::spec_test::parse_report(&String::from_utf8_lossy(&outcome.stdout));
+    for divergence in &divergences {
+        println!("{divergence}");
+    }
+    if divergences.is_empty() && !outcome.success {
+        let stderr = String::from_utf8_lossy(&outcome.stderr);
+        eprint_status(
+            warn_style(),
+            format!(
+                "the shell exited with status {} before reporting: {}",
+                outcome
+                    .code
+                    .map_or_else(|| "?".to_owned(), |code| code.to_string()),
+                stderr.trim()
+            ),
+        );
+        return 1;
+    }
+    println!(
+        "{}: {} command(s) tested against '{}', {} divergence(s)",
+        args.pack.display(),
+        target.probes.len(),
+        target.package,
+        divergences.len()
+    );
+    u8::from(!divergences.is_empty())
+}
+
+/// The project a pack belongs to: the nearest directory above it that holds a
+/// `tclpkg.tcl`, or the pack's own directory when none does. Its `tclpkg.toml` is
+/// the project layer of the policy that decides whether the package runs.
+fn project_of(pack: &Path) -> PathBuf {
+    let own = pack
+        .parent()
+        .filter(|dir| !dir.as_os_str().is_empty())
+        .map_or_else(|| PathBuf::from("."), Path::to_path_buf);
+    let absolute = own.canonicalize().unwrap_or_else(|_| own.clone());
+    absolute
+        .ancestors()
+        .find(|dir| dir.join("tclpkg.tcl").is_file())
+        .map_or(own, Path::to_path_buf)
 }
 
 /// `tcl spec upgrade` — rewrite a 1.x pack into `SpecTcl` 2.0.
