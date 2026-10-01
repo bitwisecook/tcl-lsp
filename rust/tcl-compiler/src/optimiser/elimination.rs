@@ -333,9 +333,11 @@ impl<'a> RaiseProof<'a> {
             tcl_registry::model::ingress::static_context_for("tcl8.6").commands()
         });
         // A proc or a method binds its parameters on entry. A proc and a
-        // method may share a qualified name, so the unit's kind picks the map.
+        // method may share a qualified name, so the unit's kind picks the map;
+        // the top level has none, even beside a procedure named `::top`.
         let params = ctx
             .ir_module
+            .filter(|_| !top_level)
             .and_then(|m| {
                 if enclosing_class.is_some() {
                     m.methods.get(&fu.name).map(|d| &d.params)

@@ -3008,6 +3008,11 @@ fn an_overwritten_copy_of_a_startup_scalar_goes_only_at_top_level() {
             false,
         ),
         (
+            "a global named like a parameter of a procedure called `::top`",
+            "proc ::top {x} {}\nset dead $x\nset dead 1\nputs $dead\n",
+            false,
+        ),
+        (
             "a procedure's local",
             "proc p {} {\n    set dead $argv\n    set dead 1\n    return $dead\n}\n",
             false,
