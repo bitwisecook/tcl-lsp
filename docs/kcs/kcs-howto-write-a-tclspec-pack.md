@@ -85,7 +85,12 @@ package is your own
 is that `proc`, and the compiler inlines the body into any procedure that
 calls it, while the runtime still holds the call to exactly that text: a
 library that differs from the pack runs as it always did, only slower. The
-text must be one `proc` that defines the command and nothing else.
+text must be one `proc` that defines the command and nothing else. The compiler
+splices a body only where the call it replaces would have answered the same: a
+body that reads a variable it never sets, hands a command a variable's name
+(`[set y]`) or runs a script in a substitution is called as it always was, and so
+is one defined in a namespace of its own, in a caller outside that namespace,
+when it names a command without a leading `::` or substitutes one.
 `tcl-body {-package-source PATH}` names a file of your package instead,
 relative to the directory of its `tclpkg.tcl`; it is read when the pack
 loads, so a library edit reaches the compiler at the next load without any

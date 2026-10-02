@@ -652,7 +652,7 @@ fn implicit_trailing_return_with_early_return_captured() {
         unreachable!()
     };
     let captured = body.statements.iter().any(|s| {
-        matches!(s, Statement::AssignValue { name, value, .. }
+        matches!(s, Statement::AssignConst { name, value, .. }
             if name.ends_with("__RESULT") && value == "2")
     });
     assert!(

@@ -287,7 +287,7 @@ fn top_level_cross_namespace_call_keeps_its_runtime_proc_frame() {
 fn procedure_caller_can_still_inline_across_namespaces() {
     let inlined = inline_module_default(module_for(
         "namespace eval ::n {}\n\
-         proc ::n::callee {} { puts NAMESPACED }\n\
+         proc ::n::callee {} { ::puts NAMESPACED }\n\
          proc ::caller {} { ::n::callee }",
     ));
     let caller = &inlined.procedures["::caller"];
@@ -296,7 +296,7 @@ fn procedure_caller_can_still_inline_across_namespaces() {
         caller.body.statements.iter().any(|statement| matches!(
             statement,
             Statement::Call { command, args, .. }
-                if command == "puts" && args.len() == 1 && args[0] == "NAMESPACED"
+                if command == "::puts" && args.len() == 1 && args[0] == "NAMESPACED"
         )),
         "a procedure activation has a supra-global namespace slot for transparent replay: {:?}",
         caller.body.statements,
@@ -857,6 +857,120 @@ fn a_call_whose_value_a_try_holds_is_not_given_a_wrap() {
 }
 
 #[test]
+fn a_call_whose_value_an_lmap_gathers_is_not_given_a_wrap_or_a_branch() {
+    // Each iteration of an `lmap` gives its body's value to the list: a body with
+    // a `return` would leave the wrap loop's empty value there, a body that is a
+    // branch is not one the collector gathers from, and an empty body's call
+    // vanishes only where nothing stands before it.
+    let module = inline_module_default(module_for(
+        "proc ::id {x} { return $x }\n\
+         proc ::plain {x} { expr {$x + 1} }\n\
+         proc ::pick {x} { if {$x} { set r 1 } else { set r 2 } }\n\
+         proc ::noop {} {}\n\
+         proc ::returns {l} { lmap i $l { id $i } }\n\
+         proc ::flat {l} { lmap i $l { plain $i } }\n\
+         proc ::branch {l} { lmap i $l { pick $i } }\n\
+         proc ::lone {l} { lmap i $l { noop } }\n\
+         proc ::after {l} { lmap i $l { set a 5\n noop } }",
+    ));
+    assert!(call_heads(&module, "::returns").contains(&"id".to_owned()));
+    assert!(!call_heads(&module, "::flat").contains(&"plain".to_owned()));
+    assert!(call_heads(&module, "::branch").contains(&"pick".to_owned()));
+    assert!(!call_heads(&module, "::lone").contains(&"noop".to_owned()));
+    assert!(call_heads(&module, "::after").contains(&"noop".to_owned()));
+}
+
+#[test]
+fn a_loop_that_reads_no_value_is_still_given_a_wrap() {
+    let module = inline_module_default(module_for(
+        "proc ::id {x} { return $x }\n\
+         proc ::each {l} { foreach i $l { id $i }\n return done }",
+    ));
+    assert!(!call_heads(&module, "::each").contains(&"id".to_owned()));
+}
+
+/// The stores to the result slot of the wrap in `proc`'s body: `(is a literal,
+/// the value)`.
+fn result_stores(module: &Module, proc: &str) -> Vec<(bool, String)> {
+    let mut stores = Vec::new();
+    crate::ir::for_each_statement(
+        &module.procedures[proc].body,
+        &mut |statement| match statement {
+            Statement::AssignConst { name, value, .. } if name.ends_with("__RESULT") => {
+                stores.push((true, value.clone()));
+            }
+            Statement::AssignValue { name, value, .. } if name.ends_with("__RESULT") => {
+                stores.push((false, value.clone()));
+            }
+            _ => {}
+        },
+    );
+    stores
+}
+
+#[test]
+fn a_braced_value_is_stored_as_a_literal_by_the_wrap() {
+    // `{a\tb}` and `{[string length $x]}` are the characters they are. The wrap
+    // stores the value of a body that falls off its end, and the value of one that
+    // returns early, and a store that substitutes its word would run what it says.
+    let module = inline_module_default(module_for(
+        "proc ::implicit {x} { if {$x < 0} { return neg }\n set r {a\\tb} }\n\
+         proc ::explicit {x} { if {$x > 0} { return {a\\tb} }\n return neg }\n\
+         proc ::brackets {x} { if {$x > 0} { return {[string length $x]} }\n return neg }\n\
+         proc ::o1 {n} { implicit $n }\n\
+         proc ::o2 {n} { explicit $n }\n\
+         proc ::o3 {n} { brackets $n }",
+    ));
+    for (outer, text) in [
+        ("::o1", "a\\tb"),
+        ("::o2", "a\\tb"),
+        ("::o3", "[string length $x]"),
+    ] {
+        let stores = result_stores(&module, outer);
+        assert!(
+            stores.contains(&(true, text.to_owned())),
+            "{outer}: {stores:?}"
+        );
+        assert!(
+            !stores.contains(&(false, text.to_owned())),
+            "{outer}: {stores:?}"
+        );
+    }
+}
+
+#[test]
+fn a_branch_is_not_made_the_value_of_an_arm() {
+    // The code generator answers the empty string for the value of an `if` that
+    // ends an arm the procedure answers, so a call whose body is one stays a call
+    // in an arm and is spliced where its value is the procedure's own.
+    let module = inline_module_default(module_for(
+        "proc ::pick {x} { if {$x} { set r 1 } else { set r 2 } }\n\
+         proc ::plain {x} { expr {$x + 1} }\n\
+         proc ::top {n} { pick $n }\n\
+         proc ::after {n} { set a 1\n pick $n }\n\
+         proc ::arm {n} { if {$n} { pick $n } else { return zero } }\n\
+         proc ::other {n} { if {$n} { return one } else { pick $n } }\n\
+         proc ::switched {n} { switch -- $n { 0 { return zero } default { pick $n } } }\n\
+         proc ::dropped {n} { if {$n} { pick $n }\n return done }\n\
+         proc ::nested {n} { if {$n} { if {$n > 1} { plain $n } } }",
+    ));
+    for spliced in ["::top", "::after", "::dropped"] {
+        assert!(
+            !call_heads(&module, spliced).contains(&"pick".to_owned()),
+            "{spliced}"
+        );
+    }
+    for kept in ["::arm", "::other", "::switched"] {
+        assert!(
+            call_heads(&module, kept).contains(&"pick".to_owned()),
+            "{kept}"
+        );
+    }
+    // An arm that was a branch before the splice is not made one by it.
+    assert!(!call_heads(&module, "::nested").contains(&"plain".to_owned()));
+}
+
+#[test]
 fn an_uplevel_body_is_left_as_written() {
     // The statement is emitted from its text, so a splice made in its lowered
     // copy never runs, and what it recorded would be a requirement of code that
@@ -914,15 +1028,54 @@ fn a_body_spliced_into_another_namespace_spells_every_command_from_the_global_on
 }
 
 #[test]
-fn a_body_spliced_into_its_own_or_the_global_namespace_keeps_its_spelling() {
+fn a_body_spliced_where_names_are_looked_up_as_its_definition_did_keeps_its_spelling() {
+    // A body in a namespace of its own is spliced into that namespace, and one in
+    // the global namespace into the global namespace, as written.
     let module = inline_module_default(module_for(
         "namespace eval ::app {}\n\
          proc ::app::w {} { puts hi }\n\
          proc ::app::same {} { w }\n\
-         proc ::global {} { ::app::w }",
+         proc ::g {} { puts hi }\n\
+         proc ::global {} { g }",
     ));
     assert_eq!(call_heads(&module, "::app::same"), ["puts"]);
     assert_eq!(call_heads(&module, "::global"), ["puts"]);
+}
+
+#[test]
+fn a_body_in_a_namespace_that_names_a_command_stays_a_call_in_any_other() {
+    // `::app::w` looks `puts` up in `::app` first, which nothing the compile sees
+    // says is empty, and no spelling asks that of a caller elsewhere: `::puts`
+    // skips an `::app::puts` and `puts` is the caller's own lookup.
+    let source = |caller: &str| {
+        format!(
+            "namespace eval ::app::inner {{}}\n\
+             namespace eval ::other {{}}\n\
+             proc ::app::w {{}} {{ puts hi }}\n\
+             proc {caller} {{}} {{ ::app::w }}"
+        )
+    };
+    for caller in ["::global", "::other::caller", "::app::inner::caller"] {
+        let module = inline_module_default(module_for(&source(caller)));
+        assert_eq!(call_heads(&module, caller), ["::app::w"], "{caller}");
+    }
+    let own = inline_module_default(module_for(&source("::app::caller")));
+    assert_eq!(call_heads(&own, "::app::caller"), ["puts"]);
+}
+
+#[test]
+fn a_body_in_a_namespace_that_names_no_command_is_spliced_anywhere() {
+    // What a statement lowering consumed carries is a binding in the definition's
+    // own namespace, which the VM holds to the live command.
+    let module = inline_module_default(module_for(
+        "namespace eval ::app {}\n\
+         namespace eval ::other {}\n\
+         proc ::app::inc {x} { set y [expr {$x + 1}]\n return $y }\n\
+         proc ::global {n} { ::app::inc $n }\n\
+         proc ::other::caller {n} { ::app::inc $n }",
+    ));
+    assert!(call_heads(&module, "::global").is_empty());
+    assert!(call_heads(&module, "::other::caller").is_empty());
 }
 
 #[test]
@@ -1086,6 +1239,65 @@ fn a_braced_reference_in_a_substituted_command_stays_a_call() {
     ));
     assert!(!spliced(
         "proc ::g {x} { set n [list {a $x} $x]\n return $n }\ng abc",
+        "g"
+    ));
+    assert!(spliced("proc ::g {x} { return [expr {$x * 2}] }\ng 2", "g"));
+}
+
+#[test]
+fn a_body_whose_substituted_command_names_a_variable_stays_a_call() {
+    // `[set y]` carries no `$` for the rename to rewrite, so spliced it would
+    // address the caller's `y` and not the slot the body's own became. The same
+    // holds of a command that runs a script, and of one nested in another.
+    assert!(!spliced(
+        "proc ::g {x} { set y $x\n return [set y] }\ng 1",
+        "g"
+    ));
+    assert!(!spliced(
+        "proc ::g {x} { set y $x\n return [incr y] }\ng 1",
+        "g"
+    ));
+    assert!(!spliced(
+        "proc ::g {x} { return [format %s [set x]] }\ng 1",
+        "g"
+    ));
+    assert!(!spliced("proc ::g {x} { expr {[set x] + 1} }\ng 1", "g"));
+    assert!(!spliced(
+        "proc ::g {x} { return [info exists x] }\ng 1",
+        "g"
+    ));
+    assert!(!spliced(
+        "proc ::g {x} { return [catch {incr x}] }\ng 1",
+        "g"
+    ));
+    assert!(!spliced(
+        "proc ::g {x} { set n [expr {[incr x] * 2}]\n return $n }\ng 1",
+        "g"
+    ));
+    assert!(!spliced("proc ::g {x} { return [helper $x] }\ng 1", "g"));
+    assert!(!spliced(
+        "proc ::g {} { return [namespace current] }\ng",
+        "g"
+    ));
+    // A command that works on its values writes a variable when a switch says so.
+    assert!(!spliced(
+        "proc ::g {s} { return [string is integer -failindex bad $s] }\ng 1",
+        "g"
+    ));
+}
+
+#[test]
+fn a_body_whose_substituted_commands_work_on_their_values_is_spliced() {
+    assert!(spliced(
+        "proc ::g {x} { return [string length $x] }\ng abc",
+        "g"
+    ));
+    assert!(spliced(
+        "proc ::g {x} { return [format %s-%s $x [string length $x]] }\ng abc",
+        "g"
+    ));
+    assert!(spliced(
+        "proc ::g {x} { set n [join [list $x $x] ,]\n return $n }\ng abc",
         "g"
     ));
     assert!(spliced("proc ::g {x} { return [expr {$x * 2}] }\ng 2", "g"));

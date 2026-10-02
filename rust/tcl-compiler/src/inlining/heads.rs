@@ -19,23 +19,32 @@
 //! The commands a spliced body names, as its own namespace names them.
 //!
 //! A procedure's body resolves an unqualified command from the procedure's
-//! namespace, so the `string` of a pack's `proc vlen` is the global one.
-//! Spliced into a caller in another namespace the same spelling resolves from
-//! that namespace first, and a caller that defines a `string` of its own would
-//! answer in its place. [`root`] spells each such word from the global
-//! namespace, where the definition's own lookup ends, so the splice means what
-//! the call it replaced meant wherever it stands.
+//! namespace, so the `string` of a pack's `proc vlen`, defined in the global
+//! namespace, is the global one. Spliced into a caller in another namespace the
+//! same spelling resolves from that namespace first, and a caller that defines a
+//! `string` of its own would answer in its place. [`root`] spells each such word
+//! from the global namespace, where the definition's own lookup ends, so the
+//! splice means what the call it replaced meant wherever it stands.
 //!
-//! Only the command words the IR keeps as calls can be spelled this way. A
-//! command a word substitutes — `[join $l ,]`, or one inside an expression — is
-//! text to the IR, so a body with one stays a call where it would need the
-//! spelling. A statement lowering consumed — `set`, `incr`, `expr`, an `if` —
-//! carries a binding recorded in the definition's own namespace, which the VM
-//! holds to the live command, and so is already the definition's.
+//! A definition in a namespace of its own looks a name up there first and in the
+//! global namespace after it, and no spelling says that: `::string` skips a
+//! `vendor::string` the package defines when it runs, and `string` is the
+//! caller's own lookup. The command it would have to be held to is not the
+//! compile's to see, and the binding the VM holds a lowered statement to names a
+//! builtin and never a procedure. So such a body is spliced only where the caller
+//! looks names up as the definition did, or when it names no command by a word
+//! the IR keeps ([`names_a_command`]).
+//!
+//! Only the command words the IR keeps as calls can be spelled. A command a word
+//! substitutes — `[join $l ,]`, or one inside an expression — is text to the IR,
+//! so a body with one stays a call where it would need the spelling. A statement
+//! lowering consumed — `set`, `incr`, `expr`, an `if` — carries a binding
+//! recorded in the definition's own namespace, which the VM holds to the live
+//! command, and so is already the definition's.
 
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::ExprNode;
-use crate::ir::{Script, Statement};
+use crate::ir::{CommandTokens, Script, Statement};
 
 /// `statements` with every command word not already absolute spelled from the
 /// global namespace, to the depth the inliner reads a body to; `None` when the
@@ -43,7 +52,7 @@ use crate::ir::{Script, Statement};
 pub(super) fn root(mut statements: Vec<Statement>) -> Option<Vec<Statement>> {
     if statements
         .iter()
-        .any(|statement| runs_a_substituted_command(statement, 0))
+        .any(|statement| runs_a_command_by_name(statement, false, 0))
     {
         return None;
     }
@@ -51,6 +60,15 @@ pub(super) fn root(mut statements: Vec<Statement>) -> Option<Vec<Statement>> {
         rooted(statement, 0);
     }
     Some(statements)
+}
+
+/// Whether `statements`, the body of a definition, name a command by a word
+/// the definition's own namespace resolves: a call head that is not absolute,
+/// or a command a word or an expression substitutes.
+pub(super) fn names_a_command(statements: &[Statement]) -> bool {
+    statements
+        .iter()
+        .any(|statement| runs_a_command_by_name(statement, true, 0))
 }
 
 fn substitutes(text: &str) -> bool {
@@ -86,18 +104,26 @@ fn expression_substitutes(expr: &ExprNode, depth: u32) -> bool {
     }
 }
 
-fn script_substitutes(script: &Script, depth: u32) -> bool {
+/// Whether a word of a call that is not braced substitutes a command.
+fn call_substitutes(args: &[String], tokens: Option<&CommandTokens>) -> bool {
+    args.iter().enumerate().any(|(index, arg)| {
+        !tokens.is_some_and(|tokens| tokens.arg_is_braced_literal(index)) && substitutes(arg)
+    })
+}
+
+fn script_substitutes(script: &Script, heads: bool, depth: u32) -> bool {
     super::MAX_INLINING_WALK_DEPTH.exceeded(depth)
         || script
             .statements
             .iter()
-            .any(|statement| runs_a_substituted_command(statement, depth))
+            .any(|statement| runs_a_command_by_name(statement, heads, depth))
 }
 
-/// Whether a word of `statement`, or of a body inside it, substitutes a command.
-/// A braced word is literal, and a nested expression the statement consumed
-/// natively (`return [expr {…}]`) is read from its tree and not its text.
-fn runs_a_substituted_command(statement: &Statement, depth: u32) -> bool {
+/// Whether a word of `statement`, or of a body inside it, substitutes a command,
+/// or, with `heads`, a call has a head that is not absolute. A braced word is
+/// literal, and a nested expression the statement consumed natively
+/// (`return [expr {…}]`) is read from its tree and not its text.
+fn runs_a_command_by_name(statement: &Statement, heads: bool, depth: u32) -> bool {
     let next = depth + 1;
     match statement {
         Statement::AssignConst { .. } => false,
@@ -110,12 +136,12 @@ fn runs_a_substituted_command(statement: &Statement, depth: u32) -> bool {
             amount_braced,
             ..
         } => !amount_braced && amount.as_deref().is_some_and(substitutes),
-        Statement::Call { args, tokens, .. } => args.iter().enumerate().any(|(index, arg)| {
-            !tokens
-                .as_ref()
-                .is_some_and(|tokens| tokens.arg_is_braced_literal(index))
-                && substitutes(arg)
-        }),
+        Statement::Call {
+            command,
+            args,
+            tokens,
+            ..
+        } => (heads && !command.starts_with("::")) || call_substitutes(args, tokens.as_ref()),
         Statement::Return {
             value,
             expr,
@@ -126,17 +152,17 @@ fn runs_a_substituted_command(statement: &Statement, depth: u32) -> bool {
             None => !braced && value.as_deref().is_some_and(substitutes),
         },
         Statement::Block { body, .. } | Statement::Catch { body, .. } => {
-            script_substitutes(body, next)
+            script_substitutes(body, heads, next)
         }
         Statement::If {
             clauses, else_body, ..
         } => {
             clauses.iter().any(|clause| {
                 expression_substitutes(&clause.condition, 0)
-                    || script_substitutes(&clause.body, next)
+                    || script_substitutes(&clause.body, heads, next)
             }) || else_body
                 .as_ref()
-                .is_some_and(|body| script_substitutes(body, next))
+                .is_some_and(|body| script_substitutes(body, heads, next))
         }
         Statement::For {
             init,
@@ -146,20 +172,20 @@ fn runs_a_substituted_command(statement: &Statement, depth: u32) -> bool {
             ..
         } => {
             expression_substitutes(condition, 0)
-                || script_substitutes(init, next)
-                || script_substitutes(step, next)
-                || script_substitutes(body, next)
+                || script_substitutes(init, heads, next)
+                || script_substitutes(step, heads, next)
+                || script_substitutes(body, heads, next)
         }
         Statement::While {
             condition, body, ..
-        } => expression_substitutes(condition, 0) || script_substitutes(body, next),
+        } => expression_substitutes(condition, 0) || script_substitutes(body, heads, next),
         Statement::Foreach {
             iterators, body, ..
         } => {
             iterators
                 .iter()
                 .any(|iterator| !iterator.list_braced && substitutes(&iterator.list_arg))
-                || script_substitutes(body, next)
+                || script_substitutes(body, heads, next)
         }
         Statement::Try {
             body,
@@ -167,13 +193,13 @@ fn runs_a_substituted_command(statement: &Statement, depth: u32) -> bool {
             finally_body,
             ..
         } => {
-            script_substitutes(body, next)
+            script_substitutes(body, heads, next)
                 || handlers
                     .iter()
-                    .any(|handler| script_substitutes(&handler.body, next))
+                    .any(|handler| script_substitutes(&handler.body, heads, next))
                 || finally_body
                     .as_ref()
-                    .is_some_and(|body| script_substitutes(body, next))
+                    .is_some_and(|body| script_substitutes(body, heads, next))
         }
         Statement::Switch {
             subject,
@@ -188,11 +214,11 @@ fn runs_a_substituted_command(statement: &Statement, depth: u32) -> bool {
                         || arm
                             .body
                             .as_ref()
-                            .is_some_and(|body| script_substitutes(body, next))
+                            .is_some_and(|body| script_substitutes(body, heads, next))
                 })
                 || default_body
                     .as_ref()
-                    .is_some_and(|body| script_substitutes(body, next))
+                    .is_some_and(|body| script_substitutes(body, heads, next))
         }
         // Neither is read by the inliner's eligibility; a body with one is not spelled.
         Statement::UpFrame { .. } | Statement::Barrier { .. } => true,

@@ -2064,9 +2064,18 @@ Rules 1 to 4 are built.
   by lowering it on its own, shifting its spans past the module's source and
   appending its text there (`ReferenceBodies`, `rust/tcl-compiler/src/ir.rs`),
   and inlines only where the caller has a local variable table — a procedure
-  body — never at a script's global level. The VM defines no procedure from a
-  claim, and refuses a claim whose backing is not `TclBody`; otherwise the check
-  would admit a model of a C command. Only a pack's commands are inlined: a
+  body — never at a script's global level. The splice is the call it replaces
+  and nothing else: where a command around the call reads its value — a
+  `catch`, a `try`, an `lmap` — only a body with no `return` stands in it, and in
+  an `lmap` only while the body stays one block; an `if` or a `switch` is not
+  made the last command of an arm; a braced word stays literal; a body that
+  reads a variable its own frame did not bind, or hands a command a variable's
+  name through a substitution (`[set y]`), stays a call; and a definition in a
+  namespace of its own is spliced into a caller in that namespace, and into
+  another only if it names no command by an unqualified word and substitutes
+  none. The VM defines no procedure from a claim, and refuses a claim whose
+  backing is not `TclBody`; otherwise the check would admit a model of a C
+  command. Only a pack's commands are inlined: a
   `TclBody` command the shipped registry declares has no pack facts for a claim
   to carry. As a derivation source, analysing the body yields purity, effects,
   return type, callback slots, and the transfer: the transfer is the declared

@@ -703,7 +703,7 @@ impl Lowerer<'_> {
             .statements
             .iter()
             .any(|statement| matches!(statement, Statement::Foreach { .. }));
-        let lmap_needs_runtime = is_lmap && !Self::body_is_straight_line(&body);
+        let lmap_needs_runtime = is_lmap && !body.is_straight_line();
         if self.target.is_bytecode() && (lmap_needs_runtime || body_nests_foreach) {
             return self.barrier(seg, if is_lmap { "lmap" } else { "foreach" });
         }
@@ -719,29 +719,6 @@ impl Lowerer<'_> {
             is_array_iteration: false,
             raw_tokens: Some(cmd_tokens),
         }
-    }
-
-    /// A loop body is *straight-line* when every statement compiles to a single
-    /// fall-through block — no branch, join, or unwinding `return`. That is the
-    /// shape the inline collecting-`lmap` codegen needs: it strips the body's
-    /// trailing `POP` and appends the result via one `LMAP_COLLECT` on the
-    /// fall-through tail, so a branch/join (an `if`/`while`/`switch`/nested loop)
-    /// or a `return` that unwinds past the collect point would drop or mis-gather
-    /// results. Such a body keeps `lmap` on the runtime builtin.
-    ///
-    fn body_is_straight_line(body: &Script) -> bool {
-        body.statements.iter().all(|s| {
-            matches!(
-                s,
-                Statement::Call { .. }
-                    | Statement::AssignConst { .. }
-                    | Statement::AssignExpr { .. }
-                    | Statement::AssignValue { .. }
-                    | Statement::Incr { .. }
-                    | Statement::ExprEval { .. }
-                    | Statement::Barrier { .. }
-            )
-        })
     }
 
     /// Lower `foreachLine varName filename body` (Tcl 9.0+, TIP 670)

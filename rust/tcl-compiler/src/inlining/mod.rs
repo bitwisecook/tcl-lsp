@@ -143,6 +143,15 @@ enum InlineSpec {
 }
 
 impl InlineSpec {
+    /// The statements of the body the definition has.
+    fn body_statements(&self) -> &[Statement] {
+        match self {
+            Self::Empty(_) => &[],
+            Self::Verbatim(body, _) => &body.statements,
+            Self::Parameterised(proc, _) => &proc.body.statements,
+        }
+    }
+
     fn definition(&self) -> ProcedureDefinitionIdentity {
         match self {
             Self::Empty(definition) | Self::Verbatim(_, definition) => definition.clone(),
@@ -1141,6 +1150,45 @@ fn rewrite_block_stmt(
     })
 }
 
+/// Whether `script` ends in a branch — an `if` or a `switch`.
+fn ends_in_a_branch(script: &Script) -> bool {
+    matches!(
+        script.statements.last(),
+        Some(Statement::If { .. } | Statement::Switch { .. })
+    )
+}
+
+/// [`rewrite_script`] for an arm of an `if` or a `switch`, except that where
+/// somebody reads the arm's value, a rewrite that makes a branch of the command
+/// the arm ended with is not made. The code generator loses the value of an `if`
+/// or a `switch` that ends an arm — `if {$n} {if {$n < 0} {set r neg} else {set r
+/// pos}} else {return zero}` answers the empty string — and a splice that gave a
+/// call's value to one would answer what the call did not.
+fn rewrite_arm(
+    body: &Script,
+    caller_qname: &str,
+    inlinable: &HashMap<String, InlineSpec>,
+    summaries: &HashMap<String, ProcEscapeSummary>,
+    counter: &mut usize,
+    tail: Tail,
+    caller_may_be_global_frame: bool,
+) -> (Script, bool) {
+    let (rewritten, changed) = rewrite_script(
+        body,
+        caller_qname,
+        inlinable,
+        summaries,
+        counter,
+        tail,
+        caller_may_be_global_frame,
+    );
+    if changed && tail != Tail::Dropped && ends_in_a_branch(&rewritten) && !ends_in_a_branch(body) {
+        (body.clone(), false)
+    } else {
+        (rewritten, changed)
+    }
+}
+
 /// `If`: recurse into each clause body and the else body, propagating `tail`
 /// (the taken branch's value is the `if`'s).
 fn rewrite_if_stmt(
@@ -1164,7 +1212,7 @@ fn rewrite_if_stmt(
     let mut new_clauses = Vec::with_capacity(clauses.len());
     let mut changed = false;
     for c in clauses {
-        let (body, ch) = rewrite_script(
+        let (body, ch) = rewrite_arm(
             &c.body,
             caller_qname,
             inlinable,
@@ -1188,7 +1236,7 @@ fn rewrite_if_stmt(
     }
     let new_else = match else_body {
         Some(b) => {
-            let (s, ch) = rewrite_script(
+            let (s, ch) = rewrite_arm(
                 b,
                 caller_qname,
                 inlinable,
@@ -1287,8 +1335,9 @@ fn rewrite_for_stmt(
 }
 
 /// `While` / `Foreach` / `Catch`: recurse into the single body, rebuilding the
-/// statement when it changed. A loop reads no value of its body; a `catch`
-/// holds the value of its body for its result variable.
+/// statement when it changed. A loop reads no value of its body, except an
+/// `lmap` ([`rewrite_foreach_stmt`]); a `catch` holds the value of its body for
+/// its result variable.
 fn rewrite_single_body_stmt(
     stmt: &Statement,
     caller_qname: &str,
@@ -1330,40 +1379,14 @@ fn rewrite_single_body_stmt(
                 }]
             })
         }
-        Statement::Foreach {
-            span,
-            iterators,
-            body,
-            body_span,
-            is_lmap,
-            raw_args,
-            is_dict_iteration,
-            is_array_iteration,
-            raw_tokens,
-        } => {
-            let (new_body, ch) = rewrite_script(
-                body,
-                caller_qname,
-                inlinable,
-                summaries,
-                counter,
-                Tail::Dropped,
-                caller_may_be_global_frame,
-            );
-            ch.then(|| {
-                vec![Statement::Foreach {
-                    span: *span,
-                    iterators: iterators.clone(),
-                    body: new_body,
-                    body_span: *body_span,
-                    is_lmap: *is_lmap,
-                    raw_args: raw_args.clone(),
-                    is_dict_iteration: *is_dict_iteration,
-                    is_array_iteration: *is_array_iteration,
-                    raw_tokens: raw_tokens.clone(),
-                }]
-            })
-        }
+        Statement::Foreach { .. } => rewrite_foreach_stmt(
+            stmt,
+            caller_qname,
+            inlinable,
+            summaries,
+            counter,
+            caller_may_be_global_frame,
+        ),
         Statement::Catch {
             span,
             body,
@@ -1396,6 +1419,62 @@ fn rewrite_single_body_stmt(
         }
         _ => None,
     }
+}
+
+/// `Foreach` and `lmap`: recurse into the body. A loop reads no value of its body
+/// and an `lmap` gathers each iteration's, so its body is rewritten as `Captured`;
+/// the collector the code generator gives an `lmap` gathers from a body of one
+/// fall-through block, so a body the splice gave a branch or a loop is not given
+/// to it.
+fn rewrite_foreach_stmt(
+    stmt: &Statement,
+    caller_qname: &str,
+    inlinable: &HashMap<String, InlineSpec>,
+    summaries: &HashMap<String, ProcEscapeSummary>,
+    counter: &mut usize,
+    caller_may_be_global_frame: bool,
+) -> Option<Vec<Statement>> {
+    let Statement::Foreach {
+        span,
+        iterators,
+        body,
+        body_span,
+        is_lmap,
+        raw_args,
+        is_dict_iteration,
+        is_array_iteration,
+        raw_tokens,
+    } = stmt
+    else {
+        return None;
+    };
+    let tail = if *is_lmap {
+        Tail::Captured
+    } else {
+        Tail::Dropped
+    };
+    let (new_body, changed) = rewrite_script(
+        body,
+        caller_qname,
+        inlinable,
+        summaries,
+        counter,
+        tail,
+        caller_may_be_global_frame,
+    );
+    (changed && (!*is_lmap || new_body.is_straight_line())).then(|| {
+        vec![Statement::Foreach {
+            span: *span,
+            iterators: iterators.clone(),
+            body: new_body,
+            body_span: *body_span,
+            is_lmap: *is_lmap,
+            raw_args: raw_args.clone(),
+            is_dict_iteration: *is_dict_iteration,
+            is_array_iteration: *is_array_iteration,
+            raw_tokens: raw_tokens.clone(),
+        }]
+    })
 }
 
 /// `Try`: recurse into the body, each handler body, and the finally body. The
@@ -1523,7 +1602,7 @@ fn rewrite_switch_stmt(
     for a in arms {
         match &a.body {
             Some(b) => {
-                let (body, ch) = rewrite_script(
+                let (body, ch) = rewrite_arm(
                     b,
                     caller_qname,
                     inlinable,
@@ -1551,7 +1630,7 @@ fn rewrite_switch_stmt(
     }
     let new_default = match default_body {
         Some(b) => {
-            let (s, ch) = rewrite_script(
+            let (s, ch) = rewrite_arm(
                 b,
                 caller_qname,
                 inlinable,
@@ -1641,6 +1720,16 @@ fn splice_call_site(
         return None;
     };
     let span = *span;
+    let definition = spec.definition();
+    let defined_in = root_namespace_of(&definition.name);
+    let foreign = resolution_namespace != defined_in;
+    // A definition in a namespace of its own resolved each command it names there
+    // first and in the global namespace after it. No spelling says that to a
+    // caller in another namespace, so such a body is spliced only where it names
+    // no command the IR keeps.
+    if foreign && defined_in != "::" && heads::names_a_command(spec.body_statements()) {
+        return None;
+    }
     let mut expansion = match spec {
         InlineSpec::Empty(_) => {
             if !args.is_empty() {
@@ -1679,11 +1768,10 @@ fn splice_call_site(
         }
         InlineSpec::Parameterised(proc, rules) => splice_v3(call, proc, *rules, counter, site.tail),
     }?;
-    let definition = spec.definition();
-    // The definition resolved each command it names from its own namespace. A
+    // A definition in the global namespace resolved each command it names there. A
     // caller in another namespace would resolve the same spelling from its own
     // first, and a command of that name defined there would answer in its place.
-    if resolution_namespace != "::" && resolution_namespace != root_namespace_of(&definition.name) {
+    if foreign && defined_in == "::" {
         expansion.statements = heads::root(std::mem::take(&mut expansion.statements))?;
     }
     expansion.procedure_bindings.push(
@@ -1741,7 +1829,7 @@ fn splice_v3(
     if body_has_non_trailing_return {
         // Capture the implicit-trailing-return value when the body falls
         // off the end without an explicit `return`.
-        let mut implicit: Option<String> = None;
+        let mut implicit: Option<Stored> = None;
         if !body_has_trailing_return && let Some(trailing) = renamed_body.statements.last() {
             implicit = Some(capture_implicit_return_value(trailing)?);
         }
@@ -1873,14 +1961,45 @@ fn has_any_irreturn(script: &Script) -> bool {
         .any(|s| matches!(s, Statement::Return { .. }) || scan_for_irreturn(s))
 }
 
-/// Return the literal string the body's last statement contributes as
-/// Tcl's implicit return value, or `None` when the shape is too complex
-/// to capture safely.
-fn capture_implicit_return_value(stmt: &Statement) -> Option<String> {
-    match stmt {
-        Statement::AssignConst { value, .. } | Statement::AssignValue { value, .. } => {
-            Some(value.clone())
+/// A value stored for the wrapped body's result, as the statement it came from
+/// said it: a literal, which nothing substitutes, or a word the emitter
+/// substitutes. A braced word is the first, and storing it as the second runs
+/// its backslash sequences and its `[…]`.
+enum Stored {
+    Literal(String),
+    Substituted(String),
+}
+
+impl Stored {
+    /// The statement that stores this value in `name`.
+    fn into_statement(self, span: Span, name: &str) -> Statement {
+        match self {
+            Self::Literal(value) => Statement::AssignConst {
+                span,
+                name: name.to_owned(),
+                name_braced: false,
+                value,
+                value_span: None,
+            },
+            Self::Substituted(value) => Statement::AssignValue {
+                span,
+                name: name.to_owned(),
+                name_braced: false,
+                value_needs_backsubst: value.contains('\\'),
+                value,
+                tokens: None,
+            },
         }
+    }
+}
+
+/// Return the value the body's last statement contributes as Tcl's implicit
+/// return value, as that statement stored it, or `None` when the shape is too
+/// complex to capture safely.
+fn capture_implicit_return_value(stmt: &Statement) -> Option<Stored> {
+    match stmt {
+        Statement::AssignConst { value, .. } => Some(Stored::Literal(value.clone())),
+        Statement::AssignValue { value, .. } => Some(Stored::Substituted(value.clone())),
         _ => None,
     }
 }
@@ -1895,7 +2014,7 @@ fn wrap_with_irreturn_loop(
     renamed_body: &Script,
     result_var: &str,
     span: Span,
-    implicit_value: Option<String>,
+    implicit_value: Option<Stored>,
 ) -> Vec<Statement> {
     let rewritten = substitute_irreturn(renamed_body, result_var);
     let mut body_with_break: Vec<Statement> = rewritten.statements;
@@ -1905,15 +2024,8 @@ fn wrap_with_irreturn_loop(
         .iter()
         .cloned()
         .collect();
-    if let Some(v) = implicit_value {
-        body_with_break.push(Statement::AssignValue {
-            span,
-            name: result_var.to_owned(),
-            name_braced: false,
-            value: v.clone(),
-            value_needs_backsubst: v.contains('\\'),
-            tokens: None,
-        });
+    if let Some(stored) = implicit_value {
+        body_with_break.push(stored.into_statement(span, result_var));
     }
     body_with_break.push(break_call(span));
 
@@ -1980,6 +2092,7 @@ fn substitute_irreturn(script: &Script, result_var: &str) -> Script {
         if let Statement::Return {
             span,
             value,
+            braced,
             command_binding,
             ..
         } = stmt
@@ -1991,14 +2104,12 @@ fn substitute_irreturn(script: &Script, result_var: &str) -> Script {
                 });
             }
             let v = value.clone().unwrap_or_default();
-            out.push(Statement::AssignValue {
-                span: *span,
-                name: result_var.to_owned(),
-                name_braced: false,
-                value: v.clone(),
-                value_needs_backsubst: v.contains('\\'),
-                tokens: None,
-            });
+            let stored = if *braced {
+                Stored::Literal(v)
+            } else {
+                Stored::Substituted(v)
+            };
+            out.push(stored.into_statement(*span, result_var));
             out.push(break_call(*span));
         } else {
             out.push(substitute_irreturn_stmt(stmt, result_var));

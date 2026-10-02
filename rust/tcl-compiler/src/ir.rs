@@ -802,6 +802,30 @@ impl Script {
             procedure_binding_requirements: procedure_binding_requirements.into(),
         }
     }
+
+    /// Whether every statement compiles to a single fall-through block — no
+    /// branch, join, loop or unwinding `return`. That is the shape the inline
+    /// collecting-`lmap` codegen needs: it strips the body's trailing `POP` and
+    /// appends the result via one `LMAP_COLLECT` on the fall-through tail, so a
+    /// branch or join (an `if`, `while`, `switch` or nested loop) or a `return`
+    /// that unwinds past the collect point would drop or mis-gather results.
+    /// Lowering keeps such a body's `lmap` on the runtime builtin, and a pass
+    /// that rewrites a body afterwards must not give it one.
+    #[must_use]
+    pub fn is_straight_line(&self) -> bool {
+        self.statements.iter().all(|statement| {
+            matches!(
+                statement,
+                Statement::Call { .. }
+                    | Statement::AssignConst { .. }
+                    | Statement::AssignExpr { .. }
+                    | Statement::AssignValue { .. }
+                    | Statement::Incr { .. }
+                    | Statement::ExprEval { .. }
+                    | Statement::Barrier { .. }
+            )
+        })
+    }
 }
 
 /// Depth cap for [`for_each_statement`]'s recursion over nested

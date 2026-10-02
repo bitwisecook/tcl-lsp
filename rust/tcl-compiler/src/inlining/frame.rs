@@ -42,15 +42,24 @@
 //! the command evaluates (`[expr {$x}]`) from text it hands on
 //! (`[string length {$x}]`), and a body with the second would be spliced with the
 //! first's rewriting.
+//!
+//! It reaches no variable a command is handed by name either. `[set y]`,
+//! `[incr y]` and `[info exists y]` carry no `$` to rewrite, and spliced they
+//! would address the caller's `y` and not the slot the body's own `y` became, so a
+//! body that substitutes a command which is not known to work on its values alone
+//! — one that takes a variable's name, runs a script, or is a procedure, which can
+//! reach the frame it was called from — is declined as well.
 
 use std::collections::HashSet;
 
-use tcl_registry::CommandRegistry;
+use tcl_lexer::{Lexer, LexerConfig, SourceMap, TokenType};
+use tcl_registry::{CommandRegistry, Traits};
 
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{ExprNode, render_expr};
 use crate::ir::{Procedure, Script, Statement};
-use crate::var_refs::vars_in_word;
+use crate::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
+use crate::var_refs::{variable_name_role_words, vars_in_word};
 
 /// Whether every variable `proc`'s body reads is bound when it is read.
 pub(super) fn reads_only_bound_names(proc: &Procedure, registry: &CommandRegistry) -> bool {
@@ -385,7 +394,9 @@ impl Frame<'_> {
 
     /// Every name `text`, read as a word, substitutes.
     fn word(&self, text: &str, bound: &HashSet<String>) -> Option<()> {
-        if braced_reference_in_substitution(text) {
+        if braced_reference_in_substitution(text)
+            || substitutes_a_command_beyond_values(text, self.registry, 0)
+        {
             return None;
         }
         self.names(text, bound)
@@ -403,7 +414,11 @@ impl Frame<'_> {
         if text_operand_substitutes(expr, 0) {
             return None;
         }
-        self.names(&render_expr(expr), bound)
+        let text = render_expr(expr);
+        if substitutes_a_command_beyond_values(&text, self.registry, 0) {
+            return None;
+        }
+        self.names(&text, bound)
     }
 }
 
@@ -456,4 +471,116 @@ fn braced_reference_in_substitution(text: &str) -> bool {
         && text.ends_with(']')
         && text.matches('[').count() == 1;
     !one_expr
+}
+
+/// Whether `text` — a word, or the text of an expression — substitutes a command
+/// that does more than compute from the values it is handed: one that takes a
+/// variable's name, evaluates a script, or is not a command the registry knows,
+/// in the substitution or in any word of it that substitutes in turn. A braced
+/// word is read as well, for `expr` evaluates its braces.
+fn substitutes_a_command_beyond_values(text: &str, registry: &CommandRegistry, depth: u32) -> bool {
+    if super::MAX_INLINING_WALK_DEPTH.exceeded(depth) {
+        return true;
+    }
+    if !text.contains('[') {
+        return false;
+    }
+    let config = LexerConfig::for_profile(registry.profile())
+        .nested()
+        .normalized();
+    let source_map = SourceMap::new(text);
+    let Ok(tokens) = Lexer::with_config(text, config)
+        .as_quoted_body()
+        .tokenise_all()
+    else {
+        return true;
+    };
+    tokens.iter().any(|token| match token.kind {
+        TokenType::Cmd => {
+            segment_commands_with_offset_and_config(source_map.token_text(*token), 0, config)
+                .iter()
+                .any(|command| command_goes_beyond_values(command, registry, depth + 1))
+        }
+        TokenType::ExprSugar => {
+            substitutes_a_command_beyond_values(source_map.token_text(*token), registry, depth + 1)
+        }
+        _ => false,
+    })
+}
+
+/// Whether `command` is not one that works on its values alone, or has a word
+/// that substitutes one that is not.
+fn command_goes_beyond_values(
+    command: &SegmentedCommand,
+    registry: &CommandRegistry,
+    depth: u32,
+) -> bool {
+    !works_on_values(command.name(), registry)
+        || !variable_name_role_words(command, registry).is_empty()
+        || command
+            .args()
+            .iter()
+            .any(|word| substitutes_a_command_beyond_values(word, registry, depth + 1))
+}
+
+/// Whether `head`, a literal word, names a command the registry knows reads and
+/// writes no variable by name, runs no script and does not depend on its frame:
+/// one a frame can be moved from under.
+fn works_on_values(head: &str, registry: &CommandRegistry) -> bool {
+    !head.is_empty()
+        && !head.contains(['$', '[', ']', '\\', '{', '}', '"'])
+        && registry
+            .get(head)
+            .is_some_and(|spec| registry.is_splice_safe(head) || spec.traits.contains(Traits::PURE))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn beyond_values(text: &str) -> bool {
+        substitutes_a_command_beyond_values(text, &CommandRegistry::build_default(), 0)
+    }
+
+    #[test]
+    fn a_command_that_works_on_its_values_is_not_beyond_them() {
+        for text in [
+            "[string length $x]",
+            "[list $x [llength $x]]",
+            "[format %s-%s $x [string length $x]]",
+            "[tcl::mathfunc::abs $x]",
+            "$x and ${y}, with no command in it",
+        ] {
+            assert!(!beyond_values(text), "{text}");
+        }
+    }
+
+    #[test]
+    fn a_command_that_takes_a_name_runs_a_script_or_is_unknown_is_beyond_them() {
+        for text in [
+            "[set y]",
+            "x[incr y]z",
+            "[info exists y]",
+            "[namespace current]",
+            "[helper $x]",
+            "[$command $x]",
+            "[catch {incr x}]",
+            "[eval {set x}]",
+            "[string is integer -failindex bad $s]",
+            "[list [set x]]",
+            "[expr {[set x] + 1}]",
+        ] {
+            assert!(beyond_values(text), "{text}");
+        }
+    }
+
+    #[test]
+    fn a_substitution_nested_past_the_walk_depth_is_beyond_them() {
+        let registry = CommandRegistry::build_default();
+        assert!(substitutes_a_command_beyond_values(
+            "[list a]",
+            &registry,
+            u32::MAX / 2
+        ));
+    }
 }

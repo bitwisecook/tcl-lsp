@@ -1175,6 +1175,8 @@ struct Outcome {
 /// A pack of procedure-backed commands, loaded.
 struct Spliced {
     set: PackSet,
+    /// What runs before the definitions: the namespaces they are made in.
+    prelude: Vec<String>,
     definitions: Vec<String>,
 }
 
@@ -1183,11 +1185,19 @@ impl Spliced {
         let (set, _registry) = bundled_source(name, &bodies_pack(commands));
         Self {
             set,
+            prelude: Vec::new(),
             definitions: commands
                 .iter()
                 .map(|(_, _, definition)| (*definition).to_owned())
                 .collect(),
         }
+    }
+
+    /// The same pack with `namespace` made before its definitions are.
+    fn in_namespace(mut self, namespace: &str) -> Self {
+        self.prelude
+            .push(format!("namespace eval {namespace} {{}}"));
+        self
     }
 
     /// `script` after `setup`, run by a VM whose compile service inlines the pack's
@@ -1208,8 +1218,9 @@ impl Spliced {
 
     fn drive(&self, vm: &mut Vm, plain: &Rc<Cell<usize>>, setup: &[&str], script: &str) -> Outcome {
         for source in self
-            .definitions
+            .prelude
             .iter()
+            .chain(&self.definitions)
             .map(String::as_str)
             .chain(setup.iter().copied())
         {
@@ -1578,6 +1589,301 @@ fn a_function_claims_a_splice_only_where_it_emits_it() {
     assert!(emitted > 0, "nothing was spliced, so nothing was compared");
 }
 
+/// A body whose value somebody reads is not given a wrap: each iteration of an
+/// `lmap` gives its body's value to the list it builds, so a body with a `return`
+/// stays a call there, a body that is a branch is not one the collector gathers
+/// from, and one with neither is spliced as the last command's value.
+#[test]
+fn an_inlined_body_in_an_lmap_body_gives_the_list_each_iterations_value() {
+    let pack = Spliced::new(
+        "splice-lmap",
+        &[
+            ("vdouble", 1, "proc vdouble {x} {return [expr {$x * 2}]}"),
+            ("vtail", 1, "proc vtail {x} {expr {$x * 2}}"),
+            (
+                "vif",
+                1,
+                "proc vif {x} {if {$x < 0} {set r neg} else {set r pos}}",
+            ),
+            ("vnoop", 0, "proc vnoop {} {}"),
+        ],
+    );
+    for (label, source, answer, bindings) in [
+        (
+            "a body with a return",
+            "proc caller {n} {lmap i {1 2 3} {vdouble $n}}",
+            "14 14 14",
+            0,
+        ),
+        (
+            "a body with none",
+            "proc caller {n} {lmap i {1 2 3} {vtail $n}}",
+            "14 14 14",
+            1,
+        ),
+        (
+            "a branch",
+            "proc caller {n} {lmap i {1 2} {vif $n}}",
+            "pos pos",
+            0,
+        ),
+        (
+            "an empty body alone",
+            "proc caller {n} {lmap i {1 2} {vnoop}}",
+            "{} {}",
+            1,
+        ),
+        (
+            "an empty body after a command",
+            "proc caller {n} {lmap i {1 2} {set a 5; vnoop}}",
+            "{} {}",
+            0,
+        ),
+        (
+            "a dict map",
+            "proc caller {n} {dict map {k v} {a 1 b 2} {vdouble $n}}",
+            "a 14 b 14",
+            0,
+        ),
+    ] {
+        assert_eq!(pack.bindings(source, "::caller"), bindings, "{label}");
+        assert_eq!(
+            pack.inlined(&[source], "caller 7"),
+            Outcome {
+                code: Code::Ok,
+                answer: answer.to_owned(),
+                plain: 0
+            },
+            "{label}"
+        );
+    }
+}
+
+/// A braced word is literal where the wrap stores a value as well: `{a\tb}` and
+/// `{[string length $x]}` are the characters they are, whether the value is the
+/// last command's or an early `return`'s. The answers are Tcl's, written down: the
+/// VM's own compile of `return {[…]}` evaluates the brackets, so the matrix, which
+/// holds a splice to the definition run as a procedure, has no reference for it.
+#[test]
+fn a_braced_literal_stays_literal_through_the_wrap() {
+    let pack = Spliced::new(
+        "splice-braced-wrap",
+        &[
+            (
+                "vsetbs",
+                1,
+                "proc vsetbs {x} {if {$x < 0} {return neg}; set r {a\\tb}}",
+            ),
+            (
+                "vretbs",
+                1,
+                "proc vretbs {x} {if {$x > 0} {return {a\\tb}}; return neg}",
+            ),
+            (
+                "vsetbr",
+                1,
+                "proc vsetbr {x} {if {$x < 0} {return neg}; set r {[string length $x]}}",
+            ),
+            (
+                "vretbr",
+                1,
+                "proc vretbr {x} {if {$x > 0} {return {[string length $x]}}; return neg}",
+            ),
+        ],
+    );
+    for (name, answer) in [
+        ("vsetbs", r"a\tb"),
+        ("vretbs", r"a\tb"),
+        ("vsetbr", "[string length $x]"),
+        ("vretbr", "[string length $x]"),
+    ] {
+        let caller = format!("proc caller {{n}} {{{name} $n}}");
+        assert_eq!(pack.bindings(&caller, "::caller"), 1, "{name}");
+        assert_eq!(
+            pack.inlined(&[&caller], "caller 7"),
+            Outcome {
+                code: Code::Ok,
+                answer: answer.to_owned(),
+                plain: 0
+            },
+            "{name}"
+        );
+    }
+}
+
+/// A definition in a namespace of its own resolves each command it names there
+/// first and in the global namespace after it, so a `vendor::string` the package
+/// defines answers for `vendor::vlen`'s `string`, made before the caller was
+/// compiled or after it ran. No spelling says that to a caller elsewhere, so the
+/// body is spliced only where the caller looks names up as the definition did.
+#[test]
+fn a_definition_in_a_namespace_resolves_its_commands_as_it_did() {
+    let pack = Spliced::new(
+        "splice-definition-namespace",
+        &[
+            (
+                "vendor::vlen",
+                1,
+                "proc vendor::vlen {s} {string length $s}",
+            ),
+            (
+                "vendor::vinc",
+                1,
+                "proc vendor::vinc {x} {return [expr {$x + 1}]}",
+            ),
+        ],
+    )
+    .in_namespace("vendor");
+    let shadow = "proc vendor::string {args} {return shadowed}";
+    for (source, name, call) in [
+        (
+            "proc caller {n} {vendor::vlen $n}",
+            "::caller",
+            "caller abc",
+        ),
+        (
+            "namespace eval app {}\nproc app::caller {n} {vendor::vlen $n}",
+            "::app::caller",
+            "app::caller abc",
+        ),
+    ] {
+        assert_eq!(pack.bindings(source, name), 0, "{call}");
+        for (setup, answer) in [
+            (vec![source], "3"),
+            (vec![shadow, source], "shadowed"),
+            (vec![source, call, shadow], "shadowed"),
+        ] {
+            assert_eq!(
+                pack.inlined(&setup, call),
+                Outcome {
+                    code: Code::Ok,
+                    answer: answer.to_owned(),
+                    plain: 0
+                },
+                "{call} with {setup:?}"
+            );
+        }
+    }
+    // A body that names no command by a word the compiler keeps is spliced anywhere,
+    // and what lowering consumed of it is held to the live command in the
+    // definition's namespace: a `vendor::expr` made later is the one that answers.
+    let increment = "proc caller {n} {vendor::vinc $n}";
+    assert_eq!(pack.bindings(increment, "::caller"), 1, "names no command");
+    let expr_shadow = "proc vendor::expr {args} {return shadowed}";
+    for (setup, answer) in [
+        (vec![increment], "8"),
+        (vec![expr_shadow, increment], "shadowed"),
+        (vec![increment, "caller 7", expr_shadow], "shadowed"),
+    ] {
+        let outcome = pack.inlined(&setup, "caller 7");
+        assert_eq!(
+            (outcome.code, outcome.answer.as_str()),
+            (Code::Ok, answer),
+            "{setup:?}"
+        );
+    }
+    let own = "proc vendor::caller {n} {vlen $n}";
+    assert_eq!(
+        pack.bindings(own, "::vendor::caller"),
+        1,
+        "its own namespace"
+    );
+    assert_eq!(
+        pack.inlined(&[own], "vendor::caller abc"),
+        Outcome {
+            code: Code::Ok,
+            answer: "3".to_owned(),
+            plain: 0
+        }
+    );
+}
+
+/// A variable a command a word substitutes is handed by name is the definition's
+/// own, and the splice has no `$` there to rewrite: `[set y]` would read the
+/// caller's `y`, and `[incr y]` would write it.
+#[test]
+fn a_variable_a_substituted_command_names_is_the_definitions_own() {
+    let pack = Spliced::new(
+        "splice-named-variables",
+        &[
+            ("vsetcmd", 1, "proc vsetcmd {x} {set y $x; return [set y]}"),
+            (
+                "vincrcmd",
+                1,
+                "proc vincrcmd {x} {set y $x; return [incr y]}",
+            ),
+            (
+                "vfmtcmd",
+                1,
+                "proc vfmtcmd {x} {return [format %s [set x]]}",
+            ),
+            ("vexprcmd", 1, "proc vexprcmd {x} {expr {[set x] + 1}}"),
+        ],
+    );
+    for (name, answer) in [
+        ("vsetcmd", "1"),
+        ("vincrcmd", "2"),
+        ("vfmtcmd", "1"),
+        ("vexprcmd", "2"),
+    ] {
+        let source = format!("proc caller {{n}} {{set x 42; set y 43; {name} $n}}");
+        assert_eq!(pack.bindings(&source, "::caller"), 0, "{name}");
+        assert_eq!(
+            pack.inlined(&[&source], "caller 1"),
+            Outcome {
+                code: Code::Ok,
+                answer: answer.to_owned(),
+                plain: 0
+            },
+            "{name}"
+        );
+    }
+}
+
+/// The code generator answers the empty string for the value of an `if` that ends
+/// an arm the procedure answers, so a call whose body is one is spliced where its
+/// value is the procedure's own and stays a call in an arm.
+#[test]
+fn a_call_whose_body_is_a_branch_is_not_given_the_value_of_an_arm() {
+    let pack = Spliced::new(
+        "splice-arm",
+        &[(
+            "vif",
+            1,
+            "proc vif {x} {if {$x < 0} {set r neg} else {set r pos}}",
+        )],
+    );
+    for (label, source, bindings) in [
+        ("terminal", "proc caller {n} {vif $n}", 1),
+        (
+            "then arm",
+            "proc caller {n} {if {$n != 0} {vif $n} else {return zero}}",
+            0,
+        ),
+        (
+            "else arm",
+            "proc caller {n} {if {$n == 0} {return zero} else {vif $n}}",
+            0,
+        ),
+        (
+            "switch arm",
+            "proc caller {n} {switch -- $n {0 {return zero} default {vif $n}}}",
+            0,
+        ),
+    ] {
+        assert_eq!(pack.bindings(source, "::caller"), bindings, "{label}");
+        assert_eq!(
+            pack.inlined(&[source], "caller 7"),
+            Outcome {
+                code: Code::Ok,
+                answer: "pos".to_owned(),
+                plain: 0
+            },
+            "{label}"
+        );
+    }
+}
+
 /// The bodies a pack gives its commands, one for each shape the splice has a path
 /// for: `(name, arity, definition)`.
 const SPLICED_SHAPES: &[(&str, usize, &str)] = &[
@@ -1615,6 +1921,49 @@ const SPLICED_SHAPES: &[(&str, usize, &str)] = &[
         1,
         "proc vsubst {x} {set n [string length $x]; return \"$n-$x\"}",
     ),
+    // A value from a branch that has no `return`, and a loop the caller's own
+    // loop would nest.
+    (
+        "vif",
+        1,
+        "proc vif {x} {if {$x < 0} {set r neg} else {set r pos}}",
+    ),
+    (
+        "vloop",
+        1,
+        "proc vloop {x} {set t 0; foreach i $x {incr t $i}; set t}",
+    ),
+    // A braced word with a backslash, and one with brackets, which are literal
+    // where the value is the last command's and where it is a `return`'s; the
+    // `return {[…]}` form is `a_braced_literal_stays_literal_through_the_wrap`'s.
+    (
+        "vsetbs",
+        1,
+        "proc vsetbs {x} {if {$x < 0} {return neg}; set r {a\\tb}}",
+    ),
+    (
+        "vretbs",
+        1,
+        "proc vretbs {x} {if {$x > 0} {return {a\\tb}}; return neg}",
+    ),
+    (
+        "vsetbr",
+        1,
+        "proc vsetbr {x} {if {$x < 0} {return neg}; set r {[string length $x]}}",
+    ),
+    // A variable a command a word substitutes names: no `$` shows the read.
+    ("vsetcmd", 1, "proc vsetcmd {x} {set y $x; return [set y]}"),
+    (
+        "vincrcmd",
+        1,
+        "proc vincrcmd {x} {set y $x; return [incr y]}",
+    ),
+    (
+        "vfmtcmd",
+        1,
+        "proc vfmtcmd {x} {return [format %s [set x]]}",
+    ),
+    ("vexprcmd", 1, "proc vexprcmd {x} {expr {[set x] + 1}}"),
 ];
 
 /// The places a call can stand, `@CALL@` the call: where its value is the
@@ -1684,6 +2033,22 @@ const SPLICE_SITES: &[(&str, &str)] = &[
     (
         "in a substitution",
         "proc caller {n} {set y [@CALL@]; return $y}",
+    ),
+    // A body whose value somebody reads: each iteration of an `lmap` and of a
+    // `dict map` gives its body's value to the list it builds.
+    ("lmap body", "proc caller {n} {lmap i {1 2 3} {@CALL@}}"),
+    (
+        "lmap body after a set",
+        "proc caller {n} {lmap i {1 2} {set a 5; @CALL@}}",
+    ),
+    (
+        "dict map body",
+        "proc caller {n} {dict map {k v} {a 1 b 2} {@CALL@}}",
+    ),
+    // A caller that holds a variable of each spelling the bodies use.
+    (
+        "caller with the bodies' names",
+        "proc caller {n} {set x 42; set y 43; set r 44; @CALL@}",
     ),
 ];
 
