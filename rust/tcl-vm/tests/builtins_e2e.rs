@@ -1921,6 +1921,7 @@ foreach {kind script carried} {
     set expected [format "%s\n    (\"package unknown\" script)\n    invoked from within\n\"package require bar 1\"" $prefix]
     puts [list unknown $kind [expr {[dict get $options -errorinfo] eq $expected}]]
 }
+
 package unknown $previous
 "#,
         concat!(
@@ -1933,6 +1934,44 @@ package unknown $previous
             "ifneeded errorInfo 1\nunknown errorInfo 1\n",
         ),
     );
+}
+
+#[test]
+fn package_badresult_preserves_ancillary_options_and_pending_error_stack() {
+    // Tcl 9.0.4: custom options survive both discovery paths, while only a
+    // pending error return retains its explicit error stack.
+    for (script, pending) in [
+        (
+            "return -level 0 -code break -foo BAR -errorinfo OLD -errorcode OLD",
+            false,
+        ),
+        (
+            "return -level 0 -code 10 -foo BAR -errorinfo OLD -errorcode OLD",
+            false,
+        ),
+        (
+            "return -code error -errorinfo EXPLICIT -errorstack {INNER {invokeStk1 boom}} -foo BAR boom",
+            true,
+        ),
+        (
+            "return -foo BAR -errorinfo OLD -errorstack {INNER {invokeStk1 boom}}",
+            false,
+        ),
+    ] {
+        for package in ["foo", "bar"] {
+            let mut source = format!(
+                "package forget foo bar\npackage ifneeded foo 1 {{{script}}}\npackage unknown {{{script} ;#}}\ncatch {{package require {package} 1}} message options\n"
+            );
+            if pending {
+                source.push_str("set expected {INNER {invokeStk1 boom}}\nset prefix EXPLICIT\nset stackOK [expr {[dict get $options -errorstack] eq $expected}]\n");
+            } else {
+                source.push_str(&format!("set expected {{INNER {{invokeStk1 package require {package} 1}}}}\nset prefix $message\nset stackOK [string match {{*package require {package} 1}} [lindex [dict get $options -errorstack] 1]]\n"));
+            }
+            source.push_str(r#"puts [list [dict get $options -foo] [dict get $options -code] [dict get $options -level] [dict get $options -errorcode] $stackOK [string match "$prefix\n*" [dict get $options -errorinfo]]]
+"#);
+            out_eq(&source, "BAR 1 0 {TCL PACKAGE BADRESULT} 1 1\n");
+        }
+    }
 }
 
 /// `package forget` removes the active package record, including a loader's

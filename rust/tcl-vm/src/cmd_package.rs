@@ -547,15 +547,21 @@ fn bad_return_code(
     // A non-error completion starts a new BADRESULT error episode. Only an
     // explicit trace carried by a pending error return belongs to that error;
     // runtime frames logged while unwinding break/continue/custom codes do not.
-    let carried = (completion.code == Code::Return
+    let pending_error = completion.code == Code::Return
         && crate::command::opt_get(&completion.options, "-code")
-            .is_some_and(|value| value.as_int().is_ok_and(|code| code == 1)))
-    .then(|| crate::command::opt_get(&completion.options, "-errorinfo"))
-    .flatten()
-    .filter(|info| !info.to_str().is_empty());
+            .is_some_and(|value| value.as_int().is_ok_and(|code| code == 1));
+    let carried = pending_error
+        .then(|| crate::command::opt_get(&completion.options, "-errorinfo"))
+        .flatten()
+        .filter(|info| !info.to_str().is_empty());
     vm.take_error_info();
     if let Some(info) = carried {
         vm.seed_error_info(info.to_str().to_string());
+    }
+    if pending_error
+        && let Some(stack) = crate::command::opt_get(&completion.options, "-errorstack")
+    {
+        vm.seed_error_stack(&stack);
     }
     let message = match loader {
         Some((name, version)) => format!(
@@ -565,7 +571,37 @@ fn bad_return_code(
         None => format!("bad return code: {}", completion.code.as_int()),
     };
     append_loader_error_frame(vm, &message, loader);
-    err_with_code(message, "TCL PACKAGE BADRESULT")
+    // Keep ancillary return options, but a newly generated error episode
+    // cannot inherit non-error trace metadata. Pending error returns carry it.
+    let mut options = completion.options.as_list().map_or_else(
+        |_| Value::list(Vec::new()),
+        |items| {
+            Value::list(
+                items
+                    .as_slice()
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .filter(|pair| {
+                        pending_error
+                            || !matches!(
+                                &*pair[0].to_str(),
+                                "-errorinfo" | "-errorstack" | "-errorline"
+                            )
+                    })
+                    .flat_map(|pair| pair.iter().cloned())
+                    .collect(),
+            )
+        },
+    );
+    for (key, value) in [
+        ("-code", Value::int(1)),
+        ("-level", Value::int(0)),
+        ("-errorcode", Value::string("TCL PACKAGE BADRESULT")),
+    ] {
+        options = crate::command::with_return_option(&options, key, value);
+    }
+    Completion::new(Code::Error, Value::string(message), options)
 }
 
 fn append_loader_error_frame(vm: &mut Vm, message: &str, loader: Option<(&str, &str)>) {
