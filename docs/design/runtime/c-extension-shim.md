@@ -368,6 +368,13 @@ script and then holds every case above to its bytes, and
 refusal of a prefix the table lacks, and the single load. The smoke tier has
 one test in each file.
 
+The header is held to the shim from the other side by
+`make check-c-extension-wasm` ([c-extension-abi.md](c-extension-abi.md) § 7):
+every function the native leg declares is one `src/ffi.rs` exports and every
+function it exports is declared, and `pkga.c` and `layout.c` compile for
+`wasm32` against the header, `pkga.c` against both legs at once and refused by
+the WASM leg alone.
+
 ## Out of scope
 
 Not shimmed, and so absent from the shim's leg of the header:

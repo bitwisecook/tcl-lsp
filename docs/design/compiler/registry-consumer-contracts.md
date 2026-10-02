@@ -554,11 +554,19 @@ command like any other the table holds — § 12 of the ABI, run by
 `a_compiled_script_calls_an_extension_registered_command` against the real
 runtime. `TclFreeObj` is exported beside them, which is where the header's
 `Tcl_DecrRefCount` macro frees, and `obj.rs` asserts the `Tcl_Obj` layout the
-header declares when it compiles. What the leg does not have: the ownership categories of
+header declares when it compiles. `make check-c-extension-wasm`
+(`scripts/check_c_extension_wasm.py`, in `xtask-check`, and required in the CI
+job that has wasi-sdk) holds the header to both legs: every function the WASM
+leg declares is a runtime export and every C-API export is declared or a header
+macro, the same for the shim and the native leg, and `layout.c` and the test
+extension compile for `wasm32-wasip1`, the test extension against both legs at
+once and refused by the WASM leg alone. What the leg does not have: the ownership
+categories of
 [../runtime/c-api-ownership-contract.md](../runtime/c-api-ownership-contract.md)
 encoded per export and gated, the `GOT.mem` / `GOT.func` list wired for
-the address-of-runtime-symbol pattern, and the syntax-only `wasm32-wasi`
-check turned into a CI gate that compiles the test extension. The engine
+the address-of-runtime-symbol pattern, and the functions the test extension
+calls beyond what the leg declares, without which it compiles against both legs
+at once and is not linked with the runtime. The engine
 interface's narrowing of `TCL_BREAK` / `TCL_CONTINUE` to errors and
 `TCL_RETURN` to `TCL_OK` is corrected before a hosted extension can
 exercise the conservative default this page states for it.
@@ -2581,6 +2589,7 @@ and come before any runtime guard work.
 - `rust/tcl-spec-studio/src/render_spectcl.rs`, `render_rs.rs`, `coverage.rs`, `schema.rs`, `draft.rs`, `help.rs` — `GAPS`, `GapKind`, the `.rs` contribution export, and the four studio surfaces
 - `rust/tcl-vm/src/compiled.rs` — `CompiledUnit`, `CompilerProvenance`, and the generations and manifest a unit carries
 - `rust/tcl-engine-api/src/lib.rs`, `rust/tcl-engine-tclvm/src/lib.rs`, `rust/tcl-cshim/src/lib.rs`, `rust/tcl-cshim/src/load.rs`, `rust/tcl-cshim/src/ffi.rs`, `rust/tcl-cshim/src/obj.rs`, `runtime/rust/include/tcl.h`, `rust/tcl-cshim/tests/c/layout.c`, `rust/tcl-vm-cli/src/main.rs` — the engine interface, its one implementation and `register_host_command`, `Interp::load_static` and its `Loaded` report, `StaticExtensions` (the host's `load`), the 32 exported symbols, the authored header, the layout it declares and the probe that reports it, and `tclvm --static-extensions`
+- `scripts/check_c_extension_wasm.py`, `scripts/check_c_api_ownership.py`, `Makefile` (`check-c-extension-wasm`, `check-c-api-ownership`) — the header's legs held to the runtime's and the shim's exports and to the wasm32 compiles, and the runtime's exports held to their ownership rows
 - `rust/tcl-dialect/src/version.rs`, `profile.rs`, `rust/tcl-registry/src/model/ingress.rs`, `assembly.rs`, `runtime_context.rs`, `rust/tcl-compiler/src/compile_service.rs`, `rust/tcl-lsp-db/src/lib.rs` — the release, the pin and the `RuntimeContext` it resolves, the overlay ingress and its `OverlayMiss`, the compile service's overlay door, and the salsa registry queries
 - `rust/tcl-pkg-model/src/manifest.rs`, `lockfile.rs`, `tier.rs`, `rust/tcl-pkg/src/docker.rs` — the package manager's data model and the derivation of a package's dependency tier, which the pack loader reads too, and the container generator
 - `rust/xtask/src/command_backing.rs`, `gen_irule_test_data.rs`, `docs/generated/wasm-command-backing.md` — the backing gate and its one waiver list, the registry-generated iRules mocks, and the rendered report

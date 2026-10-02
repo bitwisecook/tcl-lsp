@@ -309,6 +309,24 @@ call and the two UTF-8 helpers the shim implements. A source built with
 `-DTCL_MAJOR_VERSION=8` sees `Tcl_Size` as `int`, as an 8.x source does, with
 inline wrappers for the functions that write a size through a pointer.
 
+`make check-c-extension-wasm` (`scripts/check_c_extension_wasm.py`, part of
+`xtask-check`) holds the header to its two hosts. Offline, it reads each leg's
+declarations out of the header and checks them against what the host exports, in
+both directions: the `#[no_mangle]` functions of `runtime/rust/src/capi.rs`
+against the WASM leg, and the `export_name` functions of
+`rust/tcl-cshim/src/ffi.rs` against the native leg; a header macro such as
+`Tcl_DecrRefCount` stands for an export without being declared. With wasi-sdk's
+`clang` it compiles for `wasm32-wasip1`: `tests/c/layout.c`, whose static
+assertions are the 24-byte `Tcl_Obj` layout; the shim's test extension
+`tests/c/pkga.c` against both legs at once and as an 8.x source; and the leg a
+compile with no host named gets, on a wasm32 target and on one that is not. Two
+of those compiles are negatives and must be refused: `pkga.c` against the WASM
+leg alone, which calls functions only the shim implements, and each default
+leg's call to a function only the other declares. Without wasi-sdk the compiles
+are skipped, unless `TCL_REQUIRE_WASM_LINK` is set, as it is in the CI job that
+installs the toolchain. `pkga.c` is not linked with the runtime: the WASM leg
+declares what the runtime exports, which is less than `pkga.c` calls.
+
 Source of truth for "what the API surface must cover": the 25-extension survey.
 **~85–90% of real extensions are public-`tcl.h`-only.**
 

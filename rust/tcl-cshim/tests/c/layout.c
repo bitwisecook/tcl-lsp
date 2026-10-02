@@ -24,10 +24,10 @@
  *
  * The shim compiles this against runtime/rust/include/tcl.h so its own
  * `Obj` can be held to the header's layout, and a wasm32 compile of the same
- * file holds the header to the layout the WASM runtime's `TclObj` has
- * (c-extension-abi.md section 4.2). The functions are plain C an extension
- * could contain: reads through the fields and uses of the reference-count
- * macros.
+ * file (`make check-c-extension-wasm`) holds the header to the layout the WASM
+ * runtime's `TclObj` has (c-extension-abi.md section 4.2). The functions are
+ * plain C an extension could contain: reads through the fields and uses of the
+ * reference-count macros.
  */
 
 #include <tcl.h>

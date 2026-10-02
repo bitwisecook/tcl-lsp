@@ -154,7 +154,7 @@ typedef union Tcl_ObjInternalRep {
  * A value. bytes is the first byte of the string representation, NUL
  * terminated at offset length, or NULL when there is none: read it through
  * Tcl_GetString or Tcl_GetStringFromObj, which make one. typePtr is NULL in
- * every host today.
+ * every host.
  */
 typedef struct Tcl_Obj {
     TclHost_Size refCount;
