@@ -10,34 +10,39 @@ says where each lane stands, what is queued, and how the work is run.
 
 | Lane | Tracking document | Landed | In flight | Remaining |
 |---|---|---|---|---|
-| Value transfers | [value-transfers.md](value-transfers.md) | slices 1, 2, 3, 4, 5, 8, 6 (reviewed, reworked in three rounds, re-checked "land as is") and 9 (landed at `f06639de`) | slice 10 (completion paths): items 1 and 2 are committed (`ddb53a10`, `b9ab4993`); item 3 (the `catch`/`try` protocols, with the wider scope the implementer read from the code: `return`/`break`/`continue` routes, a body's non-normal completion reaching `catch`, embedded pairs beyond `expr`) is on the running implementer, its scope recorded as D230 before it builds | the rest of slice 10, then the fable review of slices 9 and 10 together with its fixes; then slices 11, 12, 7a, 13, 7, in that order |
-| Consumer contracts | [consumer-contracts.md](consumer-contracts.md) | steps 1 to 7, each reviewed with fixes landed; the step 8 rework (three groups) and step 9 (`ef740eb8` on `cc-step5`); step 10's first item, the extension default (`69f5211b`) | the fixes from the fable review of the step 8 rework and step 9 (verdict: the inliner rework blocked by four wrong-value findings the VM admits, B1 an `lmap` body left `Dropped`, B2 a braced literal re-substituted by the wrap, B3 a namespaced definition losing a sibling command that shadows a builtin, B4 a name read through `[set y]` not gated; step 9 lands with S1 the `tcl spec test` policy following the nearest manifest, N1 an unvalidated `ambient_package` version, N2 slot names unreserved), in three groups on the running implementer, then the rest of step 10 | the step 10 review with its fixes, then the merge of `cc-step5` into the main branch at a value-transfer checkpoint |
+| Value transfers | [value-transfers.md](value-transfers.md) | slices 1, 2, 3, 4, 5, 8, 6 (reviewed, reworked in three rounds, re-checked "land as is") and 9 (`f06639de`); slice 10 items 1, 2, 3a, 3b and 3c (`ddb53a10`, `b9ab4993`, `7ee77e66`, `6f86956d`, `07633485`) with the SpecTcl catalogue fix `1d3a937f` | slice 10 item 3d (the nested form `[catch {…}]` evaluated through the protected nested service) on the running implementer, then 3e (the flattened `catch` end-block marker) and items 4 onward | the rest of slice 10, then the fable review of slices 9 and 10 together with its fixes; then slices 11, 12, 7a, 13, 7, in that order |
+| Consumer contracts | [consumer-contracts.md](consumer-contracts.md) | steps 1 to 9, each reviewed with fixes landed (the step 8 rework and step 9 review's fixes are `16e3a5a0`, `1b870f36`, `cdc7307a`); step 10's first item, the extension default (`69f5211b`) | step 10 item 2 (the C scan, the probe and the bridge) on the running implementer, then items 3 to 6 | the step 10 review with its fixes |
 | Diagnostic policy | (landed; see the design page `docs/design/compiler/diagnostic-policy.md`) | complete | | |
 
 Branch heads at the last rewrite of this page: the main branch at the
-commit that rewrites this page, above `b9ab4993` (slice 10's second item)
-and `156d18f5` (the move to Rust 1.99.0); `cc-step5` at `69f5211b` (step
-10's first item), containing the main branch up to `203fb917`; the main
-branch is merged into `cc-step5` at that implementer's next green commit,
-which also moves its worktree to the 1.99.0 toolchain.
+commit that rewrites this page, above `28ecf5d9` (the merge of `cc-step5`
+at `cdc7307a`) and `07633485` (slice 10 item 3c); `cc-step5` at
+`cdc7307a`, containing the main branch up to `6f86956d`. `cc-step5` is
+merged into the main branch, gated and pushed after every one of its
+commits, so nothing of either lane stays off GitHub for longer than one
+gate cycle.
 
 ## Queued on the running implementers
 
-- Value transfers: slice 10 item 3 is being built, each sub-item its own
-  green commit. The slice 9 review runs together with slice 10's once
-  slice 10 lands.
-- Consumer contracts: the review fixes land in three groups (the inliner;
-  the `tcl spec test` policy; the `ambient_package` version), then the
-  rest of step 10. The merge from the main branch (and the move of the
-  worktree to Rust 1.99.0) happens after the first group's commit.
+- Value transfers: slice 10 items 3d and 3e, each its own green commit;
+  then item 4 (`try`), which is shaped to reconcile with `rust`'s PR #2230
+  (the try/finally reachability fix for #2142, absent from this branch's
+  base) at the upstream merge: one implementation per fact, with a
+  "reconciling with #2230" paragraph in the lane doc naming the files and
+  facts the merge has to settle. The slice 9 review runs together with
+  slice 10's once slice 10 lands.
+- Consumer contracts: step 10 items 2 to 6, each its own green commit,
+  then the fable review of step 10 and its fixes.
 
 ## After the lanes
 
-1. Merge `origin/rust` (the dialects/tclspec editor-config generation and
-   the jimtcl updates) into the branch at the next point where both lanes
-   are at a clean checkpoint; reconcile through the registry interface,
-   regenerate every generated artefact with the repository's tooling, rerun
-   the suites and the gate, push. Repeat before the end if `rust` moves.
+1. Merge `origin/rust` (185 commits ahead: the dialects/tclspec
+   editor-config generation, the jimtcl updates, the Rust 1.99.0 baseline
+   this branch already carries, PR #2230) into the branch at the next point
+   where both lanes are at a clean checkpoint; reconcile through the
+   registry interface, regenerate every generated artefact with the
+   repository's tooling, rerun the suites and the gate, push. Repeat before
+   the end if `rust` moves.
 2. The final scrub before the pull request to `rust`: delete this
    directory and every link to it, remove slice, step, decision and lane
    references from every page and comment outside it, retire the
@@ -51,20 +56,27 @@ which also moves its worktree to the 1.99.0 toolchain.
 ## How the work is run
 
 - Four worktrees: the main worktree on the branch (value transfers), a
-  second worktree on `cc-step5` (consumer contracts; merged into the main
-  branch at a value-transfer checkpoint after each step's review), and two
-  detached worktrees with their own `target/` for gates and reviews (one
-  can hold a running review while the other gates a push).
-- Every committed checkpoint is gated with `make rust-check` plus
+  second worktree on `cc-step5` (consumer contracts), and two detached
+  worktrees with their own `target/` for gates and reviews (one can hold a
+  running review while the other gates a push).
+- Every commit on the main branch is gated with `make rust-check` plus
   `cargo xtask dialect-drift` (eight pre-existing sites; a lane adds none)
   in a gate worktree, then pushed with
   `git push -u origin <hash>:refs/heads/claude/spectcl-optimization-discussion-5qhf42`.
-  Nothing is pushed to any other branch.
+  Nothing is pushed to any other branch. A docs-only commit above a gated
+  head gets `make xtask-check` before its push.
+- Implementers commit every green sub-item at once, and a sub-item that
+  runs past about two hours commits a green intermediate state rather than
+  keeping a long-lived draft. `make rust-check` compiles but does not run
+  tests, so each lane runs its crates' suites before every commit; the
+  value-transfer suites include `tcl-spectcl`, whose catalogue tables
+  mirror the registry's id tables.
 - Each landed slice or step gets a fable review in a gate worktree; its
   findings land as "review fixes" commits (blocking ones before the next
   item), and pre-existing defects found in passing become GitHub issues
   (#2253 to #2272, #2291 to #2297, #2299 to #2303, #2305 to #2316, #2323
-  to #2328, #2330 to #2335, #2337 so far), never fixes on this branch.
+  to #2328, #2330 to #2335, #2337, #2338 so far), never fixes on this
+  branch.
 - Implementers are sonnet, reviewers fable. Commit messages are
   `wip(<lane>): <slice or step> — <phrase>` with the session's two trailer
   lines; files outside this directory describe current state only.
@@ -75,9 +87,8 @@ which also moves its worktree to the 1.99.0 toolchain.
   carries `-A clippy::assert_is_empty`, so a direct clippy run outside
   `make` needs the same flag:
   `cargo clippy --workspace --all-targets -- -D warnings -A clippy::assert_is_empty`.
-  The repository pins `stable`; the worktrees carry a rustup directory
-  override to `1.99.0` (`cc-step5`'s moves at its next merge from the main
-  branch), and the `1.98.1` toolchain goes once nothing builds on it.
+  The repository pins `stable`; every worktree carries a rustup directory
+  override to `1.99.0`.
 - The machine has four CPUs and fifteen gigabytes: `~/.cargo/config.toml`
   pins `jobs = 2`, gates run with `CARGO_BUILD_JOBS=1`. Disk is tight: test
   executables over 20 to 30 MB and duplicate rlibs under
