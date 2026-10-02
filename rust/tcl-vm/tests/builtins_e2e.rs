@@ -1872,6 +1872,30 @@ package unknown $previous
     );
 }
 
+#[test]
+fn package_badresult_seeds_explicitly_empty_error_info() {
+    // Unmodified Tcl 9.0.4 seeds the generated BADRESULT message before the
+    // loader frame even when return carries an explicitly empty -errorinfo.
+    out_eq(
+        r#"package ifneeded foo 1 {return -code error -errorinfo {} boom}
+catch {package require foo 1} message options
+puts [list $message [dict get $options -errorinfo] [dict get $options -errorcode]]
+package unknown {return -code error -errorinfo {} boom;#}
+catch {package require bar 1} message options
+puts [list $message [dict get $options -errorinfo] [dict get $options -errorcode]]
+"#,
+        concat!(
+            "{attempt to provide package foo 1 failed: bad return code: 2} ",
+            "{attempt to provide package foo 1 failed: bad return code: 2\n",
+            "    (\"package ifneeded foo 1\" script)\n",
+            "    invoked from within\n\"package require foo 1\"} {TCL PACKAGE BADRESULT}\n",
+            "{bad return code: 2} {bad return code: 2\n",
+            "    (\"package unknown\" script)\n",
+            "    invoked from within\n\"package require bar 1\"} {TCL PACKAGE BADRESULT}\n",
+        ),
+    );
+}
+
 /// `package forget` removes the active package record, including a loader's
 /// circular marker. A loader can therefore replace its record and require the
 /// replacement before the outer loader returns.
