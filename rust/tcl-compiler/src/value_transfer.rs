@@ -56,7 +56,7 @@ use tcl_registry::value_transfer::{
     WrittenPlace, evaluate_lifted, validate_outcome, written_in,
 };
 use tcl_registry::{
-    ArgRole, CommandRegistry, InvocationWord, InvocationWordKind, InvocationWords,
+    ArgRole, CommandRegistry, FrameLevel, InvocationWord, InvocationWordKind, InvocationWords,
     ResolvedInvocation, SemanticOperationId, TclType,
 };
 
@@ -362,7 +362,8 @@ impl FoldedType {
                     Self::informative(intrep, shape, value.representation)
                 }
                 StoreOutcome::Preserve { .. } => held,
-                StoreOutcome::MayWrite { facts, .. } => Self::informative(
+                StoreOutcome::MayWrite { facts, .. }
+                | StoreOutcome::WriteUnavailable { facts, .. } => Self::informative(
                     facts.intrep,
                     facts.shape.clone(),
                     RepresentationEvidence::Unknown,
@@ -465,6 +466,16 @@ type Lattice<'a, S1, S2> = (
     &'a SsaFunction,
 );
 
+/// The `catch` of a flattened region, and where the state its script runs over
+/// is: the words the analysis build keeps beside the statement that ends the
+/// region ([`crate::cfg::CatchEnd`]).
+pub(crate) struct CatchEndRecord {
+    /// The block before the body.
+    pub(crate) entry: crate::cfg::BlockId,
+    /// The `catch` as a call, in the form it has when it is not flattened.
+    pub(crate) call: Statement,
+}
+
 /// The driver's per-run state: the registry the unit resolves against, the
 /// whole-module trust fact when the caller holds one, the fold policy, the
 /// analysis context every answer is memoised under, and the route
@@ -526,6 +537,9 @@ pub(crate) struct LatticeDriver<'a> {
     /// existence query about a registry special variable decides nothing:
     /// the host, not the script, binds it.
     existence_initial_global: bool,
+    /// The function's flattened `catch` regions, by the name of the block that
+    /// ends each ([`crate::cfg::Function::catch_ends`]).
+    catch_ends: RefCell<HashMap<String, CatchEndRecord>>,
 }
 
 /// The lattice value of one member-wise evaluation: the constant `pick`
@@ -689,6 +703,14 @@ fn store_existence(store: &StoreOutcome) -> ExistenceStep {
     match store {
         StoreOutcome::Write { .. } | StoreOutcome::WriteElement { .. } => {
             ExistenceStep::Set(Existence::Bound(BindingKind::Scalar))
+        }
+        StoreOutcome::WriteUnavailable { facts, .. } => {
+            ExistenceStep::Set(Existence::Bound(match facts.existence {
+                Existence::Bound(kind) => kind,
+                Existence::Pending | Existence::Unbound | Existence::MayBound => {
+                    BindingKind::Either
+                }
+            }))
         }
         StoreOutcome::Preserve { .. } => ExistenceStep::PRESERVE,
         StoreOutcome::Unbind { .. } => ExistenceStep::Set(Existence::Unbound),
@@ -862,6 +884,7 @@ fn describe_store(name: &str, store: &StoreOutcome) -> String {
         StoreOutcome::Preserve { .. } => format!("preserve {name}"),
         StoreOutcome::Unbind { .. } => format!("unbind {name}"),
         StoreOutcome::MayWrite { .. } => format!("may-write {name}"),
+        StoreOutcome::WriteUnavailable { .. } => format!("write {name} = (unavailable)"),
     }
 }
 
@@ -1018,6 +1041,7 @@ impl<'a> LatticeDriver<'a> {
             existence_places: RefCell::new(HashMap::new()),
             existence_external: RefCell::new(Vec::new()),
             existence_initial_global: trace.existence.is_some_and(|entry| entry.initial_global),
+            catch_ends: RefCell::new(HashMap::new()),
         }
     }
 
@@ -1214,6 +1238,60 @@ impl<'a> LatticeDriver<'a> {
     /// externally mutable.
     pub(crate) fn existence_external(&self, external: Vec<bool>) {
         *self.existence_external.borrow_mut() = external;
+    }
+
+    /// Hand the driver the function's flattened `catch` regions.
+    pub(crate) fn catch_ends(&self, cfg: &crate::cfg::Function) {
+        *self.catch_ends.borrow_mut() = cfg
+            .catch_ends
+            .iter()
+            .filter_map(|end| {
+                let name = cfg.blocks.get(&end.end)?.name.clone();
+                let record = CatchEndRecord {
+                    entry: end.entry,
+                    call: end.call.clone(),
+                };
+                Some((name, record))
+            })
+            .collect();
+    }
+
+    /// The result and options variables of a flattened `catch`, which the
+    /// statement that ends its region defines. That statement stands where the
+    /// body's flow has joined and has no words, so the `catch` the analysis
+    /// build kept beside it is evaluated as the statement form is, over the
+    /// state before the body: the body's own statements are in the flow, so
+    /// what the script wrote is not applied again, and a script that reads
+    /// what it writes finds it as it was. `None` for every other statement.
+    pub(crate) fn evaluate_catch_end<S: std::hash::BuildHasher>(
+        &self,
+        block: &crate::ssa::SsaBlock,
+        index: usize,
+        values: &HashMap<ValueKey, LatticeValue, S>,
+        ssa: &SsaFunction,
+    ) -> Option<DefValues> {
+        if index != 0 {
+            return None;
+        }
+        let (entry, call) = {
+            let ends = self.catch_ends.borrow();
+            let end = ends.get(block.name.as_str())?;
+            (end.entry, end.call.clone())
+        };
+        let marker = block.statements.first()?;
+        let before = ssa.blocks.get(&entry)?.exit_versions.clone();
+        let shadow = SsaStatement {
+            statement: call,
+            uses: before.clone(),
+            defs: marker.defs.clone(),
+            may_defs: marker.may_defs.clone(),
+            quoted_uses: HashSet::new(),
+            name_only_uses: HashSet::new(),
+        };
+        self.explaining(Some(shadow.statement.span()));
+        let answer = self.evaluate_call(&shadow, values, ssa, &before);
+        self.explaining(None);
+        Some(answer)
     }
 
     /// Whether the place `name` is one the rung holds externally mutable: a
@@ -2042,7 +2120,9 @@ impl<'a> LatticeDriver<'a> {
                             held = Some(exact_to_lattice(value));
                         }
                         StoreOutcome::Preserve { .. } => {}
-                        StoreOutcome::Unbind { .. } | StoreOutcome::MayWrite { .. } => {
+                        StoreOutcome::Unbind { .. }
+                        | StoreOutcome::MayWrite { .. }
+                        | StoreOutcome::WriteUnavailable { .. } => {
                             held = Some(LatticeValue::Overdefined);
                         }
                     }
@@ -2141,11 +2221,12 @@ impl<'a> LatticeDriver<'a> {
     /// evaluation declines, and both keep the answers they have without it.
     ///
     /// The host is an `AssignExpr` or an `ExprEval`, whose expression the
-    /// engine runs, or an `AssignValue` whose word is one `expr`
-    /// substitution, whose own substituting words and nested commands are
-    /// the ones evaluated in order. Every other host — a `Call`, a `Return`,
-    /// a condition, a value that is any other command — keeps the
-    /// effect-free policy.
+    /// engine runs, or an `AssignValue` whose word is one command
+    /// substitution on the engine's or a registry-owned route, whose own
+    /// substituting words and nested commands are the ones evaluated in
+    /// order. Every other host — a `Call`, a `Return`, a condition, a value
+    /// that is a command without such a route — keeps the effect-free
+    /// policy.
     pub(crate) fn evaluate_embedded<S: std::hash::BuildHasher>(
         &self,
         block: &crate::ssa::SsaBlock,
@@ -2309,11 +2390,12 @@ impl<'a> LatticeDriver<'a> {
         })
     }
 
-    /// A value word that is one `[expr …]` substitution, run under
+    /// A value word that is one command substitution, run under
     /// `LocalWrites`: the invocation's own substituting words and the
-    /// commands nested in them evaluate in order, and the result is the
-    /// word's. A word that is any other command stays with the effect-free
-    /// policy.
+    /// commands nested in them evaluate in order, its own stores follow, and
+    /// the result is the word's. A command whose route is neither the
+    /// expression engine's nor a registry-owned evaluator, and a word that
+    /// is more than the one substitution, stay with the effect-free policy.
     fn ordered_script<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
         value: &str,
@@ -2332,7 +2414,10 @@ impl<'a> LatticeDriver<'a> {
         let inner = std::str::from_utf8(script).ok()?;
         let run = self.run_script(inner, lattice, (Vec::new(), NestedPolicy::LocalWrites))?;
         // A head the module rebinds has no route.
-        if !matches!(run.route, Some(EvalRoute::Expression { .. })) {
+        if !matches!(
+            run.route,
+            Some(EvalRoute::Expression { .. } | EvalRoute::Direct { .. })
+        ) {
             return None;
         }
         self.explain(&run.head, run.route, answer_label(&run.answer));
@@ -2830,18 +2915,29 @@ impl<'a> LatticeDriver<'a> {
     fn run_script<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
         script: &str,
-        (uses, values, ssa): Lattice<'_, S1, S2>,
-        (prior, policy): (Vec<(PlaceRef, StoreOutcome)>, NestedPolicy),
+        lattice: Lattice<'_, S1, S2>,
+        under: (Vec<(PlaceRef, StoreOutcome)>, NestedPolicy),
     ) -> Option<ScriptRun> {
         let commands =
             crate::segmenter::segment_commands_with_offset_and_config(script, 0, self.lexer_config);
         let [seg] = commands.as_slice() else {
             return None;
         };
-        let head = seg.name();
-        if split_head(script).0 != head {
+        if split_head(script).0 != seg.name() {
             return None;
         }
+        self.run_command(seg, lattice, under)
+    }
+
+    /// One segmented command resolved against the registry and evaluated on
+    /// its declared route, `prior` being the writes made ahead of it.
+    fn run_command<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+        &self,
+        seg: &crate::segmenter::SegmentedCommand,
+        (uses, values, ssa): Lattice<'_, S1, S2>,
+        (prior, policy): (Vec<(PlaceRef, StoreOutcome)>, NestedPolicy),
+    ) -> Option<ScriptRun> {
+        let head = seg.name();
         if !self.trusted(head) {
             return Some(ScriptRun {
                 head: head.to_owned(),
@@ -2880,12 +2976,14 @@ impl<'a> LatticeDriver<'a> {
         }
         let semantics = resolved.semantics.value.semantics()?;
         let view = view_of(&resolved, &texts, &words, InvocationLayout::Source);
-        let inputs = LatticeInputs {
+        let mut inputs = LatticeInputs {
             driver: self,
             prior_writes: prior,
             words: match policy {
                 NestedPolicy::EffectFreeOnly => Words::Independent,
-                NestedPolicy::LocalWrites => Words::Ordered(RefCell::new(None)),
+                NestedPolicy::LocalWrites | NestedPolicy::Protected => {
+                    Words::Ordered(RefCell::new(None))
+                }
             },
             view,
             uses,
@@ -2893,12 +2991,20 @@ impl<'a> LatticeDriver<'a> {
             ssa,
             sources: cooked.iter().map(|arg| arg.source).collect(),
         };
+        // A command that stores reads its targets' roles from its words as
+        // a statement's does, so a word the lattice proves no longer hides
+        // them (`set b $a`).
+        if policy != NestedPolicy::EffectFreeOnly {
+            inputs.resolve_roles_over_values(&resolved);
+        }
         let route = semantics.route();
         let answer = self.route_answer(semantics, &inputs, (&binding, policy));
         let answer = inputs.carrying_word_writes(answer, route);
         let (answer, writes) = match policy {
             NestedPolicy::EffectFreeOnly => (answer, Vec::new()),
-            NestedPolicy::LocalWrites => self.placed_answer(semantics, &inputs, answer),
+            NestedPolicy::LocalWrites | NestedPolicy::Protected => {
+                self.placed_answer(semantics, &inputs, answer)
+            }
         };
         Some(ScriptRun {
             head: head.to_owned(),
@@ -3002,21 +3108,12 @@ impl<'a> LatticeDriver<'a> {
         (answer, writes)
     }
 
-    /// The nested-substitution service: `script`'s one command under
-    /// `state`'s policy, its binding and every binding its answer rests on
-    /// recorded in the state's evidence. An outcome that differs between
-    /// the members of a finite input declines as correlated: the host
-    /// evaluation holds one value per operand.
-    ///
-    /// Under [`NestedPolicy::EffectFreeOnly`] only an effect-free outcome is
-    /// admitted — any store is `StatefulNested`. Under
-    /// [`NestedPolicy::LocalWrites`] the outcome's writes are applied to
-    /// the state in order, so the next read sees them, when the state can
-    /// own every place it writes ([`Self::state_owns`]) and its completion
-    /// is exact: a normal one applies every write, an error one the writes
-    /// that ran before it, and any other write or completion is
-    /// `StatefulNested`. The command reads what the state and `from`'s
-    /// enclosing evaluations have written first.
+    /// The nested-substitution service: `script` under `state`'s policy, its
+    /// binding and every binding its answer rests on recorded in the state's
+    /// evidence. A protected script ([`NestedPolicy::Protected`]) runs every
+    /// command it holds ([`Self::protected_script`]); under any other policy
+    /// the script is the one command a substitution holds
+    /// ([`Self::nested_command`]).
     fn nested_answer<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
         script: &str,
@@ -3028,31 +3125,164 @@ impl<'a> LatticeDriver<'a> {
             return EvalAnswer::Declined(DeclineReason::Budget(BudgetLimit::Depth));
         }
         self.nesting.set(depth + 1);
+        let answer = match state.policy {
+            NestedPolicy::Protected => self.protected_script(script, state, from),
+            NestedPolicy::EffectFreeOnly | NestedPolicy::LocalWrites => {
+                self.nested_command(script, state, from)
+            }
+        };
+        self.nesting.set(depth);
+        answer
+    }
+
+    /// The one command of `script` under `state`'s policy. The command reads
+    /// what the state and `from`'s enclosing evaluations have written first.
+    fn nested_command<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+        &self,
+        script: &str,
+        state: &mut EvaluationState,
+        from: &LatticeInputs<'_, S1, S2>,
+    ) -> EvalAnswer {
         let prior: Vec<(PlaceRef, StoreOutcome)> = from
             .prior_writes
             .iter()
             .chain(&state.writes)
             .cloned()
             .collect();
-        let run = self.run_script(
+        let Some(run) = self.run_script(
             script,
             (from.uses, from.values, from.ssa),
             (prior, state.policy),
-        );
-        self.nesting.set(depth);
-        let Some(run) = run else {
+        ) else {
             return EvalAnswer::Declined(DeclineReason::Unsupported);
         };
+        match self.settle(run, state) {
+            Ok(outcome) => EvalAnswer::Evaluated(outcome),
+            Err(answer) => answer,
+        }
+    }
+
+    /// A protected script: every command it holds, in order, under one state
+    /// — each as under [`NestedPolicy::LocalWrites`] — until one completes
+    /// other than normally, which is the script's completion, with the writes
+    /// that ran before it in the state. The result is the last command's, the
+    /// empty one for a script with no command. A command that declines, a
+    /// value that is not exact and a script that does not parse decline the
+    /// whole: the completion of a script is the first of its commands that
+    /// does not complete normally, and each must be known to be past.
+    ///
+    /// An error a command's own word raises is not read here: that command
+    /// declines, and the flag a statement's word raising sets is the
+    /// statement's, kept as it was.
+    fn protected_script<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+        &self,
+        script: &str,
+        state: &mut EvaluationState,
+        from: &LatticeInputs<'_, S1, S2>,
+    ) -> EvalAnswer {
+        let commands =
+            crate::segmenter::segment_commands_with_offset_and_config(script, 0, self.lexer_config);
+        if commands.iter().any(|seg| seg.is_partial) {
+            return EvalAnswer::Declined(DeclineReason::Unsupported);
+        }
+        let outer_word_error = self.word_error.replace(false);
+        let answer = self.run_protected(&commands, script, state, from);
+        self.word_error.set(outer_word_error);
+        answer
+    }
+
+    fn run_protected<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+        &self,
+        commands: &[crate::segmenter::SegmentedCommand],
+        script: &str,
+        state: &mut EvaluationState,
+        from: &LatticeInputs<'_, S1, S2>,
+    ) -> EvalAnswer {
+        let mut result = ExactValueOrUnavailable::exact_text("");
+        let mut completion = CompletionOutcome::Normal;
+        for seg in commands {
+            let at = usize::try_from(seg.span.start()).unwrap_or(usize::MAX);
+            if script.get(at..).map(|rest| split_head(rest).0) != Some(seg.name()) {
+                return EvalAnswer::Declined(DeclineReason::Unsupported);
+            }
+            let prior: Vec<(PlaceRef, StoreOutcome)> = from
+                .prior_writes
+                .iter()
+                .chain(&state.writes)
+                .cloned()
+                .collect();
+            let Some(run) = self.run_command(
+                seg,
+                (from.uses, from.values, from.ssa),
+                (prior, NestedPolicy::LocalWrites),
+            ) else {
+                return EvalAnswer::Declined(DeclineReason::Unsupported);
+            };
+            let InvocationOutcome {
+                completion: ended,
+                result: value,
+                ..
+            } = *match self.settle(run, state) {
+                Ok(outcome) => outcome,
+                Err(answer) => return answer,
+            };
+            match ended {
+                CompletionOutcome::Normal => result = value,
+                CompletionOutcome::Error {
+                    message,
+                    error_code,
+                    ..
+                } => {
+                    completion = CompletionOutcome::Error {
+                        written: state.writes.len(),
+                        message,
+                        error_code,
+                    };
+                    break;
+                }
+                code @ CompletionOutcome::Code { .. } => {
+                    completion = code;
+                    break;
+                }
+            }
+        }
+        EvalAnswer::Evaluated(Box::new(InvocationOutcome {
+            completion,
+            result,
+            nested_writes: Vec::new(),
+            ordered_stores: Vec::new(),
+            types: TypeFacts::default(),
+            evidence: DependencyEvidence::default(),
+        }))
+    }
+
+    /// What a command run for `state` leaves in it: its binding and every
+    /// binding its answer rests on recorded in the state's evidence, and its
+    /// writes applied to the state in order — when the policy admits them —
+    /// so the next read sees them. An outcome that differs between the
+    /// members of a finite input declines as correlated: the host evaluation
+    /// holds one value per operand.
+    ///
+    /// Under [`NestedPolicy::EffectFreeOnly`] only an effect-free outcome is
+    /// admitted — any store is `StatefulNested`. Under the other policies the
+    /// outcome's writes are applied when the state can own every place it
+    /// writes ([`Self::state_owns`]) and its completion says how many ran
+    /// ([`Self::admitted_writes`]).
+    fn settle(
+        &self,
+        run: ScriptRun,
+        state: &mut EvaluationState,
+    ) -> Result<Box<InvocationOutcome>, EvalAnswer> {
         record_binding(&mut state.evidence, run.binding);
         let outcomes = match run.answer {
-            LiftedAnswer::Pending => return EvalAnswer::Pending,
-            LiftedAnswer::Declined(reason) => return EvalAnswer::Declined(reason),
+            LiftedAnswer::Pending => return Err(EvalAnswer::Pending),
+            LiftedAnswer::Declined(reason) => return Err(EvalAnswer::Declined(reason)),
             LiftedAnswer::Evaluated(outcomes) => outcomes,
         };
         if state.policy == NestedPolicy::EffectFreeOnly
             && outcomes.iter().any(|outcome| outcome.has_stores())
         {
-            return EvalAnswer::Declined(DeclineReason::StatefulNested);
+            return Err(EvalAnswer::Declined(DeclineReason::StatefulNested));
         }
         // A run that placed no writes (an effect-free one) has none per
         // outcome.
@@ -3061,54 +3291,56 @@ impl<'a> LatticeDriver<'a> {
             .into_iter()
             .map(|outcome| (outcome, placed.next().unwrap_or_default()));
         let Some((first, first_writes)) = members.next() else {
-            return EvalAnswer::Declined(DeclineReason::Unsupported);
+            return Err(EvalAnswer::Declined(DeclineReason::Unsupported));
         };
         if members.any(|(outcome, writes)| {
             outcome.result != first.result
                 || outcome.completion != first.completion
                 || writes != first_writes
         }) {
-            return EvalAnswer::Declined(DeclineReason::CorrelatedSets);
+            return Err(EvalAnswer::Declined(DeclineReason::CorrelatedSets));
         }
-        if state.policy == NestedPolicy::LocalWrites {
-            match self.admitted_writes(&first_writes, &first.completion) {
+        if state.policy != NestedPolicy::EffectFreeOnly {
+            match self.admitted_writes(&first_writes, &first) {
                 Ok(ran) => state.writes.extend(first_writes.into_iter().take(ran)),
-                Err(reason) => return EvalAnswer::Declined(reason),
+                Err(reason) => return Err(EvalAnswer::Declined(reason)),
             }
         }
         for binding in &first.evidence.bindings {
             record_binding(&mut state.evidence, binding.clone());
         }
-        EvalAnswer::Evaluated(first)
+        Ok(first)
     }
 
     /// How many of a nested outcome's `placed` writes the ordered state
     /// applies, or why it cannot apply them: a write the state can own
-    /// (`Write`, `WriteElement`) and a preserve, which leaves its place as
-    /// it was; nothing else. The completion is exact when it is the normal
-    /// one, which ran every write, or an error, which ran the first
-    /// `written` of them.
+    /// (`Write`, `WriteElement`, `WriteUnavailable`) and a preserve, which
+    /// leaves its place as it was; nothing else. The completion is exact when
+    /// it is the normal one, which ran every write, an error, which ran the
+    /// first `written` of them, or a code, whose command stores nothing of
+    /// its own, so every write is its words'.
     ///
     /// # Errors
     ///
     /// `StatefulNested` for a write to a place the state cannot own, a
-    /// may-write or an unbind, and any completion but the two above.
+    /// may-write or an unbind, and a code completion that stores.
     fn admitted_writes(
         &self,
         placed: &[(PlaceRef, StoreOutcome)],
-        completion: &CompletionOutcome,
+        outcome: &InvocationOutcome,
     ) -> Result<usize, DeclineReason> {
-        let ran = match completion {
+        let ran = match &outcome.completion {
             CompletionOutcome::Normal => placed.len(),
             CompletionOutcome::Error { written, .. } => (*written).min(placed.len()),
+            CompletionOutcome::Code { .. } if outcome.ordered_stores.is_empty() => placed.len(),
             CompletionOutcome::Code { .. } => return Err(DeclineReason::StatefulNested),
         };
         for (place, store) in &placed[..ran] {
             let admitted = match store {
                 StoreOutcome::Preserve { .. } => true,
-                StoreOutcome::Write { .. } | StoreOutcome::WriteElement { .. } => {
-                    self.state_owns(place)
-                }
+                StoreOutcome::Write { .. }
+                | StoreOutcome::WriteElement { .. }
+                | StoreOutcome::WriteUnavailable { .. } => self.state_owns(place),
                 StoreOutcome::Unbind { .. } | StoreOutcome::MayWrite { .. } => false,
             };
             if !admitted {
@@ -4549,8 +4781,18 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> AnalysisInputs
         }
     }
 
-    fn body(&self, _id: OperandId) -> Result<BodyRegion, DeclineReason> {
-        Err(DeclineReason::Unsupported)
+    fn body(&self, id: OperandId) -> Result<BodyRegion, DeclineReason> {
+        let operand = self.view.operand(id).ok_or(DeclineReason::NotExact)?;
+        // Only text the word is: a brace-quoted script is not re-read as a
+        // substitution, and any other spelling is not the script it runs.
+        match self.sources.get(id.0) {
+            Some(OperandSource::BracedLiteral) => Ok(BodyRegion {
+                script: operand.text.to_owned(),
+                base_offset: 0,
+                frame: FrameLevel::Relative(0),
+            }),
+            _ => Err(DeclineReason::NotExact),
+        }
     }
 
     fn nested(&self, script: &str, state: &mut EvaluationState) -> EvalAnswer {

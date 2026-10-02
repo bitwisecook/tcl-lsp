@@ -219,6 +219,22 @@ pub struct RegionEntry {
     pub first: BlockId,
 }
 
+/// The `catch` a flattened body stands for, kept beside the marker that
+/// defines its result and options variables where the region ends
+/// ([`Function::catch_ends`]).
+#[derive(Debug, Clone, PartialEq)]
+pub struct CatchEnd {
+    /// The block before the body: what its exit holds is the state the script
+    /// runs over.
+    pub entry: BlockId,
+    /// The block that ends the region, whose first statement is the marker.
+    pub end: BlockId,
+    /// The `catch` as a call, with the words it was written with and the
+    /// variables it defines: the form the same statement takes when it is not
+    /// flattened.
+    pub call: Statement,
+}
+
 /// A complete control-flow graph for a single procedure or top-level script.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Function {
@@ -244,6 +260,12 @@ pub struct Function {
     /// command is known to raise only after a store, the solver leaves the
     /// edge out. These edges are also in [`Self::exception_edges`].
     pub region_entries: Vec<RegionEntry>,
+    /// The flattened `catch` regions of the function. The statement that ends
+    /// each defines the result and options variables and carries no words of
+    /// its own, which the code generator skips, so the words wait here for the
+    /// solver, which evaluates the `catch` over the state before its body.
+    /// Empty in codegen builds.
+    pub catch_ends: Vec<CatchEnd>,
     /// Registry-described error contexts for inlined command bodies flattened
     /// into this function's statement stream. Codegen turns each into a
     /// [`tcl_bytecode::ErrorRegion`] without re-parsing command text. Empty
@@ -283,8 +305,10 @@ pub struct Function {
     /// passes (O109 / O126) must not delete a store to any name in it —
     /// recording a read on the call statement instead would fabricate
     /// read-before-set uses (a false W210) for the pure out-param shape.
-    /// Populated by the CFG builder's `record_alias_observed`; empty for a
-    /// CFG built without an upvar context.
+    /// Populated by the CFG builder's `record_alias_observed`, and for the
+    /// names the last command of a flattened `catch` script stores, whose
+    /// value is the result the `catch` stores; otherwise empty for a CFG built
+    /// without an upvar context.
     pub alias_observed_vars: std::collections::BTreeSet<String>,
     /// Block-name interner: names indexed by [`BlockId`]`.0`, in creation order.
     block_names: Vec<String>,
@@ -303,6 +327,7 @@ impl Function {
             loop_nodes: HashMap::new(),
             exception_edges: Vec::new(),
             region_entries: Vec::new(),
+            catch_ends: Vec::new(),
             inline_body_error_sites: Vec::new(),
             command_binding_sites: Vec::new(),
             procedure_binding_requirements: Vec::new(),

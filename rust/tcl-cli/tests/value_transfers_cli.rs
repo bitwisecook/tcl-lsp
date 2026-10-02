@@ -887,6 +887,142 @@ fn explore_sccp_prints_the_ordered_state() {
     assert!(text.contains("x#2 = const(2)"), "{text}");
 }
 
+/// The completion paths' exit evidence: `tcl explore --show sccp` over a
+/// procedure that keeps the code of a `catch` in a substitution prints the
+/// code, 1, as `c#1` and the message the script raised, `boom`, as `m#1`, and
+/// the route the command was run on, `catch-protected`, answering `evaluated`.
+#[test]
+fn explore_sccp_prints_what_a_catch_completed_with() {
+    let text = run_tcl(&[
+        "explore",
+        "--source",
+        "proc p {} {set c [catch {error boom} m]; return $c}",
+        "--show",
+        "sccp",
+        "--text",
+        "--no-colour",
+    ]);
+    assert!(text.contains("c#1 = const(1)"), "{text}");
+    assert!(text.contains("m#1 = const('boom')"), "{text}");
+    assert!(
+        text.contains("route catch: direct catch-protected (registry)"),
+        "{text}"
+    );
+    assert!(text.contains("· answer: evaluated"), "{text}");
+}
+
+/// `tcl opt` over programs whose `catch` stands in a substitution forwards
+/// what the script completed with and keeps what it wrote: the code and the
+/// message, the value a body's `incr` left, and the condition #2231 reads
+/// after one, each printing under tclsh 8.4 to 9.1 what the original prints.
+#[test]
+fn opt_forwards_what_a_nested_catch_completed_with() {
+    let programs = [
+        (
+            "proc p {} {\n    set c [catch {error boom} m]\n    puts \"$c|$m\"\n}\np\n",
+            "1|boom\n",
+            "puts \"1|boom\"",
+        ),
+        (
+            "set x 1\nset c [catch {incr x} m]\nputs \"$c|$m\"\nputs $x\n",
+            "0|2\n2\n",
+            "puts \"0|2\"\nputs 2",
+        ),
+        (
+            "set x 1\nset c [catch {incr x}]\nif {$x == 2} {puts two} else {puts other}\n",
+            "two\n",
+            "puts two",
+        ),
+    ];
+    for (source, printed, forwarded) in programs {
+        for (series, tclsh) in tclshs_from("8.4") {
+            let optimised = opt_under(source, series);
+            let statements = statements_of(&optimised);
+            assert!(statements.contains(forwarded), "tcl{series}:\n{optimised}");
+            for program in [source, optimised.as_str()] {
+                assert_eq!(
+                    run_tclsh(&tclsh, program),
+                    Some((true, printed.to_owned())),
+                    "tclsh{series}:\n{program}"
+                );
+            }
+        }
+    }
+}
+
+/// A `catch` the flow graph lowers into a procedure's blocks — straight-line
+/// statements — ends at a statement with no words of its own, and the solver
+/// evaluates the `catch` as it does the one the graph keeps whole:
+/// `tcl explore --show sccp` over `catch {set v 1} r` prints `r#1` as the 1 its
+/// script returned, and over `set x 1; catch {incr x} m` prints `m#1` as 2 and
+/// `x#2` as 2, where the state after the script would give 3.
+#[test]
+fn explore_sccp_prints_what_a_flattened_catch_returned() {
+    let result = run_tcl(&[
+        "explore",
+        "--source",
+        "proc p {} {catch {set v 1} r; return $r}",
+        "--show",
+        "sccp",
+        "--text",
+        "--no-colour",
+    ]);
+    assert!(result.contains("r#1 = const(1)"), "{result}");
+    assert!(
+        result.contains("route catch: direct catch-protected (registry)"),
+        "{result}"
+    );
+    assert!(result.contains("· answer: evaluated"), "{result}");
+
+    let before = run_tcl(&[
+        "explore",
+        "--source",
+        "proc p {} {set x 1; catch {incr x} m; return $m}",
+        "--show",
+        "sccp",
+        "--text",
+        "--no-colour",
+    ]);
+    assert!(before.contains("m#1 = const(2)"), "{before}");
+    assert!(before.contains("x#2 = const(2)"), "{before}");
+}
+
+/// The value a flattened `catch` script ends with is the result variable's, so
+/// the store it ends with is not one nothing reads: `tcl opt` keeps `set v $c`
+/// where the result is a parameter's, and a global, and prints under tclsh 8.4
+/// to 9.1 what the original prints.
+#[test]
+fn opt_keeps_the_store_a_flattened_catch_returns() {
+    let programs = [
+        (
+            "proc p {c} {\n    catch {set v $c} m\n    puts \"<$m>\"\n}\np 7\n",
+            "<7>\n",
+            "set v ",
+        ),
+        (
+            "set g 0\nproc p {c} {\n    global g\n    catch {set v $c} g\n}\np 7\nputs $g\n",
+            "7\n",
+            "set v ",
+        ),
+    ];
+    for (source, printed, kept) in programs {
+        for (series, tclsh) in tclshs_from("8.4") {
+            let optimised = opt_under(source, series);
+            assert!(
+                statements_of(&optimised).contains(kept),
+                "tcl{series}:\n{optimised}"
+            );
+            for program in [source, optimised.as_str()] {
+                assert_eq!(
+                    run_tclsh(&tclsh, program),
+                    Some((true, printed.to_owned())),
+                    "tclsh{series}:\n{program}"
+                );
+            }
+        }
+    }
+}
+
 /// The interface page's seven ordered-state programs through `tcl opt`,
 /// each printing under tclsh 8.4 to 9.1 what the original prints: the value
 /// of the expression and what `x` holds after it, 5 and 2, 0 and 1, 21 and

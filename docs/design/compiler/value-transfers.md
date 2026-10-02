@@ -1725,9 +1725,12 @@ and its folded type. Over `x` = 1, `set r [expr {$x + [incr x] + $x}]`
 leaves `r` at 5 and `x` at 2 for every consumer, which O100 forwards into
 the reads after it, and `0 && [incr x]` leaves `x`'s new version the value
 of the one before it. The hosts are an assignment of an expression, an
-`expr` on its own and an assignment of one `[expr …]` substitution; a
-`puts` argument, a `return`, a branch condition and any other command's value
-keep `EffectFreeOnly`, which declines a nested write that runs, so such a
+`expr` on its own and an assignment of one command substitution whose
+command is on the expression engine's route or a registry-owned one, so
+`set a [incr n]` leaves `n` and `a` at 2 over `n` = 1 and `set c [catch
+{error boom} m]` leaves `c` at 1 and `m` at `boom`; a `puts` argument, a
+`return`, a branch condition and any other command's value keep
+`EffectFreeOnly`, which declines a nested write that runs, so such a
 statement is not folded and nothing is forwarded past it. A command's own
 substituting words run before it, in order, under one state: `incr x [incr x]`
 is 4 and `list $x [incr x] $x` is `1 2 2`, each declining under

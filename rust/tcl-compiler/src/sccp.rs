@@ -718,6 +718,7 @@ pub fn sccp_with_builtin_folds(
     // declaration for the resolved invocation, through one driver whose
     // context is this run's identity.
     let driver = LatticeDriver::new(trace, folds, policy, &escaping);
+    driver.catch_ends(cfg);
     // The existence rung runs beside the values, over the same executable
     // blocks and edges, when the caller asks for it.
     let existence = trace
@@ -2453,7 +2454,9 @@ fn sccp_process_statements(
         }
         // The statement is evaluated once, when a definition first needs
         // it: a call's ordered stores give each definition its own value.
-        let mut evaluated = pair_answer(&mut prepared, (ssa_block, index), values, (ssa, driver));
+        let mut evaluated = driver
+            .evaluate_catch_end(ssa_block, index, values, ssa)
+            .or_else(|| pair_answer(&mut prepared, (ssa_block, index), values, (ssa, driver)));
         // Where a throw leaves from, whether the statement raises is part of
         // what it does, so it is evaluated whatever its definitions need.
         if driver.is_throwing() && evaluated.is_none() {
@@ -6761,9 +6764,9 @@ p
     }
 
     /// The writes a word's own command makes are the command's, ahead of its
-    /// own: `string length [append s bc]` in an expression leaves `s` at
-    /// `abc`, and `incr x [incr x]` reads `x` after the inner `incr` ran, so
-    /// over `x` = 1 it is 4.
+    /// own: `string length [append s bc]` in an expression, or as the value
+    /// of the statement, leaves `s` at `abc`, and `incr x [incr x]` reads `x`
+    /// after the inner `incr` ran, so over `x` = 1 it is 4.
     #[test]
     fn a_write_a_commands_word_makes_is_a_write_of_the_statement() {
         let text = |value: &str| LatticeValue::Const(ConstValue::String(value.to_owned()));
@@ -6778,11 +6781,18 @@ p
             last_values(first, "::p", &["r", "s"]),
             [int(4), text("abc")]
         );
+        let command = "proc p {} {set s a; set r [string length [append s bc]]; return $s}\n";
+        assert_eq!(
+            last_values(command, "::p", &["r", "s"]),
+            [int(3), text("abc")]
+        );
         let reads_after = "proc p {} {set x 1; set r [expr {[incr x [incr x]]}]; return $x}\n";
         assert_eq!(
             last_values(reads_after, "::p", &["r", "x"]),
             [int(4), int(4)]
         );
+        let value = "proc p {} {set x 1; set r [incr x [incr x]]; return $x}\n";
+        assert_eq!(last_values(value, "::p", &["r", "x"]), [int(4), int(4)]);
         let braced = "proc p {} {set x 1; set r [expr {$x} + [incr x]]; return $x}\n";
         assert_eq!(last_values(braced, "::p", &["r", "x"]), [int(4), int(2)]);
         let created = "proc p {} {unset -nocomplain u; set r [expr {[string length [append u [set u 3]]]}]; return $u}\n";
@@ -6843,7 +6853,7 @@ p
     /// module defines, an error in the middle outside any handler, a host that
     /// is a call or a condition, whose substitutions run under the
     /// effect-free policy, and a value that is two substitutions rather than
-    /// one `expr`. A loop carries the write round, so neither the first
+    /// one command. A loop carries the write round, so neither the first
     /// iteration's value nor the last's is a constant.
     #[test]
     fn what_the_state_cannot_own_keeps_the_conservative_answer() {
@@ -6877,10 +6887,6 @@ p
             &["x"],
         );
         widened(
-            "proc p {} {set s a; set r [string length [append s bc]]; return $s}\n",
-            &["s"],
-        );
-        widened(
             "proc p {} {set r [expr {[incr x] + 1}]; return $x}\n",
             &["x"],
         );
@@ -6898,7 +6904,7 @@ p
         ] {
             widened(source, &["x"]);
         }
-        // A value that is two substitutions is not one `expr`.
+        // A value that is two substitutions is not one command.
         widened(
             "proc p {} {set x 1; set r [expr {1}][incr x]; return $x}\n",
             &["x"],

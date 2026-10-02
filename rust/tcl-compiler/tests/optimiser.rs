@@ -2148,7 +2148,8 @@ fn o107_still_fires_on_genuinely_unreachable_method_code() {
 /// overwritten-before-read. O109 deleted it and the program changed:
 /// tclsh 9.0.4 / 8.6.18 print `2` then `2` for the original; the rewritten
 /// program printed `1` then `1` (8.4 raises `can't read "n"`, which does not
-/// even create the variable).
+/// even create the variable). The store stays, and both reads hold what the
+/// increment left.
 #[test]
 fn a_nested_rmw_read_keeps_its_feeding_store_alive() {
     let src = "set n 1\nset result [incr n]\nputs $result\nputs $n\n";
@@ -2159,8 +2160,8 @@ fn a_nested_rmw_read_keeps_its_feeding_store_alive() {
     );
     assert_eq!(
         optimised(src, TCL),
-        src,
-        "nothing in this program is safe to rewrite"
+        "set n 1\nset result [incr n]\nputs 2\nputs 2\n",
+        "the store and the increment stay; both reads are 2"
     );
 }
 

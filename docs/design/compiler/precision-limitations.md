@@ -146,9 +146,13 @@ original's printed output, then the optimised program's):
   puts [foreach v 1 {incr x}]; puts $x` prints `1` where tclsh prints `2`.
   The one script a substitution runs once, in this frame, whatever it
   completes with — the protected script of a `catch` and the body of a
-  `try`, which the clause grammar names — is recorded: `set x 1; puts
-  [catch {unset x}]` keeps `set x 1`, and `set x 1; set c [catch {incr x}];
-  if {$x == 2} …` is not decided on the value `x` held before the body.
+  `try`, which the clause grammar names — is recorded where its text is
+  known, brace-quoted or a quoted word that substitutes nothing
+  (`[catch "incr x"]`): `set x 1; puts [catch {unset x}]` keeps `set x 1`,
+  and `set x 1; set c [catch {incr x}]; if {$x == 2} …` is not decided on
+  the value `x` held before the body. A script that is run-time data
+  (`[catch $script]`, `[catch "incr $name"]`) may write any name, so it
+  puts a barrier ahead of the statement, as the statement form does.
 - **An `uplevel 0 {…}` body** (#2261) — that is the *current* frame, not a
   nested one, so its reads and writes are the caller's, but nothing records
   them:
@@ -177,13 +181,15 @@ rather than a nested one) when one of these is the motivating case.
 The solver evaluates the writes a statement's own `[…]` substitutions make —
 the ordered evaluation state under `LocalWrites` — only where the statement is
 an assignment of an expression, an `expr` on its own, or an assignment of one
-`[expr …]` substitution (`LatticeDriver::evaluate_embedded`). A `puts`
-argument, a `return`, a branch condition and any other command's value keep
-the effect-free policy, which declines a nested write that runs:
-`puts [expr {$x + [incr x] + $x}]; puts $x` folds nothing and forwards
-nothing past the statement, though it prints `5` and `2`, and `set r [expr
-{$x + [incr x] + $x}]; puts $r; puts $x` folds both reads. That is sound, and
-short of what the assignment form proves.
+command substitution whose command is on the expression engine's route or a
+registry-owned one (`LatticeDriver::evaluate_embedded`): `set r [expr …]`,
+`set a [incr n]`, `set c [catch {…} m]`. A `puts` argument, a `return`, a
+branch condition and any other command's value keep the effect-free policy,
+which declines a nested write that runs: `puts [expr {$x + [incr x] + $x}];
+puts $x` folds nothing and forwards nothing past the statement, though it
+prints `5` and `2`, `if {[catch {error boom} m]} {puts $m}` leaves `m`
+unknown, and `set r [expr {$x + [incr x] + $x}]; puts $r; puts $x` folds both
+reads. That is sound, and short of what the assignment form proves.
 
 Two shapes are left undecided as well. A nested command that reads a variable
 no statement records as a use (`[string length $y]`, `[incr x $y]`) leaves the

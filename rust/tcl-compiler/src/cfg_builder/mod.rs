@@ -272,6 +272,10 @@ pub(crate) struct CfgBuilder<'a> {
     /// with the block of the body's first command
     /// ([`crate::cfg::Function::region_entries`]).
     region_entries: Vec<(String, String, String)>,
+    /// The flattened `catch` regions, each as the block before its body, the
+    /// block that ends it and the `catch` written as a call
+    /// ([`crate::cfg::Function::catch_ends`]).
+    catch_ends: Vec<(String, String, Statement)>,
     /// Whether the next script lowered gives each statement a block of its
     /// own, so every point at which a flattened `catch` body can fail ends a
     /// block an exception edge leaves from; the script's inner blocks are
@@ -439,6 +443,7 @@ impl<'a> CfgBuilder<'a> {
             loop_stack: Vec::new(),
             exception_edges: Vec::new(),
             region_entries: Vec::new(),
+            catch_ends: Vec::new(),
             split_script: false,
             split_blocks: Vec::new(),
             faithful_exceptions: false,
@@ -1827,6 +1832,14 @@ impl<'a> CfgBuilder<'a> {
                 source: self.bid(&source),
                 handler: self.bid(&handler),
                 first: self.bid(&first),
+            })
+            .collect();
+        func.catch_ends = std::mem::take(&mut self.catch_ends)
+            .into_iter()
+            .map(|(entry, end, call)| crate::cfg::CatchEnd {
+                entry: self.bid(&entry),
+                end: self.bid(&end),
+                call,
             })
             .collect();
         func.inline_body_error_sites = std::mem::take(&mut self.inline_body_error_sites);

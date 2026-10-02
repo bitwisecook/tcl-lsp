@@ -27,18 +27,24 @@ use tcl_dialect::model::SpecSurface;
 
 use crate::arg_role::ArgRole;
 use crate::completion::{CompletionCode, CompletionCodeDomain};
+use crate::frame_effect::FrameLevel;
+use crate::types::TclType;
 
 use super::CommandSemantics;
 use super::answers::{
-    BindingKind, CompletionOutcome, CompletionPath, DependencyEvidence, EvalAnswer,
-    ExactValueOrUnavailable, ExistenceOutcome, ExistenceTransfer, InvocationOutcome, RouteIdentity,
-    TransferAnswer, TypeFacts,
+    BindingKind, BodyPlan, CompletionOutcome, CompletionPath, CompletionProtocol,
+    DependencyEvidence, EvalAnswer, ExactValue, ExactValueOrUnavailable, Existence,
+    ExistenceOutcome, ExistenceTransfer, FactBounds, InvocationOutcome, PlanAnswer, Reconcile,
+    RouteIdentity, SegmentFacts, StoreOutcome, TransferAnswer, TypeFacts,
 };
 use super::const_ops::TargetSemantics;
 use super::context::Budget;
-use super::decline::{DeclineReason, NoRouteReason};
+use super::decline::DeclineReason;
 use super::destructure::unavailable;
-use super::inputs::{AnalysisInputs, FactDomain, FactView, OperandId, TargetId};
+use super::inputs::{
+    AnalysisInputs, DomainFact, EvaluationState, FactDomain, FactView, NestedPolicy, OperandId,
+    TargetId, WrittenPlace, written_in,
+};
 use super::route::{EvalRoute, NativeEvalId};
 
 /// The revision of the registry-owned completion evaluators.
@@ -352,25 +358,202 @@ impl CommandSemantics for ReturnSemantics {
 }
 
 /// `catch script ?resultVarName? ?optionsVarName?`: whatever the script's
-/// completion, the result variable and the options variable are written, and
-/// what they hold is the script's to say — nothing the analysis knows of an
-/// opaque body, so each is bound with a value that is not available. The
-/// script's own writes are the body's, stated where the body is lowered.
+/// completion, the result variable and the options variable are written.
+///
+/// A closed script — brace-quoted, every command with a route of its own and
+/// every value exact — is run by the nested service under the protected
+/// policy ([`NestedPolicy::Protected`]), which hands back the first completion
+/// that is not the normal one together with the writes that ran before it.
+/// The command then completes normally with the code a caller of the script
+/// observes ([`CompletionOutcome::observed_code`]), and writes the result
+/// variable what the script returned — its last result, the message of its
+/// error, or what `return` carried — and the options variable a dictionary.
+/// The writes the script made are the command's nested writes, ahead of its
+/// own two stores.
+///
+/// The dictionary is never an exact value. `-errorinfo`, `-errorline` and
+/// `-errorstack` are the interpreter's text, and from 8.6 a success may carry
+/// a stale `-errorcode` (`catch {incr absent}` leaves `TCL READ VARNAME`
+/// there). The store states what holds: a dictionary, and for a completion
+/// other than an error the prefix `-code N -level L` (an error's dictionary
+/// lists `-errorinfo` first when `error` is given one). A script that is not
+/// closed, a variable that may be an array or is an element, and a third word
+/// before 8.5 decline, and the existence transfer states what holds on every
+/// path: both variables are bound.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CatchSemantics;
 
 /// `catch`.
 pub static CATCH: CatchSemantics = CatchSemantics;
 
+impl CatchSemantics {
+    /// What a variable operand's store needs of its place once the script has
+    /// run: a scalar or an absent place, which the store succeeds on. The
+    /// script's own writes are read first, then the fact before the command;
+    /// an element, which may fail on its array, a place that may be an array
+    /// and one the script left unknown decline, and a fact not yet reached is
+    /// pending.
+    fn writable(
+        input: &dyn AnalysisInputs,
+        state: &EvaluationState,
+        id: OperandId,
+    ) -> Result<(), EvalAnswer> {
+        let place = input.place(id).map_err(EvalAnswer::Declined)?;
+        if place.is_element() {
+            return Err(EvalAnswer::Declined(DeclineReason::Unsupported));
+        }
+        match written_in(&state.writes, &place.name) {
+            WrittenPlace::Exact(_) => return Ok(()),
+            WrittenPlace::Unknown => {
+                return Err(EvalAnswer::Declined(DeclineReason::StatefulNested));
+            }
+            WrittenPlace::Untouched => {}
+        }
+        match input.prior_store(&place, FactDomain::Existence) {
+            FactView::Domain(DomainFact::Existence(
+                Existence::Unbound | Existence::Bound(BindingKind::Scalar),
+            )) => Ok(()),
+            FactView::Pending | FactView::Domain(DomainFact::Existence(Existence::Pending)) => {
+                Err(EvalAnswer::Pending)
+            }
+            _ => Err(EvalAnswer::Declined(DeclineReason::NotExact)),
+        }
+    }
+
+    /// A value stored into a variable: the exact text as a write, an unproven
+    /// one as a write whose value is unavailable and whose binding is certain.
+    fn stored(target: TargetId, value: ExactValueOrUnavailable) -> StoreOutcome {
+        match value {
+            ExactValueOrUnavailable::Exact(value) => StoreOutcome::Write { target, value },
+            ExactValueOrUnavailable::Unavailable(facts) => StoreOutcome::WriteUnavailable {
+                target,
+                facts: FactBounds {
+                    existence: Existence::Bound(BindingKind::Scalar),
+                    ..facts
+                },
+            },
+        }
+    }
+
+    /// What the options variable holds after `completion`: a dictionary, whose
+    /// text starts `-code N -level L` unless the completion is an error.
+    fn options(completion: &CompletionOutcome) -> FactBounds {
+        let prefix = (!matches!(completion, CompletionOutcome::Error { .. })).then(|| {
+            let (code, level) = completion.options_code_and_level();
+            format!("-code {code} -level {level}").into_bytes()
+        });
+        FactBounds {
+            existence: Existence::Bound(BindingKind::Scalar),
+            intrep: Some(TclType::Dict),
+            shape: None,
+            segments: prefix.map(|prefix| SegmentFacts {
+                min_len: Some(prefix.len()),
+                max_len: None,
+                prefix: Some(prefix),
+                suffix: None,
+            }),
+            taint: None,
+        }
+    }
+}
+
 impl CommandSemantics for CatchSemantics {
     fn identity(&self) -> &'static str {
-        "catch"
+        NativeEvalId::CatchProtected.as_str()
     }
 
     fn route(&self) -> EvalRoute {
-        EvalRoute::None {
-            reason: NoRouteReason::Unauthored,
+        EvalRoute::Direct {
+            id: NativeEvalId::CatchProtected,
         }
+    }
+
+    fn structure(&self, input: &dyn AnalysisInputs) -> PlanAnswer {
+        let words = input.invocation().operands.len();
+        if !(1..=3).contains(&words) {
+            return PlanAnswer::Declined(DeclineReason::Unsupported);
+        }
+        PlanAnswer::Body {
+            binders: Vec::new(),
+            body: BodyPlan {
+                body: OperandId(0),
+                frame: FrameLevel::Relative(0),
+            },
+            reconcile: Reconcile::None,
+            completion: CompletionProtocol::CatchAll {
+                result_var: (words >= 2).then_some(TargetId(OperandId(1))),
+                options_var: (words == 3).then_some(TargetId(OperandId(2))),
+            },
+        }
+    }
+
+    fn evaluate(&self, input: &dyn AnalysisInputs, _budget: &mut Budget) -> EvalAnswer {
+        let words = input.invocation().operands.len();
+        // Another count is `wrong # args`, which the route does not word.
+        if !(1..=3).contains(&words) {
+            return EvalAnswer::Declined(DeclineReason::Unsupported);
+        }
+        let target = TargetSemantics::of(input.context().profile);
+        if words == 3 {
+            match target.release {
+                Some(release) if release >= TclVersion::V8_5 => {}
+                Some(_) => return EvalAnswer::Declined(DeclineReason::Unsupported),
+                None => return EvalAnswer::Declined(unavailable(SpecSurface::TCL85_PLUS)),
+            }
+        }
+        let script = match input.body(OperandId(0)) {
+            Ok(region) => region.script,
+            Err(reason) => return EvalAnswer::Declined(reason),
+        };
+        let mut state = EvaluationState::new(NestedPolicy::Protected);
+        let body = match input.nested(&script, &mut state) {
+            EvalAnswer::Evaluated(body) => body,
+            other => return other,
+        };
+        for at in 1..words {
+            if let Err(answer) = Self::writable(input, &state, OperandId(at)) {
+                return answer;
+            }
+        }
+        let returned = match &body.completion {
+            CompletionOutcome::Normal => body.result.clone(),
+            CompletionOutcome::Code { result, .. } => result.clone(),
+            CompletionOutcome::Error { message, .. } => message.clone(),
+        };
+        let mut ordered_stores = Vec::with_capacity(words - 1);
+        if words >= 2 {
+            ordered_stores.push(Self::stored(TargetId(OperandId(1)), returned));
+        }
+        if words == 3 {
+            ordered_stores.push(StoreOutcome::WriteUnavailable {
+                target: TargetId(OperandId(2)),
+                facts: Self::options(&body.completion),
+            });
+        }
+        let id = NativeEvalId::CatchProtected;
+        EvalAnswer::Evaluated(Box::new(InvocationOutcome {
+            completion: CompletionOutcome::Normal,
+            result: ExactValueOrUnavailable::Exact(ExactValue::int(
+                body.completion.observed_code(),
+            )),
+            nested_writes: state.writes,
+            ordered_stores,
+            types: TypeFacts {
+                result: Some(TclType::Int),
+                ..TypeFacts::default()
+            },
+            evidence: DependencyEvidence {
+                route: Some(RouteIdentity {
+                    route: EvalRoute::Direct { id },
+                    implementation: id.as_str(),
+                    revision: REVISION,
+                }),
+                numerals: target.numerals,
+                characters: target.character_model,
+                release: target.release,
+                ..state.evidence
+            },
+        }))
     }
 
     fn transfer(
