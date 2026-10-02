@@ -64,15 +64,12 @@ pub fn fold_const_branch(cond: &ExprNode) -> Option<bool> {
     // Only literal text is folded here. Every other node — variables, command
     // substitutions, compiled words and structured operators — carries a runtime
     // value or is folded by the caller, so it collapses to `None`.
-    let (ExprNode::Literal { text, .. } | ExprNode::String { text, .. }) = cond else {
-        return None;
+    let trimmed = match cond {
+        ExprNode::Literal { text, .. } => text.as_str(),
+        // A string operand's value only when it is fixed text.
+        ExprNode::String { text, .. } => tcl_syntax::expr::fixed_string_operand(text)?,
+        _ => return None,
     };
-
-    let trimmed = text
-        .strip_prefix('"')
-        .and_then(|s| s.strip_suffix('"'))
-        .or_else(|| text.strip_prefix('{').and_then(|s| s.strip_suffix('}')))
-        .unwrap_or(text);
     if let Ok(i) = trimmed.parse::<i64>() {
         return Some(i != 0);
     }

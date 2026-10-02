@@ -37,7 +37,7 @@ tcl-dialect = { path = "../tcl-dialect" }
 # crate uses it. `macros` supplies `#[salsa::db]`/`#[salsa::tracked]` and
 # `inventory` the query registration this crate's `#[salsa::input]`s rely on —
 # the minimal pair that both builds need.
-salsa = { version = "0.28", default-features = false, features = ["macros", "inventory"] }
+salsa = { version = "0.28.5", default-features = false, features = ["macros", "inventory"] }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-registry = { path = "../tcl-registry" }
@@ -48,4 +48,4 @@ rayon = "1"
 # `salsa_unstable` exposes `<dyn salsa::Database>::memory_usage()` — per-ingredient
 # slot counts and memo sizes. Used by the `edit_memory` example to attribute
 # per-edit growth to a specific interned key / tracked query.
-salsa = { version = "0.28", features = ["salsa_unstable"] }
+salsa = { version = "0.28.5", features = ["salsa_unstable"] }

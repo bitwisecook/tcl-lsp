@@ -72,6 +72,9 @@ use std::time::{Duration, Instant};
 use serde_json::{Value, json};
 
 /// Default per-request timeout.
+/// LSP `MessageType.Warning`, as a `window/logMessage` carries it.
+const LOG_MESSAGE_WARNING: i64 = 2;
+
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 /// Longer default for `initialize` / `request` without an explicit deadline.
 const REQUEST_TIMEOUT: Duration = Duration::from_mins(1);
@@ -462,6 +465,10 @@ struct Shared {
     /// Zero in every ordinary test; the transport-liveness regression uses a
     /// short delay to put four handlers in the reply-waiting state at once.
     configuration_reply_delay: Mutex<Duration>,
+    /// The action title this client picks when the server sends
+    /// `window/showMessageRequest`; `None` answers as a user who dismisses the
+    /// message without choosing.
+    message_action_reply: Mutex<Option<String>>,
     /// Captured stderr text.
     stderr: Mutex<String>,
 }
@@ -474,6 +481,8 @@ pub struct Lsp {
     /// URIs opened without a matching close, so `Drop` can tidy up.
     open_uris: Vec<String>,
     xdg_root: std::path::PathBuf,
+    /// The client capabilities sent at `initialize`; none unless a test says.
+    client_capabilities: Value,
     /// The `initialize` result, populated by [`Lsp::initialize`].
     initialize_result: Value,
 }
@@ -554,7 +563,7 @@ impl Lsp {
 
     /// Poll `getEffectiveConfig` until every key of `requested` is reflected in
     /// the server's applied config.
-    fn settle_config(&mut self, requested: &Value) {
+    pub fn settle_config(&mut self, requested: &Value) {
         let deadline = Instant::now() + scaled_timeout(DEFAULT_TIMEOUT);
         loop {
             let effective = self.effective_config("");
@@ -604,14 +613,20 @@ impl Lsp {
             }));
         std::fs::create_dir_all(xdg_root.join("config")).expect("mk xdg config");
         std::fs::create_dir_all(xdg_root.join("cache")).expect("mk xdg cache");
+        std::fs::create_dir_all(xdg_root.join("state")).expect("mk xdg state");
 
+        // The isolated XDG directories come first, so a test that needs a
+        // directory to outlive one server (the state a second session reads)
+        // can name its own through `env`.
         let mut command = Command::new(bin);
+        command
+            .env("XDG_CONFIG_HOME", xdg_root.join("config"))
+            .env("XDG_CACHE_HOME", xdg_root.join("cache"))
+            .env("XDG_STATE_HOME", xdg_root.join("state"));
         for (key, value) in env {
             command.env(key, value);
         }
         let mut child = command
-            .env("XDG_CONFIG_HOME", xdg_root.join("config"))
-            .env("XDG_CACHE_HOME", xdg_root.join("cache"))
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -632,6 +647,7 @@ impl Lsp {
             tcllsp_config: Mutex::new(config),
             folder_configs: Mutex::new(HashMap::new()),
             configuration_reply_delay: Mutex::new(Duration::ZERO),
+            message_action_reply: Mutex::new(None),
             stderr: Mutex::new(String::new()),
         });
 
@@ -662,8 +678,28 @@ impl Lsp {
             next_id: 0,
             open_uris: Vec::new(),
             xdg_root,
+            client_capabilities: json!({}),
             initialize_result: Value::Null,
         }
+    }
+
+    /// The isolated XDG root this server runs under: `config/`, `cache/` and
+    /// `state/` beneath it are the server's `XDG_*_HOME` unless a test named
+    /// its own.
+    pub fn xdg_root(&self) -> &std::path::Path {
+        &self.xdg_root
+    }
+
+    /// Set the client capabilities the next `initialize` advertises. The
+    /// default is none, the least a client can offer.
+    pub fn set_client_capabilities(&mut self, capabilities: Value) {
+        self.client_capabilities = capabilities;
+    }
+
+    /// Choose the action this client picks when the server sends
+    /// `window/showMessageRequest`; `None` dismisses the message unanswered.
+    pub fn choose_message_action(&self, title: Option<&str>) {
+        *self.shared.message_action_reply.lock().unwrap() = title.map(str::to_owned);
     }
 
     /// Run the `initialize` handshake and send `initialized`.
@@ -680,7 +716,7 @@ impl Lsp {
                 "processId": std::process::id(),
                 "rootUri": root,
                 "workspaceFolders": [{ "uri": root, "name": "e2e" }],
-                "capabilities": {},
+                "capabilities": self.client_capabilities.clone(),
                 "clientInfo": { "name": "tcl-lsp-e2e", "version": "1.0" },
             }),
             REQUEST_TIMEOUT,
@@ -773,7 +809,7 @@ impl Lsp {
                 "processId": std::process::id(),
                 "rootUri": root,
                 "workspaceFolders": folders,
-                "capabilities": {},
+                "capabilities": self.client_capabilities.clone(),
                 "clientInfo": { "name": "tcl-lsp-e2e", "version": "1.0" },
             }),
             REQUEST_TIMEOUT,
@@ -1000,6 +1036,54 @@ impl Lsp {
     /// diagnostics array.
     pub fn await_diagnostics(&self, uri: &str) -> Vec<Value> {
         self.await_diagnostics_version(uri, None, DEFAULT_TIMEOUT)
+    }
+
+    /// Block until the first `publishDiagnostics` for `uri` arrives and return
+    /// its diagnostics, whatever later publishes replace it with.
+    ///
+    /// For a test about what a document is *first* told: the server
+    /// republishes as start-up work completes, so the settled result cannot
+    /// say whether the first one was right.
+    pub fn await_first_diagnostics(&self, uri: &str, timeout: Duration) -> Vec<Value> {
+        let deadline = Instant::now() + scaled_timeout(timeout);
+        let mut notes = self.shared.notifications.lock().unwrap();
+        loop {
+            let first = notes.iter().find_map(|note| {
+                if note.get("method").and_then(Value::as_str)
+                    != Some("textDocument/publishDiagnostics")
+                {
+                    return None;
+                }
+                let params = note.get("params")?;
+                if params.get("uri").and_then(Value::as_str) != Some(uri) {
+                    return None;
+                }
+                Some(
+                    params
+                        .get("diagnostics")
+                        .and_then(Value::as_array)
+                        .cloned()
+                        .unwrap_or_default(),
+                )
+            });
+            if let Some(diagnostics) = first {
+                return diagnostics;
+            }
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                drop(notes);
+                panic!(
+                    "no publishDiagnostics for {uri:?} within {timeout:?}{}",
+                    latency_barrier_timeout_note()
+                );
+            }
+            let (guard, _) = self
+                .shared
+                .notify_cv
+                .wait_timeout(notes, remaining)
+                .unwrap();
+            notes = guard;
+        }
     }
 
     /// Block until the most recent `publishDiagnostics` for `uri` satisfies
@@ -1308,6 +1392,19 @@ impl Lsp {
             })
     }
 
+    /// [`Lsp::await_log`] for a `window/logMessage` of type `Warning` alone: a
+    /// message the server logs at another severity does not satisfy it.
+    pub fn await_warning_log(&self, needles: &[&str], timeout: Duration, since: usize) -> String {
+        self.try_await_log_of_type(needles, Some(LOG_MESSAGE_WARNING), timeout, since)
+            .unwrap_or_else(|| {
+                panic!(
+                    "no warning window/logMessage containing all of {needles:?} within \
+                     {timeout:?}{}",
+                    latency_barrier_timeout_note()
+                )
+            })
+    }
+
     /// Like [`Lsp::await_log`] but returns `None` on timeout instead of
     /// panicking, for callers that can make progress another way when the
     /// marker does not arrive — e.g. a convergence loop that simply re-issues
@@ -1318,11 +1415,30 @@ impl Lsp {
         timeout: Duration,
         since: usize,
     ) -> Option<String> {
+        self.try_await_log_of_type(needles, None, timeout, since)
+    }
+
+    /// [`Lsp::try_await_log`], limited to log messages of `message_type` when
+    /// one is given.
+    fn try_await_log_of_type(
+        &self,
+        needles: &[&str],
+        message_type: Option<i64>,
+        timeout: Duration,
+        since: usize,
+    ) -> Option<String> {
         let deadline = Instant::now() + scaled_timeout(timeout);
         let mut notes = self.shared.notifications.lock().unwrap();
         loop {
             for note in notes.iter().skip(since) {
                 if note.get("method").and_then(Value::as_str) != Some("window/logMessage") {
+                    continue;
+                }
+                let logged_type = note
+                    .get("params")
+                    .and_then(|p| p.get("type"))
+                    .and_then(Value::as_i64);
+                if message_type.is_some() && logged_type != message_type {
                     continue;
                 }
                 let msg = note
@@ -1915,6 +2031,19 @@ fn config_reflected(requested: &Value, effective: &Value) -> bool {
                 effective.get(flat).is_some_and(|got| got == v)
             })
         }),
+        // `tclLsp.notifications.*` is session-wide and reported flat.
+        "notifications" => want.as_object().is_none_or(|notes| {
+            notes.iter().all(|(k, v)| {
+                let flat = match k.as_str() {
+                    "environmentKind" => "notifications_environment_kind",
+                    other => panic!(
+                        "config_reflected: no settle mapping for `notifications.{other}` \
+                         — add one (see getEffectiveConfig) so the config is a real barrier"
+                    ),
+                };
+                effective.get(flat).is_some_and(|got| got == v)
+            })
+        }),
         "dialect" => effective.get("dialect").is_some_and(|got| got == want),
         "lineLength" => effective.get("line_length").is_some_and(|got| got == want),
         other => panic!(
@@ -2034,6 +2163,15 @@ fn auto_reply(msg: &Value, shared: &Arc<Shared>) {
                 })
                 .collect(),
         )
+    } else if method == "window/showMessageRequest" {
+        shared
+            .message_action_reply
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map_or(Value::Null, |title| json!({ "title": title }))
+    } else if method == "window/showDocument" {
+        json!({ "success": true })
     } else {
         Value::Null
     };

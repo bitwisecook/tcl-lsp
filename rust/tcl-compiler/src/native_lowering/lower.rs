@@ -1401,15 +1401,11 @@ impl<'a> Lowerer<'a> {
                 }
             }
             ExprNode::String { text, .. } => {
-                let inner = text
-                    .strip_prefix('{')
-                    .and_then(|rest| rest.strip_suffix('}'))
-                    .or_else(|| {
-                        text.strip_prefix('"')
-                            .and_then(|rest| rest.strip_suffix('"'))
-                            .filter(|rest| !has_substitution(rest))
-                    });
-                match inner {
+                // A `"…"` operand is its text only when nothing in it
+                // substitutes. A `{…}` one is literal but for its
+                // backslash-newlines, which fold in Tcl and stay in Jim, so one
+                // carrying them is declined rather than pushed raw (#2227).
+                match tcl_syntax::expr::fixed_string_operand(text) {
                     Some(inner) => Ok(self.const_str(inner)),
                     None => Err(ExprDecline::SubstitutedString),
                 }

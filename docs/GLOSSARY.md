@@ -29,7 +29,7 @@ flowchart LR
 
 ## Alphabetic index
 
-[AST](#ast) · [Barrier](#barrier) · [Basic block](#basic-block) · [C extension shim](#c-extension-shim) · [Call-site evidence](#call-site-evidence) · [CFG](#cfg) · [Codegen](#codegen) · [Codegen optimisation pass](#codegen-optimisation-pass) · [Command walk](#command-walk) · [CommandSpec](#commandspec) · [Compilation unit](#compilation-unit) · [Compiled artefact](#compiled-artefact) · [Concrete syntax tree (CST) / red-green tree](#concrete-syntax-tree-cst--red-green-tree) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [dialect](#dialect) · [Dispatch-stability proof](#dispatch-stability-proof) · [Dominance frontier](#dominance-frontier) · [Dominator / idom](#dominator--idom) · [Escape tag](#escape-tag) · [FormSpec](#formspec) · [Frame-only var](#frame-only-var) · [GVN](#gvn) · [ICIP](#icip) · [InstCombine](#instcombine) · [Interpreter domain](#interpreter-domain) · [IPA](#ipa) · [IR](#ir) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Lifecycle (registry)](#lifecycle-registry) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Memory-SSA](#memory-ssa) · [Native proc entry](#native-proc-entry) · [Object handle](#object-handle) · [ObjectClassSpec](#objectclassspec) · [Pattern recognition](#pattern-recognition) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [Requirement straddle](#requirement-straddle) · [salsa](#salsa) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [Source edge](#source-edge) · [Special variable](#special-variable) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Symbol-definer command](#symbol-definer-command) · [Tail position](#tail-position) · [Tail-call optimisation](#tail-call-optimisation) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Trace](#trace) · [Type inference](#type-inference) · [Unit linkage](#unit-linkage) · [Unused procs elimination](#unused-procs-elimination) · [Value provenance](#value-provenance) · [ValueOps](#valueops) · [Var-escape analysis](#var-escape-analysis) · [Version floor](#version-floor) · [World-state contents lattice](#world-state-contents-lattice)
+[AST](#ast) · [Barrier](#barrier) · [Basic block](#basic-block) · [C extension shim](#c-extension-shim) · [Call-site evidence](#call-site-evidence) · [CFG](#cfg) · [Codegen](#codegen) · [Codegen optimisation pass](#codegen-optimisation-pass) · [Command walk](#command-walk) · [CommandSpec](#commandspec) · [Compilation unit](#compilation-unit) · [Compiled artefact](#compiled-artefact) · [Concrete syntax tree (CST) / red-green tree](#concrete-syntax-tree-cst--red-green-tree) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [dialect](#dialect) · [Dispatch-stability proof](#dispatch-stability-proof) · [Dominance frontier](#dominance-frontier) · [Dominator / idom](#dominator--idom) · [environment](#environment) · [Escape tag](#escape-tag) · [FormSpec](#formspec) · [Frame-only var](#frame-only-var) · [GVN](#gvn) · [ICIP](#icip) · [InstCombine](#instcombine) · [Interpreter domain](#interpreter-domain) · [IPA](#ipa) · [IR](#ir) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Lifecycle (registry)](#lifecycle-registry) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Memory-SSA](#memory-ssa) · [Native proc entry](#native-proc-entry) · [Object handle](#object-handle) · [ObjectClassSpec](#objectclassspec) · [package](#package) · [Pattern recognition](#pattern-recognition) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [Requirement straddle](#requirement-straddle) · [salsa](#salsa) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [Source edge](#source-edge) · [Special variable](#special-variable) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Symbol-definer command](#symbol-definer-command) · [Tail position](#tail-position) · [Tail-call optimisation](#tail-call-optimisation) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Trace](#trace) · [Type inference](#type-inference) · [Unit linkage](#unit-linkage) · [Unused procs elimination](#unused-procs-elimination) · [Value provenance](#value-provenance) · [ValueOps](#valueops) · [Var-escape analysis](#var-escape-analysis) · [Version floor](#version-floor) · [World-state contents lattice](#world-state-contents-lattice)
 
 ---
 
@@ -84,15 +84,22 @@ KCS tag: `lexing`.
 
 ### dialect
 
-The Tcl language-variant selector that picks which syntax and command
-set apply. The catalogue holds nineteen profiles: the core versions
-`tcl8.4`, `tcl8.5`, `tcl8.6`, `tcl9.0`, `tcl9.1`; the F5 flavours
-`f5-irules`, `f5-iapps`, `f5-tmsh`, `f5-bigip`; `bpf`, `expect`,
-`spectcl`, `sslictcl`; and the EDA vendors `cadence-eda-tcl`,
-`intel-quartus-eda-tcl`, `mentor-eda-tcl`,
-`microchip-libero-eda-tcl`, `synopsys-eda-tcl`, `xilinx-eda-tcl`.
-It is threaded from the workspace's
-language id all the way through the pipeline. On the lexer side,
+The name a user gives the language a file is written in — the value every
+`tclLsp.dialect` setting, `# tcl-dialect:` directive, `--dialect` flag and
+editor language id carries. Each name resolves through one seam
+(`tcl_registry::model::ingress::resolve_environment`) to an
+[environment](#environment). The selectable set
+(`EnvironmentRegistry::selectable`) has two kinds: *languages* —
+`tcl8.4`, `tcl8.5`, `tcl8.6`, `tcl9.0`, `tcl9.1`, `f5-irules`, `f5-iapps`,
+`f5-tmsh`, `f5-bigip`, `jim`, `bpf`, `expect`, `spectcl`, `sslictcl` — and
+*Tcl + packages* — `tk` and the six EDA tool shells `cadence-eda-tcl`,
+`intel-quartus-eda-tcl`, `mentor-eda-tcl`, `microchip-libero-eda-tcl`,
+`synopsys-eda-tcl`, `xilinx-eda-tcl`. Every list a user sees is read from
+that set at runtime or generated from it
+([docs/generated/environments.md](generated/environments.md)). Internally,
+`DialectProfile` is the lexer's and the editors' identity key, never a
+user-facing list. The name is threaded from the workspace's language id all
+the way through the pipeline. On the lexer side,
 `LexerConfig::for_dialect` (`tcl_lexer::lexer`) turns a dialect name
 into the right flags — for example `tcl8.4` disables `{*}` word
 expansion and `f5-irules` enables the iRules brace separator, while an
@@ -103,7 +110,47 @@ offers it over which release windows (`tcl_dialect::model`) — and answered
 against the document's point; `surface: None` on a `CommandSpec` means the
 command is available everywhere.
 
-See also: [Command registry](design/compiler/command-registry.md).
+See also: [Command registry](design/compiler/command-registry.md),
+[Environment selection](design/contracts/environment-selection.md).
+KCS tag: `lexing`.
+
+---
+
+### environment
+
+The named, selectable definition a dialect name resolves to
+(`tcl_dialect::model::EnvironmentDefinition`, held in the
+`EnvironmentRegistry`): a core family at a release — or a whole release
+ladder, as `jim` — the [packages](#package) it places ambient or hosted, its
+aliases, an editor language identity drawn from the fixed contributed set
+(`tcl-irule`, `tcl-jim`, `tcl-xilinx`, …), its detection facts (file
+extensions, file names, shebang words), and a `kind`: `Language` (the
+language itself is the identity) or `Packages` (a stock Tcl release plus
+libraries — `tk` and the EDA tool shells). Kind drives picker grouping, the
+generated description (`Xilinx Vivado — Tcl 8.5 + vivado, sdc, upf`) and the
+one-time server notice, never resolution or grammar. `tk`, `jim` and every
+pack-declared shell are environments with no `DialectProfile` row; the
+lenient `tcl` sink is an environment that is never listed.
+
+See also: [Environment selection](design/contracts/environment-selection.md),
+[Dialect and package registry](design/registry/dialect-and-package-registry-redesign.md).
+KCS tag: `lexing`.
+
+---
+
+### package
+
+A provider of versioned command-surface declarations layered on a core
+family: Tk, a tcllib module, Expect's commands, the F5 iApps and tmsh
+surfaces, an EDA vendor library (`vivado`, `sdc`, `upf`, …). A command
+gated by `required_package` resolves only where its package is present; a
+*closed-world* package — placed ambient somewhere and hosted nowhere —
+resolves only in the [environment](#environment) that ships it, so a Vivado
+command never answers under plain Tcl or a rival shell. An EDA tool is a set
+of packages on a Tcl release, not a dialect of its own.
+
+See also: [EDA tools as library packages](design/registry/eda-library-packages.md),
+[Spec packs](design/registry/spec-packs.md).
 KCS tag: `lexing`.
 
 ---

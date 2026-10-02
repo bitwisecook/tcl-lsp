@@ -225,7 +225,7 @@ fn statement_has_frame_reach(stmt: &Statement, registry: &CommandRegistry) -> bo
         }
         Statement::If {
             clauses, else_body, ..
-        } => clauses.iter().any(|c| reaches(&c.body)) || else_body.as_ref().is_some_and(&reaches),
+        } => clauses.iter().any(|c| reaches(&c.body)) || else_body.as_ref().is_some_and(reaches),
         Statement::For {
             init, next, body, ..
         } => reaches(init) || reaches(next) || reaches(body),
@@ -241,13 +241,13 @@ fn statement_has_frame_reach(stmt: &Statement, registry: &CommandRegistry) -> bo
         } => {
             reaches(body)
                 || handlers.iter().any(|h| reaches(&h.body))
-                || finally_body.as_ref().is_some_and(&reaches)
+                || finally_body.as_ref().is_some_and(reaches)
         }
         Statement::Switch {
             arms, default_body, ..
         } => {
-            arms.iter().any(|a| a.body.as_ref().is_some_and(&reaches))
-                || default_body.as_ref().is_some_and(&reaches)
+            arms.iter().any(|a| a.body.as_ref().is_some_and(reaches))
+                || default_body.as_ref().is_some_and(reaches)
         }
         _ => false,
     }

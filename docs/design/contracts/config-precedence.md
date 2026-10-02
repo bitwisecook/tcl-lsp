@@ -132,6 +132,23 @@ workspace-folder echo of the schema-default `tcl8.6` would otherwise block the
 iRules / iApps file-extension auto-switch. The deviation is scoped to one key
 and one direction, and is deliberately not generalised.
 
+## Silence, and its one scoped exception
+
+An ignored or overridden setting is never announced: a project value that beats
+an editor value, or an editor value that beats the global file, changes the
+outcome and says nothing. One server-sent message is the scoped exception, and
+it is not about a setting. The first time a document resolves to a bundled tool
+environment (Vivado, Quartus, Questa, Libero, Synopsys, Cadence), the server
+explains once per environment per session that it is a Tcl release plus library
+packages rather than a dialect of its own
+([environment-selection.md](environment-selection.md) § *The notice*). That is
+a one-time explanation of a classification, so the rule that keeps a lost merge
+silent does not cover it, and no other message reports an ignored setting. The
+switch, `tclLsp.notifications.environmentKind` (`[notifications]
+environment_kind` in `config.ini`), takes part in the layers above like any
+other key: an editor that sends it wins over the global file, and the project
+file wins over both.
+
 ## Why the two files have different names
 
 The global file is `config.ini` and the project file is `.tcl-lsp.ini`.

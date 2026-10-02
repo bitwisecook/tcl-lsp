@@ -4963,12 +4963,15 @@ mod tests {
             "W110 must cover exactly the operator, got {:?}",
             w110[0].span
         );
-        // The code fix still replaces the whole condition text.
-        assert!(!w110[0].fixes.is_empty(), "fix expected: {:?}", w110[0]);
-        assert!(
-            w110[0].fixes[0].span.start() < w110[0].span.start(),
-            "fix span must cover the argument, not just the operator"
+        // The fix rewrites the operator in place and leaves the braces and
+        // operands as written.
+        assert_eq!(w110[0].fixes.len(), 1, "fix expected: {:?}", w110[0]);
+        let fix = &w110[0].fixes[0];
+        assert_eq!(
+            fix.span, w110[0].span,
+            "the fix covers exactly the operator"
         );
+        assert_eq!(fix.new_text, "eq");
     }
 
     #[test]
@@ -4991,8 +4994,13 @@ mod tests {
             "W110 must anchor the matched (second) `==`, got {:?}",
             w110[0].span
         );
-        // Mixed string/non-string compares must not offer the blanket fix.
-        assert!(w110[0].fixes.is_empty(), "no fix expected: {:?}", w110[0]);
+        // The fix rewrites only the proven operator; the variable compare,
+        // which may be numeric, keeps its `==`.
+        assert_eq!(w110[0].fixes.len(), 1, "fix expected: {:?}", w110[0]);
+        let fix = &w110[0].fixes[0];
+        let (s, e) = (fix.span.start() as usize, fix.span.end() as usize);
+        let applied = format!("{}{}{}", &src[..s], fix.new_text, &src[e..]);
+        assert_eq!(applied, "if {$a == $b && $c eq \"x\"} {puts yes}\n");
     }
 
     #[test]
@@ -5054,23 +5062,22 @@ mod tests {
     }
 
     #[test]
-    fn analyse_w110_fires_for_numeric_string_literal() {
-        // ``$x == "42"`` — user explicitly wrote a string literal
-        // (with quotes), so W110 still fires.
+    fn analyse_no_w110_for_numeric_string_literal() {
+        // ``$x == "42"`` compares numerically when `x` is `42.0`, where `eq`
+        // would not, so suggesting `eq` would change the result.
         let mut a = Analyser::new();
         let r = a.analyse("if {$x == \"42\"} {puts yes}\n", "tcl");
-        let w110: Vec<_> = r
-            .diagnostics
-            .iter()
-            .filter(|d| d.code == DiagCode::W110)
-            .collect();
-        assert_eq!(w110.len(), 1, "got {:?}", r.diagnostics);
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == DiagCode::W110),
+            "got {:?}",
+            r.diagnostics
+        );
     }
 
     #[test]
     fn analyse_w110_fires_for_boolean_string_literal() {
-        // ``$x == "true"`` — boolean-spelled string literal still
-        // counts as ExprString.
+        // ``$x == "true"`` — `==` never reads a boolean word as a number, so
+        // this compare is already a string compare.
         let mut a = Analyser::new();
         let r = a.analyse("if {$x == \"true\"} {puts yes}\n", "tcl");
         let w110: Vec<_> = r
@@ -5095,20 +5102,23 @@ mod tests {
     }
 
     #[test]
-    fn analyse_w110_no_fix_when_some_compare_is_non_string() {
-        // ``$a == $b || $x == "foo"`` — only one of the two
-        // ``==`` ops has a string operand; the blanket regex
-        // rewrite would corrupt the var-only ``==``, so the fix
-        // is suppressed.
+    fn analyse_w110_fix_leaves_an_unproven_compare_alone() {
+        // ``$a == $b || $x == "foo"`` — only the second ``==`` is proven a
+        // string compare, so the fix rewrites that one and keeps the first.
         let mut a = Analyser::new();
-        let r = a.analyse("if {$a == $b || $x == \"foo\"} {puts y}\n", "tcl");
+        let src = "if {$a == $b || $x == \"foo\"} {puts y}\n";
+        let r = a.analyse(src, "tcl");
         let w110: Vec<_> = r
             .diagnostics
             .iter()
             .filter(|d| d.code == DiagCode::W110)
             .collect();
         assert_eq!(w110.len(), 1, "got {:?}", r.diagnostics);
-        assert_eq!(w110[0].fixes.len(), 0, "got {:?}", w110[0].fixes);
+        assert_eq!(w110[0].fixes.len(), 1, "got {:?}", w110[0].fixes);
+        let fix = &w110[0].fixes[0];
+        let (s, e) = (fix.span.start() as usize, fix.span.end() as usize);
+        let applied = format!("{}{}{}", &src[..s], fix.new_text, &src[e..]);
+        assert_eq!(applied, "if {$a == $b || $x eq \"foo\"} {puts y}\n");
     }
 
     #[test]

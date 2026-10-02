@@ -4059,9 +4059,10 @@ mod irule3103_edge_cases {
 
     #[test]
     fn regex_question_is_quantifier_not_query() {
-        // regex `?` is a quantifier; `/api/v[0-9]+/?` is path-like.
+        // regex `?` is a quantifier; `/api/v[0-9]+/?` is path-like. Braced,
+        // because in quotes the `[0-9]` is a command substitution (#2227).
         let ws = of_code(
-            "if { [HTTP::uri] matches_regex \"^/api/v[0-9]+/?$\" } { log local0. x }",
+            "if { [HTTP::uri] matches_regex {^/api/v[0-9]+/?$} } { log local0. x }",
             IR,
             "IRULE3103",
         );

@@ -587,7 +587,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "gets",
         surface: None,
-        traits: Traits::TAINT_SOURCE,
+        traits: Traits::TAINT_SOURCE.union(Traits::UNCONDITIONAL_VARIABLE_WRITE),
         arity: Arity::new(1, 2),
         detail: "Read a line.",
         synopsis: "chan gets channelId ?varName?",

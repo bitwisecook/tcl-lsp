@@ -33,12 +33,34 @@
 //!   used); a C caller includes the shim header, which fixes that convention.
 //! - Flag values (`REG_ADVANCED`, `REG_ICASE`, …, `REG_NOTBOL`/`REG_NOTEOL`)
 //!   are the `regex.h` values, which `tcl-regex` already shares, so cflags /
-//!   eflags pass straight through.
+//!   eflags pass straight through. `TclReComp` adds the flags the pinned
+//!   release's C engine implies (`\z` on 9.1), which no `regex.h` caller sets.
 //! - `re_endp` (the `REG_PEND` kludge) and `re_fns` are unused; `re_guts` holds
 //!   a `Box<tcl_regex::Regex>`.
 
+use core::cell::Cell;
 use core::ffi::{c_char, c_int, c_long, c_void};
+use tcl_dialect::TclVersion;
 use tcl_regex::{ErrorCode, Regex};
+
+thread_local! {
+    // C settles these at build time (9.1.0's `regc_lex.c` accepts `\z`
+    // unconditionally); this runtime settles them when the interpreter pins its
+    // release, so a C caller passing plain `REG_ADVANCED` gets that release's
+    // engine. Empty matches the default 9.0 pin.
+    static RELEASE_CFLAGS: Cell<c_int> = const { Cell::new(0) };
+}
+
+/// Install the compile flags `version`'s C engine applies implicitly — today
+/// only `\z` ([`TclVersion::regex_z_anchor`]).
+pub(crate) fn set_runtime_release(version: TclVersion) {
+    let bits = if version.regex_z_anchor() {
+        tcl_regex::defs::REG_ZANCHOR
+    } else {
+        0
+    };
+    RELEASE_CFLAGS.with(|c| c.set(bits));
+}
 
 /// 32-bit wide character (codepoint) — the engine's `chr`.
 pub type Chr = u32;
@@ -99,7 +121,7 @@ pub unsafe extern "C" fn TclReComp(
     } else {
         unsafe { core::slice::from_raw_parts(pattern, len) }
     };
-    match Regex::compile(pat, flags) {
+    match Regex::compile(pat, flags | RELEASE_CFLAGS.with(Cell::get)) {
         Ok(rx) => {
             let nsub = rx.nsub();
             let info = rx.info().bits();
@@ -300,5 +322,42 @@ mod tests {
         let mut buf = [0i8; 64];
         let need = unsafe { TclReError(rc, buf.as_mut_ptr(), buf.len()) };
         assert!(need > 1);
+    }
+
+    fn compiles(pattern: &str) -> bool {
+        let pat: Vec<Chr> = pattern.chars().map(|c| c as u32).collect();
+        let mut re = RegexT {
+            re_magic: 0,
+            re_info: 0,
+            re_nsub: 0,
+            re_endp: core::ptr::null(),
+            re_guts: core::ptr::null_mut(),
+            re_fns: core::ptr::null_mut(),
+        };
+        let rc = unsafe {
+            TclReComp(
+                &mut re,
+                pat.as_ptr(),
+                pat.len(),
+                tcl_regex::defs::REG_ADVANCED,
+            )
+        };
+        if rc == REG_OKAY {
+            unsafe { TclReFree(&mut re) };
+        }
+        rc == REG_OKAY
+    }
+
+    /// A C caller passes plain `REG_ADVANCED`, so `\z` follows the pinned
+    /// release as it would in that release's `regc_lex.c`: accepted on 9.1.0,
+    /// an invalid escape on 9.0.4.
+    #[test]
+    fn z_anchor_follows_the_pinned_release() {
+        assert!(!compiles(r"a\z"), "the default 9.0 pin rejects \\z");
+        set_runtime_release(TclVersion::V9_1);
+        assert!(compiles(r"a\z"));
+        set_runtime_release(TclVersion::V9_0);
+        assert!(!compiles(r"a\z"));
+        assert!(compiles(r"a\Z"));
     }
 }

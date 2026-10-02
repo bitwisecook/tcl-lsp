@@ -804,6 +804,193 @@ fn format_integer_conversions() {
     res_eq("format %*d 5 42", "   42");
     res_eq("format %.*f 2 3.14159", "3.14");
     res_eq("format %*d -5 42", "42   "); // negative `*` width left-justifies
+    res_eq("format {%.*d} -1 0", "0");
+    res_eq("format {%.*x} -1 0", "0");
+    res_eq("format {%.0d} 0", "0");
+    res_eq("format {%.0x} 0", "0");
+    for (script, expected) in [
+        ("format {%.*d} -1 0", "0"),
+        ("format {%.*x} -1 0", "0"),
+        ("format {%#.0x %#.0X %#.0b} 0 0 0", "0x0 0X0 0b0"),
+    ] {
+        let (ok, result, _) = run_for_version(script, tcl_dialect::TclVersion::V8_6);
+        assert!(ok, "Tcl 8.6 script errored: {result}");
+        assert_eq!(result, expected, "for script: {script}");
+    }
+    for format in ["%.0d", "%.0x"] {
+        let (ok, result, _) = run_for_version(
+            &format!("format {{{format}}} 0"),
+            tcl_dialect::TclVersion::V8_4,
+        );
+        assert!(ok, "Tcl 8.4 script errored: {result}");
+        assert_eq!(result, "", "for script: format {format} 0");
+    }
+}
+
+/// Tcl 9's I-family modifiers select fixed 32-bit-int and 64-bit-wide paths.
+/// These vectors are from tclsh9.0.4; Tcl 8.x rejects the modifier itself.
+#[test]
+fn format_i_family_modifiers_issue_2163() {
+    res_eq("format %Id 5000000000", "705032704");
+    res_eq("format %I32d 5000000000", "705032704");
+    res_eq("format %I64d 5000000000", "5000000000");
+    res_eq("format %Iu -1", "4294967295");
+    res_eq("format %Ip 1", "0x1");
+    err_eq("format %I3d 1", "bad field specifier \"3\"");
+
+    for format in ["%I", "%I32", "%I64"] {
+        err_eq(
+            &format!("format {format} 1"),
+            "format string ended in middle of field specifier",
+        );
+        err_eq(
+            &format!("format {format}"),
+            "not enough arguments for all format specifiers",
+        );
+    }
+    err_eq(
+        "format %*I 1",
+        "not enough arguments for all format specifiers",
+    );
+    err_eq(
+        "format {%d %I} 1",
+        "not enough arguments for all format specifiers",
+    );
+    err_eq(
+        "format {%d %I} 1 2",
+        "format string ended in middle of field specifier",
+    );
+    err_eq(
+        "format {%d %*I} 1",
+        "not enough arguments for all format specifiers",
+    );
+    err_eq(
+        "format {%d %*I} 1 2 3",
+        "format string ended in middle of field specifier",
+    );
+    err_eq(
+        "format {%1$*I} 3 4",
+        "format string ended in middle of field specifier",
+    );
+    err_eq(
+        "format {%d %2$I} 1",
+        "cannot mix \"%\" and \"%n$\" conversion specifiers",
+    );
+    err_eq(
+        "format {%1$d %I} 1",
+        "cannot mix \"%\" and \"%n$\" conversion specifiers",
+    );
+    for format in ["%2$I", "%2$I32", "%2$I64"] {
+        err_eq(
+            &format!("format {{{format}}}"),
+            "\"%n$\" argument index out of range",
+        );
+        err_eq(
+            &format!("format {{{format}}} 1"),
+            "\"%n$\" argument index out of range",
+        );
+    }
+}
+
+#[test]
+fn format_i_family_modifiers_rejected_before_tcl9_issue_2163() {
+    for version in [
+        tcl_dialect::TclVersion::V8_4,
+        tcl_dialect::TclVersion::V8_5,
+        tcl_dialect::TclVersion::V8_6,
+    ] {
+        for format in ["%I", "%I32", "%I64", "%Ip", "%I3d"] {
+            let (ok, result, _) = run_for_version(&format!("format {format} 1"), version);
+            assert!(!ok, "{version:?} unexpectedly accepted {format}");
+            assert_eq!(result, "bad field specifier \"I\"", "{version:?} {format}");
+        }
+        for (script, expected) in [
+            (
+                "format %I",
+                "not enough arguments for all format specifiers",
+            ),
+            (
+                "format %*I 1",
+                "not enough arguments for all format specifiers",
+            ),
+            (
+                "format {%d %I} 1",
+                "not enough arguments for all format specifiers",
+            ),
+            ("format {%d %I} 1 2", "bad field specifier \"I\""),
+            (
+                "format {%d %*I} 1",
+                "not enough arguments for all format specifiers",
+            ),
+            ("format {%d %*I} 1 2 3", "bad field specifier \"I\""),
+            (
+                "format {%d %2$I} 1",
+                "cannot mix \"%\" and \"%n$\" conversion specifiers",
+            ),
+            (
+                "format {%1$d %I} 1",
+                "cannot mix \"%\" and \"%n$\" conversion specifiers",
+            ),
+        ] {
+            let (ok, result, _) = run_for_version(script, version);
+            assert!(!ok, "{version:?} unexpectedly accepted {script}");
+            assert_eq!(result, expected, "{version:?} {script}");
+        }
+        let (ok, result, _) = run_for_version("format {%1$*I} 3 4", version);
+        assert!(!ok, "{version:?} unexpectedly accepted positional star %I");
+        assert_eq!(result, "bad field specifier \"I\"", "{version:?}");
+        for format in ["%2$I", "%2$I32", "%2$I64"] {
+            let (ok, result, _) = run_for_version(&format!("format {{{format}}}"), version);
+            assert!(!ok, "{version:?} unexpectedly accepted {format}");
+            assert_eq!(
+                result, "\"%n$\" argument index out of range",
+                "{version:?} {format}"
+            );
+        }
+    }
+}
+
+/// Modified percent forms are conversions, not literal `%%`: C Tcl consumes
+/// their argument and then reports the bad percent (or the unsupported `I` on
+/// Tcl 8). The value-position check also ensures command substitution follows
+/// the same shared formatter path.
+#[test]
+fn format_modified_percent_issue_2203() {
+    for format in ["%I%", "%I32%", "%I64%", "%5%", "%l%"] {
+        err_eq(
+            &format!("format {format}"),
+            "not enough arguments for all format specifiers",
+        );
+        err_eq(&format!("format {format} 1"), "bad field specifier \"%\"");
+    }
+    for script in ["format %5% 1", "set x [format %5% 1]"] {
+        err_eq(script, "bad field specifier \"%\"");
+    }
+    for version in [
+        tcl_dialect::TclVersion::V8_4,
+        tcl_dialect::TclVersion::V8_5,
+        tcl_dialect::TclVersion::V8_6,
+    ] {
+        for (format, expected) in [
+            ("%I%", "bad field specifier \"I\""),
+            ("%I32%", "bad field specifier \"I\""),
+            ("%I64%", "bad field specifier \"I\""),
+            ("%5%", "bad field specifier \"%\""),
+            ("%l%", "bad field specifier \"%\""),
+        ] {
+            let (ok, result, _) = run_for_version(&format!("format {format} 1"), version);
+            assert!(!ok, "{version:?} unexpectedly accepted {format}");
+            assert_eq!(result, expected, "{version:?} {format}");
+        }
+        for format in ["%I%", "%I32%", "%I64%", "%5%", "%l%"] {
+            let (ok, result, _) = run_for_version(&format!("format {format}"), version);
+            assert!(!ok, "{version:?} unexpectedly accepted argless {format}");
+            assert_eq!(
+                result, "not enough arguments for all format specifiers",
+                "{version:?} {format}"
+            );
+        }
+    }
 }
 
 /// Tcl 9's `%p` is an unsigned, pointer-width hexadecimal conversion. Its
@@ -816,6 +1003,183 @@ fn format_pointer_precision_and_flags() {
     res_eq("format %.0p 0", "0x0");
     res_eq("format %+.4p 42", "0x002a");
     res_eq("format {% .4p} 42", "0x002a");
+    res_eq("format {%+08p % 08p} 17 17", "0x000011 0x000011");
+}
+
+/// Fixed-width unsigned conversions accept `+` and space but do not print a
+/// sign; unbounded `ll` conversions retain their existing signed behaviour.
+#[test]
+fn format_fixed_unsigned_ignores_sign_flags_issue_2223() {
+    for version in [tcl_dialect::TclVersion::V8_6, tcl_dialect::TclVersion::V9_0] {
+        for (value, expected) in [
+            ("0", "0 0 0 0 0 0 0 0 0 0"),
+            ("17", "17 17 11 11 11 11 21 21 10001 10001"),
+            ("18446744073709551616", "0 0 0 0 0 0 0 0 0 0"),
+        ] {
+            let script = format!(
+                "format {{%+u % u %+x % x %+X % X %+o % o %+b % b}} {value} {value} {value} {value} {value} {value} {value} {value} {value} {value}"
+            );
+            let (ok, result, _) = run_for_version(&script, version);
+            assert!(ok, "{version:?} script errored: {result}");
+            assert_eq!(result, expected, "{version:?}: {script}");
+        }
+        let negative = match version {
+            tcl_dialect::TclVersion::V8_6 => {
+                "18446744073709551599 18446744073709551599 ffffffffffffffef ffffffffffffffef"
+            }
+            tcl_dialect::TclVersion::V9_0 => "4294967279 4294967279 ffffffef ffffffef",
+            _ => unreachable!(),
+        };
+        let (ok, result, _) = run_for_version("format {%+u % u %+x % x} -17 -17 -17 -17", version);
+        assert!(ok, "{version:?} script errored: {result}");
+        assert_eq!(result, negative, "{version:?}");
+        let (ok, result, _) = run_for_version("format {%+08x %+#08x} 17 17", version);
+        assert!(ok, "{version:?} script errored: {result}");
+        assert_eq!(result, "00000011 0x000011", "{version:?}");
+    }
+    for value in ["0", "17"] {
+        let script = format!(
+            "format {{%+u % u %+x % x %+X % X %+o % o}} {value} {value} {value} {value} {value} {value} {value} {value}"
+        );
+        let expected = if value == "0" {
+            "0 0 0 0 0 0 0 0"
+        } else {
+            "17 17 11 11 11 11 21 21"
+        };
+        let (ok, result, _) = run_for_version(&script, tcl_dialect::TclVersion::V8_4);
+        assert!(ok, "Tcl 8.4 script errored: {result}");
+        assert_eq!(result, expected, "Tcl 8.4: {script}");
+    }
+}
+
+/// Tcl 9 fixed-width format conversions reduce bignum operands modulo 2^64
+/// before applying `%I`/`%I64`/`%d` widths. These values are pinned to
+/// tclsh9.0.4 and exercise the shared runtime magnitude adapter rather than
+/// the unbounded `%ll`/`%L` path below.
+#[test]
+fn format_fixed_width_bignums_issue_2163() {
+    res_eq("format %I64u 18446744073709551615", "18446744073709551615");
+    res_eq("format %I64d 18446744073709551615", "-1");
+    res_eq("format %I64d 18446744073709551616", "0");
+    res_eq("format %I64d 340282366920938463463374607431768211457", "1");
+    res_eq("format %I64d -18446744073709551617", "-1");
+    res_eq("format %I64u -18446744073709551617", "18446744073709551615");
+    res_eq("format %Id 18446744073709551615", "-1");
+    res_eq("format %d 340282366920938463463374607431768211457", "1");
+    res_eq("format %x 340282366920938463463374607431768211457", "1");
+
+    // Tcl accepts only ASCII numeric whitespace. Cover the fixed-width
+    // magnitude path (`%d`), bignum path (`%lld`), and direct wide-int path
+    // (`%c`) so Rust's Unicode-aware `trim` cannot leak through either seam.
+    for version in [tcl_dialect::TclVersion::V8_6, tcl_dialect::TclVersion::V9_0] {
+        for format in ["%d", "%lld", "%c"] {
+            for value in ["\u{2003}42", "42\u{2003}"] {
+                let (ok, result, _) =
+                    run_for_version(&format!("format {format} {{{value}}}"), version);
+                assert!(
+                    !ok,
+                    "{version:?} unexpectedly accepted Unicode whitespace in {format}: {value:?}"
+                );
+                assert_eq!(result, format!("expected integer but got \"{value}\""));
+            }
+        }
+        for (format, expected) in [("%d", "42"), ("%lld", "42"), ("%c", "*")] {
+            let (ok, result, _) = run_for_version(&format!("format {format} {{\t42\r}}"), version);
+            assert!(
+                ok,
+                "{version:?} rejected Tcl ASCII whitespace in {format}: {result}"
+            );
+            assert_eq!(result, expected);
+        }
+    }
+}
+
+/// Tcl 9 bignum conversions preserve all digits rather than narrowing through
+/// the wide-integer path. The values and `BADUNSIGNED` result are from
+/// `tclsh9.0.4` and its upstream `tests/format.test` 17.5/17.6.
+#[test]
+fn format_bignum_conversions_issue_2162() {
+    res_eq("format %lld 18446744073709551616", "18446744073709551616");
+    res_eq("format %Lx 18446744073709551616", "10000000000000000");
+    res_eq(
+        "format %llu 0xabcdef0123456789abcdef",
+        "207698809136909011942886895",
+    );
+    res_eq(
+        "format %llx 0xabcdef0123456789abcdef",
+        "abcdef0123456789abcdef",
+    );
+    res_eq(
+        "format %llX 0xabcdef0123456789abcdef",
+        "ABCDEF0123456789ABCDEF",
+    );
+    res_eq(
+        "format {%+llx % llx %+llx % llx} 18446744073709551616 18446744073709551616 -17 -17",
+        "+10000000000000000  10000000000000000 -11 -11",
+    );
+    for format in [
+        "%#.0lld", "%#.0llx", "%#.0llo", "%#.0llb", "%#.0Ld", "%#.0Lx", "%#.0Lo", "%#.0Lb",
+    ] {
+        res_eq(&format!("format {format} 0"), "0");
+    }
+    for (format, expected) in [("%#.0llx", "0x0"), ("%#.0llX", "0X0"), ("%#.0llb", "0b0")] {
+        let (ok, result, _) =
+            run_for_version(&format!("format {format} 0"), tcl_dialect::TclVersion::V8_6);
+        assert!(ok, "Tcl 8.6 script errored: {result}");
+        assert_eq!(result, expected, "for script: format {format} 0");
+    }
+    for (script, expected) in [
+        ("format %#.0o 0", "0"),
+        ("format %#.4o 17", "0021"),
+        (
+            "format %#.30llo 18446744073709551616",
+            "000000002000000000000000000000",
+        ),
+    ] {
+        let (ok, result, _) = run_for_version(script, tcl_dialect::TclVersion::V8_6);
+        assert!(ok, "Tcl 8.6 script errored: {result}");
+        assert_eq!(result, expected, "for script: {script}");
+    }
+    for (script, expected) in [
+        ("format %#.0o 0", "0"),
+        (
+            "format %#.30llo 18446744073709551616",
+            "0o000000002000000000000000000000",
+        ),
+    ] {
+        res_eq(script, expected);
+    }
+    res_eq("format %+.0llu 0", "+0");
+    res_eq(
+        "format %llo -9223372036854775808",
+        "-1000000000000000000000",
+    );
+    res_eq(
+        "format %Lb 9223372036854775808",
+        "1000000000000000000000000000000000000000000000000000000000000000",
+    );
+    res_eq(
+        "catch {format %llu -9223372036854775808} message options; list $message [dict get $options -errorcode]",
+        "{unsigned bignum format is invalid} {TCL FORMAT BADUNSIGNED}",
+    );
+}
+
+/// Tcl 8.4 rejects the `%ll` bignum spelling before coercion. This exact
+/// diagnostic is from `tclsh8.4.20`'s upstream `tests/format.test` surface.
+#[test]
+fn format_bignum_modifier_is_rejected_in_tcl84_issue_2162() {
+    let (ok, result, _) = run_for_version("format %lld 42", tcl_dialect::TclVersion::V8_4);
+    assert!(!ok, "format %lld unexpectedly succeeded on Tcl 8.4");
+    assert_eq!(result, "bad field specifier \"l\"");
+    let (ok, result, _) = run_for_version(
+        "format %lld 0d18446744073709551616",
+        tcl_dialect::TclVersion::V8_6,
+    );
+    assert!(!ok, "Tcl 8.6 unexpectedly accepted Tcl 9's 0d prefix");
+    assert_eq!(
+        result,
+        "expected integer but got \"0d18446744073709551616\""
+    );
 }
 
 /// `format` string and character conversions.

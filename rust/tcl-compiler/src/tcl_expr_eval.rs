@@ -613,8 +613,19 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
     fn literal(&mut self, text: &str) -> Result<FoldValue, ()> {
         Ok(FoldValue::Str(text.to_owned()))
     }
-    fn string(&mut self, inner: &str) -> Result<FoldValue, ()> {
-        Ok(FoldValue::Str(inner.to_owned()))
+    fn string(&mut self, inner: &str, substitutes: bool) -> Result<FoldValue, ()> {
+        // A `"…"` operand substitutes `$var`, `[cmd]` and backslashes, and a
+        // folded constant must be the value Tcl computes, not the spelling.
+        // Taking the text as-is folded `expr {"pre$x"}` to `pre$x` and
+        // `if {"$x" eq "5"}` to false, and O112 then deleted the live branch
+        // (#2227). Declining costs an optimisation; folding wrong costs the
+        // program.
+        // A `{…}` operand's backslash-newline folds to a space in Tcl and
+        // stays as written in Jim; the folder does not know which, so it
+        // declines that too rather than guess.
+        tcl_syntax::expr::fixed_string_body(inner, substitutes)
+            .map(|body| FoldValue::Str(body.to_owned()))
+            .ok_or(())
     }
     fn var(&mut self, name: &str) -> Result<FoldValue, ()> {
         match self.env.get(name) {
@@ -2200,18 +2211,21 @@ mod tests {
             eval_irules(r#""abc" matches_glob "a?c""#),
             Some(TclValue::Int(1))
         );
+        // A class is written braced: inside `"…"` the `[bxy]` is a command
+        // substitution, which the folder declines (#2227).
         assert_eq!(
-            eval_irules(r#""abc" matches_glob "a[bxy]c""#),
+            eval_irules(r#""abc" matches_glob {a[bxy]c}"#),
             Some(TclValue::Int(1))
         );
         assert_eq!(
-            eval_irules(r#""axc" matches_glob "a[bxy]c""#),
+            eval_irules(r#""axc" matches_glob {a[bxy]c}"#),
             Some(TclValue::Int(1))
         );
         assert_eq!(
-            eval_irules(r#""azc" matches_glob "a[bxy]c""#),
+            eval_irules(r#""azc" matches_glob {a[bxy]c}"#),
             Some(TclValue::Int(0))
         );
+        assert_eq!(eval_irules(r#""abc" matches_glob "a[bxy]c""#), None);
     }
 
     #[test]

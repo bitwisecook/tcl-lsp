@@ -317,12 +317,11 @@ impl TclVersion {
     /// `.0`, which is the honest answer: the line's semantics are modelled,
     /// no specific build is.
     ///
-    /// 9.1's reference build is a *beta*, and C spells its patch level
-    /// `9.1b0` — a two-component version with a beta suffix, not a third
-    /// numeric component (`tclsh9.1`: `info patchlevel` → `9.1b0`,
-    /// `::tcl::build-info patchlevel` → `9.1b0`). `package vsatisfies 9.1b0
-    /// 9.1` is `1` on every release that can parse the string (8.5+), so the
-    /// suffix is a legitimate version, not a display decoration.
+    /// A pinned pre-release is spelt the way C spells it — the 9.1 beta was
+    /// `9.1b0`, a two-component version with a beta suffix rather than a third
+    /// numeric component — and `package vsatisfies 9.1b0 9.1` is `1` on every
+    /// release that can parse the string (8.5+), so such a suffix is a
+    /// legitimate version, not a display decoration.
     #[must_use]
     pub fn patchlevel(self) -> &'static str {
         REFERENCE_PATCHLEVELS[self.reference_index()]
@@ -353,7 +352,7 @@ impl TclVersion {
     /// | 8.5.19 | `8.5.19` | — | — | — |
     /// | 8.6.14 | `8.6.14` | — | `1.1.0` | — |
     /// | 9.0.4 | `9.0.4` | `9.0.4` | `1.3.1` | `1.3.1` |
-    /// | 9.1b0 | `9.1b0` | `9.1b0` | `1.3.1` | `1.3.1` |
+    /// | 9.1.0 | `9.1.0` | `9.1.0` | `1.3.1` | `1.3.1` |
     ///
     /// Three release facts sit in that table, and every one of them changes
     /// what a script sees:
@@ -439,6 +438,26 @@ impl TclVersion {
     #[must_use]
     pub const fn traces_recover_linked_array_element(self) -> bool {
         matches!(self, Self::V9_0 | Self::V9_1)
+    }
+
+    /// Whether an ARE accepts `\z` as a synonym for the `\Z` end-of-string
+    /// anchor. Tcl 9.1.0 added it (`regc_lex.c`, ticket fbc56b259e); tclsh
+    /// 8.4.20 through 9.0.4 and the 9.1b0 beta reject it as `invalid escape \
+    /// sequence`.
+    #[must_use]
+    pub const fn regex_z_anchor(self) -> bool {
+        matches!(self, Self::V9_1)
+    }
+
+    /// The prefix `CompileRegexp` (`tclRegexp.c`) puts before a regex compile
+    /// error's detail. Tcl 9.0 reworded it: tclsh 8.4.20, 8.5.19 and 8.6.18
+    /// say `couldn't compile …`, 9.0.4 and 9.1.0 say `cannot compile …`.
+    #[must_use]
+    pub const fn regex_compile_error_prefix(self) -> &'static str {
+        match self {
+            Self::V8_4 | Self::V8_5 | Self::V8_6 => "couldn't compile regular expression pattern: ",
+            Self::V9_0 | Self::V9_1 => "cannot compile regular expression pattern: ",
+        }
     }
 
     /// The release-defined conversion used when a string is consumed as raw
@@ -1319,6 +1338,22 @@ mod tests {
         RequirementValidationError, StringCharacterModel, TclVersion, Ternary, exact_requirement,
         validate_requirement, validate_version,
     };
+
+    #[test]
+    fn regex_compile_error_prefix_is_reworded_in_9_0() {
+        for v in [TclVersion::V8_4, TclVersion::V8_5, TclVersion::V8_6] {
+            assert_eq!(
+                v.regex_compile_error_prefix(),
+                "couldn't compile regular expression pattern: "
+            );
+        }
+        for v in [TclVersion::V9_0, TclVersion::V9_1] {
+            assert_eq!(
+                v.regex_compile_error_prefix(),
+                "cannot compile regular expression pattern: "
+            );
+        }
+    }
 
     #[test]
     fn package_validation_reuses_the_version_parser() {

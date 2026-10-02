@@ -49,8 +49,8 @@ pub fn spec() -> CommandSpec {
         // `Traits::SAFE_INTERP_HIDDEN` — that trait does not apply here.
         traits: Traits::OVERRIDABLE_LIBRARY_PROC,
         // `proc auto_reset {}` in every shipped `library/auto.tcl` from
-        // 8.4 through 9.1 (the 9.1 beta tag `core-9-1-b0` still declares
-        // it with an empty formal-argument list), matching `library.n`'s
+        // 8.4 through 9.1 (the `core-9-1-0` release still declares it
+        // with an empty formal-argument list), matching `library.n`'s
         // bare `auto_reset` synopsis — unchanged across the same range.
         // No arguments, ever.
         arity: Arity::exact(0),

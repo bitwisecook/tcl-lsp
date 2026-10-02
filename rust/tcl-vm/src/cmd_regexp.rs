@@ -31,6 +31,7 @@
 use tcl_cmd_core::regex::{
     self as core_re, RegexEngine, RegexFlags, RegexpResult, RegsubError, RegsubResult,
 };
+use tcl_dialect::TclVersion;
 use tcl_runtime_api::{Code, Commands, Completion};
 
 use crate::interp::{Vm, err, ok};
@@ -54,14 +55,19 @@ const COMMAND_SUBST_FRAME: &str = "\n    (-command substitution computation scri
 /// -regexp` (`cmd_list`) and `switch -regexp` (`cmd_switch`).
 pub(crate) use tcl_regex::cmd_core::AreEngine as CrateEngine;
 
-/// Does `pattern` match anywhere in `subject` (ARE, optional `-nocase`)? A small
-/// boolean helper for the bytecode `MatchesRegex`-style opcode in `exec`.
-pub(crate) fn regexp_matches(pattern: &str, subject: &str, nocase: bool) -> Result<bool, String> {
+/// Does `pattern` match anywhere in `subject` (ARE under `version`, optional
+/// `-nocase`)? A small boolean helper for the bytecode `MatchesRegex`-style
+/// opcode in `exec`. A compile failure is the engine's bare detail; the caller
+/// adds whatever prefix its C counterpart reports.
+pub(crate) fn regexp_matches(
+    pattern: &str,
+    subject: &str,
+    nocase: bool,
+    version: TclVersion,
+) -> Result<bool, String> {
     let flags = RegexFlags {
         nocase,
-        expanded: false,
-        linestop: false,
-        lineanchor: false,
+        ..RegexFlags::for_release(version)
     };
     let mut re = CrateEngine::compile(pattern.as_bytes(), flags)
         .map_err(|e| String::from_utf8_lossy(&e).into_owned())?;
@@ -80,7 +86,8 @@ fn cmd_regexp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         .map(|v| v.to_str().as_bytes().to_vec())
         .collect();
     let refs: Vec<&[u8]> = bytes.iter().map(Vec::as_slice).collect();
-    match core_re::regexp::<Vm, CrateEngine>(vm, &refs) {
+    let version = vm.runtime_version();
+    match core_re::regexp::<Vm, CrateEngine>(vm, &refs, version) {
         Ok(RegexpResult::Inline(v)) => ok(v),
         Ok(RegexpResult::Count { assign, count }) => {
             if let Some(pairs) = assign {

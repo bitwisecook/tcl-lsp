@@ -13,7 +13,7 @@ default
 
 ## Question
 
-Why does the analyser flag user-controlled data flowing into `eval`, `uplevel`, `subst`, unbraced `expr`, `exec`, or a *direct, numeric-coercing* operand of braced `expr` — including one used directly in an `if`/`while`/`for` condition?
+Why does the analyser flag user-controlled data flowing into `eval`, `uplevel`, `subst`, unbraced `expr`, `exec`, a *direct, numeric-coercing* operand of braced `expr` — including one used directly in an `if`/`while`/`for` condition — or the subject of a Tcl 9.1 `switch -integer`?
 
 ## Why
 
@@ -43,12 +43,17 @@ T100 covers two related taint-into-evaluation hazards:
    `matches_regex` forms) never coerces, so T100 does not fire for
    it — `expr {$data eq "admin"}` is not a T100 hazard.
 
-   For the same reason `switch` never raises T100 on its arms.
-   `switch`, in every mode it has (`--`/`-exact`, `-glob`,
-   `-regexp`), compares its subject as text — Tcl gives it no
-   numeric-matching option — so `switch -- $cmd {status {…} version
-   {…}}` on a tainted `$cmd` carries no coercion hazard and is not
-   flagged.
+   For the same reason `switch` raises no T100 in its string modes.
+   `--`/`-exact`, `-glob` and `-regexp` compare the subject as text,
+   so `switch -- $cmd {status {…} version {…}}` on a tainted `$cmd`
+   carries no coercion hazard and is not flagged. Tcl 9.1's
+   `-integer` mode (TIP 730) is the exception: it reads the subject,
+   and in the inline `pattern body …` form each pattern, as a wide
+   integer, so `switch -integer -- $n {…}` on a tainted `$n` is the
+   same hazard as `expr {$n == 1}` — `0x10` matches `16`, and a
+   non-integer raises `expected integer but got "…"`. Before 9.1 the
+   option does not exist (the call fails instead), so T100 does not
+   fire there.
 
 The same code (T100) covers both because the underlying defence is
 identical: validate / pin the value's shape *before* it reaches the
@@ -69,6 +74,9 @@ a branch condition.
   - "Tainted variable ${var} flows into expr operand; numeric
     coercion may misinterpret value (use Tcl numeric-validation
     guards)"
+  - "Tainted variable ${var} flows into switch -integer operand;
+    numeric coercion may misinterpret value (use Tcl
+    numeric-validation guards)"
 
 ## Example that triggers it
 
@@ -91,6 +99,18 @@ operand of `>` inside the `if` condition, evaluated exactly like any
 other braced `expr` — this is not limited to a bare `expr` statement.
 Wrapping the value in a command (`[string length $n]`) is not a direct
 operand and does not fire.
+
+```tcl
+# tcl-dialect: tcl9.1
+set n [gets stdin]
+switch -integer -- $n {
+    1       { puts one }
+    default { puts other }
+}
+```
+
+Under Tcl 9.1 this reports **`T100`** on `$n`: `-integer` reads the
+subject as a wide integer.
 
 ## Fix
 
@@ -116,6 +136,11 @@ rather than guarding around the tainted one:
 set line [gets stdin]
 if {[scan $line %d n] == 1 && $n > 200} { puts big }
 ```
+
+The same applies to `switch -integer`: dispatch on the value `scan`
+produced (`if {[scan $line %d n] == 1} { switch -integer -- $n {…} }`
+does not fire), or use the default string mode when matching the
+literal text is what you meant.
 
 A `[string is integer -strict $n]` guard reads well but does not clear the
 finding: the operand is still the tainted value.

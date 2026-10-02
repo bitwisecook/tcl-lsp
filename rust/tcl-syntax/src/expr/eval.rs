@@ -34,7 +34,7 @@
 
 use core::cmp::Ordering;
 
-use super::ast::{BinOp, ExprNode, UnaryOp};
+use super::ast::{BinOp, ExprNode, UnaryOp, quoted_string_body};
 
 /// Outcome of a numeric comparison between two number-classified operands.
 ///
@@ -71,8 +71,16 @@ pub trait ExprOps {
 
     /// A numeric/boolean literal token (`42`, `0xff`, `1.5`, `true`).
     fn literal(&mut self, text: &str) -> Result<Self::Value, Self::Error>;
-    /// A quoted/braced string operand (delimiters already stripped).
-    fn string(&mut self, inner: &str) -> Result<Self::Value, Self::Error>;
+    /// A string operand, delimiters already stripped.
+    ///
+    /// `substitutes` says which spelling it was, because the stripped text no
+    /// longer can: a `"…"` operand is a double-quoted word and substitutes
+    /// `$var`, `[cmd]` and backslashes, while a `{…}` operand is literal. The
+    /// two consumers that had to guess guessed in opposite directions — the
+    /// const-folder read `expr {"pre$x"}` as the literal `pre$x`, and the VM's
+    /// runtime `expr` ran the `[id 9]` in `expr {{[id 9]}}` — so the walk,
+    /// which is the last place that sees the delimiter, now says (#2227).
+    fn string(&mut self, inner: &str, substitutes: bool) -> Result<Self::Value, Self::Error>;
     /// Resolve a `$name` reference.
     fn var(&mut self, name: &str) -> Result<Self::Value, Self::Error>;
     /// Evaluate a `[script]` (brackets already stripped).
@@ -134,7 +142,9 @@ pub trait ExprOps {
 pub fn eval<O: ExprOps>(node: &ExprNode, ops: &mut O) -> Result<O::Value, O::Error> {
     match node {
         ExprNode::Literal { text, .. } => ops.literal(text),
-        ExprNode::String { text, .. } => ops.string(strip_delims(text)),
+        ExprNode::String { text, .. } => {
+            ops.string(strip_delims(text), quoted_string_body(text).is_some())
+        }
         // The value as-is — there are no delimiters to strip, which is the
         // whole reason this operand exists: `strip_delims` on a value that
         // merely looks braced (`switch -- "{abc}"`) takes a layer that was
@@ -148,7 +158,8 @@ pub fn eval<O: ExprOps>(node: &ExprNode, ops: &mut O) -> Result<O::Value, O::Err
         // applies (`push_word_value`).
         ExprNode::CompiledWord { text, braced } => {
             if *braced || !(text.contains("${") || text.contains('[')) {
-                ops.string(text)
+                // The word's value, already final: nothing left to substitute.
+                ops.string(text, false)
             } else {
                 Err(ops.unsupported("compiled word with a live substitution"))
             }
@@ -337,7 +348,7 @@ mod tests {
                 .map(V::Num)
                 .or_else(|_| Ok(V::Str(text.to_string())))
         }
-        fn string(&mut self, inner: &str) -> Result<V, String> {
+        fn string(&mut self, inner: &str, _substitutes: bool) -> Result<V, String> {
             Ok(V::Str(inner.to_string()))
         }
         fn var(&mut self, name: &str) -> Result<V, String> {

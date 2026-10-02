@@ -34,7 +34,8 @@ and without rebuilding it for every tcl-lsp release.
 
 SpecTcl is the authoring format for every command surface that is not a
 core: the EDA vendor libraries ship as bundled loadables, Jim's command
-roster is a compiled-in pack (`rust/tcl-spectcl/core-surfaces/jim.tclspec`),
+roster and its own commands are compiled-in packs
+(`rust/tcl-spectcl/core-surfaces/jim.tclspec` and `jim-own-surface.tclspec`),
 and private packs load the same DSL. The shipped cores — `commands/{tcl,
 irules}` and the stdlib, tcllib, Tk, iApps and Expect surfaces — stay
 native Rust; there is no ahead-of-time `.tclspec` → `.rs` path.
@@ -724,12 +725,15 @@ rows, in the order the shipped blocks write them:
 | row | meaning |
 |---|---|
 | `display_name {TEXT}` | the human-facing name (defaults to the id) |
+| `short_name {TEXT}` | the compact name for tight UI (defaults to the display name) |
+| `kind language\|packages` | what the environment is, for presentation: `language` when the thing written is this language, `packages` when it is a Tcl release with library packages loaded (defaults to `packages`). It is presentation metadata — `EnvironmentDefinition::description` reads it — and never changes resolution, grammar or availability. A word that names neither is ignored with a notice |
 | `core FAMILY RELEASE ?-build PROFILE?` | the base release; a compiled family or a `dialect` block the pack declares |
 | `version_ceiling RELEASE` | the upper-bound release for option gating, on the core's ladder |
 | `editor_identity ID` | one of the **contributed** editor language ids — an environment selects, never mints |
+| `selecting_identity ID` | a further contributed language id that selects this environment without being its `editor_identity` (`tcl-libero` selects the Libero shell); repeatable. Another environment already owning the spelling rejects the registration |
 | `ambient PACKAGE VERSION\|tracks-base\|keyed KEY` | a package present with no `package require`; `keyed` names an external version axis (`ToolVersion`, `SdcVersion`, `UpfVersion`, `BigipVersion`) |
 | `hosted PACKAGE REQUIREMENT` | an installable package, floored on its own axis |
-| `alias NAME` | a retired or convenience spelling that resolves here |
+| `alias NAME` | a retired or convenience spelling that resolves here; never a package name another environment places or a pack provides |
 | `file_extension EXT ?-name TEXT?`, `filename NAME`, `signature TEXT` | server-side detection facts |
 | `policy open\|closed\|ambient-plus-require` | resolution strictness |
 | `help_terms {WORD …}` | the lower-case terms `tcl help --dialect` filters the knowledge base by |
@@ -802,6 +806,22 @@ Jim's own roster is compiled into the binary
 (`rust/tcl-spectcl/core-surfaces/jim.tclspec`) rather than shipped in
 `specs/`, because `specs/` is *replaceable* — right for a vendor library,
 wrong for a core surface.
+
+The commands Jim adds are the second compiled-in pack,
+`jim-own-surface.tclspec`: one `command` per name `jimsh` has and `tclsh`
+lacks, each `available {jim FIRST-LAST}` on the windows measured from a build
+of every upstream tag 0.76–0.84 (no Jim command is gated behind a package).
+Its specs are registered with the registry as the family's own surface
+(`tcl_registry::register_core_surface_specs`), not installed as a pack
+overlay: the registry assembled for a `jim` document extends the shared store
+with them, and no other environment's store carries them. They are registered
+by `tcl_spectcl::core_surfaces::ensure`, which every constructor that hands a
+consumer a registry or a pack set calls (`registry_with_packs`,
+`bundled::packs`, `publish_pack_set`) and which the language server calls in its
+`initialize` handler, so a `jim` document analysed before the first pack set
+loads resolves Jim's commands like one analysed after it. A pack hook body
+needs a host built per pack set, which a compiled-in pack never has, so these
+packs declare none.
 
 ## The acceptance rubric
 

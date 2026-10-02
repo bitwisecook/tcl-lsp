@@ -623,8 +623,11 @@ fn expr_has_command_at(expr: &ExprNode, depth: u32) -> bool {
                 || expr_has_command_at(false_branch, depth + 1)
         }
         ExprNode::Call { args, .. } => args.iter().any(|a| expr_has_command_at(a, depth + 1)),
+        // A `"…"` operand substitutes, so a `[cmd]` in it runs: O126 dropped
+        // `set y [expr {"[incr x]"}]` as an unused store, losing the `incr`
+        // tclsh 8.6.18 performs (#2227, found in review).
+        ExprNode::String { text, .. } => crate::word_subst::quoted_operand_body(text).is_some(),
         ExprNode::Literal { .. }
-        | ExprNode::String { .. }
         | ExprNode::CompiledWord { .. }
         | ExprNode::Var { .. }
         | ExprNode::Raw { .. } => false,

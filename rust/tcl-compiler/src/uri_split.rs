@@ -589,7 +589,13 @@ fn is_comparison_op(op: BinOp) -> bool {
 /// Return the unquoted literal text from an expression node, or `None`.
 fn expr_literal_text(node: &ExprNode) -> Option<String> {
     match node {
-        ExprNode::String { text, .. } => Some(strip_tcl_quotes(text).to_owned()),
+        // `$` and `[` substitute, so `"/api$x"` is not the text `/api$x`.
+        // Backslash escapes stay as written: the classifier reads a regex's
+        // `\?` / `\&` in that form.
+        ExprNode::String { text, .. } => match tcl_syntax::expr::quoted_string_body(text) {
+            Some(body) => (!body.contains(['$', '['])).then(|| body.to_owned()),
+            None => tcl_syntax::word_rules::whole_braced_word(text).map(str::to_owned),
+        },
         ExprNode::Literal { text, .. } => Some(text.clone()),
         _ => None,
     }
@@ -1338,6 +1344,16 @@ set parts [split $uri "?"]"#,
         assert_eq!(ws.len(), 1, "got {ws:?}");
         assert!(ws[0].message.contains("HTTP::path"));
         assert!(ws[0].message.contains("starts_with"));
+    }
+
+    /// A quoted operand substitutes, so `"/api$v"` is not the literal the
+    /// classification reads; the hint declines it (#2227, found in review).
+    #[test]
+    fn starts_with_a_substituting_operand_is_not_read_as_a_literal() {
+        let ws = warnings_for(r#"if { [HTTP::uri] starts_with "/api$v" } { log local0. x }"#);
+        assert!(ws.is_empty(), "got {ws:?}");
+        let ws = warnings_for(r"if { [HTTP::uri] starts_with {/api} } { log local0. x }");
+        assert_eq!(ws.len(), 1, "a braced operand is still literal: {ws:?}");
     }
 
     #[test]

@@ -645,6 +645,12 @@ Argument positions that take a network destination (host, URL). Tainted data rea
 
 Argument positions where a value is evaluated as code. Tainted data reaching one is the classic injection: `eval $userInput`. Declaring the precise slots keeps the finding accurate on commands where only some arguments are executed.
 
+### `taint_numeric_coercion` — Numeric-coercion operands
+
+*command only* — Which argument words a call reads as numbers — a T100 numeric-coercion sink.
+
+Which argument words a call reads as *numbers* — `switch -integer`'s subject. Tainted data reaching one is not executed, but Tcl's numeric reading of it (`0x10` is 16, a non-number raises) can subvert the decision taken on it, the same hazard as a tainted operand of a braced `expr`. The shape names the option that turns coercion on, so other calls of the command stay quiet.
+
 ### `taint_interp_eval_subcommands` — Cross-interpreter eval subcommands
 
 *command only* — Subcommands evaluating code in another interpreter (T105).
@@ -1064,6 +1070,7 @@ What an argument position *is*. Roles are how the tools know `while`'s second wo
 | `VarRead` | names a variable the command reads |
 | `LoopVarList` | loop variable list (foreach / lmap) |
 | `ParamList` | procedure parameter list |
+| `StaticVarList` | procedure static-variable list (`proc name args statics body`) |
 | `Name` | symbolic name (proc, namespace, class) |
 | `Pattern` | glob or regex pattern |
 | `Option` | option flag word |
@@ -1271,6 +1278,14 @@ Compiler internals: the named per-command translations into the compiler's inter
 | `Apply` | apply |
 | `ArrayFor` | array for |
 
+### Numeric-coercion shapes
+
+Which argument words a call reads as numbers, so a tainted one is a T100 numeric-coercion sink. Each shape names the option that turns the coercion on — `switch -integer` reads its subject as a wide integer, plain `switch` compares text — so only the calls that coerce are flagged.
+
+| Value | Meaning |
+|---|---|
+| `IntegerModeOperands` | with `-integer`, the subject and inline patterns are wide integers (`switch -integer`) |
+
 ### Option arity
 
 How many value words an option consumes: one (`-index i`) or a fixed count. Options that take no value are declared by leaving takes-value off instead.
@@ -1433,6 +1448,7 @@ The registry's behavioural vocabulary — one flag per fact a consumer might nee
 | `DESTROYS_VARIABLE` | destroys a variable |
 | `READS_BEFORE_WRITE` | reads its target before writing it |
 | `CONDITIONAL_VARIABLE_WRITE` | writes its target variables only when a runtime match succeeds |
+| `UNCONDITIONAL_VARIABLE_WRITE` | writes every target variable whenever it completes |
 | `CREATES_SCOPE_ALIAS` | creates an upvar-like scope alias |
 | `ALIASES_GLOBAL` | creates an alias to the interpreter global namespace |
 | `CREATES_BARRIER` | creates an analysis barrier |

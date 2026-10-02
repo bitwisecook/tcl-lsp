@@ -4547,9 +4547,13 @@ impl Vm {
                 let nocase = imm0(instr) & TCL_REG_NOCASE != 0;
                 let s = pop(f).to_str();
                 let pat = pop(f).to_str();
-                match crate::cmd_regexp::regexp_matches(&pat, &s, nocase) {
+                let version = self.runtime_version();
+                match crate::cmd_regexp::regexp_matches(&pat, &s, nocase, version) {
                     Ok(m) => f.stack.push(Value::bool(m)),
-                    Err(msg) => return Tick::Return(err(msg)),
+                    Err(detail) => {
+                        let prefix = version.regex_compile_error_prefix();
+                        return Tick::Return(err(format!("{prefix}{detail}")));
+                    }
                 }
             }
             // `[string is CLASS $str]` per-character class test — operand

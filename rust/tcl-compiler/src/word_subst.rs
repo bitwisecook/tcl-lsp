@@ -374,16 +374,15 @@ fn collect_expr_node(
     }
 }
 
-/// The substituting body of a `"…"` expression operand, or `None` for a
-/// `{…}` one.
+/// The body of a `"…"` expression operand that may run a command, or `None`
+/// for a `{…}` one or one with no `[`.
 ///
-/// [`ExprNode::String`] spans both spellings and keeps its delimiters, and
-/// only the quoted form substitutes: tclsh 8.6.18 and 9.0.4 both print
-/// `2` then `2` for `set x 1; puts [expr {"[incr x]"}]; puts $x`, and `1`
-/// then `1` for the braced `{[incr x]}`.
+/// The quoted/braced rule is [`tcl_syntax::expr::quoted_string_body`]'s:
+/// tclsh 8.6.18 and 9.0.4 both print `2` then `2` for
+/// `set x 1; puts [expr {"[incr x]"}]; puts $x`, and `1` then `1` for the
+/// braced `{[incr x]}`.
 pub(crate) fn quoted_operand_body(text: &str) -> Option<&str> {
-    let inner = text.strip_prefix('"')?.strip_suffix('"')?;
-    inner.contains('[').then_some(inner)
+    tcl_syntax::expr::quoted_string_body(text).filter(|inner| inner.contains('['))
 }
 
 /// Walk one word, pushing every substitution it evaluates.

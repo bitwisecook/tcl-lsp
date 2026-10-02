@@ -3449,13 +3449,20 @@ fn structured_region_projection(
 /// prefix; `on` names a code directly. The selector spelling is decoded by the
 /// registry's completion-code table, never by a local keyword match.
 fn try_handler_code(handler: &crate::ir::TryHandler) -> Option<CompletionCode> {
+    try_handler_code_in(handler, tcl_syntax::number::Numbers::of_profile(None))
+}
+
+/// [`try_handler_code`] with the numeral grammar of a specific dialect: a
+/// numeric selector's spelling is release-dependent (`on 010` is code 8 in
+/// Tcl 8.x, 10 in 9.0).
+pub(crate) fn try_handler_code_in(
+    handler: &crate::ir::TryHandler,
+    numbers: tcl_syntax::number::Numbers,
+) -> Option<CompletionCode> {
     if handler.trap_pattern.is_some() || handler.kind == "trap" {
         return Some(CompletionCode::Error);
     }
-    tcl_registry::completion::completion_code_selector(
-        &handler.match_arg,
-        tcl_syntax::number::Numbers::of_profile(None),
-    )
+    tcl_registry::completion::completion_code_selector(&handler.match_arg, numbers)
 }
 
 /// Project the exact cell and completion footprint of an already-lowered

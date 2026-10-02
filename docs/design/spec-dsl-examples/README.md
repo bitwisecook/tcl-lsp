@@ -73,7 +73,7 @@ Additive only, so nothing written against 1.0 has to change.
 | **1.0** | the vocabulary the eleven ports froze |
 | **1.1** | the three lifecycle flags `-introduced` / `-deprecated` / `-retired` at every level the registry can gate — `form`, `side_effect`, `option_conflict`, `sub_subcommand`, and a `values` table's `value` rows — plus `versioned_arg_value` at **command** scope (it was subcommand-only), and the option row's `-deprecation-fix {…}` data form |
 | **1.2** | versioned `arity` and `arg` rows; `ambient_package`; second-level option blocks; option-level `-taints-var-write`, `-variable-scope`, `-script-timing`, and `-callback-taint-inputs`; positional `callback_taint_inputs`; `script_timing_resolver`; `object_class -method-prefix-matching`; and `tk_geometry` |
-| **2.0** | `available {PROVIDER SPEC…}` / `-available` at every scope `dialects` is accepted; the `environment NAME { … }` (with `help_terms` and `version_ceiling` rows since the EDA shells moved into their packs) and `dialect NAME { … }` pack-level blocks; `refine NAME { … }`, the invocation refinement, at command and subcommand scope |
+| **2.0** | `available {PROVIDER SPEC…}` / `-available` at every scope `dialects` is accepted; the `environment NAME { … }` (rows: `display_name`, `short_name`, `kind`, `core`, `version_ceiling`, `editor_identity`, `selecting_identity`, `ambient`, `hosted`, `alias`, `file_extension`, `filename`, `signature`, `policy`, `help_terms`) and `dialect NAME { … }` pack-level blocks; `refine NAME { … }`, the invocation refinement, at command and subcommand scope |
 | **2.1** | `arg_role_resolver_roles {ROLE …}` at command and subcommand scope; the non-empty closed set is required whenever `arg_role_resolver` is present so every consumer can conservatively cache the roles a dynamic resolver may emit |
 
 Every 1.1 word is one the option row already spelled, moved outward: the
@@ -891,7 +891,7 @@ it is not itself a loadable block; the loadable one is the snit port:
 
 ```tcl
 definition_body {
-    family Snit                              ;# TclOo | Snit | Itcl
+    family Snit                              ;# TclOo | Snit | Itcl | JimClass
     member method     -roles {0 Name 1 ParamList 2 Body}
     member superclass -all-refs Class -slot Set
     member variable   -all-vars -slot Append -dedup
@@ -1202,6 +1202,7 @@ schema order. "excluded" rows carry the reason.
 | `taint_log_sink` | `taint_log_sink CODE` |  |
 | `taint_network_sink_args` | `taint_network_sink_args {N …}` | tri-state: absent = unset, `{}` = declared empty |
 | `taint_code_sink_args` | `taint_code_sink_args {N …}` | same tri-state |
+| `taint_numeric_coercion` | `taint_numeric_coercion IntegerModeOperands` | the argument words a call reads as numbers (a T100 numeric-coercion sink); absent = none. Command-only |
 | `taint_interp_eval_subcommands` | `taint_interp_eval_subcommands {NAME …}` |  |
 | `taint_source` | `taint_source {COLOUR …}` |  |
 | `taint_transform` | `taint_transform {COLOUR …}` |  |

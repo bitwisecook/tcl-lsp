@@ -221,8 +221,7 @@ impl CodegenCtx<'_> {
         // idiom). Decompose it into literal / variable / command parts (the expr
         // text is not pre-normalised to `${name}`, so go through the template
         // parser, which handles bare `$var`) and concat them.
-        if text.len() >= 2 && text.starts_with('"') && text.ends_with('"') {
-            let inner = &text[1..text.len() - 1];
+        if let Some(inner) = tcl_syntax::expr::quoted_string_body(text) {
             // No `$`/`[`: a pure literal. Decode with the *full* backslash decoder
             // (`\xNN`, `\NNN`, `\uNNNN`, …), which the template parser's simplified
             // literal decoding does not cover (expr-8.13's `"\374"`).
