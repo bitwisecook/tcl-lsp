@@ -324,7 +324,8 @@ fn lpop_remove(
 /// `-regexp`, with the full option set (the Tcl errorCodes the core carries
 /// are dropped — the VM has no errorCode surface).
 fn cmd_lsearch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    match tcl_cmd_core::lsearch::lsearch::<Vm, crate::cmd_regexp::CrateEngine>(vm, args) {
+    let version = vm.runtime_version();
+    match tcl_cmd_core::lsearch::lsearch::<Vm, crate::cmd_regexp::CrateEngine>(vm, args, version) {
         Ok(v) => ok(v),
         Err(e) => err(String::from_utf8_lossy(&e.message).into_owned()),
     }

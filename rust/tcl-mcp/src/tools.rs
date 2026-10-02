@@ -26,7 +26,6 @@ use std::collections::HashSet;
 
 use serde_json::{Map, Value, json};
 use tcl_compiler::analyser::{Analyser, AnalysisResult, Diagnostic};
-use tcl_dialect::DialectProfile;
 use tcl_lexer::{LexerConfig, LineIndex, SourceMap, Span, Utf16Col};
 use tcl_lsp_core::definition::LspRange;
 use tcl_registry::CommandRegistry;
@@ -35,6 +34,9 @@ use tcl_registry::profiles::ProfileRegistry;
 
 const IRULES_DIALECT: &str = "f5-irules";
 
+/// The release an MCP session starts on: the newest stable Tcl, so a call that
+/// names no dialect sees every current command. It is separate from the
+/// editors' and the language server's `DEFAULT_ENVIRONMENT_ID`.
 const DEFAULT_DIALECT: &str = "tcl9.0";
 
 /// Process-wide session dialect — the detection default set by `set_dialect`,
@@ -57,8 +59,7 @@ fn resolve_dialect(args: &Value, source: &str) -> String {
             // `detect_dialect`'s default must be `&'static`; the session
             // name's canonical environment id supplies one, else the
             // built-in default. The session always holds a canonical id
-            // (`set_dialect` stores one), so this answers as the retired
-            // `KNOWN_DIALECTS` membership scan did.
+            // (`set_dialect` stores one), so the lookup returns it unchanged.
             let default =
                 crate::environment::canonical_id_for_dialect(&session).unwrap_or(DEFAULT_DIALECT);
             tcl_registry::detect_dialect(source, None, default).to_owned()
@@ -91,10 +92,9 @@ fn set_dialect(args: &Value) -> Value {
     //
     // The validator is the one `Environment::resolve`, matching the LSP's
     // `setDialect` — so this accepts every *declared* name (canonical ids,
-    // aliases, and the contributed editor identities) rather than only
-    // those the profile catalogue happens to hold, and still rejects an
-    // unknown spelling. The advertised `enum` stays the canonical
-    // catalogue.
+    // aliases, and the contributed editor identities), and still rejects an
+    // unknown spelling. The advertised `enum` and the `valid_dialects` list
+    // are the selectable canonical ids.
     let Some(profile) = crate::environment::known_profile_for_dialect(requested) else {
         return json!({
             "error": format!(
@@ -1328,21 +1328,26 @@ type Param = (&'static str, &'static str, &'static str);
 /// catalogue per tool.
 const DIALECT_PARAM: &str = "dialect";
 
-/// Every canonical dialect name, in catalogue order.
-fn dialect_names() -> Vec<&'static str> {
-    DialectProfile::all().iter().map(|p| p.name).collect()
+/// Every selectable environment's canonical id, in selectable order, read from
+/// the live registry.
+fn dialect_names() -> Vec<String> {
+    tcl_registry::model::selectable_environments()
+        .iter()
+        .map(|environment| environment.id.to_string())
+        .collect()
 }
 
-/// The schema for a dialect-valued property: the catalogue as a JSON-Schema
-/// `enum`, plus the `name — display_name` pairs appended to `desc` so a model
-/// reading only the description still sees what each name means.
+/// The schema for a dialect-valued property: the selectable environments as a
+/// JSON-Schema `enum`, plus each `name: description` pair appended to `desc` so
+/// a model reading only the description still sees what each name means.
 ///
-/// The `enum` lists canonical names only; the runtime ingress keeps
-/// accepting every declared name.
+/// The `enum` lists canonical ids only; the runtime ingress keeps accepting
+/// every declared name.
 fn dialect_schema(desc: &str) -> Value {
-    let pairs: Vec<String> = DialectProfile::all()
+    let selectable = tcl_registry::model::selectable_environments();
+    let pairs: Vec<String> = selectable
         .iter()
-        .map(|p| format!("{} — {}", p.name, p.display_name))
+        .map(|environment| format!("{}: {}", environment.id, environment.description()))
         .collect();
     json!({
         "type": "string",
@@ -2000,6 +2005,7 @@ pub fn dispatch(name: &str, args: &Value) -> Option<Value> {
 #[cfg(test)]
 mod dialect_param_tests {
     use super::*;
+    use tcl_dialect::model::EnvironmentRegistry;
 
     /// Serialise the tests that move the session dialect — it is process
     /// state shared by the whole parallel test binary — and restore it on
@@ -2039,28 +2045,57 @@ mod dialect_param_tests {
         schema["properties"][DIALECT_PARAM].clone()
     }
 
+    /// Every dialect-taking tool's enum, the `set_dialect` rejection's
+    /// `valid_dialects` and the description pairs are the registry's
+    /// selectable canonical ids, in selectable order.
     #[test]
-    fn every_dialect_taking_tool_advertises_the_whole_catalogue() {
-        let catalogue: Vec<Value> = DialectProfile::all()
+    fn every_runtime_enumeration_is_the_registry() {
+        let selectable = EnvironmentRegistry::compiled_selectable();
+        let expected: Vec<Value> = selectable
             .iter()
-            .map(|p| json!(p.name))
+            .map(|environment| json!(environment.id.as_str()))
             .collect();
         let mut checked = 0;
         for (name, _, schema) in tool_schemas() {
             let Some(property) = schema["properties"].get(DIALECT_PARAM) else {
                 continue;
             };
-            assert_eq!(property["enum"], Value::Array(catalogue.clone()), "{name}");
+            assert_eq!(property["enum"], Value::Array(expected.clone()), "{name}");
             let description = property["description"].as_str().unwrap_or_default();
-            for profile in DialectProfile::all() {
+            for environment in selectable {
                 assert!(
-                    description.contains(&format!("{} — {}", profile.name, profile.display_name)),
+                    description.contains(&format!(
+                        "{}: {}",
+                        environment.id,
+                        environment.description()
+                    )),
                     "{name}: {description}"
                 );
             }
             checked += 1;
         }
         assert!(checked >= 4, "expected several dialect-taking tools");
+        let rejected = dispatch("set_dialect", &json!({ "dialect": "klingon" })).expect("tool");
+        assert_eq!(rejected["valid_dialects"], Value::Array(expected));
+    }
+
+    /// `jim`, `tk` and the tool shells are advertised; the lenient sink is not.
+    #[test]
+    fn the_dialect_enum_offers_jim_and_tk_but_not_the_sink() {
+        let property = dialect_property("analyze");
+        let names: Vec<&str> = property["enum"]
+            .as_array()
+            .expect("enum")
+            .iter()
+            .filter_map(Value::as_str)
+            .collect();
+        for name in ["jim", "tk", "xilinx-eda-tcl", "tcl8.6"] {
+            assert!(names.contains(&name), "{name}");
+        }
+        assert!(
+            !names.contains(&"tcl"),
+            "the sink is a fallback, not a choice"
+        );
     }
 
     #[test]
@@ -2084,15 +2119,7 @@ mod dialect_param_tests {
         let error = result["error"].as_str().expect("error message");
         assert!(error.contains("klingon"), "{error}");
         assert!(error.contains("f5-irules"), "{error}");
-        assert_eq!(
-            result["valid_dialects"],
-            json!(
-                DialectProfile::all()
-                    .iter()
-                    .map(|p| p.name)
-                    .collect::<Vec<_>>()
-            )
-        );
+        assert_eq!(result["valid_dialects"], json!(dialect_names()));
         assert_eq!(*session_dialect().lock().expect("session lock"), before);
     }
 

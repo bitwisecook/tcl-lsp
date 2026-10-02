@@ -23,7 +23,7 @@ use crate::prelude::*;
 use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    synopsis: "auto_mkindex dir ?pattern pattern ...?",
+    synopsis: "auto_mkindex dir ?pattern ...?",
     ..FormSpec::DEFAULT
 }];
 
@@ -85,7 +85,7 @@ pub fn spec() -> CommandSpec {
         // directory changed to `dir`, since `cd $oldDir` only runs on the
         // success path and the one `try`/`on error` in the loop.
         traits: Traits::OVERRIDABLE_LIBRARY_PROC | Traits::TAINT_SINK,
-        // `auto_mkindex dir ?pattern pattern ...?` — `dir` required,
+        // `auto_mkindex dir ?pattern ...?` — `dir` required,
         // `pattern` variadic (0 or more, defaulting to `*.tcl` when none
         // are given): Tcl's own `library/auto.tcl` defines
         // `proc auto_mkindex {dir args} …`, matching the `{dir args}`
@@ -103,7 +103,7 @@ pub fn spec() -> CommandSpec {
         }],
         hover: Some(HoverSnippet {
             summary: "Generate a tclIndex file from Tcl source files in a directory.",
-            synopsis: &["auto_mkindex dir ?pattern pattern ...?"],
+            synopsis: &["auto_mkindex dir ?pattern ...?"],
             snippet: "Searches dir for files matching pattern (glob syntax; *.tcl is assumed when no pattern is given), and for each matching file records the name of every top-level proc it contains; from Tcl 8.6 onward (when TclOO joined core), oo::class create and class create are recorded too, but Tcl 8.4 and 8.5 do not recognize either form. The result is written to a file named tclIndex in dir, in the format auto_load reads back later to load commands on demand. Matching files are evaluated inside a private, heavily restricted child interpreter, not merely text-scanned: only proc, namespace eval, and (when tbcload is available) tbcload::bcproc do anything there in every version, plus oo::class/class from 8.6 on; every other command is a silent no-op, but a script with unusual top-level constructs can still misbehave or raise an error partway through. auto_mkindex_old, which only pattern-matches lines starting with \"proc\" without evaluating anything, is the safer choice for a script with global initialization code or a procedure name containing $, *, [ or ]. auto_mkindex changes the process's current working directory to dir for the duration of the call and restores it before returning; an error while globbing or writing tclIndex can leave the working directory changed. Not available inside a safe interpreter (interp issafe) at all — the proc is never even defined there. auto_mkindex is a Tcl-level library procedure (library/auto.tcl), not a C built-in, so redefining it is a supported override rather than shadowing.",
             source: "Tcl library(n)",
             examples: "auto_mkindex $dir\nauto_mkindex $dir *.tcl *.itcl",

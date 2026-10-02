@@ -575,7 +575,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "tempfile",
-        traits: Traits::OPENS_CHANNEL,
+        traits: Traits::OPENS_CHANNEL.union(Traits::UNCONDITIONAL_VARIABLE_WRITE),
         arity: Arity::new(0, 2),
         detail: "Creates a temporary file and returns a read-write channel opened on that file. If nameVar is given, the file's name is written there; otherwise Tcl arranges to delete the file once it is no longer needed. template may suggest a directory, base name, or extension, though some platforms ignore parts of it. Temporary files are only ever created on the native filesystem.",
         synopsis: "file tempfile ?nameVar? ?template?",

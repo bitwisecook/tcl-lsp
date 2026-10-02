@@ -64,7 +64,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "gets",
         surface: Some(SpecSurface::ALL_TCL),
-        traits: Traits::BYTE_COMPILED | Traits::TAINT_SOURCE,
+        traits: Traits::BYTE_COMPILED | Traits::TAINT_SOURCE | Traits::UNCONDITIONAL_VARIABLE_WRITE,
         arity: Arity::new(1, 2),
         arg_roles: &[(0, ArgRole::Channel), (1, ArgRole::VarWrite)],
         assigns_variable_at: Some(1),

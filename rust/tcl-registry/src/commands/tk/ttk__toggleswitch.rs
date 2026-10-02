@@ -76,6 +76,30 @@ const OPTIONS: &[OptionSpec] = &[
         ..OptionSpec::DEFAULT
     },
     OptionSpec {
+        name: "-text",
+        value: OptionValue::value("text"),
+        detail: "Text displayed to the left of the trough. A non-empty text switches the default style to ToggleswitchEx<size>.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-textvariable",
+        value: OptionValue::global_var_name(),
+        detail: "Variable whose value is used as the switch text, overriding -text.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-underline",
+        value: OptionValue::value("index"),
+        detail: "Index of the text character to underline for mnemonic activation.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-width",
+        value: OptionValue::value("width"),
+        detail: "Space in characters to allocate for the text; a negative value is a minimum width. Non-zero also selects the ToggleswitchEx<size> style.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
         name: "-command",
         value: OptionValue::deferred_script(),
         detail: "Script evaluated at global scope when the switch state toggles.",

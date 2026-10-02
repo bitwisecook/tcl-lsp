@@ -104,6 +104,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "append",
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictAppend)),
+        traits: Traits::UNCONDITIONAL_VARIABLE_WRITE,
         arity: Arity::at_least(2),
         detail: "Append to a value in a dictionary.",
         synopsis: "dict append dictionaryVariable key ?string ...?",
@@ -234,6 +235,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "incr",
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictIncr)),
+        traits: Traits::UNCONDITIONAL_VARIABLE_WRITE,
         arity: Arity::new(2, 3),
         detail: "Increment a value in a dictionary.",
         synopsis: "dict incr dictionaryVariable key ?increment?",
@@ -273,6 +275,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "lappend",
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictListAppend)),
+        traits: Traits::UNCONDITIONAL_VARIABLE_WRITE,
         arity: Arity::at_least(2),
         detail: "Append list elements to a dictionary value.",
         synopsis: "dict lappend dictionaryVariable key ?value ...?",
@@ -365,6 +368,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "set",
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictSet)),
+        traits: Traits::UNCONDITIONAL_VARIABLE_WRITE,
         arity: Arity::at_least(3),
         detail: "Set a value in a dictionary.",
         synopsis: "dict set dictionaryVariable key ?key ...? value",
@@ -405,7 +409,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "unset",
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictUnset)),
-        traits: Traits::FIRE_AND_FORGET_TEARDOWN,
+        traits: Traits::FIRE_AND_FORGET_TEARDOWN.union(Traits::UNCONDITIONAL_VARIABLE_WRITE),
         arity: Arity::at_least(2),
         detail: "Remove keys from a dictionary variable.",
         synopsis: "dict unset dictionaryVariable key ?key ...?",

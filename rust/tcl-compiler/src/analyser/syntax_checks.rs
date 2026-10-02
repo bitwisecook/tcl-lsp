@@ -122,12 +122,12 @@ fn detect_e201(
         }
         Some(d)
     };
-    if let Some(d) = e201_at_comment(content, content_start, bracket_off).and_then(&accept) {
+    if let Some(d) = e201_at_comment(content, content_start, bracket_off).and_then(accept) {
         return d;
     }
     let (cmd_diag, swallowed_known_command) =
         e201_at_command(content, content_start, bracket_off, known, &index);
-    if let Some(d) = cmd_diag.and_then(&accept) {
+    if let Some(d) = cmd_diag.and_then(accept) {
         return d;
     }
     // A known command was swallowed into a brace word inside the bracket
@@ -138,7 +138,7 @@ fn detect_e201(
     // scan-to-next recovery's partial command stands, the unterminated
     // `[` is still flagged, and the tail is analysed as real code.
     if !swallowed_known_command
-        && let Some(d) = e201_at_brace(content, content_start, bracket_off).and_then(&accept)
+        && let Some(d) = e201_at_brace(content, content_start, bracket_off).and_then(accept)
     {
         return d;
     }

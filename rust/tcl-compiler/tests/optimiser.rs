@@ -2729,6 +2729,335 @@ fn a_quoted_expression_operand_is_folded_to_its_substituted_value() {
     }
 }
 
+/// A dead assignment whose value can raise is not dead: deleting it drops the
+/// error the program stops on. tclsh 8.6.18 raises for each of these (and
+/// 8.4.20, 9.0.4 and 9.1b0 agree); O126, O109 and O108 deleted the statement
+/// and the program printed `hi` (#2249).
+#[test]
+fn a_dead_assignment_whose_value_can_raise_is_kept() {
+    for (why, src, kept) in [
+        (
+            "an unset variable",
+            "proc p {} {\n    set y $x\n    puts hi\n}\n",
+            "set y $x",
+        ),
+        (
+            "an unset variable in a command word",
+            "proc p {} {\n    set y [lindex $x 0]\n    puts hi\n}\n",
+            "set y [lindex $x 0]",
+        ),
+        (
+            "an unset variable in quotes",
+            "proc p {} {\n    set y \"$x\"\n    puts hi\n}\n",
+            "set y \"$x\"",
+        ),
+        (
+            "an unset element",
+            "proc p {} {\n    set y $a(k)\n    puts hi\n}\n",
+            "set y $a(k)",
+        ),
+        (
+            "a name `upvar` links",
+            "proc p {} {\n    upvar 1 v v\n    set y $v\n    puts hi\n}\n",
+            "set y $v",
+        ),
+        (
+            "an array read as a scalar",
+            "proc p {} {\n    set a(k) 1\n    set y $a\n    puts hi\n}\n",
+            "set y $a",
+        ),
+        (
+            "a variable a `catch` may leave unset",
+            "proc p {} {\n    catch {set x [error boom]}\n    set y $x\n    puts hi\n}\n",
+            "set y $x",
+        ),
+        (
+            "a variable set on one branch only",
+            "proc p {c} {\n    if {$c} {set x 1}\n    set y $x\n    puts hi\n}\n",
+            "set y $x",
+        ),
+        (
+            "a `regexp` output variable",
+            "proc p {s} {\n    regexp {(z)} $s -> x\n    set y $x\n    puts hi\n}\n",
+            "set y $x",
+        ),
+        (
+            "an `unset` variable",
+            "proc p {} {\n    set x 1\n    unset x\n    set y $x\n    puts hi\n}\n",
+            "set y $x",
+        ),
+        (
+            "`expr` arithmetic on a parameter",
+            "proc p {v} {\n    set y [expr {$v + 1}]\n    puts hi\n}\n",
+            "set y [expr {$v + 1}]",
+        ),
+        (
+            "`expr` division by zero",
+            "proc p {} {\n    set y [expr {1/0}]\n    puts hi\n}\n",
+            "set y [expr {1/0}]",
+        ),
+        (
+            "a method sharing its name with a proc binds only its own parameters",
+            "namespace eval C { proc m {x} {} }\noo::class create C {\n    method m {} {\n        ::set unused $x\n        ::return 2\n    }\n}\n",
+            "::set unused $x",
+        ),
+        (
+            "a `foreach` variable over a list that may be empty",
+            "proc p {l} {\n    foreach x $l {}\n    set y $x\n    puts hi\n}\n",
+            "set y $x",
+        ),
+        (
+            "an array read as a scalar after `array set`",
+            "proc p {} {\n    array set a {}\n    set y $a\n    puts hi\n}\n",
+            "set y $a",
+        ),
+        (
+            "an `lset` target that was never set",
+            "proc p {} {\n    catch {lset x 0 new}\n    set y $x\n    puts hi\n}\n",
+            "set y $x",
+        ),
+        (
+            "a variable only a `catch` script assigns",
+            "proc p {} {\n    catch {error boom; set a 1} x\n    set y $a\n    puts hi\n}\n",
+            "set y $a",
+        ),
+        (
+            "a nested writer's target that an outer word happens to spell",
+            "proc p {} {\n    regsub x [regexp z a -> x] y out\n    set dead $x\n    puts hi\n}\n",
+            "set dead $x",
+        ),
+        (
+            "an overwritten store of an unset variable (O109)",
+            "proc p {} {\n    set y $x\n    set y 1\n    return $y\n}\n",
+            "set y $x",
+        ),
+    ] {
+        let out = optimised(src, TCL);
+        assert!(out.contains(kept), "{why}: the statement stays: {out}");
+    }
+}
+
+/// Bound reads alone do not prove an element read or a startup name: an
+/// element read raises when its base is a scalar, and only the top level
+/// itself starts with `argv` bound.
+#[test]
+fn a_dead_element_or_startup_read_that_can_raise_is_kept() {
+    for (why, src, kept) in [
+        (
+            "an element of a scalar parameter, by a dynamic index",
+            "proc p {a i} {\n    set dead $a($i)\n    puts hi\n}\n",
+            "set dead $a($i)",
+        ),
+        (
+            "an element of a scalar parameter, by a literal index",
+            "proc p {a} {\n    set dead $a(k)\n    puts hi\n}\n",
+            "set dead $a(k)",
+        ),
+        (
+            "an element of the empty-named scalar",
+            "proc p {i} {\n    set {} scalar\n    set dead x$($i)\n    puts hi\n}\n",
+            "set dead x$($i)",
+        ),
+        (
+            "a startup name in a procedure that shares the top level's `::top` name",
+            "proc ::top {} {\n    set dead $argv\n    puts hi\n}\n",
+            "set dead $argv",
+        ),
+    ] {
+        let out = optimised(src, TCL);
+        assert!(out.contains(kept), "{why}: the statement stays: {out}");
+    }
+}
+
+/// Precision for the rule above: a value that cannot raise is still deleted.
+#[test]
+fn a_dead_assignment_whose_value_cannot_raise_is_still_deleted() {
+    for (why, src) in [
+        ("a literal", "proc p {} {\n    set y 1\n    puts hi\n}\n"),
+        (
+            "a copy of a set local",
+            "proc p {} {\n    set x [clock seconds]\n    set y $x\n    puts hi\n}\n",
+        ),
+        (
+            "a copy of a parameter",
+            "proc p {v} {\n    set y $v\n    puts hi\n}\n",
+        ),
+        // A method binds its arguments on entry too (found in review).
+        (
+            "a copy of a method argument",
+            "oo::class create C {\n    method uses {v} {\n        ::set unused $v\n        ::return 2\n    }\n}\n",
+        ),
+        (
+            "a variable set on both branches",
+            "proc p {c} {\n    if {$c} {set x 1} else {set x 2}\n    set y $x\n    puts hi\n}\n",
+        ),
+        (
+            "`expr` SCCP folds to a constant",
+            "proc p {} {\n    set a 1\n    set y [expr {$a + 1}]\n    puts hi\n}\n",
+        ),
+        // Commands the registry marks as always writing their targets
+        // (found in review).
+        (
+            "a `catch` result variable",
+            "proc p {} {\n    catch {error boom} x\n    set y $x\n    puts hi\n}\n",
+        ),
+        (
+            "a `gets` target",
+            "proc p {c} {\n    gets $c line\n    set y $line\n    puts hi\n}\n",
+        ),
+        (
+            "an `lassign` target",
+            "proc p {l} {\n    lassign $l a\n    set y $a\n    puts hi\n}\n",
+        ),
+        (
+            "a `regsub` target",
+            "proc p {s} {\n    regsub {xx} $s YY a\n    set y $a\n    puts hi\n}\n",
+        ),
+        (
+            "an `append` target",
+            "proc p {v} {\n    append x $v\n    set y $x\n    puts hi\n}\n",
+        ),
+        (
+            "an `lappend` target",
+            "proc p {v} {\n    lappend x $v\n    set y $x\n    puts hi\n}\n",
+        ),
+        (
+            "a `dict set` target",
+            "proc p {v} {\n    dict set d k $v\n    set y $d\n    puts hi\n}\n",
+        ),
+        (
+            "a `dict incr` target",
+            "proc p {} {\n    dict incr d k\n    set y $d\n    puts hi\n}\n",
+        ),
+        (
+            "a `chan gets` target",
+            "proc p {c} {\n    chan gets $c line\n    set y $line\n    puts hi\n}\n",
+        ),
+        // A conditional writer keeps the previous value on a miss.
+        (
+            "a `regexp` output variable set before",
+            "proc p {s} {\n    set x old\n    regexp {(z)} $s -> x\n    set y $x\n    puts hi\n}\n",
+        ),
+        // A read-modify-write target stays set once it was set.
+        (
+            "an `lset` target set before",
+            "proc p {} {\n    set x {old}\n    lset x 0 new\n    set y $x\n    puts hi\n}\n",
+        ),
+        (
+            "a `file tempfile` name variable",
+            "proc p {} {\n    file tempfile path\n    set y $path\n    puts hi\n}\n",
+        ),
+        (
+            "an `info default` variable",
+            "proc p {} {\n    info default p x v\n    set y $v\n    puts hi\n}\n",
+        ),
+        // An alias that prepends words keeps its target (found in review).
+        (
+            "a `gets` target through an alias that prepends the channel",
+            "interp alias {} mygets {} gets stdin\nproc p {} {\n    mygets line\n    set y $line\n    puts hi\n}\n",
+        ),
+        (
+            "a `cmdline::getKnownOpt` value variable",
+            "package require cmdline\nproc p {argv} {\n    cmdline::getKnownOpt argv {a.arg} o v\n    set y $v\n    puts hi\n}\n",
+        ),
+    ] {
+        assert!(
+            opt_fires(src, TCL, "O126"),
+            "{why}: the unused store goes: {:?}",
+            opt_codes(src, TCL)
+        );
+    }
+}
+
+/// The same precision for writers that exist only in Tcl 9.
+#[test]
+fn a_dead_copy_of_a_tcl9_writer_target_is_still_deleted() {
+    for (why, src) in [
+        (
+            "a `const`",
+            "proc p {} {\n    const c 5\n    set y $c\n    puts hi\n}\n",
+        ),
+        (
+            "an `encoding -failindex` variable",
+            "proc p {s} {\n    encoding convertto -failindex fi utf-8 $s\n    set y $fi\n    puts hi\n}\n",
+        ),
+    ] {
+        assert!(
+            opt_fires(src, "tcl9.0", "O126"),
+            "{why}: the unused store goes: {:?}",
+            opt_codes(src, "tcl9.0")
+        );
+    }
+}
+
+/// A scalar the interpreter binds before user code (`argv`) is set at the top
+/// level's entry, so an overwritten copy of it is a dead store there, as a
+/// literal is; an unset name keeps its store, and inside a procedure `argv` is
+/// an unset local.
+#[test]
+fn an_overwritten_copy_of_a_startup_scalar_goes_only_at_top_level() {
+    for (why, src, dead) in [
+        (
+            "a startup scalar",
+            "set dead $argv\nset dead 1\nputs $dead\n",
+            true,
+        ),
+        (
+            "an unset global",
+            "set dead $nope\nset dead 1\nputs $dead\n",
+            false,
+        ),
+        (
+            "a global named like a parameter of a procedure called `::top`",
+            "proc ::top {x} {}\nset dead $x\nset dead 1\nputs $dead\n",
+            false,
+        ),
+        (
+            "a procedure's local",
+            "proc p {} {\n    set dead $argv\n    set dead 1\n    return $dead\n}\n",
+            false,
+        ),
+    ] {
+        assert_eq!(
+            opt_fires(src, TCL, "O109"),
+            dead,
+            "{why}: {:?}",
+            opt_codes(src, TCL)
+        );
+    }
+}
+
+/// `grapheme next|prev` read their cursor and then write it, so the cursor is
+/// set afterwards exactly when it was set before, and the store feeding it is
+/// live.
+#[test]
+fn a_grapheme_cursor_carries_its_definedness() {
+    let copy = "proc p {s i} {\n    ::tcl::unsupported::grapheme next $s i\n    set dead $i\n    puts hi\n}\n";
+    assert!(
+        opt_fires(copy, "tcl9.1", "O126"),
+        "a copy of a bound cursor goes: {:?}",
+        opt_codes(copy, "tcl9.1")
+    );
+    let feed =
+        "proc p {s} {\n    set i 2\n    tcl::unsupported::grapheme prev $s i\n    return $i\n}\n";
+    assert!(
+        !opt_fires(feed, "tcl9.1", "O109"),
+        "the store feeding the cursor stays: {:?}",
+        opt_codes(feed, "tcl9.1")
+    );
+}
+
+/// `string is class -failindex var` writes `var` only when the test fails and
+/// leaves it as it was otherwise, so a store before it is not dead. tclsh
+/// 8.5.19 to 9.1b0 print `keep`; O109 deleted `set fi keep` and the program
+/// failed with `can't read "fi"`.
+#[test]
+fn a_store_before_string_is_failindex_is_kept() {
+    let src = "proc p {} {\n    set fi keep\n    string is integer -failindex fi 123\n    return $fi\n}\nputs [p]\n";
+    let out = optimised(src, TCL);
+    assert!(out.contains("set fi keep"), "the store stays: {out}");
+}
+
 /// Tcl substitutes inside a `"…"` expression operand, so a call written there
 /// is a call the statement runs — for the caller-evidence walk and for the
 /// variable-effect walk alike.
@@ -3328,4 +3657,26 @@ fn a_try_handler_still_binds_only_on_the_path_that_runs_it() {
         "`finally` runs after the handler, so `set f 2` is dead: {:?}",
         opt_codes(overwritten, TCL)
     );
+}
+
+/// An element index that substitutes selects the element by its value, so a
+/// constant stored under the index's literal spelling is not that element.
+#[test]
+fn a_substituting_element_index_is_not_its_literal_spelling() {
+    // tclsh 8.6.18 / 9.0.4: `v=6`.
+    let src = "set {arr($idx)} 5\nset idx k\nset arr(k) 6\nputs \"v=$arr($idx)\"\n";
+    let out = optimised(src, TCL);
+    assert!(out.contains("\"v=$arr($idx)\""), "{out}");
+}
+
+/// The empty variable name `{}` is a real variable: inlining it must keep the
+/// text after `${}`, and the dead-store coupling must not panic on the name.
+#[test]
+fn a_constant_in_the_empty_name_variable_inlines_cleanly() {
+    // tclsh 8.4.20 / 8.6.18 / 9.0.4: `a=5b`, `a=5`, `55`.
+    let src = "set {} 5\nputs \"a=${}b\"\nputs \"a=${}\"\nputs \"${}${}\"\n";
+    let out = optimised(src, TCL);
+    for want in ["\"a=5b\"", "\"a=5\"", "\"55\""] {
+        assert!(out.contains(want), "{want}: {out}");
+    }
 }

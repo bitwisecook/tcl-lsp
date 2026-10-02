@@ -65,6 +65,12 @@ pub fn count_var_refs(text: &str, var: &str) -> usize {
 /// string (`"x=$x"`) or braces are not reads and must not count.
 #[must_use]
 pub fn bareword_occurrences(text: &str, var: &str) -> usize {
+    // The empty name is only ever spelled as a word (`set {} 5`, `[set ""]`),
+    // never bare. Counting none makes the caller's exactly-one guard keep the
+    // store; its by-name reads belong to the SSA's name roles (#2260).
+    if var.is_empty() {
+        return 0;
+    }
     let bytes = text.as_bytes();
     let is_word = |b: u8| b.is_ascii_alphanumeric() || b == b'_';
     let mut n = 0;
@@ -133,6 +139,12 @@ mod tests {
         assert_eq!(bareword_occurrences("puts {x marks}", "x"), 0);
         // A `[set x]` command substitution still counts (reads by name).
         assert_eq!(bareword_occurrences("puts [set x]", "x"), 1);
+    }
+
+    #[test]
+    fn the_empty_name_has_no_bareword_occurrence() {
+        assert_eq!(bareword_occurrences("set {} 5; puts ${}", ""), 0);
+        assert_eq!(bareword_occurrences("", ""), 0);
     }
 
     #[test]

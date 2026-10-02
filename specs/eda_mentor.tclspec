@@ -31,15 +31,19 @@ speclib eda_mentor 2.0 {
 display_name {Siemens Questa/ModelSim}
 
 environment mentor-eda-tcl {
-    display_name    {Mentor EDA Tcl}
+    display_name    {Siemens Questa / ModelSim}
+    short_name      {Questa}
+    kind            packages
     core            tcl 8.6
     version_ceiling 8.6
     editor_identity tcl-mentor
-    ambient         sdc keyed SdcVersion
-    ambient         upf keyed UpfVersion
     ambient         questa keyed ToolVersion
     ambient         questa-formal keyed ToolVersion
     ambient         calibre keyed ToolVersion
+    ambient         sdc keyed SdcVersion
+    ambient         upf keyed UpfVersion
+    alias           questa
+    alias           modelsim
     file_extension  do -name {ModelSim/Questa Do Script}
     help_terms      {mentor siemens modelsim questa calibre vsim}
 }

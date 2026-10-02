@@ -39,7 +39,10 @@ pub fn spec() -> CommandSpec {
         // 8.4.6, so it is correctly neither pre-9.0 nor iRules-visible. See
         // `tcl9_commands_gated_to_tcl90` in registry.rs.
         surface: Some(SpecSurface::TCL90_PLUS),
-        traits: Traits::BYTE_COMPILED | Traits::LANGUAGE_KEYWORD | Traits::FIRST_ARG_VARNAME,
+        traits: Traits::BYTE_COMPILED
+            | Traits::LANGUAGE_KEYWORD
+            | Traits::FIRST_ARG_VARNAME
+            | Traits::UNCONDITIONAL_VARIABLE_WRITE,
         arity: Arity::new(2, 2),
         assigns_variable_at: Some(0),
         arg_roles: &[(0, ArgRole::VarWrite)],

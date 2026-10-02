@@ -376,11 +376,41 @@ declare_traits! {
     /// for targets an `arg_role_resolver` places rather than a repeated
     /// layout.
     ///
+    /// `string is class -failindex var` is one too: it writes `var` only when
+    /// the class test fails.
+    ///
     /// Do **not** apply to `regsub`, `gets`, `lassign` or `catch`: each was
     /// measured writing unconditionally, including on the failure path
-    /// (`regsub {xx} zz YY a` leaves `a` as `zz`, `gets` at EOF writes `""`).
+    /// (`regsub {xx} zz YY a` leaves `a` as `zz`, `gets` at EOF writes `""`),
+    /// and carries [`Traits::UNCONDITIONAL_VARIABLE_WRITE`] instead.
     ConditionalVariableWrite => CONDITIONAL_VARIABLE_WRITE, Names,
         "writes its target variables only when a runtime match succeeds";
+    /// Writes every variable target it names whenever it completes, on its
+    /// failure path too: `catch` binds its result and options variables
+    /// whatever the script's completion code, `gets` and `chan gets` at end
+    /// of file write `""`, `regsub` with no match writes the unchanged input,
+    /// and `lassign` writes `""` to a target with no value. `append`, `lappend` and the
+    /// `dict` mutators (`set`, `append`, `lappend`, `incr`, `unset`) create
+    /// an unset target (`append a` with no value raises instead, so it never
+    /// completes). `file tempfile nameVar`, `info default … varname` (`""`
+    /// without a default), `zlib gunzip -headerVar`, and Tcl 9's `const` and
+    /// `encoding convertto|convertfrom -failindex` (`-1` on success) write
+    /// theirs too. Measured identical on tclsh 8.4.20 (which has no `lassign`
+    /// or `dict`), 8.5.19, 8.6.18, 9.0.4 and 9.1b0.
+    ///
+    /// Only scalar writers: `array set` creates an array, which a scalar read
+    /// still raises on, and `dict update` / `dict with` write their key
+    /// variables only for keys the dictionary holds.
+    ///
+    /// The positive counterpart of [`Traits::CONDITIONAL_VARIABLE_WRITE`]: a
+    /// consumer may treat a target as set after the command only when this
+    /// trait says so. A loop header (`foreach` over an empty list leaves its
+    /// variable unset) and a may-writer carry neither. It covers the
+    /// [`ArgRole::VarWrite`](crate::ArgRole::VarWrite) targets alone, never a
+    /// variable a script argument assigns (`catch {error e; set a 1} x`
+    /// leaves `a` unset).
+    UnconditionalVariableWrite => UNCONDITIONAL_VARIABLE_WRITE, Names,
+        "writes every target variable whenever it completes";
     /// Creates a scope alias — upvar-like binding (`upvar`, `global`, `variable`).
     CreatesScopeAlias => CREATES_SCOPE_ALIAS, Names, "creates an upvar-like scope alias";
     /// Creates an alias to the interpreter's global namespace (`global`).
@@ -1253,6 +1283,7 @@ declare_trait_examples! {
     DestroysVariable => flow!("set token secret\nunset token\ninfo exists token"; (1, "unset"); (0, "token", "creates variable state"), (1, "unset token", "destroys that state"), (2, "info exists token", "now returns false"));
     ReadsBeforeWrite => flow!("set count 4\nincr count 2\nputs $count"; (1, "incr"); (0, "count 4", "supplies the old value"), (1, "incr count 2", "reads it before writing the incremented value"), (2, "$count", "observes 6"));
     ConditionalVariableWrite => flow!("set host unknown\nregexp {^(\\w+):} $line host\nputs $host"; (1, "regexp"); (0, "host unknown", "supplies the value a failed match keeps"), (1, "regexp", "writes host only when the pattern matches"), (2, "$host", "is the captured text on a match and unknown otherwise"));
+    UnconditionalVariableWrite => flow!("catch {error boom} message\nputs $message"; (0, "catch"); (0, "{error boom}", "fails with boom"), (0, "catch", "writes message on the failure path too"), (1, "$message", "is always set here and reads boom"));
     CreatesScopeAlias => flow!("set outer initial\nproc update {} { upvar 1 outer local; set local changed }\nupdate\nputs $outer"; (1, "upvar"); (0, "outer", "lives in the caller"), (1, "upvar 1 outer local", "aliases it into the procedure"), (3, "$outer", "observes the write through the alias"));
     AliasesGlobal => flow!("set ::mode old\nproc update {} { global mode; set mode new }\nupdate\nputs $::mode"; (1, "global"); (0, "::mode", "lives in the global namespace"), (1, "global mode", "aliases it in the procedure"), (3, "$::mode", "observes the global write"));
     CreatesBarrier => flow!("set script {set changed 1}\neval $script\nputs $changed"; (1, "eval"); (0, "{set changed 1}", "contains runtime-selected code"), (1, "eval $script", "blocks ordinary static dataflow across dynamic execution"), (2, "$changed", "is created by that code"));

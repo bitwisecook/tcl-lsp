@@ -21,8 +21,12 @@
 //! Q1 ruled that the shipped command surfaces stay native Rust, with one
 //! carve-out: Jim's. Its surface is *authored as `SpecTcl` and loaded*,
 //! because what it has to say — "of Tcl 8.6's commands, Jim implements
-//! these" — is a roster, and a roster written as Rust is a second
-//! catalogue to keep in step with the first.
+//! these, and adds these" — is a roster and a list of commands, and a roster
+//! written as Rust is a second catalogue to keep in step with the first.
+//!
+//! Two packs carry it. `jim.tclspec` names the Tcl commands Jim inherits (an
+//! `include from tcl into jim` roster); `jim-own-surface.tclspec` is the
+//! commands Jim adds, each with the release window it was measured in.
 //!
 //! ## Why this is not a discoverable pack
 //!
@@ -40,34 +44,65 @@
 //! read by the one loader, exercising the same words a third-party pack
 //! would — without being a file anyone can take away.
 //!
+//! ## Where the commands go
+//!
+//! A roster narrows an ancestor's surface and registers with the dialect
+//! model ([`builtin_rosters`]). Commands register with the registry
+//! ([`builtin_commands`]) as a family's own compiled-in surface, not as a
+//! pack overlay: an overlay is built per pack set and reaches only the
+//! catalogue profiles, while a `jim` document is served by a store of its
+//! own family that must carry these commands whatever pack set is loaded.
+//!
 //! ## Ordering
 //!
-//! [`ensure`] is idempotent and cheap after the first call.
+//! [`ensure`] seeds the dialect model and the registry once per process and
+//! costs a lock and a flag after that. Every path that hands a consumer a
+//! registry or a pack set goes through it — [`crate::install::registry_with_packs`],
+//! [`crate::bundled::packs`], [`crate::registration::publish_pack_set`] — and
+//! the language server calls it in its `initialize` handler, before any
+//! client message can open a document. A document analysed before the first
+//! pack set is loaded therefore sees the surface a document analysed after
+//! it does.
+//!
 //! [`crate::registration::publish_pack_set`] folds these rosters in with
-//! whatever the loaded set declares, so the model-side sync (which
-//! replaces the whole store) can never drop them; [`ensure`] covers the
-//! callers that never publish a set at all.
+//! whatever the loaded set declares, so the model-side sync (which replaces
+//! the whole store) can never drop them, and a seed that runs after a
+//! publication leaves the published rosters in place.
 
-use std::sync::OnceLock;
+use std::sync::{Mutex, MutexGuard, OnceLock, PoisonError};
 
-use tcl_dialect::model::{InheritedSurface, Provenance};
+use tcl_dialect::model::{InheritedSurface, InheritedSurfaceRegistration, Provenance};
+use tcl_registry::spec::CommandSpec;
 
-use crate::loader::PackSurfaceRoster;
+use crate::loader::{Pack, PackSurfaceRoster};
 
 /// The core surface packs' `SpecTcl` sources, by the name their notices
 /// report against.
-const CORE_SURFACES: &[(&str, &str)] =
-    &[("jim.tclspec", include_str!("../core-surfaces/jim.tclspec"))];
+const CORE_SURFACES: &[(&str, &str)] = &[
+    ("jim.tclspec", include_str!("../core-surfaces/jim.tclspec")),
+    (
+        "jim-own-surface.tclspec",
+        include_str!("../core-surfaces/jim-own-surface.tclspec"),
+    ),
+];
 
-/// The roster rows the compiled-in sources declare, parsed once.
-fn rows() -> &'static [PackSurfaceRoster] {
-    static ROWS: OnceLock<Vec<PackSurfaceRoster>> = OnceLock::new();
-    ROWS.get_or_init(|| {
+/// The compiled-in packs, evaluated once, in source order.
+fn packs() -> &'static [Pack] {
+    static PACKS: OnceLock<Vec<Pack>> = OnceLock::new();
+    PACKS.get_or_init(|| {
         CORE_SURFACES
             .iter()
-            .flat_map(|(_, source)| crate::loader::evaluate_pack(source).surface_rosters)
+            .map(|(_, source)| crate::loader::evaluate_pack(source))
             .collect()
     })
+}
+
+/// The roster rows the compiled-in sources declare, parsed once.
+fn rows() -> Vec<PackSurfaceRoster> {
+    packs()
+        .iter()
+        .flat_map(|pack| pack.surface_rosters.iter().cloned())
+        .collect()
 }
 
 /// The compiled-in rosters, as the model's own data.
@@ -77,20 +112,73 @@ fn rows() -> &'static [PackSurfaceRoster] {
 /// owned set to hand to the sync.
 #[must_use]
 pub fn builtin_rosters() -> Vec<InheritedSurface> {
-    crate::surface_roster_conversion::to_inherited_surfaces(rows(), Provenance::BuiltIn)
+    crate::surface_roster_conversion::to_inherited_surfaces(&rows(), Provenance::BuiltIn)
 }
 
-/// Register the compiled-in rosters, if nothing has registered any yet.
+/// The commands the compiled-in sources declare, in source order.
 ///
-/// The entry point for a process that never publishes a pack set — a
-/// test, a tool reading the catalogue directly. A process that *does*
-/// publish goes through [`crate::registration::publish_pack_set`], which
-/// folds these in on every publication rather than racing this.
+/// Each spec is the loader's own interned `&'static` value, so a caller can
+/// register the same set repeatedly and the registry recognises it as
+/// unchanged.
+#[must_use]
+pub fn builtin_commands() -> Vec<&'static CommandSpec> {
+    packs()
+        .iter()
+        .flat_map(|pack| pack.commands.iter().map(|command| command.spec))
+        .collect()
+}
+
+/// Register the compiled-in commands with the registry as their families' own
+/// surface. Registering the set again changes nothing.
+///
+/// Returns the registry's core-surface generation after the call.
+#[must_use]
+pub fn register_builtin_commands() -> u64 {
+    tcl_registry::register_core_surface_specs(builtin_commands())
+}
+
+/// Whether the compiled-in rosters and commands have been registered.
+///
+/// Held across each registration as well as read, so a seed and a
+/// publication never interleave: whichever runs second sees the flag and the
+/// roster store the first one left.
+static SEEDED: Mutex<bool> = Mutex::new(false);
+
+fn seeded() -> MutexGuard<'static, bool> {
+    SEEDED.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// Register the compiled-in rosters followed by `pack_rosters`, and the
+/// compiled-in commands, and record that both are in.
+fn seed(seeded: &mut bool, pack_rosters: Vec<InheritedSurface>) -> InheritedSurfaceRegistration {
+    let mut rosters = builtin_rosters();
+    rosters.extend(pack_rosters);
+    let outcome = tcl_dialect::model::register_inherited_surfaces(rosters);
+    let _ = register_builtin_commands();
+    *seeded = true;
+    outcome
+}
+
+/// Register the compiled-in rosters together with the ones a pack set
+/// declares, replacing the model's whole roster store, and the compiled-in
+/// commands with the registry.
+pub(crate) fn register_with(pack_rosters: Vec<InheritedSurface>) -> InheritedSurfaceRegistration {
+    seed(&mut seeded(), pack_rosters)
+}
+
+/// Register the compiled-in rosters and commands, if nothing has registered
+/// them yet.
+///
+/// The compiled-in surface is part of the state a process starts from, so
+/// every constructor that hands out a registry calls this rather than leaving
+/// it to whichever consumer happens to publish a pack set. A call after a
+/// publication changes nothing: the publication registered the same rosters
+/// alongside the set's own.
 pub fn ensure() {
-    static DONE: OnceLock<()> = OnceLock::new();
-    DONE.get_or_init(|| {
-        let _ = tcl_dialect::model::register_inherited_surfaces(builtin_rosters());
-    });
+    let mut seeded = seeded();
+    if !*seeded {
+        let _ = seed(&mut seeded, Vec::new());
+    }
 }
 
 #[cfg(test)]
@@ -146,6 +234,50 @@ mod tests {
                 "{absent} is in `tclsh8.6` and not in any `jimsh` 0.76-0.84"
             );
         }
+    }
+
+    /// Both compiled-in packs evaluate without a load error and declare no
+    /// hook body: a hook needs a per-pack-set host these packs are never
+    /// loaded with, so one would abstain without saying so. The one notice
+    /// either raises is `proc` naming the native `Proc` lowering hook, which
+    /// the IR lowering and the command-binding replay both key on to treat a
+    /// call as a procedure definition.
+    #[test]
+    fn the_compiled_in_packs_load_clean_and_declare_no_hook_bodies() {
+        for ((name, _), pack) in CORE_SURFACES.iter().zip(packs()) {
+            assert!(pack.load_error.is_none(), "{name}: {:?}", pack.load_error);
+            let unexpected: Vec<_> = pack
+                .notices
+                .iter()
+                .filter(|notice| {
+                    !(notice.context == "command proc"
+                        && notice.message.starts_with("names a lowering hook"))
+                })
+                .collect();
+            assert!(unexpected.is_empty(), "{name}: {unexpected:?}");
+            for command in &pack.commands {
+                assert!(
+                    command.hooks.is_empty(),
+                    "{name}: `{}` declares a hook body",
+                    command.spec.name
+                );
+            }
+        }
+        assert!(
+            packs()[0].commands.is_empty(),
+            "the roster pack declares no commands"
+        );
+    }
+
+    /// The commands register once: the same set again is the same
+    /// generation, so republishing a pack set does not invalidate every jim
+    /// registry generation.
+    #[test]
+    fn registering_the_compiled_in_commands_is_idempotent() {
+        let first = register_builtin_commands();
+        assert_eq!(register_builtin_commands(), first);
+        ensure();
+        assert_eq!(register_builtin_commands(), first);
     }
 
     /// The two names that arrived mid-ladder keep their windows through

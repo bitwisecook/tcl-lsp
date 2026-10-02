@@ -35,7 +35,8 @@ pub fn spec() -> CommandSpec {
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED
             | Traits::READS_BEFORE_WRITE
-            | Traits::FIRST_ARG_VARNAME,
+            | Traits::FIRST_ARG_VARNAME
+            | Traits::UNCONDITIONAL_VARIABLE_WRITE,
         arity: Arity::at_least(1),
         // S110: string-concatenates onto the target variable, coercing a
         // binary target (or a binary appended operand) to a character string.

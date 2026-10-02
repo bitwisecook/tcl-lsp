@@ -16,86 +16,96 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Generate editor-facing selectable dialect lists from
-//! [`tcl_dialect::DialectProfile::all`].
+//! Generate editor-facing selectable dialect lists from the compiled
+//! environment registry ([`EnvironmentRegistry::compiled_selectable`]).
 //!
-//! A dialect is selectable exactly when it has a canonical profile.  There is
-//! deliberately no "CLI-only" or editor-local filter: the server accepts every
-//! catalogue profile in `tclLsp.dialect`, including `bpf`, `f5-tmsh`, and
-//! `f5-bigip`.  The presentation labels below are deliberately exhaustive so
-//! adding a profile makes this generator fail until its human-facing name is
-//! chosen, rather than silently dropping the new selectable value.
+//! A dialect is selectable exactly when the registry lists it as a choice:
+//! there is no editor-local filter, so `bpf`, `f5-tmsh`, `jim` and `tk` appear
+//! wherever the server accepts them in `tclLsp.dialect`. Order is the
+//! registry's: languages first, then Tcl releases with packages, canonical id
+//! ascending within each group. A label is the environment's `display_name`
+//! (`short_name` where the toolbar is tight) and a description is
+//! [`EnvironmentDefinition::description`].
+//!
+//! The starting dialect every manifest and settings file names is
+//! [`DEFAULT_ENVIRONMENT_ID`], the constant the server's own default is meant
+//! to follow.
 //!
 //! Run `cargo xtask gen-editor-dialects`; `--check` makes the committed VS
-//! Code, `JetBrains`, and Sublime settings-schema projections a drift gate
-//! (issue #1394).
+//! Code, `JetBrains`, and Sublime projections a drift gate.
 
 use std::fmt::Write as _;
 use std::fs;
 use std::process::ExitCode;
+use std::sync::Arc;
 
 use anyhow::{Context, Result, anyhow, bail};
-use serde_json::Value;
-use tcl_dialect::DialectProfile;
+use serde_json::{Map, Value};
+use tcl_dialect::model::{DEFAULT_ENVIRONMENT_ID, EnvironmentDefinition, EnvironmentRegistry};
 
-use crate::util::repo_root;
+use crate::util::{replace_marked_block, repo_root};
 
 const VSCODE_PACKAGE: &str = "editors/vscode/package.json";
-const VSCODE_RUNTIME: &str = "editors/vscode/src/extension.ts";
 const VSCODE_EXPLORER: &str = "editors/vscode/src/compilerExplorerHtml.ts";
 const JETBRAINS_SETTINGS: &str =
     "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/TclLspSettings.kt";
 const SUBLIME_PACKAGE: &str = "editors/sublime-text/sublime-package.json";
+const SUBLIME_SETTINGS: &str = "editors/sublime-text/LSP-Tcl.sublime-settings";
 
-#[derive(Clone, Copy)]
-struct EditorDialect {
-    name: &'static str,
-    label: &'static str,
-    short_label: &'static str,
+type Environment = Arc<EnvironmentDefinition>;
+
+fn dialects() -> &'static [Environment] {
+    EnvironmentRegistry::compiled_selectable()
 }
 
-/// The profile catalogue owns membership, canonical IDs, *and* the
-/// human-facing spellings: `display_name` for menus, `short_name` for tight
-/// UI like the compiler-explorer dropdown.  Both are mandatory struct
-/// fields, so adding a profile can't ship without its labels.
-fn editor_dialect(profile: &DialectProfile) -> EditorDialect {
-    EditorDialect {
-        name: profile.name,
-        label: profile.display_name,
-        short_label: profile.short_name,
+fn names(ds: &[Environment]) -> Vec<Value> {
+    ds.iter()
+        .map(|d| Value::String(d.id.as_str().to_owned()))
+        .collect()
+}
+
+fn descriptions(ds: &[Environment]) -> Vec<Value> {
+    ds.iter().map(|d| Value::String(d.description())).collect()
+}
+
+fn labels(ds: &[Environment]) -> Vec<Value> {
+    ds.iter()
+        .map(|d| Value::String(d.display_name.to_string()))
+        .collect()
+}
+
+/// Rebuild the `tclLsp.dialect` schema object with its enumeration keys
+/// (`enum`, `enumItemLabels`, `enumDescriptions`) in that order at the place
+/// `enum` already sat, and its default set.
+fn set_dialect_schema(schema: &mut Map<String, Value>, ds: &[Environment]) -> Result<()> {
+    if !schema.contains_key("enum") {
+        bail!("tclLsp.dialect schema has no enum to regenerate");
     }
+    let mut rebuilt = Map::new();
+    for (key, value) in std::mem::take(schema) {
+        match key.as_str() {
+            "enumItemLabels" | "enumDescriptions" => {}
+            "enum" => {
+                rebuilt.insert(key, Value::Array(names(ds)));
+                rebuilt.insert("enumItemLabels".to_owned(), Value::Array(labels(ds)));
+                rebuilt.insert(
+                    "enumDescriptions".to_owned(),
+                    Value::Array(descriptions(ds)),
+                );
+            }
+            "default" => {
+                rebuilt.insert(key, Value::String(DEFAULT_ENVIRONMENT_ID.to_owned()));
+            }
+            _ => {
+                rebuilt.insert(key, value);
+            }
+        }
+    }
+    *schema = rebuilt;
+    Ok(())
 }
 
-fn dialects() -> Vec<EditorDialect> {
-    DialectProfile::all().iter().map(editor_dialect).collect()
-}
-
-fn replace_marked_block(text: &str, begin: &str, end: &str, body: &str) -> Result<String> {
-    let start = text
-        .find(begin)
-        .with_context(|| format!("missing {begin:?}"))?;
-    let body_start = text[start..]
-        .find('\n')
-        .map(|n| start + n + 1)
-        .ok_or_else(|| anyhow!("{begin:?} must end in a newline"))?;
-    let end_tag_start = text[body_start..]
-        .find(end)
-        .map(|n| body_start + n)
-        .with_context(|| format!("missing {end:?} after {begin:?}"))?;
-    // Preserve the end marker's indentation. `find(end)` starts at the marker
-    // itself, not its line's leading spaces; replacing from there would leave
-    // a generated marker at column zero in an otherwise indented Kotlin/Python
-    // block.
-    let end_line_start = text[..end_tag_start].rfind('\n').map_or(0, |n| n + 1);
-    Ok(format!(
-        "{}{}{}",
-        &text[..body_start],
-        body,
-        &text[end_line_start..]
-    ))
-}
-
-fn render_vscode(original: &str, ds: &[EditorDialect]) -> Result<String> {
+fn render_vscode(original: &str, ds: &[Environment]) -> Result<String> {
     let mut root: Value = serde_json::from_str(original).context("parsing VS Code package.json")?;
     let configs = root["contributes"]["configuration"]
         .as_array_mut()
@@ -107,29 +117,14 @@ fn render_vscode(original: &str, ds: &[EditorDialect]) -> Result<String> {
     let dialect = general["properties"]["tclLsp.dialect"]
         .as_object_mut()
         .context("tclLsp.dialect schema missing")?;
-    dialect.insert(
-        "enum".to_owned(),
-        Value::Array(
-            ds.iter()
-                .map(|d| Value::String(d.name.to_owned()))
-                .collect(),
-        ),
-    );
-    dialect.insert(
-        "enumDescriptions".to_owned(),
-        Value::Array(
-            ds.iter()
-                .map(|d| Value::String(format!("{} dialect", d.label)))
-                .collect(),
-        ),
-    );
+    set_dialect_schema(dialect, ds)?;
 
     let ai = configs
         .iter_mut()
         .find(|section| section["title"] == "AI")
         .context("AI configuration section missing")?;
     let enum_values = std::iter::once(Value::String("*".to_owned()))
-        .chain(ds.iter().map(|d| Value::String(d.name.to_owned())))
+        .chain(names(ds))
         .collect();
     ai["properties"]["tclLsp.ai.extraPrompts"]["items"]["properties"]["dialects"]["items"]["enum"] =
         Value::Array(enum_values);
@@ -140,35 +135,19 @@ fn render_vscode(original: &str, ds: &[EditorDialect]) -> Result<String> {
     Ok(rendered)
 }
 
-fn render_vscode_runtime(original: &str, ds: &[EditorDialect]) -> Result<String> {
+fn render_jetbrains(original: &str, ds: &[Environment]) -> Result<String> {
     let mut rows = String::new();
     for d in ds {
-        // Match Prettier's TypeScript object-key style: simple identifiers are
-        // bare, while dialect IDs containing punctuation remain quoted.
-        let key = if d.name.chars().enumerate().all(|(i, c)| {
-            c == '_' || c.is_ascii_alphanumeric() && (i > 0 || c.is_ascii_alphabetic())
-        }) {
-            d.name.to_owned()
-        } else {
-            format!("\"{}\"", d.name)
-        };
-        let _ = writeln!(rows, "  {key}: \"{}\",", d.label);
+        let _ = writeln!(
+            rows,
+            "            \"{}\" to \"{}\",",
+            d.id.as_str(),
+            d.display_name
+        );
     }
-    let body = format!("const DIALECT_LABELS: Record<string, string> = {{\n{rows}}};\n");
-    replace_marked_block(
-        original,
-        "// @generated:dialect-labels:begin",
-        "// @generated:dialect-labels:end",
-        &body,
-    )
-}
-
-fn render_jetbrains(original: &str, ds: &[EditorDialect]) -> Result<String> {
-    let mut rows = String::new();
-    for d in ds {
-        let _ = writeln!(rows, "            \"{}\" to \"{}\",", d.name, d.label);
-    }
-    let body = format!("        val DIALECT_OPTIONS = listOf(\n{rows}        )\n");
+    let body = format!(
+        "        const val DEFAULT_DIALECT = \"{DEFAULT_ENVIRONMENT_ID}\"\n        val DIALECT_OPTIONS = listOf(\n{rows}        )\n"
+    );
     replace_marked_block(
         original,
         "// @generated:dialect-options:begin",
@@ -177,52 +156,141 @@ fn render_jetbrains(original: &str, ds: &[EditorDialect]) -> Result<String> {
     )
 }
 
-/// Replace one JSON string array without reserialising the whole Sublime
-/// schema.  The schema intentionally keeps a few compact one-item arrays, so
-/// a full `serde_json` round trip would create unrelated formatting drift.
-fn render_sublime_package(original: &str, ds: &[EditorDialect]) -> Result<String> {
+/// The byte range of the array value of `key`, brackets included, searching
+/// `text[from..]`. The scan is string-aware, so a bracket inside a value does
+/// not end the array.
+fn array_range(text: &str, from: usize, key: &str) -> Option<(usize, usize)> {
+    let needle = format!("\"{key}\": [");
+    let open = from + text[from..].find(&needle)? + needle.len() - 1;
+    let mut depth = 0_usize;
+    let mut in_string = false;
+    let mut escaped = false;
+    for (offset, c) in text[open..].char_indices() {
+        if in_string {
+            match c {
+                _ if escaped => escaped = false,
+                '\\' => escaped = true,
+                '"' => in_string = false,
+                _ => {}
+            }
+            continue;
+        }
+        match c {
+            '"' => in_string = true,
+            '[' => depth += 1,
+            ']' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some((open, open + offset + 1));
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// `[` … `]` for `values`, one per line, items indented one level (four
+/// spaces) past `key_indent`.
+fn render_array(values: &[Value], key_indent: &str) -> Result<String> {
+    let item_indent = format!("{key_indent}    ");
+    let mut out = String::from("[\n");
+    for (index, value) in values.iter().enumerate() {
+        let encoded = serde_json::to_string(value).context("serialising an array item")?;
+        let comma = if index + 1 == values.len() { "" } else { "," };
+        let _ = writeln!(out, "{item_indent}{encoded}{comma}");
+    }
+    let _ = write!(out, "{key_indent}]");
+    Ok(out)
+}
+
+/// The indentation of the line `key` sits on.
+fn indent_of(text: &str, at: usize) -> &str {
+    let line_start = text[..at].rfind('\n').map_or(0, |n| n + 1);
+    &text[line_start..at]
+}
+
+/// Replace one JSON string array — or insert it right after the array of
+/// `insert_after` when the key is not there yet — without reserialising the
+/// whole Sublime schema. The schema intentionally keeps a few compact
+/// one-item arrays, so a full `serde_json` round trip would create unrelated
+/// formatting drift.
+fn set_string_array(
+    text: &str,
+    from: usize,
+    key: &str,
+    values: &[Value],
+    insert_after: &str,
+) -> Result<String> {
+    if let Some((start, end)) = array_range(text, from, key) {
+        let key_at = start - format!("\"{key}\": ").len();
+        let rendered = render_array(values, indent_of(text, key_at))?;
+        return Ok(format!("{}{rendered}{}", &text[..start], &text[end..]));
+    }
+    let (anchor_start, anchor_end) = array_range(text, from, insert_after)
+        .with_context(|| format!("missing {insert_after:?} array after the dialect key"))?;
+    let indent = indent_of(text, anchor_start - format!("\"{insert_after}\": ").len()).to_owned();
+    let rendered = render_array(values, &indent)?;
+    Ok(format!(
+        "{},\n{indent}\"{key}\": {rendered}{}",
+        &text[..anchor_end],
+        &text[anchor_end..]
+    ))
+}
+
+/// Replace the string value of the first `"key": "…"` at or after `from`.
+fn set_string_value(text: &str, from: usize, key: &str, value: &str) -> Result<String> {
+    let needle = format!("\"{key}\": \"");
+    let start = from
+        + text[from..]
+            .find(&needle)
+            .with_context(|| format!("missing {needle:?}"))?
+        + needle.len();
+    let end = start
+        + text[start..]
+            .find('"')
+            .with_context(|| format!("unterminated value for {key:?}"))?;
+    Ok(format!("{}{value}{}", &text[..start], &text[end..]))
+}
+
+fn render_sublime_package(original: &str, ds: &[Environment]) -> Result<String> {
     let dialect_key = "\"dialect\": {";
     let dialect_start = original
         .find(dialect_key)
         .with_context(|| format!("missing {dialect_key:?}"))?;
-    let key = "\"enum\": [";
-    let key_start = dialect_start
-        + original[dialect_start..]
-            .find(key)
-            .with_context(|| format!("missing {key:?} after {dialect_key:?}"))?;
-    let values_start = key_start + key.len();
-    let end = original[values_start..]
-        .find(']')
-        .map(|offset| values_start + offset)
-        .with_context(|| format!("missing closing array for {key:?}"))?;
-    let key_line_start = original[..key_start].rfind('\n').map_or(0, |n| n + 1);
-    let key_indent = &original[key_line_start..key_start];
-    let item_indent = format!("{key_indent}    ");
-    let mut values = String::new();
-    for (index, d) in ds.iter().enumerate() {
-        let encoded = serde_json::to_string(d.name).context("serialising dialect name")?;
-        let comma = if index + 1 == ds.len() { "" } else { "," };
-        let _ = writeln!(values, "{item_indent}{encoded}{comma}");
-    }
-    let replacement = format!("\n{values}{key_indent}]");
-    Ok(format!(
-        "{}{replacement}{}",
-        &original[..values_start],
-        &original[end + 1..]
-    ))
+    let text = set_string_value(original, dialect_start, "default", DEFAULT_ENVIRONMENT_ID)?;
+    let text = set_string_array(&text, dialect_start, "enum", &names(ds), "enum")?;
+    set_string_array(
+        &text,
+        dialect_start,
+        "enumDescriptions",
+        &descriptions(ds),
+        "enum",
+    )
 }
 
-/// The compiler-explorer toolbar dropdown: every catalogue profile, labelled
-/// with the profile's compact `short_name` (the toolbar has no room for the
-/// full display names), `tcl8.6` pre-selected as the explorer's default.
-fn render_compiler_explorer(original: &str, ds: &[EditorDialect]) -> Result<String> {
+/// The `LSP-Tcl` settings file's starting dialect; its `dialect` line is the
+/// only key here the registry decides.
+fn render_sublime_settings(original: &str, _ds: &[Environment]) -> Result<String> {
+    set_string_value(original, 0, "dialect", DEFAULT_ENVIRONMENT_ID)
+}
+
+/// The compiler-explorer toolbar dropdown: every selectable environment,
+/// labelled with its compact `short_name` (the toolbar has no room for the
+/// full display names), the default dialect pre-selected.
+fn render_compiler_explorer(original: &str, ds: &[Environment]) -> Result<String> {
     let mut rows = String::new();
     for d in ds {
-        let selected = if d.name == "tcl8.6" { " selected" } else { "" };
+        let selected = if d.id.as_str() == DEFAULT_ENVIRONMENT_ID {
+            " selected"
+        } else {
+            ""
+        };
         let _ = writeln!(
             rows,
             "      <option value=\"{}\"{selected}>{}</option>",
-            d.name, d.short_label
+            d.id.as_str(),
+            d.short_name
         );
     }
     replace_marked_block(
@@ -233,28 +301,38 @@ fn render_compiler_explorer(original: &str, ds: &[EditorDialect]) -> Result<Stri
     )
 }
 
-type Render = fn(&str, &[EditorDialect]) -> Result<String>;
+type Render = fn(&str, &[Environment]) -> Result<String>;
+
+/// Every target whose content follows the selectable set's membership.
+const MEMBERSHIP_TARGETS: &[(&str, Render)] = &[
+    (VSCODE_PACKAGE, render_vscode),
+    (VSCODE_EXPLORER, render_compiler_explorer),
+    (JETBRAINS_SETTINGS, render_jetbrains),
+    (SUBLIME_PACKAGE, render_sublime_package),
+];
+
+/// Every generated target.
+fn targets() -> Vec<(&'static str, Render)> {
+    let mut all = MEMBERSHIP_TARGETS.to_vec();
+    all.push((SUBLIME_SETTINGS, render_sublime_settings));
+    all
+}
 
 pub fn run(check: bool) -> Result<ExitCode> {
     let root = repo_root();
     let ds = dialects();
-    if ds.len() != DialectProfile::all().len() {
-        bail!("editor dialect projection lost a DialectProfile catalog entry");
+    if !ds.iter().any(|d| d.id.as_str() == DEFAULT_ENVIRONMENT_ID) {
+        return Err(anyhow!(
+            "the default environment {DEFAULT_ENVIRONMENT_ID:?} is not selectable"
+        ));
     }
-    eprintln!("  {} selectable dialect profiles", ds.len());
-    let targets: &[(&str, Render)] = &[
-        (VSCODE_PACKAGE, render_vscode),
-        (VSCODE_RUNTIME, render_vscode_runtime),
-        (VSCODE_EXPLORER, render_compiler_explorer),
-        (JETBRAINS_SETTINGS, render_jetbrains),
-        (SUBLIME_PACKAGE, render_sublime_package),
-    ];
+    eprintln!("  {} selectable environments", ds.len());
     let mut drift = Vec::new();
-    for &(rel, render) in targets {
+    for (rel, render) in targets() {
         let path = root.join(rel);
         let original =
             fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
-        let rendered = render(&original, &ds).with_context(|| format!("rendering {rel}"))?;
+        let rendered = render(&original, ds).with_context(|| format!("rendering {rel}"))?;
         if check {
             if original != rendered {
                 drift.push(rel);
@@ -275,7 +353,7 @@ pub fn run(check: bool) -> Result<ExitCode> {
         return Ok(ExitCode::from(1));
     }
     if check {
-        eprintln!("OK: editor dialect projections match DialectProfile::all().");
+        eprintln!("OK: editor dialect projections match the selectable environments.");
     }
     Ok(ExitCode::SUCCESS)
 }
@@ -283,80 +361,133 @@ pub fn run(check: bool) -> Result<ExitCode> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tcl_dialect::model::{EnvironmentId, EnvironmentKind};
+
+    fn committed(rel: &str) -> String {
+        fs::read_to_string(repo_root().join(rel)).unwrap_or_else(|e| panic!("reading {rel}: {e}"))
+    }
 
     #[test]
-    fn every_catalog_profile_has_one_editor_projection() {
+    fn every_selectable_environment_reaches_the_editors() {
         let ds = dialects();
-        assert_eq!(ds.len(), DialectProfile::all().len());
-        assert!(ds.iter().any(|d| d.name == "bpf"));
-        assert!(ds.iter().any(|d| d.name == "spectcl"));
-        assert!(ds.iter().any(|d| d.name == "sslictcl"));
+        for id in ["bpf", "jim", "tk", "spectcl", "sslictcl", "f5-tmsh"] {
+            assert!(ds.iter().any(|d| d.id.as_str() == id), "{id}");
+        }
+        assert!(
+            ds.iter().all(|d| d.id.as_str() != "tcl"),
+            "the lenient sink is a fallback, not a choice"
+        );
     }
 
     #[test]
     fn committed_files_match_generated_dialect_projections() {
-        let root = repo_root();
         let ds = dialects();
-        for (rel, render) in [
-            (VSCODE_PACKAGE, render_vscode as Render),
-            (VSCODE_RUNTIME, render_vscode_runtime),
-            (VSCODE_EXPLORER, render_compiler_explorer),
-            (JETBRAINS_SETTINGS, render_jetbrains),
-            (SUBLIME_PACKAGE, render_sublime_package),
-        ] {
-            let path = root.join(rel);
-            let original = fs::read_to_string(&path)
-                .unwrap_or_else(|e| panic!("reading {}: {e}", path.display()));
-            assert_eq!(render(&original, &ds).unwrap(), original, "{rel} is stale");
+        for (rel, render) in targets() {
+            let original = committed(rel);
+            assert_eq!(render(&original, ds).unwrap(), original, "{rel} is stale");
         }
     }
 
     #[test]
-    fn sublime_settings_schema_is_valid_and_covers_catalogue() {
-        let root = repo_root();
-        let text = fs::read_to_string(root.join(SUBLIME_PACKAGE)).unwrap();
-        let json: Value = serde_json::from_str(&text).expect("Sublime package schema is JSON");
-        let values = &json["contributions"]["settings"][0]["schema"]["properties"]["settings"]["properties"]
-            ["tclLsp"]["properties"]["dialect"]["enum"];
-        assert_eq!(
-            values.as_array().unwrap().len(),
-            DialectProfile::all().len()
+    fn the_vscode_dialect_enum_is_labelled_and_described_from_the_registry() {
+        let manifest: Value = serde_json::from_str(&committed(VSCODE_PACKAGE)).unwrap();
+        let general = manifest["contributes"]["configuration"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|section| section["title"] == "General")
+            .unwrap();
+        let schema = &general["properties"]["tclLsp.dialect"];
+        let ds = dialects();
+        assert_eq!(schema["enum"], Value::Array(names(ds)));
+        assert_eq!(schema["enumItemLabels"], Value::Array(labels(ds)));
+        assert_eq!(schema["enumDescriptions"], Value::Array(descriptions(ds)));
+        assert_eq!(schema["default"], DEFAULT_ENVIRONMENT_ID);
+        let kinds: Vec<EnvironmentKind> = ds.iter().map(|d| d.kind).collect();
+        assert!(
+            kinds.windows(2).all(|pair| pair[0] <= pair[1]),
+            "languages are listed before tool shells"
         );
-        assert!(values.as_array().unwrap().iter().any(|v| v == "bpf"));
-        assert!(values.as_array().unwrap().iter().any(|v| v == "spectcl"));
-        assert!(values.as_array().unwrap().iter().any(|v| v == "sslictcl"));
     }
 
     #[test]
-    fn catalog_membership_mutation_drifts_every_generated_surface() {
-        let root = repo_root();
-        let full = dialects();
+    fn a_tool_shell_reads_as_a_tcl_release_with_packages() {
+        let vivado = dialects()
+            .iter()
+            .find(|d| d.id.as_str() == "xilinx-eda-tcl")
+            .unwrap();
+        assert_eq!(
+            vivado.description(),
+            "Xilinx Vivado — Tcl 8.5 + vivado, sdc, upf"
+        );
+    }
+
+    #[test]
+    fn sublime_settings_schema_is_valid_and_covers_the_registry() {
+        let json: Value = serde_json::from_str(&committed(SUBLIME_PACKAGE))
+            .expect("Sublime package schema is JSON");
+        let dialect = &json["contributions"]["settings"][0]["schema"]["properties"]["settings"]["properties"]
+            ["tclLsp"]["properties"]["dialect"];
+        let ds = dialects();
+        assert_eq!(dialect["enum"], Value::Array(names(ds)));
+        assert_eq!(dialect["enumDescriptions"], Value::Array(descriptions(ds)));
+        assert_eq!(dialect["default"], DEFAULT_ENVIRONMENT_ID);
+    }
+
+    #[test]
+    fn every_default_names_the_default_environment() {
+        let ds = dialects();
+        let settings = committed(SUBLIME_SETTINGS);
+        assert!(settings.contains(&format!("\"dialect\": \"{DEFAULT_ENVIRONMENT_ID}\"")));
+        let stale = settings.replace(
+            &format!("\"dialect\": \"{DEFAULT_ENVIRONMENT_ID}\""),
+            "\"dialect\": \"tcl9.0\"",
+        );
+        assert_eq!(
+            render_sublime_settings(&stale, ds).unwrap(),
+            settings,
+            "the render restores the default"
+        );
+        assert!(committed(JETBRAINS_SETTINGS).contains(&format!(
+            "const val DEFAULT_DIALECT = \"{DEFAULT_ENVIRONMENT_ID}\""
+        )));
+    }
+
+    #[test]
+    fn membership_mutation_drifts_every_generated_surface() {
+        let full = dialects().to_vec();
         let mut removed = full.clone();
         removed.pop();
-        let mut added = full.clone();
-        added.push(EditorDialect {
-            name: "future-dialect",
-            label: "Future Dialect",
-            short_label: "Future",
-        });
-        for (rel, render) in [
-            (VSCODE_PACKAGE, render_vscode as Render),
-            (VSCODE_RUNTIME, render_vscode_runtime),
-            (VSCODE_EXPLORER, render_compiler_explorer),
-            (JETBRAINS_SETTINGS, render_jetbrains),
-            (SUBLIME_PACKAGE, render_sublime_package),
-        ] {
-            let original = fs::read_to_string(root.join(rel)).unwrap();
+        let mut added = full;
+        let mut future = (*added[0]).clone();
+        future.id = EnvironmentId::new("future-dialect");
+        added.push(Arc::new(future));
+        for &(rel, render) in MEMBERSHIP_TARGETS {
+            let original = committed(rel);
             assert_ne!(
                 render(&original, &removed).unwrap(),
                 original,
-                "removing a profile must drift {rel}"
+                "removing an environment must drift {rel}"
             );
             assert_ne!(
                 render(&original, &added).unwrap(),
                 original,
-                "adding a profile must drift {rel}"
+                "adding an environment must drift {rel}"
             );
         }
+    }
+
+    #[test]
+    fn the_sublime_enum_render_survives_a_missing_description_array() {
+        let original = committed(SUBLIME_PACKAGE);
+        let (start, end) = array_range(&original, 0, "enumDescriptions").unwrap();
+        let key_at = start - "\"enumDescriptions\": ".len();
+        let line_start = original[..key_at].rfind('\n').unwrap();
+        let broken = format!("{}{}", &original[..line_start - 1], &original[end..]);
+        assert!(!broken.contains("enumDescriptions"));
+        assert_eq!(
+            render_sublime_package(&broken, dialects()).unwrap(),
+            original
+        );
     }
 }

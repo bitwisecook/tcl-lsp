@@ -51,7 +51,7 @@ use crate::representation::RepresentationEffect;
 use crate::side_effects::{SideEffect, StorageType};
 use crate::state_transition::StateTransitionDescriptor;
 use crate::symbol_def::SymbolDef;
-use crate::taint::{SetterConstraint, TaintColour, TaintTransformCondition};
+use crate::taint::{SetterConstraint, TaintColour, TaintNumericCoercion, TaintTransformCondition};
 use crate::traits::Traits;
 use crate::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
 use crate::world_effect::WorldEffectDescriptor;
@@ -445,6 +445,9 @@ pub struct CaseInvocation {
     pub inline_clause_start: Option<usize>,
     /// Comparison mode selected by registry-declared options.
     pub mode: CaseMatchMode,
+    /// The canonical [`CaseListSpec::special_match_options`] entry that
+    /// selected [`CaseMatchMode::Other`] (`-integer`), else `None`.
+    pub special_option: Option<&'static str>,
     /// Whether matching is case-insensitive.
     pub nocase: bool,
 }
@@ -584,6 +587,7 @@ impl CaseListSpec {
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<CaseInvocation> {
         let mut mode = CaseMatchMode::Exact;
+        let mut special_option = None;
         let mut saw_match_mode = false;
         let mut nocase = false;
         let mut saw_regex_value_option = false;
@@ -673,6 +677,7 @@ impl CaseListSpec {
                             }
                             saw_match_mode = true;
                             mode = CaseMatchMode::Other;
+                            special_option = Some(option_name);
                             i += 1;
                             continue;
                         }
@@ -743,6 +748,7 @@ impl CaseListSpec {
                 clause_list_index: Some(i),
                 inline_clause_start: None,
                 mode,
+                special_option,
                 nocase,
             })
         } else if remaining == 1 && !force_inline && (sole_clause_list || self.subject_args == 1) {
@@ -760,6 +766,7 @@ impl CaseListSpec {
                 clause_list_index: Some(i),
                 inline_clause_start: None,
                 mode,
+                special_option,
                 nocase,
             })
         } else if per_clause_flags {
@@ -772,6 +779,7 @@ impl CaseListSpec {
                 clause_list_index: None,
                 inline_clause_start: Some(i),
                 mode,
+                special_option,
                 nocase,
             })
         } else if remaining >= 2
@@ -783,6 +791,7 @@ impl CaseListSpec {
                 clause_list_index: None,
                 inline_clause_start: Some(i),
                 mode,
+                special_option,
                 nocase,
             })
         } else {
@@ -1876,6 +1885,12 @@ pub struct CommandSpec {
     /// `tcl_registry::commands::tcl::subst_::subst_evaluates_commands`.
     pub taint_sink_gate: Option<fn(&[&str]) -> bool>,
 
+    /// Which of a call's own argument words this command reads as numbers —
+    /// a T100 numeric-coercion sink when one carries taint, as an operand of a
+    /// braced `expr` is. `None` (the default) = the command coerces nothing a
+    /// caller controls. See [`TaintNumericCoercion`].
+    pub taint_numeric_coercion: Option<TaintNumericCoercion>,
+
     /// Option flags whose value carries a secret (e.g. `-password`,
     /// `-headers`) — drives credential-exposure checks. Empty = none.
     pub credential_options: &'static [&'static str],
@@ -2282,6 +2297,68 @@ fn optional_trailing_placeholders(synopsis: &'static str) -> Vec<&'static str> {
     names
 }
 
+/// The write classes one of which every `VarWrite` position should declare,
+/// so a consumer (the O109/O126 raise proof) knows whether the target is set
+/// once the command completes: always written, written on a match, read then
+/// written, destroyed, aliased, or a loop variable an empty loop leaves unset.
+pub const VARIABLE_WRITE_CLASSES: Traits = Traits::UNCONDITIONAL_VARIABLE_WRITE
+    .union(Traits::CONDITIONAL_VARIABLE_WRITE)
+    .union(Traits::READS_BEFORE_WRITE)
+    .union(Traits::DESTROYS_VARIABLE)
+    .union(Traits::CREATES_SCOPE_ALIAS)
+    .union(Traits::HAS_LOOP_BODY)
+    .union(Traits::LOOP_LIST_HEADER);
+
+fn declares_variable_write(
+    arg_roles: &[(u8, ArgRole)],
+    resolver_roles: &[ArgRole],
+    repeated: &[RepeatedArgLayout],
+    options: &[OptionSpec],
+) -> bool {
+    arg_roles.iter().any(|&(_, role)| role == ArgRole::VarWrite)
+        || resolver_roles.contains(&ArgRole::VarWrite)
+        || repeated.iter().any(|layout| layout.role == ArgRole::VarWrite)
+        || options.iter().any(|option| {
+            matches!(option.value, crate::hover::OptionValue::Takes(arg) if arg.role == ArgRole::VarWrite)
+        })
+}
+
+impl CommandSpec {
+    /// This command's, and each subcommand's, `VarWrite` positions that
+    /// declare none of [`VARIABLE_WRITE_CLASSES`], named `name` or
+    /// `name sub`. A consumer treats such a target as possibly unset.
+    #[must_use]
+    pub fn unclassified_variable_writers(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        if (self.assigns_variable_at.is_some()
+            || declares_variable_write(
+                self.arg_roles,
+                self.arg_role_resolver_roles,
+                self.repeated_args,
+                self.options,
+            ))
+            && !self.traits.intersects(VARIABLE_WRITE_CLASSES)
+        {
+            out.push(self.name.to_owned());
+        }
+        for sub in self.subcommands {
+            if declares_variable_write(
+                sub.arg_roles,
+                sub.arg_role_resolver_roles,
+                sub.repeated_args,
+                sub.options,
+            ) && !sub
+                .traits
+                .union(self.traits)
+                .intersects(VARIABLE_WRITE_CLASSES)
+            {
+                out.push(format!("{} {}", self.name, sub.name));
+            }
+        }
+        out
+    }
+}
+
 impl CommandSpec {
     /// Default value for all fields — used with `..CommandSpec::DEFAULT`.
     pub const DEFAULT: Self = Self {
@@ -2372,6 +2449,7 @@ impl CommandSpec {
         taint_double_encode_colour: None,
         taint_sink_safe_colour: None,
         taint_sink_gate: None,
+        taint_numeric_coercion: None,
         credential_options: &[],
         sensitive_headers: &[],
         setter_constraints: &[],
@@ -4068,6 +4146,21 @@ mod tests {
 
     use super::*;
     use crate::registry::CommandRegistry;
+
+    #[test]
+    fn a_writer_declared_only_by_its_assigned_variable_index_must_say_how_it_writes() {
+        let spec = CommandSpec {
+            name: "w",
+            assigns_variable_at: Some(0),
+            ..CommandSpec::DEFAULT
+        };
+        assert_eq!(spec.unclassified_variable_writers(), vec!["w".to_owned()]);
+        let classified = CommandSpec {
+            traits: Traits::UNCONDITIONAL_VARIABLE_WRITE,
+            ..spec
+        };
+        assert!(classified.unclassified_variable_writers().is_empty());
+    }
 
     // Optional trailing argument names.
     //
