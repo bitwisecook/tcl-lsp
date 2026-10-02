@@ -301,6 +301,10 @@ pub struct BuiltinFoldInputs<'a> {
     /// Which half of `mutations` gates the per-command arms — see
     /// [`FoldTrust`].
     pub trust: FoldTrust,
+    /// A caller has proved this procedure pure before evaluating it with
+    /// constant arguments. Its caller-bound parameter roots cannot be mutated
+    /// by a handler; ordinary analyses must leave this false.
+    pub proven_pure_parameters: bool,
 }
 
 /// How much of the whole-module mutation summary gates a builtin fold.
@@ -768,7 +772,9 @@ fn sccp_process_statements(
                 values.keys().copied().collect()
             };
             for k in keys {
-                if k.1 == 0 && !registry_barrier {
+                if k.1 == 0
+                    && (!registry_barrier || folds.is_some_and(|f| f.proven_pure_parameters))
+                {
                     continue;
                 }
                 if set_value(values, k, &LatticeValue::Overdefined) {
@@ -2236,6 +2242,7 @@ mod tests {
                 defining_class: None,
                 registry_engine: false,
                 trust: FoldTrust::ObservedBindings,
+                proven_pure_parameters: false,
             }),
         )
     }
@@ -3432,6 +3439,7 @@ mod tests {
                 defining_class: None,
                 registry_engine: false,
                 trust: FoldTrust::WholeModule,
+                proven_pure_parameters: false,
             }),
         )
     }
@@ -3506,6 +3514,7 @@ mod tests {
                 defining_class: None,
                 registry_engine: false,
                 trust: FoldTrust::ObservedBindings,
+                proven_pure_parameters: false,
             }),
         )
     }

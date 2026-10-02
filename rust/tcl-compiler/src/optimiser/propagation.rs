@@ -1106,6 +1106,7 @@ fn oo_method_constants(
             defining_class: Some(&frame.defining_class),
             registry_engine: true,
             trust: crate::sccp::FoldTrust::WholeModule,
+            proven_pure_parameters: false,
         }),
     );
     sccp_constants_from(&sccp, &fu.ssa)
@@ -1419,6 +1420,7 @@ fn constants_with_builtin_folds(
             defining_class: None,
             registry_engine: true,
             trust: crate::sccp::FoldTrust::WholeModule,
+            proven_pure_parameters: false,
         }),
     );
     for (name, text) in sccp_constants_from(&rerun, &fu.ssa) {
@@ -1644,6 +1646,7 @@ fn evaluate_proc_with_constants(
             defining_class: None,
             registry_engine: false,
             trust: crate::sccp::FoldTrust::WholeModule,
+            proven_pure_parameters: true,
         }),
     );
     resolve_return_constant(
@@ -3551,6 +3554,25 @@ mod tests {
             ctx.optimisations.iter().all(|o| o.code != DiagCode::O103),
             "loop-overwritten var must not fold from a stale pre-loop constant, got {:?}",
             ctx.optimisations,
+        );
+    }
+
+    #[test]
+    fn return_expr_after_unresolved_handler_does_not_fold_seeded_argument() {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let cu = CompilationUnit::build_for(
+            "proc p {x} {missing_command; return [expr {$x + 1}]}\nputs [p 5]",
+            &registry,
+            false,
+        )
+        .with_interprocedural(&registry, None);
+        let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        ctx.registry = Some(&registry);
+        run(&mut ctx, &cu);
+        assert!(
+            ctx.optimisations.iter().all(|o| o.code != DiagCode::O103),
+            "a handler can change the seeded argument: {:?}",
+            ctx.optimisations
         );
     }
 

@@ -723,6 +723,7 @@ impl FunctionUnit {
                 defining_class: None,
                 registry_engine: false,
                 trust: crate::sccp::FoldTrust::ObservedBindings,
+                proven_pure_parameters: false,
             }),
         );
         // Surface `[info exists X]` / `[array exists X]`

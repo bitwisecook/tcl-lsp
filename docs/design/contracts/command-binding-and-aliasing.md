@@ -225,7 +225,9 @@ the barrier.  The resulting `RegistryBarrier` is analysis-only and never
 dispatches or adds a command/frame/SSA/memory effect. SCCP conservatively
 widens reaching values live after this boundary, including version-0 parameter
 seeds: a handler can change a caller parameter through `upvar` without a source
-assignment. Ordinary barriers retain the existing parameter-seed policy. Backward liveness retains facts used only before the boundary, and
+assignment. Ordinary barriers retain the existing parameter-seed policy. Only the
+argument-sensitive rerun of an interprocedurally proven pure procedure retains
+its immutable caller-bound seeds. Backward liveness retains facts used only before the boundary, and
 reaching-version tracking prevents poisoning assignments that execute later.
 A value used on both sides is conservatively widened for both. Introducing
 forward clobber versions requires a separate contract for diagnostic, type,
