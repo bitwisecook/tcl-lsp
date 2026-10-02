@@ -1725,9 +1725,9 @@ variable when reached; evaluate a supported command or math function only
 when reached; retain ordering and completion. Its `NestedPolicy` is
 `EffectFreeOnly` for a branch condition and for a statement the solver does
 not evaluate with its writes, and `LocalWrites` for an assignment of an
-expression, an `expr` on its own and an assignment of one `[expr …]`
-substitution, the two states of the interface contract's ordered
-evaluation state. The result
+expression, an `expr` on its own and an assignment of one command
+substitution on the engine's or a registry-owned route, the two states of
+the interface contract's ordered evaluation state. The result
 is a Tcl value, not necessarily a number. Braced and concatenated or unbraced arguments
 have different evaluation stages — with `a` set to `alpha` and `b` to
 `beta`, `expr {$a == $b}` is 0 on every release while `expr "$a == $b"`

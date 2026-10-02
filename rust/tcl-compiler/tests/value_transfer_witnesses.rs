@@ -389,11 +389,13 @@ fn a_store_a_global_reading_callee_observes_is_kept() {
 }
 
 /// `[set x]` in value position reads the variable through the cell-write
-/// route (the Tier-1 list); `[set x 10]` writes storage a value position
-/// cannot land, so its host keeps no value.
+/// route (the Tier-1 list); `[set x 10]` writes it, so the statement's call
+/// holds the write and its host the result: `x` is 10 after the statement and
+/// so is `w`, which tclsh 8.4 to 9.1 print, before and after the optimiser.
 #[test]
 fn a_value_position_set_reads_the_variable() {
     let source = "proc p {} {set x hello; set r [set x]; set w [set x 10]; return $r$w}\n";
+    let ten = Some(LatticeValue::Const(ConstValue::Int(10)));
     for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "f5-irules"] {
         let unit = unit_of(source, dialect);
         assert_eq!(
@@ -401,12 +403,10 @@ fn a_value_position_set_reads_the_variable() {
             Some(text("hello")),
             "{dialect}"
         );
-        assert_eq!(
-            value_at(&unit, "::p", "w", 1),
-            Some(LatticeValue::Overdefined),
-            "{dialect}"
-        );
+        assert_eq!(value_at(&unit, "::p", "w", 1), ten, "{dialect}");
+        assert_eq!(value_at(&unit, "::p", "x", 2), ten, "{dialect}");
     }
+    prints_under_every_release(&format!("{source}puts [p]\n"), "hello10\n");
 }
 
 /// Program (3) of the interface contract: `incr n` and `incr n 2` over
@@ -4058,73 +4058,121 @@ fn a_store_a_catch_body_may_leave_untouched_is_not_dead() {
     }
 }
 
+/// A program, what tclsh prints for it, and the one condition it holds, if any:
+/// its truth, and whether the analysis decides it.
+type BodyProgram = (&'static str, &'static str, Option<(bool, bool)>);
+
 /// Programs whose `catch` stands in a `[…]` substitution, with what tclsh
-/// 8.4 to 9.1 print: the three of #2231 (the second is the statement form),
-/// one in a procedure, a result variable beside the substitution, a `catch`
-/// in a `catch`, one reached through an alias of `catch`, and a body that sets
-/// a name, unsets one, substitutes a command, or writes through an expression
-/// word.
-const CATCH_BODY_PROGRAMS: &[(&str, &str)] = &[
+/// 8.4 to 9.1 print and the one condition each holds, if any: its truth, and
+/// whether the analysis decides it. They are the three of #2231 (the second is
+/// the statement form), one in a procedure, a result variable beside the
+/// substitution, a `catch` in a `catch`, one reached through an alias of
+/// `catch` (whose head the module rebinds, so nothing is decided), and a body
+/// that sets a name, unsets one, substitutes a command, or writes through an
+/// expression word.
+const CATCH_BODY_PROGRAMS: &[BodyProgram] = &[
     (
         "set x 1\nset c [catch {incr x}]\nif {$x == 2} {puts two} else {puts \"not two: $x\"}\n",
         "two\n",
+        Some((true, true)),
     ),
-    ("set x 5\ncatch {incr x} m\nputs \"$x $m\"\n", "6 6\n"),
-    ("set x 1\nset c [catch {append x y}]\nputs $x\n", "1y\n"),
+    ("set x 5\ncatch {incr x} m\nputs \"$x $m\"\n", "6 6\n", None),
+    (
+        "set x 1\nset c [catch {append x y}]\nputs $x\n",
+        "1y\n",
+        None,
+    ),
     (
         "proc p {} {\n set x 1\n set c [catch {incr x}]\n if {$x == 2} {return two} else {return other}\n}\nputs [p]\n",
         "two\n",
+        Some((true, true)),
     ),
     (
         "set x 5\nputs [catch {incr x} m]\nputs \"$x $m\"\n",
         "0\n6 6\n",
+        None,
     ),
     (
         "set x 1\nset c [catch {catch {incr x}}]\nif {$x == 2} {puts two} else {puts other}\n",
         "two\n",
+        Some((true, true)),
     ),
     (
         "set g 5\nset rc [catch {set g 0}]\nif {$g} {puts a} else {puts b}\n",
         "b\n",
+        Some((false, true)),
     ),
     (
         "set x 1\nputs [catch {unset x}]\nputs [info exists x]\n",
         "0\n0\n",
+        None,
     ),
     (
         "set x 1\nputs [catch {expr {[incr x] + [error mid]}}]\nputs $x\n",
         "1\n2\n",
+        None,
     ),
-    ("set x 5\nset c [catch {puts $x}]\nputs $c\n", "5\n0\n"),
-    ("set x 5\nset c [catch {incr x}]\nputs $c\n", "0\n"),
+    (
+        "set x 5\nset c [catch {puts $x}]\nputs $c\n",
+        "5\n0\n",
+        None,
+    ),
+    ("set x 5\nset c [catch {incr x}]\nputs $c\n", "0\n", None),
     (
         "set x 1\nset c [catch {set y [incr x]}]\nif {$x == 2} {puts two} else {puts other}\n",
         "two\n",
+        Some((true, true)),
     ),
     (
         "interp alias {} c {} catch\nset x 1\nset r [c {incr x}]\n\
          if {$x == 2} {puts two} else {puts other}\n",
         "two\n",
+        Some((true, false)),
     ),
 ];
+
+/// The truths the diagnostics claim for the conditions of `source` under
+/// `dialect`: `true` for an `if` that is always true, `false` for one that
+/// is always false.
+fn condition_claims(source: &str, dialect: &str) -> Vec<bool> {
+    tcl_compiler::analyser::Analyser::new()
+        .analyse(source, dialect)
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == DiagCode::I230)
+        .filter_map(|diagnostic| {
+            if diagnostic.message.contains("is always true") {
+                Some(true)
+            } else if diagnostic.message.contains("is always false") {
+                Some(false)
+            } else {
+                None
+            }
+        })
+        .collect()
+}
 
 /// The body of a `catch`, or of a `try`, inside a `[…]` substitution runs once
 /// in the frame the substitution is written in, whatever it completes with,
 /// so what it writes and what it reads are the statement's own effect: the
 /// writes are definitions after the statement and the reads are uses of the
 /// definitions before it (#2231). Each program prints what it did before the
-/// multipass optimiser rewrote it, where the lattice held the value before
-/// the body and the stores the body reads were deleted; the condition is
-/// decided by no diagnostic, and a store the body reads stays. A `try` body
-/// does the same from 8.6.
+/// multipass optimiser rewrote it — where the lattice held the value before
+/// the body, the stores the body reads were deleted — and the condition it
+/// holds is claimed by no diagnostic but with the truth tclsh gives it; a
+/// closed body under the builtin head decides it. A `try` body does the same
+/// from 8.6.
 #[test]
 fn a_nested_catch_body_is_the_statements_effect() {
-    for &(source, expected) in CATCH_BODY_PROGRAMS {
+    for &(source, expected, condition) in CATCH_BODY_PROGRAMS {
         prints_under_every_release(source, expected);
+        let truth = condition.map(|(truth, _)| truth);
         for dialect in DIALECTS {
             assert!(
-                !reports(source, dialect, DiagCode::I230),
-                "{dialect}: no condition is decided:\n{source}"
+                condition_claims(source, dialect)
+                    .iter()
+                    .all(|claimed| Some(*claimed) == truth),
+                "{dialect}: a condition is decided as tclsh does not:\n{source}"
             );
             for store in ["set x 1", "set x 5"] {
                 if source.contains(store) {
@@ -4135,12 +4183,27 @@ fn a_nested_catch_body_is_the_statements_effect() {
                 }
             }
         }
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let decided = condition
+                .filter(|(_, decided)| *decided)
+                .map(|(truth, _)| truth);
+            assert_eq!(
+                condition_claims(source, dialect),
+                decided.into_iter().collect::<Vec<_>>(),
+                "{dialect}: the condition is decided exactly where the body is closed:\n{source}"
+            );
+        }
     }
     let in_try = "set x 1\nset r [try {incr x} on error {} {set y 0}]\n\
                   if {$x == 2} {puts two} else {puts other}\n";
     prints_under_releases_from(in_try, "two\n", "8.6");
     for dialect in ["tcl8.6", "tcl9.0"] {
-        assert!(!reports(in_try, dialect, DiagCode::I230), "{dialect}");
+        assert!(
+            condition_claims(in_try, dialect)
+                .iter()
+                .all(|claimed| *claimed),
+            "{dialect}"
+        );
     }
 }
 
@@ -4348,6 +4411,226 @@ fn the_options_dictionary_starts_with_the_code_and_level_the_route_states() {
             Some(LatticeValue::Overdefined),
             "{dialect}"
         );
+    }
+}
+
+/// The rows of the `catch` code table that read nothing the program has not
+/// set: the script, the code `catch` returns for it and what its result
+/// variable holds, the same under tclsh 8.4 to 9.1. `return -code 5 custom`
+/// completes with the code 2 where it stands in a `catch` — the code 5 is the
+/// one a procedure's caller sees.
+const CATCH_CODES: &[(&str, i64, &str)] = &[
+    ("return 5", 2, "5"),
+    ("break", 3, ""),
+    ("continue", 4, ""),
+    ("error boom", 1, "boom"),
+    ("set v 1", 0, "1"),
+    ("expr {1/0}", 1, "divide by zero"),
+    ("return -code 5 custom", 2, "custom"),
+    ("string length abc", 0, "3"),
+];
+
+/// The program one row of the code table runs: a procedure that keeps the
+/// code of a `catch` in a substitution and the result beside it, and prints
+/// both.
+fn catch_program(script: &str) -> String {
+    format!("proc p {{}} {{\n    set c [catch {{{script}}} m]\n    puts \"$c|$m\"\n}}\np\n")
+}
+
+/// The rows every release reads alike, under each release's dialect and the
+/// `tcl` profile that spans them: the code, the result, the `evaluated`
+/// answer and the optimiser's forwarding, and the lines tclsh 8.4 to 9.1
+/// print before and after.
+fn the_catch_rows_every_release_reads_alike() {
+    for &(script, code, result) in CATCH_CODES {
+        let source = catch_program(script);
+        for dialect in RELEASE_DIALECTS {
+            let unit = unit_of(&source, dialect);
+            assert_eq!(
+                value_at(&unit, "::p", "c", 1),
+                Some(LatticeValue::Const(ConstValue::Int(code))),
+                "{dialect}: the code of {script}"
+            );
+            assert_eq!(
+                value_at(&unit, "::p", "m", 1).and_then(lattice_text),
+                Some(result.to_owned()),
+                "{dialect}: the result of {script}"
+            );
+            assert_eq!(
+                answers_for(&unit, "::p", "catch"),
+                ["evaluated"],
+                "{dialect}: {script}"
+            );
+            let (rewritten, _) = optimised(&source, dialect);
+            assert!(
+                rewritten.contains(&format!("{code}|{result}")),
+                "{dialect}: {script} is forwarded:\n{rewritten}"
+            );
+        }
+        prints_under_every_release(&source, &format!("{code}|{result}\n"));
+    }
+}
+
+/// `catch {incr absent}`: the error of 8.4 and of the iRules dialect on its
+/// 8.4 base, the created cell from 8.5, and nothing under the spanning
+/// profile, which cannot say which release runs.
+fn the_catch_row_that_splits_on_an_absent_cell() {
+    let absent = catch_program("incr absent");
+    let message = "can't read \"absent\": no such variable";
+    let created = Some((0, "1"));
+    let raised = Some((1, message));
+    for (dialect, expected) in [
+        ("tcl8.4", raised),
+        ("f5-irules", raised),
+        ("tcl8.5", created),
+        ("tcl8.6", created),
+        ("tcl9.0", created),
+        ("tcl9.1", created),
+        ("tcl", None),
+    ] {
+        let unit = unit_of(&absent, dialect);
+        let code_fact = value_at(&unit, "::p", "c", 1);
+        let result_fact = value_at(&unit, "::p", "m", 1).and_then(lattice_text);
+        if let Some((code, result)) = expected {
+            assert_eq!(
+                code_fact,
+                Some(LatticeValue::Const(ConstValue::Int(code))),
+                "{dialect}: the code"
+            );
+            assert_eq!(
+                result_fact.as_deref(),
+                Some(result),
+                "{dialect}: the result"
+            );
+        } else {
+            assert_eq!(code_fact, Some(LatticeValue::Overdefined), "{dialect}");
+            assert_eq!(result_fact, None, "{dialect}");
+        }
+    }
+    for (series, tclsh) in releases_on_path() {
+        let expected = if series == "8.4" {
+            format!("1|{message}\n")
+        } else {
+            "0|1\n".to_owned()
+        };
+        for text in [absent.clone(), optimised(&absent, &dialect_of(series)).0] {
+            assert_eq!(
+                run_script(&tclsh, &text),
+                Some((true, expected.clone())),
+                "tclsh{series}:\n{text}"
+            );
+        }
+    }
+}
+
+/// A `catch` in a `[…]` substitution — where the code is the value of the
+/// statement and the message or result a variable beside it — is evaluated to
+/// the code its script completes with: the code table, forwarded by the
+/// optimiser and printed by tclsh 8.4 to 9.1 before and after, with the
+/// release split of `incr` on a cell that is absent as the one row that
+/// differs. A procedure's own completion is a callee's summary, so `catch
+/// {q}` over a `proc q {} {return -code 5 custom}` states nothing of the code
+/// 5 tclsh prints.
+#[test]
+fn the_catch_code_table() {
+    the_catch_rows_every_release_reads_alike();
+    the_catch_row_that_splits_on_an_absent_cell();
+    let callee = "proc q {} {return -code 5 custom}\n\
+                  proc p {} {\n    set c [catch {q} m]\n    puts \"$c|$m\"\n}\np\n";
+    for dialect in RELEASE_DIALECTS {
+        assert_eq!(
+            value_at(&unit_of(callee, dialect), "::p", "c", 1),
+            Some(LatticeValue::Overdefined),
+            "{dialect}"
+        );
+    }
+    prints_under_every_release(callee, "5|custom\n");
+}
+
+/// A script that is not brace-quoted text is not known: `"error $e"` runs
+/// `error a b`, whose message is `a`, where its spelling would give `a b`. A
+/// `catch` in a substitution has no barrier ahead of it, so the script word is
+/// the only thing between the lattice and a message that was never raised:
+/// the result and the code stay unknown under every dialect, and tclsh 8.4 to
+/// 9.1 print `1|a`.
+#[test]
+fn a_catch_script_that_is_not_brace_quoted_text_is_not_the_script_it_runs() {
+    let quoted = "proc p {} {\n    set e {a b}\n    set c [catch \"error $e\" m]\n    \
+                  puts \"$c|$m\"\n}\np\n";
+    for dialect in RELEASE_DIALECTS {
+        let unit = unit_of(quoted, dialect);
+        for var in ["c", "m"] {
+            assert_eq!(
+                value_at(&unit, "::p", var, 1),
+                Some(LatticeValue::Overdefined),
+                "{dialect}: {var}"
+            );
+        }
+    }
+    prints_under_every_release(quoted, "1|a\n");
+}
+
+/// A command substitution that is the whole value of a statement is run in
+/// order with its own writes whichever registry-owned route the command
+/// declares: the statement's call holds what the command stored and the
+/// statement what it returned, so `set a [incr n]` leaves `n` 2 as well as
+/// `a`. Each program prints what tclsh 8.5 to 9.1 print before and after the
+/// optimiser, and the values the lattice holds are the ones printed.
+#[test]
+fn a_command_substitution_lands_its_writes_beside_its_result() {
+    type Program = (
+        &'static str,
+        &'static str,
+        &'static [(&'static str, &'static str)],
+    );
+    let programs: [Program; 7] = [
+        (
+            "proc p {} {set n 1; set a [incr n]; return \"$a $n\"}\nputs [p]\n",
+            "2 2\n",
+            &[("a", "2"), ("n", "2")],
+        ),
+        (
+            "proc p {} {set a [set b 5]; return \"$a $b\"}\nputs [p]\n",
+            "5 5\n",
+            &[("a", "5"), ("b", "5")],
+        ),
+        (
+            "proc p {} {set s abc; set a [append s def]; return \"$a|$s\"}\nputs [p]\n",
+            "abcdef|abcdef\n",
+            &[("a", "abcdef"), ("s", "abcdef")],
+        ),
+        (
+            "proc p {} {set l {}; set a [lappend l x y]; return \"$a|$l\"}\nputs [p]\n",
+            "x y|x y\n",
+            &[("a", "x y"), ("l", "x y")],
+        ),
+        (
+            "proc p {} {set a [scan {7 8} {%d %d} x y]; return \"$a $x $y\"}\nputs [p]\n",
+            "2 7 8\n",
+            &[("a", "2"), ("x", "7"), ("y", "8")],
+        ),
+        (
+            "proc p {} {set a [lassign {1 2 3} u v]; return \"$a|$u|$v\"}\nputs [p]\n",
+            "3|1|2\n",
+            &[("a", "3"), ("u", "1"), ("v", "2")],
+        ),
+        (
+            "proc p {} {set d {}; set a [dict set d k v]; return \"$a|$d\"}\nputs [p]\n",
+            "k v|k v\n",
+            &[("a", "k v"), ("d", "k v")],
+        ),
+    ];
+    for (source, expected, last) in programs {
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            for &(var, text) in last {
+                assert_eq!(
+                    lattice_text(last_value(source, dialect, "::p", var)).as_deref(),
+                    Some(text),
+                    "{dialect}: {var} after\n{source}"
+                );
+            }
+        }
+        prints_under_releases_from(source, expected, "8.5");
     }
 }
 

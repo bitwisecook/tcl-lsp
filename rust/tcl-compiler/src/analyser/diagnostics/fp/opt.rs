@@ -299,11 +299,17 @@ const FP_OPT_06_REPRO: &str = "proc f {} { set x a; set y [append x b]; puts $x;
 
 #[test]
 fn fp_opt_06_o100_does_not_propagate_past_cmd_sub_write() {
-    // FP-OPT-06: [append x b] mutates x; optimiser must NOT propagate stale "a" into puts $x.
+    // FP-OPT-06: [append x b] mutates x; optimiser must NOT propagate stale "a" into puts $x,
+    // but the value the append left, "ab", is what both reads hold.
     let opt_src = optimised(FP_OPT_06_REPRO, D);
     assert!(
-        !opt_src.contains("puts a"),
+        !opt_src.contains("puts a;") && !opt_src.contains("puts a }"),
         "FP-OPT-06: O100 must NOT propagate stale value past [append x b]; got: {:?}",
+        opt_src.trim()
+    );
+    assert!(
+        opt_src.contains("puts ab; puts ab"),
+        "FP-OPT-06: O100 forwards what [append x b] left; got: {:?}",
         opt_src.trim()
     );
 }

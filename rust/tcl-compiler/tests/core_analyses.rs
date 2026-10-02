@@ -1317,13 +1317,21 @@ mod soundness_gates {
     }
 
     #[test]
-    fn nested_command_sub_assignment_is_not_folded() {
-        // `set y [set X 1]` creates X with no SSA def → folder must not treat X
-        // as absent. tclsh: `set y [set X 1]; info exists X` → 1.
-        assert!(!fires(
+    fn nested_command_sub_assignment_is_not_folded_as_absent() {
+        // `set y [set X 1]` creates X: the folder must not treat X as absent, and
+        // the statement's evaluation says it is set. tclsh: `set y [set X 1]; info
+        // exists X` → 1.
+        let messages = i230_messages(
             "proc p {} { set y [set X 1]; if {[info exists X]} { puts a } else { puts b } }",
-            "I230"
-        ));
+        );
+        assert!(
+            messages.iter().any(|m| m.contains("always true")),
+            "{messages:?}"
+        );
+        assert!(
+            !messages.iter().any(|m| m.contains("always false")),
+            "{messages:?}"
+        );
     }
 
     #[test]

@@ -2153,11 +2153,12 @@ impl<'a> LatticeDriver<'a> {
     /// evaluation declines, and both keep the answers they have without it.
     ///
     /// The host is an `AssignExpr` or an `ExprEval`, whose expression the
-    /// engine runs, or an `AssignValue` whose word is one `expr`
-    /// substitution, whose own substituting words and nested commands are
-    /// the ones evaluated in order. Every other host — a `Call`, a `Return`,
-    /// a condition, a value that is any other command — keeps the
-    /// effect-free policy.
+    /// engine runs, or an `AssignValue` whose word is one command
+    /// substitution on the engine's or a registry-owned route, whose own
+    /// substituting words and nested commands are the ones evaluated in
+    /// order. Every other host — a `Call`, a `Return`, a condition, a value
+    /// that is a command without such a route — keeps the effect-free
+    /// policy.
     pub(crate) fn evaluate_embedded<S: std::hash::BuildHasher>(
         &self,
         block: &crate::ssa::SsaBlock,
@@ -2321,11 +2322,12 @@ impl<'a> LatticeDriver<'a> {
         })
     }
 
-    /// A value word that is one `[expr …]` substitution, run under
+    /// A value word that is one command substitution, run under
     /// `LocalWrites`: the invocation's own substituting words and the
-    /// commands nested in them evaluate in order, and the result is the
-    /// word's. A word that is any other command stays with the effect-free
-    /// policy.
+    /// commands nested in them evaluate in order, its own stores follow, and
+    /// the result is the word's. A command whose route is neither the
+    /// expression engine's nor a registry-owned evaluator, and a word that
+    /// is more than the one substitution, stay with the effect-free policy.
     fn ordered_script<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
         value: &str,
@@ -2344,7 +2346,10 @@ impl<'a> LatticeDriver<'a> {
         let inner = std::str::from_utf8(script).ok()?;
         let run = self.run_script(inner, lattice, (Vec::new(), NestedPolicy::LocalWrites))?;
         // A head the module rebinds has no route.
-        if !matches!(run.route, Some(EvalRoute::Expression { .. })) {
+        if !matches!(
+            run.route,
+            Some(EvalRoute::Expression { .. } | EvalRoute::Direct { .. })
+        ) {
             return None;
         }
         self.explain(&run.head, run.route, answer_label(&run.answer));

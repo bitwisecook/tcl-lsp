@@ -73,8 +73,9 @@ it stays. A branch the expression never reaches writes nothing: after
 `expr {0 && [incr x]}` the place still holds what it held.
 
 This holds for an assignment of an expression, for an `expr` on its own, and for
-an assignment of one `[expr …]` substitution, whose quoted or unbraced words
-substitute first. A statement that carries the expression in a `puts` or a
+an assignment of one command substitution on the expression engine's or a
+registry-owned route (`set a [incr n]`, `set c [catch {…} m]`), whose quoted or
+unbraced words substitute first. A statement that carries the expression in a `puts` or a
 `return`, a condition, a nested write to a global, a command the file defines
 and a nested command the analyser cannot evaluate leave the places they write
 unknown after them, and nothing is inlined.
