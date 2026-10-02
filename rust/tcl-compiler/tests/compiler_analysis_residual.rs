@@ -2195,3 +2195,26 @@ fn braced_expression_rebinding_precedes_later_sibling_and_statement() {
         assert!(safe.top_level.sccp.constant_branches[0].value);
     }
 }
+
+#[test]
+fn expression_alias_roles_use_bindings_before_substitution() {
+    // The later redefinition must not hide the expression role of this alias
+    // at its earlier invocation. Tcl 9.0.4 prints changed and kept respectively.
+    for (expression, should_fold) in [
+        ("[rename aaa {}; rename eval aaa; set _ 0]", false),
+        ("[string length safe]", true),
+    ] {
+        let source = format!(
+            "proc aaa args {{return 0}}; interp alias {{}} e {{}} expr; set x 5; set ignored \"[e {{{expression}}}][aaa {{set x 6}}]\"; if {{$x == 5}} {{puts kept}} else {{puts changed}}; rename e {{}}; proc e args {{return 0}}"
+        );
+        let cu = CompilationUnit::build_for(&source, &reg(), false);
+        assert_eq!(
+            cu.top_level.sccp.constant_branches.len(),
+            usize::from(should_fold),
+            "expression roles must reflect the invocation's source-order state"
+        );
+        if should_fold {
+            assert!(cu.top_level.sccp.constant_branches[0].value);
+        }
+    }
+}

@@ -584,7 +584,14 @@ impl<'a> CfgBuilder<'a> {
     /// host statement, so callers place the synthetic barrier before that
     /// host in the CFG.
     fn embedded_registry_barrier(&self, stmt: &Statement) -> bool {
-        let resolve = self.embedded_head_resolver();
+        let bindings = self
+            .source_binding_timeline
+            .as_ref()
+            .and_then(|timeline| timeline.before_substitutions(stmt.span()))
+            .cloned()
+            .unwrap_or_else(|| self.command_bindings.clone());
+        let resolve =
+            |head: &str| bindings.resolved_embedded_head(head, &self.invocation_namespace);
         let embedded = crate::ir_helpers::evaluated_command_substitutions_with_heads(
             stmt,
             self.registry,
@@ -593,12 +600,6 @@ impl<'a> CfgBuilder<'a> {
         if embedded.opaque {
             return true;
         }
-        let bindings = self
-            .source_binding_timeline
-            .as_ref()
-            .and_then(|timeline| timeline.before_substitutions(stmt.span()))
-            .cloned()
-            .unwrap_or_else(|| self.command_bindings.clone());
         self.command_words_registry_barrier_with_bindings(
             &embedded.all_commands().cloned().collect::<Vec<_>>(),
             bindings,
@@ -1206,10 +1207,18 @@ impl<'a> CfgBuilder<'a> {
     /// procedure summaries, and timeline-resolved handler barriers.
     fn condition_out_vars(&self, condition: &ExprNode, span: Span) -> ConditionEffects {
         let mut defs = crate::ir_helpers::condition_command_out_vars(condition, self.registry);
+        let bindings = self
+            .source_binding_timeline
+            .as_ref()
+            .and_then(|timeline| timeline.before_substitutions(span))
+            .cloned()
+            .unwrap_or_else(|| self.command_bindings.clone());
+        let resolve =
+            |head: &str| bindings.resolved_embedded_head(head, &self.invocation_namespace);
         let embedded = crate::ir_helpers::expression_command_substitutions(
             condition,
             self.registry,
-            Some(&self.embedded_head_resolver()),
+            Some(&resolve),
         );
         let upvar = self.upvar_effects_from_commands(&embedded.commands);
         let opaque_upvar = upvar.opaque_arguments;
@@ -1247,12 +1256,6 @@ impl<'a> CfgBuilder<'a> {
                 reads.push(name);
             }
         }
-        let bindings = self
-            .source_binding_timeline
-            .as_ref()
-            .and_then(|timeline| timeline.before_substitutions(span))
-            .cloned()
-            .unwrap_or_else(|| self.command_bindings.clone());
         ConditionEffects {
             defs,
             reads,

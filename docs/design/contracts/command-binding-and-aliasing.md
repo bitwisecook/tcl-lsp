@@ -292,3 +292,5 @@ that stream; an earlier expression's nested renames reach both later siblings
 and following statements without changing the inventories used by call graphs.
 Both consumers use the same resolved registry head and alias-prepended argument
 offsets when discovering expression words, so aliases preserve that ordering.
+Role discovery uses the binding state before that substitution, so a later
+alias redefinition does not hide an earlier expression's nested effects.
