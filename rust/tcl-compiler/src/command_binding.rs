@@ -45,7 +45,7 @@ use crate::alias::is_current_interpreter;
 use crate::cfg::BlockId;
 use crate::cfg::Function as CfgFunction;
 use crate::ir::{Module, Script, Statement};
-use crate::ir_helpers::{evaluated_command_substitutions_with_heads, nested_bodies};
+use crate::ir_helpers::{evaluated_command_substitutions_with_replay, nested_bodies};
 use crate::naming::is_dynamic_word;
 use crate::naming::normalise_qualified_name as nqn;
 use crate::var_escape::helpers::invocation_facts;
@@ -382,9 +382,9 @@ impl ModuleCommandBindings {
     /// scalar-barrier projection. Each command advances the local source-order
     /// state before the next one is resolved, including registry binding
     /// transitions such as `rename` and opaque readable-eval bodies.
-    pub(crate) fn source_order_registry_barrier_in_commands(
+    pub(crate) fn source_order_registry_barrier_for_command(
         &mut self,
-        commands: &[Vec<crate::ir_helpers::CommandWord>],
+        words: &[crate::ir_helpers::CommandWord],
         registry: &CommandRegistry,
         namespace: &crate::ir_helpers::ExecutionNamespace,
         barrier_traits: tcl_registry::Traits,
@@ -392,37 +392,32 @@ impl ModuleCommandBindings {
         if self.source_order_user_call_effects.is_none() {
             self.source_order_user_call_effects = Some(self.source_order_call_boundary());
         }
-        for words in commands {
-            let Some(head) = words
-                .first()
-                .and_then(crate::ir_helpers::CommandWord::literal)
-            else {
-                self.mark_opaque_binding_mutation();
-                return true;
-            };
-            let Some(command_namespace) = namespace.for_head(head) else {
-                self.mark_opaque_binding_mutation();
-                return true;
-            };
-            let source_may_be_unknown = self.target_may_be_unknown(head, command_namespace);
-            let reaches_user_procedure = self
-                .targets(head, command_namespace)
+        let Some(head) = words
+            .first()
+            .and_then(crate::ir_helpers::CommandWord::literal)
+        else {
+            self.mark_opaque_binding_mutation();
+            return true;
+        };
+        let Some(command_namespace) = namespace.for_head(head) else {
+            self.mark_opaque_binding_mutation();
+            return true;
+        };
+        let source_may_be_unknown = self.target_may_be_unknown(head, command_namespace);
+        let reaches_user_procedure = self
+            .targets(head, command_namespace)
+            .iter()
+            .any(|target| !target.registry_backed);
+        let facts = self.resolve_command_words(words, registry, command_namespace);
+        let barrier = source_may_be_unknown
+            || facts
                 .iter()
-                .any(|target| !target.registry_backed);
-            let facts = self.resolve_command_words(words, registry, command_namespace);
-            let barrier = source_may_be_unknown
-                || facts
-                    .iter()
-                    .any(|facts| facts.traits.intersects(barrier_traits));
-            apply_resolved_may_transitions(facts, source_may_be_unknown, true, self, namespace);
-            if reaches_user_procedure {
-                self.mark_source_order_user_procedure_call();
-            }
-            if barrier {
-                return true;
-            }
+                .any(|facts| facts.traits.intersects(barrier_traits));
+        apply_resolved_may_transitions(facts, source_may_be_unknown, true, self, namespace);
+        if reaches_user_procedure {
+            self.mark_source_order_user_procedure_call();
         }
-        false
+        barrier
     }
 
     #[cfg(test)]
@@ -2265,45 +2260,63 @@ fn apply_embedded_transitions(
     namespace: &crate::ir_helpers::ExecutionNamespace,
     source_order_mode: bool,
 ) -> bool {
-    let resolve = |head: &str| bindings.resolved_embedded_head(head, namespace);
-    let embedded = evaluated_command_substitutions_with_heads(stmt, registry, Some(&resolve));
+    let state = std::cell::RefCell::new(bindings);
+    let resolve = |head: &str| state.borrow().resolved_embedded_head(head, namespace);
+    let observe = |words: &[crate::ir_helpers::CommandWord]| {
+        apply_embedded_command_transition(
+            words,
+            registry,
+            &mut state.borrow_mut(),
+            namespace,
+            source_order_mode,
+        );
+    };
+    let embedded =
+        evaluated_command_substitutions_with_replay(stmt, registry, Some(&resolve), Some(&observe));
     let observed = embedded.opaque || embedded.all_commands().next().is_some();
     if embedded.opaque {
-        bindings.mark_opaque_binding_mutation();
-    }
-    for words in embedded.all_commands() {
-        let Some(head) = words.first() else {
-            continue;
-        };
-        let Some(head_name) = head.literal() else {
-            bindings.mark_opaque_binding_mutation();
-            continue;
-        };
-        let Some(command_namespace) = namespace.for_head(head_name) else {
-            bindings.mark_opaque_binding_mutation();
-            continue;
-        };
-        let source_may_be_unknown = bindings.target_may_be_unknown(head_name, command_namespace);
-        if source_order_mode
-            && bindings
-                .targets(head_name, command_namespace)
-                .iter()
-                .any(|target| !target.registry_backed)
-        {
-            bindings.mark_source_order_user_procedure_call();
-        }
-        let facts = bindings.resolve_command_words(words, registry, command_namespace);
-        apply_resolved_may_transitions(
-            facts,
-            source_may_be_unknown,
-            // A recovered invocation has no structured IR body. If it can
-            // evaluate Tcl text, that text may change any command binding.
-            true,
-            bindings,
-            namespace,
-        );
+        state.borrow_mut().mark_opaque_binding_mutation();
     }
     observed
+}
+
+fn apply_embedded_command_transition(
+    words: &[crate::ir_helpers::CommandWord],
+    registry: &CommandRegistry,
+    bindings: &mut ModuleCommandBindings,
+    namespace: &crate::ir_helpers::ExecutionNamespace,
+    source_order_mode: bool,
+) {
+    let Some(head) = words.first() else {
+        return;
+    };
+    let Some(head_name) = head.literal() else {
+        bindings.mark_opaque_binding_mutation();
+        return;
+    };
+    let Some(command_namespace) = namespace.for_head(head_name) else {
+        bindings.mark_opaque_binding_mutation();
+        return;
+    };
+    let source_may_be_unknown = bindings.target_may_be_unknown(head_name, command_namespace);
+    if source_order_mode
+        && bindings
+            .targets(head_name, command_namespace)
+            .iter()
+            .any(|target| !target.registry_backed)
+    {
+        bindings.mark_source_order_user_procedure_call();
+    }
+    let facts = bindings.resolve_command_words(words, registry, command_namespace);
+    apply_resolved_may_transitions(
+        facts,
+        source_may_be_unknown,
+        // A recovered invocation has no structured IR body. If it can
+        // evaluate Tcl text, that text may change any command binding.
+        true,
+        bindings,
+        namespace,
+    );
 }
 
 fn invocation_transition_inputs(

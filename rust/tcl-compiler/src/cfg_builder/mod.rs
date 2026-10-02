@@ -590,33 +590,31 @@ impl<'a> CfgBuilder<'a> {
             .and_then(|timeline| timeline.before_substitutions(stmt.span()))
             .cloned()
             .unwrap_or_else(|| self.command_bindings.clone());
-        let resolve =
-            |head: &str| bindings.resolved_embedded_head(head, &self.invocation_namespace);
-        let embedded = crate::ir_helpers::evaluated_command_substitutions_with_heads(
+        let state = std::cell::RefCell::new(bindings);
+        let barrier = std::cell::Cell::new(false);
+        let resolve = |head: &str| {
+            state
+                .borrow()
+                .resolved_embedded_head(head, &self.invocation_namespace)
+        };
+        let observe = |words: &[crate::ir_helpers::CommandWord]| {
+            let found = state
+                .borrow_mut()
+                .source_order_registry_barrier_for_command(
+                    words,
+                    self.registry,
+                    &self.invocation_namespace,
+                    REGISTRY_BARRIER_TRAITS,
+                );
+            barrier.set(barrier.get() || found);
+        };
+        let embedded = crate::ir_helpers::evaluated_command_substitutions_with_replay(
             stmt,
             self.registry,
             Some(&resolve),
+            Some(&observe),
         );
-        if embedded.opaque {
-            return true;
-        }
-        self.command_words_registry_barrier_with_bindings(
-            &embedded.all_commands().cloned().collect::<Vec<_>>(),
-            bindings,
-        )
-    }
-
-    fn command_words_registry_barrier_with_bindings(
-        &self,
-        commands: &[Vec<crate::ir_helpers::CommandWord>],
-        mut bindings: ModuleCommandBindings,
-    ) -> bool {
-        bindings.source_order_registry_barrier_in_commands(
-            commands,
-            self.registry,
-            &self.invocation_namespace,
-            REGISTRY_BARRIER_TRAITS,
-        )
+        embedded.opaque || barrier.get()
     }
 
     fn registry_barrier_statement(stmt: &Statement, reason: &str) -> Statement {
@@ -1213,12 +1211,29 @@ impl<'a> CfgBuilder<'a> {
             .and_then(|timeline| timeline.before_substitutions(span))
             .cloned()
             .unwrap_or_else(|| self.command_bindings.clone());
-        let resolve =
-            |head: &str| bindings.resolved_embedded_head(head, &self.invocation_namespace);
-        let embedded = crate::ir_helpers::expression_command_substitutions(
+        let state = std::cell::RefCell::new(bindings);
+        let registry_barrier = std::cell::Cell::new(false);
+        let resolve = |head: &str| {
+            state
+                .borrow()
+                .resolved_embedded_head(head, &self.invocation_namespace)
+        };
+        let observe = |words: &[crate::ir_helpers::CommandWord]| {
+            let found = state
+                .borrow_mut()
+                .source_order_registry_barrier_for_command(
+                    words,
+                    self.registry,
+                    &self.invocation_namespace,
+                    REGISTRY_BARRIER_TRAITS,
+                );
+            registry_barrier.set(registry_barrier.get() || found);
+        };
+        let embedded = crate::ir_helpers::expression_command_substitutions_with_replay(
             condition,
             self.registry,
             Some(&resolve),
+            Some(&observe),
         );
         let upvar = self.upvar_effects_from_commands(&embedded.commands);
         let opaque_upvar = upvar.opaque_arguments;
@@ -1260,10 +1275,7 @@ impl<'a> CfgBuilder<'a> {
             defs,
             reads,
             opaque_global,
-            registry_barrier: self.command_words_registry_barrier_with_bindings(
-                &embedded.all_commands().cloned().collect::<Vec<_>>(),
-                bindings,
-            ),
+            registry_barrier: embedded.opaque || registry_barrier.get(),
         }
     }
 

@@ -294,3 +294,6 @@ Both consumers use the same resolved registry head and alias-prepended argument
 offsets when discovering expression words, so aliases preserve that ordering.
 Role discovery uses the binding state before that substitution, so a later
 alias redefinition does not hide an earlier expression's nested effects.
+The owner replays each recovered invocation before discovering the next head's
+expression roles. An alias created by an earlier substitution therefore enables
+descent into a later sibling's expression without precomputing a stale inventory.

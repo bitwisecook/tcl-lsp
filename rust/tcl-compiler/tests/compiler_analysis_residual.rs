@@ -2218,3 +2218,27 @@ fn expression_alias_roles_use_bindings_before_substitution() {
         }
     }
 }
+
+#[test]
+fn expression_alias_created_by_earlier_substitution_replays_nested_effects() {
+    // Tcl 9.0.4: each mutating form prints changed; the pure control prints kept.
+    for middle in [
+        "list [interp alias {} e {} expr] [e {[rename aaa {}; rename eval aaa; set _ 0]}] [aaa {set x 6}]",
+        "list [interp alias {} e {} expr 1 +] [e {[rename aaa {}; rename eval aaa; set _ 0]}] [aaa {set x 6}]",
+        "set ignored \"[interp alias {} e {} expr][e {[rename aaa {}; rename eval aaa; set _ 0]}][aaa {set x 6}]\"",
+        "list [expr {[interp alias {} e {} expr] ne \"\"}] [e {[rename aaa {}; rename eval aaa; set _ 0]}] [aaa {set x 6}]",
+    ] {
+        let source = format!(
+            "proc aaa args {{return 0}}; set x 5; {middle}; if {{$x == 5}} {{puts stale}} else {{puts changed}}"
+        );
+        let cu = CompilationUnit::build_for(&source, &reg(), false);
+        assert!(cu.top_level.sccp.constant_branches.is_empty(), "{middle}");
+    }
+    let safe = CompilationUnit::build_for(
+        "proc aaa args {return 0}; set x 5; list [interp alias {} e {} expr] [e {[string length safe]}] [aaa {set x 6}]; if {$x == 5} {puts kept} else {puts changed}",
+        &reg(),
+        false,
+    );
+    assert_eq!(safe.top_level.sccp.constant_branches.len(), 1);
+    assert!(safe.top_level.sccp.constant_branches[0].value);
+}

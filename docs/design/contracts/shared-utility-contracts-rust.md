@@ -91,6 +91,9 @@ the resulting scalar proof against the Tcl rename/eval witnesses.
 `command_binding::ModuleCommandBindings::resolved_embedded_head` supplies the
 shared registry target and prepended arguments for this expression descent in
 both CFG projection and binding replay, including aliases to expression commands.
+The inventory walker accepts an invocation observer alongside this resolver;
+discovery and replay advance together so an earlier substitution can introduce
+the alias whose expression words a later sibling evaluates.
 
 ### `tcl-dialect` + `tcl-test-support` — C Tcl reference toolchains
 
