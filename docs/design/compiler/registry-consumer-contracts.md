@@ -206,6 +206,23 @@ slices proceed without deciding anything here.
 > `infer_from_body` (`rust/tcl-spec-studio/src/infer.rs`) reads a body's purity,
 > effects, return type and callbacks for an import's drafts.
 >
+> The codegen axis is versioned, and the release a versioned fold evaluates
+> under comes through an evidence gate. A codegen-axis stamp —
+> `codegen_hook`, `inline_codegen_hook`, `semantic_operation` and, on the
+> compiled catalogue, `native_lowering` — can carry ordered windows beside its
+> plain field (`StampWindow`, `rust/tcl-registry/src/stamp_window.rs`).
+> `StampSelection` selects one at the release a call is resolved at and
+> declines, to plain dispatch, where the point does not settle a release, and a
+> pack writes a window as `-introduced`, `-deprecated` and `-retired` on the
+> stamp's statement. A profile's evaluation point
+> (`DialectProfile::evaluation_point`) is its runtime base only where something
+> measured it — a Tcl release's pinned toolchain, or the note a measured fork
+> carries — so a versioned fold answers as Tcl 8.4 under iRules, iApps and tmsh
+> and keeps to the answer every release gives under a profile nothing measured.
+> `SurfaceQuery::packages` carries the floor each package's context guarantees
+> (`PackageFloor`), and a package row windowed on the package's own axis is
+> admitted only where that floor lies in a window.
+>
 > The rest of the vocabulary is not built, and names nothing in the
 > workspace: the `ShippedImplementation` claim and `IdentityKind`.
 >

@@ -1,4 +1,4 @@
-# Lane: consumer contracts — steps 1–8 landed; the plan for steps 2–10
+# Lane: consumer contracts — steps 1–9 landed; the plan for steps 2–10
 
 ## Goal
 
@@ -2455,6 +2455,181 @@ checkpoints*: CC9.2 first, then CC9.3, then CC9.1.
 | CC9.2 the evidence gate | landed | `wip(consumer-contracts): step 9 — evaluation points through the evidence gate` | **The gate.** `rust/tcl-dialect/src/profile.rs`: `EvaluationEvidence { ReferenceToolchain, MeasuredFork { note }, Unmeasured }` and `DialectProfile::evaluation_evidence`, written out on every catalogue entry — the five Tcl releases `ReferenceToolchain`, iRules, iApps and tmsh `MeasuredFork` with a note citing `docs/design/f5/bigip-irule-parser-measurements.md` §4 and §4a, and the other eleven, the permissive fallback, `tk` and a profile projected from a point `Unmeasured`. `evaluation_point()` is `runtime_base` where the evidence is not `Unmeasured`; `is_tcl_release()` says the evidence is a pinned reference toolchain. `TclVersion::from_profile` is `profile.evaluation_point()` where it matched five names (D9.2), `from_dialect` resolves a name through the catalogue to it, and `const_fold_version` is the same call. **What it changes.** The versioned folds (`const_fold_versioned`: `string is`, `string range`, `format`, `regsub`, and the `tcl-version` a pack's versioned hook is given) now answer under 8.4 for `f5-irules`, `f5-iapps` and `f5-tmsh` where they answered the invariant subset (D9.3); a profile nothing measured (`expect`, the EDA shells, `bpf`, the SpecTcl hosts) is unchanged. `TargetSemantics::of` still reads `runtime_version`, so the value-transfer routes are as they were (D9.4). Two readers of the old answer moved with it: `tcl registry-dump --all-dialects` and `tcl-fuzz`'s release spelling ask `is_tcl_release()` (D9.5). **The iRules rows** (`rust/tcl-registry/tests/differential_fold.rs`): `versioned_folds_under_irules_match_tclsh84` runs the broad fold matrix, the `format` matrix and seven release-dependent rows through `registry_fold_under` at iRules' point against the real `tclsh8.4`, and holds the dependent rows to answering where, with no release, they decline; `an_unmeasured_vendor_base_leaves_a_versioned_fold_to_the_invariant_subset` is its negative (`expect` models an 8.6 base and `string is integer 4294967296` does not fold); `format_witnesses_match_every_release_on_path` takes the iRules profile against `tclsh8.4` beside the five releases. **A defect the rows found** (D9.6): the `format` fold under 8.4 answered `%.0d` of 0 as `0` where `tclsh8.4` prints nothing, so plain `tcl8.4` documents folded it wrong already and the three F5 profiles now would have; `apply_precision` (`format_.rs`) answers the empty digits through 8.4 and declines with no release, and the matrix has the six rows. The harness's reference treated an error as an empty answer on 8.x (a `tclsh` reading its script from standard input exits 0 after an error); `tcl_value` catches the call. **Tests.** `tcl-dialect`: `profile.rs` `a_measured_vendor_profile_has_an_evaluation_point` and `an_unmeasured_profile_has_none` (the plan's two: the three forks answer 8.4 from a note that names the measurement, an alias resolves to the same point, and every unmeasured profile that models a base answers none), `an_evaluation_point_is_the_runtime_base_and_a_release_claims_a_pinned_toolchain` (new: the point is the base and nothing else, a Tcl release has a pinned patchlevel, no vendor surface and its own name, and there are exactly five), `const_fold_version_is_the_evaluation_point_and_the_release_the_name_parses_to` (was `…_stays_bit_identical_to_from_dialect`), `version.rs` `from_dialect_maps_every_versioned_tcl` (iRules, and `expect` as the negative); `tcl-registry`: the two differential tests above and `format_.rs` `a_zero_precision_of_zero_is_empty_through_8_4_and_a_zero_after`; `tcl-spec-hooks`: `const_fold_e2e.rs` `a_versioned_pack_fold_is_told_the_profiles_evaluation_point` (a pack's versioned hook through the optimiser: `8.6`, `9.0`, `8.4` for the three forks, and none for `expect`, an EDA shell and the fallback); `tcl-compiler`: `analyser.rs` `a_vendor_profile_folds_a_version_sensitive_constant_only_where_its_release_was_measured` (was `…_abstains_from_…`, whose guard said what this item changes: `format %d 010` is 8 under iRules and unresolved under `expect`, D9.7); `tcl-cli`: `registry.rs` `all_dialects_is_the_tcl_releases_and_not_a_measured_fork`; `tcl-fuzz`'s release spelling refuses `f5-irules`. **Mutation checks**, each switched on through an environment variable compiled into the files for the run and removed by restoring them: the gate ignoring the evidence (`an_unmeasured_profile_has_none`, `from_dialect_maps_every_versioned_tcl`, the unmeasured differential test and the pack-hook test), a measured fork answering none (`a_measured_vendor_profile_has_an_evaluation_point`, `from_dialect_maps_…`, `versioned_folds_under_irules_match_tclsh84`, the pack-hook test), `from_profile` read off the profile's name again (`a_measured_vendor_profile_…`, `const_fold_version_is_the_evaluation_point_…`, `from_dialect_maps_…`), `is_tcl_release` true for any measured profile (`a_measured_vendor_profile_…`, `an_evaluation_point_is_the_runtime_base_…`, `all_dialects_is_the_tcl_releases_…`), the 8.4 zero-precision rule off, applied to every release and answered with no release (`a_zero_precision_of_zero_…`, with `versioned_folds_under_irules_match_tclsh84` for the first and `format_folds_match_tcl9` and `format_folds_integer_flag_width_precision` for the second). Seven mutants, all killed. **Gates.** `cargo test`, under `LANG=C.UTF-8` with `TCL_REQUIRE_WASM_LINK=1`, `TCL_TOMMATH_DIR` and the `tmp` oracle tree linked, in batches of twelve binaries: `-p tcl-dialect` (169 tests with the doc test; lib 156, was 153), `-p tcl-registry` (1316, was 1313; `differential_fold` 16, was 14), `-p tcl-spec-hooks` (49, was 48), `-p tcl-compiler` (68 binaries, 9941, unchanged), `-p tcl-irule-test` (29), `-p tcl-irules` (80), `-p tcl-lsp-core` (3578), `-p tcl-cli` (156, was 155) and `-p tcl-fuzz` (106); `cargo check --workspace --all-targets`; clippy (`--workspace --all-targets -- -D warnings`, no new `#[allow]`; two lints answered in the code, `redundant_closure` and a dead helper removed) and `cargo fmt --all` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389), `owner-resolution` (45), `retired-api-gate`, `runtime-stdlib`, `kcs-index-links` and `gen-irule-test-data --check` green, `dialect-drift` at its 8 sites. Deviations: three forks are measured, not two (D9.3); the const-ops call the plan names is no longer a caller of `from_profile` (D9.4); the fuzz parser, the dump predicate and a fold defect are beyond the plan's list (D9.5, D9.6). D9.2–D9.7 |
 | CC9.3 package version windows | landed | `wip(consumer-contracts): step 9 — package version windows` | **The model.** `rust/tcl-dialect/src/model/authored_surface.rs`: `PackageFloor { name, version }` (`named`, `at`) and `SurfaceQuery::packages: &[PackageFloor]`, with `package`, `carries` and `same_point`. `SpecSurface::admits` asks a package row about the floor its query carries for that package — `introduced <= floor < retired`, a lifecycle asked about a target release — so a row introduced after the floor is not admitted, a package carried with no stated floor admits every window, and a package the query does not carry admits no row (D9.8); `surfaces_overlap` compares two rows of one package by their windows. `DialectProfile::surface_packages` is `&[PackageFloor]`, each named with no floor. **The feed** (D9.9, D9.10). `CommandRegistry::package_floor` is the one place a profile's library pin and a pack's `ambient_package` rows meet (`package_floor_for_spec` asks it); `own_packages` holds the floors of the packages the registry's point carries, refreshed by `set_profile` and `insert_ambient_package`; `own_surface_query()` lends them, so it borrows the registry. The sites that spelled the registry's own point as `profile.surface_query()` ask `own_surface_query()` now (`spec_for_this_registry`, `instance_methods` and `instance_method`, `project_for_profile`, the format-string, pattern and case-list lookups, `command_binding_transitions`, the realm's `available_spec`), and `spec_visible` recognises its profile's own point by `same_point`, because a query that carries a floor is no longer `==` the profile's. `AuthoringScope` carries a pack's ambient floor for the packages the context's point carries, recomputed when a pack's row is recorded. A floor refines a package already in the point and never puts one there. **What it changes.** Nothing shipped: no shipped spec has a windowed package row and no catalogue profile names a floor for a package its point carries, so every shipped answer is the permissive one it was. A pack's `ambient_package` row now moves a windowed row the way a lifecycle moves a command (D9.9); what the pack's own `available {package NAME RANGE}` still drops is D9.11. **Tests.** `tcl-dialect`, `authored_surface.rs` (eight, new): `a_package_row_is_asked_about_the_floor_its_query_carries`, `a_package_the_query_carries_without_a_floor_admits_every_window`, `a_package_the_query_does_not_carry_admits_no_row_whatever_its_windows`, `a_row_with_no_window_admits_a_carried_package_at_any_floor`, `a_package_floor_does_not_move_a_core_row`, `the_floor_a_row_is_asked_about_is_the_one_named_for_its_package`, `a_query_is_the_same_point_whatever_floors_it_carries` and `two_rows_for_one_package_meet_where_their_windows_do`; `tcl-registry`, `library_axis.rs` `a_package_row_introduced_after_the_floor_is_not_admitted` (the plan's: a row introduced in 8.6, one retired there and one with no window, under a floor of none, 8.4, 8.5, 8.6 and 9.0, the floor arriving before and after the projection and a name declared plain and then from 8.6) and `a_declared_floor_does_not_put_a_package_into_the_point` (its negative: a plain Tcl point carries no Tk however a pack declares it), `registry.rs` `a_floor_on_the_own_query_leaves_it_the_profiles_own_point` and `a_command_is_known_here_only_where_the_floored_point_admits_it` (the registry's own `has_command_in_this_dialect`, with the floor arriving after the projection; the one-oracle gate keeps that call inside the registry), `model/context.rs` `a_pack_declared_floor_is_the_floor_of_a_carried_package_only`; the profile, registry and front-end tests that built a query with `with_packages(&["…"])` build it with `PackageFloor::named` (D9.12). **Mutation checks**, each switched on through an environment variable compiled into the files for the run and removed by restoring them: `admits` ignoring the floor (`a_package_row_is_asked_about_…`, `the_floor_a_row_is_asked_about_…`, `a_pack_declared_floor_…`, `a_package_row_introduced_after_the_floor_is_not_admitted`), a carried package with no floor admitting nothing (`a_package_the_query_carries_without_a_floor_…`, `a_pack_declared_floor_…`, the plan's test), `same_point` as `==` (`a_query_is_the_same_point_…`, `a_floor_on_the_own_query_…`) and as the core alone (`a_query_is_the_same_point_…`), `windows_meet` always true and `precedes` inclusive (`two_rows_for_one_package_meet_…`), `own_surface_query` lending the profile's floor-less query (`a_floor_on_the_own_query_…`, the plan's test), `insert_ambient_package` and `set_profile` not refreshing the floors (the plan's test, and for the first `a_floor_on_the_own_query_…` and `a_command_is_known_here_…`), `package_floor` ignoring the pack's claim (`a_floor_on_the_own_query_…`, the plan's test), `project_for_profile` selecting under the floor-less query (the plan's test, through the name declared twice), `spec_visible` comparing with `!=` (`a_floor_on_the_own_query_…`), `spec_for_this_registry` asking the floor-less query (`a_command_is_known_here_…`), the context scope not recomputed when a pack's row is recorded and carrying no floor (`a_pack_declared_floor_…`). Fifteen mutants, all killed. **Gates.** `cargo test`, under `LANG=C.UTF-8` with `TCL_REQUIRE_WASM_LINK=1`, `TCL_TOMMATH_DIR` and the `tmp` oracle tree linked, in batches of twelve binaries: `-p tcl-dialect` (177 with the doc test; lib 164, was 156), `-p tcl-registry` (1321, was 1316), `-p tcl-spec-hooks` (49), `-p tcl-compiler` (68 binaries, 9941), `-p tcl-lsp-core` (3578), `-p bpf-tcl-ir` (50), `-p tcl-cli-support` (19), `-p tcl-lsp-server` (2242), `-p tcl-spectcl` (407), `-p tcl-cli` (156) and `-p tcl-mcp` (114), the last nine unchanged; `cargo check --workspace --all-targets`; clippy (`--workspace --all-targets -- -D warnings`, no new `#[allow]`; one lint answered in the code, `missing_fields_in_debug`) and `cargo fmt --all` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389), `owner-resolution` (45), `retired-api-gate` (which turned back an integration test's call to `has_command_in_this_dialect`, so the assertion lives in a registry unit test), `runtime-stdlib`, `kcs-index-links` and `gen-irule-test-data --check` green, `dialect-drift` at its 8 sites. Deviations: the floor is keyed by the name a row spells, so no shipped query carries one (D9.9); the pack's `available` range and the assembled registry's lowering still read a package's whole axis (D9.11); the eleven own-point sites and `spec_visible` are beyond the plan's file list (D9.10). D9.8–D9.12 |
 | CC9.1 versioned stamps | landed | `wip(consumer-contracts): step 9 — versioned codegen stamps` | **The model.** `rust/tcl-registry/src/stamp_window.rs` (new): `StampWindow<T> { lifecycle, value }`, the twin of `ArityWindow` — `Lifecycle::overlaps` is now the one overlap rule and `ArityWindow::overlaps` delegates to it — and `StampSelection<T> { Inherit, Stamp, Decline }`. `CommandSpec` gains `codegen_hook_windows`, `inline_codegen_hook_windows`, `semantic_operation_windows` and `native_lowering_windows` beside the plain fields, `SubCommand` the first three, and a form none (D9.1). **Selection** (D9.13). `StampSelection::of(plain, windows, query)`: with no windows it is the plain field and nothing else, whatever the query, so no shipped spec moves; with windows the point must be a Tcl release — the first window covering it wins and the plain stamp stands where none does — or the whole Tcl ladder, where the stamp must be the same at every release; another family, no core and no query decline. A level that declines does not inherit: `resolve_call` composes form, subcommand and command with `StampSelection::or`, so a subcommand's decline is not answered by its command's hook. **Where it is read** (D9.14). `resolve_call` (both hooks), `resolve_invocation` and `resolve_structured_invocation` (`InvocationSemantics::operation`, including the intrinsic a windowed codegen or inline hook names — `level_operation` is the one function the three levels and `descriptor_operation` share), `CommandSpec::native_lowering_at` (the two readers in `native_lowering/lower.rs`), and the surface-blind questions `intrinsic_ids` and `command_names_for_semantic_operation`, which count every window's stamp so a trust proof quantifies over every release. The value-transfer derivation reads the plain `native_lowering` only. **The rule and the floor** (D9.15). `codegen_stamps()` lists a level's plain stamp and every window's, once each, so the tier gate, the capability gate and the `alias_of` target test hold a windowed stamp exactly as a plain one and a refusal drops it from the windows (`stamps.rs`); the security floor gives a command that ships a stamp, plain or windowed, the shipped windows over an override's, and `every_security_bearing_field_is_in_the_floor` gained the four names. **The loader** (D9.16). `codegen_hook -native ID`, `inline_codegen_hook -native ID` and `semantic_operation SPELLING` take `-introduced V ?-deprecated V? ?-retired V?` at command and subcommand scope (vocabulary 2.2, noticed per site under an older declaration): a flagged row is one window, an unflagged row the plain stamp; overlapping windows keep the first and notice the later, an impossibly ordered window is dropped and not widened to every release, a form's stamp that asks for a window is dropped with a notice, and an unknown flag on a stamp statement is a notice. **The studio** (D9.17). The four keys in the schema, the draft, the coverage witnesses and tables, the help text, the clusters and the worked examples; the `.tclspec` render writes a window as the row it was read from, and `native_lowering_windows` is unrecoverable in the draft and excluded from the render as `native_lowering` is; `docs/references/command-spec/fields.md` regenerated. **The goldens.** `CommandSpec`'s `Debug` rendering, which each shipped pack's golden snapshot digests command by command, gains the four window fields and `SubCommand`'s three, so `cargo xtask pack-goldens` re-recorded the 25 snapshots: the `spec` digest of each of their 1516 commands moved and no other line of any snapshot did (compared line by line with the parent's: the `hooks` and `grammar` digests, the line numbers and the notices are as they were). **Tests.** `tcl-registry`: `stamp_window.rs` (ten, new: selection at a release, the plain stamp's fallback, the whole ladder divided and agreeing, a point that is not a Tcl release, a decline against a silent level, the first covering window, candidates, overlap), `lifecycle.rs` `lifecycles_overlap_unless_one_ends_before_the_other_begins`, `registry.rs` `a_stamp_window_is_selected_at_the_primary_release_and_declines_where_it_is_not_settled`, `the_plain_stamp_stands_where_no_window_covers_and_a_window_wins_where_one_does`, `a_subcommand_inherits_where_its_windows_are_silent_and_does_not_where_they_decline`, `a_semantic_operation_window_decides_the_operation_a_resolved_invocation_has`, `a_subcommand_operation_inherits_where_silent_and_is_plain_where_it_declines`, `the_operation_a_windowed_hook_names_is_selected_and_declined_like_the_hook`, `a_native_lowering_window_is_read_at_the_point_and_declines_across_its_edge` and `a_windowed_operation_is_counted_by_the_questions_that_ask_no_release`, `codegen_stamp.rs` `a_windowed_stamp_is_carried_and_listed_once` and `a_windowed_stamp_records_the_target_s_identity_where_it_is_the_target_s_own`, `security_floor.rs` `the_floor_takes_the_shipped_stamp_windows_and_leaves_an_override_none_of_its_own`, `registry_sweep.rs` `stamp_windows_never_overlap` (the plan's: every shipped command and subcommand through the gate, and the gate's own malformed shapes); `tcl-compiler`: `codegen.rs` `a_stamp_declared_from_9_0_declines_under_a_profile_spanning_8_6` (the plan's: pinned at 9.0 `lassign` specialises, pinned at 8.6 and across the ladder it is a plain invoke, and the unversioned `lassign` under the same permissive profile still specialises); `tcl-spectcl`: `loader.rs` (six: windows beside the plain stamp at both scopes, overlapping windows, an impossible window, a form's stamp, an unknown flag, the 2.2 notice) and `stamps.rs` `a_windowed_stamp_is_refused_and_dropped_as_the_plain_one_is`, `a_windowed_subcommand_stamp_is_dropped_at_its_own_site_only`; `tcl-spec-studio`: `spectcl_roundtrip.rs` `stamp_windows_survive_the_round_trip` and `native_lowering_windows_are_unrecoverable_and_not_rendered`, `store.rs` `a_windowed_stamp_is_kept_in_the_document_and_dropped_from_the_installed_world`. **Mutation checks**, each switched on through an environment variable compiled into the files for the run and removed by restoring them: selection taking the first window whatever the release, the whole ladder never declining, another family not declining, a decline inheriting (in `StampSelection::or`, and separately in the semantic, inline and codegen arms of `level_operation`), no plain fallback, a release-less `select` guessing the first window, candidates and `stamps()` without the windows, a window-less level declining with no query, the command's hook and inline hook ignoring windows in `resolve_call`, a subcommand's decline falling to the command's hook, a subcommand's windows ignored, the floor never taking shipped windows and taking them only beside a windowed stamp, the loader dropping a flagged row, widening an impossible one, keeping an overlapping one, reading a form's gated stamp as plain, and saying nothing of an unknown flag or the 2.2 vocabulary, the stamp rule clearing the plain field whatever stamp was refused and not clearing windows, the draft seeding no windows, the render writing no window rows and no `-retired`; and the sweep's overlap and ordering assertions, each deleted by hand (`stamp_windows_never_overlap`'s own cases). Thirty-one mutants, all killed. **Gates.** `cargo test`, under `LANG=C.UTF-8` with `TCL_REQUIRE_WASM_LINK=1`, `TCL_TOMMATH_DIR` and the `tmp` oracle tree linked, in batches of twelve binaries: `-p tcl-registry` (1344, was 1321), `-p tcl-spectcl` (415, was 407), `-p tcl-spec-studio` (303, was 300), `-p tcl-spec-hooks` (49), `-p tcl-compiler` (68 binaries, 9942, was 9941), `-p tcl-lsp-core` (3578), `-p tcl-vm` (1500) and `-p tcl-cli` (156), the last four unchanged; `cargo check --workspace --all-targets`; clippy (`--workspace --all-targets -- -D warnings`, no new `#[allow]`; lints answered in the code: `needless_pass_by_value`, `single_match_else`, `too_many_lines`, `type_complexity` and `items_after_statements`) and `cargo fmt --all` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25, re-recorded as above), `command-backing --check` (389), `owner-resolution` (45), `retired-api-gate`, `runtime-stdlib`, `kcs-index-links` and `gen-irule-test-data --check` green, `dialect-drift` at its 8 sites. Deviations: a form takes no window and a stamp window is not checked for containment in its owner's lifecycle, which is on another axis (D9.16); a declared target range has no reader and the value-transfer derivation reads the plain native lowering only (D9.14); the rule compares a stamp's identity, not its window, with its target's (D9.15). D9.1, D9.13–D9.18 |
+
+**Step 9 is landed.** All three items above (CC9.1 to CC9.3) are `landed`; the
+review checklist below is run against this tree and its evidence recorded
+there. The plan's exit evidence holds: `cargo test -p tcl-registry` (1344, in 21 binaries) has
+the window sweep, `registry_sweep.rs`'s `stamp_windows_never_overlap`, beside the
+ten rows of `stamp_window.rs`; `cargo test -p tcl-compiler --test codegen --test
+dialect_threading` (166 and 13) has the straddle row,
+`a_stamp_declared_from_9_0_declines_under_a_profile_spanning_8_6`; and the
+value-transfers lane's `kcs-qa-why-does-a-constant-fold-depend-on-the-dialect.md`
+states the iRules witnesses (`string is integer 4294967296` is 0 under
+`f5-irules`, as `tclsh8.4` prints, and does not fold under `expect`, whose 8.6
+base nobody measured), which `differential_fold.rs` runs against the real
+`tclsh8.4` (16 tests in the file). Three things the plan did not ask for are in the
+step, each recorded as a decision and not folded in: a third measured fork, tmsh
+(D9.3); a fix to the `format` fold's `%.0d` of 0 under 8.4, which the iRules rows
+found and which `tcl8.4` documents had folded wrong already (D9.6); and the
+eleven sites that spelled the registry's own point, which a floor on the query
+would have left disagreeing with their lookups (D9.10). Three things the plan
+names are not built, each recorded: the declared target range that disagrees with
+the primary has no reader, because no host that compiles takes one (D9.14); a
+pack's own `available {package NAME RANGE}` still validates and drops its range
+(D9.11); and the value-transfer routes' base-release rule is not behind the gate
+(D9.4).
+
+The landing commit also changes the following. It appends `"step 9"` to
+`registry_axes.rs`'s `LANDED` — D2.13's "a lane landing a step or slice bumps it".
+No waiver in the tree says `until step 9` (every `registry-axis-ok` expiry in the
+tree is `never`), so none expires and none needs resolving; the gate's own fixtures
+that used `until step 9` as a not-yet-landed expiry (five spellings in three tests,
+and the one assertion that reads the parsed expiry) move to `until step 10`, as
+step 8's landing moved `until step 8` to `until step 9` (`cargo test -p xtask
+registry_axes`, 9; the crate's 242 pass), and `docs/generated/registry-axes.md`
+regenerates unchanged. It adds the step's built vocabulary to the design page's
+status box and rewrites the two design indexes' entries for the page, under the
+repository owner's standing rule for every page outside `docs/design/lanes/`:
+current state only, with no step, item or decision numbers. The page's body
+already states each item's rule in the present tense, so no other passage is
+touched, and the passages that carry the step narrative are left for the owner's
+sweep. It updates the title above and `docs/design/lanes/README.md`'s bullet.
+Gates for the landing: `cargo check
+--workspace --all-targets`, `cargo clippy --workspace --all-targets -- -D warnings`
+and `cargo fmt --all -- --check` are clean, with no new `#[allow]`;
+`registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged),
+`value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged),
+`pack-goldens --check` (25), `command-backing --check` (389), `retired-api-gate`,
+`owner-resolution` (45), `kcs-index-links`, `callback-inventory --check`,
+`audit-option-dialects --check` (114 probed options), `number-drift`,
+`segmentation-drift`, `gen-irule-test-data --check` and `runtime-stdlib` are green,
+`dialect-drift` is at its 8 sites, and `verify-nextest-binary-shards.py
+--partition-count 5 --metadata-only` proves 331 targets (no item of the step added
+a test binary). The plan drafts no landing message for step 9, so
+this commit's follows step 8's. Step 10 is next, on its own items.
+
+### Step 9 — review checklist, verified
+
+The plan's § *Review checklist* (§ *Plan for steps 2–10* › *Step 9*), run
+against the landed tree with evidence:
+
+- **"Per measured row, never by name": no `match profile.name` decides a
+  release.** `TclVersion::from_profile`, `from_dialect` and
+  `DialectProfile::const_fold_version` are one call,
+  `DialectProfile::evaluation_point`, which reads the profile's
+  `evaluation_evidence`, a field written out on every catalogue entry (D9.2);
+  `from_profile` was a match over five profile names and no comparison of a
+  profile's name decides a release in `version.rs` or in `profile.rs` before its
+  tests, where the one left is the catalogue's own `find`.
+  `a_measured_vendor_profile_has_an_evaluation_point` holds each measured fork to
+  a note that names the measurement, `an_unmeasured_profile_has_none` holds every
+  profile that models a base and has no evidence to none, and
+  `an_evaluation_point_is_the_runtime_base_and_a_release_claims_a_pinned_toolchain`
+  holds a Tcl release to its pinned patchlevel and the count to five. The
+  mutation that read `from_profile` off the profile's name again fails
+  `a_measured_vendor_profile_has_an_evaluation_point`,
+  `const_fold_version_is_the_evaluation_point_and_the_release_the_name_parses_to`
+  and `from_dialect_maps_every_versioned_tcl` (CC9.2's row).
+- **A straddle is a decline to plain dispatch, never a silent choice of one
+  row.** `StampSelection` has three answers, and a level that declines does not
+  inherit (D9.13): a windowed stamp is chosen at a release and over the whole
+  ladder only where every release agrees, and any other query — another family, no
+  core, no query — declines. The witnesses are
+  `a_stamp_declared_from_9_0_declines_under_a_profile_spanning_8_6` (the plan's,
+  at the compiler: pinned at 9.0 `lassign` specialises, pinned at 8.6 and across
+  the ladder it is a plain invoke, and the unversioned `lassign` under the same
+  permissive profile still specialises), `a_whole_ladder_that_a_window_divides_declines`,
+  `a_point_that_is_not_a_tcl_release_declines_a_windowed_level` and
+  `a_declined_level_does_not_inherit_and_a_silent_one_does` in
+  `stamp_window.rs`, and the registry's
+  `a_subcommand_inherits_where_its_windows_are_silent_and_does_not_where_they_decline`.
+  The mutants that took the first window whatever the release, never declined
+  over the whole ladder, did not decline off the Tcl family or let a decline
+  inherit were each killed (CC9.1's row).
+- **Risk: the iRules fold delta reaching `tcl-irule-test` fixtures
+  (`gen-irule-test-data --check`).** The generated iRule-test data is in step with
+  the registry, so no fixture moved, and `tcl-irule-test` (29) and `tcl-irules`
+  (80) pass: the three forks' versioned folds answer under 8.4 where the
+  fixtures' expectations were never made under a different release.
+- **Risk: `SurfaceQuery` is `Copy`-shaped and widely constructed.** It is still
+  `Copy` (`packages` is a borrowed slice of `PackageFloor`s, which are `Copy`), the
+  constructors (`core`, `any_release`, `with_packages`) keep their shapes, and the
+  fan-out was mechanical and compiled in the item's one commit: the eight readers
+  that asked `packages.contains(&"…")` ask `carries("…")`, the test call sites that
+  passed names pass `PackageFloor::named` (D9.12), and the eleven sites that
+  spelled the registry's own point ask `own_surface_query()` (D9.10). The query's
+  `==` stopped meaning "the profile's own point" once a registry's query carried
+  floors its profile's did not, so that comparison is `same_point`, held by
+  `a_query_is_the_same_point_whatever_floors_it_carries`.
+
+### Step 9 — what the next steps read
+
+- **For step 10 (the extension legs).** An extension's command carries no stamp
+  and no window. `CommandSpec::DEFAULT` holds the four window slices empty, and
+  `StampSelection::of` answers a level with no windows its plain field at every
+  point (D9.13), so the default fact CC10.1 builds from it, with `HostNative` for
+  its backing, is dispatched plain at every release, which is what that backing
+  says. A pack cannot give an extension command a stamp or a window either: the
+  stamp rule drops a codegen-axis stamp unless it is a bundled pack's `alias_of`
+  target's own, windowed or not (D9.15), and an `alias_of` names a shipped builtin.
+  The evidence gate is the versioned folds' alone (D9.4): the value-transfer
+  routes, a declared implementation's among them, still read
+  `DialectProfile::runtime_version`, so an evaluation route for an extension
+  (CC10.6) is asked under that rule and not under a measured point. A package row
+  is asked about the floor its query carries for that package, and a package the
+  query carries with no stated floor admits every window (D9.8); a floor reaches a
+  query only from a pack's `ambient_package NAME VERSION` row, because a profile's
+  library pins are keyed by the library's name and not the name a surface row
+  spells (D9.9).
+- **For whoever extends the versioned axes.** The derivation of a declared
+  implementation from a reference body still declines a command with arity windows
+  (D8.26); step 9 versioned the codegen axis, and arity's windows were already
+  there, so nothing here lifts it. A stamp window is read by `resolve_call`,
+  `resolve_invocation`, `resolve_structured_invocation` and `native_lowering_at`;
+  a new reader of a stamp that asks the plain field alone is the bug the sweep
+  `every_security_bearing_field_is_in_the_floor` and `stamp_windows_never_overlap`
+  were written against, and `intrinsic_ids` and `command_names_for_semantic_operation`
+  count every window's stamp on purpose (D9.14).
+- **Reported, not fixed.** Whether the value-transfer routes' unmeasured bases
+  (`expect`, the EDA shells, `bpf`, the SpecTcl hosts) should reach the evidence
+  gate is the owner's to say (D9.4); a pack's `available {package NAME RANGE}` is
+  validated and dropped, and `declarations_for_spec` lowers a package row to the
+  package's whole axis (D9.11); the hook host's engine emulates an older release
+  imperfectly (#2333), which is why a derived implementation is the author's to
+  ask for and not a consequence of the gate.
+- **For whoever runs a mutation campaign here.** The note under step 8 holds:
+  restore a mutated file and touch it, or the next run reuses the mutant. CC9.1's
+  thirty-one mutants, CC9.2's seven and CC9.3's fifteen were each switched on by an
+  environment variable compiled into the files for the run and removed by restoring
+  them.
+
+### Behavioural deltas accepted in step 9
+
+- CC9.2: under `f5-irules`, `f5-iapps` and `f5-tmsh`, a versioned fold (`string
+  is`, `string range`, `format`, `regsub`, and the `tcl-version` a pack's
+  versioned hook is given) answers as Tcl 8.4, where it answered the subset every
+  release agrees on: `string is integer 4294967296` is 0 and `format %d 010` is 8.
+  A profile nothing measured (`expect`, the EDA shells, `bpf`, the SpecTcl hosts)
+  is unchanged and still declines where releases differ.
+- CC9.2: `format` under Tcl 8.4 folds `%.0d`, `%.0x`, `%.0o` and `%.0u` of 0 to
+  the empty digits, where it folded `0`, as `tclsh8.4` prints; with no release it
+  declines. A plain `tcl8.4` document had folded it wrong.
+- CC9.2: the language server's package view takes an iRules, iApps or tmsh
+  document's target release as 8.4, where it was none; `tcl registry-dump
+  --all-dialects` and `tcl-fuzz`'s release spelling take only the five Tcl
+  releases, as they did.
+- CC9.3: a package row windowed on the package's own axis is admitted only where
+  the package's floor lies in a window, a floor coming from a pack's
+  `ambient_package NAME VERSION` row; a package with no stated floor admits every
+  window. Nothing shipped changes: no shipped spec has a windowed package row.
+- CC9.1: a pack may write `-introduced`, `-deprecated` and `-retired` on
+  `codegen_hook -native`, `inline_codegen_hook -native` and `semantic_operation`
+  (vocabulary 2.2); the stamp is selected at the release the call is resolved at
+  and the call is dispatched plain where the point does not settle one. Overlapping
+  windows keep the first and notice the later, an impossibly ordered one is dropped,
+  and an unknown flag on a stamp statement is now a notice where trailing words
+  were ignored. No shipped spec has a window, so no shipped answer moves; the 25
+  pack goldens' `spec` digests were re-recorded for the four new `Debug` fields.
 
 ## Plan for steps 2–10
 

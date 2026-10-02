@@ -105,7 +105,7 @@ checkpoint compiling.
   and `array default` have semantics; a fast-tier request reads
   `Unavailable`) have landed; the slices after them are planned item by
   item in the tracking document's § *Plan for slices 2–13*.
-- [consumer-contracts.md](consumer-contracts.md) — steps 1 to 8 of
+- [consumer-contracts.md](consumer-contracts.md) — steps 1 to 9 of
   [registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
   § *Build order*: step 1 (the four rulings taken as decided, and the
   documents whose stated rule they replace repaired), step 2 (the
@@ -157,9 +157,18 @@ checkpoint compiling.
   verb that holds a pack's declared facts to the package in a real shell under
   the package manager's opt-in; and the manifest's `spec` directive with its
   tier clamp, the lockfile's `spec_integrity` and the container generator's
-  native-extension check) have landed, item by item in the tracking document's
+  native-extension check) and step 9 (the codegen axis versioned and evaluation
+  points through the evidence gate — a codegen-axis stamp with ordered windows,
+  selected at the release a call is resolved at and declined to plain dispatch
+  where the point does not settle one, written `-introduced` / `-deprecated` /
+  `-retired` in a pack and held by the stamp rule and the security floor as the
+  plain stamps are; a profile's evaluation point, its runtime base only where a
+  reference toolchain or a measured-fork note stands behind it, so the versioned
+  folds answer as Tcl 8.4 under iRules, iApps and tmsh; and package version
+  windows, a surface query carrying the floor each package's context
+  guarantees) have landed, item by item in the tracking document's
   § *Step 2 — progress* (with the review's fixes applied after it), § *Step 3 —
   progress*, § *Step 4 — progress*, § *Step 5 — progress*, § *Step 6 —
-  progress*, § *Step 7 — progress* and § *Step 8 — progress*, planned in its
-  § *Plan for steps 2–10*. Step 9 (the codegen axis versioned; evaluation
-  points through the evidence gate) is next.
+  progress*, § *Step 7 — progress*, § *Step 8 — progress* and § *Step 9 —
+  progress*, planned in its § *Plan for steps 2–10*. Step 10 (the extension
+  legs) is next.

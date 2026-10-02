@@ -127,10 +127,13 @@ User-facing compiler troubleshooting and how-tos live in
   the live command to that text, and, where its author asks, derived into the
   command's declared implementation where the sandbox can run it), `tcl spec
   test`, and the manifest's `spec` directive with its tier clamp and the
-  lockfile's `spec_integrity`, **built**; the rest — rung 4's shipped
-  implementation and
-  the identity kind codegen chooses from the backing, the versioned codegen
-  axis, and the C-extension follow-ons — **not built**.
+  lockfile's `spec_integrity`, **built**; the codegen axis versioned (a
+  stamp's ordered windows, selected at the release a call is resolved at and
+  declined to plain dispatch where the point does not settle one), a vendor
+  environment's evaluation point read through an evidence gate, and the package
+  floors a surface query carries, **built**; the rest — rung 4's shipped
+  implementation and the identity kind codegen chooses from the backing, and
+  the C-extension follow-ons — **not built**.
 - [value-transfers-review.md](value-transfers-review.md) — review of those
   proposals against registry-owned specialisation, with shared expression
   and regexp evaluation, analysis/diagnostic separation, correctness findings,
