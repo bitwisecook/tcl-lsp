@@ -1877,13 +1877,13 @@ fn package_badresult_seeds_explicitly_empty_error_info() {
     // Unmodified Tcl 9.0.4 seeds the generated BADRESULT message before the
     // loader frame even when return carries an explicitly empty -errorinfo.
     out_eq(
-        r#"package ifneeded foo 1 {return -code error -errorinfo {} boom}
+        r"package ifneeded foo 1 {return -code error -errorinfo {} boom}
 catch {package require foo 1} message options
 puts [list $message [dict get $options -errorinfo] [dict get $options -errorcode]]
 package unknown {return -code error -errorinfo {} boom;#}
 catch {package require bar 1} message options
 puts [list $message [dict get $options -errorinfo] [dict get $options -errorcode]]
-"#,
+",
         concat!(
             "{attempt to provide package foo 1 failed: bad return code: 2} ",
             "{attempt to provide package foo 1 failed: bad return code: 2\n",
