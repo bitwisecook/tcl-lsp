@@ -1938,6 +1938,7 @@ package unknown $previous
 
 #[test]
 fn package_badresult_preserves_ancillary_options_and_pending_error_stack() {
+    use std::fmt::Write as _;
     // Tcl 9.0.4: custom options survive both discovery paths, while only a
     // pending error return retains its explicit error stack.
     for (script, pending) in [
@@ -1965,7 +1966,7 @@ fn package_badresult_preserves_ancillary_options_and_pending_error_stack() {
             if pending {
                 source.push_str("set expected {INNER {invokeStk1 boom}}\nset prefix EXPLICIT\nset stackOK [expr {[dict get $options -errorstack] eq $expected}]\n");
             } else {
-                source.push_str(&format!("set expected {{INNER {{invokeStk1 package require {package} 1}}}}\nset prefix $message\nset stackOK [string match {{*package require {package} 1}} [lindex [dict get $options -errorstack] 1]]\n"));
+                writeln!(source, "set expected {{INNER {{invokeStk1 package require {package} 1}}}}\nset prefix $message\nset stackOK [string match {{*package require {package} 1}} [lindex [dict get $options -errorstack] 1]]").unwrap();
             }
             source.push_str(r#"puts [list [dict get $options -foo] [dict get $options -code] [dict get $options -level] [dict get $options -errorcode] $stackOK [string match "$prefix\n*" [dict get $options -errorinfo]]]
 "#);
