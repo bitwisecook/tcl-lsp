@@ -179,7 +179,12 @@ impl HostCommand for StaticExtensions {
         match unsafe { run_init(&self.state, registrar, init) } {
             Ok(_) => {
                 self.loaded.borrow_mut().insert(name);
-                Ok(Value::Empty.into())
+                // `info loaded` lists the library under the file it was loaded
+                // from; an engine with no such list has nothing to say it to.
+                match registrar.library_loaded(request.file, name) {
+                    Ok(()) | Err(EngineError::Unsupported(_)) => Ok(Value::Empty.into()),
+                    Err(error) => Err(error),
+                }
             }
             Err(error) => Err(self.error(error)),
         }
@@ -403,6 +408,13 @@ mod tests {
     struct Door {
         defined: Vec<String>,
         refuses: Option<&'static str>,
+        /// Whether the engine has the package and library doors, and so what
+        /// it is told.
+        records: bool,
+        provided: Vec<(String, String)>,
+        libraries: Vec<(String, String)>,
+        refuses_package: Option<&'static str>,
+        refuses_library: bool,
     }
 
     impl CommandRegistrar for Door {
@@ -420,6 +432,42 @@ mod tests {
 
         fn remove_command(&mut self, _name: &str) -> Result<bool, EngineError> {
             Ok(false)
+        }
+
+        fn provide_package(&mut self, name: &str, version: &str) -> Result<(), EngineError> {
+            if !self.records {
+                return Err(EngineError::Unsupported("providing a package"));
+            }
+            if self.refuses_package == Some(name) {
+                return Err(EngineError::Script {
+                    message: format!("conflicting versions provided for package \"{name}\""),
+                    code: Some("TCL PACKAGE VERSIONCONFLICT".to_owned()),
+                });
+            }
+            self.provided.push((name.to_owned(), version.to_owned()));
+            Ok(())
+        }
+
+        fn library_loaded(&mut self, file_name: &str, prefix: &str) -> Result<(), EngineError> {
+            if !self.records {
+                return Err(EngineError::Unsupported("recording a loaded library"));
+            }
+            if self.refuses_library {
+                return Err(EngineError::Script {
+                    message: "no room for another library".to_owned(),
+                    code: None,
+                });
+            }
+            self.libraries
+                .push((file_name.to_owned(), prefix.to_owned()));
+            Ok(())
+        }
+    }
+
+    fn recording() -> Door {
+        Door {
+            records: true,
+            ..Door::default()
         }
     }
 
@@ -467,6 +515,88 @@ mod tests {
             extensions.prefixes().collect::<Vec<_>>(),
             ["Demo", "Other", "Boom"]
         );
+    }
+
+    #[test]
+    fn a_load_tells_the_engine_the_library_under_the_file_it_was_loaded_from() {
+        let extensions = fresh();
+        let mut door = recording();
+        load(&extensions, &mut door, &["/opt/demo/libdemo.so", "Demo"]).expect("loads");
+        assert_eq!(
+            door.libraries,
+            [("/opt/demo/libdemo.so".to_owned(), "Demo".to_owned())]
+        );
+        load(&extensions, &mut door, &["", "Other"]).expect("a static library loads");
+        assert_eq!(
+            door.libraries.last(),
+            Some(&(String::new(), "Other".to_owned())),
+            "its file is empty"
+        );
+        load(&extensions, &mut door, &["/elsewhere/libdemo.so", "Demo"]).expect("again");
+        assert_eq!(
+            door.libraries.len(),
+            2,
+            "a prefix is told once, as it loads once"
+        );
+    }
+
+    #[test]
+    fn a_failed_load_tells_the_engine_no_library() {
+        let extensions = fresh();
+        let mut door = recording();
+        FAIL_NEXT.with(|flag| flag.set(true));
+        load(&extensions, &mut door, &["", "Demo"]).expect_err("fails");
+        assert!(door.libraries.is_empty(), "{:?}", door.libraries);
+        refused_by(&extensions, &mut door, &["", "Nosuch"]);
+        assert!(door.libraries.is_empty(), "{:?}", door.libraries);
+    }
+
+    #[test]
+    fn an_engine_that_cannot_record_the_library_fails_the_load_with_its_error() {
+        let extensions = fresh();
+        let mut door = recording();
+        door.refuses_library = true;
+        let error = load(&extensions, &mut door, &["", "Demo"]).expect_err("fails");
+        assert_eq!(
+            error,
+            EngineError::Script {
+                message: "no room for another library".to_owned(),
+                code: None,
+            }
+        );
+    }
+
+    fn refused_by(extensions: &StaticExtensions, door: &mut Door, words: &[&str]) {
+        load(extensions, door, words).expect_err("refused");
+    }
+
+    #[test]
+    fn the_packages_an_entry_point_provides_reach_the_engine_as_it_provides_them() {
+        let extensions = fresh();
+        let mut door = recording();
+        load(&extensions, &mut door, &["", "Demo"]).expect("loads");
+        assert_eq!(door.provided, [("demo".to_owned(), "1.0".to_owned())]);
+    }
+
+    #[test]
+    fn a_package_the_engine_refuses_fails_the_entry_point_and_the_load() {
+        let extensions = fresh();
+        let mut door = recording();
+        door.refuses_package = Some("demo");
+        let error = load(&extensions, &mut door, &["", "Demo"]).expect_err("fails");
+        assert_eq!(
+            error,
+            EngineError::Script {
+                message: "conflicting versions provided for package \"demo\"".to_owned(),
+                code: Some("TCL PACKAGE VERSIONCONFLICT".to_owned()),
+            },
+            "the engine's error is the load's own"
+        );
+        assert!(door.libraries.is_empty());
+        door.refuses_package = None;
+        load(&extensions, &mut door, &["", "Demo"])
+            .expect("a later load runs the entry point again");
+        assert_eq!(INITS.with(Cell::get), 2);
     }
 
     #[test]

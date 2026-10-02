@@ -901,7 +901,8 @@ pub unsafe extern "C" fn tcl_set_obj_error_code(interp_ptr: *mut InterpState, co
     });
 }
 
-/// `Tcl_PkgProvideEx`.
+/// `Tcl_PkgProvideEx`: record the package and, with the engine's door open,
+/// provide it to the engine's package database as `package provide` does.
 ///
 /// # Safety
 ///
@@ -918,13 +919,7 @@ pub unsafe extern "C" fn tcl_pkg_provide_ex(
         let state = unsafe { interp(interp_ptr) }.expect("a NULL Tcl_Interp pointer");
         // SAFETY: as above.
         let (name, version) = unsafe { (c_text(name), c_text(version)) };
-        match state.provide(&name, &version) {
-            Ok(()) => TCL_OK,
-            Err(error) => {
-                state.set_error(&error);
-                TCL_ERROR
-            }
-        }
+        doors::provide_package(state, &name, &version)
     })
 }
 

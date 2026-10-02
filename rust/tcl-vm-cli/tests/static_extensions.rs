@@ -54,6 +54,19 @@ fn the_flag_gives_a_script_a_load_over_the_linked_extension() {
     );
 }
 
+#[cfg(all(feature = "static-extensions", not(windows)))]
+#[test]
+fn a_package_whose_ifneeded_script_is_a_plain_load_is_required() {
+    let output = tclvm(&[
+        "--static-extensions",
+        "-c",
+        "package ifneeded pkga 1.0 {load /opt/pkga/libpkga.so Pkga}; \
+         puts [package require pkga]; puts [info loaded]; puts [pkga_eq a a]",
+    ]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(stdout(&output), "1.0\n{/opt/pkga/libpkga.so Pkga}\n1\n");
+}
+
 #[cfg(feature = "static-extensions")]
 #[test]
 fn without_the_flag_there_is_no_load_even_in_a_build_that_links_the_extension() {

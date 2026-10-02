@@ -2483,11 +2483,12 @@ flowchart LR
   the entry points the host has linked in and vouched for, registered on an
   engine only by the host, so no pack word reaches it and a hook engine has
   none; the file name is a label, the prefix names the entry, and a prefix
-  loads once. It records a provided package in the shim and not in the engine's
-  package database. Under WASM the same authored header serves once the seam in
-  the fourth ruling's order is closed, with the syntax-only
-  `wasm32-wasi` check the shim document mentions turned into a CI gate that
-  compiles the test extension.
+  loads once. A package an entry point provides reaches the engine's package
+  database, as `package provide` puts it there, and the library is listed for
+  `info loaded`, so an unchanged `package ifneeded … {load …}` is satisfied and a
+  second `package require` runs nothing. Under WASM the same authored header
+  serves: the registration seam is built, and `make check-c-extension-wasm`
+  compiles the test extensions for `wasm32` against it.
 - **Evaluate through a C command never natively**, because C code cannot
   be fuel-limited and undefined behaviour is uncontained. Under WASM, fuel
   and memory give containment; eligibility comes from a declared route on

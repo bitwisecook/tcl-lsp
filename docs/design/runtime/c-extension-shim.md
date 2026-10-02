@@ -161,7 +161,8 @@ the pointer: the C side reaches it only through the door an invocation opens
 `Interp::load_static(init)` calls `<Pkg>_Init(Tcl_Interp *)`. During the
 call, `Tcl_CreateObjCommand` records a `CommandEntry` (name, procedure,
 client data, delete procedure) in the state and queues a `Created` change;
-`Tcl_PkgProvideEx` records `(name, version)`. On `TCL_OK` the queued changes
+`Tcl_PkgProvideEx` records `(name, version)` and, with the engine's door open,
+provides it to the engine's package database too (§ *The doors*). On `TCL_OK` the queued changes
 are applied to the engine by `Interp::sync`: each created command becomes a
 `ShimCommand` — a `HostCommand` holding the state and the name — registered
 through `Engine::define_command`, the same door the hook host's emitter
@@ -280,6 +281,14 @@ everything but the call.
   the command returns when it succeeded. `Tcl_ObjSetVar2` answers the object it
   was given, not a copy, and the value reaches the engine typed (an integer
   object is an integer).
+- **Packages.** `Tcl_PkgProvideEx` goes through the same door before the shim
+  records the package: the engine's package database takes it as `package
+  provide` does, so a version in conflict with the one provided is the engine's
+  own error (`conflicting versions provided for package "pkga": 2.0, then 1.0`,
+  `TCL PACKAGE VERSIONCONFLICT`), left in the result as `Tcl_PkgProvideEx` leaves
+  it and returned by the entry point before it registers anything, as C Tcl's
+  does. An engine with no such door, or no door open, leaves the package to the
+  shim's own record (`Interp::provided_packages`).
 - **What it does not report.** The value stored is the value given: a write trace
   that rewrites it is not reported back. A `TCL_RETURN` crosses with its value
   alone, so the options of the `return` that raised it (`-code`, `-level`,
@@ -337,13 +346,17 @@ table as a host command.
   file "F": …`, with the reason a table has to give). A failing entry point's
   result and error code are the `load`'s own, and the prefix is not marked
   loaded, so a later `load` runs the entry point again.
-- **What it does not do.** It records the packages an entry point provides in
-  the shim's state (`Interp::provided_packages`), not in the engine's package
-  database: the door an engine opens to a host command registers commands and
-  nothing else. A script that wants `package require` to find the extension
-  says `package provide` itself after the `load`; an unchanged
-  `package ifneeded … {load …}` loads the commands and then fails with
-  `attempt to provide package … failed: no version of package … provided`.
+- **What it tells the engine.** The packages an entry point provides reach the
+  engine's package database as it provides them (§ *The doors*), so an unchanged
+  `package ifneeded pkga 1.0 [list load [file join $dir libpkga[info
+  sharedlibextension]] Pkga]` is satisfied by `package require pkga` once the
+  entry point has run, and a second `package require` is satisfied from the
+  database and runs nothing. A successful load also tells the engine the library
+  (`library_loaded`), once per prefix and under the file `load` was given (empty
+  for a static library), which is what `info loaded` lists. An engine with
+  neither door is told nothing and the load is unaffected. A failed entry point
+  lists nothing; C Tcl lists the library in the process-wide `info loaded` and
+  not in `info loaded {}`, and one interpreter has only the second.
 - **`tclvm --static-extensions`.** The `tcl-vm-cli` crate's `static-extensions`
   feature links the shim's bundled extension, the way a `tclsh` test build
   links `Tcltest`, and the flag registers `load` over it on the VM; without the
@@ -450,7 +463,13 @@ platform, Windows included, runs it. The host's `load` runs the same vectors:
 `the_same_vectors_run_through_the_host_load_bridge` loads the extension from a
 script and then holds every case above to its bytes, and
 `load_through_the_host_bridge_defines_the_commands` holds the commands, the
-refusal of a prefix the table lacks, and the single load. The smoke tier has
+refusal of a prefix the table lacks, and the single load. Three more hold the
+package flow: an unchanged `ifneeded` script that is a plain `load`, required
+twice, and a package already provided at another version, which fails the entry
+point before it registers anything, each against `tclsh9.0`'s answers for the same
+`pkga.c` built against Tcl 9.0.4's own `tcl.h`; and the same `ifneeded` script when
+the table refuses the load, which leaves `package require` the load's own
+`couldn't load file "…": …`, as in C Tcl. The smoke tier has
 one test in each file.
 
 The header is held to the shim from the other side by

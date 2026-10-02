@@ -266,6 +266,35 @@ pub(crate) fn unset_variable(
     .map_or(TCL_ERROR, |()| TCL_OK)
 }
 
+/// `Tcl_PkgProvideEx`: the package reaches the engine's package database
+/// through the open door, as `package provide` puts it there, so a version in
+/// conflict with the one already provided is the engine's own Tcl error and
+/// fails the call before the shim records it. An engine with no such door, or no
+/// door open, leaves the package to the shim's own record, which is what
+/// [`crate::Interp::provided_packages`] lists. The error is always left in the
+/// interpreter's result, as `Tcl_PkgProvideEx` leaves it.
+pub(crate) fn provide_package(state: &InterpState, name: &str, version: &str) -> c_int {
+    let attempt = refuse_after_fatal(state)
+        .and_then(|()| tell_the_engine(state, name, version))
+        .and_then(|()| state.provide(name, version));
+    match attempt {
+        Ok(()) => TCL_OK,
+        Err(error) => {
+            state.set_error(&error);
+            TCL_ERROR
+        }
+    }
+}
+
+/// Say a package to the engine's package database, when a door is open and the
+/// engine has one.
+fn tell_the_engine(state: &InterpState, name: &str, version: &str) -> Result<(), TclError> {
+    match state.with_door(|door| door.provide_package(name, version)) {
+        None | Some(Ok(()) | Err(EngineError::Unsupported(_))) => Ok(()),
+        Some(Err(error)) => Err(engine_failure(state, error)),
+    }
+}
+
 /// `Tcl_EvalObjEx`: the script's code, and its result or its error in the
 /// interpreter's result.
 pub(crate) fn evaluate(state: &InterpState, script: &Obj, flags: c_int) -> c_int {
@@ -306,7 +335,7 @@ mod tests {
 
     use super::{
         TCL_ERROR, TCL_EVAL_DIRECT, TCL_GLOBAL_ONLY, TCL_LEAVE_ERR_MSG, TCL_OK, Verb, compose,
-        evaluate, get_variable, root, set_variable, unset_variable,
+        evaluate, get_variable, provide_package, root, set_variable, unset_variable,
     };
     use crate::obj::{Obj, ObjRef, TclError};
     use crate::state::{DoorRef, InterpState};
@@ -317,6 +346,7 @@ mod tests {
         read: Result<Value, EngineError>,
         write: Result<(), EngineError>,
         eval: Result<HostOutcome, EngineError>,
+        provide: Result<(), EngineError>,
     }
 
     impl Fake {
@@ -326,6 +356,7 @@ mod tests {
                 read: Ok(Value::Empty),
                 write: Ok(()),
                 eval: Ok(HostOutcome::ok(Value::Empty)),
+                provide: Ok(()),
             }
         }
     }
@@ -343,6 +374,11 @@ mod tests {
         fn remove_command(&mut self, name: &str) -> Result<bool, EngineError> {
             self.log.push(format!("remove {name}"));
             Ok(true)
+        }
+
+        fn provide_package(&mut self, name: &str, version: &str) -> Result<(), EngineError> {
+            self.log.push(format!("provide {name} {version}"));
+            self.provide.clone()
         }
 
         fn variable(&mut self, name: &str) -> Result<Value, EngineError> {
@@ -510,6 +546,124 @@ mod tests {
             "can't read \"::ns::a(k)\": no such variable",
             "a name given rooted was not rooted by the call, so the engine's message stands"
         );
+    }
+
+    #[test]
+    fn a_package_reaches_the_engine_before_the_shim_records_it() {
+        let state = InterpState::new();
+        let mut fake = Fake::new();
+        {
+            let mut door = DoorRef::new(&mut fake);
+            let _open = state.open_door(&mut door);
+            assert_eq!(provide_package(&state, "pkga", "1.0"), TCL_OK);
+        }
+        assert_eq!(fake.log, ["provide pkga 1.0"]);
+        assert_eq!(
+            state.provided_packages(),
+            [("pkga".to_owned(), "1.0".to_owned())]
+        );
+    }
+
+    #[test]
+    fn a_package_the_engine_refuses_is_its_error_and_is_not_recorded() {
+        let state = InterpState::new();
+        let mut fake = Fake::new();
+        fake.provide = Err(EngineError::Script {
+            message: "conflicting versions provided for package \"pkga\": 2.0, then 1.0".to_owned(),
+            code: Some("TCL PACKAGE VERSIONCONFLICT".to_owned()),
+        });
+        {
+            let mut door = DoorRef::new(&mut fake);
+            let _open = state.open_door(&mut door);
+            assert_eq!(provide_package(&state, "pkga", "1.0"), TCL_ERROR);
+        }
+        assert_eq!(
+            state.result().get().text(),
+            "conflicting versions provided for package \"pkga\": 2.0, then 1.0",
+            "left in the result without being asked for, as Tcl_PkgProvideEx leaves it"
+        );
+        assert_eq!(
+            state.error_code_text().as_deref(),
+            Some("TCL PACKAGE VERSIONCONFLICT")
+        );
+        assert!(state.provided_packages().is_empty(), "nothing was provided");
+    }
+
+    #[test]
+    fn a_package_with_no_door_to_say_it_to_is_the_shims_own_record() {
+        for unsupported in [true, false] {
+            let state = InterpState::new();
+            let mut fake = Fake::new();
+            fake.provide = Err(EngineError::Unsupported("providing a package"));
+            if unsupported {
+                let mut door = DoorRef::new(&mut fake);
+                let _open = state.open_door(&mut door);
+                assert_eq!(provide_package(&state, "pkga", "1.0"), TCL_OK);
+                assert_eq!(state.fatal(), None);
+            } else {
+                assert_eq!(
+                    provide_package(&state, "pkga", "1.0"),
+                    TCL_OK,
+                    "and so is a call outside any invocation"
+                );
+            }
+            assert_eq!(
+                state.provided_packages(),
+                [("pkga".to_owned(), "1.0".to_owned())]
+            );
+        }
+    }
+
+    #[test]
+    fn a_package_at_another_version_is_the_shims_conflict_when_the_engine_has_none() {
+        let state = InterpState::new();
+        assert_eq!(provide_package(&state, "pkga", "1.0"), TCL_OK);
+        assert_eq!(
+            provide_package(&state, "pkga", "1.0"),
+            TCL_OK,
+            "again is a no-op"
+        );
+        assert_eq!(provide_package(&state, "pkga", "2.0"), TCL_ERROR);
+        assert_eq!(
+            state.result().get().text(),
+            "conflicting versions provided for package \"pkga\": 1.0, then 2.0"
+        );
+    }
+
+    #[test]
+    fn a_budget_a_package_call_meets_is_fatal() {
+        let state = InterpState::new();
+        let mut fake = Fake::new();
+        fake.provide = Err(EngineError::BudgetExceeded(BudgetKind::Commands));
+        let mut door = DoorRef::new(&mut fake);
+        let _open = state.open_door(&mut door);
+        assert_eq!(provide_package(&state, "pkga", "1.0"), TCL_ERROR);
+        assert_eq!(
+            state.fatal(),
+            Some(EngineError::BudgetExceeded(BudgetKind::Commands))
+        );
+        assert_eq!(provide_package(&state, "pkgb", "1.0"), TCL_ERROR);
+        assert!(state.provided_packages().is_empty());
+    }
+
+    #[test]
+    fn a_package_call_after_a_fatal_error_is_refused_without_reaching_the_engine() {
+        let state = InterpState::new();
+        let mut fake = Fake::new();
+        fake.eval = Err(EngineError::BudgetExceeded(BudgetKind::Commands));
+        {
+            let mut door = DoorRef::new(&mut fake);
+            let _open = state.open_door(&mut door);
+            let script = Obj::from_text("loop");
+            assert_eq!(evaluate(&state, &script, 0), TCL_ERROR);
+            assert_eq!(provide_package(&state, "pkga", "1.0"), TCL_ERROR);
+        }
+        assert_eq!(
+            fake.log,
+            ["eval loop"],
+            "the package was not said to the engine"
+        );
+        assert!(state.provided_packages().is_empty());
     }
 
     #[test]
