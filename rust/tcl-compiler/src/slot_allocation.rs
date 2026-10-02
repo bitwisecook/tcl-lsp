@@ -213,6 +213,49 @@ pub fn live_out_by_name(
     live_out_by_name_counted(cfg, ssa, registry).0
 }
 
+/// Names live immediately after registry scalar barriers. Only these values
+/// can be consumed after a handler has changed the caller's frame; dead values
+/// still describe their earlier uses and must not lose those proofs.
+pub(crate) fn registry_barrier_live_names(
+    cfg: &cfg::Function,
+    ssa: &SsaFunction,
+    registry: &CommandRegistry,
+) -> HashMap<BlockId, HashMap<usize, HashSet<crate::ssa::Symbol>>> {
+    if !ssa.blocks.values().any(|block| {
+        block.statements.iter().any(|stmt| {
+            stmt.statement.synthetic_marker() == Some(crate::ir::SyntheticMarker::RegistryBarrier)
+        })
+    }) {
+        return HashMap::new();
+    }
+    let live_out = live_out_by_name(cfg, ssa, registry);
+    let mut result = HashMap::new();
+    let mut scanner = make_scanner(registry);
+    for (id, sblock) in &ssa.blocks {
+        let mut live = live_out.get(id).cloned().unwrap_or_default();
+        if let Some(block) = cfg.blocks.get(id) {
+            live.extend(terminator_read_names(block, &mut scanner, registry));
+        }
+        let mut barriers = HashMap::new();
+        for (index, stmt) in sblock.statements.iter().enumerate().rev() {
+            if stmt.statement.synthetic_marker()
+                == Some(crate::ir::SyntheticMarker::RegistryBarrier)
+            {
+                barriers.insert(
+                    index,
+                    live.iter().filter_map(|n| ssa.var_symbol(n)).collect(),
+                );
+            }
+            for var in stmt.defs.keys() {
+                live.remove(ssa.var_name(*var));
+            }
+            live.extend(stmt.uses.keys().map(|var| ssa.var_name(*var).to_owned()));
+        }
+        result.insert(*id, barriers);
+    }
+    result
+}
+
 /// [`live_out_by_name`] plus the number of blocks the worklist popped.
 ///
 /// The count is the whole point of the seeding order — the fixpoint is

@@ -1892,3 +1892,74 @@ fn a_shadowing_module_refuses_the_memoised_lattice() {
         "the control's memoised lattice does prove v == 3"
     );
 }
+
+fn seeded_parameter_result(source: &str) -> tcl_compiler::sccp::SccpResult {
+    use std::collections::{BTreeSet, HashMap};
+    use tcl_compiler::analyses::{ConstValue, LatticeValue};
+    let registry = reg();
+    let cu = CompilationUnit::build_for(source, &registry, false);
+    let fu = cu.function("::p").expect("procedure");
+    let seeds = HashMap::from([(("x".to_owned(), 0), LatticeValue::Const(ConstValue::Int(5)))]);
+    tcl_compiler::sccp::sccp(
+        &fu.cfg,
+        &fu.ssa,
+        Some(&seeds),
+        tcl_compiler::tcl_expr_eval::FoldPolicy::default(),
+        tcl_compiler::sccp::TraceInputs {
+            registry: &registry,
+            traced_variables: &BTreeSet::new(),
+            has_dynamic_variable_trace: false,
+        },
+    )
+}
+
+#[test]
+fn registry_handler_widens_seeded_parameter() {
+    // Tcl 9.0.4 with its unmodified init.tcl: auto_index(missing_command)
+    // loads a proc using `upvar 1 x x; set x 6`; p 5 returns changed.
+    let result = seeded_parameter_result(
+        "proc p {x} { missing_command; if {$x == 5} { return stale } else { return changed } }",
+    );
+    assert!(result.constant_branches.is_empty());
+}
+
+#[test]
+fn conditional_registry_handler_widens_seeded_parameter() {
+    let result = seeded_parameter_result(
+        "proc p {x flag} { if {$flag} { missing_command }; if {$x == 5} { return stale } else { return changed } }",
+    );
+    assert!(result.constant_branches.is_empty());
+}
+
+#[test]
+fn safe_registry_call_keeps_seeded_parameter_constant() {
+    let result = seeded_parameter_result(
+        "proc p {x} { string length safe; if {$x == 5} { return kept } else { return changed } }",
+    );
+    assert_eq!(result.constant_branches.len(), 1);
+}
+
+#[test]
+fn registry_barrier_preserves_dead_prior_and_future_definitions() {
+    let registry = reg();
+    let cu = CompilationUnit::build_for(
+        "proc p {} { set first 5; set before [expr {$first + 1}]; missing_command; set after 7; return $after }",
+        &registry,
+        false,
+    );
+    let fu = cu.function("::p").expect("procedure");
+    for (name, expected) in [("first", 5), ("after", 7)] {
+        let symbol = fu.ssa.var_symbol(name).expect("variable");
+        assert!(
+            fu.sccp.values.iter().any(|((var, _), value)| {
+                *var == symbol
+                    && *value
+                        == tcl_compiler::analyses::LatticeValue::Const(
+                            tcl_compiler::analyses::ConstValue::Int(expected),
+                        )
+            }),
+            "{name} must retain its constant: {:?}",
+            fu.sccp.values
+        );
+    }
+}
