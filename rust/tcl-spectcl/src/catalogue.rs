@@ -509,6 +509,17 @@ pub const NATIVE_EVAL_IDS: &[Variant] = &[
     v("ListAssign", "lassign"),
     v("ArraySet", "array set"),
     v("BinaryFormat", "binary format"),
+    v("VariableUnset", "the unbinds behind unset"),
+    v("ErrorRaise", "the error completion behind error"),
+    v(
+        "ReturnComplete",
+        "the completion behind return, from its -code and -level",
+    ),
+    v("BreakComplete", "the break completion behind break"),
+    v(
+        "ContinueComplete",
+        "the continue completion behind continue",
+    ),
 ];
 
 /// [`tcl_registry::value_transfer::LanguageProfileId::ALL`] — `evaluate
