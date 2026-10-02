@@ -702,8 +702,7 @@ struct StatementInputs<'a> {
     policy: FoldPolicy,
     has_dynamic_variable_trace: bool,
     folds: Option<BuiltinFoldInputs<'a>>,
-    clobbers:
-        Option<&'a HashMap<usize, HashMap<Symbol, (crate::ssa::Version, crate::ssa::Version)>>>,
+    clobbers: Option<&'a crate::ssa::BlockValueClobbers>,
 }
 
 /// Evaluate each statement's defs for one block, widening across barriers.

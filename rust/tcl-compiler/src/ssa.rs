@@ -228,7 +228,10 @@ pub struct SsaFunction {
 }
 
 /// Analysis value transitions: prior and fresh versions at each marker.
-pub type ValueClobbers = HashMap<BlockId, HashMap<usize, HashMap<Symbol, (Version, Version)>>>;
+pub type ValueClobbers = HashMap<BlockId, BlockValueClobbers>;
+
+/// Per-marker prior and fresh versions within one basic block.
+pub type BlockValueClobbers = HashMap<usize, HashMap<Symbol, (Version, Version)>>;
 
 type RegistryClobberNames = HashMap<BlockId, HashMap<usize, Vec<String>>>;
 
