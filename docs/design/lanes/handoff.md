@@ -10,29 +10,30 @@ says where each lane stands, what is queued, and how the work is run.
 
 | Lane | Tracking document | Landed | In flight | Remaining |
 |---|---|---|---|---|
-| Value transfers | [value-transfers.md](value-transfers.md) | slices 1, 2, 3, 4, 5, 8, 6 (reviewed, reworked in three rounds, re-checked "land as is") and 9 (`f06639de`); slice 10 items 1, 2, 3a, 3b and 3c (`ddb53a10`, `b9ab4993`, `7ee77e66`, `6f86956d`, `07633485`) with the SpecTcl catalogue fix `1d3a937f` | slice 10 item 3d (the nested form `[catch {…}]` evaluated through the protected nested service) on the running implementer, then 3e (the flattened `catch` end-block marker) and items 4 onward | the rest of slice 10, then the fable review of slices 9 and 10 together with its fixes; then slices 11, 12, 7a, 13, 7, in that order |
-| Consumer contracts | [consumer-contracts.md](consumer-contracts.md) | steps 1 to 9, each reviewed with fixes landed (the step 8 rework and step 9 review's fixes are `16e3a5a0`, `1b870f36`, `cdc7307a`); step 10's first item, the extension default (`69f5211b`) | step 10 item 2 (the C scan, the probe and the bridge) on the running implementer, then items 3 to 6 | the step 10 review with its fixes |
+| Value transfers | [value-transfers.md](value-transfers.md) | slices 1, 2, 3, 4, 5, 8, 6 (reviewed, reworked in three rounds, re-checked "land as is") and 9 (`f06639de`); slice 10 items 1, 2, 3a, 3b, 3c and 3d (`ddb53a10`, `b9ab4993`, `7ee77e66`, `6f86956d`, `07633485`, `e0675133`) with the SpecTcl catalogue fix `1d3a937f` | slice 10 item 3d's remainder (a quoted `catch "…"` script descended, a computed `catch $s` raising the barrier as the statement form does) on the running implementer, then 3e (the flattened `catch` end-block marker) and items 4 onward | the rest of slice 10, then the fable review of slices 9 and 10 together with its fixes; then slices 11, 12, 7a, 13, 7, in that order |
+| Consumer contracts | [consumer-contracts.md](consumer-contracts.md) | steps 1 to 9, each reviewed with fixes landed (the step 8 rework and step 9 review's fixes are `16e3a5a0`, `1b870f36`, `cdc7307a`); step 10 items 1 to 3 and item 4's first part (`69f5211b` the extension default, `ca5cc729` an extension described from three sources, `75b750df` the host load bridge, `141d30f0` the WASM runtime's registration seam; `69ed4b81` puts the package-provide requirement into item 5's plan) | step 10 item 4's parts 2 and 3 (the authored `tcl.h` for both hosts, the C-extension WASM gate) on the running implementer, then items 5 and 6 | the step 10 review with its fixes |
 | Diagnostic policy | (landed; see the design page `docs/design/compiler/diagnostic-policy.md`) | complete | | |
 
 Branch heads at the last rewrite of this page: the main branch at the
-commit that rewrites this page, above `28ecf5d9` (the merge of `cc-step5`
-at `cdc7307a`) and `07633485` (slice 10 item 3c); `cc-step5` at
-`cdc7307a`, containing the main branch up to `6f86956d`. `cc-step5` is
+commit that rewrites this page, above `1802ac33` (the merge of `cc-step5`
+at `141d30f0`) and `e0675133` (slice 10 item 3d); `cc-step5` at
+`141d30f0`, containing the main branch up to `6f86956d`. `cc-step5` is
 merged into the main branch, gated and pushed after every one of its
 commits, so nothing of either lane stays off GitHub for longer than one
 gate cycle.
 
 ## Queued on the running implementers
 
-- Value transfers: slice 10 items 3d and 3e, each its own green commit;
-  then item 4 (`try`), which is shaped to reconcile with `rust`'s PR #2230
+- Value transfers: slice 10 item 3d's remainder and 3e, each its own
+  green commit; then item 4 (`try`), which is shaped to reconcile with `rust`'s PR #2230
   (the try/finally reachability fix for #2142, absent from this branch's
   base) at the upstream merge: one implementation per fact, with a
   "reconciling with #2230" paragraph in the lane doc naming the files and
   facts the merge has to settle. The slice 9 review runs together with
   slice 10's once slice 10 lands.
-- Consumer contracts: step 10 items 2 to 6, each its own green commit,
-  then the fable review of step 10 and its fixes.
+- Consumer contracts: step 10 item 4's parts 2 and 3, then items 5 and 6,
+  each its own green commit, then the fable review of step 10 and its
+  fixes.
 
 ## After the lanes
 
