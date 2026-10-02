@@ -181,9 +181,10 @@ slices proceed without deciding anything here.
 > refuses, what its examples answer and whether the answers have the declared
 > type, whether a Tcl-body reference body agrees with it, and whether a command
 > declared `pure` writes a variable of any namespace but the shell's own `::tcl`.
-> The policy is the operator's: the project `tcl pkg` works in from the working
+> The policy is the operator's: the outermost project at or above the working
 > directory, never the tree the pack was found in, so a dependency vendored into
-> the project cannot opt itself in. It prints one row per divergence and the
+> the project cannot opt itself in, from the project or from inside the
+> dependency. It prints one row per divergence and the
 > number of commands the shell actually asked, and exits 1 on any divergence and
 > on a shell that stopped before it had asked them all, whatever status it
 > stopped with; the probe ends with a line that counts the commands asked, which a

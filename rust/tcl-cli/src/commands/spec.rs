@@ -375,11 +375,15 @@ fn exit_status(outcome: &tcl_sandbox::Outcome) -> String {
         .map_or_else(|| "?".to_owned(), |code| code.to_string())
 }
 
-/// The operator's project: the one `tcl pkg` works in, or the working directory
-/// when there is none. Its `tclpkg.toml` is the project layer of the policy that
-/// decides whether the package runs.
+/// The operator's project: the outermost directory at or above the working
+/// directory that holds a `tclpkg.tcl`, or the working directory when there is
+/// none. Its `tclpkg.toml` is the project layer of the policy that decides whether
+/// the package runs, and it is the outermost because a dependency vendored into
+/// the project sits under the project's manifest: the operator who stands inside
+/// the dependency has made its manifest the nearest, and the policy is not the
+/// dependency's to write.
 fn operator_project() -> anyhow::Result<PathBuf> {
-    match crate::commands::pkg::find_project_root() {
+    match crate::commands::pkg::find_outermost_project_root() {
         Some(root) => Ok(root),
         None => std::env::current_dir().context("cannot read the working directory"),
     }

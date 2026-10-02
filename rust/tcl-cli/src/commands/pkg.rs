@@ -214,20 +214,40 @@ pub fn run(action: &PkgCommand) -> anyhow::Result<u8> {
     }
 }
 
-/// The directory `tcl pkg` treats as the project: the nearest one at or above the
-/// working directory that holds a `tclpkg.tcl`.
-pub(crate) fn find_project_root() -> Option<PathBuf> {
-    let mut current = std::env::current_dir().ok()?.canonicalize().ok()?;
+/// Every directory at or above the working directory that holds a `tclpkg.tcl`,
+/// nearest first.
+fn project_roots() -> Vec<PathBuf> {
+    let Some(mut current) = std::env::current_dir()
+        .ok()
+        .and_then(|dir| dir.canonicalize().ok())
+    else {
+        return Vec::new();
+    };
+    let mut roots = Vec::new();
     for _ in 0..20 {
         if current.join("tclpkg.tcl").is_file() {
-            return Some(current);
+            roots.push(current.clone());
         }
         match current.parent() {
             Some(parent) if parent != current => current = parent.to_path_buf(),
             _ => break,
         }
     }
-    None
+    roots
+}
+
+/// The directory `tcl pkg` treats as the project: the nearest one at or above the
+/// working directory that holds a `tclpkg.tcl`.
+fn find_project_root() -> Option<PathBuf> {
+    project_roots().into_iter().next()
+}
+
+/// The outermost directory at or above the working directory that holds a
+/// `tclpkg.tcl`: the project an operator's policy belongs to. A dependency
+/// vendored into a project sits under the project's own manifest, so standing
+/// inside the dependency makes its manifest the nearest and not the outermost.
+pub(crate) fn find_outermost_project_root() -> Option<PathBuf> {
+    project_roots().pop()
 }
 
 fn manifest_path(common: &PkgCommon) -> PathBuf {

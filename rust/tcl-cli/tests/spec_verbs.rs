@@ -722,6 +722,11 @@ impl Described {
         Self::write_policy(&self.project, trusted);
     }
 
+    /// The directory of the dependency [`Self::vendored`] vendors into the project.
+    fn dependency(&self) -> PathBuf {
+        self.project.join("vendor").join("demo")
+    }
+
     fn build(tag: &str, package: &str, pack: &str, trusted: &[&str], layout: Layout) -> Self {
         let tree = Tree::new(tag);
         let library = tree.path().join("lib");
@@ -769,11 +774,16 @@ impl Described {
     /// `tcl spec test` on the pack, with the package's directory named and every
     /// per-user directory pointed into the tree, and no shell named.
     fn command(&self) -> Command {
+        self.command_in(&self.project)
+    }
+
+    /// The same, run from `dir`.
+    fn command_in(&self, dir: &Path) -> Command {
         let home = self.tree.path().join("home");
         std::fs::create_dir_all(&home).expect("home");
         let mut command = Command::new(env!("CARGO_BIN_EXE_tcl"));
         command
-            .current_dir(&self.project)
+            .current_dir(dir)
             .args(["spec", "test", &self.pack.to_string_lossy()])
             .env("TCLLIBPATH", &self.library)
             .env("HOME", &home)
@@ -786,7 +796,12 @@ impl Described {
 
     /// The same, with the shell named.
     fn run(&self, tclsh: &Path) -> (String, String, i32) {
-        let mut command = self.command();
+        self.run_in(&self.project, tclsh)
+    }
+
+    /// The same, from `dir`.
+    fn run_in(&self, dir: &Path, tclsh: &Path) -> (String, String, i32) {
+        let mut command = self.command_in(dir);
         command.arg("--tclsh").arg(tclsh);
         finished(&mut command)
     }
@@ -955,6 +970,41 @@ fn spec_test_ignores_the_policy_of_the_tree_the_pack_was_found_in() {
 
     vendored.trust_in_the_project(&["demo"]);
     let (stdout, stderr, code) = vendored.run(&tclsh);
+    assert_eq!(code, 0, "stdout: {stdout}\nstderr: {stderr}");
+    assert!(
+        stdout.contains("2 command(s) tested against 'demo', 0 divergence(s)"),
+        "{stdout}"
+    );
+}
+
+/// The operator who stands inside a dependency vendored into the project is still
+/// the project's operator. The dependency's manifest is then the nearest and its
+/// `tclpkg.toml` would be the policy, so a `cd` would opt it in; the policy is the
+/// outermost project's, which is the same whether the operator stands in the
+/// project or in the dependency.
+#[test]
+fn spec_test_from_inside_a_vendored_dependency_takes_the_projects_policy() {
+    let Some(tclsh) = tclsh_on_path() else {
+        eprintln!("skipped: no tclsh on PATH");
+        return;
+    };
+    let vendored = Described::vendored(
+        "spec-test-vendored-inside",
+        DEMO_PACKAGE,
+        &demo_pack("1..3", "2"),
+        &["demo"],
+    );
+    let inside = vendored.dependency();
+    let (stdout, stderr, code) = vendored.run_in(&inside, &tclsh);
+    assert_eq!(code, 1, "stdout: {stdout}\nstderr: {stderr}");
+    assert!(
+        stderr.contains("running the package 'demo' is not permitted by policy"),
+        "standing inside the dependency opted it in: {stderr}"
+    );
+    assert!(stdout.is_empty(), "nothing ran: {stdout}");
+
+    vendored.trust_in_the_project(&["demo"]);
+    let (stdout, stderr, code) = vendored.run_in(&inside, &tclsh);
     assert_eq!(code, 0, "stdout: {stdout}\nstderr: {stderr}");
     assert!(
         stdout.contains("2 command(s) tested against 'demo', 0 divergence(s)"),
