@@ -23,11 +23,13 @@
 use tcl_dialect::TclVersion;
 
 use crate::arg_role::ArgRole;
+use crate::completion::{CompletionCode, CompletionCodeDomain};
 use crate::types::TclType;
 
 use super::answers::{
-    BindingKind, CompletionOutcome, DependencyEvidence, EvalAnswer, ExactValueOrUnavailable,
-    Existence, InvocationOutcome, RepresentationEvidence, RouteIdentity, StoreOutcome, TypeFacts,
+    BindingKind, CompletionOutcome, CompletionPath, DependencyEvidence, EvalAnswer,
+    ExactValueOrUnavailable, Existence, ExistenceOutcome, ExistenceTransfer, InvocationOutcome,
+    RepresentationEvidence, RouteIdentity, StoreOutcome, TransferAnswer, TypeFacts,
 };
 use super::builtins::exact_operands;
 use super::const_ops::{ConstOps, ConstValue, Needs, Raised, TargetSemantics};
@@ -90,6 +92,82 @@ impl ArrayWrite {
         )
         .then_some(place.name)
     }
+}
+
+const NORMAL: &[CompletionCode] = &[CompletionCode::Ok];
+const ERROR: &[CompletionCode] = &[CompletionCode::Error];
+
+/// The existence transfer of a command that stores to its `VarWrite`
+/// operands in order, each store failing where its place holds an array
+/// (`docs/design/compiler/value-transfers.md` § *`catch`, `try`, and
+/// completion*). A place the rung proves unbound or a scalar takes the store;
+/// one it proves an array raises there; any other kind — and an element,
+/// which may fail on its array — may. The normal path binds every target, and
+/// is absent where one is certainly an array. The error path is present where
+/// a store may fail: every target before the first that is not proven
+/// writable is bound, that target and the rest are may-bound, or untouched
+/// where the first is certainly an array, which stops the command there.
+pub(super) fn ordered_writes_transfer(input: &dyn AnalysisInputs) -> TransferAnswer {
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum Kind {
+        Writable,
+        Array,
+        Unproven,
+    }
+    let mut targets: Vec<(TargetId, Kind)> = Vec::new();
+    for id in input.invocation().operands_with_role(ArgRole::VarWrite) {
+        let Ok(place) = input.place(id) else {
+            return TransferAnswer::Generic;
+        };
+        let kind = if place.is_element() {
+            Kind::Unproven
+        } else {
+            match input.prior_store(&place, FactDomain::Existence) {
+                FactView::Domain(DomainFact::Existence(
+                    Existence::Unbound | Existence::Bound(BindingKind::Scalar),
+                )) => Kind::Writable,
+                FactView::Domain(DomainFact::Existence(Existence::Bound(BindingKind::Array))) => {
+                    Kind::Array
+                }
+                _ => Kind::Unproven,
+            }
+        };
+        targets.push((TargetId(id), kind));
+    }
+    if targets.is_empty() {
+        return TransferAnswer::Generic;
+    }
+    let mut paths = Vec::new();
+    if targets.iter().all(|(_, kind)| *kind != Kind::Array) {
+        paths.push(CompletionPath {
+            completion: CompletionCodeDomain::Exact(NORMAL),
+            outcomes: targets
+                .iter()
+                .map(|(target, _)| (*target, ExistenceOutcome::Bind(BindingKind::Scalar)))
+                .collect(),
+        });
+    }
+    if let Some(failing) = targets.iter().position(|(_, kind)| *kind != Kind::Writable) {
+        let certain = targets[failing].1 == Kind::Array;
+        let outcomes = targets
+            .iter()
+            .enumerate()
+            .filter_map(|(at, (target, _))| {
+                if at < failing {
+                    Some((*target, ExistenceOutcome::Bind(BindingKind::Scalar)))
+                } else if certain {
+                    None
+                } else {
+                    Some((*target, ExistenceOutcome::MayBind(BindingKind::Scalar)))
+                }
+            })
+            .collect();
+        paths.push(CompletionPath {
+            completion: CompletionCodeDomain::Exact(ERROR),
+            outcomes,
+        });
+    }
+    TransferAnswer::Existence(ExistenceTransfer { paths })
 }
 
 /// How a publication checks the kind of the places it writes: the inputs

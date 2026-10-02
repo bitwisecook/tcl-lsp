@@ -988,11 +988,6 @@ fn target_roles(
 /// semantics, `append` and `lappend` derive theirs, and `const`, `lset`,
 /// `ledit` and `lpop` wait for the existence rung and the new list cores.
 const KNOWN_GAPS: &[(&str, &str)] = &[
-    // Slice 10, completion paths.
-    (
-        "catch",
-        "slice 10 — the completion protocol's result and options writes",
-    ),
     // Slice 13, proc-level transfer summaries and the binders they carry.
     (
         "global",

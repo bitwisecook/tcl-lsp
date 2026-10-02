@@ -116,6 +116,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         analyser_hook: Some(crate::hooks::AnalyserHookId::Catch),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::completion::CATCH),
         ..CommandSpec::DEFAULT
     }
 }

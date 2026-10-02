@@ -268,6 +268,17 @@ pub(crate) struct CfgBuilder<'a> {
     loop_stack: Vec<(String, String)>,
     /// `try` body→handler exception edges (analysis builds only).
     exception_edges: Vec<(String, String)>,
+    /// The exception edges that run from the block before a flattened body,
+    /// with the block of the body's first command
+    /// ([`crate::cfg::Function::region_entries`]).
+    region_entries: Vec<(String, String, String)>,
+    /// Whether the next script lowered gives each statement a block of its
+    /// own, so every point at which a flattened `catch` body can fail ends a
+    /// block an exception edge leaves from; the script's inner blocks are
+    /// collected in [`Self::split_blocks`].
+    split_script: bool,
+    /// The blocks a split script ends a statement in other than its last.
+    split_blocks: Vec<String>,
     /// When `true`, record [`Self::exception_edges`] in `lower_try`.  Off for
     /// codegen builds so the default bytecode is unchanged.
     faithful_exceptions: bool,
@@ -427,6 +438,9 @@ impl<'a> CfgBuilder<'a> {
             widen_oo_dispatch: false,
             loop_stack: Vec::new(),
             exception_edges: Vec::new(),
+            region_entries: Vec::new(),
+            split_script: false,
+            split_blocks: Vec::new(),
             faithful_exceptions: false,
             plain_command_dispatch: false,
             registry,
@@ -1806,6 +1820,14 @@ impl<'a> CfgBuilder<'a> {
             .into_iter()
             .map(|(from, to)| (self.bid(&from), self.bid(&to)))
             .collect();
+        func.region_entries = std::mem::take(&mut self.region_entries)
+            .into_iter()
+            .map(|(source, handler, first)| crate::cfg::RegionEntry {
+                source: self.bid(&source),
+                handler: self.bid(&handler),
+                first: self.bid(&first),
+            })
+            .collect();
         func.inline_body_error_sites = std::mem::take(&mut self.inline_body_error_sites);
         func.command_binding_sites = std::mem::take(&mut self.command_binding_sites);
         func.procedure_binding_requirements =
@@ -2149,8 +2171,17 @@ impl<'a> CfgBuilder<'a> {
         // terminator — everything after is dead code captured in orphan
         // blocks, and the script does not fall through to its caller.
         let mut main_terminated = false;
+        // The request is for this script alone, not for those it holds.
+        let split = std::mem::take(&mut self.split_script);
 
-        for stmt in &script.statements {
+        for (index, stmt) in script.statements.iter().enumerate() {
+            if split && index > 0 && self.block_mut(&current).terminator.is_none() {
+                let next = self.new_block("catch_step");
+                self.copy_command_boundary(block_name, &next);
+                self.ensure_goto(&current, &next, Some(stmt.span()));
+                self.split_blocks
+                    .push(std::mem::replace(&mut current, next));
+            }
             // If the current block is already terminated, subsequent
             // statements are dead code.  Route them into a fresh orphan
             // block with no incoming edge (rather than dropping them) so

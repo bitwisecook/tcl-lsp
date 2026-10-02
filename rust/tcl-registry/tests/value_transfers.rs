@@ -428,6 +428,158 @@ fn an_increment_of_an_absent_place_under_8_4_is_the_commands_error() {
     assert_eq!(raised(&run("a(1)")), Some((0, None, message("NONE"))));
 }
 
+/// `catch` binds its result and options variables whatever the script's
+/// completion, with values nothing is known of: the transfer lists one path
+/// whose completion domain is any, binding each as a scalar, and the command
+/// has no route of its own. Tcl 8.4's two-word form binds its one variable,
+/// and a call that names none has nothing to bind.
+#[test]
+fn catch_binds_its_result_and_options_whatever_the_completion() {
+    use tcl_registry::completion::CompletionCodeDomain;
+    use tcl_registry::value_transfer::BindingKind;
+    let reg = CommandRegistry::build_default();
+    let resolved = resolve_semantics(reg.get("catch").expect("catch"), None, None);
+    let semantics = resolved.semantics().expect("declared");
+    assert_eq!(
+        semantics.route(),
+        EvalRoute::None {
+            reason: NoRouteReason::Unauthored
+        }
+    );
+    let bound = |words: Vec<OperandView<'static>>| {
+        let inputs = TestInputs::new("catch", words);
+        match semantics.transfer(FactDomain::Existence, &inputs, &mut Budget::unbounded()) {
+            TransferAnswer::Existence(transfer) => {
+                assert_eq!(transfer.paths.len(), 1);
+                assert_eq!(transfer.paths[0].completion, CompletionCodeDomain::Any);
+                transfer.paths[0].outcomes.clone()
+            }
+            other => panic!("{other:?}"),
+        }
+    };
+    let body = || literal("script", Some(ArgRole::Body));
+    let scalar = |at: usize| {
+        (
+            TargetId(OperandId(at)),
+            ExistenceOutcome::Bind(BindingKind::Scalar),
+        )
+    };
+    assert_eq!(
+        bound(vec![
+            body(),
+            literal("m", Some(ArgRole::VarWrite)),
+            literal("o", Some(ArgRole::VarWrite))
+        ]),
+        [scalar(1), scalar(2)]
+    );
+    assert_eq!(
+        bound(vec![body(), literal("m", Some(ArgRole::VarWrite))]),
+        [scalar(1)]
+    );
+    let bare = TestInputs::new("catch", vec![body()]);
+    assert_eq!(
+        semantics.transfer(FactDomain::Existence, &bare, &mut Budget::unbounded()),
+        TransferAnswer::Generic
+    );
+    assert_eq!(
+        semantics.transfer(FactDomain::Type, &bare, &mut Budget::unbounded()),
+        TransferAnswer::Generic
+    );
+}
+
+/// `lassign` stores to its variables in order, each store failing where its
+/// place holds an array, and its existence transfer says so by path
+/// (`docs/design/compiler/value-transfers.md` § *`catch`, `try`, and
+/// completion*): every target is bound on the normal path, which a target
+/// proven an array removes; on the error path every target before the first
+/// that is not proven writable is bound, that target and the rest are
+/// may-bound where its kind is unknown, and untouched where it is certainly
+/// an array, since the command stops there. An element may fail on its array,
+/// so it is never proven writable.
+#[test]
+fn lassign_lists_its_completion_paths() {
+    use tcl_registry::completion::{CompletionCode, CompletionCodeDomain};
+    use tcl_registry::value_transfer::BindingKind;
+    let reg = CommandRegistry::build_default();
+    let resolved = resolve_semantics(reg.get("lassign").expect("lassign"), None, None);
+    let semantics = resolved.semantics().expect("declared");
+    let scalar = bound_as(BindingKind::Scalar);
+    let array = bound_as(BindingKind::Array);
+    let paths = |facts: &[(&str, FactView)], names: &[&'static str]| {
+        let mut words = vec![literal("list", None)];
+        words.extend(
+            names
+                .iter()
+                .map(|name| literal(name, Some(ArgRole::VarWrite))),
+        );
+        let mut inputs = TestInputs::new("lassign", words);
+        for (name, fact) in facts {
+            inputs.prior.insert((*name).to_owned(), fact.clone());
+        }
+        match semantics.transfer(FactDomain::Existence, &inputs, &mut Budget::unbounded()) {
+            TransferAnswer::Existence(transfer) => transfer.paths,
+            other => panic!("{other:?}"),
+        }
+    };
+    let bind = |at: usize| {
+        (
+            TargetId(OperandId(at)),
+            ExistenceOutcome::Bind(BindingKind::Scalar),
+        )
+    };
+    let may = |at: usize| {
+        (
+            TargetId(OperandId(at)),
+            ExistenceOutcome::MayBind(BindingKind::Scalar),
+        )
+    };
+    let normal = CompletionCodeDomain::Exact(&[CompletionCode::Ok]);
+    let error = CompletionCodeDomain::Exact(&[CompletionCode::Error]);
+
+    // Every place writable: the normal path alone.
+    let all = paths(&[("a", scalar.clone()), ("b", absent())], &["a", "b"]);
+    assert_eq!(all.len(), 1);
+    assert_eq!(
+        (all[0].completion, all[0].outcomes.clone()),
+        (normal, vec![bind(1), bind(2)])
+    );
+
+    // `b` proven an array: the error path alone, `a` bound, `b` and `c`
+    // untouched.
+    let certain = paths(
+        &[("a", scalar.clone()), ("b", array.clone())],
+        &["a", "b", "c"],
+    );
+    assert_eq!(certain.len(), 1);
+    assert_eq!(
+        (certain[0].completion, certain[0].outcomes.clone()),
+        (error, vec![bind(1)])
+    );
+
+    // `b` of a kind the rung does not state: both paths, `a` bound on the
+    // error path and `b` and `c` may-bound.
+    let unknown = paths(&[("a", scalar.clone())], &["a", "b", "c"]);
+    assert_eq!(unknown.len(), 2);
+    assert_eq!(unknown[0].outcomes, vec![bind(1), bind(2), bind(3)]);
+    assert_eq!(
+        (unknown[1].completion, unknown[1].outcomes.clone()),
+        (error, vec![bind(1), may(2), may(3)])
+    );
+
+    // An element is never proven writable.
+    let element = paths(&[], &["a", "k(1)"]);
+    assert_eq!(element.len(), 2);
+    assert_eq!(element[1].outcomes, vec![may(1), may(2)]);
+    assert_eq!(
+        semantics.transfer(
+            FactDomain::Type,
+            &TestInputs::new("lassign", vec![]),
+            &mut Budget::unbounded()
+        ),
+        TransferAnswer::Generic
+    );
+}
+
 /// Descriptor availability and enabled evaluation are separate columns:
 /// the increment has a registry-owned direct route; append and list-append
 /// carry the descriptor and no route.
@@ -1728,6 +1880,7 @@ fn pinned_route_stamps() -> BTreeSet<(String, &'static str, &'static str)> {
         ("binary format", "direct:binary-format", "registry"),
         ("binary scan", "direct:binary-scan", "registry"),
         ("case", "none:unauthored", "-"),
+        ("catch", "none:unauthored", "-"),
         ("chan gets", "none:declared", "-"),
         ("const", "direct:const-write", "registry"),
         ("dict append", "direct:dict-append", "registry"),

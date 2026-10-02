@@ -4191,8 +4191,9 @@ const ORDERED_STATE: [(&str, &str, &str); 6] = [
 /// print. Where the expression is a `puts` argument the statement is not
 /// evaluated, no nested write is folded and `puts $x` still reads `x`, and the
 /// program prints the same. The seventh program, an error between a write and
-/// the end of its expression inside a `catch`, leaves `x` at 2 where it was
-/// taken for 1 before: nothing forwards the earlier value to the read.
+/// the end of its expression inside a `catch`, leaves `x` at 2: in a procedure
+/// the lattice holds 2 in `x#2`, at the top level, where the `catch` is one
+/// call, `x` is unknown, and nothing forwards the earlier value to the read.
 #[test]
 fn the_seven_ordered_state_witnesses() {
     for (expression, value, after) in ORDERED_STATE {
@@ -4255,6 +4256,11 @@ fn the_seven_ordered_state_witnesses() {
         "proc p {} {\n    set x 1\n    catch {expr {[incr x] + [error mid]}} msg\n    puts $msg\n    puts $x\n}\np\n",
     ];
     for dialect in DIALECTS {
+        // A `catch` at the top level is one call whose body writes are
+        // may-definitions, so `x` is unknown after it; in a procedure its
+        // body is blocks of its own, the error leaves from the statement
+        // that raised it, and the handler is thrown to with the write the
+        // expression had made.
         assert_eq!(
             top_value_at(&unit_of(caught[0], dialect), "x", 2),
             Some(LatticeValue::Overdefined),
@@ -4262,7 +4268,7 @@ fn the_seven_ordered_state_witnesses() {
         );
         assert_eq!(
             value_at(&unit_of(caught[1], dialect), "::p", "x", 2),
-            Some(LatticeValue::Overdefined),
+            Some(LatticeValue::Const(ConstValue::Int(2))),
             "{dialect}"
         );
         for source in caught {
@@ -4345,4 +4351,358 @@ fn a_nested_write_outside_the_state_declines() {
         );
     }
     prints_under_every_release(unreached, "0\n");
+}
+
+/// What a prefix-rule program leaves that the analysis proves.
+enum PrefixFact {
+    /// The place's last version holds this text.
+    Text(&'static str, &'static str),
+    /// The place's last version holds this number, whichever way a route
+    /// writes it.
+    Number(&'static str, i64),
+    /// The place's last version is unbound.
+    Unbound(&'static str),
+}
+
+/// One of the interface page's nine programs for the prefix rule
+/// (§ *`catch`, `try`, and completion*): the statements before the `catch`,
+/// the body it runs — an error after some of its stores — what is printed
+/// after it, what every release prints, the first release with the command,
+/// and what the analysis proves of a body its blocks hold. A body that is one
+/// straight-line block is lowered into blocks in a procedure; the rest, and
+/// every body at the top level, stay one call.
+struct PrefixProgram {
+    name: &'static str,
+    before: &'static str,
+    body: &'static str,
+    after: &'static str,
+    printed: &'static str,
+    first: &'static str,
+    flattened: &'static [PrefixFact],
+}
+
+const PREFIX_PROGRAMS: [PrefixProgram; 9] = [
+    PrefixProgram {
+        name: "lassign stops at the array",
+        before: "set a old\narray set b {k keep}",
+        body: "lassign {new second} a b",
+        after: "puts \"$a $b(k)\"",
+        printed: "new keep\n",
+        first: "8.5",
+        flattened: &[
+            PrefixFact::Text("a", "new"),
+            PrefixFact::Text("b(k)", "keep"),
+        ],
+    },
+    PrefixProgram {
+        name: "lassign leaves the places after the array",
+        before: "array set b {k keep}\nset a old\nset c old",
+        body: "lassign {x y z} a b c",
+        after: "puts \"$a $c\"",
+        printed: "x old\n",
+        first: "8.5",
+        flattened: &[PrefixFact::Text("a", "x"), PrefixFact::Text("c", "old")],
+    },
+    PrefixProgram {
+        name: "foreach binds in order",
+        before: "array set b {k keep}\nset a old",
+        body: "foreach {a b} {new second} {set inside 1}",
+        after: "puts \"$a [info exists inside]\"",
+        printed: "new 0\n",
+        first: "8.4",
+        flattened: &[],
+    },
+    PrefixProgram {
+        name: "scan stops at the array",
+        before: "array set b {k keep}\nset a old",
+        body: "scan {1 2} {%d %d} a b",
+        after: "puts $a",
+        printed: "1\n",
+        first: "8.4",
+        flattened: &[PrefixFact::Number("a", 1)],
+    },
+    PrefixProgram {
+        name: "regexp stops at the array",
+        before: "array set b {k keep}\nset a old",
+        body: "regexp {(x)(y)} xy a b",
+        after: "puts $a",
+        printed: "xy\n",
+        first: "8.4",
+        flattened: &[PrefixFact::Text("a", "xy")],
+    },
+    PrefixProgram {
+        name: "unset stops at the absent name",
+        before: "set p 1\nset q 2",
+        body: "unset p nosuch q",
+        after: "puts \"[info exists p] $q\"",
+        printed: "0 2\n",
+        first: "8.4",
+        flattened: &[PrefixFact::Unbound("p"), PrefixFact::Number("q", 2)],
+    },
+    PrefixProgram {
+        name: "an error in a word is before the command",
+        before: "set x 1",
+        body: "append x 2 [error boom]",
+        after: "puts $x",
+        printed: "1\n",
+        first: "8.4",
+        flattened: &[PrefixFact::Number("x", 1)],
+    },
+    PrefixProgram {
+        name: "an error in the value is before the store",
+        before: "",
+        body: "set r [expr {1 + [error mid]}]",
+        after: "puts [info exists r]",
+        printed: "0\n",
+        first: "8.4",
+        flattened: &[PrefixFact::Unbound("r")],
+    },
+    PrefixProgram {
+        name: "an error in an expression keeps its writes",
+        before: "set x 1",
+        body: "expr {[incr x] + [error mid]}",
+        after: "puts $x",
+        printed: "2\n",
+        first: "8.4",
+        flattened: &[PrefixFact::Number("x", 2)],
+    },
+];
+
+impl PrefixProgram {
+    /// The program as a script: the `catch` at the top level is one call.
+    fn at_the_top_level(&self) -> String {
+        format!(
+            "{}\ncatch {{{}}} m\n{}\n",
+            self.before, self.body, self.after
+        )
+    }
+
+    /// The program in a procedure, where a one-block body is lowered.
+    fn in_a_procedure(&self) -> String {
+        format!(
+            "proc p {{}} {{\n{}\ncatch {{{}}} m\n{}\n}}\np\n",
+            self.before, self.body, self.after
+        )
+    }
+
+    /// The program with `try … on error` for its `catch` (8.6 on).
+    fn with_a_handler(&self) -> String {
+        format!(
+            "proc p {{}} {{\n{}\ntry {{{}}} on error {{m}} {{}}\n{}\n}}\np\n",
+            self.before, self.body, self.after
+        )
+    }
+
+    /// What the analysis of `function` claims of `fact`: that it holds, a
+    /// different value or binding, or nothing.
+    fn claim(fact: &PrefixFact, function: &tcl_compiler::compilation_unit::FunctionUnit) -> Claim {
+        let last = |name: &str| {
+            let symbol = function.ssa.var_symbol(name).expect("the variable");
+            function
+                .sccp
+                .values
+                .iter()
+                .filter(|((sym, _), _)| *sym == symbol)
+                .max_by_key(|((_, version), _)| *version)
+                .map(|(_, value)| value.clone())
+        };
+        let value = |name: &str, texts: &[String]| match last(name) {
+            Some(LatticeValue::Const(ConstValue::String(held))) if texts.contains(&held) => {
+                Claim::Holds
+            }
+            Some(LatticeValue::Const(ConstValue::Int(held)))
+                if texts.contains(&held.to_string()) =>
+            {
+                Claim::Holds
+            }
+            Some(LatticeValue::Const(_)) => Claim::Contradicts,
+            _ => Claim::Silent,
+        };
+        match fact {
+            PrefixFact::Text(name, text) => value(name, &[(*text).to_owned()]),
+            PrefixFact::Number(name, number) => value(name, &[number.to_string()]),
+            PrefixFact::Unbound(name) => {
+                let symbol = function.ssa.var_symbol(name).expect("the variable");
+                let held = function
+                    .sccp
+                    .existence
+                    .iter()
+                    .filter(|((sym, _), _)| *sym == symbol)
+                    .max_by_key(|((_, version), _)| *version)
+                    .map(|(_, fact)| *fact);
+                match held {
+                    Some(Existence::Unbound) => Claim::Holds,
+                    Some(Existence::Bound(_)) => Claim::Contradicts,
+                    _ => Claim::Silent,
+                }
+            }
+        }
+    }
+}
+
+/// What an analysis says of a fact tclsh bears out.
+#[derive(Debug, PartialEq, Eq)]
+enum Claim {
+    /// It proves the fact.
+    Holds,
+    /// It proves something else, which tclsh does not do.
+    Contradicts,
+    /// It proves nothing of the place.
+    Silent,
+}
+
+/// The prefix rule holds in the default build — a `catch` at the top level, or
+/// one whose body is not a straight line, is one call whose body writes are
+/// may-definitions, and a `catch` in a procedure with a one-block body is
+/// lowered into blocks — and in the faithful-exceptions build, which gives a
+/// `try` handler blocks and exception edges: an error after `k` stores leaves
+/// those `k` and nothing else, so the handler is thrown to with them. Each
+/// program prints what tclsh 8.4 to 9.1 print, before and after `tcl opt`, in
+/// every shape. Where a body's blocks are the analysis's own, what it proves
+/// is exact: the place written before the error holds the value it was given
+/// and the places after it hold what they did. A body that is one call
+/// proves no such thing, and the places it may write hold no value.
+#[test]
+fn the_prefix_rule_holds_in_both_builds() {
+    for program in &PREFIX_PROGRAMS {
+        let (top, in_proc, handled) = (
+            program.at_the_top_level(),
+            program.in_a_procedure(),
+            program.with_a_handler(),
+        );
+        prints_under_releases_from(&top, program.printed, program.first);
+        prints_under_releases_from(&in_proc, program.printed, program.first);
+        let handler_first = if program.first < "8.6" {
+            "8.6"
+        } else {
+            program.first
+        };
+        prints_under_releases_from(&handled, program.printed, handler_first);
+
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            for fact in program.flattened {
+                // The body's blocks are the analysis's own: it proves the fact.
+                for source in [&in_proc, &handled] {
+                    let unit = unit_of(source, dialect);
+                    let function = unit.procedures.get("::p").expect("the procedure");
+                    assert_eq!(
+                        PrefixProgram::claim(fact, function),
+                        Claim::Holds,
+                        "{}: {dialect}\n{source}",
+                        program.name
+                    );
+                }
+                // One call whose body writes are may-definitions proves
+                // nothing of a place it may write, and never the value the
+                // place held before it.
+                let unit = unit_of(&top, dialect);
+                assert_ne!(
+                    PrefixProgram::claim(fact, &unit.top_level),
+                    Claim::Contradicts,
+                    "{}: {dialect}\n{top}",
+                    program.name
+                );
+            }
+        }
+    }
+}
+
+/// A command of a `catch` body may fail wherever it stands, and the handler is
+/// thrown to with what the body has stored by then: after `set x 1; catch
+/// {set x 2; foo; set x 1}` the handler may see `x` at 2 — `foo` raises
+/// between the stores — so the lattice holds no constant for it, the store of
+/// 2 is not dead, and the program prints what tclsh prints. The optimiser
+/// had deleted `set x 2` and `set a 2`, which print `1` and `a=3` where tclsh
+/// 8.4 to 9.1 print `2` and `a=2`, and the handler's state was joined from the
+/// state before the body and the state at its end alone.
+#[test]
+fn a_throw_between_two_writes_is_a_state_the_handler_sees() {
+    let programs = [
+        (
+            "proc foo {} {error x}\nproc p {} {\n    set x 1\n    catch {set x 2; foo; set x 1}\n    puts $x\n}\np\n",
+            "2\n",
+            "set x 2",
+        ),
+        (
+            "proc foo {} {error x}\nproc p {} {\n    set a 1\n    catch {set a 2; foo; set a 3}\n    puts \"a=$a\"\n}\np\n",
+            "a=2\n",
+            "set a 2",
+        ),
+    ];
+    for (source, printed, store) in programs {
+        let name = if source.contains("set a 1") { "a" } else { "x" };
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let (rewritten, _) = optimised(source, dialect);
+            assert!(
+                rewritten.contains(store),
+                "{dialect}: {store} stays\n{rewritten}"
+            );
+            let held = last_value(source, dialect, "::p", name);
+            assert!(
+                !matches!(held, LatticeValue::Const(ConstValue::Int(1 | 3))),
+                "{dialect}: the handler may see 2, not a constant 1 or 3: {held:?}"
+            );
+        }
+        prints_under_releases_from(source, printed, "8.4");
+    }
+}
+
+/// A statement after one that certainly raises never runs: after `array set b
+/// {k v}`, the body `lassign {x y} a b; set z 1` stops at the array, so `z`
+/// is never set where the handler runs, in a `catch` lowered into blocks and
+/// in the body of a `try`, which stays one block.
+#[test]
+fn a_statement_after_a_certain_error_never_runs() {
+    let in_catch = "proc p {} {\n    array set b {k v}\n    catch {lassign {x y} a b; set z 1} m\n    puts [info exists z]\n}\np\n";
+    let in_try = "proc p {} {\n    array set b {k v}\n    try {lassign {x y} a b; set z 1} on error {} {}\n    puts [info exists z]\n}\np\n";
+    for (source, first) in [(in_catch, "8.5"), (in_try, "8.6")] {
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let unit = unit_of(source, dialect);
+            assert_eq!(
+                last_existence(&unit, "::p", "z"),
+                UNBOUND,
+                "{dialect}: z is never set\n{source}"
+            );
+        }
+        prints_under_releases_from(source, "0\n", first);
+    }
+}
+
+/// An error outside any `catch` or `try` is the procedure's own, with no
+/// handler to be thrown to, and nothing that follows it is claimed: after
+/// `lassign {x y} a b` over an array `b` a `catch` the procedure goes on to
+/// run is still reached, as it was before the prefix rule.
+#[test]
+fn a_certain_error_outside_a_handler_claims_nothing() {
+    let source = "proc p {} {\n    array set b {k v}\n    lassign {x y} a b\n    catch {set z 1}\n    return $z\n}\n";
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        let unit = unit_of(source, dialect);
+        let function = unit.procedures.get("::p").expect("the procedure");
+        let reached = function
+            .sccp
+            .executable_blocks
+            .iter()
+            .any(|block| function.ssa.block_name(*block).starts_with("catch_body"));
+        assert!(reached, "{dialect}: the body of the catch is reached");
+    }
+}
+
+/// A `try` body that cannot fall through is thrown to from the point it
+/// raises at, and its first command may fail before it stores anything, with
+/// the state the body entered with: after `try {set x [expr {1 / $d}]; error
+/// boom} on error {} {}` the handler sees `x` unbound where the division
+/// raised, so `info exists x` decides nothing, the program prints `no` for a
+/// zero divisor and `yes` for any other, and it does so before and after `tcl
+/// opt`.
+#[test]
+fn a_body_that_ends_in_an_error_may_have_failed_at_its_start() {
+    let source = "proc p {d} {\n    try {set x [expr {1 / $d}]; error boom} on error {} {}\n    if {[info exists x]} {return yes}\n    return no\n}\nputs [p 0]\nputs [p 1]\n";
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        let (rewritten, _) = optimised(source, dialect);
+        assert!(
+            rewritten.contains("return no"),
+            "{dialect}: x may be unbound where the handler runs\n{rewritten}"
+        );
+    }
+    prints_under_releases_from(source, "no\nyes\n", "8.6");
 }

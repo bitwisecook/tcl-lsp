@@ -35,14 +35,14 @@ use tcl_syntax::value::ValueOps as _;
 use crate::types::TclType;
 
 use super::CommandSemantics;
-use super::answers::EvalAnswer;
+use super::answers::{EvalAnswer, TransferAnswer};
 use super::const_ops::{ConstOps, ConstValue, Needs, Raised, Representation};
 use super::context::Budget;
 use super::decline::{Axis, DeclineReason};
-use super::inputs::{AnalysisInputs, OperandId, TargetId};
+use super::inputs::{AnalysisInputs, FactDomain, OperandId, TargetId};
 use super::publication::{
-    ArrayWrite, Checked, PendingStore, Publication, open_words, raised_outcome, stopped,
-    targets_are,
+    ArrayWrite, Checked, PendingStore, Publication, open_words, ordered_writes_transfer,
+    raised_outcome, stopped, targets_are,
 };
 use super::route::{EvalRoute, NativeEvalId};
 
@@ -505,6 +505,19 @@ impl CommandSemantics for LassignSemantics {
     fn route(&self) -> EvalRoute {
         EvalRoute::Direct {
             id: NativeEvalId::ListAssign,
+        }
+    }
+
+    fn transfer(
+        &self,
+        domain: FactDomain,
+        input: &dyn AnalysisInputs,
+        _budget: &mut Budget,
+    ) -> TransferAnswer {
+        if domain == FactDomain::Existence {
+            ordered_writes_transfer(input)
+        } else {
+            TransferAnswer::Generic
         }
     }
 

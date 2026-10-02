@@ -206,6 +206,19 @@ pub struct InlineBodyErrorSite {
     pub context: tcl_registry::InlineBodyErrorContext,
 }
 
+/// The exception edge from the block before a flattened `catch` or `try`
+/// body to its handler: the body's way out at its first command, before any
+/// store of that command ([`Function::region_entries`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RegionEntry {
+    /// The block before the body.
+    pub source: BlockId,
+    /// The handler the edge reaches.
+    pub handler: BlockId,
+    /// The block that holds the body's first command.
+    pub first: BlockId,
+}
+
 /// A complete control-flow graph for a single procedure or top-level script.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Function {
@@ -224,6 +237,13 @@ pub struct Function {
     /// → O107).  `(from_block, handler_block)` pairs; empty in codegen
     /// builds so the default bytecode is unchanged.
     pub exception_edges: Vec<(BlockId, BlockId)>,
+    /// The exception edges that run from the block before a flattened `catch`
+    /// or `try` body, each with the block that holds the body's first
+    /// command. The body may fail at that command before it has stored
+    /// anything, so what holds before the body reaches the handler; where the
+    /// command is known to raise only after a store, the solver leaves the
+    /// edge out. These edges are also in [`Self::exception_edges`].
+    pub region_entries: Vec<RegionEntry>,
     /// Registry-described error contexts for inlined command bodies flattened
     /// into this function's statement stream. Codegen turns each into a
     /// [`tcl_bytecode::ErrorRegion`] without re-parsing command text. Empty
@@ -282,6 +302,7 @@ impl Function {
             blocks: HashMap::new(),
             loop_nodes: HashMap::new(),
             exception_edges: Vec::new(),
+            region_entries: Vec::new(),
             inline_body_error_sites: Vec::new(),
             command_binding_sites: Vec::new(),
             procedure_binding_requirements: Vec::new(),

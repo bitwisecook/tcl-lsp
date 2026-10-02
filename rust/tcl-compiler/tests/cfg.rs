@@ -887,3 +887,111 @@ fn a_try_handler_walk_reads_timing_not_keywords() {
     );
     assert!(top(&func).exception_edges.is_empty());
 }
+
+/// The blocks of a function whose name starts with `prefix`, in creation
+/// order.
+fn blocks_named(func: &Function, prefix: &str) -> Vec<String> {
+    ordered_block_names(func)
+        .into_iter()
+        .filter(|name| name.starts_with(prefix))
+        .collect()
+}
+
+/// A `catch` body that is straight-line statements in a procedure is lowered
+/// into blocks, and any command of it may fail, so in the analysis build each
+/// statement ends a block that an exception edge leaves for the end block —
+/// the block before the body, whose edge is the body's way out at its first
+/// command, among them. The codegen build keeps the body in the one block its
+/// inline emitter compiles, so the bytecode it makes is as it was.
+#[test]
+fn a_flattened_catch_body_ends_a_block_at_each_statement() {
+    let source = "proc p {} {\n set x 1\n catch {set x 2; incr x; set y 3} m\n return $x\n}\n";
+    let module = cfg(source);
+    let func = proc(&module, "::p");
+    let body: Vec<String> = ordered_block_names(func)
+        .into_iter()
+        .filter(|name| name.starts_with("catch_body") || name.starts_with("catch_step"))
+        .collect();
+    assert_eq!(body.len(), 3, "a block for each statement: {body:?}");
+    let end = blocks_named(func, "catch_end");
+    assert_eq!(end.len(), 1);
+    let id = |name: &str| func.block_id(name).expect(name);
+    let mut sources: Vec<_> = func
+        .exception_edges
+        .iter()
+        .filter(|(_, to)| *to == id(&end[0]))
+        .map(|(from, _)| *from)
+        .collect();
+    sources.sort_unstable_by_key(|block| block.0);
+    let mut expected: Vec<_> = body.iter().map(|name| id(name)).collect();
+    expected.push(func.entry);
+    expected.sort_unstable_by_key(|block| block.0);
+    assert_eq!(
+        sources, expected,
+        "the block before the body and each statement's"
+    );
+    for name in &body {
+        assert_eq!(func.block_by_name(name).expect(name).statements.len(), 1);
+    }
+
+    // The block before the body is the body's entry edge, whose first
+    // command is in the first body block.
+    assert_eq!(func.region_entries.len(), 1);
+    let entry = func.region_entries[0];
+    assert_eq!(
+        (entry.source, entry.handler, entry.first),
+        (func.entry, id(&end[0]), id(&body[0]))
+    );
+
+    // Codegen: one body block, as before.
+    let codegen = build_cfg_codegen(&lower_to_ir(source, registry()), false);
+    let plain = proc(&codegen, "::p");
+    let in_body: Vec<String> = blocks_named(plain, "catch_body")
+        .into_iter()
+        .chain(blocks_named(plain, "catch_step"))
+        .collect();
+    assert_eq!(in_body.len(), 1, "{in_body:?}");
+    assert_eq!(
+        plain
+            .block_by_name(&in_body[0])
+            .expect("body")
+            .statements
+            .len(),
+        3
+    );
+    assert!(plain.region_entries.is_empty());
+}
+
+/// A `try` whose body can fall through is thrown to from the block before it,
+/// which holds the state ahead of the body's first command, and from its tail:
+/// the first is a region entry, which the solver opens or closes by what that
+/// command does. A body that cannot fall through has no such edge.
+#[test]
+fn a_try_body_is_thrown_to_from_the_block_before_it() {
+    let source = "proc p {} {\n set x 1\n try {set x 2} on error {} {set x 3}\n return $x\n}\n\
+                  proc q {} {\n try {error boom} on error {} {set x 3}\n}\n";
+    let module = cfg(source);
+    let func = proc(&module, "::p");
+    let handler = blocks_named(func, "try_handler");
+    assert_eq!(handler.len(), 1);
+    let body = blocks_named(func, "try_body");
+    assert_eq!(func.region_entries.len(), 1);
+    let entry = func.region_entries[0];
+    assert_eq!(
+        (entry.source, entry.handler, entry.first),
+        (
+            func.entry,
+            func.block_id(&handler[0]).expect("handler"),
+            func.block_id(&body[0]).expect("body")
+        )
+    );
+    assert!(
+        func.exception_edges
+            .contains(&(entry.source, entry.handler))
+    );
+    let raises = proc(&module, "::q");
+    assert!(
+        raises.region_entries.is_empty(),
+        "a body that cannot fall through is thrown to from its throw point alone"
+    );
+}

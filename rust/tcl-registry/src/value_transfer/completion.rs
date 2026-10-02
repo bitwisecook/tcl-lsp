@@ -21,14 +21,18 @@
 //! completion*): `error`'s `TCL_ERROR`, and the protocols by which a body's
 //! completion becomes its command's.
 
+use crate::arg_role::ArgRole;
+use crate::completion::CompletionCodeDomain;
+
 use super::CommandSemantics;
 use super::answers::{
-    CompletionOutcome, DependencyEvidence, EvalAnswer, ExactValueOrUnavailable, InvocationOutcome,
-    RouteIdentity, TypeFacts,
+    BindingKind, CompletionOutcome, CompletionPath, DependencyEvidence, EvalAnswer,
+    ExactValueOrUnavailable, ExistenceOutcome, ExistenceTransfer, InvocationOutcome, RouteIdentity,
+    TransferAnswer, TypeFacts,
 };
 use super::context::Budget;
-use super::decline::DeclineReason;
-use super::inputs::{AnalysisInputs, FactDomain, FactView, OperandId};
+use super::decline::{DeclineReason, NoRouteReason};
+use super::inputs::{AnalysisInputs, FactDomain, FactView, OperandId, TargetId};
 use super::route::{EvalRoute, NativeEvalId};
 
 /// The revision of the registry-owned completion evaluators.
@@ -111,5 +115,54 @@ impl CommandSemantics for ErrorSemantics {
                 ..DependencyEvidence::default()
             },
         }))
+    }
+}
+
+/// `catch script ?resultVarName? ?optionsVarName?`: whatever the script's
+/// completion, the result variable and the options variable are written, and
+/// what they hold is the script's to say — nothing the analysis knows of an
+/// opaque body, so each is bound with a value that is not available. The
+/// script's own writes are the body's, stated where the body is lowered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CatchSemantics;
+
+/// `catch`.
+pub static CATCH: CatchSemantics = CatchSemantics;
+
+impl CommandSemantics for CatchSemantics {
+    fn identity(&self) -> &'static str {
+        "catch"
+    }
+
+    fn route(&self) -> EvalRoute {
+        EvalRoute::None {
+            reason: NoRouteReason::Unauthored,
+        }
+    }
+
+    fn transfer(
+        &self,
+        domain: FactDomain,
+        input: &dyn AnalysisInputs,
+        _budget: &mut Budget,
+    ) -> TransferAnswer {
+        if domain != FactDomain::Existence {
+            return TransferAnswer::Generic;
+        }
+        let outcomes: Vec<_> = input
+            .invocation()
+            .operands_with_role(ArgRole::VarWrite)
+            .filter(|id| input.place(*id).is_ok())
+            .map(|id| (TargetId(id), ExistenceOutcome::Bind(BindingKind::Scalar)))
+            .collect();
+        if outcomes.is_empty() {
+            return TransferAnswer::Generic;
+        }
+        TransferAnswer::Existence(ExistenceTransfer {
+            paths: vec![CompletionPath {
+                completion: CompletionCodeDomain::Any,
+                outcomes,
+            }],
+        })
     }
 }

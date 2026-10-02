@@ -701,8 +701,11 @@ fn existence_agrees_on_both_paths() {
 /// declaring its base and the lenient `tcl` profile. Over `x` = 1 the first six
 /// leave the expression's value in `r#1` and the last write it made in `x#2` —
 /// 5 and 2, 0 and 1, 21 and 10, 5 and 3, 2 and 2, 3 and 2 — and the seventh,
-/// whose expression stops at an error inside a `catch`, leaves `x#2` unknown,
-/// so no read after it is forwarded the 1 it held before.
+/// whose expression stops at an error inside a `catch`, leaves `x#2` at 2 in a
+/// procedure, where the `catch` is lowered into blocks and its handler is
+/// thrown to with the write the expression made, and unknown at the top level,
+/// where the `catch` is one call, so no read after it is forwarded the 1 it
+/// held before.
 #[test]
 fn the_seven_ordered_state_witnesses() {
     const EXPRESSIONS: [(&str, i64, i64); 6] = [
@@ -767,7 +770,11 @@ fn the_seven_ordered_state_witnesses() {
                         }
                         _ => assert_eq!(
                             lookup(unit, "x", 2),
-                            Some(LatticeValue::Overdefined),
+                            if form == "procedure" {
+                                int(2)
+                            } else {
+                                Some(LatticeValue::Overdefined)
+                            },
                             "{at} {path}: the error path forwards no 1"
                         ),
                     }

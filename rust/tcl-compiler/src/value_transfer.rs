@@ -66,7 +66,7 @@ use crate::command_binding::CommandTrustSnapshot;
 use crate::expr_ast::ExprNode;
 use crate::ir::{CommandTokens, Statement};
 use crate::sccp::{
-    BuiltinFoldInputs, FoldTrust, TraceInputs, extract_foreach_elements,
+    BuiltinFoldInputs, DefValues, FoldTrust, RaisedDefs, TraceInputs, extract_foreach_elements,
     resolve_foreach_list_via_lattice,
 };
 use crate::ssa::{SsaFunction, SsaStatement, Symbol, ValueKey, Version};
@@ -204,6 +204,79 @@ pub struct RouteExplanation {
     pub route: String,
     /// The answer on the last solver pass over the statement.
     pub answer: String,
+    /// What the statement stores on each completion path its evaluation
+    /// found, or — for a command whose transfer lists them and whose
+    /// evaluation declined — the existence outcomes each path states.
+    pub paths: Vec<PathExplanation>,
+}
+
+/// How an invocation completes on one path of an explanation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PathCompletion {
+    /// `TCL_OK`.
+    Normal,
+    /// `TCL_ERROR`, after this many stores where the evaluation counted them
+    /// and with none given where a transfer lists the path without placing
+    /// the failing step.
+    Error(Option<usize>),
+    /// Another completion code.
+    Code(i64),
+    /// One of several codes a transfer lists.
+    Several(usize),
+    /// Any completion.
+    Any,
+}
+
+impl PathCompletion {
+    /// The completion an evaluated outcome has.
+    fn of(completion: &CompletionOutcome) -> Self {
+        match completion {
+            CompletionOutcome::Normal => Self::Normal,
+            CompletionOutcome::Code { code, .. } => Self::Code(code.as_int()),
+            CompletionOutcome::Error { written, .. } => Self::Error(Some(*written)),
+        }
+    }
+
+    /// The completion a transfer's path lists.
+    fn listed(domain: tcl_registry::completion::CompletionCodeDomain) -> Self {
+        use tcl_registry::completion::{CompletionCode, CompletionCodeDomain};
+        match domain {
+            CompletionCodeDomain::Any => Self::Any,
+            CompletionCodeDomain::Exact([CompletionCode::Ok]) => Self::Normal,
+            CompletionCodeDomain::Exact([CompletionCode::Error]) => Self::Error(None),
+            CompletionCodeDomain::Exact(codes) => Self::Several(codes.len()),
+        }
+    }
+
+    /// Whether this is an error, counted or not.
+    fn is_error(self) -> bool {
+        matches!(self, Self::Error(_))
+    }
+
+    /// The completion as an explanation spells it.
+    #[must_use]
+    pub fn label(self) -> String {
+        match self {
+            Self::Normal => "normal".to_owned(),
+            Self::Error(None) => "error".to_owned(),
+            Self::Error(Some(written)) => format!(
+                "error after {written} store{}",
+                if written == 1 { "" } else { "s" }
+            ),
+            Self::Code(code) => format!("code {code}"),
+            Self::Several(count) => format!("{count} codes"),
+            Self::Any => "any completion".to_owned(),
+        }
+    }
+}
+
+/// One completion path of a statement, for an explanation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PathExplanation {
+    /// How the invocation completes on the path.
+    pub completion: PathCompletion,
+    /// What it stores on it, in execution order.
+    pub stores: Vec<String>,
 }
 
 /// How many times the run dispatched to each route family, nested entries
@@ -412,6 +485,15 @@ pub(crate) struct LatticeDriver<'a> {
     nesting: Cell<u32>,
     /// The statement being evaluated, when the solver said which.
     explaining: Cell<Option<Span>>,
+    /// Whether the statement being evaluated sits where a throw leaves
+    /// from — a block of a `catch` or `try` body — so that a statement that
+    /// certainly raises answers the state its stores left rather than
+    /// widening.
+    throwing: Cell<bool>,
+    /// Whether a command a word substitutes raised an error since the last
+    /// invocation was evaluated: Tcl substitutes every word before it runs
+    /// the command, so the command never ran.
+    word_error: Cell<bool>,
     /// The last explanation recorded per statement.
     explanations: RefCell<BTreeMap<(u32, u32), RouteExplanation>>,
     /// The folded type of each definition the last evaluation of its
@@ -763,14 +845,105 @@ fn reason_label(reason: DeclineReason) -> String {
 /// the normal one, which is what `evaluated` says, and the code or the
 /// number of stores that ran before the error otherwise.
 fn completion_label(completion: &CompletionOutcome) -> Option<String> {
-    match completion {
-        CompletionOutcome::Normal => None,
-        CompletionOutcome::Code { code, .. } => Some(format!("code {}", code.as_int())),
-        CompletionOutcome::Error { written, .. } => Some(format!(
-            "error after {written} store{}",
-            if *written == 1 { "" } else { "s" }
-        )),
+    match PathCompletion::of(completion) {
+        PathCompletion::Normal => None,
+        other => Some(other.label()),
     }
+}
+
+/// One store, as an explanation spells it.
+fn describe_store(name: &str, store: &StoreOutcome) -> String {
+    let text = |value: &ExactValue| String::from_utf8_lossy(&value.bytes).into_owned();
+    match store {
+        StoreOutcome::Write { value, .. } => format!("write {name} = {}", text(value)),
+        StoreOutcome::WriteElement { key, value, .. } => {
+            format!("write {name}({key}) = {}", text(value))
+        }
+        StoreOutcome::Preserve { .. } => format!("preserve {name}"),
+        StoreOutcome::Unbind { .. } => format!("unbind {name}"),
+        StoreOutcome::MayWrite { .. } => format!("may-write {name}"),
+    }
+}
+
+/// What each outcome of an evaluated answer stores on its completion path,
+/// for an explanation: the stores that ran, in execution order, a place named
+/// as the invocation resolved it. Nothing is listed for a normal completion
+/// that stores nothing.
+fn outcome_paths(
+    outcomes: &[Box<InvocationOutcome>],
+    input: Option<&dyn AnalysisInputs>,
+) -> Vec<PathExplanation> {
+    if outcomes.iter().all(|outcome| {
+        outcome.completion.is_normal()
+            && outcome.nested_writes.is_empty()
+            && outcome.ordered_stores.is_empty()
+    }) {
+        return Vec::new();
+    }
+    outcomes
+        .iter()
+        .map(|outcome| {
+            let ran = match outcome.completion {
+                CompletionOutcome::Error { written, .. } => written,
+                _ => usize::MAX,
+            };
+            let nested = outcome
+                .nested_writes
+                .iter()
+                .map(|(place, store)| describe_store(&place.name, store));
+            let ordered = outcome.ordered_stores.iter().map(|store| {
+                let target = store.target().0;
+                let name = input
+                    .and_then(|input| input.place(target).ok())
+                    .map_or_else(|| format!("operand {}", target.0), |place| place.name);
+                describe_store(&name, store)
+            });
+            PathExplanation {
+                completion: PathCompletion::of(&outcome.completion),
+                stores: nested.chain(ordered).take(ran).collect(),
+            }
+        })
+        .collect()
+}
+
+/// The paths an existence transfer lists, for an explanation: how each
+/// completes and what it does to each target's existence.
+fn transfer_paths(
+    transfer: &tcl_registry::value_transfer::ExistenceTransfer,
+    input: &dyn AnalysisInputs,
+) -> Vec<PathExplanation> {
+    transfer
+        .paths
+        .iter()
+        .map(|path| {
+            let stores = path
+                .outcomes
+                .iter()
+                .map(|(target, outcome)| {
+                    let name = input
+                        .place(target.0)
+                        .map_or_else(|_| format!("operand {}", target.0.0), |place| place.name);
+                    let kind = |kind: BindingKind| match kind {
+                        BindingKind::Scalar => "scalar",
+                        BindingKind::Array => "array",
+                        BindingKind::Either => "either",
+                    };
+                    match outcome {
+                        ExistenceOutcome::Bind(bound) => format!("bind {name} as {}", kind(*bound)),
+                        ExistenceOutcome::Unbind => format!("unbind {name}"),
+                        ExistenceOutcome::Preserve => format!("preserve {name}"),
+                        ExistenceOutcome::MayBind(bound) => {
+                            format!("may-bind {name} as {}", kind(*bound))
+                        }
+                    }
+                })
+                .collect();
+            PathExplanation {
+                completion: PathCompletion::listed(path.completion),
+                stores,
+            }
+        })
+        .collect()
 }
 
 /// The lifted answer's spelling for an explanation.
@@ -833,6 +1006,8 @@ impl<'a> LatticeDriver<'a> {
             typed_assignment,
             nesting: Cell::new(0),
             explaining: Cell::new(None),
+            throwing: Cell::new(false),
+            word_error: Cell::new(false),
             explanations: RefCell::new(BTreeMap::new()),
             folded: RefCell::new(HashMap::new()),
             preserved: RefCell::new(HashMap::new()),
@@ -869,6 +1044,18 @@ impl<'a> LatticeDriver<'a> {
         self.explaining.set(span);
     }
 
+    /// Say whether the statements about to be evaluated sit where a throw
+    /// leaves from.
+    pub(crate) fn set_throwing(&self, throwing: bool) {
+        self.throwing.set(throwing);
+    }
+
+    /// Whether the statement being evaluated sits where a throw leaves
+    /// from.
+    pub(crate) fn is_throwing(&self) -> bool {
+        self.throwing.get()
+    }
+
     /// Record `command`'s route and `answer` for the statement being
     /// evaluated. The last pass over a statement wins, so the record is the
     /// fixed point's.
@@ -883,8 +1070,24 @@ impl<'a> LatticeDriver<'a> {
                 command: command.to_owned(),
                 route: route_label(route),
                 answer,
+                paths: Vec::new(),
             },
         );
+    }
+
+    /// Attach the completion paths the statement being evaluated was found
+    /// to have to the explanation recorded for it.
+    fn explain_paths(&self, paths: Vec<PathExplanation>) {
+        let Some(span) = self.explaining.get() else {
+            return;
+        };
+        if let Some(explanation) = self
+            .explanations
+            .borrow_mut()
+            .get_mut(&(span.start(), span.end()))
+        {
+            explanation.paths = paths;
+        }
     }
 
     /// Every explanation the run recorded, in statement order.
@@ -1459,14 +1662,15 @@ impl<'a> LatticeDriver<'a> {
         uses: &HashMap<Symbol, Version, S1>,
         values: &HashMap<ValueKey, LatticeValue, S2>,
         ssa: &SsaFunction,
-    ) -> Vec<DefAnswer> {
+    ) -> DefValues {
+        let widen = || DefValues::PerDef(widened(defs));
         let heads = typed_node_commands(self.registry, LoweringHookId::Incr);
         let Some(&head) = heads.first() else {
-            return widened(defs);
+            return widen();
         };
         if !heads.iter().all(|head| self.trusted(head)) {
             self.explain(head, None, "declined: rebinding-suspected".to_owned());
-            return widened(defs);
+            return widen();
         }
         let texts: Vec<&str> = std::iter::once(name)
             .chain(amount.map(|(text, _)| text))
@@ -1475,10 +1679,10 @@ impl<'a> LatticeDriver<'a> {
             .chain(amount.map(amount_word))
             .collect();
         let Some(resolved) = self.resolve(head, &words) else {
-            return widened(defs);
+            return widen();
         };
         let Some(semantics) = resolved.semantics.value.semantics() else {
-            return widened(defs);
+            return widen();
         };
         let sources = std::iter::once(OperandSource::Literal)
             .chain(amount.map(|(text, braced)| {
@@ -1517,7 +1721,8 @@ impl<'a> LatticeDriver<'a> {
         semantics: &dyn tcl_registry::value_transfer::CommandSemantics,
         defs: &[(String, ValueKey)],
         inputs: &dyn AnalysisInputs,
-    ) -> Vec<DefAnswer> {
+    ) -> DefValues {
+        let widen = || DefValues::PerDef(self.transferred(semantics, defs, inputs, widened(defs)));
         let route = semantics.route();
         match route {
             EvalRoute::Direct { id } if id.owner() == EvaluatorOwner::Registry => {
@@ -1532,11 +1737,28 @@ impl<'a> LatticeDriver<'a> {
                     Some(route),
                     "not evaluated: the route is not registry-owned".to_owned(),
                 );
-                return self.transferred(semantics, defs, inputs, widened(defs));
+                return widen();
             }
         }
+        self.word_error.set(false);
         let answer = evaluate_lifted(semantics, inputs, &mut self.budget(), MAX_CONSTSET_SIZE);
         self.explain(head, Some(route), answer_label(&answer));
+        if let LiftedAnswer::Evaluated(outcomes) = &answer {
+            self.explain_paths(outcome_paths(outcomes, Some(inputs)));
+        }
+        self.explain_transfer_paths(semantics, inputs);
+        // A word that raises is an error before the command runs: nothing it
+        // would store is stored, and the state before it is the one a handler
+        // is thrown to.
+        if self.word_error.replace(false)
+            && self.throwing.get()
+            && matches!(answer, LiftedAnswer::Declined(_))
+        {
+            return DefValues::Raised(Box::new(RaisedDefs {
+                prefix: None,
+                written: 0,
+            }));
+        }
         let outcomes = match answer {
             LiftedAnswer::Pending => {
                 let pending = defs
@@ -1546,11 +1768,9 @@ impl<'a> LatticeDriver<'a> {
                         ..DefAnswer::untyped(*key, LatticeValue::Unknown)
                     })
                     .collect();
-                return self.transferred(semantics, defs, inputs, pending);
+                return DefValues::PerDef(self.transferred(semantics, defs, inputs, pending));
             }
-            LiftedAnswer::Declined(_) => {
-                return self.transferred(semantics, defs, inputs, widened(defs));
-            }
+            LiftedAnswer::Declined(_) => return widen(),
             LiftedAnswer::Evaluated(outcomes) => outcomes,
         };
         let plan = semantics.structure(inputs);
@@ -1564,16 +1784,22 @@ impl<'a> LatticeDriver<'a> {
                 Some(route),
                 format!("declined: {}", reason_label(reason)),
             );
-            return self.transferred(semantics, defs, inputs, widened(defs));
+            return widen();
         }
         // A completion that is not the normal one publishes no value for the
-        // statement's definitions, which widen; the explanation already says
-        // what the route proved.
+        // statement's definitions: where a throw leaves from, they take what
+        // the stores that ran left, and elsewhere they widen. The explanation
+        // already says what the route proved.
         if outcomes
             .iter()
             .any(|outcome| !outcome.completion.is_normal())
         {
-            return self.transferred(semantics, defs, inputs, widened(defs));
+            if self.throwing.get()
+                && let Some(raised) = self.raised_defs(&outcomes, defs, inputs)
+            {
+                return DefValues::Raised(Box::new(raised));
+            }
+            return widen();
         }
         let mut joined: Option<Vec<DefAnswer>> = None;
         for outcome in &outcomes {
@@ -1585,7 +1811,7 @@ impl<'a> LatticeDriver<'a> {
                         Some(route),
                         format!("declined: {}", reason_label(reason)),
                     );
-                    return self.transferred(semantics, defs, inputs, widened(defs));
+                    return widen();
                 }
             };
             joined = Some(match joined {
@@ -1597,7 +1823,99 @@ impl<'a> LatticeDriver<'a> {
                     .collect(),
             });
         }
-        joined.unwrap_or_else(|| widened(defs))
+        DefValues::PerDef(joined.unwrap_or_else(|| widened(defs)))
+    }
+
+    /// The statement's definitions when every outcome is an error: each
+    /// after the stores that ran before it, the places the rest name left as
+    /// they were, joined over the members of a finite input. `None` where an
+    /// outcome is another completion, carries writes of its words, or
+    /// stores to places the evaluation cannot place — the statement then
+    /// widens as before.
+    fn raised_defs(
+        &self,
+        outcomes: &[Box<InvocationOutcome>],
+        defs: &[(String, ValueKey)],
+        input: &dyn AnalysisInputs,
+    ) -> Option<RaisedDefs> {
+        let mut joined: Option<Vec<DefAnswer>> = None;
+        let mut written = usize::MAX;
+        for outcome in outcomes {
+            let CompletionOutcome::Error { written: ran, .. } = outcome.completion else {
+                return None;
+            };
+            if !outcome.nested_writes.is_empty() {
+                return None;
+            }
+            let placed = self.placed_stores(outcome, input).ok()?;
+            let ran_stores = placed.get(..ran)?;
+            // A place the stores that ran did not reach keeps what it held,
+            // an element of an untouched array included.
+            let untouched = StoreOutcome::Preserve {
+                target: TargetId(OperandId(0)),
+            };
+            let mut prefix: Vec<(PlaceRef, &StoreOutcome)> = ran_stores.to_vec();
+            for (name, _) in defs {
+                let place = place_named(name);
+                if !ran_stores
+                    .iter()
+                    .any(|(seen, _)| seen.shares_storage_with(&place))
+                {
+                    prefix.push((place, &untouched));
+                }
+            }
+            let answers = self.defs_from_placed(&prefix, Some(outcome), defs, input);
+            written = written.min(ran);
+            joined = Some(match joined {
+                None => answers,
+                Some(earlier) => earlier
+                    .into_iter()
+                    .zip(&answers)
+                    .map(|(left, right)| left.join(right))
+                    .collect(),
+            });
+        }
+        Some(RaisedDefs {
+            prefix: Some(joined?),
+            written,
+        })
+    }
+
+    /// Add to the statement's explanation the paths the declaration's
+    /// existence transfer lists, when it lists an error path beside the
+    /// normal one, for each kind of completion the evaluation did not
+    /// already report: a kind the analysis cannot place the failing step of
+    /// is still a path the statement may take.
+    fn explain_transfer_paths(
+        &self,
+        semantics: &dyn CommandSemantics,
+        inputs: &dyn AnalysisInputs,
+    ) {
+        let TransferAnswer::Existence(transfer) =
+            semantics.transfer(FactDomain::Existence, inputs, &mut self.budget())
+        else {
+            return;
+        };
+        if transfer.paths.len() < 2 {
+            return;
+        }
+        let Some(span) = self.explaining.get() else {
+            return;
+        };
+        let mut explanations = self.explanations.borrow_mut();
+        let Some(explanation) = explanations.get_mut(&(span.start(), span.end())) else {
+            return;
+        };
+        for path in transfer_paths(&transfer, inputs) {
+            let reported = explanation.paths.iter().any(|known| {
+                known.completion == path.completion
+                    || (path.completion == PathCompletion::Error(None)
+                        && known.completion.is_error())
+            });
+            if !reported {
+                explanation.paths.push(path);
+            }
+        }
     }
 
     /// `answers` with the existence each definition takes from the
@@ -1879,15 +2197,34 @@ impl<'a> LatticeDriver<'a> {
                     .collect();
                 return Some(EmbeddedAnswer {
                     call: pending,
-                    host: crate::sccp::DefValues::Each(LatticeValue::Unknown, None),
+                    host: DefValues::Each(LatticeValue::Unknown, None),
+                    raised: None,
                 });
             }
             LiftedAnswer::Declined(_) => return None,
             LiftedAnswer::Evaluated(outcomes) => outcomes,
         };
         // An error completion publishes only the writes it ran (the prefix
-        // rule), which the definitions do not take.
-        if outcomes
+        // rule): where a throw leaves from the call's definitions take them
+        // and the host's keep what they held, and elsewhere the pair is not
+        // evaluated.
+        let mut raised: Option<usize> = None;
+        let errors = outcomes
+            .iter()
+            .filter(|outcome| matches!(outcome.completion, CompletionOutcome::Error { .. }))
+            .count();
+        if errors > 0 {
+            if errors < outcomes.len() || !self.throwing.get() {
+                return None;
+            }
+            raised = outcomes
+                .iter()
+                .filter_map(|outcome| match outcome.completion {
+                    CompletionOutcome::Error { written, .. } => Some(written),
+                    _ => None,
+                })
+                .min();
+        } else if outcomes
             .iter()
             .any(|outcome| outcome.completion != CompletionOutcome::Normal)
         {
@@ -1906,13 +2243,24 @@ impl<'a> LatticeDriver<'a> {
                     .collect(),
             });
         }
+        if let Some(written) = raised {
+            return Some(EmbeddedAnswer {
+                call: joined?,
+                host: DefValues::Raised(Box::new(RaisedDefs {
+                    prefix: None,
+                    written,
+                })),
+                raised,
+            });
+        }
         let value = lattice_of_outcomes(&outcomes, result_of);
         let folded = ordered
             .folded
             .filter(|_| value != LatticeValue::Overdefined);
         Some(EmbeddedAnswer {
             call: joined?,
-            host: crate::sccp::DefValues::Each(value, folded),
+            host: DefValues::Each(value, folded),
+            raised: None,
         })
     }
 
@@ -1941,6 +2289,9 @@ impl<'a> LatticeDriver<'a> {
         };
         let answer = self.evaluate_expression_at(&expression, uses, values, ssa);
         self.explain(head, Some(expression.route()), answer_label(&answer));
+        if let LiftedAnswer::Evaluated(outcomes) = &answer {
+            self.explain_paths(outcome_paths(outcomes, None));
+        }
         let writes = match &answer {
             LiftedAnswer::Evaluated(outcomes) => outcomes
                 .iter()
@@ -2077,7 +2428,7 @@ impl<'a> LatticeDriver<'a> {
         values: &HashMap<ValueKey, LatticeValue, S2>,
         ssa: &SsaFunction,
         uses: &HashMap<Symbol, Version, S1>,
-    ) -> Vec<DefAnswer> {
+    ) -> DefValues {
         let defs = named_defs(stmt_ssa, ssa);
         let Statement::Call {
             args,
@@ -2087,30 +2438,119 @@ impl<'a> LatticeDriver<'a> {
             ..
         } = &stmt_ssa.statement
         else {
-            return widened(&defs);
+            return DefValues::PerDef(widened(&defs));
         };
         let head = stmt_ssa.statement.canonical_command_or_source();
         if !self.trusted(head) {
             self.explain(head, None, "declined: rebinding-suspected".to_owned());
-            return widened(&defs);
+            return DefValues::PerDef(widened(&defs));
         }
         if foreach_groups.is_none() {
             let cooked = call_arguments(args, tokens.as_ref(), &self.lexer_config);
-            return self.evaluate_source_call(head, &cooked, &defs, uses, values, ssa);
+            return self.evaluate_source_call(head, &cooked, &defs, (uses, values, ssa), true);
         }
         let (bound, existence) = self.evaluate_loop_header(head, args, binders, uses, values, ssa);
-        defs.iter()
-            .map(|(name, key)| {
-                let value = bound
-                    .iter()
-                    .find(|(binder, _)| binder == name)
-                    .map_or(LatticeValue::Overdefined, |(_, value)| value.clone());
-                DefAnswer {
-                    existence,
-                    ..DefAnswer::untyped(*key, value)
-                }
-            })
-            .collect()
+        DefValues::PerDef(
+            defs.iter()
+                .map(|(name, key)| {
+                    let value = bound
+                        .iter()
+                        .find(|(binder, _)| binder == name)
+                        .map_or(LatticeValue::Overdefined, |(_, value)| value.clone());
+                    DefAnswer {
+                        existence,
+                        ..DefAnswer::untyped(*key, value)
+                    }
+                })
+                .collect(),
+        )
+    }
+
+    /// Whether a statement with no definitions certainly raises, where a
+    /// throw leaves from: the answer is `Some` only for a statement the
+    /// registry's routes prove an error. A call to a command with no
+    /// semantics records nothing, as the solver evaluates no statement
+    /// that has no definition anywhere else.
+    pub(crate) fn probe_completion<S: std::hash::BuildHasher>(
+        &self,
+        stmt_ssa: &SsaStatement,
+        values: &HashMap<ValueKey, LatticeValue, S>,
+        ssa: &SsaFunction,
+    ) -> Option<DefValues> {
+        self.explaining(Some(stmt_ssa.statement.span()));
+        let answer = match &stmt_ssa.statement {
+            Statement::Call {
+                args,
+                tokens,
+                foreach_groups: None,
+                ..
+            } => {
+                let head = stmt_ssa.statement.canonical_command_or_source();
+                self.trusted(head).then(|| {
+                    let cooked = call_arguments(args, tokens.as_ref(), &self.lexer_config);
+                    self.evaluate_source_call(
+                        head,
+                        &cooked,
+                        &[],
+                        (&stmt_ssa.uses, values, ssa),
+                        false,
+                    )
+                })
+            }
+            Statement::ExprEval {
+                expr,
+                command_binding,
+                ..
+            } => Some(self.evaluate_expr_eval(expr, command_binding, &stmt_ssa.uses, values, ssa)),
+            _ => None,
+        };
+        self.explaining(None);
+        answer.filter(|answer| matches!(answer, DefValues::Raised(_)))
+    }
+
+    /// An `expr` statement's expression run by the engine, which has no
+    /// definition to give: it raises or it does not.
+    pub(crate) fn evaluate_expr_eval<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+        &self,
+        expr: &ExprNode,
+        command_binding: &tcl_runtime_api::CommandBindingIdentity,
+        uses: &HashMap<Symbol, Version, S1>,
+        values: &HashMap<ValueKey, LatticeValue, S2>,
+        ssa: &SsaFunction,
+    ) -> DefValues {
+        let normal = || DefValues::Each(LatticeValue::Overdefined, None);
+        if self.folds.is_some() && !self.trusted(&command_binding.name) {
+            return normal();
+        }
+        let Some(ordered) =
+            self.ordered_expression(expr, Some(command_binding), (uses, values, ssa))
+        else {
+            return normal();
+        };
+        match Self::raised_expression(&ordered.answer) {
+            Some(raised) => DefValues::Raised(Box::new(raised)),
+            None => normal(),
+        }
+    }
+
+    /// The error an expression's answer certainly ends in, for a statement
+    /// that stores nothing of its own: the writes the expression's commands
+    /// made before it are the call's definitions, never this statement's.
+    fn raised_expression(answer: &LiftedAnswer) -> Option<RaisedDefs> {
+        let LiftedAnswer::Evaluated(outcomes) = answer else {
+            return None;
+        };
+        let mut written = usize::MAX;
+        for outcome in outcomes {
+            let CompletionOutcome::Error { written: ran, .. } = outcome.completion else {
+                return None;
+            };
+            written = written.min(ran);
+        }
+        (!outcomes.is_empty()).then_some(RaisedDefs {
+            prefix: None,
+            written,
+        })
     }
 
     /// The synthetic loop header's value for each binder of its iteration
@@ -2248,18 +2688,19 @@ impl<'a> LatticeDriver<'a> {
         head: &str,
         cooked: &[ArgWord<'_>],
         defs: &[(String, ValueKey)],
-        uses: &HashMap<Symbol, Version, S1>,
-        values: &HashMap<ValueKey, LatticeValue, S2>,
-        ssa: &SsaFunction,
-    ) -> Vec<DefAnswer> {
+        (uses, values, ssa): Lattice<'_, S1, S2>,
+        explain_missing: bool,
+    ) -> DefValues {
         let texts: Vec<&str> = cooked.iter().map(|arg| arg.text.as_ref()).collect();
         let words: Vec<InvocationWord<'_>> = cooked.iter().map(ArgWord::word).collect();
         let Some(resolved) = self.resolve(head, &words) else {
-            return widened(defs);
+            return DefValues::PerDef(widened(defs));
         };
         let Some(semantics) = resolved.semantics.value.semantics() else {
-            self.explain(head, None, "declined: no-semantics".to_owned());
-            return widened(defs);
+            if explain_missing {
+                self.explain(head, None, "declined: no-semantics".to_owned());
+            }
+            return DefValues::PerDef(widened(defs));
         };
         let view = view_of(&resolved, &texts, &words, InvocationLayout::Source);
         let mut inputs = LatticeInputs {
@@ -2686,11 +3127,11 @@ impl<'a> LatticeDriver<'a> {
         uses: &HashMap<Symbol, Version, S1>,
         values: &HashMap<ValueKey, LatticeValue, S2>,
         ssa: &SsaFunction,
-    ) -> LatticeValue {
+    ) -> DefValues {
         let head = command_binding.map_or("expr", |binding| binding.name.as_str());
         if self.folds.is_some() && !self.trusted(head) {
             self.explain(head, None, "declined: rebinding-suspected".to_owned());
-            return LatticeValue::Overdefined;
+            return DefValues::Each(LatticeValue::Overdefined, None);
         }
         self.enter_expression();
         let expression = ExpressionEvaluation {
@@ -2704,11 +3145,20 @@ impl<'a> LatticeDriver<'a> {
         };
         let answer = self.evaluate_expression_at(&expression, uses, values, ssa);
         self.explain(head, Some(expression.route()), answer_label(&answer));
-        match answer {
+        if let LiftedAnswer::Evaluated(outcomes) = &answer {
+            self.explain_paths(outcome_paths(outcomes, None));
+        }
+        if self.throwing.get()
+            && let Some(raised) = Self::raised_expression(&answer)
+        {
+            return DefValues::Raised(Box::new(raised));
+        }
+        let value = match answer {
             LiftedAnswer::Pending => LatticeValue::Unknown,
             LiftedAnswer::Declined(_) => LatticeValue::Overdefined,
             LiftedAnswer::Evaluated(outcomes) => lattice_of_outcomes(&outcomes, result_of),
-        }
+        };
+        DefValues::Each(value, None)
     }
 
     /// A branch condition's truth over the lattice inputs `uses` selects:
@@ -3017,7 +3467,10 @@ pub(crate) struct EmbeddedAnswer {
     /// The call's definitions, one answer each.
     pub(crate) call: Vec<DefAnswer>,
     /// The host's definitions.
-    pub(crate) host: crate::sccp::DefValues,
+    pub(crate) host: DefValues,
+    /// How many writes ran before the error, when the pair certainly raises:
+    /// the call's definitions are those writes' and the host never runs.
+    pub(crate) raised: Option<usize>,
 }
 
 /// One host evaluated under `LocalWrites`.
@@ -4211,10 +4664,14 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> LatticeInputs<'_, S
                 Part::Command(script) => match std::str::from_utf8(script) {
                     Ok(script) => match self.nested(script, state) {
                         // A command that did not complete normally ends the
-                        // word with the writes so far: it has no value.
+                        // word with the writes so far: it has no value, and
+                        // an error is one the invocation never gets past.
                         EvalAnswer::Evaluated(outcome)
                             if outcome.completion != CompletionOutcome::Normal =>
                         {
+                            if matches!(outcome.completion, CompletionOutcome::Error { .. }) {
+                                self.driver.word_error.set(true);
+                            }
                             Err(EvalAnswer::Declined(DeclineReason::StatefulNested))
                         }
                         EvalAnswer::Evaluated(outcome) => match outcome.result {

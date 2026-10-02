@@ -215,6 +215,53 @@ fn explore_sccp_prints_the_route_of_each_statement() {
     );
 }
 
+/// `tcl explore --show sccp --text` lists what a statement stores on each
+/// completion path: `lassign` over an array `c` stores its first target and
+/// stops, and over a place whose kind is not proven it may stop at any of its
+/// targets, which its existence transfer lists beside the normal path.
+#[test]
+fn explore_sccp_prints_what_each_completion_path_stores() {
+    let array = run_tcl(&[
+        "explore",
+        "--source",
+        "proc p {} {array set c {k keep}; set a old; lassign {new second} a c}",
+        "--show",
+        "sccp",
+        "--text",
+        "--no-colour",
+    ]);
+    assert!(
+        array.contains("· answer: evaluated: error after 1 store"),
+        "{array}"
+    );
+    assert!(
+        array.contains("· path error after 1 store: write a = new"),
+        "{array}"
+    );
+    assert!(
+        array.contains("· path normal: write c(k) = keep"),
+        "a statement that stores on its normal path alone lists that one:\n{array}"
+    );
+
+    let unproven = run_tcl(&[
+        "explore",
+        "--source",
+        "proc p {c} {set a old; if {$c} {set b 1}; lassign {x y} a b}",
+        "--show",
+        "sccp",
+        "--text",
+        "--no-colour",
+    ]);
+    assert!(
+        unproven.contains("· path normal: write a = x; write b = y"),
+        "{unproven}"
+    );
+    assert!(
+        unproven.contains("· path error: bind a as scalar; may-bind b as scalar"),
+        "{unproven}"
+    );
+}
+
 /// The existence branch decides inside the
 /// fixed point — `unset x` leaves `x` provably unbound, so `[info exists
 /// x]` folds `False` as an ordinary `Applied` branch — and the `if`'s
