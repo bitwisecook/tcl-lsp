@@ -1559,6 +1559,51 @@ fn braced_foreach_list_does_not_create_handler_barrier() {
 }
 
 #[test]
+fn try_header_handler_barrier_blocks_scalar_constant_branch() {
+    use tcl_compiler::cfg_builder::{build_cfg_codegen_with_registry, build_cfg_with_registry};
+
+    let registry = reg();
+    let source = "proc p {} {set x 5; try {} on error [missing_command] {}; if {$x == 5} {return stale} else {return changed}}";
+    let cu = CompilationUnit::build_for(source, &registry, false);
+    assert!(
+        cu.function("::p")
+            .unwrap()
+            .sccp
+            .constant_branches
+            .is_empty()
+    );
+    for cfg in [
+        build_cfg_with_registry(&cu.ir_module, false, &registry),
+        build_cfg_codegen_with_registry(&cu.ir_module, false, &registry),
+    ] {
+        let function = &cfg.procedures["::p"];
+        assert!(
+            function.blocks.values().any(|block| {
+                block.statements.iter().any(|statement| {
+                    statement.synthetic_marker()
+                        == Some(tcl_compiler::ir::SyntheticMarker::RegistryBarrier)
+                })
+            }),
+            "both inlined and deferred try paths must retain header effects"
+        );
+    }
+
+    let safe = CompilationUnit::build_for(
+        "proc p {} {set x 5; try {} on error [list e o] {}; if {$x == 5} {return kept} else {return changed}}",
+        &registry,
+        false,
+    );
+    assert!(
+        !safe
+            .function("::p")
+            .unwrap()
+            .sccp
+            .constant_branches
+            .is_empty()
+    );
+}
+
+#[test]
 fn known_safe_registry_handler_preserves_scalar_constant_branch() {
     let cu = CompilationUnit::build_for(
         "proc p {} { set x 5; string length value; if {$x == 5} { return kept } else { return changed } }",

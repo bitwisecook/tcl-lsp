@@ -2071,21 +2071,30 @@ fn info_exists_after_my_dispatch_to_an_upvar_sibling_does_not_fire_i230() {
     );
 }
 
-/// TN control for the dispatch widening: with exact command identities and no
-/// caller-frame-reaching method anywhere in the module, a never-set
-/// non-instance local still folds always false after a same-object call
-/// (tclsh 9.0.4 / 8.6.14: `[info exists zzz]` is 0).
+/// Rooted helper identities do not close the runtime object's method surface.
+/// Tcl 9.0.4: an oo::objdefine replacement of helper can upvar-define zzz in
+/// m, changing info exists from 0 to 1 without changing this class body.
 #[test]
-fn info_exists_still_fires_i230_when_no_method_reaches_the_caller_frame() {
+fn info_exists_after_runtime_selected_object_dispatch_does_not_fire_i230() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src = "oo::class create C {\n    method helper {} { ::return 1 }\n    method m {} {\n        [::oo::Helpers::self object] helper\n        ::if {[::info exists zzz]} { ::puts hi }\n    }\n}\n";
     let diags = lsp.open_ready(&uri, src);
     assert!(
-        has_code(&diags, "I230"),
-        "with complete dispatch evidence the fold must survive: {:?}",
+        !has_code(&diags, "I230"),
+        "runtime method replacement must keep the existence query dynamic: {:?}",
         codes(&diags)
     );
+}
+
+/// A rooted registry command with no caller-frame effects retains precision.
+#[test]
+fn info_exists_still_fires_i230_after_safe_rooted_command_in_method() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "oo::class create C {\n    method m {} {\n        ::string length value\n        ::if {[::info exists zzz]} { ::puts hi }\n    }\n}\n";
+    let diags = lsp.open_ready(&uri, src);
+    assert!(has_code(&diags, "I230"), "{:?}", codes(&diags));
 }
 
 // `setter`'s `uplevel #0 {set x 99}` needs no `global` declaration, so an

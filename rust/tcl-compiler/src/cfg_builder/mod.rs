@@ -2140,6 +2140,13 @@ impl<'a> CfgBuilder<'a> {
 
     /// Dispatch `Try` — deferred opaque or inlined.
     fn lower_try_dispatch(&mut self, stmt: &Statement, current: &str) -> String {
+        // Header words substitute before either the generic invocation or
+        // the inlined body begins, and may mutate this frame through a handler.
+        self.push_embedded_control_effects(
+            stmt,
+            current,
+            "try header invokes an opaque embedded command",
+        );
         let Statement::Try {
             handlers,
             finally_body,
