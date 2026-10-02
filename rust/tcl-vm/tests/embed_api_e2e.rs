@@ -597,3 +597,61 @@ fn the_variable_forms_fire_the_traces_a_script_would() {
         "each form fires the trace of its operation"
     );
 }
+
+fn failure(message: &str, options: Value) -> Completion<Value> {
+    Completion::new(Code::Error, Value::string(message), options)
+}
+
+#[test]
+fn an_error_a_host_took_as_its_own_leaves_error_code_and_error_info() {
+    let mut vm = vm();
+    assert_eq!(
+        run(&mut vm, "info exists errorCode"),
+        "0",
+        "nothing has failed"
+    );
+    vm.publish_caught_error(&failure(
+        "boom",
+        Value::list(vec![Value::string("-errorcode"), Value::string("MY CODE")]),
+    ));
+    assert_eq!(run(&mut vm, "set errorCode"), "MY CODE");
+    assert_eq!(run(&mut vm, "set errorInfo"), "boom");
+
+    vm.publish_caught_error(&failure("plain", Value::empty()));
+    assert_eq!(
+        run(&mut vm, "set errorCode"),
+        "NONE",
+        "an error that carries no code is NONE, as a catch publishes it"
+    );
+    assert_eq!(run(&mut vm, "set errorInfo"), "plain");
+
+    vm.publish_caught_error(&failure("wrong # args: should be \"x\"", Value::empty()));
+    assert_eq!(
+        run(&mut vm, "set errorCode"),
+        "TCL WRONGARGS",
+        "and the code a usage error defaults to is the one a catch gives it"
+    );
+}
+
+#[test]
+fn a_completion_that_is_not_an_error_publishes_nothing() {
+    let mut vm = vm();
+    for code in [Code::Ok, Code::Return, Code::Break, Code::Continue] {
+        vm.publish_caught_error(&Completion::new(code, Value::string("x"), Value::empty()));
+    }
+    assert_eq!(run(&mut vm, "info exists errorCode"), "0");
+    assert_eq!(run(&mut vm, "info exists errorInfo"), "0");
+}
+
+#[test]
+fn confined_stores_keep_a_taken_error_out_of_the_globals() {
+    let mut vm = vm();
+    vm.set_stores_confined(true);
+    vm.publish_caught_error(&failure("boom", Value::empty()));
+    vm.set_stores_confined(false);
+    assert_eq!(
+        run(&mut vm, "info exists errorCode"),
+        "0",
+        "a body confined to its own frame leaves no global behind"
+    );
+}

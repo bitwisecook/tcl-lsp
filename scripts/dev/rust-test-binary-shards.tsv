@@ -298,6 +298,7 @@
 5	tcl-compiler::wasm_execute	test	tcl-compiler	wasm_execute
 5	tcl-compiler::wasm_real_link	test	tcl-compiler	wasm_real_link
 5	tcl-cshim::completion	test	tcl-cshim	completion
+5	tcl-cshim::doors_e2e	test	tcl-cshim	doors_e2e
 5	tcl-cshim::factory	test	tcl-cshim	factory
 5	tcl-cshim::sandbox_isolation	test	tcl-cshim	sandbox_isolation
 5	tcl-dialect::model_version_set	test	tcl-dialect	model_version_set

@@ -88,7 +88,7 @@ impl StaticExtensions {
     pub unsafe fn new(table: &'static [(&'static str, InitProc)]) -> Self {
         Self {
             table,
-            state: Rc::new(InterpState::new()),
+            state: InterpState::new_shared(),
             loaded: RefCell::new(BTreeSet::new()),
         }
     }

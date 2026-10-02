@@ -41,9 +41,11 @@ Two checks:
   target's default; the shim's test extension `pkga.c` under both legs named at
   once (the union, which checks the source against the header on an ILP32
   target and names no host), and again as an 8.x source
-  (`-DTCL_MAJOR_VERSION=8`); and, as the negative, `pkga.c` under the WASM leg
-  alone, which must be refused because it calls functions only the shim
-  implements. Without wasi-sdk this half is skipped with a note, unless
+  (`-DTCL_MAJOR_VERSION=8`), and `doors.c`, the one that reads, writes and
+  evaluates in its caller's frame, under both legs; and, as the negatives,
+  `pkga.c` and `doors.c` under the WASM leg alone, which must be refused because
+  each calls functions only the shim implements. Without wasi-sdk this half is
+  skipped with a note, unless
   `TCL_REQUIRE_WASM_LINK` is set, as it is in the CI job that installs the
   toolchain, where a missing compiler is a failure.
 
@@ -310,6 +312,7 @@ BOTH = ("TCL_HOST_WASM", "TCL_HOST_NATIVE")
 def check_compiles(sdk: Path, native_only: set[str]) -> list[str]:
     layout = C_TESTS / "layout.c"
     pkga = C_TESTS / "pkga.c"
+    doors = C_TESTS / "doors.c"
     problems = []
     # (source, defines, undefines, what it shows)
     accepted = (
@@ -338,6 +341,13 @@ def check_compiles(sdk: Path, native_only: set[str]) -> list[str]:
             "the test extension compiles as an 8.x source against both legs",
         ),
         (
+            doors,
+            BOTH,
+            (),
+            "the extension that reaches its caller's frame compiles for wasm32 "
+            "against both legs at once",
+        ),
+        (
             _PROBES[WASM_ONLY],
             (),
             (),
@@ -358,6 +368,14 @@ def check_compiles(sdk: Path, native_only: set[str]) -> list[str]:
             (),
             "the WASM leg declares only what the runtime exports, and the test "
             "extension calls functions only the shim implements",
+            native_only,
+        ),
+        (
+            doors,
+            ("TCL_HOST_WASM",),
+            (),
+            "the WASM leg declares no variable or evaluation call, and the "
+            "extension that reaches its caller's frame calls the shim's",
             native_only,
         ),
         (

@@ -25,10 +25,12 @@
 //! [`crate::Interp::sync`], because a command procedure may itself call
 //! `Tcl_CreateObjCommand` while the engine is busy invoking it.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 use std::ffi::{c_int, c_void};
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
+
+use tcl_engine_api::{CommandRegistrar, EngineError};
 
 use crate::obj::{Obj, ObjRef, TclError};
 
@@ -80,6 +82,51 @@ pub struct InterpState {
     error_code: RefCell<Option<ObjRef>>,
     packages: RefCell<Vec<(String, String)>>,
     pending: RefCell<Vec<CommandChange>>,
+    /// The `Rc` this state lives in, when it lives in one, so a door call can
+    /// publish a command C has just created before it evaluates a script.
+    shared: Weak<InterpState>,
+    /// The engine's door while a command runs, as a pointer to the
+    /// `&mut dyn CommandRegistrar` the scope that opened it holds; null outside
+    /// a scope. See [`Self::open_door`].
+    door: Cell<*mut c_void>,
+    /// Objects a door call handed to C, kept until the scope of the command
+    /// that made the call ends.
+    retained: RefCell<Vec<ObjRef>>,
+    /// The error C cannot swallow: a budget the engine enforces or a crash.
+    fatal: RefCell<Option<EngineError>>,
+}
+
+/// The engine's door as one command's invocation holds it, for
+/// [`InterpState::open_door`] to point at.
+pub(crate) struct DoorRef<'a>(&'a mut dyn CommandRegistrar);
+
+impl<'a> DoorRef<'a> {
+    /// The door `registrar` is.
+    pub(crate) fn new(registrar: &'a mut dyn CommandRegistrar) -> Self {
+        Self(registrar)
+    }
+}
+
+/// An open door: the engine's [`CommandRegistrar`] reachable from the C API
+/// while one command's procedure runs. Dropping it closes the door, restores the
+/// one an enclosing command had open and releases the objects its calls handed
+/// to C.
+pub(crate) struct DoorScope<'a> {
+    state: &'a InterpState,
+    previous: *mut c_void,
+    retained_mark: usize,
+}
+
+impl Drop for DoorScope<'_> {
+    fn drop(&mut self) {
+        self.state.door.set(self.previous);
+        let released = {
+            let mut retained = self.state.retained.borrow_mut();
+            let mark = self.retained_mark.min(retained.len());
+            retained.split_off(mark)
+        };
+        drop(released);
+    }
 }
 
 impl Default for InterpState {
@@ -92,13 +139,106 @@ impl InterpState {
     /// Fresh state: an empty result and no commands.
     #[must_use]
     pub fn new() -> Self {
+        Self::with_shared(Weak::new())
+    }
+
+    /// Fresh state in an `Rc` that knows itself, which is what lets a door call
+    /// publish a command C created a moment ago ([`Self::shared`]).
+    #[must_use]
+    pub(crate) fn new_shared() -> Rc<Self> {
+        Rc::new_cyclic(|me| Self::with_shared(me.clone()))
+    }
+
+    fn with_shared(shared: Weak<InterpState>) -> Self {
         Self {
             commands: RefCell::new(BTreeMap::new()),
             result: RefCell::new(ObjRef::new(Obj::from_text(""))),
             error_code: RefCell::new(None),
             packages: RefCell::new(Vec::new()),
             pending: RefCell::new(Vec::new()),
+            shared,
+            door: Cell::new(std::ptr::null_mut()),
+            retained: RefCell::new(Vec::new()),
+            fatal: RefCell::new(None),
         }
+    }
+
+    /// The `Rc` this state lives in, or `None` for a state that does not live in
+    /// one.
+    #[must_use]
+    pub(crate) fn shared(&self) -> Option<Rc<Self>> {
+        self.shared.upgrade()
+    }
+
+    /// Open the engine's `door` to the C API until the returned scope drops.
+    ///
+    /// The state keeps a pointer to the reference the caller holds, not a
+    /// reference of its own, so the borrow is the caller's for the scope's whole
+    /// life and nothing else may use `door` until the scope has dropped. A scope
+    /// opened inside another (a command that evaluates a script that calls a
+    /// command) replaces the outer door for its own length and restores it.
+    pub(crate) fn open_door<'a>(&'a self, door: &'a mut DoorRef<'_>) -> DoorScope<'a> {
+        let previous = self.door.replace(std::ptr::from_mut(door).cast::<c_void>());
+        DoorScope {
+            state: self,
+            previous,
+            retained_mark: self.retained.borrow().len(),
+        }
+    }
+
+    /// Run `body` with the open door, or answer `None` when no door is open.
+    ///
+    /// The door is taken for the call: a command the body causes to run opens a
+    /// door of its own, and nothing reaches the outer one until `body` returns.
+    pub(crate) fn with_door<T>(
+        &self,
+        body: impl FnOnce(&mut dyn CommandRegistrar) -> T,
+    ) -> Option<T> {
+        struct Restore<'a>(&'a Cell<*mut c_void>, *mut c_void);
+        impl Drop for Restore<'_> {
+            fn drop(&mut self) {
+                self.0.set(self.1);
+            }
+        }
+
+        let door = self.door.replace(std::ptr::null_mut());
+        if door.is_null() {
+            return None;
+        }
+        let _restore = Restore(&self.door, door);
+        // SAFETY: a non-null `door` was set by `open_door` from a `DoorRef` its
+        // scope still borrows exclusively: the scope outlives this call, and the
+        // caller that opened it is inside the C procedure that is running now,
+        // so nothing else uses that reference until the call returns.
+        let registrar = unsafe { &mut *door.cast::<DoorRef<'_>>() };
+        Some(body(&mut *registrar.0))
+    }
+
+    /// Keep `object` alive until the scope of the running command ends, and
+    /// answer its pointer for C.
+    pub(crate) fn retain(&self, object: ObjRef) -> *mut Obj {
+        let pointer = object.as_ptr();
+        self.retained.borrow_mut().push(object);
+        pointer
+    }
+
+    /// Record the error C cannot swallow: the first one a call reports stays, and
+    /// the command that is running fails with it whatever it returns.
+    pub(crate) fn set_fatal(&self, error: EngineError) {
+        let mut fatal = self.fatal.borrow_mut();
+        if fatal.is_none() {
+            *fatal = Some(error);
+        }
+    }
+
+    /// The fatal error recorded, if any.
+    pub(crate) fn fatal(&self) -> Option<EngineError> {
+        self.fatal.borrow().clone()
+    }
+
+    /// Take the fatal error recorded, if any.
+    pub(crate) fn take_fatal(&self) -> Option<EngineError> {
+        self.fatal.borrow_mut().take()
     }
 
     /// Register a command, replacing (and tearing down) any existing one of
