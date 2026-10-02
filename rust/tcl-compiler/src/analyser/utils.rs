@@ -1296,6 +1296,7 @@ fn parse_stub_flags(flags_str: &str) -> super::types::StubFlags {
             "-mutator" => flags |= super::types::StubFlags::MUTATOR,
             "-unsafe" => flags |= super::types::StubFlags::UNSAFE,
             "-scope_alias" => flags |= super::types::StubFlags::SCOPE_ALIAS,
+            "-extension" => flags |= super::types::StubFlags::EXTENSION,
             _ => {}
         }
     }
@@ -2622,6 +2623,28 @@ proc foo {} {}
         );
         assert!(!stub.flags.contains(super::super::types::StubFlags::PURE));
         assert!(!stub.flags.contains(super::super::types::StubFlags::LOOP));
+    }
+
+    #[test]
+    fn parse_command_stub_extension_flag() {
+        let stub = cmd_stub("# tcl-lsp: stub pkga_calc {sub args} -extension -pure").unwrap();
+        assert!(
+            stub.flags
+                .contains(super::super::types::StubFlags::EXTENSION)
+        );
+        assert!(stub.flags.contains(super::super::types::StubFlags::PURE));
+        let plain = cmd_stub("# tcl-lsp: stub pkga_calc {sub args} -pure").unwrap();
+        assert!(
+            !plain
+                .flags
+                .contains(super::super::types::StubFlags::EXTENSION)
+        );
+        let sidecar = cmd_stub("stub pkga_calc {sub args} -extension").unwrap();
+        assert!(
+            sidecar
+                .flags
+                .contains(super::super::types::StubFlags::EXTENSION)
+        );
     }
 
     #[test]

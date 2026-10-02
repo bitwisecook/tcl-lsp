@@ -1801,4 +1801,63 @@ mod tests {
             "an undeclared name is the catalogue's"
         );
     }
+
+    /// A declaration flagged `-extension` starts from the conservative default
+    /// for native code: a dynamic barrier with an unknown read and write. A
+    /// stated purity or effect replaces those, because the declaration said
+    /// what the command does; a stated barrier survives.
+    #[test]
+    fn an_extension_declaration_is_a_barrier_until_it_states_its_effects() {
+        use tcl_registry::model::DocumentCommandSurface;
+        let registry = CommandRegistry::build_default();
+        let declared = crate::analyser::utils::document_declared_surface(
+            "# tcl-lsp: stubs-begin\n\
+             # tcl-lsp: stub ext_any {} -extension\n\
+             # tcl-lsp: stub ext_pure {} -extension -pure\n\
+             # tcl-lsp: stub ext_mut {} -extension -mutator\n\
+             # tcl-lsp: stub ext_both {} -extension -mutator -barrier\n\
+             # tcl-lsp: stub plain {}\n\
+             # tcl-lsp: stubs-end\n",
+            None,
+            "tcl8.6",
+        );
+        let surface = DocumentCommandSurface::new(&registry, Some(&declared));
+        let classify = |name: &str| classify_side_effects_in(&surface, name, &[], None, None);
+
+        let any = classify("ext_any");
+        assert!(any.dynamic_barrier && !any.pure);
+        assert!(any.reads_target(SideEffectTarget::Unknown));
+        assert!(any.writes_target(SideEffectTarget::Unknown));
+
+        let pure = classify("ext_pure");
+        assert!(pure.pure && pure.deterministic && pure.effects.is_empty());
+        assert!(!pure.dynamic_barrier);
+
+        let mutator = classify("ext_mut");
+        assert!(!mutator.dynamic_barrier && !mutator.pure);
+        assert!(mutator.writes_target(SideEffectTarget::Variable));
+        assert!(!mutator.affects_target(SideEffectTarget::Unknown));
+
+        // `-barrier` is the trait the minifier fences scopes by, not the
+        // classifier's `dynamic_barrier`, so it is read off the surface.
+        let barrier_trait = |name: &str| {
+            surface
+                .traits(name)
+                .is_some_and(|traits| traits.contains(Traits::CREATES_DYNAMIC_BARRIER))
+        };
+        assert!(
+            barrier_trait("ext_both"),
+            "a stated barrier survives a stated effect"
+        );
+        assert!(
+            !barrier_trait("ext_mut"),
+            "a stated effect replaces the default's barrier"
+        );
+        assert!(barrier_trait("ext_any"), "the default is a barrier");
+
+        assert!(
+            !classify("plain").dynamic_barrier,
+            "without `-extension` a stub that states nothing is no barrier"
+        );
+    }
 }

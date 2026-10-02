@@ -2591,6 +2591,33 @@ impl CommandSpec {
         self_receiver_words: &[],
     };
 
+    /// The conservative fact for a command a native extension registers:
+    /// every axis at its top, stated once in [`crate::extension_default`].
+    ///
+    /// Unknown arity; every argument may be a script or a variable name at any
+    /// level (a dynamic barrier); unknown reads and writes; may establish a
+    /// variable trace; a taint sink and source; unsafe and hidden in a safe
+    /// interpreter; never pure; may complete with any code, a normal
+    /// completion among them; and [`RuntimeBacking::HostNative`], so no
+    /// procedure-binding check is ever emitted for it. It names no stamp and no
+    /// window, so a call is dispatched plain at every release.
+    ///
+    /// It declares no `command_table_effect`, `state_transitions` or
+    /// `world_effects` on purpose: a command with none resolves to
+    /// `StateTransitionKnowledge::UnknownInvocation`, the wildcard over every
+    /// identity domain that a closed statement could only narrow.
+    #[must_use]
+    pub const fn extension_default(name: &'static str) -> Self {
+        Self {
+            name,
+            traits: crate::extension_default::TRAITS,
+            side_effects: crate::extension_default::SIDE_EFFECTS,
+            completion: Some(crate::completion::CompletionDescriptor::CONSERVATIVE),
+            runtime_backing: crate::runtime_backing::RuntimeBacking::HostNative,
+            ..Self::DEFAULT
+        }
+    }
+
     /// Reusable base for a command whose successful result depends only on
     /// its evaluated arguments and which has no mutable-world effects or
     /// tracked state transitions.

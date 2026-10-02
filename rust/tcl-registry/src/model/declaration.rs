@@ -85,9 +85,11 @@ use std::collections::BTreeMap;
 use tcl_dialect::model::{ItemHistory, Provenance, SurfaceQuery, VersionAxisId, VersionSet};
 
 use crate::arg_role::{AppendedArity, ArgRole};
+use crate::extension_default;
 use crate::model::surface::{CapabilityPredicate, Provider, SurfaceDeclaration};
 use crate::security_floor::SecurityFloor;
 use crate::side_effects::SideEffect;
+use crate::spec::CommandSpec;
 use crate::traits::Traits;
 
 /// Map a stub directive's role word to the registry's own [`ArgRole`], or
@@ -196,6 +198,48 @@ impl DeclaredCommand {
     #[must_use]
     pub fn with_side_effects(mut self, side_effects: Vec<SideEffect>) -> Self {
         self.side_effects = side_effects;
+        self
+    }
+
+    /// Declare `name` as a command a native extension registers: the
+    /// conservative default of [`crate::extension_default`] on every axis,
+    /// provided by the document itself at `provenance`.
+    ///
+    /// Its traits and side effects are those of
+    /// [`CommandSpec::extension_default`], so a stub for an extension's command
+    /// reads the way the registry's own default does to every consumer that
+    /// asks the surface. What the declaration states narrows them, through
+    /// [`Self::narrowed_by`].
+    #[must_use]
+    pub fn extension(
+        name: String,
+        arguments: Vec<DeclaredArgument>,
+        provenance: Provenance,
+    ) -> Self {
+        let default = CommandSpec::extension_default("");
+        Self::new(name, arguments, provenance)
+            .with_traits(default.traits)
+            .with_side_effects(default.side_effects.to_vec())
+    }
+
+    /// Narrow this declaration by facts it states, axis by axis.
+    ///
+    /// A statement of *effects* — [`Traits::PURE`], or a side effect of its
+    /// own — is the declaration saying what the command does to state, so it
+    /// replaces the default's effect axes ([`extension_default::EFFECT_AXES`]:
+    /// code evaluation and traces, with the unknown read and write) by what it
+    /// states: a command that is pure, or that only rewrites its target,
+    /// evaluates no code. Every other axis — taint, safety — stays where the
+    /// default put it unless the declaration states it. The traits it states
+    /// are added whether or not they narrow anything, so a stated barrier
+    /// survives a stated effect.
+    #[must_use]
+    pub fn narrowed_by(mut self, traits: Traits, side_effects: Vec<SideEffect>) -> Self {
+        if traits.contains(Traits::PURE) || !side_effects.is_empty() {
+            self.traits.remove(extension_default::EFFECT_AXES);
+            self.side_effects = side_effects;
+        }
+        self.traits.insert(traits);
         self
     }
 
@@ -731,5 +775,97 @@ mod tests {
             );
             assert!(context.admits_for_selection(&rows[0]));
         }
+    }
+
+    // ───────────── the extension default and what narrows it ─────────────
+
+    fn extension(name: &str) -> DeclaredCommand {
+        DeclaredCommand::extension(name.to_owned(), Vec::new(), Provenance::Document)
+    }
+
+    fn unknown_read_write() -> Vec<SideEffect> {
+        extension_default::SIDE_EFFECTS.to_vec()
+    }
+
+    #[test]
+    fn an_extension_declaration_is_the_registry_default_and_a_plain_one_is_empty() {
+        let command = extension("pkga_calc");
+        let default = CommandSpec::extension_default("pkga_calc");
+        assert_eq!(command.traits, default.traits);
+        assert_eq!(command.side_effects, default.side_effects);
+        assert_eq!(command.provenance(), Provenance::Document);
+        assert!(!command.traits.contains(Traits::PURE));
+
+        let plain = declared("pkga_calc", &[]);
+        assert!(plain.traits.is_empty());
+        assert!(plain.side_effects.is_empty());
+    }
+
+    #[test]
+    fn a_stated_purity_replaces_the_effect_axes_and_leaves_the_others() {
+        let narrowed = extension("pure_ext").narrowed_by(Traits::PURE, Vec::new());
+        assert!(narrowed.traits.contains(Traits::PURE));
+        assert!(
+            !narrowed.traits.intersects(extension_default::EFFECT_AXES),
+            "a pure command evaluates no code and establishes no trace: {}",
+            narrowed.traits
+        );
+        assert!(narrowed.side_effects.is_empty());
+        for kept in [extension_default::TAINT, extension_default::SAFETY] {
+            assert!(
+                narrowed.traits.contains(kept),
+                "purity says nothing of {kept}, so it stays: {}",
+                narrowed.traits
+            );
+        }
+    }
+
+    #[test]
+    fn a_stated_effect_replaces_the_unknown_one_and_the_barrier() {
+        let variable = SideEffect {
+            target: crate::side_effects::SideEffectTarget::Variable,
+            reads: true,
+            writes: true,
+            ..SideEffect::DEFAULT
+        };
+        let narrowed = extension("mut_ext").narrowed_by(Traits::READS_BEFORE_WRITE, vec![variable]);
+        assert_eq!(narrowed.side_effects, vec![variable]);
+        assert!(!narrowed.traits.intersects(extension_default::EFFECT_AXES));
+        assert!(narrowed.traits.contains(Traits::READS_BEFORE_WRITE));
+        assert!(narrowed.traits.contains(extension_default::TAINT));
+        assert!(narrowed.traits.contains(extension_default::SAFETY));
+    }
+
+    #[test]
+    fn a_stated_barrier_survives_a_stated_effect() {
+        let narrowed = extension("barrier_ext").narrowed_by(
+            Traits::PURE.union(Traits::CREATES_DYNAMIC_BARRIER),
+            Vec::new(),
+        );
+        assert!(narrowed.traits.contains(Traits::CREATES_DYNAMIC_BARRIER));
+        assert!(
+            !narrowed.traits.contains(Traits::EVALUATES_CODE),
+            "only the barrier the declaration stated is added back"
+        );
+    }
+
+    #[test]
+    fn a_statement_that_is_not_about_effects_narrows_nothing() {
+        let stated = Traits::HAS_LOOP_BODY
+            .union(Traits::CREATES_SCOPE_ALIAS)
+            .union(Traits::UNSAFE);
+        let narrowed = extension("loop_ext").narrowed_by(stated, Vec::new());
+        assert!(narrowed.traits.contains(extension_default::TRAITS));
+        assert!(narrowed.traits.contains(stated));
+        assert_eq!(narrowed.side_effects, unknown_read_write());
+    }
+
+    #[test]
+    fn narrowing_a_plain_declaration_by_nothing_changes_nothing() {
+        let plain = declared("plain", &[("a", ArgRole::Body)]);
+        assert_eq!(
+            plain.clone().narrowed_by(Traits::empty(), Vec::new()),
+            plain
+        );
     }
 }

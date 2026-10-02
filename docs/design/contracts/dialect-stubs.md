@@ -96,18 +96,47 @@ consumer that asks the surface. The recognised words are:
 | `-mutator` | reads and rewrites its target | `Traits::READS_BEFORE_WRITE`, and a declared `SideEffect` reading and writing `SideEffectTarget::Variable` | lowering reads the target before the write, as it does for `lset` and `lappend`, so the store feeding it stays live (no `O109`); side-effect classification states the variable effect instead of the unknown write |
 | `-unsafe` | unsafe in a safe interpreter | `Traits::UNSAFE` with `Traits::SAFE_INTERP_HIDDEN` | the safe-interpreter gate: a call inside a safe interpreter's evaluation body is `W129`, as `exec` is |
 | `-scope_alias` | creates a scope alias | `Traits::CREATES_SCOPE_ALIAS` | the call-site scan (`unit_scope::note_surface_var_writes`): every name the command takes is bound to a cell another body may write, so a later `$name` dispatch is not read as a known literal and the parameter fold is withheld (`I230`), as for `upvar`; the minifier leaves global names alone |
+| `-extension` | a native extension registers the command | the conservative default of `tcl_registry::extension_default`: `EVALUATES_CODE`, `CREATES_BARRIER`, `CREATES_DYNAMIC_BARRIER`, `ESTABLISHES_VARIABLE_TRACE`, `TAINT_SINK`, `TAINT_SOURCE`, `UNSAFE` and `SAFE_INTERP_HIDDEN`, and an unknown read and write | everything that reads the flags above: the call is a dynamic barrier (`classify_side_effects_in`, the minifier's rename barriers), is hidden in a safe interpreter (`W129`) and is never pure; the other flags narrow it, as below |
 
 A stub with no flags states no behaviour, and side-effect classification
 treats it exactly as an undeclared command: an unknown read and write, never
 pure.
 
-Three consumers still read these facts off the catalogue alone, so a stub's
+### Extension commands
+
+`-extension` is for a command C code registers (`Tcl_CreateObjCommand`), of
+which nothing can be known from where the analyser stands. The declaration
+starts at the top of every axis the registry has a fact for — it may run any
+argument as a script or name a variable at any level, read and write any
+state, establish a variable trace, and complete with any code; it is a taint
+sink and source, unsafe and hidden in a safe interpreter, and never pure — and
+the facts the other flags state narrow it, each on its own axis and on no
+other:
+
+- A statement of *effects* replaces the effect axes (code evaluation, traces
+  and the unknown read and write) by what it states. `-pure` states none, and
+  `-mutator` states the variable read and write of its target, because a
+  command that is pure, or that only rewrites its target, evaluates no code.
+- `-barrier` beside either states the evaluation axis back, so a stated
+  barrier survives a stated effect.
+- `-loop`, `-scope_alias` and `-unsafe` state facts of their own and narrow
+  nothing.
+- No flag states the taint axis or the safety axis away: a pure extension
+  command is still a taint source and still hidden in a safe interpreter.
+
+A stub without `-extension` starts from nothing, as it always has. The
+registry's own default for the same command (`CommandSpec::extension_default`)
+declares no transition descriptor on purpose: a command with none is a wildcard
+over every state domain, which a closed statement could only narrow.
+
+Four consumers still read these facts off the catalogue alone, so a stub's
 flags do not reach them yet: the optimiser's own elimination gate and GVN (a
 `-pure` call's unused result goes only through the interprocedural summary,
 so `set a [mypure $x]` written directly is kept), SSA's barrier-def walk
-(which reads no declared role either), and memory SSA's clobber verdict
+(which reads no declared role either), memory SSA's clobber verdict
 (which treats every command the catalogue lacks as clobbering, flags or
-not — the conservative answer).
+not — the conservative answer), and the taint analysis, so an `-extension` stub
+is not yet a taint source or sink to it.
 
 ## Expression stubs
 

@@ -223,6 +223,14 @@ slices proceed without deciding anything here.
 > (`PackageFloor`), and a package row windowed on the package's own axis is
 > admitted only where that floor lies in a window.
 >
+> A command a native extension registers has one conservative default, stated
+> once: `CommandSpec::extension_default` is the top of every axis the registry
+> has a fact for (a dynamic barrier, unknown reads and writes, a taint sink and
+> source, hidden in a safe interpreter, never pure, any completion code,
+> host-native, no stamp), and a stub's `-extension` flag declares it for a
+> command a document names, the other flags narrowing it one axis each
+> (`DeclaredCommand::extension` and `DeclaredCommand::narrowed_by`).
+>
 > The rest of the vocabulary is not built, and names nothing in the
 > workspace: the `ShippedImplementation` claim and `IdentityKind`.
 >
@@ -2401,17 +2409,26 @@ flowchart LR
     end
 ```
 
-- **State the conservative default once**, as a registry fact for an
-  extension command: unknown arity; every argument may be a script or a
-  variable name at any level, so it clears the constant environment and
-  abstains from interprocedural seeds; it may create, rename, or delete
-  commands, including itself; it may establish traces; it may complete with
-  any code, expressed through the existing completion and effect domains —
-  "any code" retains a possible normal successor and is not "always
-  terminates this block"; it is a taint sink and source; it is never pure;
-  it is hidden in safe interpreters. Its `runtime_backing` is
-  `HostNative`, so no rung-3 procedure check can be emitted for it. The
-  engine interface narrows `TCL_BREAK` and `TCL_CONTINUE` to errors and
+- **The conservative default is stated once**, as a registry fact for an
+  extension command (`CommandSpec::extension_default`, its traits and effect
+  in `rust/tcl-registry/src/extension_default.rs`): unknown arity; every
+  argument may be a script or a variable name at any level, so it clears the
+  constant environment and abstains from interprocedural seeds; it may
+  establish traces; it may complete with any code, expressed through the
+  existing completion and effect domains — "any code" retains a possible
+  normal successor and is not "always terminates this block"; it is a taint
+  sink and source; it is never pure; it is hidden in safe interpreters. It
+  may create, rename, or delete commands, including itself, which the default
+  states by declaring no transition descriptor: a command with none resolves
+  to the wildcard over every state domain, and a closed statement of an
+  unknown rebinding could only narrow it. Its `runtime_backing` is
+  `HostNative`, so no rung-3 procedure check can be emitted for it, and it
+  names no stamp and no window, so a call is dispatched plain at every
+  release. A stub declares the same default with `-extension`
+  (`DeclaredCommand::extension`), and the facts the other stub flags state
+  narrow it axis by axis, a stated effect replacing the effect axes and none
+  of the others ([../contracts/dialect-stubs.md](../contracts/dialect-stubs.md)
+  § *Extension commands*). The engine interface narrows `TCL_BREAK` and
   `TCL_RETURN` to `TCL_OK`; that narrowing is corrected — the interface
   carries the completion code the host command returned — before a hosted
   extension can exercise the default, and the correction is part of the
@@ -2521,6 +2538,7 @@ and come before any runtime guard work.
 - `rust/tcl-spectcl/src/loader.rs`, `loader/eval.rs`, `loader/environment_block.rs`, `discovery.rs`, `install.rs`, `stamps.rs` — what a pack may write, tier to provenance, discovery and the dependency tier it reads beside a manifest, the floor's application, and the two gates a stamp or a declaration must pass
 - `rust/tcl-registry/src/runtime_backing.rs`, `rust/tcl-spectcl/src/backing.rs` — `RuntimeBacking` and `BodySource`, and `BackingSyntax`, the one spelling of the `runtime_backing` statement for the loader and the Spec Studio
 - `rust/tcl-spec-hooks/src/sandbox.rs`, `pack_eval.rs`, `host.rs` — the hook whitelist, the pack evaluator, and the hook host with its per-pack engines, budgets, and context keys
+- `rust/tcl-registry/src/extension_default.rs`, `rust/tcl-registry/src/model/declaration.rs` — the conservative default for an extension command and the declared form that narrows it
 - `rust/tcl-compiler/src/inlining/reference.rs`, `rust/tcl-spectcl/src/package_sources.rs` — `inline_reference_bodies` and `ReferenceBodies`, and `provision`, which reads a `-package-source` body at load
 - `rust/tcl-registry/src/value_transfer/reference_body.rs`, `rust/tcl-spectcl/src/loader/reference.rs`, `rust/tcl-spec-studio/src/infer.rs` — the scan of a reference body, the loader pass that derives its declared implementation, and `infer_from_body`
 - `rust/tcl-cli/src/commands/spec.rs`, `spec_test.rs` — `tcl spec test` and the probe it sends to the shell
@@ -2543,7 +2561,7 @@ and come before any runtime guard work.
 - `rust/tcl-spec-studio/tests/spectcl_ports.rs` — `the_clause_grammar_derivation_agrees_with_the_shipped_walk`, widened to every grammar-carrying command
 - `rust/tcl-spec-studio/tests/spectcl_roundtrip.rs` — the round trip that loses the `semantic_operation` and `definition_body` `GAPS` rows, and carries `alias_of` (`alias_of_survives_the_round_trip`)
 - `rust/tcl-spec-studio/tests/option_row_editing.rs` — the option-row form that gains `-effect` and `option_effect_family`
-- `rust/tcl-registry/tests/registry_sweep.rs` — the descriptor agreement rules, beside `repeated_arg_layouts_never_pair_conditional_binding_with_an_ssa_def_role`
+- `rust/tcl-registry/tests/registry_sweep.rs` — the descriptor agreement rules, beside `repeated_arg_layouts_never_pair_conditional_binding_with_an_ssa_def_role`, and `the_extension_default_is_at_the_top_of_every_axis`
 - `rust/tcl-registry/tests/tcl91_dialect.rs` — the availability of `subst`'s positive option family
 - `rust/tcl-compiler/tests/mro_lattice_adversarial.rs`, `analyser.rs`, `cfg.rs` — the hierarchy, member, and clause behavioural parity gates
 - `rust/tcl-lsp-server/tests/preview_tickets_e2e.rs` — the definer spelling that reaches every provider with no consumer edit

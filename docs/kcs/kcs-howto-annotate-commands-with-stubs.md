@@ -163,6 +163,13 @@ the same way:
   tcl-lsp stops assuming what a later `$name` holds.
 - `-barrier` — it can reach the calling scope's variables by name, like
   `vwait`. The minifier leaves the names of that scope's variables alone.
+- `-extension` — a native (C) extension registers it, so nothing is known of
+  it. tcl-lsp assumes the worst on every axis it can: the command may run any
+  argument as a script, read or change anything, set traces, and is hidden in a
+  safe interpreter (`W129`), never pure and a barrier to the minifier. The other
+  flags then narrow that: `-pure` or `-mutator` say what the command does, and
+  with them it is no longer assumed to run code; it stays hidden in a safe
+  interpreter whatever you write.
 
 A stub without flags says nothing about behaviour, so tcl-lsp assumes the
 worst: the command may read or change anything.

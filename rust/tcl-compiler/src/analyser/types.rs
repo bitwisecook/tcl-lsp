@@ -2955,8 +2955,8 @@ pub struct StubArgDef {
 bitflags::bitflags! {
     /// Trailing ``?-flag…?`` flags on a ``# tcl-lsp: stub`` line:
     /// ``barrier`` / ``loop`` / ``pure`` / ``mutator`` / ``unsafe``
-    /// / ``scope_alias``, packed into a single byte because they're
-    /// an enum-set of orthogonal flags.
+    /// / ``scope_alias`` / ``extension``, packed into a single byte
+    /// because they're an enum-set of orthogonal flags.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
     pub struct StubFlags: u8 {
         /// ``-barrier`` — command creates a dynamic barrier.
@@ -2972,6 +2972,12 @@ bitflags::bitflags! {
         /// ``-scope_alias`` — command creates a scope alias
         /// (``upvar``-like).
         const SCOPE_ALIAS = 1 << 5;
+        /// ``-extension`` — a native extension registers the command, so
+        /// nothing is known of it: the declaration starts at the registry's
+        /// conservative default on every axis
+        /// ([`tcl_registry::extension_default`]) and the other flags narrow it
+        /// one axis each.
+        const EXTENSION   = 1 << 6;
     }
 }
 
@@ -2986,7 +2992,8 @@ pub struct StubCommandDef {
     /// Span of the comment line carrying the directive.
     pub range: Span,
     /// Trailing flag set (``-barrier`` / ``-loop`` / ``-pure``
-    /// / ``-mutator`` / ``-unsafe`` / ``-scope_alias``).
+    /// / ``-mutator`` / ``-unsafe`` / ``-scope_alias`` /
+    /// ``-extension``).
     pub flags: StubFlags,
     /// `true` when this declaration came from a workspace sidecar rather than
     /// the analysed document. Such declarations participate in resolution but
@@ -3013,30 +3020,40 @@ impl StubCommandDef {
     /// fields through [`tcl_registry::model::DocumentCommandSurface`] sees a
     /// stubbed command the way it sees a catalogued one.
     ///
+    /// A declaration flagged ``-extension`` starts from the conservative
+    /// default for a command native code registers
+    /// ([`tcl_registry::model::DeclaredCommand::extension`]), and the facts the
+    /// other flags state narrow it, each on its own axis
+    /// ([`tcl_registry::model::DeclaredCommand::narrowed_by`]); an unflagged
+    /// declaration starts from nothing, as it always has.
+    ///
     /// [`Provenance::WorkspaceUntrusted`]: tcl_dialect::model::Provenance::WorkspaceUntrusted
     /// [`Provenance::Document`]: tcl_dialect::model::Provenance::Document
     #[must_use]
     pub fn to_declared_command(&self) -> tcl_registry::model::DeclaredCommand {
         use tcl_dialect::model::Provenance;
         use tcl_registry::model::{DeclaredArgument, DeclaredCommand, role_for_word};
-        DeclaredCommand::new(
-            self.name.clone(),
-            self.args
-                .iter()
-                .map(|a| DeclaredArgument {
-                    name: a.name.clone(),
-                    role: role_for_word(&a.role),
-                    optional: a.optional,
-                })
-                .collect(),
-            if self.from_sidecar {
-                Provenance::WorkspaceUntrusted
-            } else {
-                Provenance::Document
-            },
-        )
-        .with_traits(self.declared_traits())
-        .with_side_effects(self.declared_side_effects())
+        let arguments = self
+            .args
+            .iter()
+            .map(|a| DeclaredArgument {
+                name: a.name.clone(),
+                role: role_for_word(&a.role),
+                optional: a.optional,
+            })
+            .collect();
+        let provenance = if self.from_sidecar {
+            Provenance::WorkspaceUntrusted
+        } else {
+            Provenance::Document
+        };
+        if self.flags.contains(StubFlags::EXTENSION) {
+            return DeclaredCommand::extension(self.name.clone(), arguments, provenance)
+                .narrowed_by(self.declared_traits(), self.declared_side_effects());
+        }
+        DeclaredCommand::new(self.name.clone(), arguments, provenance)
+            .with_traits(self.declared_traits())
+            .with_side_effects(self.declared_side_effects())
     }
 
     /// The traits the flags state, each on the field its catalogue

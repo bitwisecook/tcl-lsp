@@ -2631,6 +2631,37 @@ against the landed tree with evidence:
   were ignored. No shipped spec has a window, so no shipped answer moves; the 25
   pack goldens' `spec` digests were re-recorded for the four new `Debug` fields.
 
+## Step 10 — progress
+
+Item order follows § *Plan for steps 2–10* › *Step 10* § *Ordering and
+checkpoints*: CC10.1 to CC10.6, one checkpoint each, in that order.
+
+| Item | State | Checkpoint | Notes |
+|---|---|---|---|
+| CC10.1 the extension default | landed | `wip(consumer-contracts): step 10 — the extension default` | **The default.** `rust/tcl-registry/src/extension_default.rs` (new) states the conservative fact for a command a native extension registers once, as the axes it is at the top of: `EVALUATION` (`EVALUATES_CODE`, `CREATES_BARRIER`, `CREATES_DYNAMIC_BARRIER`), `TRACES` (`ESTABLISHES_VARIABLE_TRACE`), `TAINT` (`TAINT_SINK`, `TAINT_SOURCE`), `SAFETY` (`UNSAFE`, `SAFE_INTERP_HIDDEN`), `EFFECT_AXES` (the first two), `TRAITS` (all eight, each verified by name in `traits.rs`) and `SIDE_EFFECTS` (one unknown read and write). `CommandSpec::extension_default(name)` (`spec.rs`, a `const fn` over `CommandSpec::DEFAULT`) is unknown arity, those traits and that effect, `completion: Some(CompletionDescriptor::CONSERVATIVE)`, `RuntimeBacking::HostNative`, and no stamp, window, hook, `command_table_effect`, `state_transitions` or `world_effects` (D10.2). **The declared form.** `DeclaredCommand::extension(name, arguments, provenance)` (`model/declaration.rs`) seeds its traits and side effects from the spec's default, and `DeclaredCommand::narrowed_by(traits, side_effects)` narrows it axis by axis: a statement of effects (`PURE`, or a side effect of its own) replaces the effect axes by what it states, every other axis stays unless stated, and the traits stated are added (D10.4). **The stub** (D10.3). `-extension` is `StubFlags::EXTENSION` (bit 6) and a word of `parse_stub_flags`; `StubCommandDef::to_declared_command` builds a flagged declaration from `DeclaredCommand::extension` narrowed by `declared_traits()` and `declared_side_effects()` and an unflagged one as it always has. A call to such a command is a dynamic barrier to `classify_side_effects_in` and to the minifier's rename barriers, is hidden in a safe interpreter (W129) and is never pure; `-pure` and `-mutator` replace the effect axes, a stated `-barrier` survives them, and taint and safety stay. What a declared command carries is traits and side effects, which is what the surface answers; the taint analysis reads the catalogue alone, so a stub's taint axis does not reach it (D10.5). **Tests.** `tcl-registry`: `registry_sweep.rs` `the_extension_default_is_at_the_top_of_every_axis` (the plan's: the eight traits by name and nothing else, never pure, unknown arity and effect, any completion code, host-native, no stamp, window or hook, the resolved invocation `UnknownInvocation` with a world barrier at every argument count and no hook at 8.6, 9.0 and across the ladder, and the negative: a stated purity replaces the effect axes and leaves taint and safety), `model/declaration.rs` six (`an_extension_declaration_is_the_registry_default_and_a_plain_one_is_empty`, `a_stated_purity_replaces_the_effect_axes_and_leaves_the_others`, `a_stated_effect_replaces_the_unknown_one_and_the_barrier`, `a_stated_barrier_survives_a_stated_effect`, `a_statement_that_is_not_about_effects_narrows_nothing`, `narrowing_a_plain_declaration_by_nothing_changes_nothing`); `tcl-compiler`: `utils.rs` `parse_command_stub_extension_flag` and `side_effects.rs` `an_extension_declaration_is_a_barrier_until_it_states_its_effects`; `tcl-lsp-core`: `stub_arg_roles.rs` four end to end, each beside the same stub without `-extension` (`an_extension_stub_fences_its_scope_from_renaming`, `an_extension_stub_is_hidden_in_a_safe_interpreter`, `a_stated_purity_narrows_an_extension_stub_and_leaves_its_safety`, `a_stated_mutation_narrows_an_extension_stub_and_a_stated_barrier_survives_it`). **Mutation checks**, each a textual edit run against the item's tests and restored with a touch: the default without `TAINT_SOURCE`, with a `None` backing and with no stated effect (`the_extension_default_is_at_the_top_of_every_axis`, and for the last `a_statement_that_is_not_about_effects_narrows_nothing`), `DeclaredCommand::extension` seeding no effect (two declaration tests), `narrowed_by` removing nothing (`a_stated_purity_replaces_…`, `a_stated_effect_replaces_…`, `a_stated_barrier_survives_…`), clearing every trait (`a_stated_purity_replaces_…` and `a_stated_effect_replaces_…`), dropping the traits stated (three declaration tests), ignoring a stated effect and ignoring a stated purity (one and two), the stub ignoring `-extension`, the flag not parsed and the flags narrowing nothing (`an_extension_declaration_is_a_barrier_until_it_states_its_effects`, with `parse_command_stub_extension_flag` for the second), and, end to end against `stub_arg_roles.rs`, the stub ignoring `-extension` (three of the four tests), `narrowed_by` removing nothing (two), clearing every trait (`a_stated_purity_narrows_…`) and dropping the traits stated (two). Sixteen mutants, all killed. **Gates.** `cargo test`, under `LANG=C.UTF-8` with `TCL_REQUIRE_WASM_LINK=1`, `TCL_TOMMATH_DIR` and the `tmp` oracle tree linked, in batches of twelve binaries: `-p tcl-registry` (1351, was 1344; lib 1011, was 1005), `-p tcl-compiler` (68 binaries, 9944, was 9942) and `-p tcl-lsp-core` (35 binaries, 3582, was 3578); `cargo check --workspace --all-targets`; clippy (`--workspace --all-targets -- -D warnings`, no new `#[allow]`) and `cargo fmt --all` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389), `owner-resolution` (45), `retired-api-gate`, `runtime-stdlib`, `kcs-index-links`, `callback-inventory --check` and `gen-irule-test-data --check` green, `dialect-drift` at its 8 sites. Docs: `dialect-stubs.md` (the `-extension` row and § *Extension commands*), the two KCS notes that list the flags, `README.md`, and the design page's status box, § *C Tcl extensions* and anchors. Deviations: the command-table axis is not stated, `Some(Unknown)` having no variant and the undeclared invocation being the wider wildcard (D10.2); the marker is a flag (D10.3); the studio's stub renderer does not yet write `-extension` for a host-native draft. D10.2–D10.5 |
+
+### CC10.1 — what the next items read
+
+- **For CC10.2 (describe an extension from three sources).** An extension row is
+  `draft::from_command_spec(&CommandSpec::extension_default(""))` with its name set,
+  and the bridge's row is `DeclaredCommand::extension(name, args, provenance)`; both
+  read the one default in `extension_default.rs`, so a source that states nothing
+  leaves a command at the top of every axis. A source proposes beside the default
+  (arity, subcommands, the package) and never narrows it: narrowing is
+  `DeclaredCommand::narrowed_by` for a stub, and the author's statement in a pack.
+- **For CC10.3 to CC10.6.** A command at the default is `RuntimeBacking::HostNative`
+  with no stamp, no window and no hook, so no code generator specialises it at any
+  release and no rung-3 check is emitted for it (D9.13 and D9.15 say why a pack
+  cannot add one). Its completion is `CompletionDescriptor::CONSERVATIVE`, which
+  retains a normal successor: CC10.5 makes the engine interface carry the code a
+  host command returned before a hosted extension can exercise the default. An
+  evaluation route for an extension (CC10.6) is a declared one, never read off the
+  default, whose `EVALUATES_CODE` says nothing about a bounded evaluator.
+- **Reported, not fixed.** The studio's stub renderer (`render_stub.rs`) reads a
+  draft's traits as flags and has no `-extension`; the taint analysis reads the
+  catalogue alone (D10.5); `CommandTableEffect` has no `Unknown`, and the default
+  does not need one (D10.2).
+
 ## Plan for steps 2–10
 
 Steps 2 to 10 of [registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
@@ -7308,6 +7339,52 @@ everything else in this lane is independent of both.
   `spec.rs`, which put half of one into the other, is repaired.
 - **D10.1** The authored header is `runtime/rust/include/tcl.h` (the ABI
   § 4.1 places it with the runtime); the shim includes it by path.
+- **D10.2** The default leaves the command-table, transition and world-effect
+  axes undeclared. The plan reads `command_table_effect: Some(Unknown)`.
+  `CommandTableEffect` has no `Unknown` (its words are `DefinesProcedure`,
+  `RenamesCommands` and `CreatesAliases`), and a command with no state-transition
+  descriptor already resolves to `StateTransitionKnowledge::UnknownInvocation`,
+  the wildcard every consumer reads as a possible change to every identity
+  domain; the registry's own fixture says the explicit empty descriptor, not
+  missing metadata, is what proves a command closed. A closed statement of an
+  unknown rebinding (`CommandBindingTransition::Unknown`, with the binding
+  domains widened) would be narrower than that wildcard: a call with no argument
+  has no subject to widen on, and the interpreter, variable-trace and object
+  domains are not among the three a binding move widens. So
+  `CommandSpec::extension_default` declares none of `command_table_effect`,
+  `state_transitions` and `world_effects`, and the sweep test asserts the resolved
+  invocation is `UnknownInvocation` with a world barrier. `completion` is stated
+  (`CompletionDescriptor::CONSERVATIVE`, which is also what omitting it resolves
+  to), so the default says it once.
+- **D10.3** A stub says it is an extension's by a flag, `-extension`. The plan's
+  "a stub for a name a `load`-provided package declares starts from the default:
+  the `provides` directive / extra-commands path" names no mechanism:
+  `# tcl-lsp: package NAME provides PKG` is an edge between packages (what a
+  loader pulls in behind the analyser's back), and `extra_commands` is a list of
+  names with nowhere to state a fact. A flag is what a stub line can carry, it is a
+  workspace-authored fact like the other six (the third ruling), and it leaves a
+  stub without it exactly as it was. The studio's stub renderer does not write it
+  yet: it reads a draft's traits as flags, so a host-native draft renders as
+  `-barrier -mutator -unsafe`, the same conservative reading on the axes those
+  flags cover.
+- **D10.4** "Narrowed axis by axis": a statement of effects — `PURE`, or a side
+  effect of its own, which is what `-pure` and `-mutator` state — replaces the
+  effect axes (code evaluation, traces, and the unknown read and write) by what it
+  states; every other axis stays unless the declaration states it; and the traits it
+  states are added whether or not they narrow anything. Reason:
+  `classify_declared` reads a code-evaluation trait before purity, so a pure
+  command that stayed an evaluator would be a stub whose `-pure` does nothing, and
+  a command that is pure, or that only rewrites its target, evaluates no code. The
+  plan's negative ("narrowing `-pure` clears only purity") holds for the axes that
+  are not effects: taint and safety stay, which the end-to-end test shows through
+  W129. A stated `-barrier` survives a stated effect.
+- **D10.5** A declared command carries traits and side effects, the two facts
+  `DocumentCommandSurface` answers. The default's completion and transition axes are
+  the registry spec's, and a name the document declares and the catalogue does not
+  know already reads conservatively on both, so nothing is lost for a stub. The
+  taint analysis reads the catalogue alone (as the optimiser's elimination gate,
+  GVN, SSA's barrier walk and memory SSA still do; `dialect-stubs.md` says so), so
+  an `-extension` stub is not yet a taint source or sink to it.
 
 ### Open questions for the owner
 
