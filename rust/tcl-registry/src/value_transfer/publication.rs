@@ -20,19 +20,214 @@
 //! and publishing a result with its ordered stores — the values charged,
 //! taken from one value model, and typed as they were built.
 
+use tcl_dialect::TclVersion;
+
 use crate::arg_role::ArgRole;
+use crate::completion::{CompletionCode, CompletionCodeDomain};
 use crate::types::TclType;
 
 use super::answers::{
-    CompletionOutcome, DependencyEvidence, EvalAnswer, ExactValueOrUnavailable, InvocationOutcome,
-    RepresentationEvidence, RouteIdentity, StoreOutcome, TypeFacts,
+    BindingKind, CompletionOutcome, CompletionPath, DependencyEvidence, EvalAnswer,
+    ExactValueOrUnavailable, Existence, ExistenceOutcome, ExistenceTransfer, InvocationOutcome,
+    RepresentationEvidence, RouteIdentity, StoreOutcome, TransferAnswer, TypeFacts,
 };
 use super::builtins::exact_operands;
-use super::const_ops::{ConstOps, ConstValue, Needs};
+use super::const_ops::{ConstOps, ConstValue, Needs, Raised, TargetSemantics};
 use super::context::Budget;
 use super::decline::DeclineReason;
-use super::inputs::{AnalysisInputs, OperandId, TargetId};
+use super::inputs::{AnalysisInputs, DomainFact, FactDomain, FactView, OperandId, TargetId};
 use super::route::{EvalRoute, NativeEvalId};
+
+/// What writing a scalar to a place that holds an array raises, by the
+/// command making the write and the release: `set`, `append`, `lappend` and
+/// `lassign` say `can't set "b": variable is array`; `incr` says `can't read`
+/// before 8.5; `scan`, `regexp` and `regsub` say `couldn't set variable "b"`
+/// before 8.6. From 8.6 the `-errorcode` is `TCL WRITE VARNAME`, before it
+/// `NONE` (measured, 8.4 to 9.1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ArrayWrite {
+    /// `set`, `append`, `lappend`, `lassign`.
+    Set,
+    /// `incr`, which reads the variable first before 8.5.
+    Incr,
+    /// `scan`, `regexp`, `regsub`.
+    Scan,
+}
+
+impl ArrayWrite {
+    /// The error the write to the array `name` raises.
+    pub(super) fn raised(self, name: &str, target: &TargetSemantics) -> Raised {
+        Raised::unanimous(target, |release| {
+            let code = if release >= TclVersion::V8_6 {
+                "TCL WRITE VARNAME"
+            } else {
+                "NONE"
+            };
+            let set = format!("can't set \"{name}\": variable is array");
+            let message = match self {
+                Self::Incr if release < TclVersion::V8_5 => {
+                    format!("can't read \"{name}\": variable is array")
+                }
+                Self::Scan if release < TclVersion::V8_6 => {
+                    format!("couldn't set variable \"{name}\"")
+                }
+                Self::Set | Self::Incr | Self::Scan => set,
+            };
+            (message, code.to_owned())
+        })
+    }
+
+    /// The array the target names, when the analysis proves the place holds
+    /// one: a scalar write to it raises. Anything else — a place of another
+    /// kind, an element, a fact the rung does not state — is no proof of an
+    /// error, and the write stays the normal completion's.
+    pub(super) fn array_place(input: &dyn AnalysisInputs, target: TargetId) -> Option<String> {
+        let place = input.place(target.0).ok()?;
+        if place.is_element() {
+            return None;
+        }
+        matches!(
+            input.prior_store(&place, FactDomain::Existence),
+            FactView::Domain(DomainFact::Existence(Existence::Bound(BindingKind::Array)))
+        )
+        .then_some(place.name)
+    }
+}
+
+const NORMAL: &[CompletionCode] = &[CompletionCode::Ok];
+const ERROR: &[CompletionCode] = &[CompletionCode::Error];
+
+/// The existence transfer of a command that stores to its `VarWrite`
+/// operands in order, each store failing where its place holds an array
+/// (`docs/design/compiler/value-transfers.md` § *`catch`, `try`, and
+/// completion*). A place the rung proves unbound or a scalar takes the store;
+/// one it proves an array raises there; any other kind — and an element,
+/// which may fail on its array — may. The normal path binds every target, and
+/// is absent where one is certainly an array. The error path is present where
+/// a store may fail: every target before the first that is not proven
+/// writable is bound, that target and the rest are may-bound, or untouched
+/// where the first is certainly an array, which stops the command there.
+pub(super) fn ordered_writes_transfer(input: &dyn AnalysisInputs) -> TransferAnswer {
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum Kind {
+        Writable,
+        Array,
+        Unproven,
+    }
+    let mut targets: Vec<(TargetId, Kind)> = Vec::new();
+    for id in input.invocation().operands_with_role(ArgRole::VarWrite) {
+        let Ok(place) = input.place(id) else {
+            return TransferAnswer::Generic;
+        };
+        let kind = if place.is_element() {
+            Kind::Unproven
+        } else {
+            match input.prior_store(&place, FactDomain::Existence) {
+                FactView::Domain(DomainFact::Existence(
+                    Existence::Unbound | Existence::Bound(BindingKind::Scalar),
+                )) => Kind::Writable,
+                FactView::Domain(DomainFact::Existence(Existence::Bound(BindingKind::Array))) => {
+                    Kind::Array
+                }
+                _ => Kind::Unproven,
+            }
+        };
+        targets.push((TargetId(id), kind));
+    }
+    if targets.is_empty() {
+        return TransferAnswer::Generic;
+    }
+    let mut paths = Vec::new();
+    if targets.iter().all(|(_, kind)| *kind != Kind::Array) {
+        paths.push(CompletionPath {
+            completion: CompletionCodeDomain::Exact(NORMAL),
+            outcomes: targets
+                .iter()
+                .map(|(target, _)| (*target, ExistenceOutcome::Bind(BindingKind::Scalar)))
+                .collect(),
+        });
+    }
+    if let Some(failing) = targets.iter().position(|(_, kind)| *kind != Kind::Writable) {
+        let certain = targets[failing].1 == Kind::Array;
+        let outcomes = targets
+            .iter()
+            .enumerate()
+            .filter_map(|(at, (target, _))| {
+                if at < failing {
+                    Some((*target, ExistenceOutcome::Bind(BindingKind::Scalar)))
+                } else if certain {
+                    None
+                } else {
+                    Some((*target, ExistenceOutcome::MayBind(BindingKind::Scalar)))
+                }
+            })
+            .collect();
+        paths.push(CompletionPath {
+            completion: CompletionCodeDomain::Exact(ERROR),
+            outcomes,
+        });
+    }
+    TransferAnswer::Existence(ExistenceTransfer { paths })
+}
+
+/// How a publication checks the kind of the places it writes: the inputs
+/// that say what each holds, and the command's own wording of the failure.
+#[derive(Clone, Copy)]
+pub(super) struct Checked<'i> {
+    /// The inputs the target kinds are read from.
+    pub(super) input: &'i dyn AnalysisInputs,
+    /// What a write to an array raises, for this command.
+    pub(super) write: ArrayWrite,
+}
+
+/// What a route whose core failed answers: the error the program raises
+/// ([`ConstOps::raised`]) as a completion that ran no store, or the decline
+/// when the failure was a fault — an inadmissible axis, a budget — or no
+/// core's error at all.
+pub(super) fn stopped(
+    ops: &mut ConstOps<'_>,
+    reason: DeclineReason,
+    id: NativeEvalId,
+    revision: u64,
+) -> EvalAnswer {
+    let target = *ops.target();
+    match ops.raised() {
+        Some(raised) => raised_outcome(id, revision, &target, raised),
+        None => EvalAnswer::Declined(reason),
+    }
+}
+
+/// The outcome of a route that raised before any store ran: the error its
+/// core reported, with no value and nothing written.
+pub(super) fn raised_outcome(
+    id: NativeEvalId,
+    revision: u64,
+    target: &TargetSemantics,
+    raised: Raised,
+) -> EvalAnswer {
+    EvalAnswer::Evaluated(Box::new(InvocationOutcome {
+        completion: CompletionOutcome::Error {
+            written: 0,
+            message: raised.message,
+            error_code: raised.error_code,
+        },
+        nested_writes: Vec::new(),
+        result: ExactValueOrUnavailable::unproven_string(),
+        ordered_stores: Vec::new(),
+        types: TypeFacts::default(),
+        evidence: DependencyEvidence {
+            route: Some(RouteIdentity {
+                route: EvalRoute::Direct { id },
+                implementation: id.as_str(),
+                revision,
+            }),
+            numerals: None,
+            characters: target.character_model,
+            release: target.release,
+            ..DependencyEvidence::default()
+        },
+    }))
+}
 
 /// Every operand's exact word as text the target reads alike, the operands
 /// the resolver gives the `VarWrite` role, and a value model admitted for
@@ -87,6 +282,23 @@ impl PendingStore {
     }
 }
 
+/// The first of `stores` that writes a place `checked` proves holds an array,
+/// as its position and the error the write raises.
+fn first_failing_store(
+    checked: Option<Checked<'_>>,
+    stores: &[StoreOutcome],
+    target: &TargetSemantics,
+) -> Option<(usize, Raised)> {
+    let checked = checked?;
+    stores.iter().enumerate().find_map(|(at, store)| {
+        let StoreOutcome::Write { target: place, .. } = store else {
+            return None;
+        };
+        let name = ArrayWrite::array_place(checked.input, *place)?;
+        Some((at, checked.write.raised(&name, target)))
+    })
+}
+
 /// What one evaluation publishes, before its values are taken: the result
 /// and each store in execution order.
 pub(super) struct Publication {
@@ -119,13 +331,20 @@ impl Publication {
     /// Charge the published bytes as work — one unit per byte a result or a
     /// store carries — take every value, and build the outcome on the route
     /// `id` at `revision`: each write typed as the value it built.
+    ///
+    /// With `checked`, the first write to a place the analysis proves
+    /// holds an array is the command's error: the stores before it ran and
+    /// the rest did not, so the outcome is `Error { written }` with every
+    /// store listed in order and the targets after the failing one left as
+    /// they were (the prefix rule).
     pub(super) fn publish(
         self,
         mut ops: ConstOps<'_>,
+        checked: Option<Checked<'_>>,
         id: NativeEvalId,
         revision: u64,
     ) -> EvalAnswer {
-        let target = *ops.target();
+        let target_semantics = *ops.target();
         let bytes = self.result.bytes.len()
             + self
                 .stores
@@ -176,13 +395,37 @@ impl Publication {
                 Some(key) => ordered_stores.push(StoreOutcome::WriteElement { target, key, value }),
             }
         }
+        let failing = first_failing_store(checked, &ordered_stores, &target_semantics);
+        let (completion, result, result_type) = match failing {
+            Some((written, raised)) => {
+                per_target.retain(|(target, _)| {
+                    ordered_stores[..written]
+                        .iter()
+                        .any(|store| store.target() == *target)
+                });
+                (
+                    CompletionOutcome::Error {
+                        written,
+                        message: raised.message,
+                        error_code: raised.error_code,
+                    },
+                    ExactValueOrUnavailable::unproven_string(),
+                    None,
+                )
+            }
+            None => (
+                CompletionOutcome::Normal,
+                ExactValueOrUnavailable::Exact(result),
+                Some(self.result_type),
+            ),
+        };
         EvalAnswer::Evaluated(Box::new(InvocationOutcome {
-            completion: CompletionOutcome::Normal,
+            completion,
             nested_writes: Vec::new(),
-            result: ExactValueOrUnavailable::Exact(result),
+            result,
             ordered_stores,
             types: TypeFacts {
-                result: Some(self.result_type),
+                result: result_type,
                 per_target,
                 shapes: Vec::new(),
             },
@@ -192,8 +435,8 @@ impl Publication {
                     implementation: id.as_str(),
                     revision,
                 }),
-                characters: target.character_model,
-                release: target.release,
+                characters: target_semantics.character_model,
+                release: target_semantics.release,
                 ..DependencyEvidence::default()
             },
         }))

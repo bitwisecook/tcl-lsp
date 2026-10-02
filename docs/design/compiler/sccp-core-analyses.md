@@ -79,9 +79,12 @@ regardless of what is assigned to it, so anything derived from it is
   a procedure named as one. The registry states which words are such scripts
   (`CommandRegistry::callback_script_indices`); the scan over them
   (`deferred_writes.rs`) names no command. A callback that writes a computed
-  name makes every name escaping, as a trace on a computed name does; a
-  callback word computed at run time, or spelled as several words, is not
-  read;
+  name makes every name escaping, as a trace on a computed name does, and so
+  does a callback the scan cannot read: a word computed at run time, a
+  substitution of a command that builds no command prefix, a `{*}` expansion,
+  a computed command head, a command that is neither a procedure of the module
+  nor one of the registry. A script spelled as several words (`after 100 set
+  done 1`) is read as the one script it concatenates into;
 - for a **`TclOO` method** body, when the *propagation pass* asks for one:
   the class's instance variables — the class-level `variable` declarations
   plus the method's own (`MethodDef::instance_vars`). An instance variable is
@@ -103,12 +106,16 @@ What survives the projection for a method body is therefore a provably
 method-local name, which no `my` / `next` / `[self …]` dispatch can reach.
 
 The escaping set is name-based and whole-function. A call in the top-level
-script to a command the module cannot see adds a flow-sensitive fact beside
-it: the CFG marks the call (`SyntheticMarker::UnseenCall`), the SSA records the
+script to a command the module cannot see, with a computed command, or inside
+the body of an opaque `catch` adds a flow-sensitive fact beside it: the CFG
+marks the call (`SyntheticMarker::UnseenCall`), the SSA records the
 version each name holds there (`SsaFunction::is_observed_by_unseen_call`), and
 the solver forces each recorded version — a definition or a φ — to
 `OVERDEFINED`, so a plain top-level name after such a call is as undecided as
-its `::` spelling while a definition made afterwards is decided again. A
+its `::` spelling while a definition made afterwards is decided again. The call
+reads its own words before its head runs, so the names those words read are
+may-defined at the marker instead: the version a word reads is not recorded, and
+a read after the call is of a new version, which is. A
 procedure's locals are recorded only at a call that sources a file, which runs
 in the frame of the call.
 

@@ -1142,13 +1142,12 @@ fn string_compare_o120_conservative_non_rewrites() {
 
 #[test]
 fn multi_set_packing_o119() {
-    // OMISSION: with an `eval {$a $b $c}` barrier the constants are forwarded
-    // *through* the `eval {...}` braced literal (O102/O109) — `eval {1 2 3}` — so
-    // by the time O119 would run there are no surviving stores to pack, and O119
-    // never fires. tclsh: `set a 1; set b 2; set c 3; eval {$a $b $c}` and the
-    // folded `eval {1 2 3}` are identical, so the rewrite is sound. Assert the
-    // packing-disabled invariants; the missing positive O119 packing is a known
-    // gap.
+    // With an `eval {$a $b $c}` barrier the constants are forwarded *through*
+    // the `eval {...}` braced literal (O102) — `eval {1 2 3}`. The command the
+    // script runs, `1` here, is one the module cannot see, and at the top level
+    // it may read the globals `a`, `b` and `c`, so their stores stay and O119
+    // packs them. tclsh: `set a 1; set b 2; set c 3; eval {$a $b $c}`, the
+    // folded `eval {1 2 3}` and the packed form are the same program.
 
     // Tcl 9.0: individual `set` is faster ⇒ O119 must not fire.
     let t9 = "set a 1\nset b 2\nset c 3\nputs \"$a $b $c\"";
@@ -1158,11 +1157,11 @@ fn multi_set_packing_o119() {
     let few = "set a 1\nset b 2\nputs \"$a $b\"";
     assert!(!opt_fires(few, TCL, "O119"));
 
-    // The eval-barrier forms are folded rather than packed; assert the sound
-    // constant-forwarded result instead of the (absent) O119 packing.
+    // The words are forwarded and the stores, which the unseen command may
+    // read, are packed.
     assert_eq!(
         optimised("set a 1\nset b 2\nset c 3\neval {$a $b $c}", TCL),
-        "eval {1 2 3}"
+        "lassign {1 2 3} a b c\neval {1 2 3}"
     );
 }
 
@@ -2200,12 +2199,21 @@ fn a_write_nested_in_a_braced_expr_word_kills_the_reaching_definition() {
 }
 
 /// The same family, in the two other shapes the issue lists. Each was checked
-/// against tclsh 9.0.4: `3`/`2` for the first, `5`/`3` for the second.
+/// against tclsh 9.0.4: `3`/`2` for the first, `5`/`3` for the second. The
+/// store the first `[incr n]` reads stays, and the later reads are of the
+/// nested store: each is forwarded the value the expression left, which the
+/// statement's definitions hold.
 #[test]
 fn a_write_nested_in_a_braced_expr_word_keeps_its_feeding_store() {
-    for src in [
-        "set n 1\nset r [expr {$n + [incr n]}]\nputs $r\nputs $n\n",
-        "set n 1\nset r [expr {[incr n] + [incr n]}]\nputs $r\nputs $n\n",
+    for (src, forwarded) in [
+        (
+            "set n 1\nset r [expr {$n + [incr n]}]\nputs $r\nputs $n\n",
+            "set n 1\nset r [expr {$n + [incr n]}]\nputs 3\nputs 2\n",
+        ),
+        (
+            "set n 1\nset r [expr {[incr n] + [incr n]}]\nputs $r\nputs $n\n",
+            "set n 1\nset r [expr {[incr n] + [incr n]}]\nputs 5\nputs 3\n",
+        ),
     ] {
         assert!(
             !opt_fires(src, TCL, "O109"),
@@ -2214,8 +2222,8 @@ fn a_write_nested_in_a_braced_expr_word_keeps_its_feeding_store() {
         );
         assert_eq!(
             optimised(src, TCL),
-            src,
-            "{src}: nothing is safe to rewrite"
+            forwarded,
+            "{src}: the later reads are the nested store's"
         );
     }
 }

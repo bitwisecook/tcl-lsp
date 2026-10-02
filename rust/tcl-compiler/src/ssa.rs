@@ -763,9 +763,10 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
             // fans the def over the array's known elements).
             vec![crate::naming::element_var_name_braced(name, *name_braced).to_owned()]
         }
-        // What the callees an opaque `switch`'s arms call write is a
-        // *may*-definition ([`switch_may_defs`]), never one every path makes.
-        Statement::Call { .. } if is_arm_writes_marker(stmt) => Vec::new(),
+        // What the callees an opaque `switch`'s arms call write, and what a
+        // call to a command the module cannot see reads, are *may*-definitions
+        // ([`switch_may_defs`]), never ones every path makes.
+        Statement::Call { .. } if is_effect_marker(stmt) => Vec::new(),
         Statement::Call { defs, .. } if !defs.is_empty() => defs.clone(),
         Statement::Barrier {
             command,
@@ -851,11 +852,13 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
 /// prior one, the solver joins the two, and existence is unknown afterwards.
 /// The statement the CFG builder puts after such a `switch` for the names a
 /// callee its arms call writes ([`crate::ir::SyntheticMarker::ArmWrites`])
-/// states them as its own definitions, and they are may-definitions too. Every
-/// other statement kind returns nothing.
+/// states them as its own definitions, and they are may-definitions too, as
+/// are the names the marker beside a call to a command the module cannot see
+/// states ([`enrich_unseen_call_reads`]). Every other statement kind returns
+/// nothing.
 pub(crate) fn switch_may_defs(stmt: &Statement, registry: &CommandRegistry) -> Vec<String> {
     if let Statement::Call { defs, .. } = stmt
-        && is_arm_writes_marker(stmt)
+        && is_effect_marker(stmt)
     {
         return defs
             .iter()
@@ -886,7 +889,7 @@ pub(crate) fn switch_may_defs(stmt: &Statement, registry: &CommandRegistry) -> V
 
 /// Every name any statement of `script`, however deeply nested, or any `[…]`
 /// substitution in one of its words, may write.
-fn nested_writes(
+pub(crate) fn nested_writes(
     script: &crate::ir::Script,
     registry: &CommandRegistry,
     out: &mut BTreeSet<String>,
@@ -1952,6 +1955,12 @@ fn uses_in_call(
         // `puts [incr n]` looks overwritten-before-read (#2050).
         if defs.contains(name) {
             reads_own_def.insert(name.clone());
+            // …and the call's embedded commands write it: its words read it
+            // before, between and after that write, and which version a word
+            // names cannot be told, so no word of it is an operand to
+            // forward. The read stays one by name, of the version before the
+            // write.
+            found.substituted.remove(name);
         }
     }
     if *reads_own_defs {
@@ -3160,12 +3169,17 @@ impl RenameWalk {
         if let Some(block) = func.blocks.get(&bn) {
             let stmts: Vec<Statement> = block.statements.clone();
             for stmt in &stmts {
+                let info = self.rename_statement(stmt, frame, registry, elems);
+                // After the marker's own definitions, which are the versions
+                // the call leaves: the ones its words read are not among them.
                 if is_unseen_call_marker(stmt) {
                     let live = self.visible_versions(bn);
                     self.out.unseen_call_versions.extend(live);
                 }
-                let info = self.rename_statement(stmt, frame, registry, elems);
                 self.out.stmt_infos.get_mut(&bn).unwrap().push(info);
+            }
+            if let Some(infos) = self.out.stmt_infos.get_mut(&bn) {
+                demote_reads_beside_writes(infos);
             }
         }
 
@@ -3232,10 +3246,16 @@ pub fn build_ssa_with_config(
         return SsaFunction::trivial(func.name.clone(), func.entry, func.block_names().to_vec());
     }
 
+    let config = config.nested().normalized();
     let mut enriched = enrich_instance_option_defs(func, registry);
     if func.name == "::top" {
         let target = enriched.get_or_insert_with(|| func.clone());
         let _ = mirror_top_level_global_option_defs(target, registry);
+    }
+    if let Some(stated) =
+        enrich_unseen_call_reads(enriched.as_ref().unwrap_or(func), registry, config)
+    {
+        enriched = Some(stated);
     }
     let func = enriched.as_ref().unwrap_or(func);
 
@@ -3247,7 +3267,6 @@ pub fn build_ssa_with_config(
     let idom = compute_idom_fast(func);
     let df = compute_dominance_frontier(func, &idom);
     let tree = build_dom_tree(&idom);
-    let config = config.nested().normalized();
     let elems = collect_array_elems(func, registry, config);
     let phi_vars = compute_phi_vars_with_config(func, &df, registry, &elems, config);
 
@@ -3337,6 +3356,147 @@ pub fn build_ssa_with_config(
     }
 }
 
+/// States, on each marker for a call to a command the module cannot see
+/// ([`crate::ir::SyntheticMarker::UnseenCall`]) that follows the call, the
+/// names the call's words read.
+///
+/// A call reads its words before its head runs, and the code the head reaches
+/// may rewrite any name it can reach, so a word keeps the version it reads
+/// (`set a 1; $cmd $a`) and a read after the call finds a new one. The marker
+/// is the call's definition of each name its words read, as a `switch`'s arms
+/// may define one ([`switch_may_defs`]), and the versions it leaves are the
+/// ones the call is recorded as holding. A marker ahead of the statement it
+/// stands for, where a command a `[…]` substitution of the statement runs is
+/// unseen, follows no call and states nothing.
+///
+/// The CFG is cloned only when a marker states a name, and the clone is what
+/// the rest of the build reads, so no other pass of the compiler sees a
+/// definition the call does not make.
+fn enrich_unseen_call_reads(
+    func: &cfg::Function,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+) -> Option<cfg::Function> {
+    let mut scanner = VarReferenceScanner::with_config(
+        VarScanOptions {
+            include_var_read_roles: true,
+            recurse_cmd_substitutions: true,
+            include_reads_before_write: false,
+            element_qualified: true,
+        },
+        config,
+    );
+    let mut stated: Vec<(BlockId, usize, Vec<String>)> = Vec::new();
+    for (&id, block) in &func.blocks {
+        for (index, marker) in block.statements.iter().enumerate() {
+            if !is_unseen_call_marker(marker) {
+                continue;
+            }
+            let Some(host) = block.statements[..index]
+                .iter()
+                .rev()
+                .find(|statement| !is_synthetic_statement(statement))
+                .filter(|host| {
+                    matches!(host, Statement::Call { .. }) && host.span() == marker.span()
+                })
+            else {
+                continue;
+            };
+            let names = words_read_by_call(host, &mut scanner, registry);
+            if !names.is_empty() {
+                stated.push((id, index, names.into_iter().collect()));
+            }
+        }
+    }
+    if stated.is_empty() {
+        return None;
+    }
+    let mut enriched = func.clone();
+    for (id, index, names) in stated {
+        if let Some(Statement::Call { defs, .. }) = enriched
+            .blocks
+            .get_mut(&id)
+            .and_then(|block| block.statements.get_mut(index))
+        {
+            *defs = names;
+        }
+    }
+    Some(enriched)
+}
+
+/// The names the call `host` reads when its words are evaluated, before its
+/// head runs: those of its head, of each word that is not brace-quoted, and of
+/// the commands such a word runs. A brace-quoted word is passed on as it is,
+/// and the code the call reaches may evaluate it later, so a name only it
+/// carries is not one the call has read.
+fn words_read_by_call(
+    host: &Statement,
+    scanner: &mut VarReferenceScanner,
+    registry: &CommandRegistry,
+) -> BTreeSet<String> {
+    let Statement::Call {
+        command,
+        args,
+        tokens,
+        ..
+    } = host
+    else {
+        return BTreeSet::new();
+    };
+    let mut names: BTreeSet<String> = scanner.scan_word(command, registry).into_iter().collect();
+    for (index, word) in args.iter().enumerate() {
+        if !tokens
+            .as_ref()
+            .is_some_and(|tokens| tokens.arg_is_braced_literal(index))
+        {
+            names.extend(scanner.scan_word(word, registry));
+        }
+    }
+    scan_nested_substitution_words(tokens.as_ref(), scanner, registry, &mut names);
+    names
+}
+
+/// A statement whose `[…]` substitutions write a name reads it before,
+/// between and after the write, and the effect call the CFG builder puts ahead
+/// of the statement defines the name, so the statement's own use names the
+/// version after the write. No word of it is an operand something may rewrite:
+/// each such use becomes a read by name, and the call reads the version before
+/// the write on the statement's behalf.
+fn demote_reads_beside_writes(infos: &mut [SsaStatement]) {
+    for call in 0..infos.len() {
+        let Some(host) = effect_call_host(infos, call) else {
+            continue;
+        };
+        let written: Vec<Symbol> = infos[call].defs.keys().copied().collect();
+        for symbol in written {
+            if infos[host].uses.contains_key(&symbol) && !infos[host].quoted_uses.contains(&symbol)
+            {
+                infos[host].name_only_uses.insert(symbol);
+            }
+        }
+    }
+}
+
+/// The statement the effect call at `call` ([`crate::ir::SyntheticMarker::
+/// UpvarInvalidate`]) stands ahead of: the first statement after it that is
+/// no marker, when it shares the call's span, as the CFG builder puts them.
+/// `None` for a statement that is no such call and for a call with no host.
+pub(crate) fn effect_call_host(infos: &[SsaStatement], call: usize) -> Option<usize> {
+    let Statement::Call {
+        span,
+        tokens: Some(tokens),
+        ..
+    } = &infos.get(call)?.statement
+    else {
+        return None;
+    };
+    if tokens.synthetic != Some(crate::ir::SyntheticMarker::UpvarInvalidate) {
+        return None;
+    }
+    let host = (call + 1..infos.len()).find(|&i| !is_synthetic_statement(&infos[i].statement))?;
+    (infos[host].statement.span() == *span).then_some(host)
+}
+
 /// Whether `stmt` is the marker the CFG builder puts where a call to a
 /// command the module cannot see runs ([`crate::ir::SyntheticMarker::
 /// UnseenCall`]).
@@ -3348,9 +3508,9 @@ pub(crate) fn is_unseen_call_marker(stmt: &Statement) -> bool {
     )
 }
 
-/// Whether `stmt` is the marker the CFG builder puts after an opaque `switch`
-/// for the names a callee its arms call writes ([`crate::ir::SyntheticMarker::
-/// ArmWrites`]).
+/// Whether `stmt` is the marker the CFG builder puts beside an opaque
+/// `switch`, `catch` or `try` for the names its scripts write
+/// ([`crate::ir::SyntheticMarker::ArmWrites`]).
 pub(crate) fn is_arm_writes_marker(stmt: &Statement) -> bool {
     matches!(
         stmt,
@@ -3360,17 +3520,28 @@ pub(crate) fn is_arm_writes_marker(stmt: &Statement) -> bool {
 }
 
 /// Whether `stmt` is a marker that only states an effect the statement beside
-/// it has: where code the module cannot see runs, or what a callee an opaque
-/// `switch` arm calls writes. It shares its host's span and is no command to
-/// run or plan.
+/// it has: where code the module cannot see runs, or what the scripts it keeps
+/// inside itself write. It shares its host's span and is no command to run or
+/// plan.
 pub(crate) fn is_effect_marker(stmt: &Statement) -> bool {
     is_unseen_call_marker(stmt) || is_arm_writes_marker(stmt)
 }
 
 /// Whether `stmt` states may-definitions of the kind [`switch_may_defs`]
-/// returns: an opaque `switch`, or the marker that follows one.
+/// returns: an opaque `switch`, or a marker.
 pub(crate) fn has_arm_may_defs(stmt: &Statement) -> bool {
-    matches!(stmt, Statement::Switch { .. }) || is_arm_writes_marker(stmt)
+    matches!(stmt, Statement::Switch { .. }) || is_effect_marker(stmt)
+}
+
+/// Whether `stmt` is a statement the CFG builder synthesised to carry an
+/// effect ([`crate::ir::SyntheticMarker`]).
+fn is_synthetic_statement(stmt: &Statement) -> bool {
+    match stmt {
+        Statement::Call { tokens, .. } | Statement::Barrier { tokens, .. } => tokens
+            .as_ref()
+            .is_some_and(|tokens| tokens.synthetic.is_some()),
+        _ => false,
+    }
 }
 
 #[cfg(test)]
@@ -5180,15 +5351,16 @@ mod tests {
         );
     }
 
-    /// The same for a body whose locals are set inside it — `catch`'s script
-    /// declares `inner`, so the enclosing frame neither reads nor defines it.
+    /// A script a substitution runs in this frame — `catch`'s — shares the
+    /// frame's names, so `inner` is the frame's: its write is the effect
+    /// call's. The walk cannot order the script's read of it after the
+    /// script's own write, so the effect call reads it by name beside that
+    /// write, and nothing the host substitutes names it.
     #[test]
-    fn body_locals_of_a_nested_substitution_are_not_frame_reads() {
+    fn a_protected_scripts_local_is_read_by_name_beside_its_write() {
         let uses = classified_call_uses("puts [catch {set inner 1; expr {$inner + 1}}]");
-        assert!(
-            !uses.iter().any(|(name, _)| name == "inner"),
-            "a nested body's own local is not a read of this frame: {uses:?}"
-        );
+        let inner: Vec<_> = uses.iter().filter(|(name, _)| name == "inner").collect();
+        assert_eq!(inner, [&("inner".to_owned(), UseClass::Name)], "{uses:?}");
     }
 
     /// The classified uses of every `AssignValue` in a one-statement proc —
@@ -5240,6 +5412,185 @@ mod tests {
         let reg = CommandRegistry::build_default();
         let cu = crate::compilation_unit::CompilationUnit::build_for(source, &reg, false);
         cu.function(name).expect("function analysed").ssa.clone()
+    }
+
+    /// The SSA statements of `ssa` whose statement satisfies `wanted`.
+    fn statements_where(
+        ssa: &SsaFunction,
+        wanted: impl Fn(&Statement) -> bool,
+    ) -> Vec<&SsaStatement> {
+        ssa.blocks
+            .values()
+            .flat_map(|block| &block.statements)
+            .filter(|statement| wanted(&statement.statement))
+            .collect()
+    }
+
+    /// The call the CFG builder puts ahead of a statement for what the
+    /// statement's `[…]` substitutions write.
+    fn is_effect_call(stmt: &Statement) -> bool {
+        matches!(
+            stmt,
+            Statement::Call { tokens: Some(tokens), .. }
+                if tokens.synthetic == Some(crate::ir::SyntheticMarker::UpvarInvalidate)
+        )
+    }
+
+    /// The host an effect call stands ahead of is the first statement after it
+    /// that is no marker, when it shares the call's span — a marker for unseen
+    /// code among the statements included — and no other statement has one. A
+    /// statement with another span is no host.
+    #[test]
+    fn an_effect_call_stands_ahead_of_the_statement_that_shares_its_span() {
+        let effect_block = |source: &str, name: &str| {
+            let ssa = ssa_of_function(source, name);
+            let block = ssa
+                .blocks
+                .values()
+                .find(|block| {
+                    block
+                        .statements
+                        .iter()
+                        .any(|info| is_effect_call(&info.statement))
+                })
+                .expect("a block with an effect call");
+            let call = block
+                .statements
+                .iter()
+                .position(|info| is_effect_call(&info.statement))
+                .expect("the effect call");
+            (block.statements.clone(), call)
+        };
+        for (source, name) in [
+            (
+                "proc p {} {set x 1; set r [expr {$x + [incr x]}]; return $x}\n",
+                "::p",
+            ),
+            ("set x 1\nset r [expr {[incr x] + [foo]}]\n", "::top"),
+            ("set x 1\nexpr {$x + [incr x]}\n", "::top"),
+        ] {
+            let (statements, call) = effect_block(source, name);
+            let host = effect_call_host(&statements, call).expect("the call has a host");
+            assert!(host > call, "{source}");
+            assert!(
+                !is_synthetic_statement(&statements[host].statement),
+                "{source}"
+            );
+            assert_eq!(
+                statements[host].statement.span(),
+                statements[call].statement.span(),
+                "{source}"
+            );
+            for other in (0..statements.len()).filter(|&index| index != call) {
+                assert_eq!(effect_call_host(&statements, other), None, "{source}");
+            }
+        }
+        let (mut statements, call) = effect_block(
+            "proc p {} {set x 1; set r [expr {$x + [incr x]}]; return $x}\n",
+            "::p",
+        );
+        let host = effect_call_host(&statements, call).expect("the call has a host");
+        let Statement::AssignExpr { span, .. } = &mut statements[host].statement else {
+            panic!("an assignment of an expression hosts the call");
+        };
+        *span = tcl_lexer::Span::new(span.start() + 1, span.end());
+        assert_eq!(effect_call_host(&statements, call), None);
+    }
+
+    /// The words of a statement whose `[…]` substitutions write a place read it
+    /// before, between and after the write. The effect call ahead of the
+    /// statement reads the version before the write, by name, so the store
+    /// feeding the word that runs first stays live, and the statement's own use
+    /// names the version after the write by name as well: no word of it is an
+    /// operand something may forward.
+    #[test]
+    fn an_effect_call_reads_the_version_before_the_write_its_statement_reads() {
+        for (body, reads_it) in [
+            ("set r [expr {$x + [set x 10] + $x}]", true),
+            ("expr {$x + [set x 10] + $x}", true),
+            ("set r \"$x [set x 10] $x\"", true),
+            ("incr r [expr {$x + [set x 10]}]", false),
+            ("set r [expr {[string length $x] + [set x 10]}]", false),
+            ("set r [expr {[expr {$x + 1}] + [set x 10]}]", false),
+        ] {
+            let source = format!("proc p {{}} {{\n set x 1\n set r 5\n {body}\n puts $x\n}}\n");
+            let ssa = ssa_of_function(&source, "::p");
+            let x = ssa.var_symbol("x").expect("x");
+            let call = statements_where(&ssa, is_effect_call)[0];
+            assert_eq!(call.defs[&x], 2, "{body}");
+            assert_eq!(call.uses.get(&x), Some(&1), "{body}");
+            assert!(call.name_only_uses.contains(&x), "{body}");
+            if reads_it {
+                let host = statements_where(&ssa, |stmt| {
+                    matches!(
+                        stmt,
+                        Statement::AssignExpr { .. }
+                            | Statement::ExprEval { .. }
+                            | Statement::AssignValue { .. }
+                    ) && stmt.span() == call.statement.span()
+                })[0];
+                assert_eq!(host.uses.get(&x), Some(&2), "{body}");
+                assert!(host.name_only_uses.contains(&x), "{body}");
+            }
+        }
+    }
+
+    /// A place no word of the statement reads is not read by the call that
+    /// carries its write, so the store the write overwrites stays dead: the
+    /// call's read is for the words, not for every place it defines.
+    #[test]
+    fn an_effect_call_leaves_a_place_its_statement_never_reads_alone() {
+        for body in [
+            "set r [expr {[set x 10] + 1}]",
+            "set r \"[set x 10]\"",
+            "set r [expr {[gets $fd x] + 1}]",
+        ] {
+            let source = format!("proc p {{fd}} {{\n set x 1\n {body}\n puts $x\n}}\n");
+            let ssa = ssa_of_function(&source, "::p");
+            let x = ssa.var_symbol("x").expect("x");
+            let call = statements_where(&ssa, is_effect_call)[0];
+            assert_eq!(call.defs[&x], 2, "{body}");
+            assert_eq!(call.uses.get(&x), None, "{body}");
+        }
+    }
+
+    /// A call that embeds the write holds it among its own definitions, and its
+    /// words read the place before, between and after it. It reads the version
+    /// before the write by name, and none of its words is an operand to forward;
+    /// a place the call names itself, in the position its command reads or
+    /// writes, stays what it was.
+    #[test]
+    fn a_call_reads_a_place_its_embedded_command_writes_by_name() {
+        for (command, body) in [
+            ("puts", "puts [expr {$x + [set x 10] + $x}]"),
+            ("puts", "puts \"$x [incr x] $x\""),
+            ("foo", "foo $x [incr x] $x"),
+            ("lappend", "lappend l [incr x] $x"),
+        ] {
+            let source = format!("proc p {{}} {{\n set x 1\n set l {{}}\n {body}\n puts $x\n}}\n");
+            let ssa = ssa_of_function(&source, "::p");
+            let x = ssa.var_symbol("x").expect("x");
+            let host = statements_where(
+                &ssa,
+                |stmt| matches!(stmt, Statement::Call { command: name, .. } if name == command),
+            )[0];
+            assert_eq!(host.uses.get(&x), Some(&1), "{body}");
+            assert_eq!(host.defs[&x], 2, "{body}");
+            assert!(host.name_only_uses.contains(&x), "{body}");
+        }
+        let ssa = ssa_of_function(
+            "proc p {} {\n set l {}\n lappend l $l\n puts $l\n}\n",
+            "::p",
+        );
+        let l = ssa.var_symbol("l").expect("l");
+        let host = statements_where(
+            &ssa,
+            |stmt| matches!(stmt, Statement::Call { command, .. } if command == "lappend"),
+        )[0];
+        assert!(
+            !host.name_only_uses.contains(&l),
+            "the command's own target is read before it writes it: its word is an operand"
+        );
     }
 
     /// A `switch` the flow graph keeps as one statement defines, as may-defs,
@@ -5375,6 +5726,169 @@ mod tests {
                     .into_iter()
                     .filter(|statement| is_arm_writes_marker(&statement.statement))
                     .all(|statement| !statement.may_defs.contains(&n)),
+                "{source}"
+            );
+        }
+    }
+
+    /// The body of an opaque `catch` stays inside the call, so what it writes is
+    /// a *may*-definition the marker ahead of the call states: it reads the
+    /// version before it, the solver joins the two, and the call itself defines
+    /// only its result variable.
+    #[test]
+    fn an_opaque_catch_may_define_the_names_its_body_writes() {
+        let ssa = ssa_of_function(
+            "set g 5\ncatch { if {[gets stdin] eq {q}} { set g 0 } } msg\nputs $g$msg\n",
+            "::top",
+        );
+        let statements = ssa_statements(&ssa);
+        let marker = statements
+            .iter()
+            .find(|statement| is_arm_writes_marker(&statement.statement))
+            .expect("the catch body's writes are stated ahead of the call");
+        let g = ssa.var_symbol("g").expect("g");
+        let msg = ssa.var_symbol("msg").expect("msg");
+        assert_eq!(marker.may_defs, HashSet::from([g]));
+        assert_eq!(marker.defs[&g], 2);
+        assert_eq!(marker.uses[&g], 1);
+        assert!(marker.quoted_uses.contains(&g));
+        let call = statements
+            .iter()
+            .find(|statement| {
+                matches!(&statement.statement, Statement::Call { command, .. } if command == "catch")
+            })
+            .expect("the catch call");
+        assert!(call.defs.contains_key(&msg));
+        assert!(
+            !call.defs.contains_key(&g),
+            "the call defines no name its body writes"
+        );
+    }
+
+    /// A call to a command the module cannot see reads its words before its
+    /// head runs, so the version a word reads is not recorded where the call
+    /// sits — a computed head resolves through it (`set cmd foo; $cmd`), an
+    /// operand keeps its value — and the call may rewrite the name, so a read
+    /// after it is of a new version, which is. A name no word reads, and one
+    /// only a braced word carries, which the code the call reaches may
+    /// evaluate, stay recorded.
+    #[test]
+    fn a_call_the_module_cannot_see_leaves_the_versions_its_words_read() {
+        for (source, names) in [
+            ("set cmd puts\n$cmd hi\nputs $cmd\n", vec!["cmd"]),
+            ("set a 1\nset b 2\n$cmd $a $b\nputs $a$b\n", vec!["a", "b"]),
+            ("set a 1\nset b 2\nget $a $b\nputs $a$b\n", vec!["a", "b"]),
+            ("set f x.tcl\nsource $f\nputs $f\n", vec!["f"]),
+        ] {
+            let ssa = ssa_of_function(source, "::top");
+            for name in names {
+                assert!(
+                    !ssa.name_is_observed_by_unseen_call(name, 1),
+                    "{source}: {name}#1"
+                );
+                assert!(
+                    ssa.name_is_observed_by_unseen_call(name, 2),
+                    "{source}: {name}#2"
+                );
+            }
+        }
+        for source in [
+            "set cmd puts\nset x 1\n$cmd hi\nputs $x\n",
+            "set x 1\nget {$x}\nputs $x\n",
+            "set x 1\nputs [get $x]\nputs $x\n",
+        ] {
+            let ssa = ssa_of_function(source, "::top");
+            assert!(ssa.name_is_observed_by_unseen_call("x", 1), "{source}");
+        }
+    }
+
+    /// The marker beside such a call defines each name the call's words read as
+    /// a *may*-definition: it uses the version before it, so liveness keeps
+    /// the store that feeds it, and a loop that holds the call places the φ the
+    /// definition needs.
+    #[test]
+    fn the_marker_beside_a_call_the_module_cannot_see_may_define_the_names_its_words_read() {
+        let ssa = ssa_of_function("set a 1\nget $a\nputs $a\n", "::top");
+        let marker = ssa_statements(&ssa)
+            .into_iter()
+            .find(|statement| is_unseen_call_marker(&statement.statement))
+            .expect("the call is followed by its marker");
+        let a = ssa.var_symbol("a").expect("a");
+        assert_eq!(marker.may_defs, HashSet::from([a]));
+        assert_eq!(marker.defs[&a], 2);
+        assert_eq!(marker.uses[&a], 1);
+        assert!(marker.quoted_uses.contains(&a));
+
+        let ssa = ssa_of_function(
+            "set a 1\nwhile {[gets stdin line] >= 0} { get $a }\nputs $a\n",
+            "::top",
+        );
+        assert!(
+            ssa.blocks
+                .values()
+                .any(|block| block.phis.iter().any(|phi| ssa.var_name(phi.name) == "a")),
+            "the loop defines `a` where the call sits"
+        );
+
+        // The marker a substitution's unseen command puts ahead of its
+        // statement follows no call, so it states no name.
+        let ssa = ssa_of_function("set x 1\nfoo $x\nputs [get $x]\nputs $x\n", "::top");
+        let stating = ssa_statements(&ssa)
+            .into_iter()
+            .filter(|statement| {
+                is_unseen_call_marker(&statement.statement) && !statement.defs.is_empty()
+            })
+            .count();
+        assert_eq!(stating, 1);
+    }
+
+    /// A call to a command the module cannot see inside a top-level `catch`
+    /// body, or with a computed head, records the versions live where it sits,
+    /// as a call the graph lowers does; a procedure's local is out of the
+    /// callee's reach, and a `source` runs in the frame of the call.
+    #[test]
+    fn a_catch_body_and_a_computed_head_record_the_versions_live_where_they_sit() {
+        for source in [
+            "set x 1\ncatch {foo}\nputs $x\n",
+            "set x 1\ncatch {foo} msg\nputs $x\n",
+            "set x 1\ncatch { if {1} { foo } }\nputs $x\n",
+            "set x 1\ncatch { puts [foo] }\nputs $x\n",
+            "set x 1\ncatch { source other.tcl }\nputs $x\n",
+            "set x 1\n$cmd\nputs $x\n",
+            "set x 1\n$cmd arg\nputs $x\n",
+            "set x 1\nputs [$cmd]\n",
+            "set x 1\nif {[$cmd]} { puts hi }\n",
+            "set x 1\nif {[catch {foo}]} { puts hi }\n",
+            "set x 1\nset rc [catch {foo}]\nputs $x\n",
+            "set x 1\nputs [catch { puts [foo] }]\n",
+            "set x 1\nif {[catch $script]} { puts hi }\n",
+        ] {
+            let ssa = ssa_of_function(source, "::top");
+            assert!(ssa.name_is_observed_by_unseen_call("x", 1), "{source}");
+        }
+        for (source, name, observed) in [
+            (
+                "proc p {} {\n set x 1\n catch { if {1} { foo } }\n puts $x\n}\n",
+                "::p",
+                false,
+            ),
+            ("proc p {} {\n set x 1\n $cmd\n puts $x\n}\n", "::p", false),
+            ("proc p {} {\n set x 1\n puts [$cmd]\n}\n", "::p", false),
+            (
+                "proc p {} {\n set x 1\n catch { if {1} { source other.tcl } }\n puts $x\n}\n",
+                "::p",
+                true,
+            ),
+            (
+                "proc foo {} { puts hi }\nset x 1\ncatch { if {1} { foo } }\nputs $x\n",
+                "::top",
+                false,
+            ),
+        ] {
+            let ssa = ssa_of_function(source, name);
+            assert_eq!(
+                ssa.name_is_observed_by_unseen_call("x", 1),
+                observed,
                 "{source}"
             );
         }

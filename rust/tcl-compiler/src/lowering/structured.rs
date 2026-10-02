@@ -87,10 +87,17 @@ struct SwitchElement {
 /// body (tclsh 9.0.4: `switch # { # {puts matched} default {puts default} }`
 /// prints `matched`).
 ///
+/// A bare or quoted element's backslashes collapse under the document's escape
+/// grammar (`escapes`): before Tcl 8.6 a `\x` takes every hex digit that
+/// follows and keeps the last two.
+///
 /// Returns `None` when the text is not a well-formed list — the caller
 /// bails the whole `switch` to the runtime command, which reports the
 /// error exactly as C Tcl does.
-fn switch_body_elements(body_text: &str) -> Option<Vec<SwitchElement>> {
+fn switch_body_elements(
+    body_text: &str,
+    escapes: tcl_lexer::EscapeSyntax,
+) -> Option<Vec<SwitchElement>> {
     let bytes = body_text.as_bytes();
     let mut elements = Vec::new();
     let mut scan = 0usize;
@@ -101,7 +108,7 @@ fn switch_body_elements(body_text: &str) -> Option<Vec<SwitchElement>> {
                 let value = if el.literal {
                     raw.clone()
                 } else {
-                    tcl_lexer::backslash_subst(&raw).into_owned()
+                    tcl_lexer::backslash_subst_in(&raw, escapes).into_owned()
                 };
                 let quoted = !el.braced
                     && el.value.start > 0
@@ -1213,7 +1220,7 @@ impl Lowerer<'_> {
 
             // Not a well-formed Tcl list — bail to the runtime `switch`,
             // which reports the list error exactly as C Tcl does.
-            let Some(elements) = switch_body_elements(body_text) else {
+            let Some(elements) = switch_body_elements(body_text, self.config.escapes) else {
                 return self.barrier(seg, "switch case list is not a list");
             };
             // An empty arm list (`switch x {}`) is a "wrong # args" error, not a
@@ -2180,5 +2187,38 @@ mod switch_span_tests {
             dtext.contains("puts none"),
             "expected default body to contain `puts none`, got {dtext:?}",
         );
+    }
+
+    /// An element of a braced case list collapses its backslashes under the
+    /// document's grammar: before Tcl 8.6 a `\x` takes every hex digit that
+    /// follows and keeps the last two, so `a\x41b` is `a` and U+001B there
+    /// and `aAb` from 8.6.
+    #[test]
+    fn a_braced_case_list_decodes_its_elements_under_the_documents_escapes() {
+        let pattern_under = |dialect: &str, source: &str| -> String {
+            let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
+            let module = crate::lowering::lower_to_ir_with_dialect(
+                source,
+                registry,
+                tcl_lexer::LexerConfig::for_profile(registry.profile()),
+                registry.profile(),
+            );
+            let Statement::Switch { arms, .. } = &module.top_level.statements[0] else {
+                panic!(
+                    "expected a Switch, got {:?}",
+                    module.top_level.statements[0]
+                );
+            };
+            arms[0].pattern.clone()
+        };
+        for source in [
+            r#"switch -- aAb {"a\x41b" {puts hit} default {puts miss}}"#,
+            r"switch -- aAb {a\x41b {puts hit} default {puts miss}}",
+        ] {
+            assert_eq!(pattern_under("tcl8.4", source), "a\u{1b}", "{source}");
+            assert_eq!(pattern_under("tcl8.5", source), "a\u{1b}", "{source}");
+            assert_eq!(pattern_under("tcl8.6", source), "aAb", "{source}");
+            assert_eq!(pattern_under("tcl9.0", source), "aAb", "{source}");
+        }
     }
 }

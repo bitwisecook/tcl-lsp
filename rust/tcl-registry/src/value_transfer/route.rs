@@ -380,6 +380,19 @@ pub enum NativeEvalId {
     /// `binary format`: the shared packer's bytes, a byte array by
     /// construction.
     BinaryFormat,
+    /// `unset`: each named variable unbound in order, the first absent one
+    /// the command's error.
+    VariableUnset,
+    /// `error`: the `TCL_ERROR` completion with the message and `-errorcode`
+    /// its words give.
+    ErrorRaise,
+    /// `return`: the completion its `-code` and `-level` give, with its
+    /// result.
+    ReturnComplete,
+    /// `break`: the `TCL_BREAK` completion.
+    BreakComplete,
+    /// `continue`: the `TCL_CONTINUE` completion.
+    ContinueComplete,
 }
 
 impl NativeEvalId {
@@ -407,6 +420,11 @@ impl NativeEvalId {
         Self::ListAssign,
         Self::ArraySet,
         Self::BinaryFormat,
+        Self::VariableUnset,
+        Self::ErrorRaise,
+        Self::ReturnComplete,
+        Self::BreakComplete,
+        Self::ContinueComplete,
     ];
 
     /// Stable spelling for the inventory and the Explorer.
@@ -435,6 +453,11 @@ impl NativeEvalId {
             Self::ListAssign => "list-assign",
             Self::ArraySet => "array-set",
             Self::BinaryFormat => "binary-format",
+            Self::VariableUnset => "variable-unset",
+            Self::ErrorRaise => "error-raise",
+            Self::ReturnComplete => "return-complete",
+            Self::BreakComplete => "break-complete",
+            Self::ContinueComplete => "continue-complete",
         }
     }
 
@@ -463,7 +486,12 @@ impl NativeEvalId {
             | Self::BinaryScan
             | Self::ListAssign
             | Self::ArraySet
-            | Self::BinaryFormat => EvaluatorOwner::Registry,
+            | Self::BinaryFormat
+            | Self::VariableUnset
+            | Self::ErrorRaise
+            | Self::ReturnComplete
+            | Self::BreakComplete
+            | Self::ContinueComplete => EvaluatorOwner::Registry,
         }
     }
 }

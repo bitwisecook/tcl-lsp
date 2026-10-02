@@ -23,17 +23,26 @@
 //! fold reads; the error on an absent place and the `-nocomplain` form's
 //! completion domain arrive with the existence rung.
 
+use tcl_dialect::TclVersion;
+
 use crate::arg_role::ArgRole;
 use crate::completion::{CompletionCode, CompletionCodeDomain};
+use crate::types::TclType;
 
 use super::CommandSemantics;
 use super::answers::{
-    BindingKind, CompletionPath, Existence, ExistenceOutcome, ExistenceTransfer, TransferAnswer,
+    BindingKind, CompletionOutcome, CompletionPath, DependencyEvidence, EvalAnswer, ExactValue,
+    ExactValueOrUnavailable, Existence, ExistenceOutcome, ExistenceTransfer, InvocationOutcome,
+    RouteIdentity, StoreOutcome, TransferAnswer, TypeFacts,
 };
+use super::const_ops::{Raised, TargetSemantics};
 use super::context::Budget;
-use super::decline::NoRouteReason;
+use super::decline::{DeclineReason, NoRouteReason};
 use super::inputs::{AnalysisInputs, DomainFact, FactDomain, FactView, TargetId};
-use super::route::EvalRoute;
+use super::route::{EvalRoute, NativeEvalId};
+
+/// The revision of the registry-owned `unset` evaluator.
+const REVISION: u64 = 1;
 
 const NORMAL: &[CompletionCode] = &[CompletionCode::Ok];
 
@@ -41,15 +50,120 @@ const NORMAL: &[CompletionCode] = &[CompletionCode::Ok];
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct UnbindSemantics;
 
+impl UnbindSemantics {
+    /// The error unsetting the absent variable `name` raises: `can't unset
+    /// "x": no such variable` in every release, with `-errorcode` `NONE`
+    /// before 8.6 and `TCL LOOKUP VARNAME x` from it (measured, 8.4 to 9.1).
+    fn absent(name: &str, target: &TargetSemantics) -> Raised {
+        Raised::unanimous(target, |release| {
+            let code = if release >= TclVersion::V8_6 {
+                format!("TCL LOOKUP VARNAME {name}")
+            } else {
+                "NONE".to_owned()
+            };
+            (format!("can't unset \"{name}\": no such variable"), code)
+        })
+    }
+}
+
 impl CommandSemantics for UnbindSemantics {
     fn identity(&self) -> &'static str {
         "unbind"
     }
 
     fn route(&self) -> EvalRoute {
-        EvalRoute::None {
-            reason: NoRouteReason::Unauthored,
+        EvalRoute::Direct {
+            id: NativeEvalId::VariableUnset,
         }
+    }
+
+    /// Each named variable unbound in the command's order. A variable the
+    /// rung proves unbound is the command's error unless `-nocomplain` is
+    /// given, and the variables after it keep what they held: the stores
+    /// before it ran (the prefix rule). A name whose existence the rung does
+    /// not prove, and an element — whose existence it never states —
+    /// decline.
+    fn evaluate(&self, input: &dyn AnalysisInputs, _budget: &mut Budget) -> EvalAnswer {
+        let view = input.invocation();
+        let targets: Vec<_> = view.operands_with_role(ArgRole::VarWrite).collect();
+        if targets.is_empty() {
+            return EvalAnswer::Declined(DeclineReason::Unsupported);
+        }
+        let nocomplain = view.operands.iter().any(|operand| {
+            operand.role != Some(ArgRole::VarWrite) && operand.text == "-nocomplain"
+        });
+        let semantics = TargetSemantics::of(input.context().profile);
+        let mut stores = Vec::with_capacity(targets.len());
+        let mut unset: Vec<String> = Vec::new();
+        let mut failing: Option<(usize, Raised)> = None;
+        for (at, id) in targets.iter().enumerate() {
+            let place = match input.place(*id) {
+                Ok(place) => place,
+                Err(reason) => return EvalAnswer::Declined(reason),
+            };
+            if place.is_element() {
+                return EvalAnswer::Declined(DeclineReason::NotExact);
+            }
+            // A name an earlier target already unset is absent by now.
+            let absent = if unset.contains(&place.name) {
+                true
+            } else {
+                match input.prior_store(&place, FactDomain::Existence) {
+                    FactView::Domain(DomainFact::Existence(Existence::Unbound)) => true,
+                    FactView::Domain(DomainFact::Existence(Existence::Bound(_))) => false,
+                    FactView::Domain(DomainFact::Existence(Existence::Pending))
+                    | FactView::Pending => return EvalAnswer::Pending,
+                    FactView::Top(reason) => return EvalAnswer::Declined(reason),
+                    FactView::Domain(_) | FactView::Exact(..) | FactView::Finite(..) => {
+                        return EvalAnswer::Declined(DeclineReason::NotExact);
+                    }
+                }
+            };
+            let target = TargetId(*id);
+            if absent && !nocomplain {
+                failing.get_or_insert((at, Self::absent(&place.name, &semantics)));
+                stores.push(StoreOutcome::Unbind { target });
+            } else if absent {
+                stores.push(StoreOutcome::Preserve { target });
+            } else {
+                unset.push(place.name);
+                stores.push(StoreOutcome::Unbind { target });
+            }
+        }
+        let (completion, result) = match failing {
+            Some((written, raised)) => (
+                CompletionOutcome::Error {
+                    written,
+                    message: raised.message,
+                    error_code: raised.error_code,
+                },
+                ExactValueOrUnavailable::unproven_string(),
+            ),
+            None => (
+                CompletionOutcome::Normal,
+                ExactValueOrUnavailable::Exact(ExactValue::text("")),
+            ),
+        };
+        EvalAnswer::Evaluated(Box::new(InvocationOutcome {
+            completion,
+            nested_writes: Vec::new(),
+            result,
+            ordered_stores: stores,
+            types: TypeFacts {
+                result: Some(TclType::String),
+                per_target: Vec::new(),
+                shapes: Vec::new(),
+            },
+            evidence: DependencyEvidence {
+                route: Some(RouteIdentity {
+                    route: self.route(),
+                    implementation: self.identity(),
+                    revision: REVISION,
+                }),
+                release: semantics.release,
+                ..DependencyEvidence::default()
+            },
+        }))
     }
 
     fn transfer(

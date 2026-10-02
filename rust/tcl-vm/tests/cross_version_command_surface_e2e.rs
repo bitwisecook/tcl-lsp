@@ -1281,10 +1281,8 @@ fn hide_and_expose_collisions_preserve_bindings_and_traces() {
             "[{version:?}] hide collision"
         );
     }
-    for (env, names) in [("TCLSH90", &["tclsh9.0"][..])] {
-        if let Some(out) = tclsh_output(env, names, src) {
-            assert_eq!(out, want, "[{env}] real Tcl oracle");
-        }
+    if let Some(out) = tclsh_output("TCLSH90", &["tclsh9.0"], src) {
+        assert_eq!(out, want, "[TCLSH90] real Tcl oracle");
     }
 }
 

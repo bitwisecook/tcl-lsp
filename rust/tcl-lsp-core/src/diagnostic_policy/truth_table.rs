@@ -754,8 +754,10 @@ const TAINT: &str = "set u [HTTP::uri]\nHTTP::respond 200 content $u\n";
 /// A declaration the `SslicTcl` loader keeps as an extension on line 2
 /// (SSLIC1101), which the analyser reads as an unknown command (W123).
 const SSLIC: &str = "sslictcl 1\nunknown-declaration {a b}\n";
-/// A UTF-16 byte-order mark ahead of [`TRAILING`]: the document abstains.
-const BOM: &[u8] = b"\xFF\xFEset x 1   \nputs $y\n";
+/// A UTF-16 byte-order mark, which decodes to a command the analyser cannot
+/// see, then [`TRAILING`] with its unset read in a procedure, where no such
+/// command reaches it: the document abstains.
+const BOM: &[u8] = b"\xFF\xFE;set x 1   \nproc p {} {puts $y}\n";
 /// A UTF-16 byte-order mark, then a `# noqa` on a line of its own over
 /// trailing whitespace on line 3.
 const BOM_NOQA: &[u8] = b"\xFF\xFE\n# noqa\nset x 1   \n";

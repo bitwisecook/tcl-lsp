@@ -979,8 +979,7 @@ impl CfgBuilder<'_> {
     fn push_try_handler_exception_edges(
         &mut self,
         handler: &crate::ir::TryHandler,
-        handler_block: &str,
-        block_name: &str,
+        (handler_block, block_name, body_block): (&str, &str, &str),
         body_tail: Option<&str>,
         body_throw_blocks: &[String],
         body_terminal: Option<&str>,
@@ -1020,6 +1019,11 @@ impl CfgBuilder<'_> {
         } else {
             self.exception_edges
                 .push((block_name.to_owned(), handler_block.to_owned()));
+            self.region_entries.push((
+                block_name.to_owned(),
+                handler_block.to_owned(),
+                body_block.to_owned(),
+            ));
             if let Some(tail) = body_tail
                 && tail != block_name
             {
@@ -1108,8 +1112,7 @@ impl CfgBuilder<'_> {
             // only) via the helper below.
             self.push_try_handler_exception_edges(
                 handler,
-                &handler_block,
-                block_name,
+                (&handler_block, block_name, &body_block),
                 body_tail.as_deref(),
                 &body_throw_blocks,
                 body_terminal.as_deref(),
@@ -1221,7 +1224,12 @@ impl CfgBuilder<'_> {
         // keeps a nested `catch`'s throws attributed to its own region.
         let outer_throw_blocks = self.throw_blocks.take();
         self.throw_blocks = Some(Vec::new());
+        // Any command of the body may fail, and what the body has stored when
+        // it does is the handler's state, so in an analysis build each
+        // statement ends a block an exception edge leaves from.
+        self.split_script = self.faithful_exceptions;
         let raw_body_tail = self.lower_script(body, &body_block);
+        let split_blocks = std::mem::take(&mut self.split_blocks);
         let body_terminal = self.last_terminal_block.take();
         let body_throw_blocks = self.throw_blocks.take().unwrap_or_default();
         self.throw_blocks = outer_throw_blocks;
@@ -1253,6 +1261,7 @@ impl CfgBuilder<'_> {
         // this from `ensure_goto(block_name, &handler_block, …)`; a `catch`
         // has no handler block to edge to, so it is recorded here.
         let mut throw_sources: Vec<String> = vec![block_name.to_owned()];
+        throw_sources.extend(split_blocks);
         for tb in &body_throw_blocks {
             if !throw_sources.contains(tb) {
                 throw_sources.push(tb.clone());
@@ -1270,6 +1279,13 @@ impl CfgBuilder<'_> {
         }
         for src in throw_sources {
             self.exception_edges.push((src, end_block.clone()));
+        }
+        if self.faithful_exceptions {
+            self.region_entries.push((
+                block_name.to_owned(),
+                end_block.clone(),
+                body_block.clone(),
+            ));
         }
 
         // The result and options variables are defined however the body ended,

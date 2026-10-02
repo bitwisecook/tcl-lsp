@@ -1684,6 +1684,30 @@ pub fn serialise_dominators(result: &ExplorerResult) -> Value {
     )
 }
 
+/// One statement's route record of the SCCP view: the route the resolved
+/// invocation declared, how it answered, and what it stores on each
+/// completion path.
+fn route_json(
+    explanation: &tcl_compiler::value_transfer::RouteExplanation,
+    li: &LineIndex,
+    source: &str,
+) -> Value {
+    json!({
+        "command": explanation.command,
+        "route": explanation.route,
+        "answer": explanation.answer,
+        "paths": explanation
+            .paths
+            .iter()
+            .map(|path| json!({
+                "completion": path.completion.label(),
+                "stores": path.stores,
+            }))
+            .collect::<Vec<_>>(),
+        "range": range_dict(explanation.span, li, source),
+    })
+}
+
 /// One selection record of the SCCP view: the statement's range,
 /// each kept arm's pattern range, and per member the arm selected and the
 /// arm whose body runs — the final `default` pair by that name, since the
@@ -1782,12 +1806,7 @@ pub fn serialise_sccp(result: &ExplorerResult, li: &LineIndex, source: &str) -> 
                     .sccp
                     .explanations
                     .iter()
-                    .map(|explanation| json!({
-                        "command": explanation.command,
-                        "route": explanation.route,
-                        "answer": explanation.answer,
-                        "range": range_dict(explanation.span, li, source),
-                    }))
+                    .map(|explanation| route_json(explanation, li, source))
                     .collect();
                 let selections: Vec<Value> = snap
                     .unit
@@ -4325,6 +4344,76 @@ mod tests {
             .expect("the string range route");
         assert_eq!(range["route"], "direct string-range (registry)");
         assert_eq!(range["answer"], "evaluated");
+    }
+
+    /// The SCCP view lists what each statement stores on its completion paths:
+    /// a `lassign` over an array stops after its first store, and over a
+    /// place of a kind the analysis does not know it may fail at any of them,
+    /// which its transfer says by path. A statement that stores on its normal
+    /// path alone lists that one.
+    #[test]
+    fn sccp_reports_each_statements_completion_paths() {
+        let result = run_pipeline(
+            "proc p {} {\n    array set c {k keep}\n    set a old\n    \
+             lassign {new second} a c\n}\n\
+             proc q {c} {\n    set a old\n    if {$c} {set b 1}\n    lassign {x y} a b\n}\n",
+            "tcl8.6",
+        );
+        let sccp = serialise_result(&result)["sccp"].clone();
+        let paths = |name: &str, line: u64| -> Vec<(String, Vec<String>)> {
+            let proc_view = sccp
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|f| f["name"] == name)
+                .expect("the procedure's view");
+            let route = proc_view["routes"]
+                .as_array()
+                .expect("routes")
+                .iter()
+                .find(|r| r["command"] == "lassign" && r["range"]["startLine"] == line)
+                .expect("the lassign route");
+            route["paths"]
+                .as_array()
+                .expect("paths")
+                .iter()
+                .map(|path| {
+                    (
+                        path["completion"].as_str().unwrap().to_owned(),
+                        path["stores"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .map(|store| store.as_str().unwrap().to_owned())
+                            .collect(),
+                    )
+                })
+                .collect()
+        };
+        assert_eq!(
+            paths("::p", 3),
+            [(
+                "error after 1 store".to_owned(),
+                vec!["write a = new".to_owned()]
+            )],
+            "the store before the array ran, the one at it did not"
+        );
+        assert_eq!(
+            paths("::q", 8),
+            [
+                (
+                    "normal".to_owned(),
+                    vec!["write a = x".to_owned(), "write b = y".to_owned()]
+                ),
+                (
+                    "error".to_owned(),
+                    vec![
+                        "bind a as scalar".to_owned(),
+                        "may-bind b as scalar".to_owned()
+                    ]
+                ),
+            ]
+        );
     }
 
     /// The SCCP view's route tally counts every family's entries once,

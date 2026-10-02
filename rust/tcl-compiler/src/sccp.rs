@@ -730,6 +730,7 @@ pub fn sccp_with_builtin_folds(
 
     let executable_blocks = entry_block_set(cfg);
     let order = cfg_order(cfg);
+    let regions = RegionShape::of(cfg);
     let sweep = SweepContext {
         cfg,
         ssa,
@@ -740,6 +741,7 @@ pub fn sccp_with_builtin_folds(
         grammar,
         registry: trace.registry,
         driver: &driver,
+        regions: &regions,
     };
     let mut state = SweepState {
         values,
@@ -860,6 +862,66 @@ struct SweepContext<'a> {
     grammar: tcl_dialect::LexerGrammar,
     registry: &'a CommandRegistry,
     driver: &'a LatticeDriver<'a>,
+    /// Where the function's exception edges leave from.
+    regions: &'a RegionShape,
+}
+
+/// Where a function's exception edges leave from, which decides what a
+/// statement that certainly raises does to its block: inside a handler's
+/// region the block's normal way out is closed and the exception edge carries
+/// the state the statement left, and outside one nothing is claimed.
+struct RegionShape {
+    /// The blocks a handler's region holds the commands of: a source of an
+    /// exception edge that is no region entry.
+    throwing: HashSet<BlockId>,
+    /// The region entries, by the block that holds the body's first command.
+    entries: HashMap<BlockId, Vec<crate::cfg::RegionEntry>>,
+    /// The region entries' edges.
+    entry_edges: HashSet<(BlockId, BlockId)>,
+}
+
+impl RegionShape {
+    fn of(cfg: &CfgFunction) -> Self {
+        let entry_edges: HashSet<(BlockId, BlockId)> = cfg
+            .region_entries
+            .iter()
+            .map(|entry| (entry.source, entry.handler))
+            .collect();
+        let throwing = cfg
+            .exception_edges
+            .iter()
+            .filter(|edge| !entry_edges.contains(edge))
+            .map(|&(from, _)| from)
+            .collect();
+        let mut entries: HashMap<BlockId, Vec<crate::cfg::RegionEntry>> = HashMap::new();
+        for entry in &cfg.region_entries {
+            entries.entry(entry.first).or_default().push(*entry);
+        }
+        Self {
+            throwing,
+            entries,
+            entry_edges,
+        }
+    }
+}
+
+/// What a block's statements leave of its way out.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct BlockExit {
+    /// Whether the block can complete normally: no statement of it is
+    /// certain to raise.
+    completes: bool,
+    /// Whether the state before the block is one a throw can leave from:
+    /// false where its first statement raises only after a store, so the
+    /// handler never sees what held before it.
+    entry_throws: bool,
+}
+
+impl BlockExit {
+    const NORMAL: Self = Self {
+        completes: true,
+        entry_throws: true,
+    };
 }
 
 /// What the sweeps advance: the lattice values, the executable blocks and
@@ -917,7 +979,9 @@ impl SweepContext<'_> {
         });
 
         // Statements.
-        changed |= sccp_process_statements(
+        let throwing = self.regions.throwing.contains(&bn);
+        self.driver.set_throwing(throwing);
+        let run = sccp_process_statements(
             &mut state.values,
             ssa_block,
             self.ssa,
@@ -926,6 +990,8 @@ impl SweepContext<'_> {
             self.driver,
             at.as_mut(),
         );
+        self.driver.set_throwing(false);
+        changed |= run.changed;
         if let Some(at) = &at {
             at.before_terminator(self.driver);
         }
@@ -939,6 +1005,8 @@ impl SweepContext<'_> {
             grammar: self.grammar,
             registry: self.registry,
             driver: self.driver,
+            exit: run.exit,
+            entry_edges: &self.regions.entry_edges,
         };
         changed |= sccp_process_terminator(
             bn,
@@ -947,8 +1015,35 @@ impl SweepContext<'_> {
             &mut state.executable_edges,
             finalizing,
         );
+        changed |= self.open_region_entries(
+            bn,
+            run.exit,
+            (&mut state.executable_blocks, &mut state.executable_edges),
+        );
         if let Some(at) = at {
-            changed |= at.leave(self.driver);
+            changed |= at.leave(self.driver, run.exit.entry_throws);
+        }
+        changed
+    }
+
+    /// The region entries whose body starts at `bn`: the state before the
+    /// body reaches the handler when the body's first command can fail
+    /// before it stores anything, and otherwise never.
+    fn open_region_entries(
+        &self,
+        bn: BlockId,
+        exit: BlockExit,
+        (blocks, edges): (&mut HashSet<BlockId>, &mut HashSet<(BlockId, BlockId)>),
+    ) -> bool {
+        let mut changed = false;
+        if !exit.entry_throws {
+            return changed;
+        }
+        for entry in self.regions.entries.get(&bn).into_iter().flatten() {
+            changed |= edges.insert((entry.source, entry.handler));
+            if self.cfg.blocks.contains_key(&entry.handler) {
+                changed |= blocks.insert(entry.handler);
+            }
         }
         changed
     }
@@ -960,7 +1055,12 @@ impl SweepContext<'_> {
 struct ExistenceAt<'r> {
     run: &'r mut ExistenceRun,
     block: BlockId,
+    /// The join of the points passed so far after the block's entry.
     through: Option<Vec<Existence>>,
+    /// The state the block entered with, for a region block: a point a
+    /// throw leaves from unless the block's first statement raises only
+    /// after a store.
+    entry: Option<Vec<Existence>>,
 }
 
 impl ExistenceAt<'_> {
@@ -1027,7 +1127,7 @@ impl ExistenceAt<'_> {
         stmt_ssa: &SsaStatement,
         (var, element_write_base): (Symbol, Option<Symbol>),
         driver: &LatticeDriver<'_>,
-        evaluated: impl FnOnce() -> crate::value_transfer::ExistenceStep,
+        (kept, evaluated): (bool, impl FnOnce() -> crate::value_transfer::ExistenceStep),
     ) -> crate::value_transfer::ExistenceStep {
         if self
             .run
@@ -1037,6 +1137,11 @@ impl ExistenceAt<'_> {
             .unwrap_or(true)
         {
             return crate::value_transfer::ExistenceStep::Set(Existence::MayBound);
+        }
+        // A statement that raised before it stored leaves a place as it was,
+        // a typed assignment included.
+        if kept {
+            return evaluated();
         }
         assignment_existence(stmt_ssa, var, element_write_base, driver).unwrap_or_else(evaluated)
     }
@@ -1071,12 +1176,16 @@ impl ExistenceAt<'_> {
     }
 
     /// Leave the block: record its exit, and for a region block the join
-    /// of its points; whether either moved.
-    fn leave(self, driver: &LatticeDriver<'_>) -> bool {
+    /// of its points, its entry among them where a throw can leave from it
+    /// (`entry_throws`); whether either moved.
+    fn leave(self, driver: &LatticeDriver<'_>, entry_throws: bool) -> bool {
         let Some(exit) = driver.existence_leave() else {
             return false;
         };
         let through = self.through.map(|mut points| {
+            if let Some(entry) = self.entry.as_deref().filter(|_| entry_throws) {
+                join_state(&mut points, entry);
+            }
             join_state(&mut points, &exit);
             points
         });
@@ -1152,6 +1261,9 @@ struct ExistenceRun {
     clobbers: HashMap<(BlockId, usize), Clobber>,
     /// The clobber each block's terminator performs.
     terminator_clobbers: HashMap<BlockId, Clobber>,
+    /// The exception edges that leave from the block before a body: they
+    /// carry that block's exit, never the points inside it.
+    entry_edges: HashSet<(BlockId, BlockId)>,
     /// Per handler block, the blocks whose every point its exception edges
     /// may leave from.
     handler_regions: HashMap<BlockId, Vec<BlockId>>,
@@ -1276,7 +1388,12 @@ impl ExistenceRun {
                     .push((refinement.key.0.0 as usize, *fact));
             }
         }
-        let handler_regions = handler_regions(cfg);
+        let entry_edges: HashSet<(BlockId, BlockId)> = cfg
+            .region_entries
+            .iter()
+            .map(|entry| (entry.source, entry.handler))
+            .collect();
+        let handler_regions = handler_regions(cfg, &entry_edges);
         let in_regions = handler_regions.values().flatten().copied().collect();
         // Version 0 of each SSA place is what the frame enters with; a
         // query-only slot has no version.
@@ -1290,6 +1407,7 @@ impl ExistenceRun {
             external,
             clobbers,
             terminator_clobbers,
+            entry_edges,
             handler_regions,
             in_regions,
             exits: HashMap::new(),
@@ -1322,12 +1440,15 @@ impl ExistenceRun {
                 .unwrap_or(Existence::Pending);
             *changed |= self.record_version((phi.name, phi.version), fact);
         }
-        let through = self.in_regions.contains(&block).then(|| state.clone());
+        let in_region = self.in_regions.contains(&block);
+        let through = in_region.then(|| vec![Existence::Pending; state.len()]);
+        let entry = in_region.then(|| state.clone());
         driver.existence_enter(state);
         ExistenceAt {
             run: self,
             block,
             through,
+            entry,
         }
     }
 
@@ -1355,7 +1476,13 @@ impl ExistenceRun {
             if normal && let Some(exit) = self.exits.get(&pred) {
                 join_state(&mut state, &self.arriving((pred, block), exit));
             }
-            if cfg.exception_edges.contains(&(pred, block)) {
+            if self.entry_edges.contains(&(pred, block)) {
+                // The state before the body is the block before it, at its
+                // exit.
+                if let Some(exit) = self.exits.get(&pred) {
+                    join_state(&mut state, exit);
+                }
+            } else if cfg.exception_edges.contains(&(pred, block)) {
                 for region in self.handler_regions.get(&block).into_iter().flatten() {
                     if let Some(points) = self.through.get(region) {
                         join_state(&mut state, points);
@@ -2007,12 +2134,19 @@ pub(crate) fn place_base(name: &str) -> &str {
 
 /// Per handler block, the region its exception edges leave from: every
 /// block on a normal path from one of its edges' sources to another — a
-/// `try` or `catch` body between the block before it and its tail —
-/// sources included. Any command in the region may throw, so the handler
-/// sees every point of it.
-fn handler_regions(cfg: &CfgFunction) -> HashMap<BlockId, Vec<BlockId>> {
+/// `try` or `catch` body between its first command and its tail — sources
+/// included. Any command in the region may throw, so the handler sees every
+/// point of it. The block before the body is no part of it: its edge
+/// (`entry_edges`) carries the state at its exit alone.
+fn handler_regions(
+    cfg: &CfgFunction,
+    entry_edges: &HashSet<(BlockId, BlockId)>,
+) -> HashMap<BlockId, Vec<BlockId>> {
     let mut sources: HashMap<BlockId, Vec<BlockId>> = HashMap::new();
     for &(from, to) in &cfg.exception_edges {
+        if entry_edges.contains(&(from, to)) {
+            continue;
+        }
         let listed = sources.entry(to).or_default();
         if !listed.contains(&from) {
             listed.push(from);
@@ -2288,9 +2422,21 @@ fn sccp_process_statements(
     has_dynamic_variable_trace: bool,
     driver: &LatticeDriver<'_>,
     mut existence: Option<&mut ExistenceAt<'_>>,
-) -> bool {
-    let mut changed = false;
+) -> StatementsRun {
+    let (mut changed, mut prepared) = (false, None);
+    let mut exit = BlockExit::NORMAL;
     for (index, stmt_ssa) in ssa_block.statements.iter().enumerate() {
+        // A statement after one that certainly raises never runs: its
+        // definitions keep what their places held.
+        if !exit.completes {
+            changed |= keep_prior(
+                values,
+                (ssa_block, index),
+                stmt_ssa,
+                (driver, existence.as_deref_mut()),
+            );
+            continue;
+        }
         if let Some(at) = existence.as_deref_mut() {
             at.record_reads(index, stmt_ssa, driver);
         }
@@ -2298,136 +2444,287 @@ fn sccp_process_statements(
             stmt_ssa.statement,
             Statement::Barrier { .. } | Statement::UpFrame { .. }
         ) {
-            // Barriers widen all currently-tracked values — EXCEPT
-            // version-0 (parameter) seeds, which hold the caller's
-            // literal and are immutable across the barrier (a barrier
-            // that mutates the var produces a fresh version), so a
-            // callee `dict with $param` still sees the interproc
-            // literal.
-            //
-            // `UpFrame` (the CFG shape for a literal-body `uplevel`)
-            // shares this treatment: `uplevel 1 {…}` / `uplevel #0 {…}`
-            // evaluates its body in a DIFFERENT frame — the caller's, or
-            // the absolute global one — so it can reassign any name
-            // visible there, exactly like an opaque barrier. Reproduced
-            // against tclsh 8.6/9.0: `set n 5; uplevel #0 {set n 99};
-            // puts [expr {$n + 1}]` prints `100`; before this widening,
-            // the optimiser proposed folding to the stale `6`.
-            let keys: Vec<ValueKey> = values.keys().copied().collect();
-            for k in keys {
-                if k.1 == 0 {
-                    continue;
-                }
-                if set_value(values, k, &LatticeValue::Overdefined) {
-                    changed = true;
-                }
-            }
-            // A widened value states nothing of its type either.
-            driver.forget_folded();
-            // A barrier also *defines* variables of its own (e.g. `dict for {x
-            // y} …` defines `x`/`y`). Those defs are opaque — the barrier can
-            // set them to anything — so set each to `Overdefined`. Without this
-            // the def key is never inserted (the widen loop above only touches
-            // keys already present), so it stays `Unknown` and vanishes from a
-            // downstream phi join, letting a phi that merges a barrier-def with
-            // a constant fold to that constant and miscompile a following test.
-            for (&var, ver) in &stmt_ssa.defs {
-                if set_value(values, (var, *ver), &LatticeValue::Overdefined) {
-                    changed = true;
-                }
-            }
-            // Every place is may-bound after a barrier, as every value is
-            // widened.
-            if let Some(at) = existence.as_deref_mut() {
-                changed |= at.barrier(index, stmt_ssa, driver);
-            }
+            changed |= widen_at_barrier(
+                values,
+                (index, stmt_ssa),
+                (driver, existence.as_deref_mut()),
+            );
             continue;
         }
-        // An element write's base def carries no scalar value of its own —
-        // `set arr(k) 5` / `set arr($i) 5` refresh `arr` for whole-array
-        // readers but must never let `$arr` fold to the element's value.
-        let element_write_base = match &stmt_ssa.statement {
-            Statement::AssignConst { name, .. }
-            | Statement::AssignExpr { name, .. }
-            | Statement::AssignValue { name, .. }
-            | Statement::Incr { name, .. }
-                if name.contains('(') =>
-            {
-                ssa.var_symbol(crate::naming::normalise_var_name(name))
-            }
-            _ => None,
-        };
         // The statement is evaluated once, when a definition first needs
         // it: a call's ordered stores give each definition its own value.
-        let mut evaluated: Option<DefValues> = None;
-        for (&var, &ver) in &stmt_ssa.defs {
-            let mut value_of = |values: &HashMap<ValueKey, LatticeValue>| {
-                let evaluated = evaluated
-                    .get_or_insert_with(|| evaluate_defs_under(stmt_ssa, values, ssa, driver));
-                (
-                    evaluated.of((var, ver)),
-                    evaluated.folded_of((var, ver)),
-                    evaluated.stated((var, ver)),
-                    evaluated.preserved((var, ver)),
-                    evaluated.existence((var, ver)),
-                )
+        let mut evaluated = pair_answer(&mut prepared, (ssa_block, index), values, (ssa, driver));
+        // Where a throw leaves from, whether the statement raises is part of
+        // what it does, so it is evaluated whatever its definitions need.
+        if driver.is_throwing() && evaluated.is_none() {
+            evaluated = if stmt_ssa.defs.is_empty() {
+                driver.probe_completion(stmt_ssa, values, ssa)
+            } else {
+                Some(evaluate_defs_under(stmt_ssa, values, ssa, driver))
             };
-
-            // A definition's folded type is its own evaluation's: a widened
-            // or a joined definition states none. One whose outcome left its
-            // place untouched names the version the place held.
-            let mut preserved = None;
-            let (val, folded) =
-                if is_externally_mutable(ssa.var_name(var), escaping, has_dynamic_variable_trace)
-                    || element_write_base == Some(var)
-                    || ssa.is_observed_by_unseen_call(var, ver)
-                {
-                    (LatticeValue::Overdefined, None)
-                } else if stmt_ssa.may_defs.contains(&var) {
-                    // A synthetic array-element may-def: the write may or may
-                    // not have hit this element, so its value is the JOIN of
-                    // the prior version (recorded as a use) and the written
-                    // value — unless the statement's evaluated outcome names
-                    // the element's place (`array set arr {k v}` writes
-                    // `arr(k)`), which makes the write definite. The base
-                    // refresh of an element write carries no prior use — the
-                    // base holds no value of its own.
-                    match stmt_ssa.uses.get(&var) {
-                        Some(prev_ver) => {
-                            let (written, folded, stated, _, _) = value_of(values);
-                            if stated {
-                                (written, folded)
-                            } else {
-                                let prev = values
-                                    .get(&(var, *prev_ver))
-                                    .cloned()
-                                    .unwrap_or(LatticeValue::Overdefined);
-                                (join(&prev, &written), None)
-                            }
-                        }
-                        None => (LatticeValue::Overdefined, None),
-                    }
-                } else {
-                    let (value, folded, _, kept, _) = value_of(values);
-                    if kept {
-                        preserved = Some(prior_version(ssa_block, index, var));
-                    }
-                    (value, folded)
-                };
-            driver.record_folded((var, ver), folded);
-            driver.record_preserved((var, ver), preserved);
-            if set_value(values, (var, ver), &val) {
-                changed = true;
-            }
-            if let Some(at) = existence.as_deref_mut() {
-                let step = at.step_for(stmt_ssa, (var, element_write_base), driver, || {
-                    value_of(values).4
-                });
-                changed |= at.advance((var, ver), step, driver);
-            }
+        }
+        let raised = raised_writes(evaluated.as_ref());
+        let site = StatementSite {
+            block: ssa_block,
+            index,
+            ssa,
+            escaping,
+            has_dynamic_variable_trace,
+            driver,
+        };
+        changed |= define_values(values, &site, evaluated, existence.as_deref_mut());
+        if let Some(written) = raised {
+            exit = BlockExit {
+                completes: false,
+                entry_throws: index > 0 || written == 0,
+            };
         }
         if let Some(at) = existence.as_deref_mut() {
             at.finish_statement(index, driver);
+        }
+    }
+    StatementsRun { changed, exit }
+}
+
+/// What a barrier or an up-frame statement does to the values: every value
+/// is widened and the statement's own definitions are opaque. Whether a value
+/// moved.
+fn widen_at_barrier(
+    values: &mut HashMap<ValueKey, LatticeValue>,
+    (index, stmt_ssa): (usize, &SsaStatement),
+    (driver, existence): (&LatticeDriver<'_>, Option<&mut ExistenceAt<'_>>),
+) -> bool {
+    let mut changed = false;
+    // Barriers widen all currently-tracked values — EXCEPT
+    // version-0 (parameter) seeds, which hold the caller's
+    // literal and are immutable across the barrier (a barrier
+    // that mutates the var produces a fresh version), so a
+    // callee `dict with $param` still sees the interproc
+    // literal.
+    //
+    // `UpFrame` (the CFG shape for a literal-body `uplevel`)
+    // shares this treatment: `uplevel 1 {…}` / `uplevel #0 {…}`
+    // evaluates its body in a DIFFERENT frame — the caller's, or
+    // the absolute global one — so it can reassign any name
+    // visible there, exactly like an opaque barrier. Reproduced
+    // against tclsh 8.6/9.0: `set n 5; uplevel #0 {set n 99};
+    // puts [expr {$n + 1}]` prints `100`; before this widening,
+    // the optimiser proposed folding to the stale `6`.
+    let keys: Vec<ValueKey> = values.keys().copied().collect();
+    for k in keys {
+        if k.1 == 0 {
+            continue;
+        }
+        if set_value(values, k, &LatticeValue::Overdefined) {
+            changed = true;
+        }
+    }
+    // A widened value states nothing of its type either.
+    driver.forget_folded();
+    // A barrier also *defines* variables of its own (e.g. `dict for {x
+    // y} …` defines `x`/`y`). Those defs are opaque — the barrier can
+    // set them to anything — so set each to `Overdefined`. Without this
+    // the def key is never inserted (the widen loop above only touches
+    // keys already present), so it stays `Unknown` and vanishes from a
+    // downstream phi join, letting a phi that merges a barrier-def with
+    // a constant fold to that constant and miscompile a following test.
+    for (&var, ver) in &stmt_ssa.defs {
+        if set_value(values, (var, *ver), &LatticeValue::Overdefined) {
+            changed = true;
+        }
+    }
+    // Every place is may-bound after a barrier, as every value is
+    // widened.
+    if let Some(at) = existence {
+        changed |= at.barrier(index, stmt_ssa, driver);
+    }
+    changed
+}
+
+/// The statement a block's sweep is defining the values of, with what it is
+/// evaluated under.
+struct StatementSite<'a> {
+    block: &'a crate::ssa::SsaBlock,
+    index: usize,
+    ssa: &'a SsaFunction,
+    escaping: &'a HashSet<String>,
+    has_dynamic_variable_trace: bool,
+    driver: &'a LatticeDriver<'a>,
+}
+
+/// How many stores ran before the statement certainly raised, when it did.
+fn raised_writes(evaluated: Option<&DefValues>) -> Option<usize> {
+    match evaluated {
+        Some(DefValues::Raised(raised)) => Some(raised.written),
+        _ => None,
+    }
+}
+
+/// Each definition of the statement at `site`: its value, folded type and
+/// the version it preserved, and with the existence rung its step. `evaluated`
+/// is the statement's evaluation when one was made ahead; a definition that
+/// needs one makes it. Whether a value moved.
+fn define_values(
+    values: &mut HashMap<ValueKey, LatticeValue>,
+    site: &StatementSite<'_>,
+    mut evaluated: Option<DefValues>,
+    mut existence: Option<&mut ExistenceAt<'_>>,
+) -> bool {
+    let StatementSite {
+        block: ssa_block,
+        index,
+        ssa,
+        escaping,
+        has_dynamic_variable_trace,
+        driver,
+    } = *site;
+    let stmt_ssa = &ssa_block.statements[index];
+    let mut changed = false;
+    // An element write's base def carries no scalar value of its own —
+    // `set arr(k) 5` / `set arr($i) 5` refresh `arr` for whole-array
+    // readers but must never let `$arr` fold to the element's value.
+    let element_write_base = match &stmt_ssa.statement {
+        Statement::AssignConst { name, .. }
+        | Statement::AssignExpr { name, .. }
+        | Statement::AssignValue { name, .. }
+        | Statement::Incr { name, .. }
+            if name.contains('(') =>
+        {
+            ssa.var_symbol(crate::naming::normalise_var_name(name))
+        }
+        _ => None,
+    };
+    let raised = raised_writes(evaluated.as_ref());
+    let keeps_all =
+        matches!(&evaluated, Some(DefValues::Raised(raised)) if raised.prefix.is_none());
+    for (&var, &ver) in &stmt_ssa.defs {
+        let mut value_of = |values: &HashMap<ValueKey, LatticeValue>| {
+            let evaluated =
+                evaluated.get_or_insert_with(|| evaluate_defs_under(stmt_ssa, values, ssa, driver));
+            (
+                evaluated.of((var, ver)),
+                evaluated.folded_of((var, ver)),
+                evaluated.stated((var, ver)),
+                evaluated.preserved((var, ver)),
+                evaluated.existence((var, ver)),
+            )
+        };
+
+        // A definition's folded type is its own evaluation's: a widened
+        // or a joined definition states none. One whose outcome left its
+        // place untouched names the version the place held.
+        let mut preserved = None;
+        let (val, folded) =
+            if is_externally_mutable(ssa.var_name(var), escaping, has_dynamic_variable_trace)
+                || element_write_base == Some(var)
+                || ssa.is_observed_by_unseen_call(var, ver)
+            {
+                (LatticeValue::Overdefined, None)
+            } else if keeps_all {
+                // The statement raised before it stored anything.
+                let prior = prior_version(ssa_block, index, var);
+                preserved = Some(prior);
+                (held_value(values, (var, prior)), None)
+            } else if stmt_ssa.may_defs.contains(&var) {
+                // A synthetic array-element may-def: the write may or may
+                // not have hit this element, so its value is the JOIN of
+                // the prior version (recorded as a use) and the written
+                // value — unless the statement's evaluated outcome names
+                // the element's place (`array set arr {k v}` writes
+                // `arr(k)`), which makes the write definite. The base
+                // refresh of an element write carries no prior use — the
+                // base holds no value of its own.
+                match stmt_ssa.uses.get(&var) {
+                    Some(prev_ver) => {
+                        let (written, folded, stated, _, _) = value_of(values);
+                        if stated {
+                            (written, folded)
+                        } else {
+                            let prev = values
+                                .get(&(var, *prev_ver))
+                                .cloned()
+                                .unwrap_or(LatticeValue::Overdefined);
+                            (join(&prev, &written), None)
+                        }
+                    }
+                    None => (LatticeValue::Overdefined, None),
+                }
+            } else {
+                let (value, folded, _, kept, _) = value_of(values);
+                if kept {
+                    let prior = prior_version(ssa_block, index, var);
+                    preserved = Some(prior);
+                    // A statement that raised before it reached a place
+                    // left what the place held, whether or not it read it.
+                    if raised.is_some() {
+                        (held_value(values, (var, prior)), folded)
+                    } else {
+                        (value, folded)
+                    }
+                } else {
+                    (value, folded)
+                }
+            };
+        driver.record_folded((var, ver), folded);
+        driver.record_preserved((var, ver), preserved);
+        if set_value(values, (var, ver), &val) {
+            changed = true;
+        }
+        if let Some(at) = existence.as_deref_mut() {
+            let step = at.step_for(
+                stmt_ssa,
+                (var, element_write_base),
+                driver,
+                (keeps_all, || value_of(values).4),
+            );
+            changed |= at.advance((var, ver), step, driver);
+        }
+    }
+    changed
+}
+
+/// What a block's statements did: whether anything moved, and the block's way
+/// out.
+struct StatementsRun {
+    changed: bool,
+    exit: BlockExit,
+}
+
+/// The value `key` holds, as a φ reads it: a version no statement has defined
+/// yet is the `Unknown` identity, and the entry's own is `Overdefined`.
+fn held_value<S: std::hash::BuildHasher>(
+    values: &HashMap<ValueKey, LatticeValue, S>,
+    key: ValueKey,
+) -> LatticeValue {
+    values.get(&key).cloned().unwrap_or(if key.1 == 0 {
+        LatticeValue::Overdefined
+    } else {
+        LatticeValue::Unknown
+    })
+}
+
+/// The definitions of the statement at `index` of a block that never runs
+/// it, because an earlier statement certainly raised: each keeps what its
+/// place held, and its existence is left as it was. Whether a value moved.
+fn keep_prior(
+    values: &mut HashMap<ValueKey, LatticeValue>,
+    (ssa_block, index): (&crate::ssa::SsaBlock, usize),
+    stmt_ssa: &SsaStatement,
+    (driver, mut existence): (&LatticeDriver<'_>, Option<&mut ExistenceAt<'_>>),
+) -> bool {
+    let mut changed = false;
+    for (&var, &ver) in &stmt_ssa.defs {
+        let prior = prior_version(ssa_block, index, var);
+        let held = held_value(values, (var, prior));
+        driver.record_folded((var, ver), None);
+        driver.record_preserved((var, ver), Some(prior));
+        changed |= set_value(values, (var, ver), &held);
+        if let Some(at) = existence.as_deref_mut() {
+            changed |= at.advance(
+                (var, ver),
+                crate::value_transfer::ExistenceStep::PRESERVE,
+                driver,
+            );
         }
     }
     changed
@@ -2465,10 +2762,41 @@ fn assignment_existence(
     })
 }
 
+/// The evaluation the statement at `index` of `block` starts with when it is
+/// one of a synthetic embedded call and its host, which are one evaluation: the
+/// call's definitions are what the host's words write, and the host's are its
+/// result. At the call this evaluates the pair and holds the host's answer in
+/// `prepared`; at the host it hands that answer over. `None` for any other
+/// statement and wherever the pair declines.
+fn pair_answer(
+    prepared: &mut Option<(usize, DefValues)>,
+    (block, index): (&crate::ssa::SsaBlock, usize),
+    values: &HashMap<ValueKey, LatticeValue>,
+    (ssa, driver): (&SsaFunction, &LatticeDriver<'_>),
+) -> Option<DefValues> {
+    let host = prepared.take().filter(|(at, _)| *at == index);
+    if let Some((_, answer)) = host {
+        return Some(answer);
+    }
+    let (host, pair) = driver.evaluate_embedded(block, index, values, ssa)?;
+    *prepared = Some((host, pair.host));
+    Some(match pair.raised {
+        Some(written) => DefValues::Raised(Box::new(RaisedDefs {
+            prefix: Some(pair.call),
+            written,
+        })),
+        None => DefValues::PerDef(pair.call),
+    })
+}
+
 /// The version of `var` the statement at `index` of `block` finds in its
 /// place: the block's latest earlier definition, else the version the block
 /// enters with, else the undefined root.
-fn prior_version(block: &crate::ssa::SsaBlock, index: usize, var: Symbol) -> crate::ssa::Version {
+pub(crate) fn prior_version(
+    block: &crate::ssa::SsaBlock,
+    index: usize,
+    var: Symbol,
+) -> crate::ssa::Version {
     block.statements[..index]
         .iter()
         .rev()
@@ -2491,6 +2819,12 @@ struct TerminatorInputs<'a> {
     /// The run's value-transfer driver: a condition's nested commands and
     /// finite inputs are evaluated through it.
     driver: &'a LatticeDriver<'a>,
+    /// The block's way out, from its statements: a block that certainly
+    /// raises opens no normal edge.
+    exit: BlockExit,
+    /// The exception edges that leave from the block before a body, which
+    /// open when the body's first command can fail ahead of any store.
+    entry_edges: &'a HashSet<(BlockId, BlockId)>,
 }
 
 /// Process a block's terminator: mark the matching outgoing edges
@@ -2511,6 +2845,8 @@ fn sccp_process_terminator(
         grammar,
         registry,
         driver,
+        exit,
+        entry_edges,
     } = *inputs;
     let mut changed = false;
     let Some(block) = cfg.blocks.get(&bn) else {
@@ -2519,7 +2855,10 @@ fn sccp_process_terminator(
     let Some(term) = &block.terminator else {
         return false;
     };
+    // A block that certainly raises never reaches its successors: only its
+    // exception edges leave it.
     match term {
+        _ if !exit.completes => {}
         Terminator::Goto { target, .. } => {
             let edge = (bn, *target);
             if !executable_edges.contains(&edge) {
@@ -2589,7 +2928,9 @@ fn sccp_process_terminator(
     // `try` exception edges sourced at `bn`: when `bn` is executable the
     // handler is reachable (a throw can occur in the body).
     for (from, to) in &cfg.exception_edges {
-        if *from != bn {
+        // The edge from the block before a body opens with the body's first
+        // command, which says whether the state before it can be thrown from.
+        if *from != bn || entry_edges.contains(&(bn, *to)) {
             continue;
         }
         let edge = (bn, *to);
@@ -2779,16 +3120,37 @@ pub(crate) enum DefValues {
     Each(LatticeValue, Option<crate::value_transfer::FoldedType>),
     /// Each definition's own answer; a definition absent here widens.
     PerDef(Vec<crate::value_transfer::DefAnswer>),
+    /// The statement certainly raises, where a throw leaves from: its
+    /// definitions are what the stores that ran left.
+    Raised(Box<RaisedDefs>),
+}
+
+/// A statement that certainly raises, after the stores that ran.
+pub(crate) struct RaisedDefs {
+    /// Each definition after those stores; `None` when nothing was stored,
+    /// so every definition keeps what its place held.
+    pub(crate) prefix: Option<Vec<crate::value_transfer::DefAnswer>>,
+    /// How many stores ran before the error.
+    pub(crate) written: usize,
 }
 
 impl DefValues {
+    /// The per-definition answers, for the shapes that have them.
+    fn answers(&self) -> Option<&[crate::value_transfer::DefAnswer]> {
+        match self {
+            Self::Each(..) => None,
+            Self::PerDef(answers) => Some(answers),
+            Self::Raised(raised) => raised.prefix.as_deref(),
+        }
+    }
+
     /// The value definition `key` takes.
     fn of(&self, key: ValueKey) -> LatticeValue {
         match self {
             Self::Each(value, _) => value.clone(),
-            Self::PerDef(answers) => answers
-                .iter()
-                .find(|answer| answer.key == key)
+            Self::PerDef(_) | Self::Raised(_) => self
+                .answers()
+                .and_then(|answers| answers.iter().find(|answer| answer.key == key))
                 .map_or(LatticeValue::Overdefined, |answer| answer.value.clone()),
         }
     }
@@ -2798,9 +3160,9 @@ impl DefValues {
     fn folded_of(&self, key: ValueKey) -> Option<crate::value_transfer::FoldedType> {
         match self {
             Self::Each(_, folded) => folded.clone(),
-            Self::PerDef(answers) => answers
-                .iter()
-                .find(|answer| answer.key == key)
+            Self::PerDef(_) | Self::Raised(_) => self
+                .answers()
+                .and_then(|answers| answers.iter().find(|answer| answer.key == key))
                 .and_then(|answer| answer.folded.clone()),
         }
     }
@@ -2808,37 +3170,35 @@ impl DefValues {
     /// Whether an evaluated outcome's stores name definition `key`'s place
     /// ([`crate::value_transfer::DefAnswer::stated`]).
     fn stated(&self, key: ValueKey) -> bool {
-        match self {
-            Self::Each(..) => false,
-            Self::PerDef(answers) => answers
+        self.answers().is_some_and(|answers| {
+            answers
                 .iter()
-                .any(|answer| answer.key == key && answer.stated),
-        }
+                .any(|answer| answer.key == key && answer.stated)
+        })
     }
 
     /// Whether the outcome left definition `key`'s place untouched
     /// ([`crate::value_transfer::DefAnswer::preserved`]).
     fn preserved(&self, key: ValueKey) -> bool {
-        match self {
-            Self::Each(..) => false,
-            Self::PerDef(answers) => answers
+        self.answers().is_some_and(|answers| {
+            answers
                 .iter()
-                .any(|answer| answer.key == key && answer.preserved),
-        }
+                .any(|answer| answer.key == key && answer.preserved)
+        })
     }
 
     /// The existence step definition `key` takes
     /// ([`crate::value_transfer::DefAnswer::existence`]); a statement the
-    /// evaluation has no per-definition answer for widens.
+    /// evaluation has no per-definition answer for widens, and one that
+    /// raised before it stored anything leaves every place as it was.
     fn existence(&self, key: ValueKey) -> crate::value_transfer::ExistenceStep {
+        use crate::value_transfer::ExistenceStep;
         match self {
-            Self::Each(..) => crate::value_transfer::ExistenceStep::UNKNOWN,
-            Self::PerDef(answers) => answers
-                .iter()
-                .find(|answer| answer.key == key)
-                .map_or(crate::value_transfer::ExistenceStep::UNKNOWN, |answer| {
-                    answer.existence
-                }),
+            Self::Raised(raised) if raised.prefix.is_none() => ExistenceStep::PRESERVE,
+            _ => self
+                .answers()
+                .and_then(|answers| answers.iter().find(|answer| answer.key == key))
+                .map_or(ExistenceStep::UNKNOWN, |answer| answer.existence),
         }
     }
 
@@ -2856,8 +3216,8 @@ impl DefValues {
         };
         match (self, key) {
             (Self::Each(value, _), _) => value.clone(),
-            (Self::PerDef(_), Some(key)) => self.of(key),
-            (Self::PerDef(_), None) => LatticeValue::Overdefined,
+            (Self::PerDef(_) | Self::Raised(_), Some(key)) => self.of(key),
+            (Self::PerDef(_) | Self::Raised(_), None) => LatticeValue::Overdefined,
         }
     }
 }
@@ -2926,10 +3286,23 @@ fn evaluate_def_dispatch<S: std::hash::BuildHasher>(
             command_binding,
             ..
         } => {
-            driver.evaluate_assign_expr(expr, command_binding.as_ref(), &stmt_ssa.uses, values, ssa)
+            return driver.evaluate_assign_expr(
+                expr,
+                command_binding.as_ref(),
+                &stmt_ssa.uses,
+                values,
+                ssa,
+            );
+        }
+        Statement::ExprEval {
+            expr,
+            command_binding,
+            ..
+        } => {
+            return driver.evaluate_expr_eval(expr, command_binding, &stmt_ssa.uses, values, ssa);
         }
         Statement::Call { .. } => {
-            return DefValues::PerDef(driver.evaluate_call(stmt_ssa, values, ssa, &stmt_ssa.uses));
+            return driver.evaluate_call(stmt_ssa, values, ssa, &stmt_ssa.uses);
         }
         Statement::Incr {
             name,
@@ -2937,14 +3310,14 @@ fn evaluate_def_dispatch<S: std::hash::BuildHasher>(
             amount_braced,
             ..
         } => {
-            return DefValues::PerDef(driver.evaluate_incr(
+            return driver.evaluate_incr(
                 name,
                 amount.as_deref().map(|text| (text, *amount_braced)),
                 &crate::value_transfer::named_defs(stmt_ssa, ssa),
                 &stmt_ssa.uses,
                 values,
                 ssa,
-            ));
+            );
         }
         _ => LatticeValue::Overdefined,
     };
@@ -4070,15 +4443,18 @@ mod tests {
         });
         let mut values: HashMap<ValueKey, LatticeValue> = HashMap::new();
         let escaping: HashSet<String> = HashSet::new();
-        assert!(sccp_process_statements(
-            &mut values,
-            &block,
-            &ssa,
-            &escaping,
-            false,
-            &LatticeDriver::detached(None, FoldPolicy::default()),
-            None,
-        ));
+        assert!(
+            sccp_process_statements(
+                &mut values,
+                &block,
+                &ssa,
+                &escaping,
+                false,
+                &LatticeDriver::detached(None, FoldPolicy::default()),
+                None,
+            )
+            .changed
+        );
         assert_eq!(
             values.get(&(x, 2)),
             Some(&LatticeValue::Overdefined),
@@ -6297,6 +6673,243 @@ p
         assert_eq!(
             last_value(f, "unrelated"),
             LatticeValue::Const(ConstValue::Int(0))
+        );
+    }
+
+    /// The values the solver gives the last definitions of `names` in the
+    /// function `name` of `source`.
+    fn last_values(source: &str, name: &str, names: &[&str]) -> Vec<LatticeValue> {
+        let registry = CommandRegistry::build_default();
+        let cu = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false);
+        let f = cu.function(name).expect("function analysed");
+        names
+            .iter()
+            .map(|variable| last_value(f, variable))
+            .collect()
+    }
+
+    /// An expression, the function that holds it and the final value of each
+    /// of two places it leaves.
+    type NestedWriteCase = (&'static str, &'static str, [(&'static str, i64); 2]);
+
+    /// A statement's substitutions run in the engine's left-to-right order
+    /// under one ordered state, so the writes they make are the definitions
+    /// the statement's embedded call makes and the host takes the result:
+    /// over `x` = 1, `$x + [incr x] + $x` is 5 and leaves `x` at 2. A branch
+    /// the engine never reaches writes nothing, and the place keeps what it
+    /// held. The host is an assignment of an expression, an expression
+    /// statement, or an assignment of one `expr` substitution, whose quoted
+    /// operand is substituted first; at the top level and in a procedure.
+    #[test]
+    fn a_nested_write_is_the_definition_its_embedded_call_makes_and_the_host_takes_the_result() {
+        let int = |n: i64| LatticeValue::Const(ConstValue::Int(n));
+        let cases: [NestedWriteCase; 10] = [
+            ("$x + [incr x] + $x", "::p", [("r", 5), ("x", 2)]),
+            ("$y + [incr x] + $y", "::p", [("r", 12), ("x", 2)]),
+            ("[set y] + [incr x]", "::p", [("r", 7), ("x", 2)]),
+            ("0 && [incr x]", "::p", [("r", 0), ("x", 1)]),
+            ("$x + [set x 10] + $x", "::p", [("r", 21), ("x", 10)]),
+            ("[incr x] + [incr x]", "::p", [("r", 5), ("x", 3)]),
+            ("$x ? [incr x] : [incr x 10]", "::p", [("r", 2), ("x", 2)]),
+            (
+                "!$x ? [incr x] : [incr x 10]",
+                "::p",
+                [("r", 11), ("x", 11)],
+            ),
+            (
+                "[expr {$x + [incr x]}] + [incr x]",
+                "::p",
+                [("r", 6), ("x", 3)],
+            ),
+            ("$x + [incr x] + $x", "::top", [("r", 5), ("x", 2)]),
+        ];
+        for (expr, function, expected) in cases {
+            let names = expected.map(|(name, _)| name);
+            let want: Vec<LatticeValue> = expected.map(|(_, value)| int(value)).to_vec();
+            let source = if function == "::top" {
+                format!("set x 1\nset y 5\nset r [expr {{{expr}}}]\n")
+            } else {
+                format!("proc p {{}} {{set x 1; set y 5; set r [expr {{{expr}}}]; return $x}}\n")
+            };
+            assert_eq!(last_values(&source, function, &names), want, "{source}");
+        }
+        let statement = "proc p {} {set x 1; expr {$x + [incr x] + $x}; return $x}\n";
+        assert_eq!(
+            last_values(statement, "::p", &["x"]),
+            [int(2)],
+            "{statement}"
+        );
+        let quoted = "proc p {} {set x 1; set r [expr \"$x + [incr x]\"]; return $x}\n";
+        assert_eq!(
+            last_values(quoted, "::p", &["r", "x"]),
+            [int(3), int(2)],
+            "{quoted}"
+        );
+        let skipped =
+            "proc p {} {set x 1; set r [expr {$x + [incr x] + (0 && [foo])}]; return $r}\n";
+        assert_eq!(last_values(skipped, "::p", &["r"]), [int(3)], "{skipped}");
+        let preserved = "proc p {} {set x 1; set r [expr {0 && [incr x]}]; return $x}\n";
+        let registry = CommandRegistry::build_default();
+        let cu = crate::compilation_unit::CompilationUnit::build_for(preserved, &registry, false);
+        let f = cu.function("::p").expect("analysed");
+        let x = f.ssa.var_symbol("x").expect("x");
+        assert_eq!(
+            f.sccp.preserved.get(&(x, 2)),
+            Some(&1),
+            "the call leaves `x` as it was where no write ran"
+        );
+    }
+
+    /// The writes a word's own command makes are the command's, ahead of its
+    /// own: `string length [append s bc]` in an expression leaves `s` at
+    /// `abc`, and `incr x [incr x]` reads `x` after the inner `incr` ran, so
+    /// over `x` = 1 it is 4.
+    #[test]
+    fn a_write_a_commands_word_makes_is_a_write_of_the_statement() {
+        let text = |value: &str| LatticeValue::Const(ConstValue::String(value.to_owned()));
+        let int = |n: i64| LatticeValue::Const(ConstValue::Int(n));
+        let appended = "proc p {} {set s a; set r [expr {[string length [append s bc]] + [string length $s]}]; return $s}\n";
+        assert_eq!(
+            last_values(appended, "::p", &["r", "s"]),
+            [int(6), text("abc")]
+        );
+        let first = "proc p {} {set s a; set r [expr {[string length $s] + [string length [append s bc]]}]; return $s}\n";
+        assert_eq!(
+            last_values(first, "::p", &["r", "s"]),
+            [int(4), text("abc")]
+        );
+        let reads_after = "proc p {} {set x 1; set r [expr {[incr x [incr x]]}]; return $x}\n";
+        assert_eq!(
+            last_values(reads_after, "::p", &["r", "x"]),
+            [int(4), int(4)]
+        );
+        let braced = "proc p {} {set x 1; set r [expr {$x} + [incr x]]; return $x}\n";
+        assert_eq!(last_values(braced, "::p", &["r", "x"]), [int(4), int(2)]);
+        let created = "proc p {} {unset -nocomplain u; set r [expr {[string length [append u [set u 3]]]}]; return $u}\n";
+        assert_eq!(last_values(created, "::p", &["r", "u"]), [int(2), int(33)]);
+        let inside = "proc p {} {set s a; set r [expr {[string length [append s [append s b]]]}]; return $s}\n";
+        assert_eq!(
+            last_values(inside, "::p", &["r", "s"]),
+            [int(4), text("abab")]
+        );
+    }
+
+    /// A statement the engine evaluates for each of several possible inputs
+    /// leaves each place the join of what every member left: `$c ? [incr x] :
+    /// 7` writes `x` for the input that takes the branch and leaves it alone
+    /// for the other, so `x` is 1 or 2 and the result 7 or 2.
+    #[test]
+    fn a_write_only_some_inputs_make_is_joined_over_the_members() {
+        let source = "proc p {n} {set x 1; if {$n} {set c 0} else {set c 1}; \
+                      set r [expr {$c ? [incr x] : 7}]; return $x}\n";
+        let ints = |value: &LatticeValue| -> Vec<i64> {
+            let LatticeValue::ConstSet(members) = value else {
+                panic!("a set of constants: {value:?}");
+            };
+            let mut ints: Vec<i64> = members
+                .iter()
+                .map(|member| match member {
+                    ConstValue::Int(n) => *n,
+                    other => panic!("an integer: {other:?}"),
+                })
+                .collect();
+            ints.sort_unstable();
+            ints
+        };
+        let values = last_values(source, "::p", &["r", "x"]);
+        assert_eq!(
+            (ints(&values[0]), ints(&values[1])),
+            (vec![2, 7], vec![1, 2])
+        );
+    }
+
+    /// An error in the middle of an expression ends the statement with the
+    /// writes the expression's commands had made. Inside the body of a
+    /// `catch` the handler is thrown to with them — `x` is 2 after `catch {set
+    /// r [expr {[incr x] + [error mid]}]}`, and `r` is never set — and where
+    /// no handler is thrown to the statement is not evaluated at all.
+    #[test]
+    fn an_error_in_the_middle_leaves_the_writes_made_before_it_inside_a_catch() {
+        let int = |n: i64| LatticeValue::Const(ConstValue::Int(n));
+        let in_proc =
+            "proc p {} {set x 1; catch {set r [expr {[incr x] + [error mid]}]}; return $x}\n";
+        assert_eq!(last_values(in_proc, "::p", &["x"]), [int(2)]);
+        let statement = "proc p {} {set x 1; catch {expr {[incr x] + [error mid]}}; return $x}\n";
+        assert_eq!(last_values(statement, "::p", &["x"]), [int(2)]);
+    }
+
+    /// What the statement's evaluation cannot own, or is not an evaluation of,
+    /// keeps the conservative answer: a write to a global, a command the
+    /// module defines, an error in the middle outside any handler, a host that
+    /// is a call or a condition, whose substitutions run under the
+    /// effect-free policy, and a value that is two substitutions rather than
+    /// one `expr`. A loop carries the write round, so neither the first
+    /// iteration's value nor the last's is a constant.
+    #[test]
+    fn what_the_state_cannot_own_keeps_the_conservative_answer() {
+        let widened = |source: &str, names: &[&str]| {
+            let values = last_values(source, "::p", names);
+            assert!(
+                values
+                    .iter()
+                    .all(|value| *value == LatticeValue::Overdefined),
+                "{source}: {values:?}"
+            );
+        };
+        widened(
+            "proc p {} {set x 1; set r [expr {$x + [incr ::g]}]; return $x}\n",
+            &["r"],
+        );
+        widened(
+            "proc bump {} {upvar 1 x x; incr x}\nproc p {} {set x 1; set r [expr {[bump] + $x}]; return $x}\n",
+            &["r", "x"],
+        );
+        widened(
+            "proc p {} {set x 1; set r [expr {[incr x] + [error mid]}]; return $x}\n",
+            &["x"],
+        );
+        widened(
+            "proc p {} {set x 1; puts [expr {$x + [incr x]}]; return $x}\n",
+            &["x"],
+        );
+        widened(
+            "proc p {} {set x 1; if {[incr x] > 1} {puts a}; return $x}\n",
+            &["x"],
+        );
+        widened(
+            "proc p {} {set s a; set r [string length [append s bc]]; return $s}\n",
+            &["s"],
+        );
+        widened(
+            "proc p {} {set r [expr {[incr x] + 1}]; return $x}\n",
+            &["x"],
+        );
+        // A place no statement reads or defines ahead of the call has no value
+        // to keep where the expression leaves it alone.
+        widened(
+            "proc p {} {set r [expr {0 && [set y 3]}]; return 1}\n",
+            &["y"],
+        );
+        // A module that defines `expr` runs its own.
+        for source in [
+            "proc expr {args} {return 9}\nproc p {} {set x 1; set r [expr \"$x + [incr x]\"]; return $x}\n",
+            "proc expr {args} {return 9}\nproc p {} {set x 1; set r [expr {$x + [incr x]}]; return $x}\n",
+            "proc expr {args} {return 9}\nproc p {} {set x 1; expr {$x + [incr x]}; return $x}\n",
+        ] {
+            widened(source, &["x"]);
+        }
+        // A value that is two substitutions is not one `expr`.
+        widened(
+            "proc p {} {set x 1; set r [expr {1}][incr x]; return $x}\n",
+            &["x"],
+        );
+        widened(
+            "proc p {} {set x 1; set r [incr x][expr {1}]; return $x}\n",
+            &["x"],
+        );
+        widened(
+            "proc p {} {set x 0; for {set i 0} {$i < 3} {incr i} {set r [expr {[incr x] * 2}]}; return $x}\n",
+            &["r", "x"],
         );
     }
 

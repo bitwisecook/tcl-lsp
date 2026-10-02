@@ -500,7 +500,7 @@ file; this call falls through to the 'unknown' handler."
             if !chain.is_dead() || chain.definition.kind != DefKind::Statement {
                 continue;
             }
-            let (var, _version) = &chain.key;
+            let (var, version) = &chain.key;
             // A name read inside a command substitution / expr / branch
             // condition the version-precise `used` set can't see keeps every
             // write of it alive (`set i 0` before `[incr i $j]`). Suppress at
@@ -526,6 +526,11 @@ file; this call falls through to the 'unknown' handler."
                 chain.definition.statement_index,
                 var,
             ) {
+                continue;
+            }
+            // A call to a command the module cannot see may read the name the
+            // store leaves, as it may read a `::`-qualified one.
+            if fu.ssa.name_is_observed_by_unseen_call(var, *version) {
                 continue;
             }
             // The *direct* base def of a dynamic-key element write
@@ -787,6 +792,7 @@ file; this call falls through to the 'unknown' handler."
         // variable.
         let mut earliest: std::collections::HashMap<String, tcl_lexer::Span> =
             std::collections::HashMap::new();
+        let observed_by_unseen_calls = names_observed_by_unseen_calls(fu);
         for chain in fu.def_use.chains.values() {
             if !chain.is_dead() || chain.definition.kind != DefKind::Statement {
                 continue;
@@ -812,6 +818,9 @@ file; this call falls through to the 'unknown' handler."
                 continue;
             }
             if textually_referenced.contains(var) {
+                continue;
+            }
+            if observed_by_unseen_calls.contains(var.as_str()) {
                 continue;
             }
             // A synthetic may-def (base refresh / element fan) is not a
@@ -1435,7 +1444,7 @@ file; this call falls through to the 'unknown' handler."
         use crate::def_use::UseKind;
         use crate::ir::Statement;
 
-        let (var, _version) = &chain.key;
+        let (var, version) = &chain.key;
         for use_site in &chain.uses {
             if matches!(use_site.kind, UseKind::PhiIncoming) {
                 continue;
@@ -1477,6 +1486,17 @@ file; this call falls through to the 'unknown' handler."
                     use_site.statement_index,
                 )
             }) {
+                continue;
+            }
+            // A name nothing in the function assigns, read after code the module
+            // cannot see: the code may have set it, as a sourced file or a
+            // command the module does not define may set a global.
+            if *version == 0
+                && fu.cfg.block_id(&use_site.block).is_some_and(|block| {
+                    ctx.supp
+                        .unseen_call_before(&fu.ssa, block, use_site.statement_index)
+                })
+            {
                 continue;
             }
             let Some(block) = fu.cfg.block_by_name(&use_site.block) else {
@@ -2657,6 +2677,18 @@ fn match_ipv6_candidate(bytes: &[u8], start: usize) -> Option<usize> {
         }
     }
     best
+}
+
+/// The names some version of which a call to a command the module cannot see
+/// holds where it runs: that code may read the name at any version it holds
+/// there, so such a name is never unused.
+fn names_observed_by_unseen_calls(fu: &crate::compilation_unit::FunctionUnit) -> HashSet<&str> {
+    fu.def_use
+        .chains
+        .keys()
+        .filter(|(name, held)| fu.ssa.name_is_observed_by_unseen_call(name, *held))
+        .map(|(name, _)| name.as_str())
+        .collect()
 }
 
 /// The suggestion name for an undefined-variable "; did you mean 'X'?"

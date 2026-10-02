@@ -405,18 +405,27 @@ pub enum SyntheticMarker {
     /// site widens. It sits *beside* the call it widens for, which is why
     /// naming the callee on it would make codegen run the callee twice.
     CallerFrameOpaque,
-    /// A call, in the top-level script, to a command the module cannot see: a
-    /// plain name there is the global `::name`, which the code that command
-    /// reaches may write, unset or read. It defines and reads nothing itself;
-    /// the SSA records the version each name holds where it sits
+    /// A call, in the top-level script, to a command the module cannot see — a
+    /// literal head it does not define, a `source`, a computed head — or code
+    /// of that kind a script a statement keeps inside itself runs: a plain
+    /// name there is the global `::name`, which the code that command reaches
+    /// may write, unset or read. The CFG gives it no names; the SSA records
+    /// the version each name holds where it sits
     /// ([`crate::ssa::SsaFunction::is_observed_by_unseen_call`]), and every
     /// pass that trusts a name's value across a statement asks that record.
+    /// Where it follows the call whose head runs the code, the call's words
+    /// were read before the code ran: the SSA states the names they read as
+    /// the marker's may-definitions ([`crate::ssa::switch_may_defs`]), so each
+    /// keeps the version its word read and a read after the call finds a new
+    /// one.
     UnseenCall,
-    /// The names a callee an arm of an opaque `switch` calls writes into the
-    /// frame (`zero line` with `upvar 1`), carried on a statement of its own
-    /// after the `switch` because the arms are not lowered: the names are
-    /// *may*-definitions of the statement, as the writes the arms make
-    /// themselves are ([`crate::ssa::switch_may_defs`]).
+    /// The names a statement that keeps its scripts inside itself may write
+    /// into the frame, carried on a statement of its own beside it because the
+    /// scripts are not lowered: what a callee an arm of an opaque `switch`
+    /// calls writes (`zero line` with `upvar 1`), after the `switch`, and every
+    /// name the body of an opaque `catch` or `try` writes, ahead of the call.
+    /// The names are *may*-definitions of the statement, as the writes the arms
+    /// of a `switch` make themselves are ([`crate::ssa::switch_may_defs`]).
     ArmWrites,
 }
 

@@ -310,8 +310,8 @@ preferred to callbacks because a plan can be validated, replayed, cached,
 and consumed by more than one frontend; a restricted read-only input
 interface is the one callback shape, for evaluators that need lazy access
 to input facts. The ordered evaluation state the nested-script service
-takes is a value the driver owns for one evaluation (§ `expr`: the first
-demanding client), not analyser access.
+takes is a value the driver owns for one evaluation (§ `expr`), not
+analyser access.
 
 ```rust,ignore
 // Rust-shaped pseudocode: capabilities and answer shapes, not signatures.
@@ -1130,21 +1130,21 @@ and every specialisation inherits them:
 | a word is not an exact value at this use (multi-token, `{*}`, unresolvable variable, JimTcl `$(…)`) | the driver | decline (`NotExact`) |
 | the head's binding is suspect: renamed, aliased to an unknown target, redefined, or in an opaque namespace (`ModuleCommandMutations::trusts`, `trusts_proc_binding`, `redefined_procedures`, `opaque_namespaces`) | binding validity — not an author-trust check | decline (`RebindingSuspected`); a consumer with no whole-module view uses `distrust_all()` |
 | the invocation has no semantics declaration, or declares a route of none (`evaluate none`) | the resolver, at step 1 | decline (`NoSemantics`, or `NoRoute` with the evaluation page's `NoRouteReason`); the generic conservative transfer applies, and a declared plan or transfer still answers its own domain |
-| the place is `::`-qualified, escaping, or the function has a dynamic trace (`is_externally_mutable` over the `var_observability` escaping set), or the version is one a call to a command the module cannot see, or a call that sources a file, holds (`SsaFunction::is_observed_by_unseen_call`) | the solver, before any transfer runs | the def is `Overdefined` and no transfer re-narrows it (`EscapingPlace`) |
+| the place is `::`-qualified, escaping, or the function has a dynamic trace (`is_externally_mutable` over the `var_observability` escaping set), or the version is one a call to a command the module cannot see (a head it does not define, a computed head, one inside the body of a `catch` kept as one statement), or a call that sources a file, holds, the versions its own words read excepted (`SsaFunction::is_observed_by_unseen_call`) | the solver, before any transfer runs | the def is `Overdefined` and no transfer re-narrows it (`EscapingPlace`) |
 | the place is named in `Module::traced_variables` or `Module::deferred_writes` (`TraceInputs`) | the solver | same (`TracedPlace`) |
 | the target is an array-element base write, or the targets overlap, or a target is trace-visible | the driver | decline (`OverlappingTargets`), stated as a precision limit |
 | a dynamic key (`incr a($i)`) | `DynamicNameBarrier` | decline (`DynamicName`), not pending: the miss is permanent and `join(prev, Unknown) = prev` would launder a stale element constant |
 | the prior value has the wrong intrep for the operation, or the place is unbound and the release's uninitialised behaviour is not proven | the evaluator | decline (`WrongRepresentation`, `UnboundPlace`) — the program errors at run time, and an error is never a value; the error is a completion fact (§ `catch`, `try`, and completion) |
 | the answer differs between target releases and the profile names none | the evaluator, comparing all relevant semantic cases | decline (`ReleaseAmbiguous`, naming the axis: `NumberSyntax::unanimous`, `StringCharacterModel`, the leading-zero numeral rule) |
 | a core needs a string and the value's bytes are not text | the evaluator (`ConstOps::as_str`) | decline (`NotText`), never a U+FFFD substitution |
-| a nested substitution writes a place the ordered evaluation state cannot own (§ `expr`: the first demanding client) | the expression route | decline (`StatefulNested`) |
+| a nested substitution writes a place the ordered evaluation state cannot own (§ `expr`) | the expression route | decline (`StatefulNested`) |
 | the command has structure but no value (`switch`; a body command asked for a result it does not have) | the specialisation | decline (`NotAValue`); the structural plan and the other domains still answer |
 | a nested query would demand the query being computed | the driver | decline (`Cycle`), never a depth cap that makes the answer meaningful |
 | the fact is not computed at this tier, or the function is over the complexity ceiling | the tier | unavailable (`Unavailable`): not a negative, and every consumer that would need it stays silent |
 | a resource cap is hit: output bytes, allocation before it happens, fuel, depth, request budget, cancellation | the route and the budget | decline (`Budget`), distinct from an unsupported case (`Unsupported`) and from a transient host failure (`Transient`), and never an exact negative |
 | a regexp search was cut short or a capture is approximate | the regexp owner | decline (`Approximate`), never "no match" |
 | the answer fails validation | the driver | decline (`MalformedAnswer`) with a load or evaluation notice; the generic conservative result is kept |
-| the statement is a `Barrier` or `UpFrame`, or follows an opaque `switch` whose arm runs a command that may write any name | the solver | every tracked value widens, as today |
+| the statement is a `Barrier` or `UpFrame`, or follows an opaque `switch`, `catch` or `try` whose script runs a command that may write any name | the solver | every tracked value widens, as today |
 
 The names in `Module::deferred_writes` come from the scripts a command stores
 to run after it returns — the words the registry states as callbacks
@@ -1156,10 +1156,19 @@ it can be a variable the registering code holds, and every name it writes,
 destroys or binds is externally mutable in every function. A quoted word with
 no substitution is read as the script it is, and a word that is one `[…]`
 substitution of a command the registry states builds a command prefix
-(`list`) is read as the command it builds. A callback word computed some other
-way (`after 100 $script`) or spelled as several words (`after 100 set done 1`,
-for which the registry states no script position) is not read, so a write it
-makes stays invisible to the solver.
+(`list`) is read as the command it builds. A callback spelled as several words
+(`after 100 set done 1`), for which the registry states no script position, is
+read as the one script its words concatenate into, the way `concat` joins
+them: the registry names the position of the form that has one word for it,
+and the scan asks again with the words from the first position that names one
+joined into that word. A callback the scan cannot read may write any
+variable, and `DeferredWrites::any` makes every name externally mutable, as a
+trace on a computed name does: a word the run time computes (`after 100
+$script`), a substitution of a command that builds no command prefix, a `{*}`
+expansion of a command that stores a script, a computed command head, a
+script that runs a computed script, and a command that is neither a procedure
+of the module nor one of the registry (`after 100 finish`, an `interp alias`),
+whose code the module does not contain.
 
 `incr` of `010` is the release row in one line: it answers 11 under
 Tcl 9.1 and 9.0 and 9 under 8.6, 8.5, and 8.4, so a profile that names no
@@ -1418,7 +1427,8 @@ dominance and which stays byte-identical in effect.
   place; so `proc p {} { incr n; if {[info exists n]} { puts yes } }`
   keeps its `incr n`, and `collect_rmw_hidden_reads` keeps only the
   names the SSA does not record. A read inside a script body nested in a
-  substitution (`[catch {unset x}]`, #2231) or an `uplevel 0` body is not
+  substitution other than the protected script of a `catch` and the body of
+  a `try` (`[eval {info exists x}]`, #2323) or an `uplevel 0` body is not
   recorded yet, for existence and value reads alike.
 - **I230 and O101**: the existence branch fact is an ordinary
   `ConstantBranch` with applied reachability; the post-pass extension in
@@ -1699,23 +1709,53 @@ them, with the outcome's evidence merged. Order is proven by
 construction — every read goes through `variable`, which consults
 `writes` first, and every write enters `writes` through a validated
 outcome — and the driver rejects any nested outcome whose evidence names
-a place outside the admitted set, which is the `StatefulNested` decline.
+a place outside the admitted set, which is the `StatefulNested` decline:
+`expr {$x + [set ::g 10]}` declines, as does the same write through a
+`global` or an `upvar` alias, while `expr {0 && [set ::g 10]}`, whose
+right operand never runs, is 0.
+
+The solver evaluates a statement whose substitutions write once, under
+`LocalWrites`. A statement that carries such writes has a synthetic call
+ahead of it that defines the places they write and reads by name those the
+statement reads, and the host that takes the result: the pair is evaluated
+together, from the versions it reads. The call's definitions take the last write the state
+holds for each place, a place no write reached keeps the value it held, the
+members of a finite input join, and the host's definition takes the result
+and its folded type. Over `x` = 1, `set r [expr {$x + [incr x] + $x}]`
+leaves `r` at 5 and `x` at 2 for every consumer, which O100 forwards into
+the reads after it, and `0 && [incr x]` leaves `x`'s new version the value
+of the one before it. The hosts are an assignment of an expression, an
+`expr` on its own and an assignment of one `[expr …]` substitution; a
+`puts` argument, a `return`, a branch condition and any other command's value
+keep `EffectFreeOnly`, which declines a nested write that runs, so such a
+statement is not folded and nothing is forwarded past it. A command's own
+substituting words run before it, in order, under one state: `incr x [incr x]`
+is 4 and `list $x [incr x] $x` is `1 2 2`, each declining under
+`EffectFreeOnly`.
+
 An error completion inside the expression ends the evaluation with that
-completion and the writes so far as the statement's stores, so the last
-witness above leaves `x` at `2` on the error path and never assigns the
-result. The evaluation declines when a nested invocation has a world
+completion and the writes so far as the statement's stores. No route yields
+an error completion yet, so an expression with an error in the middle is
+not evaluated: the last witness above leaves `x` unknown in the lattice,
+whether the `catch` is kept as one statement, whose body's writes are
+may-definitions, or inlined, and nothing forwards the 1 it held before the
+`catch`. The evaluation declines when a nested invocation has a world
 effect or an unknown completion domain, when a read names a place another
 admitted write may alias, when the nested depth or the request budget is
 exhausted, and when a nested query would need the lattice being computed
 (`Cycle`). What the state is not: the mutable analyser, the program's
 interpreter, or a store that outlives the evaluation. Tests:
 `short_circuit_logical` in `rust/tcl-syntax/src/expr/eval.rs` pins the
-walker's ordering; `command_substitution_is_none` in `tcl_expr_eval.rs`
-pins today's refusal and flips when the `nested` service lands; the seven
-witnesses above are the fixed additions. Migration: `EffectFreeOnly`
-lands in slice 3; `LocalWrites` is slice 9, sequenced after slices 3 and
-5, whose exit criterion is the seven witnesses through `tcl opt` and the
-memoised path.
+walker's ordering; `command_substitution_evaluates_through_the_nested_service`
+in `tcl_expr_eval.rs` pins the service's answer for `[incr x] + 1` under each
+policy and the decline of a command that reads the wall clock under both;
+`the_seven_ordered_state_witnesses` pins the seven programs above — in
+`value_transfer_witnesses.rs` through the direct unit and `tcl opt` against
+tclsh 8.4 to 9.1, in `value_transfer_parity.rs` through the memoised unit,
+in `differential_fold.rs` through the registry's routes against each
+release's tclsh, and in `value_transfers_cli.rs` through the built binary —
+and `a_nested_write_outside_the_state_declines` pins the decline, in the
+driver and in a program.
 
 **Math functions are bindings.** Binding validity covers every command
 implementation actually used, transitively:
@@ -2026,9 +2066,16 @@ the same selection facts from its `.tclspec`, as data.
 ### `catch`, `try`, and completion
 
 A `catch` body is one opaque `Call` in the default CFG build
-(`emit_opaque_catch` in `cfg_builder/mod.rs`: the body's defs, the result
-variable, and the options variable become the call's defs), a `try` with
-handlers is deferred the same way (`lower_try_dispatch`), and only the
+(`emit_opaque_catch` in `cfg_builder/mod.rs`): the call defines its result
+variable and its options variable, and what the body writes is a
+may-definition of a marker ahead of the call (`SyntheticMarker::ArmWrites`),
+since the body stops at its first error. What the commands of the body do to
+the frame goes ahead of the call as it does after an opaque `switch`
+(`opaque_script_effects`): the names a callee writes through `upvar`, the
+caller-frame barrier for a command that may write any name, and the marker
+for code the module cannot see. A `try` with handlers is deferred the same
+way (`lower_try_dispatch`), its handlers' variables among the may-definitions,
+and only the
 faithful-exceptions build (`with_faithful_exceptions`, `lower_try`,
 `push_try_handler_exception_edges`) gives handlers blocks and exception
 edges. The interface does not change which build a tier uses; it gives
@@ -2724,7 +2771,7 @@ unit-level lattice evaluates.
 - `rust/tcl-compiler/src/sccp.rs` — `existence_fold_abstains_*`, `upframe_body_models_*`, `sccp_folds_post_loop_branch_via_static_summary`
 - `rust/tcl-compiler/src/static_loops.rs` — `summarise_*`: today's bounded `for` simulation, the enumeration's baseline
 - `rust/tcl-syntax/src/expr/eval.rs` — `short_circuit_logical`: the walker's ordering the evaluation state relies on
-- `rust/tcl-compiler/src/tcl_expr_eval.rs` — `command_substitution_is_none`: today's refusal of a nested script
+- `rust/tcl-compiler/src/tcl_expr_eval.rs` — `command_substitution_evaluates_through_the_nested_service`: a nested command's answer under each nested policy
 - `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs` — `try_finally_creates_finally_block`, `try_with_handler`: the faithful-exceptions shape
 - `rust/tcl-registry/src/substitution.rs` — `tp_*`, `fp_*`: the kinds oracle
 - `rust/tcl-compiler/src/lowering/mod.rs`, `specialise_factories.rs`, `rust/tcl-lsp-core/src/refactor/extract_proc.rs` — `proc_subst_nocommands_*`, `detects_*`, `rejects_factory_with_computed_subst_switch`, `tp_a_substituting_call_can_switch_its_variable_reads_off`, `tp_a_substituted_bracket_*`: the four template consumers

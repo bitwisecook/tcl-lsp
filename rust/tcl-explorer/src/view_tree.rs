@@ -557,6 +557,47 @@ fn unreached_arm_leaf(fact: &Value) -> ViewNode {
     )
 }
 
+/// One statement's route record of the SCCP view: the answer, the line, and
+/// what the statement stores on each completion path.
+fn route_leaf(route: &Value) -> ViewNode {
+    let answer = s(route, "answer");
+    let colour = if answer.starts_with("evaluated") {
+        "green"
+    } else if answer.starts_with("pending") {
+        "yellow"
+    } else {
+        "magenta"
+    };
+    let mut details = vec![
+        det("answer", answer),
+        det(
+            "line",
+            route["range"]["startLine"]
+                .as_u64()
+                .map_or_else(|| "?".to_owned(), |line| (line + 1).to_string()),
+        ),
+    ];
+    for path in arr(route, "paths") {
+        let stores = arr(path, "stores")
+            .iter()
+            .filter_map(|store| store.as_str())
+            .collect::<Vec<_>>();
+        details.push(det(
+            &format!("path {}", s(path, "completion")),
+            if stores.is_empty() {
+                "no stores".to_owned()
+            } else {
+                stores.join("; ")
+            },
+        ));
+    }
+    ViewNode::leaf(
+        format!("route {}: {}", s(route, "command"), s(route, "route")),
+        details,
+        Some(colour),
+    )
+}
+
 fn build_sccp(d: &Value) -> Vec<ViewNode> {
     let mut out = Vec::new();
     for f in arr(d, "sccp") {
@@ -617,29 +658,7 @@ fn build_sccp(d: &Value) -> Vec<ViewNode> {
             });
         }
         children.extend(arr(f, "selections").iter().map(selection_leaf));
-        for route in arr(f, "routes") {
-            let answer = s(route, "answer");
-            let colour = if answer.starts_with("evaluated") {
-                "green"
-            } else if answer.starts_with("pending") {
-                "yellow"
-            } else {
-                "magenta"
-            };
-            children.push(ViewNode::leaf(
-                format!("route {}: {}", s(route, "command"), s(route, "route")),
-                vec![
-                    det("answer", answer),
-                    det(
-                        "line",
-                        route["range"]["startLine"]
-                            .as_u64()
-                            .map_or_else(|| "?".to_owned(), |line| (line + 1).to_string()),
-                    ),
-                ],
-                Some(colour),
-            ));
-        }
+        children.extend(arr(f, "routes").iter().map(route_leaf));
         out.push(ViewNode::branch(
             format!("function {}", s(f, "name")),
             Vec::new(),

@@ -176,13 +176,23 @@ if {$g} { puts a } else { puts b }                 ;# no I230, as for $::g
   arm runs.
 - A callback script stored anywhere in the file (`after`, `fileevent`,
   `bind`, a variable trace's callback, a procedure named as one, a command
-  prefix built with `list`) runs outside the registering code, so a name it
-  writes is never a constant, in the top-level script or in any procedure. A
-  callback the analyser cannot read, such as `after 100 $script`, is not
-  covered.
+  prefix built with `list`, a script spelled as several words such as `after
+  100 set done 1`) runs outside the registering code, so a name it writes is
+  never a constant, in the top-level script or in any procedure. A callback
+  the analyser cannot read — `after 100 $script`, a command the file does not
+  define, an `interp alias`, a `{*}` expansion — may write any variable, so no
+  name is decided anywhere in the file.
 - A plain name in the top-level script is the global `::name`. A call there to
   a command the file does not define may write, unset or read it, so the
-  versions the name holds at that call are undecided, as a `$::g` is. A
+  versions the name holds at that call are undecided, as a `$::g` is. So is a
+  call whose command is computed (`$cmd`), and a call inside the body of a
+  `catch`, whether the `catch` is a command of its own or one a condition
+  runs (`if {[catch {foo}]} …`), and a call inside any body a `[…]` substitution
+  runs, whatever frame the body runs in: a lambda's (`[apply {{} {foo}}]`), a
+  `namespace eval` or `uplevel` body, the text a `[subst {[foo]}]` substitutes
+  and an expression word inside a body (`[catch {if {[foo]} …}]`). A name the
+  body of a `catch` writes on some path is undecided afterwards too, since the
+  body stops at its first error. A
   procedure's own local is out of every callee's reach and is still folded;
   a `source` runs its file in the frame of the call, so a local is not safe
   across one.

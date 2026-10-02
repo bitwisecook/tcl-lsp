@@ -745,7 +745,8 @@ fn a_typed_assignment_reads_its_word_as_tcl_substitutes_it() {
 
 /// A braced `incr` amount is its own text: `incr x {$n}` raises `expected
 /// integer but got "$n"` in every release, so `x#2` has no value and the
-/// statement reads no `n`. Read as a substitution it folded to 4.
+/// statement reads no `n`; the route proves the error and answers it as the
+/// completion it is, after no store. Read as a substitution it folded to 4.
 #[test]
 fn a_braced_increment_amount_is_its_text() {
     let body = "proc p {} {set n 3; set x 1; incr x {$n}; return $x}\n";
@@ -758,7 +759,7 @@ fn a_braced_increment_amount_is_its_text() {
         );
         assert_eq!(
             answers_for(&unit, "::p", "incr"),
-            ["declined: wrong-representation"],
+            ["evaluated: error after 0 stores"],
             "{dialect}"
         );
         let function = &unit.procedures["::p"];
@@ -2663,8 +2664,9 @@ fn the_lines_every_release_reads_alike(releases: &[(&'static str, String)]) {
 }
 
 /// The release table's `incr` lines: the cell is created from 8.5, with
-/// the amount as its value, and the value declines as an unbound place
-/// under 8.4 and under the spanning profile, where `tclsh8.4` raises.
+/// the amount as its value; under 8.4, where `tclsh8.4` raises, the route
+/// answers the error after no store, and under the spanning profile, which
+/// cannot say which release runs, the value declines as an unbound place.
 fn the_increment_split(releases: &[(&'static str, String)]) {
     let increments: [(&str, &str, i64); 3] = [
         ("incr fresh", "fresh", 1),
@@ -2685,7 +2687,10 @@ fn the_increment_split(releases: &[(&'static str, String)]) {
                 assert_eq!(last_existence(&unit, "::p", "arr"), ARRAY, "{dialect}");
             }
         }
-        for dialect in ["tcl8.4", "tcl"] {
+        for (dialect, answer) in [
+            ("tcl8.4", "evaluated: error after 0 stores"),
+            ("tcl", "declined: unbound-place"),
+        ] {
             let unit = unit_of(&source, dialect);
             assert_eq!(
                 last_value(&source, dialect, "::p", place),
@@ -2694,10 +2699,8 @@ fn the_increment_split(releases: &[(&'static str, String)]) {
             );
             let answers = answers_for(&unit, "::p", "incr");
             assert!(
-                answers
-                    .iter()
-                    .any(|answer| answer == "declined: unbound-place"),
-                "{dialect}: `{body}` declines as an unbound place: {answers:?}"
+                answers.iter().any(|found| found == answer),
+                "{dialect}: `{body}` answers {answer}: {answers:?}"
             );
         }
         for (series, tclsh) in releases {
@@ -3649,4 +3652,1143 @@ fn a_subject_inside_the_scan_of_the_arms_as_words_is_not_folded_on_any_release()
     }
     let (kept, _) = optimised(source, "tk");
     assert!(kept.contains("switch"), "a profile with no release: {kept}");
+}
+
+/// A read inside a braced `expr` is a use of the version it reads, and a read
+/// beside a write the same statement's substitutions make is read before,
+/// between and after it: the store feeding the word that runs first stays,
+/// and no word is forwarded the earlier value. Each program prints what
+/// tclsh 8.4 to 9.1 print, before and after the optimiser — where the
+/// statement was a `puts`, a `set` of an expression or of a string, an `expr`,
+/// a `return`, an `incr`, a condition, or a call to a procedure, the optimiser
+/// had deleted `set x 1` and the program raised `can't read "x"`, or forwarded
+/// `1` past the increment and printed `1 2 1`.
+#[test]
+fn a_braced_expr_read_keeps_its_store() {
+    // The two programs the examples page gives.
+    prints_under_every_release(
+        "proc p {} {\n set n 1\n set r [expr {$n + [incr n]}]\n return $r\n}\nputs [p]\n",
+        "3\n",
+    );
+    prints_under_every_release(
+        "proc q {} {\n set n 1\n set r [expr {[incr n] + [incr n]}]\n return $r\n}\nputs [q]\n",
+        "5\n",
+    );
+    for (body, expected) in [
+        ("puts [expr {$x + [set x 10] + $x}]\n puts $x", "21\n10\n"),
+        (
+            "set r [expr {$x + [set x 10] + $x}]\n puts $r\n puts $x",
+            "21\n10\n",
+        ),
+        ("expr {$x + [set x 10] + $x}\n puts $x", "10\n"),
+        ("if {$x + [set x 10] > 3} {puts yes}\n puts $x", "yes\n10\n"),
+        ("while {$x + [set x 10] < 3} {break}\n puts $x", "10\n"),
+        (
+            "set y 5\n incr y [expr {$x + [set x 10]}]\n puts \"$y $x\"",
+            "16 10\n",
+        ),
+        (
+            "set r \"$x [set x 10] $x\"\n puts \"$r|$x\"",
+            "1 10 10|10\n",
+        ),
+        ("foo $x [incr x] $x\n puts $x", "1 2 2\n2\n"),
+        (
+            "set l {}\n lappend l $x [incr x] $x\n puts \"$l|$x\"",
+            "1 2 2|2\n",
+        ),
+        (
+            "set r [expr {[string length $x] + [set x 10]}]\n puts \"$r $x\"",
+            "11 10\n",
+        ),
+        (
+            "set r [expr {[expr {$x + 1}] + [set x 10]}]\n puts \"$r $x\"",
+            "12 10\n",
+        ),
+    ] {
+        let source = format!(
+            "proc foo {{a b c}} {{puts \"$a $b $c\"}}\nproc p {{}} {{\n set x 1\n {body}\n}}\np\n"
+        );
+        prints_under_every_release(&source, expected);
+    }
+    prints_under_every_release(
+        "proc p {} {\n set x 1\n return [expr {$x + [set x 10]}]\n}\nputs [p]\n",
+        "11\n",
+    );
+    // At the top level the same statements print the same.
+    prints_under_every_release(
+        "set x 1\nputs [expr {$x + [set x 10] + $x}]\nputs $x\n",
+        "21\n10\n",
+    );
+}
+
+/// A write a statement makes that none of its words read overwrites the store
+/// before it, as it did: the call that carries the write reads the place only
+/// where a word does. `puts [set x 2]` and a `gets` that fills a loop's
+/// variable leave the stores before them dead, so O109 and O126 still remove
+/// them, and each program prints the same afterwards.
+#[test]
+fn a_store_a_nested_write_overwrites_unread_is_still_dead() {
+    let overwritten = "proc p {} {\n set x 1\n puts [set x 2]\n return $x\n}\nputs [p]\n";
+    let loop_variable = "proc p {fd} {\n set line {}\n set n 0\n \
+                         while {[gets $fd line] >= 0} {incr n}\n return $n\n}\n\
+                         set f [open /dev/null r]\nputs [p $f]\n";
+    for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+        assert!(removes_store(overwritten, dialect, "set x 1"), "{dialect}");
+        assert!(
+            removes_store(loop_variable, dialect, "set line {}"),
+            "{dialect}"
+        );
+    }
+    prints_under_every_release(overwritten, "2\n2\n");
+    prints_under_every_release(loop_variable, "0\n");
+}
+
+/// The programs of [`a_nested_write_in_a_host_prints_what_tclsh_prints`], each with what
+/// tclsh 8.4 to 9.1 print.
+const NESTED_WRITE_PROGRAMS: &[(&str, &str)] = &[
+    // a loop carries the write round
+    (
+        "set x 0\nfor {set i 0} {$i < 3} {incr i} { set r [expr {[incr x] * 2}] }\nputs \"$r $x\"\n",
+        "6 3\n",
+    ),
+    (
+        "set x 0\nset i 0\nwhile {$i < 4} { expr {[incr x 2] + 0}; incr i }\nputs $x\n",
+        "8\n",
+    ),
+    (
+        "proc p {n} {set x 0; for {set i 0} {$i < $n} {incr i} {set r [expr {$x + [incr x]}]}; return \"$r $x\"}\nputs [p 3]\nputs [p 1]\n",
+        "5 3\n1 1\n",
+    ),
+    // a branch the engine takes or skips
+    (
+        "proc p {c} { set x 1; if {$c} { set r [expr {[incr x] + 1}] } else { set r 0 }; return \"$r $x\" }\nputs [p 1]\nputs [p 0]\n",
+        "3 2\n0 1\n",
+    ),
+    (
+        "proc p {c} { set x 1; set r [expr {$c ? [incr x] : 0}]; return \"$r $x\" }\nputs [p 1]\nputs [p 0]\n",
+        "2 2\n0 1\n",
+    ),
+    (
+        "proc p {c} { set x 1; set r [expr {$c && [incr x]}]; return \"$r $x\" }\nputs [p 1]\nputs [p 0]\n",
+        "1 2\n0 1\n",
+    ),
+    (
+        "proc p {c} { set x 1; set r [expr {$c || [incr x]}]; return \"$r $x\" }\nputs [p 1]\nputs [p 0]\n",
+        "1 1\n1 2\n",
+    ),
+    (
+        "set x 1\nset r [expr {1 ? [incr x] : [incr x 10]}]\nputs \"$r $x\"\n",
+        "2 2\n",
+    ),
+    (
+        "set x 1\nset r [expr {0 || [incr x]}]\nputs \"$r $x\"\n",
+        "1 2\n",
+    ),
+    (
+        "set x 1\nset r [expr {1 || [incr x]}]\nputs \"$r $x\"\n",
+        "1 1\n",
+    ),
+    // an input the engine takes on one member and not on another
+    (
+        "proc p {n} {set x 1; if {$n} {set c 0} else {set c 1}; set r [expr {$c ? [incr x] : 7}]; return \"$r $x\"}\nputs [p 0]\nputs [p 1]\n",
+        "2 2\n7 1\n",
+    ),
+    // an element of an array
+    (
+        "set a(1) 5\nset r [expr {$a(1) + [incr a(1)]}]\nputs \"$r $a(1)\"\n",
+        "11 6\n",
+    ),
+    (
+        "set a(k) 1\nset r [expr {[incr a(k)] + [incr a(k)]}]\nputs \"$r $a(k)\"\n",
+        "5 3\n",
+    ),
+    (
+        "array set a {1 5 2 6}\nset r [expr {$a(1) + [set a(2) 9] + $a(2)}]\nputs \"$r $a(1) $a(2)\"\n",
+        "23 5 9\n",
+    ),
+    // a place the frame does not own is left alone
+    (
+        "set ::g 5\nset r [expr {$::g + [incr ::g]}]\nputs \"$r $::g\"\n",
+        "11 6\n",
+    ),
+    (
+        "proc p {} {global g; set g 1; set r [expr {$g + [incr g]}]; return \"$r $g\"}\nputs [p]\n",
+        "3 2\n",
+    ),
+    (
+        "proc p {} {upvar 1 v w; set w 1; set r [expr {$w + [incr w]}]; return \"$r $w\"}\nset v 0\nputs [p]\nputs $v\n",
+        "3 2\n2\n",
+    ),
+    // a write a word's own command makes
+    (
+        "set s a\nset r [expr {[string length [append s bc]] + [string length $s]}]\nputs \"$r $s\"\n",
+        "6 abc\n",
+    ),
+    (
+        "set s a\nset r [expr {[string length $s] + [string length [append s bc]]}]\nputs \"$r $s\"\n",
+        "4 abc\n",
+    ),
+    (
+        "set l {}\nset r [expr {[llength [lappend l a]] + [llength $l]}]\nputs \"$r $l\"\n",
+        "2 a\n",
+    ),
+    (
+        "set x 5\nset r [expr {$x * [set x 2] + $x}]\nputs \"$r $x\"\n",
+        "12 2\n",
+    ),
+    (
+        "set s a\nset r [expr {[string length [append s [append s b]]]}]\nputs \"$r $s\"\n",
+        "4 abab\n",
+    ),
+    (
+        "set x 1\nset r [expr {$x} + [incr x]]\nputs \"$r $x\"\n",
+        "4 2\n",
+    ),
+    (
+        "unset -nocomplain u\nset r [expr {[string length [append u [set u 3]]]}]\nputs \"$r $u\"\n",
+        "2 33\n",
+    ),
+    // substitutions inside substitutions
+    (
+        "set x 1\nset r [expr {[expr {$x + [incr x]}] + [incr x]}]\nputs \"$r $x\"\n",
+        "6 3\n",
+    ),
+    (
+        "set x 1\nset r [expr {[set y [incr x]] + $y + $x}]\nputs \"$r $x $y\"\n",
+        "6 2 2\n",
+    ),
+    (
+        "set x 1\nset r [expr {[incr x] * [incr x] * [incr x]}]\nputs \"$r $x\"\n",
+        "24 4\n",
+    ),
+    // the statements a substitution sits in
+    ("set x 1\nexpr {[incr x] + [incr x]}\nputs $x\n", "3\n"),
+    (
+        "set x 1\nif {[incr x] == 2} { puts yes } else { puts no }\nputs $x\n",
+        "yes\n2\n",
+    ),
+    ("set x 1\nwhile {[incr x] < 5} { }\nputs $x\n", "5\n"),
+    (
+        "proc p {} {set x 1; return [expr {[incr x] + $x}]}\nputs [p]\n",
+        "4\n",
+    ),
+    (
+        "proc p {} {set x 1; set y [expr {[incr x] + $x}]; return \"$y $x\"}\nputs [p]\n",
+        "4 2\n",
+    ),
+    ("set x 1\nputs [expr {$x + [incr x]}]\nputs $x\n", "3\n2\n"),
+    (
+        "set x 1\nset y [list [expr {[incr x] + 1}] $x]\nputs $y\n",
+        "3 2\n",
+    ),
+    ("set x 1\nputs \"[expr {[incr x] + 1}] $x\"\n", "3 2\n"),
+    (
+        "set x 1\nset r [expr \"$x + [incr x] + $x\"]\nputs \"$r $x\"\n",
+        "5 2\n",
+    ),
+    (
+        "set x 1\nset r [expr {\"$x [incr x]\" eq {1 2}}]\nputs \"$r $x\"\n",
+        "1 2\n",
+    ),
+    // a quoted or unbraced operand
+    (
+        "set x 1\nset r [expr $x + [incr x]]\nputs \"$r $x\"\n",
+        "3 2\n",
+    ),
+    (
+        "set x 1\nset r [expr $x \"+\" [incr x]]\nputs \"$r $x\"\n",
+        "3 2\n",
+    ),
+    (
+        "set x 1\nset r [expr {[incr x] + [info exists x]}]\nputs \"$r $x\"\n",
+        "3 2\n",
+    ),
+    (
+        "unset -nocomplain x\nset r [expr {[info exists x] + [set x 3]}]\nputs \"$r $x\"\n",
+        "3 3\n",
+    ),
+    (
+        "unset -nocomplain x\nset r [expr {[set x 3] + [info exists x]}]\nputs \"$r $x\"\n",
+        "4 3\n",
+    ),
+    // existence
+    (
+        "set x 1\ncatch {set r [expr {[incr x] + [error mid]}]}\nputs $x\n",
+        "2\n",
+    ),
+    (
+        "set x 1\ncatch {set r [expr {1 / 0 + [incr x]}]}\nputs $x\n",
+        "1\n",
+    ),
+    (
+        "set x 1\ncatch {set r [expr {[incr x] + 1 / 0}]}\nputs $x\n",
+        "2\n",
+    ),
+    // a value that is not an integer
+    (
+        "set x 1.5\nset r [expr {$x + [set x 2.5] + $x}]\nputs \"$r $x\"\n",
+        "6.5 2.5\n",
+    ),
+];
+
+/// A write a substitution inside an expression makes is a definition of the
+/// statement that holds the expression, made before the statement takes the
+/// result: each program prints what tclsh 8.4 to 9.1 print, before and after
+/// the optimiser forwards the values the shared lattice now knows. They cover
+/// a loop that carries the write round, a branch or a short-circuit that
+/// skips it, an element of an array, a place the frame does not own, a write a
+/// word's own command makes, a substitution inside a substitution, each kind
+/// of statement that holds an expression, an operand that is quoted or
+/// unbraced, a place the write creates, and a value that is not an integer.
+#[test]
+fn a_nested_write_in_a_host_prints_what_tclsh_prints() {
+    for &(source, expected) in NESTED_WRITE_PROGRAMS {
+        prints_under_every_release(source, expected);
+    }
+}
+
+/// A command the module cannot see — here `foo`, defined at run time from a
+/// file the program writes and sources — writes a plain top-level name as it
+/// writes `::g` when it runs inside the body of a `catch` the flow graph
+/// keeps as one statement, or through a computed head: tclsh 8.4 to 9.1 print
+/// `six` and `6` for each program, where taking `5` across the call printed
+/// `other` and `5` and a rewrite followed.
+#[test]
+fn a_write_a_catch_body_or_a_computed_head_runs_is_never_folded_away() {
+    let define = "set f [file join [file dirname [info script]] vt-unseen-[pid].tcl]\n\
+                  set fh [open $f w]\nputs $fh {proc foo {} {set ::g 6}}\nclose $fh\n\
+                  source $f\nfile delete $f\n";
+    for tail in [
+        "set g 5\ncatch {foo}\nif {$g == 6} {puts six} else {puts other}\nputs $g\n",
+        "set g 5\ncatch {foo} msg\nif {$g == 6} {puts six} else {puts other}\nputs $g\n",
+        "set g 5\ncatch {if {1} {foo}}\nif {$g == 6} {puts six} else {puts other}\nputs $g\n",
+        "set ::g 5\ncatch {foo}\nif {$::g == 6} {puts six} else {puts other}\nputs $::g\n",
+        "set g 5\nif {[catch {foo}]} {puts bad}\nif {$g == 6} {puts six} else {puts other}\nputs $g\n",
+        "set cmd foo\nset g 5\n$cmd\nif {$g == 6} {puts six} else {puts other}\nputs $g\n",
+        "set cmd foo\nset g 5\nwhile {[$cmd] != 7} {break}\nif {$g == 6} {puts six} else {puts other}\nputs $g\n",
+    ] {
+        prints_under_every_release(&format!("{define}{tail}"), "six\n6\n");
+    }
+    for tail in [
+        "set g 5\ncatch {puts [foo]}\nif {$g == 6} {puts six} else {puts other}\nputs $g\n",
+        "set cmd foo\nset g 5\nputs [$cmd]\nif {$g == 6} {puts six} else {puts other}\nputs $g\n",
+    ] {
+        prints_under_every_release(&format!("{define}{tail}"), "6\nsix\n6\n");
+    }
+    // A command in the body that may write any name.
+    for program in [
+        "set go 1\ncatch { namespace eval :: {set go 0} }\nif {$go} {puts a} else {puts b}\n",
+        "set go 1\nset script {set go 0}\ncatch { eval $script }\nif {$go} {puts a} else {puts b}\n",
+    ] {
+        prints_under_every_release(program, "b\n");
+    }
+}
+
+/// A command the module cannot see — `foo` again, defined at run time — runs
+/// inside a body that is no body of the frame the substitution is written in:
+/// a lambda `apply` runs, a `namespace eval` or `uplevel` body, the text a
+/// `subst` substitutes, an expression word inside a body. It writes `::g`
+/// there as it does anywhere, so tclsh 8.4 to 9.1 print `six` and `6` for each
+/// program, where the value before the call was taken across it and the
+/// condition decided. A lambda body that writes a name of its own, and a
+/// `subst` of text that runs nothing unseen, leave the condition decided.
+#[test]
+fn a_substitution_runs_the_unseen_code_in_every_body_it_holds() {
+    let define = "set f [file join [file dirname [info script]] vt-unseen-[pid].tcl]\n\
+                  set fh [open $f w]\nputs $fh {proc foo {} {set ::g 6}}\nclose $fh\n\
+                  source $f\nfile delete $f\n";
+    let check = "if {$g == 6} {puts six} else {puts other}\nputs $g\n";
+    for form in [
+        "set x [namespace eval ns {foo}]",
+        "set x [uplevel #0 {foo}]",
+        "set x [subst {[foo]}]",
+        "set x [catch {expr {[foo] + 1}}]",
+        "set x [catch {if {[foo]} {set y 1}}]",
+    ] {
+        prints_under_every_release(&format!("{define}set g 5\n{form}\n{check}"), "six\n6\n");
+    }
+    for form in [
+        "set x [apply {{} {foo}}]",
+        "set x [catch {apply {{} {foo}}}]",
+        "set x [apply {{} {if {[foo]} {set y 1}}}]",
+        "set x [apply {{n} {foo}} 1]",
+    ] {
+        prints_under_releases_from(
+            &format!("{define}set g 5\n{form}\n{check}"),
+            "six\n6\n",
+            "8.5",
+        );
+    }
+    // A body with nothing unseen in it leaves the condition decided: the
+    // optimiser folds it, and the program prints the same.
+    let decided = "set g 5\nset x [namespace eval ns {set y 1}]\n\
+                   if {$g == 5} {puts five} else {puts other}\nputs $g\n";
+    let lambda = "set g 5\nset x [apply {{} {set y 1}}]\n\
+                  if {$g == 5} {puts five} else {puts other}\nputs $g\n";
+    let text = "set g 5\nset x [subst {[set y 1]}]\n\
+                if {$g == 5} {puts five} else {puts other}\nputs $g\n";
+    for (source, first) in [(decided, "8.4"), (lambda, "8.5"), (text, "8.4")] {
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            assert!(!optimised(source, dialect).0.contains("other"), "{source}");
+        }
+        prints_under_releases_from(source, "five\n5\n", first);
+    }
+}
+
+/// A name the body of a `catch` writes on one path only keeps the value it
+/// held before, so the store before the `catch` is read: tclsh prints `5` for
+/// each program, where taking the body's write as the one every path makes
+/// deleted `set g 5` and the read raised `can't read "g"`.
+#[test]
+fn a_store_a_catch_body_may_leave_untouched_is_not_dead() {
+    let top = "set g 5\ncatch { if {[expr {[clock seconds] < 0}]} { set g 0 } }\nputs $g\n";
+    let in_proc = "proc p {} {\n set g 5\n catch { if {[expr {[clock seconds] < 0}]} { set g 0 } }\n puts $g\n}\np\n";
+    let with_result =
+        "set g 5\ncatch { if {[expr {[clock seconds] < 0}]} { set g 0 } } msg\nputs $g\n";
+    for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+        for source in [top, in_proc, with_result] {
+            assert!(
+                !removes_store(source, dialect, "set g 5"),
+                "{dialect}: {source}"
+            );
+        }
+    }
+    for source in [top, in_proc, with_result] {
+        prints_under_every_release(source, "5\n");
+    }
+}
+
+/// Programs whose `catch` stands in a `[…]` substitution, with what tclsh
+/// 8.4 to 9.1 print: the three of #2231 (the second is the statement form),
+/// one in a procedure, a result variable beside the substitution, a `catch`
+/// in a `catch`, one reached through an alias of `catch`, and a body that sets
+/// a name, unsets one, substitutes a command, or writes through an expression
+/// word.
+const CATCH_BODY_PROGRAMS: &[(&str, &str)] = &[
+    (
+        "set x 1\nset c [catch {incr x}]\nif {$x == 2} {puts two} else {puts \"not two: $x\"}\n",
+        "two\n",
+    ),
+    ("set x 5\ncatch {incr x} m\nputs \"$x $m\"\n", "6 6\n"),
+    ("set x 1\nset c [catch {append x y}]\nputs $x\n", "1y\n"),
+    (
+        "proc p {} {\n set x 1\n set c [catch {incr x}]\n if {$x == 2} {return two} else {return other}\n}\nputs [p]\n",
+        "two\n",
+    ),
+    (
+        "set x 5\nputs [catch {incr x} m]\nputs \"$x $m\"\n",
+        "0\n6 6\n",
+    ),
+    (
+        "set x 1\nset c [catch {catch {incr x}}]\nif {$x == 2} {puts two} else {puts other}\n",
+        "two\n",
+    ),
+    (
+        "set g 5\nset rc [catch {set g 0}]\nif {$g} {puts a} else {puts b}\n",
+        "b\n",
+    ),
+    (
+        "set x 1\nputs [catch {unset x}]\nputs [info exists x]\n",
+        "0\n0\n",
+    ),
+    (
+        "set x 1\nputs [catch {expr {[incr x] + [error mid]}}]\nputs $x\n",
+        "1\n2\n",
+    ),
+    ("set x 5\nset c [catch {puts $x}]\nputs $c\n", "5\n0\n"),
+    ("set x 5\nset c [catch {incr x}]\nputs $c\n", "0\n"),
+    (
+        "set x 1\nset c [catch {set y [incr x]}]\nif {$x == 2} {puts two} else {puts other}\n",
+        "two\n",
+    ),
+    (
+        "interp alias {} c {} catch\nset x 1\nset r [c {incr x}]\n\
+         if {$x == 2} {puts two} else {puts other}\n",
+        "two\n",
+    ),
+];
+
+/// The body of a `catch`, or of a `try`, inside a `[…]` substitution runs once
+/// in the frame the substitution is written in, whatever it completes with,
+/// so what it writes and what it reads are the statement's own effect: the
+/// writes are definitions after the statement and the reads are uses of the
+/// definitions before it (#2231). Each program prints what it did before the
+/// multipass optimiser rewrote it, where the lattice held the value before
+/// the body and the stores the body reads were deleted; the condition is
+/// decided by no diagnostic, and a store the body reads stays. A `try` body
+/// does the same from 8.6.
+#[test]
+fn a_nested_catch_body_is_the_statements_effect() {
+    for &(source, expected) in CATCH_BODY_PROGRAMS {
+        prints_under_every_release(source, expected);
+        for dialect in DIALECTS {
+            assert!(
+                !reports(source, dialect, DiagCode::I230),
+                "{dialect}: no condition is decided:\n{source}"
+            );
+            for store in ["set x 1", "set x 5"] {
+                if source.contains(store) {
+                    assert!(
+                        !removes_store(source, dialect, store),
+                        "{dialect}: {store} is read:\n{source}"
+                    );
+                }
+            }
+        }
+    }
+    let in_try = "set x 1\nset r [try {incr x} on error {} {set y 0}]\n\
+                  if {$x == 2} {puts two} else {puts other}\n";
+    prints_under_releases_from(in_try, "two\n", "8.6");
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        assert!(!reports(in_try, dialect, DiagCode::I230), "{dialect}");
+    }
+}
+
+/// A call to a command the module cannot see reads its words before its head
+/// runs and may read or write any global afterwards: `foo` here is defined at
+/// run time, reads `g` and sets `g` and `m`, and tclsh 8.4 to 9.1 print what each
+/// program says. The operand keeps the value it read; the store the callee reads
+/// stays, whether a later read follows it or a later store overwrites it —
+/// deleting it made the callee raise `can't read "g"`; and a read after the
+/// call is never taken for the value before it, of the name the call's words
+/// read or of one they do not.
+#[test]
+fn a_call_the_module_cannot_see_reads_its_words_first_and_may_read_and_write_after() {
+    let define = "set f [file join [file dirname [info script]] vt-unseen-[pid].tcl]\n\
+                  set fh [open $f w]\nputs $fh {proc foo {n} {global g; puts \"n=$n g=$g\"; set ::g 6; set ::m 4}}\n\
+                  close $fh\nsource $f\nfile delete $f\n";
+    for (tail, expected) in [
+        ("set g 5\nfoo $g\nputs $g\n", "n=5 g=5\n6\n"),
+        ("set g 5\nset cmd foo\n$cmd $g\nputs $g\n", "n=5 g=5\n6\n"),
+        (
+            "set cmd foo\nset g 5\n$cmd $g\nputs [expr {$g + 0}]\n",
+            "n=5 g=5\n6\n",
+        ),
+        (
+            "set g 5\nset m 3\nfoo $g\nputs $g\nputs $m\n",
+            "n=5 g=5\n6\n4\n",
+        ),
+        ("set g 5\nfoo 1\nputs $g\n", "n=1 g=5\n6\n"),
+        ("set cmd foo\nset g 5\n$cmd 1\nputs $g\n", "n=1 g=5\n6\n"),
+        ("set g 5\nfoo 1\nset g 7\nputs $g\n", "n=1 g=5\n7\n"),
+        (
+            "set cmd foo\nset g 5\n$cmd 1\nset g 7\nputs $g\n",
+            "n=1 g=5\n7\n",
+        ),
+    ] {
+        prints_under_every_release(&format!("{define}{tail}"), expected);
+    }
+}
+
+/// A callback spelled as several words, which `after` joins as `concat` does,
+/// or one the scan cannot read — a computed script, a command the module never
+/// defines, an alias, an expansion — writes the variable a loop waits on, or
+/// the one a later read folds: tclsh prints `1` for each program, where
+/// taking `0` across the `update` printed `0`. A callback that only cancels,
+/// or stores a script that writes another name, leaves the value alone.
+#[test]
+fn a_write_a_callback_the_scan_could_not_read_makes_is_never_folded_away() {
+    let define = "set f [file join [file dirname [info script]] vt-callback-[pid].tcl]\n\
+                  set fh [open $f w]\nputs $fh {proc finish {} {set ::done 1}}\nclose $fh\n\
+                  source $f\nfile delete $f\n";
+    // Two rounds, so a callback that stores another still runs.
+    let wait = "after 30\nupdate\nafter 30\nupdate\nputs $done\n";
+    for head in [
+        "after 10 set done 1",
+        "after idle set done 1",
+        "after 10 incr done",
+        "after 10 {set done} 1",
+        "set script {set done 1}\nafter 10 $script",
+        "after 10 finish",
+        "interp alias {} fin {} set done 1\nafter 10 fin",
+        "proc build {} {return {set done 1}}\nafter 10 [build]",
+        "after 10 {after 10 set done 1}",
+    ] {
+        prints_under_every_release(&format!("{define}set done 0\n{head}\n{wait}"), "1\n");
+    }
+    prints_under_releases_from(
+        &format!("set done 0\nafter 10 {{*}}[list set done 1]\n{wait}"),
+        "1\n",
+        "8.5",
+    );
+    for head in [
+        "after 10 {set done 1}\nafter cancel {set done 1}",
+        "set id [after 10 {set done 1}]\nafter cancel $id",
+        "after 10 {set other 1}",
+        "after 10 set other 1",
+    ] {
+        prints_under_every_release(&format!("set done 0\n{head}\n{wait}"), "0\n");
+    }
+}
+
+/// A braced arm list is a list: a bare or quoted element's escapes collapse
+/// under the release's grammar, and before 8.6 a `\x` takes every hex digit
+/// that follows and keeps the last two, so `a\x41b` is not `aAb` there. tclsh
+/// prints `miss` from 8.4 and 8.5 and `hit` from 8.6 for each program, before
+/// and after the optimiser, which folded the arm to `hit` under all of them.
+#[test]
+fn a_braced_arm_list_decodes_its_elements_under_the_releases_escapes() {
+    for (series, tclsh) in releases_on_path() {
+        let expected = if series < "8.6" { "miss\n" } else { "hit\n" };
+        for source in [
+            r#"switch -- aAb {"a\x41b" {puts hit} default {puts miss}}"#,
+            r"switch -- aAb {a\x41b {puts hit} default {puts miss}}",
+            r#"switch -glob -- aAb {"a\x41b" {puts hit} default {puts miss}}"#,
+            r"switch -glob -- aAb {a\x41b {puts hit} default {puts miss}}",
+        ] {
+            let dialect = dialect_of(series);
+            let (rewritten, _) = optimised(source, &dialect);
+            for program in [source, rewritten.as_str()] {
+                assert_eq!(
+                    run_script(&tclsh, program),
+                    Some((true, expected.to_owned())),
+                    "tclsh{series}:\n{program}"
+                );
+            }
+        }
+    }
+}
+
+/// The shared lattice's value for `var`'s version `version` at the top level.
+fn top_value_at(unit: &CompilationUnit, var: &str, version: u32) -> Option<LatticeValue> {
+    let function = &unit.top_level;
+    let symbol = function.ssa.var_symbol(var).expect("the variable");
+    function.sccp.values.get(&(symbol, version)).cloned()
+}
+
+/// The interface page's ordered-state programs, each over `set x 1`: the
+/// expression, the value it has and what `x` holds after it. The seventh
+/// program stops at an error in the middle of its expression and is read
+/// apart.
+const ORDERED_STATE: [(&str, &str, &str); 6] = [
+    ("{$x + [incr x] + $x}", "5", "2"),
+    ("{0 && [incr x]}", "0", "1"),
+    ("{$x + [set x 10] + $x}", "21", "10"),
+    ("{[incr x] + [incr x]}", "5", "3"),
+    ("{$x ? [incr x] : [incr x 10]}", "2", "2"),
+    ("\"$x + [incr x]\"", "3", "2"),
+];
+
+/// The seven programs of the interface page's ordered-state paragraph reach
+/// every consumer: the shared lattice holds the expression's value in `r#1`
+/// and the last write the expression made in `x#2`, in a procedure and at the
+/// top level and under every dialect; the optimiser forwards both into the
+/// reads after it; and each optimised program prints what tclsh 8.4 to 9.1
+/// print. Where the expression is a `puts` argument the statement is not
+/// evaluated, no nested write is folded and `puts $x` still reads `x`, and the
+/// program prints the same. The seventh program, an error between a write and
+/// the end of its expression inside a `catch`, leaves `x` at 2: in a procedure
+/// the lattice holds 2 in `x#2`, at the top level, where the `catch` is one
+/// call, `x` is unknown, and nothing forwards the earlier value to the read.
+#[test]
+fn the_seven_ordered_state_witnesses() {
+    for (expression, value, after) in ORDERED_STATE {
+        let int = |text: &str| Some(LatticeValue::Const(ConstValue::Int(text.parse().unwrap())));
+        let top = format!("set x 1\nset r [expr {expression}]\nputs $r\nputs $x\n");
+        let in_proc = format!(
+            "proc p {{}} {{\n    set x 1\n    set r [expr {expression}]\n    puts $r\n    puts $x\n}}\np\n"
+        );
+        let shown = format!("{value}\n{after}\n");
+        for dialect in DIALECTS {
+            let unit = unit_of(&in_proc, dialect);
+            assert_eq!(
+                value_at(&unit, "::p", "r", 1),
+                int(value),
+                "{dialect}: {expression}"
+            );
+            assert_eq!(
+                value_at(&unit, "::p", "x", 2),
+                int(after),
+                "{dialect}: {expression}"
+            );
+            let unit = unit_of(&top, dialect);
+            assert_eq!(
+                top_value_at(&unit, "r", 1),
+                int(value),
+                "{dialect}: {expression}"
+            );
+            assert_eq!(
+                top_value_at(&unit, "x", 2),
+                int(after),
+                "{dialect}: {expression}"
+            );
+            for source in [&top, &in_proc] {
+                let (rewritten, rewrites) = optimised(source, dialect);
+                assert!(
+                    rewrites.iter().any(|o| o.code == DiagCode::O100)
+                        && rewritten.contains(&format!("puts {value}"))
+                        && rewritten.contains(&format!("puts {after}"))
+                        && !rewritten.contains("puts $"),
+                    "{dialect}: {expression}\n{rewritten}"
+                );
+            }
+        }
+        prints_under_every_release(&top, &shown);
+        prints_under_every_release(&in_proc, &shown);
+
+        let argument = format!("set x 1\nputs [expr {expression}]\nputs $x\n");
+        for dialect in DIALECTS.iter().filter(|_| value != "0") {
+            let (rewritten, _) = optimised(&argument, dialect);
+            assert!(
+                rewritten.contains("puts $x") && rewritten.contains("expr"),
+                "{dialect}: {expression}\n{rewritten}"
+            );
+        }
+        prints_under_every_release(&argument, &shown);
+    }
+
+    let caught = [
+        "set x 1\ncatch {expr {[incr x] + [error mid]}} msg\nputs $msg\nputs $x\n",
+        "proc p {} {\n    set x 1\n    catch {expr {[incr x] + [error mid]}} msg\n    puts $msg\n    puts $x\n}\np\n",
+    ];
+    for dialect in DIALECTS {
+        // A `catch` at the top level is one call whose body writes are
+        // may-definitions, so `x` is unknown after it; in a procedure its
+        // body is blocks of its own, the error leaves from the statement
+        // that raised it, and the handler is thrown to with the write the
+        // expression had made.
+        assert_eq!(
+            top_value_at(&unit_of(caught[0], dialect), "x", 2),
+            Some(LatticeValue::Overdefined),
+            "{dialect}"
+        );
+        assert_eq!(
+            value_at(&unit_of(caught[1], dialect), "::p", "x", 2),
+            Some(LatticeValue::Const(ConstValue::Int(2))),
+            "{dialect}"
+        );
+        for source in caught {
+            let (rewritten, _) = optimised(source, dialect);
+            assert!(
+                rewritten.contains("set x 1") && rewritten.contains("puts $x"),
+                "{dialect}: nothing forwards the earlier x\n{rewritten}"
+            );
+        }
+    }
+    for source in caught {
+        prints_under_every_release(source, "mid\n2\n");
+    }
+    // The completion code, 1, is read from the options.
+    let coded = "set x 1\ncatch {expr {[incr x] + [error mid]}} msg opts\nputs $msg\n\
+                 puts [dict get $opts -code]\nputs $x\n";
+    assert!(optimised(coded, "tcl8.6").0.contains("puts $x"));
+    prints_under_releases_from(coded, "mid\n1\n2\n", "8.5");
+}
+
+/// A nested write to a place the ordered state cannot own — a qualified
+/// global, a `global` or an `upvar` alias — declines the expression whatever
+/// the write's own answer: the statement is not folded, its nested write stays,
+/// and the optimised program prints what tclsh 8.4 to 9.1 print. Where the
+/// write also reads a place nothing proves (`incr ::g`) the read is what
+/// declines, and a branch the expression never reaches owns nothing, so
+/// `0 && [set ::g 10]` is 0.
+#[test]
+fn a_nested_write_outside_the_state_declines() {
+    let programs = [
+        (
+            "proc p {} {\n set x 1\n set r [expr {$x + [set ::g 10]}]\n puts \"$r $::g\"\n}\np\n",
+            "11 10\n",
+            "declined: stateful-nested",
+        ),
+        (
+            "proc p {} {\n global g\n set x 1\n set r [expr {$x + [set g 10]}]\n puts \"$r $g\"\n}\np\n",
+            "11 10\n",
+            "declined: stateful-nested",
+        ),
+        (
+            "proc p {} {\n upvar 1 v w\n set x 1\n set r [expr {$x + [set w 10]}]\n puts \"$r $w\"\n}\nset v 0\np\n",
+            "11 10\n",
+            "declined: stateful-nested",
+        ),
+        (
+            "set ::g 5\nproc p {} {\n set x 1\n set r [expr {$x + [incr ::g]}]\n puts \"$r $::g\"\n}\np\n",
+            "7 6\n",
+            "declined: not-exact",
+        ),
+    ];
+    for (source, printed, answer) in programs {
+        for dialect in DIALECTS {
+            let unit = unit_of(source, dialect);
+            assert_eq!(
+                answers_for(&unit, "::p", "expr"),
+                [answer],
+                "{dialect}:\n{source}"
+            );
+            assert_eq!(
+                value_at(&unit, "::p", "r", 1),
+                Some(LatticeValue::Overdefined),
+                "{dialect}:\n{source}"
+            );
+            let (rewritten, _) = optimised(source, dialect);
+            assert!(
+                rewritten.contains("expr {$x + [") && rewritten.contains("puts \"$r "),
+                "{dialect}: the statement is kept\n{rewritten}"
+            );
+        }
+        prints_under_every_release(source, printed);
+    }
+
+    let unreached = "proc p {} {\n set r [expr {0 && [set ::g 10]}]\n puts $r\n}\np\n";
+    for dialect in DIALECTS {
+        assert_eq!(
+            value_at(&unit_of(unreached, dialect), "::p", "r", 1),
+            Some(LatticeValue::Const(ConstValue::Int(0))),
+            "{dialect}"
+        );
+    }
+    prints_under_every_release(unreached, "0\n");
+}
+
+/// What a prefix-rule program leaves that the analysis proves.
+enum PrefixFact {
+    /// The place's last version holds this text.
+    Text(&'static str, &'static str),
+    /// The place's last version holds this number, whichever way a route
+    /// writes it.
+    Number(&'static str, i64),
+    /// The place's last version is unbound.
+    Unbound(&'static str),
+}
+
+/// One of the interface page's nine programs for the prefix rule
+/// (§ *`catch`, `try`, and completion*): the statements before the `catch`,
+/// the body it runs — an error after some of its stores — what is printed
+/// after it, what every release prints, the first release with the command,
+/// and what the analysis proves of a body its blocks hold. A body that is one
+/// straight-line block is lowered into blocks in a procedure; the rest, and
+/// every body at the top level, stay one call.
+struct PrefixProgram {
+    name: &'static str,
+    before: &'static str,
+    body: &'static str,
+    after: &'static str,
+    printed: &'static str,
+    first: &'static str,
+    flattened: &'static [PrefixFact],
+}
+
+const PREFIX_PROGRAMS: [PrefixProgram; 9] = [
+    PrefixProgram {
+        name: "lassign stops at the array",
+        before: "set a old\narray set b {k keep}",
+        body: "lassign {new second} a b",
+        after: "puts \"$a $b(k)\"",
+        printed: "new keep\n",
+        first: "8.5",
+        flattened: &[
+            PrefixFact::Text("a", "new"),
+            PrefixFact::Text("b(k)", "keep"),
+        ],
+    },
+    PrefixProgram {
+        name: "lassign leaves the places after the array",
+        before: "array set b {k keep}\nset a old\nset c old",
+        body: "lassign {x y z} a b c",
+        after: "puts \"$a $c\"",
+        printed: "x old\n",
+        first: "8.5",
+        flattened: &[PrefixFact::Text("a", "x"), PrefixFact::Text("c", "old")],
+    },
+    PrefixProgram {
+        name: "foreach binds in order",
+        before: "array set b {k keep}\nset a old",
+        body: "foreach {a b} {new second} {set inside 1}",
+        after: "puts \"$a [info exists inside]\"",
+        printed: "new 0\n",
+        first: "8.4",
+        flattened: &[],
+    },
+    PrefixProgram {
+        name: "scan stops at the array",
+        before: "array set b {k keep}\nset a old",
+        body: "scan {1 2} {%d %d} a b",
+        after: "puts $a",
+        printed: "1\n",
+        first: "8.4",
+        flattened: &[PrefixFact::Number("a", 1)],
+    },
+    PrefixProgram {
+        name: "regexp stops at the array",
+        before: "array set b {k keep}\nset a old",
+        body: "regexp {(x)(y)} xy a b",
+        after: "puts $a",
+        printed: "xy\n",
+        first: "8.4",
+        flattened: &[PrefixFact::Text("a", "xy")],
+    },
+    PrefixProgram {
+        name: "unset stops at the absent name",
+        before: "set p 1\nset q 2",
+        body: "unset p nosuch q",
+        after: "puts \"[info exists p] $q\"",
+        printed: "0 2\n",
+        first: "8.4",
+        flattened: &[PrefixFact::Unbound("p"), PrefixFact::Number("q", 2)],
+    },
+    PrefixProgram {
+        name: "an error in a word is before the command",
+        before: "set x 1",
+        body: "append x 2 [error boom]",
+        after: "puts $x",
+        printed: "1\n",
+        first: "8.4",
+        flattened: &[PrefixFact::Number("x", 1)],
+    },
+    PrefixProgram {
+        name: "an error in the value is before the store",
+        before: "",
+        body: "set r [expr {1 + [error mid]}]",
+        after: "puts [info exists r]",
+        printed: "0\n",
+        first: "8.4",
+        flattened: &[PrefixFact::Unbound("r")],
+    },
+    PrefixProgram {
+        name: "an error in an expression keeps its writes",
+        before: "set x 1",
+        body: "expr {[incr x] + [error mid]}",
+        after: "puts $x",
+        printed: "2\n",
+        first: "8.4",
+        flattened: &[PrefixFact::Number("x", 2)],
+    },
+];
+
+impl PrefixProgram {
+    /// The program as a script: the `catch` at the top level is one call.
+    fn at_the_top_level(&self) -> String {
+        format!(
+            "{}\ncatch {{{}}} m\n{}\n",
+            self.before, self.body, self.after
+        )
+    }
+
+    /// The program in a procedure, where a one-block body is lowered.
+    fn in_a_procedure(&self) -> String {
+        format!(
+            "proc p {{}} {{\n{}\ncatch {{{}}} m\n{}\n}}\np\n",
+            self.before, self.body, self.after
+        )
+    }
+
+    /// The program with `try … on error` for its `catch` (8.6 on).
+    fn with_a_handler(&self) -> String {
+        format!(
+            "proc p {{}} {{\n{}\ntry {{{}}} on error {{m}} {{}}\n{}\n}}\np\n",
+            self.before, self.body, self.after
+        )
+    }
+
+    /// What the analysis of `function` claims of `fact`: that it holds, a
+    /// different value or binding, or nothing.
+    fn claim(fact: &PrefixFact, function: &tcl_compiler::compilation_unit::FunctionUnit) -> Claim {
+        let last = |name: &str| {
+            let symbol = function.ssa.var_symbol(name).expect("the variable");
+            function
+                .sccp
+                .values
+                .iter()
+                .filter(|((sym, _), _)| *sym == symbol)
+                .max_by_key(|((_, version), _)| *version)
+                .map(|(_, value)| value.clone())
+        };
+        let value = |name: &str, texts: &[String]| match last(name) {
+            Some(LatticeValue::Const(ConstValue::String(held))) if texts.contains(&held) => {
+                Claim::Holds
+            }
+            Some(LatticeValue::Const(ConstValue::Int(held)))
+                if texts.contains(&held.to_string()) =>
+            {
+                Claim::Holds
+            }
+            Some(LatticeValue::Const(_)) => Claim::Contradicts,
+            _ => Claim::Silent,
+        };
+        match fact {
+            PrefixFact::Text(name, text) => value(name, &[(*text).to_owned()]),
+            PrefixFact::Number(name, number) => value(name, &[number.to_string()]),
+            PrefixFact::Unbound(name) => {
+                let symbol = function.ssa.var_symbol(name).expect("the variable");
+                let held = function
+                    .sccp
+                    .existence
+                    .iter()
+                    .filter(|((sym, _), _)| *sym == symbol)
+                    .max_by_key(|((_, version), _)| *version)
+                    .map(|(_, fact)| *fact);
+                match held {
+                    Some(Existence::Unbound) => Claim::Holds,
+                    Some(Existence::Bound(_)) => Claim::Contradicts,
+                    _ => Claim::Silent,
+                }
+            }
+        }
+    }
+}
+
+/// What an analysis says of a fact tclsh bears out.
+#[derive(Debug, PartialEq, Eq)]
+enum Claim {
+    /// It proves the fact.
+    Holds,
+    /// It proves something else, which tclsh does not do.
+    Contradicts,
+    /// It proves nothing of the place.
+    Silent,
+}
+
+/// The prefix rule holds in the default build — a `catch` at the top level, or
+/// one whose body is not a straight line, is one call whose body writes are
+/// may-definitions, and a `catch` in a procedure with a one-block body is
+/// lowered into blocks — and in the faithful-exceptions build, which gives a
+/// `try` handler blocks and exception edges: an error after `k` stores leaves
+/// those `k` and nothing else, so the handler is thrown to with them. Each
+/// program prints what tclsh 8.4 to 9.1 print, before and after `tcl opt`, in
+/// every shape. Where a body's blocks are the analysis's own, what it proves
+/// is exact: the place written before the error holds the value it was given
+/// and the places after it hold what they did. A body that is one call
+/// proves no such thing, and the places it may write hold no value.
+#[test]
+fn the_prefix_rule_holds_in_both_builds() {
+    for program in &PREFIX_PROGRAMS {
+        let (top, in_proc, handled) = (
+            program.at_the_top_level(),
+            program.in_a_procedure(),
+            program.with_a_handler(),
+        );
+        prints_under_releases_from(&top, program.printed, program.first);
+        prints_under_releases_from(&in_proc, program.printed, program.first);
+        let handler_first = if program.first < "8.6" {
+            "8.6"
+        } else {
+            program.first
+        };
+        prints_under_releases_from(&handled, program.printed, handler_first);
+
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            for fact in program.flattened {
+                // The body's blocks are the analysis's own: it proves the fact.
+                for source in [&in_proc, &handled] {
+                    let unit = unit_of(source, dialect);
+                    let function = unit.procedures.get("::p").expect("the procedure");
+                    assert_eq!(
+                        PrefixProgram::claim(fact, function),
+                        Claim::Holds,
+                        "{}: {dialect}\n{source}",
+                        program.name
+                    );
+                }
+                // One call whose body writes are may-definitions proves
+                // nothing of a place it may write, and never the value the
+                // place held before it.
+                let unit = unit_of(&top, dialect);
+                assert_ne!(
+                    PrefixProgram::claim(fact, &unit.top_level),
+                    Claim::Contradicts,
+                    "{}: {dialect}\n{top}",
+                    program.name
+                );
+            }
+        }
+    }
+}
+
+/// A command of a `catch` body may fail wherever it stands, and the handler is
+/// thrown to with what the body has stored by then: after `set x 1; catch
+/// {set x 2; foo; set x 1}` the handler may see `x` at 2 — `foo` raises
+/// between the stores — so the lattice holds no constant for it, the store of
+/// 2 is not dead, and the program prints what tclsh prints. The optimiser
+/// had deleted `set x 2` and `set a 2`, which print `1` and `a=3` where tclsh
+/// 8.4 to 9.1 print `2` and `a=2`, and the handler's state was joined from the
+/// state before the body and the state at its end alone.
+#[test]
+fn a_throw_between_two_writes_is_a_state_the_handler_sees() {
+    let programs = [
+        (
+            "proc foo {} {error x}\nproc p {} {\n    set x 1\n    catch {set x 2; foo; set x 1}\n    puts $x\n}\np\n",
+            "2\n",
+            "set x 2",
+        ),
+        (
+            "proc foo {} {error x}\nproc p {} {\n    set a 1\n    catch {set a 2; foo; set a 3}\n    puts \"a=$a\"\n}\np\n",
+            "a=2\n",
+            "set a 2",
+        ),
+    ];
+    for (source, printed, store) in programs {
+        let name = if source.contains("set a 1") { "a" } else { "x" };
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let (rewritten, _) = optimised(source, dialect);
+            assert!(
+                rewritten.contains(store),
+                "{dialect}: {store} stays\n{rewritten}"
+            );
+            let held = last_value(source, dialect, "::p", name);
+            assert!(
+                !matches!(held, LatticeValue::Const(ConstValue::Int(1 | 3))),
+                "{dialect}: the handler may see 2, not a constant 1 or 3: {held:?}"
+            );
+        }
+        prints_under_releases_from(source, printed, "8.4");
+    }
+}
+
+/// A statement after one that certainly raises never runs: after `array set b
+/// {k v}`, the body `lassign {x y} a b; set z 1` stops at the array, so `z`
+/// is never set where the handler runs, in a `catch` lowered into blocks and
+/// in the body of a `try`, which stays one block.
+#[test]
+fn a_statement_after_a_certain_error_never_runs() {
+    let in_catch = "proc p {} {\n    array set b {k v}\n    catch {lassign {x y} a b; set z 1} m\n    puts [info exists z]\n}\np\n";
+    let in_try = "proc p {} {\n    array set b {k v}\n    try {lassign {x y} a b; set z 1} on error {} {}\n    puts [info exists z]\n}\np\n";
+    for (source, first) in [(in_catch, "8.5"), (in_try, "8.6")] {
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let unit = unit_of(source, dialect);
+            assert_eq!(
+                last_existence(&unit, "::p", "z"),
+                UNBOUND,
+                "{dialect}: z is never set\n{source}"
+            );
+        }
+        prints_under_releases_from(source, "0\n", first);
+    }
+}
+
+/// An error outside any `catch` or `try` is the procedure's own, with no
+/// handler to be thrown to, and nothing that follows it is claimed: after
+/// `lassign {x y} a b` over an array `b` a `catch` the procedure goes on to
+/// run is still reached, as it was before the prefix rule.
+#[test]
+fn a_certain_error_outside_a_handler_claims_nothing() {
+    let source = "proc p {} {\n    array set b {k v}\n    lassign {x y} a b\n    catch {set z 1}\n    return $z\n}\n";
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        let unit = unit_of(source, dialect);
+        let function = unit.procedures.get("::p").expect("the procedure");
+        let reached = function
+            .sccp
+            .executable_blocks
+            .iter()
+            .any(|block| function.ssa.block_name(*block).starts_with("catch_body"));
+        assert!(reached, "{dialect}: the body of the catch is reached");
+    }
+}
+
+/// A `try` body that cannot fall through is thrown to from the point it
+/// raises at, and its first command may fail before it stores anything, with
+/// the state the body entered with: after `try {set x [expr {1 / $d}]; error
+/// boom} on error {} {}` the handler sees `x` unbound where the division
+/// raised, so `info exists x` decides nothing, the program prints `no` for a
+/// zero divisor and `yes` for any other, and it does so before and after `tcl
+/// opt`.
+#[test]
+fn a_body_that_ends_in_an_error_may_have_failed_at_its_start() {
+    let source = "proc p {d} {\n    try {set x [expr {1 / $d}]; error boom} on error {} {}\n    if {[info exists x]} {return yes}\n    return no\n}\nputs [p 0]\nputs [p 1]\n";
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        let (rewritten, _) = optimised(source, dialect);
+        assert!(
+            rewritten.contains("return no"),
+            "{dialect}: x may be unbound where the handler runs\n{rewritten}"
+        );
+    }
+    prints_under_releases_from(source, "no\nyes\n", "8.6");
 }

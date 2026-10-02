@@ -42,6 +42,7 @@ pub mod body;
 pub mod builtins;
 pub mod cell_update;
 pub mod cell_write;
+pub mod completion;
 pub mod const_ops;
 pub mod context;
 pub mod declaration;

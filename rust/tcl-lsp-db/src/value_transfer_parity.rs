@@ -63,7 +63,15 @@ fn installed_unit(
 /// `qname`'s lattice, value by value: `(variable, version, value)`,
 /// sorted.
 fn lattice_of(unit: &CompilationUnit, qname: &str) -> Vec<(String, u32, String)> {
-    let fu = unit.procedures.get(qname).expect(qname);
+    lattice_values(unit.procedures.get(qname).expect(qname))
+}
+
+/// The top level's lattice, listed as [`lattice_of`] lists a procedure's.
+fn top_lattice_of(unit: &CompilationUnit) -> Vec<(String, u32, String)> {
+    lattice_values(&unit.top_level)
+}
+
+fn lattice_values(fu: &tcl_compiler::compilation_unit::FunctionUnit) -> Vec<(String, u32, String)> {
     let mut values: Vec<(String, u32, String)> = fu
         .sccp
         .values
@@ -683,6 +691,95 @@ fn existence_agrees_on_both_paths() {
                 Some(Existence::Bound(BindingKind::Scalar)),
                 "{dialect} {path}: incr binds n on its normal path"
             );
+        }
+    }
+}
+
+/// The seven ordered-state programs of the value-transfer contract answer
+/// alike on both paths, value for value, in a procedure and at the top level,
+/// under a release, a release with its own numeral grammar, a vendor dialect
+/// declaring its base and the lenient `tcl` profile. Over `x` = 1 the first six
+/// leave the expression's value in `r#1` and the last write it made in `x#2` —
+/// 5 and 2, 0 and 1, 21 and 10, 5 and 3, 2 and 2, 3 and 2 — and the seventh,
+/// whose expression stops at an error inside a `catch`, leaves `x#2` at 2 in a
+/// procedure, where the `catch` is lowered into blocks and its handler is
+/// thrown to with the write the expression made, and unknown at the top level,
+/// where the `catch` is one call, so no read after it is forwarded the 1 it
+/// held before.
+#[test]
+fn the_seven_ordered_state_witnesses() {
+    const EXPRESSIONS: [(&str, i64, i64); 6] = [
+        ("{$x + [incr x] + $x}", 5, 2),
+        ("{0 && [incr x]}", 0, 1),
+        ("{$x + [set x 10] + $x}", 21, 10),
+        ("{[incr x] + [incr x]}", 5, 3),
+        ("{$x ? [incr x] : [incr x 10]}", 2, 2),
+        ("\"$x + [incr x]\"", 3, 2),
+    ];
+    const CAUGHT: &str = "catch {expr {[incr x] + [error mid]}} msg\nputs $msg\nputs $x\n";
+    let int = |value: i64| Some(LatticeValue::Const(ConstValue::Int(value)));
+    // Each program as a procedure's body and as the top level, with what its
+    // `r#1` and `x#2` hold, or `None` where the expression has no value.
+    let mut programs: Vec<(String, String, Option<i64>, Option<i64>)> = EXPRESSIONS
+        .iter()
+        .map(|&(expression, value, after)| {
+            let body = format!("set x 1\nset r [expr {expression}]\nputs $r\nputs $x\n");
+            (expression.to_owned(), body, Some(value), Some(after))
+        })
+        .collect();
+    programs.push((
+        "an error in the middle".to_owned(),
+        format!("set x 1\n{CAUGHT}"),
+        None,
+        None,
+    ));
+    for dialect in ["tcl8.6", "tcl9.0", "f5-irules", "tcl"] {
+        for (name, body, value, after) in &programs {
+            let indented = format!("    {}\n", body.trim_end().replace('\n', "\n    "));
+            for (form, src) in [
+                ("procedure", format!("proc p {{}} {{\n{indented}}}\n")),
+                ("top level", body.clone()),
+            ] {
+                let db = TclDatabase::default();
+                let file = SourceFile::new(&db, src, dialect.to_owned(), None);
+                let (memoised, direct) = both_paths(&db, file);
+                let at = format!("{dialect} {form}: {name}");
+                if form == "procedure" {
+                    assert_eq!(
+                        lattice_of(&memoised, "::p"),
+                        lattice_of(&direct, "::p"),
+                        "{at}"
+                    );
+                } else {
+                    assert_eq!(top_lattice_of(&memoised), top_lattice_of(&direct), "{at}");
+                }
+                let lookup = |unit: &CompilationUnit, name: &str, version: u32| {
+                    let function = if form == "procedure" {
+                        unit.procedures.get("::p")?
+                    } else {
+                        &unit.top_level
+                    };
+                    let sym = function.ssa.var_symbol(name)?;
+                    function.sccp.values.get(&(sym, version)).cloned()
+                };
+                for (path, unit) in [("memoised", &*memoised), ("direct", &direct)] {
+                    match (value, after) {
+                        (Some(value), Some(after)) => {
+                            assert_eq!(lookup(unit, "r", 1), int(*value), "{at} {path}: r");
+                            assert_eq!(lookup(unit, "x", 2), int(*after), "{at} {path}: x");
+                        }
+                        _ => assert_eq!(
+                            lookup(unit, "x", 2),
+                            if form == "procedure" {
+                                int(2)
+                            } else {
+                                Some(LatticeValue::Overdefined)
+                            },
+                            "{at} {path}: the error path forwards no 1"
+                        ),
+                    }
+                }
+            }
         }
     }
 }

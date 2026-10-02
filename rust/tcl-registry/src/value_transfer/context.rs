@@ -172,7 +172,7 @@ impl Level {
     /// nothing more, not even a free step.
     fn take(counter: &AtomicU64, units: u64) -> bool {
         let mut enough = true;
-        let _ = counter.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |left| {
+        let _ = counter.try_update(Ordering::Relaxed, Ordering::Relaxed, |left| {
             if left == 0 || left < units {
                 enough = false;
                 Some(0)

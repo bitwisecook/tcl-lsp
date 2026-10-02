@@ -58,8 +58,10 @@ registry states as scripts stored to run later (`CommandRegistry::
 callback_script_indices`: `after`, `fileevent`, `bind`, a variable trace's
 callback, never a definition's body, which runs in a frame of its own) and
 what a procedure named as a callback writes in the global frame
-(`deferred_writes.rs`); a callback that writes a computed name makes every
-name externally mutable, as a trace on one does. SCCP applies that test to
+(`deferred_writes.rs`); a callback the scan cannot read — one that writes a
+computed name, a computed word, a command the module does not define — makes
+every name externally mutable, as a trace on a computed name does. SCCP applies
+that test to
 every def it evaluates, so a constant branch or a folded value never
 involves a traced, aliased or callback-written name in the first place;
 `propagation::run_load_forwarding` (O102) applies it independently because
@@ -72,15 +74,22 @@ A plain name in the top-level script is the global `::name`, so a call there
 to a command the module cannot see — one neither the registry ships for the
 dialect nor the module binds
 (`ModuleCommandBindings::may_dispatch_unresolved`) — may write, unset or read
-it with nothing in the script to show it. So may a call that sources a file
-(`Traits::SOURCES_FILE`), which runs the file in the frame of the call, a
-procedure's frame included. The CFG builder puts a
-`SyntheticMarker::UnseenCall` statement where such a call runs: after the
-call's own head, ahead of a statement whose `[…]` substitution runs one, in
-front of a condition's branch, and after an opaque `switch` whose arm does.
-It defines and reads nothing; the SSA records the version each name holds
-there (`SsaFunction::is_observed_by_unseen_call`). Each recorded version —
-a definition or a φ — is `Overdefined` whatever flows into it, and the
+it with nothing in the script to show it. So may a call whose command is
+computed, and a call that sources a file (`Traits::SOURCES_FILE`), which runs
+the file in the frame of the call, a procedure's frame included. The CFG
+builder puts a `SyntheticMarker::UnseenCall` statement where such a call runs:
+after the call's own head, ahead of a statement whose `[…]` substitution runs
+one (the body of a `catch` a substitution holds included), in front of a
+condition's branch, after an opaque `switch` whose arm does, and ahead of an
+opaque `catch` or `try` whose body does.
+It carries no names; the SSA records the version each name holds there
+(`SsaFunction::is_observed_by_unseen_call`). A call reads its words before its
+head runs, so the marker after a call states the names those words read — its
+head, each word that is not brace-quoted, and the commands such a word runs —
+as may-definitions (`enrich_unseen_call_reads`): a word keeps the version it
+reads (`set cmd foo; $cmd`, `set a 1; get $a`), and a read after the call is of
+a new version, which is recorded. Each recorded version — a definition or a φ
+— is `Overdefined` whatever flows into it, and the
 existence rung treats the marker as a clobber of every place, so
 `[info exists]` after it decides nothing. O102 skips a chain whose version is
 recorded and O109 keeps a store it holds, as each already did for a

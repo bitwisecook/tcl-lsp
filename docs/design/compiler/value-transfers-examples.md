@@ -556,61 +556,72 @@ Under the contracts the initial cell's existence is a fact (absent, so
 
 ```tcl
 set x 1
-puts [expr {0 && [incr x]}]   ;# today: O101 folds the expression to 0 and O109 deletes the store
-puts $x                       ;# today: O102 forwards 1 — and 1 is right
+puts [expr {0 && [incr x]}]   ;# O101 folds the expression to 0
+puts $x                       ;# O102 forwards 1 — and 1 is right
 ```
 
 The program prints `0` and `1` in every release, optimised or not: the
-right operand of `0 &&` is never reached, so the increment never runs, and
-that laziness is the one part of the ordered state the tool already has.
+right operand of `0 &&` is never reached, so the increment never runs and
+the evaluation applies no write for it.
 
 ```tcl
 set x 1
-puts [expr {$x + [incr x] + $x}]   ;# merged: not folded
-puts $x                            ;# merged: not forwarded (#2141, fixed by #2215); the program prints 5 and 2, optimised or not
+set r [expr {$x + [incr x] + $x}]   ;# r is 5 and x is 2 for every consumer
+puts $r                             ;# O100 forwards 5
+puts $x                             ;# O100 forwards 2, the nested increment's store
 ```
 
 ```tcl
 set x 1
-puts [expr {$x + [set x 10] + $x}]   ;# merged: not folded
-puts $x                              ;# merged: O109 deletes `set x 1`, and the optimised program raises `can't read "x"`
+set r [expr {$x + [set x 10] + $x}] ;# r is 21 and x is 10
+puts $r                             ;# O100 forwards 21
+puts $x                             ;# O100 forwards 10, and `set x 1` is kept
 ```
 
-The first is `5` then `2` and the second `21` then `10` in every release.
-At `3b5eba8a` both rewrites changed the output: the nested `[incr x]` and
-`[set x 10]` were writes the forwarding never saw. The merged tree sees
-both writes, and the increment's read keeps its store; but the host
-statement's uses drop a name its nested `[set x 10]` defines, so the
-first `$x` is no use of `set x 1` and O109 finds the store dead — the gap
-slice 9's VT9.3 closes. Under the contracts they are the
-invocation's ordered stores — a read through the `variable` service
-consults the state's `writes` first, so `$x` after `[incr x]` is `2`, the
-expression folds to `5`, and the store the following `puts` forwards is
-the nested one's.
+The first prints `5` then `2` and the second `21` then `10` in every
+release, optimised or not. A nested `[incr x]` or `[set x 10]` is a write of
+the frame, made in the expression's order: a read through the `variable`
+service consults the state's `writes` first, so `$x` after `[incr x]` is `2`,
+the expression is `5`, and the store the later `puts` forwards is the nested
+one's. The statement's words read `x` before, between and after the nested
+`[set x 10]`, and the SSA gives a statement one version of a name, so the
+call that carries the write reads the version before it, by name, wherever a
+word of the statement reads the place, and no word of the statement is an
+operand to forward: `set x 1` stays, and nothing is forwarded the earlier
+value.
+
+```tcl
+set x 1
+puts [expr {$x + [incr x] + $x}]   ;# not folded: the host is a `puts`, which keeps the effect-free policy
+puts $x                            ;# not forwarded (#2141); the program prints 5 and 2, optimised or not
+```
+
+A `puts` argument, a `return`, a condition and a command's value other than
+an `expr` keep the effect-free policy, which declines a nested write that
+runs: the statement is not folded, and the effect call's definition of the
+place keeps a later read off the earlier version.
 
 ```tcl
 proc p {} {
-    set n 1                ;# merged: kept — the nested increment's read is a use (#2215)
+    set n 1                ;# kept — the nested increment's read is a use
     set r [expr {$n + [incr n]}]
     return $r
 }
 proc q {} {
-    set n 1                ;# merged: kept, with no W211
+    set n 1                ;# kept, with no W211
     set r [expr {[incr n] + [incr n]}]
     return $r
 }
 ```
 
-`p` is `3` and `q` is `5` in every release, optimised or not. At
-`3b5eba8a`, optimised, `p` raised `can't read "n": no such variable` in
-every release, and `q` raised it under 8.4 and answered `3` from 8.5,
-where the absent cell is created. This
-is the shape the comment on #2050 names: the read is inside a braced
-`expr`, so neither the dead-store guard nor the unused-variable check sees
-it. Under the contracts a read reached through the expression route is an
-SSA use of the version it reads, `LocalWrites` is the policy that admits
-the nested increments at all, and an error inside the expression ends the
-evaluation with the writes so far.
+`p` is `3` and `q` is `5` in every release, optimised or not. This is the
+shape the comment on #2050 names: the read is inside a braced `expr`, so
+neither the dead-store guard nor the unused-variable check would see it if it
+were not an SSA use of the version it reads. `LocalWrites` is the policy that
+admits the nested increments, and an error inside the expression ends the
+evaluation with the writes so far; no route yields an error completion yet,
+so an expression with an error in the middle is not evaluated, and `catch
+{expr {[incr x] + [error mid]}}` leaves `x` unknown.
 
 ### Bounded-loop enumeration · rung
 

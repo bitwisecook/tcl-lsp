@@ -629,4 +629,30 @@ mod tests {
         assert_eq!(fact.bodies, [Some(1)]);
         assert!(fact.writes.iter().all(Vec::is_empty));
     }
+
+    /// An element of the case list collapses its backslashes under the target
+    /// release's escape grammar: before 8.6 a `\x` takes every hex digit that
+    /// follows, so `a\x41b` is not `aAb` and the default arm is the one run.
+    #[test]
+    fn an_element_of_the_case_list_is_collapsed_under_the_targets_escapes() {
+        let selected = |dialect: &str| {
+            let profile = crate::model::ingress::resolve_environment(dialect).analyser_profile();
+            let inputs = LiteralInputs::new(
+                "switch",
+                None,
+                &["aAb", r#""a\x41b" {puts hit} default {puts miss}"#],
+                Some(profile),
+            );
+            let TransferAnswer::Selection(fact) =
+                SWITCH.transfer(FactDomain::Selection, &inputs, &mut Budget::evaluation())
+            else {
+                panic!("a selection");
+            };
+            fact.selected
+        };
+        assert_eq!(selected("tcl8.4"), [Some(1)]);
+        assert_eq!(selected("tcl8.5"), [Some(1)]);
+        assert_eq!(selected("tcl8.6"), [Some(0)]);
+        assert_eq!(selected("tcl9.0"), [Some(0)]);
+    }
 }

@@ -47,6 +47,10 @@ labelled `wip` commits that compile keep the state legible. A lane that
 concludes it cannot finish says so in its tracking document and leaves its last
 checkpoint compiling.
 
+## Resuming
+
+[handoff.md](handoff.md) is the orchestrator's resume point: where each lane stands, what is queued on the running implementers, what follows the lanes, and how the work is run. It is rewritten at every push.
+
 ## In flight
 
 - [value-transfers.md](value-transfers.md) — slices 2 to 13 of
@@ -93,7 +97,10 @@ checkpoint compiling.
   and a subject the option scan may read — on a release before 8.5, or with
   the arms as words — stays to the selection record; and the comments, the
   design pages, the Explorer's rendering and I231's wording were repaired
-  beside them), and slice 8
+  beside them; two later rounds made an opaque `catch`, a deferred `try`, a
+  computed head and a callback the scan cannot read state what they may write,
+  a `[…]` substitution mark the unseen code in every body it runs, and a read
+  after unseen code no read before it is set), and slice 8
   (the existence rung: a
   flow-sensitive bound / unbound / may-bound fact per place and per SSA
   version, owned by the solver and fed by storage outcomes, the entry
@@ -103,8 +110,20 @@ checkpoint compiling.
   guard narrowing as an edge refinement; W210, W211, W213, W214, O108,
   O109, I230, O101 and S100 consume the one fact; `const`, `array unset`
   and `array default` have semantics; a fast-tier request reads
-  `Unavailable`) have landed; the slices after them are planned item by
-  item in the tracking document's § *Plan for slices 2–13*.
+  `Unavailable`), and slice 9 (nested writes in expressions: the ordered
+  evaluation state at `LocalWrites` applies a nested write to a place it can
+  own in the expression's order, so `set r [expr {$x + [incr x] + $x}]` gives
+  `r` 5 and leaves `x` at 2 for every consumer; a statement's substitutions are
+  evaluated once, as the synthetic call that carries their writes and the host
+  that takes the result, and a command's own substituting words run before it,
+  in order, under one state; a statement's reads beside a write its own
+  substitutions make are read by name, so O102 forwards no earlier value and
+  O109 keeps the store they read; O100 and O102 forward the nested store's
+  value; a nested write to a place the state cannot own declines as
+  `StatefulNested`; and the seven ordered-state witnesses run through the direct
+  unit, the memoised unit, `tcl opt` and the registry's routes) have landed; the
+  slices after them are planned item by item in the tracking document's §
+  *Plan for slices 2–13*.
 - [consumer-contracts.md](consumer-contracts.md) — steps 1 to 9 of
   [registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
   § *Build order*: step 1 (the four rulings taken as decided, and the

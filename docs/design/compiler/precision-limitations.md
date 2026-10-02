@@ -132,16 +132,23 @@ frame is read.
 scan see a nested command's read or write only where the lowering places a
 synthetic statement for it: a condition's `<cond>`, a value word's or a
 `return` word's own `<upvar-invalidate>`, and a host statement's own uses.
-Slice 8's audit of every position an existence read can reach (VT8.5)
-found three positions with no synthetic statement at all, so **both** an
+An audit of every position an existence read can reach found three
+positions with no synthetic statement at all, so **both** an
 existence and a value read there are invisible — not a precision loss but
 a miscompile, verified against `tclsh` 8.6.18 (each pair below is the
 original's printed output, then the optimised program's):
 
-- **A script body nested in a substitution** (`[catch {…}]`, `[eval {…}]`,
-  `[lmap v {1} {…}]`) — records no read or write of the outer frame's
-  names at all (#2231): `set x 1; puts [catch {unset x}]` loses `set x 1`
-  to O109 / O126.
+- **A script body nested in a substitution** (`[eval {…}]`,
+  `[lmap v {1} {…}]`, an `if` arm or a loop body, `[namespace eval …]`,
+  `[apply …]`) — records no read or write of the outer frame's names at
+  all (#2323): `set x 1; puts [eval {info exists x}]; set x 2` loses
+  `set x 1` to O109 and prints `0` where tclsh prints `1`, and `set x 1;
+  puts [foreach v 1 {incr x}]; puts $x` prints `1` where tclsh prints `2`.
+  The one script a substitution runs once, in this frame, whatever it
+  completes with — the protected script of a `catch` and the body of a
+  `try`, which the clause grammar names — is recorded: `set x 1; puts
+  [catch {unset x}]` keeps `set x 1`, and `set x 1; set c [catch {incr x}];
+  if {$x == 2} …` is not decided on the value `x` held before the body.
 - **An `uplevel 0 {…}` body** (#2261) — that is the *current* frame, not a
   nested one, so its reads and writes are the caller's, but nothing records
   them:
@@ -159,12 +166,37 @@ original's printed output, then the optimised program's):
 
 Why it has not been done: each position needs the lowering to model a body
 it does not open a synthetic statement for at all, which is more than a
-scan-order fix — the nested-substitution case is tracked as #2231 and
-named for the interface contract's slice 9 (nested writes in expressions);
-`uplevel 0` (#2261) and the loop header's list word (#2262) are not yet
-assigned to a slice. Extend the synthetic-statement placement (or, for
+scan-order fix — the bodies a substitution runs other than those of `catch`
+and `try` are tracked as #2323; `uplevel 0` (#2261) and the loop header's
+list word (#2262) are tracked on their own. Extend the synthetic-statement placement (or, for
 `uplevel 0`, model the body as reading and writing the *current* frame
 rather than a nested one) when one of these is the motivating case.
+
+## Open — a statement's nested writes are evaluated for an assignment or an `expr` only
+
+The solver evaluates the writes a statement's own `[…]` substitutions make —
+the ordered evaluation state under `LocalWrites` — only where the statement is
+an assignment of an expression, an `expr` on its own, or an assignment of one
+`[expr …]` substitution (`LatticeDriver::evaluate_embedded`). A `puts`
+argument, a `return`, a branch condition and any other command's value keep
+the effect-free policy, which declines a nested write that runs:
+`puts [expr {$x + [incr x] + $x}]; puts $x` folds nothing and forwards
+nothing past the statement, though it prints `5` and `2`, and `set r [expr
+{$x + [incr x] + $x}]; puts $r; puts $x` folds both reads. That is sound, and
+short of what the assignment form proves.
+
+Two shapes are left undecided as well. A nested command that reads a variable
+no statement records as a use (`[string length $y]`, `[incr x $y]`) leaves the
+expression unevaluated: the synthetic call and the host record the reads of the
+places the words write and of the expression's own variables, not of a nested
+command's own words. And an error completion, which no route yields, ends no
+evaluation with its prefix: `catch {expr {[incr x] + [error mid]}}` leaves `x`
+unknown rather than 2.
+
+Why it has not been done: each shape needs the host statement to state the
+reads of its own substitutions, or a route that raises with a prefix of
+stores, which is more than a policy change. Extend the host list, and the
+reads the call records, when one of these is the motivating case.
 
 ## Accepted — a nested unbind's kill is not a definition
 

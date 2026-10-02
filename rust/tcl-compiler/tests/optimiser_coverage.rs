@@ -413,11 +413,19 @@ fn o101_module_wide_variable_trace_guard() {
     // this trace, `x` stays a plain local, so `expr {$x + 1}` still folds.
     assert!(
         optimised(
-            "trace add variable y write cb\nset x 6\nputs [expr {$x + 1}]",
+            "proc cb {args} {}\ntrace add variable y write cb\nset x 6\nputs [expr {$x + 1}]",
             TCL,
         )
         .contains("puts 7")
     );
+
+    // A callback the module cannot see may write any global, `x` included,
+    // whichever variable the trace is on.
+    assert!(opt_absent(
+        "trace add variable y write cb\nset x 6\nputs [expr {$x + 1}]",
+        TCL,
+        "O101"
+    ));
 
     // TP (trace removed later still declines to fold): the fact is
     // flow-insensitive by design — a later `trace remove` does not
@@ -1731,11 +1739,10 @@ fn o118_lindex_folding() {
 
 #[test]
 fn o119_multi_set_packing() {
-    // OMISSION (as in optimiser.rs): with an `eval {$a $b $c}` barrier the
-    // constants are forwarded THROUGH the braced `eval {...}` literal (O102/O109)
-    // — `eval {1 2 3}` — so no surviving stores remain and O119 never fires.
-    // tclsh: `set a 1; set b 2; set c 3; eval {$a $b $c}` and `eval {1 2 3}` are
-    // identical, so the fold is sound. Assert the packing-disabled invariants.
+    // As in optimiser.rs: with an `eval {$a $b $c}` barrier the constants are
+    // forwarded THROUGH the braced `eval {...}` literal (O102), and the command
+    // the script runs is one the module cannot see, which may read the globals
+    // `a`, `b` and `c`: the stores stay and O119 packs them.
 
     // Tcl 9.0: individual `set` is faster ⇒ O119 must not fire.
     assert!(opt_absent(
@@ -1745,10 +1752,10 @@ fn o119_multi_set_packing() {
     ));
     // Too few consecutive sets ⇒ no packing.
     assert!(opt_absent("set a 1\nset b 2\neval {$a $b}", TCL, "O119"));
-    // The eval-barrier form is folded rather than packed. tclsh: identical value.
+    // The words are forwarded and the stores are packed. tclsh: the same program.
     assert_eq!(
         optimised("set a 1\nset b 2\nset c 3\neval {$a $b $c}", TCL),
-        "eval {1 2 3}"
+        "lassign {1 2 3} a b c\neval {1 2 3}"
     );
 }
 
@@ -1956,6 +1963,24 @@ fn shimmer_no_false_positives() {
         shimmer_count("set x true\nset y [expr {$x + 1}]", "S100"),
         0
     );
+}
+
+/// The variables `catch` writes hold the script's result and its options
+/// dictionary, not the integer completion code `catch` itself returns, so a
+/// list or dictionary command over one shimmers nothing — in the top-level
+/// script and in a procedure whose body the graph keeps as one statement, with
+/// the result variable alone or beside the options variable.
+#[test]
+fn a_catch_result_variable_holds_no_integer_to_shimmer() {
+    for source in [
+        "catch {foo} msg\nputs [lindex $msg 0]\n",
+        "catch {foo} msg opts\nputs [dict get $opts -code]\nputs [lindex $msg 0]\n",
+        "proc p {} {\n catch {if {1} {foo}} msg\n puts [lindex $msg 0]\n}\n",
+        "proc p {} {\n catch {set x [foo]} msg\n puts [dict get $msg x]\n}\n",
+        "proc p {} {\n catch {foo} msg\n puts [dict get $msg x]\n}\n",
+    ] {
+        assert_eq!(shimmer_codes(source), Vec::<String>::new(), "{source}");
+    }
 }
 
 #[test]

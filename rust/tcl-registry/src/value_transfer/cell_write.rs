@@ -29,6 +29,8 @@
 //! solver transfers the typed assignment natively; this route serves the
 //! invocation-shaped uses, `[set x]` first.
 
+use tcl_dialect::TclVersion;
+
 use crate::arg_role::ArgRole;
 use crate::completion::{CompletionCode, CompletionCodeDomain};
 use crate::types::TclType;
@@ -36,12 +38,16 @@ use crate::types::TclType;
 use super::CommandSemantics;
 use super::answers::{
     BindingKind, CompletionOutcome, CompletionPath, DependencyEvidence, EvalAnswer, ExactValue,
-    ExactValueOrUnavailable, ExistenceOutcome, ExistenceTransfer, InvocationOutcome, NumericValue,
-    RepresentationEvidence, RouteIdentity, StoreOutcome, TransferAnswer, TypeFacts,
+    ExactValueOrUnavailable, Existence, ExistenceOutcome, ExistenceTransfer, InvocationOutcome,
+    NumericValue, RepresentationEvidence, RouteIdentity, StoreOutcome, TransferAnswer, TypeFacts,
 };
+use super::const_ops::{Raised, TargetSemantics};
 use super::context::Budget;
 use super::decline::DeclineReason;
-use super::inputs::{AnalysisInputs, DomainFact, FactDomain, FactView, OperandId, TargetId};
+use super::inputs::{
+    AnalysisInputs, DomainFact, FactDomain, FactView, OperandId, PlaceRef, TargetId,
+};
+use super::publication::{ArrayWrite, raised_outcome};
 use super::route::{EvalRoute, NativeEvalId};
 
 const NORMAL: &[CompletionCode] = &[CompletionCode::Ok];
@@ -94,6 +100,48 @@ impl CellWriteSemantics {
             (RepresentationEvidence::Unknown, Some(NumericValue::Bool(_))) => TclType::Boolean,
             (RepresentationEvidence::Unknown, None) => TclType::String,
         }
+    }
+
+    /// The error reading the absent place `place` raises: `can't read "x":
+    /// no such variable` in every release, with `-errorcode` `NONE` before
+    /// 8.6 and `TCL LOOKUP VARNAME x` from it (measured, 8.4 to 9.1). An
+    /// element's message and code say whether its array exists, which the
+    /// fact does not: the error is certain and its wording unproven.
+    fn read_unbound(input: &dyn AnalysisInputs, place: &PlaceRef) -> EvalAnswer {
+        let target = TargetSemantics::of(input.context().profile);
+        let name = &place.name;
+        let raised = if place.is_element() {
+            Raised::unproven()
+        } else {
+            Raised::unanimous(&target, |release| {
+                let code = if release >= TclVersion::V8_6 {
+                    format!("TCL LOOKUP VARNAME {name}")
+                } else {
+                    "NONE".to_owned()
+                };
+                (format!("can't read \"{name}\": no such variable"), code)
+            })
+        };
+        raised_outcome(NativeEvalId::CellWrite, REVISION, &target, raised)
+    }
+
+    /// The error reading the array `name` as a scalar raises: `can't read
+    /// "b": variable is array`, with `-errorcode` `NONE` before 8.6 and `TCL
+    /// READ VARNAME` from it (measured, 8.4 to 9.1).
+    fn read_array(input: &dyn AnalysisInputs, name: &str) -> EvalAnswer {
+        let target = TargetSemantics::of(input.context().profile);
+        let raised = Raised::unanimous(&target, |release| {
+            let code = if release >= TclVersion::V8_6 {
+                "TCL READ VARNAME"
+            } else {
+                "NONE"
+            };
+            (
+                format!("can't read \"{name}\": variable is array"),
+                code.to_owned(),
+            )
+        });
+        raised_outcome(NativeEvalId::CellWrite, REVISION, &target, raised)
     }
 
     fn outcome(result: ExactValue, stores: Vec<StoreOutcome>) -> EvalAnswer {
@@ -187,6 +235,17 @@ impl CommandSemantics for CellWriteSemantics {
                 if let Err(reason) = input.place(target.0) {
                     return EvalAnswer::Declined(reason);
                 }
+                // A place the analysis proves holds an array is the write's
+                // error.
+                if let Some(name) = ArrayWrite::array_place(input, target) {
+                    let semantics = TargetSemantics::of(input.context().profile);
+                    return raised_outcome(
+                        NativeEvalId::CellWrite,
+                        REVISION,
+                        &semantics,
+                        ArrayWrite::Set.raised(&name, &semantics),
+                    );
+                }
                 match input.operand(value, FactDomain::ExactValue).exact() {
                     Ok(value) => {
                         let store = StoreOutcome::Write {
@@ -203,6 +262,19 @@ impl CommandSemantics for CellWriteSemantics {
                     Ok(place) => place,
                     Err(reason) => return EvalAnswer::Declined(reason),
                 };
+                // Reading a place the rung proves unbound, or a whole array
+                // as a scalar, is the command's error, never a value.
+                match input.prior_store(&place, FactDomain::Existence) {
+                    FactView::Domain(DomainFact::Existence(Existence::Unbound)) => {
+                        return Self::read_unbound(input, &place);
+                    }
+                    FactView::Domain(DomainFact::Existence(Existence::Bound(
+                        BindingKind::Array,
+                    ))) if !place.is_element() => {
+                        return Self::read_array(input, &place.name);
+                    }
+                    _ => {}
+                }
                 match input.prior_store(&place, FactDomain::ExactValue).exact() {
                     Ok(value) => Self::outcome(value, Vec::new()),
                     Err(answer) => answer,

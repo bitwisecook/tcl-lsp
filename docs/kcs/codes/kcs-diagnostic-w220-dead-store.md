@@ -120,6 +120,27 @@ locals stay provable — a `set` in `runner` that nothing in `runner` reads is
 still a real dead store. `eval $script` is the other way round: it runs where
 it is written, so it protects that procedure's own locals instead.
 
+## A command the file does not define can read a top-level variable
+
+A plain variable in the top-level script is the global `::name`, which a
+command the file does not define — a procedure of another file, one an
+autoloader brings in — can read. So can a call whose command is computed
+(`$cmd`) and a call inside the body of a `catch`. A store before such a call
+is no dead store:
+
+```tcl
+set g 5
+foo               ;# a command this file never defines
+set g 6           ;# no W220 on `set g 5`: foo may read g
+puts $g
+```
+
+A procedure's own local is out of every callee's reach, so the same code
+inside a procedure still draws `W220`; a `source` runs its file in the
+procedure's frame, so it does not. The optimiser's
+[`O109`](kcs-optimisation-o109-dead-store.md) keeps the store for the same
+reason.
+
 ## How to suppress
 
 Add `# noqa: W220` on the line **above** the offending command.

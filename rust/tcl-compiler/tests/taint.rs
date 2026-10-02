@@ -405,6 +405,17 @@ mod tcl_taint_sources {
     }
 
     #[test]
+    fn a_call_the_module_cannot_see_leaves_what_its_words_read_tainted() {
+        // `foo` may rewrite `line`, but nothing it does cleans the value the
+        // read before it held.
+        let ws = of_code("set line [gets stdin]\nfoo $line\neval $line", D, "T100");
+        assert!(
+            ws.iter().any(|warning| warning.variable == "line"),
+            "the read after the call is as tainted as the read before it: {ws:?}"
+        );
+    }
+
+    #[test]
     fn constant_variable_command_head_reaches_sink_at_the_use_site() {
         let ws = of_code(
             "set command eval\nset line [gets stdin]\n$command $line",
