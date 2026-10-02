@@ -282,6 +282,24 @@ impl SsaFunction {
         }
     }
 
+    /// Executable version behind analysis-only scalar clobbers. Binding and
+    /// provenance domains use this lineage; scalar values use the fresh key.
+    #[must_use]
+    pub fn binding_version(&self, symbol: Symbol, mut version: Version) -> Version {
+        loop {
+            let prior = self
+                .value_clobbers
+                .values()
+                .flat_map(|markers| markers.values())
+                .filter_map(|versions| versions.get(&symbol))
+                .find_map(|&(prior, fresh)| (fresh == version).then_some(prior));
+            let Some(prior) = prior else {
+                return version;
+            };
+            version = prior;
+        }
+    }
+
     /// Intern variable `name`, returning its [`Symbol`].
     ///
     /// Assigns the next dense id (first-seen order) the first time a name is

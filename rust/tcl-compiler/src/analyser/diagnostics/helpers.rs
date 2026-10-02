@@ -514,6 +514,7 @@ impl PhiUndefIndex {
                 {
                     continue;
                 }
+                let incoming = ctx.ssa.binding_version(symbol, incoming);
                 let operand = (symbol, incoming);
                 let origin = if let Some(&answer) = killed.get(&operand) {
                     answer
@@ -585,6 +586,7 @@ pub(super) fn phi_can_undef(
         // neither a phi nor a kill: only the startup answer can apply.
         return version == 0 && !StartupFacts::for_name(name, ctx).readable_at_startup;
     };
+    let version = ctx.ssa.binding_version(symbol, version);
     let index = memo.index(ctx);
     if let Some(&answer) = index.killed.get(&(symbol, version)) {
         return answer;
@@ -650,6 +652,20 @@ pub(super) fn build_phi_undef_index(
                 let def_name = ssa.var_name(def_sym);
                 if whole.contains(def_name) {
                     killed.insert((def_name.to_owned(), *def_ver));
+                }
+            }
+        }
+    }
+    for (block, markers) in &ssa.value_clobbers {
+        if !considered.contains(block) {
+            continue;
+        }
+        for versions in markers.values() {
+            for (&symbol, &(_, fresh)) in versions {
+                let origin = ssa.binding_version(symbol, fresh);
+                let name = ssa.var_name(symbol).to_owned();
+                if killed.contains(&(name.clone(), origin)) {
+                    killed.insert((name, fresh));
                 }
             }
         }
@@ -1077,6 +1093,19 @@ pub(super) fn build_undef_suppression(
             can_undef.insert(key.clone());
         }
     }
+    for (block, markers) in &fu.ssa.value_clobbers {
+        if !considered.contains(block) {
+            continue;
+        }
+        for versions in markers.values() {
+            for (&symbol, &(_, fresh)) in versions {
+                let name = fu.ssa.var_name(symbol);
+                if phi_can_undef(name, fresh, &undef_ctx, &mut memo) {
+                    can_undef.insert((name.to_owned(), fresh));
+                }
+            }
+        }
+    }
     let loop_entry_only_undef =
         build_loop_entry_only_undef(fu, &can_undef, &undef_ctx, rules, &mut memo);
     let mut s = UndefSuppression {
@@ -1182,7 +1211,8 @@ fn build_loop_entry_only_undef(
                     if !body_blocks.contains(fu.cfg.block_name(pred)) {
                         return true;
                     }
-                    if out.contains_key(&(name.clone(), ver_in)) {
+                    let binding = fu.ssa.binding_version(phi.name, ver_in);
+                    if out.contains_key(&(name.clone(), binding)) {
                         return true;
                     }
                     !phi_can_undef(&name, ver_in, ctx, memo)
@@ -1195,6 +1225,23 @@ fn build_loop_entry_only_undef(
         }
         if !changed {
             break;
+        }
+    }
+    // Registry barriers change value facts without introducing a new binding.
+    // Carry the established after-loop binding proof through their fresh value
+    // versions, just as `phi_can_undef` follows that same binding lineage.
+    for (block, markers) in &fu.ssa.value_clobbers {
+        if !ctx.considered.contains(block) {
+            continue;
+        }
+        for versions in markers.values() {
+            for (&symbol, &(_, fresh)) in versions {
+                let binding = fu.ssa.binding_version(symbol, fresh);
+                let name = fu.ssa.var_name(symbol).to_owned();
+                if let Some(body) = out.get(&(name.clone(), binding)).cloned() {
+                    out.insert((name, fresh), body);
+                }
+            }
         }
     }
     out

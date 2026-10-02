@@ -222,17 +222,18 @@ reachable after their definition together with closed-root boundary state, so
 pre-definition fallbacks do not taint later procedures while later unknown
 rebinding still does.  Any opaque user target or uncertain resolution preserves
 the barrier.  The resulting `RegistryBarrier` is analysis-only and never
-dispatches or adds a command/frame/SSA/memory effect. SCCP conservatively
-widens reaching values live after this boundary, including version-0 parameter
+dispatches or adds an executable command/frame/SSA/memory effect. SCCP assigns
+fresh overdefined value versions live after this boundary, including version-0 parameter
 seeds: a handler can change a caller parameter through `upvar` without a source
 assignment. Ordinary barriers retain the existing parameter-seed policy. Only the
 argument-sensitive rerun of an interprocedurally proven pure procedure retains
-its immutable caller-bound seeds. Backward liveness retains facts used only before the boundary, and
-reaching-version tracking prevents poisoning assignments that execute later.
-A value used on both sides is conservatively widened for both. Introducing
-forward clobber versions requires a separate contract for diagnostic, type,
-taint and memory consumers, rather than treating possible mutations as definite
-source assignments.
+its immutable caller-bound seeds. Backward liveness determines the affected
+names; fresh versions preserve earlier proofs even for a value used on both
+sides. The value-clobber sidecar records prior/fresh pairs separately from
+executable writes. Binding and provenance consumers follow the prior version:
+a possible value mutation does not establish a definite source assignment or
+erase existing taint and byte-array provenance. Undefined-variable analysis
+retains unset and after-loop binding evidence through the same lineage.
 
 ## Hazards to design in (not patch)
 
