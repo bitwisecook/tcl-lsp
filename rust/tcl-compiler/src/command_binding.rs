@@ -37,7 +37,7 @@
 //! exception edges, so a handler conservatively joins command mutations that
 //! may have occurred before control transfers to it.
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::hash::Hash;
 use std::sync::Arc;
 
@@ -1673,6 +1673,9 @@ pub(crate) struct SourceBindingTimeline {
     /// while a procedure defined earlier joins it with the suffix it could
     /// have observed after becoming callable.
     post: Option<ModuleCommandBindings>,
+    /// Cache suffix joins once for all procedure definitions in a source root.
+    /// Replaying every suffix separately makes large multi-proc files cubic.
+    suffix_states: std::sync::OnceLock<Vec<(u32, ModuleCommandBindings)>>,
 }
 
 #[derive(Debug, Clone)]
@@ -1696,23 +1699,32 @@ impl SourceBindingTimeline {
         definition_span: tcl_lexer::Span,
         module: &ModuleCommandBindings,
     ) -> Option<ModuleCommandBindings> {
-        let mut entry = self.post.clone()?;
-        for (span, states) in self
-            .states
-            .iter()
-            .filter(|(span, _)| span.start() > definition_span.start())
-        {
-            if let Some(state) = self.before_substitutions(*span)
-                && !entry.same_state(state)
-            {
-                entry.join(state);
+        let post = self.post.as_ref()?;
+        let suffixes = self.suffix_states.get_or_init(|| {
+            let mut by_start: BTreeMap<u32, Vec<&StatementBindingStates>> = BTreeMap::new();
+            for (span, states) in &self.states {
+                by_start.entry(span.start()).or_default().push(states);
             }
-            if let Some(state) = &states.before_direct_call
-                && !entry.same_state(state)
-            {
-                entry.join(state);
+            let mut suffix = post.clone();
+            let mut snapshots = Vec::with_capacity(by_start.len());
+            for (start, states) in by_start.into_iter().rev() {
+                for states in states {
+                    if !suffix.same_state(&states.before_substitutions) {
+                        suffix.join(&states.before_substitutions);
+                    }
+                    if let Some(before_call) = &states.before_direct_call
+                        && !suffix.same_state(before_call)
+                    {
+                        suffix.join(before_call);
+                    }
+                }
+                snapshots.push((start, suffix.clone()));
             }
-        }
+            snapshots.reverse();
+            snapshots
+        });
+        let next = suffixes.partition_point(|(start, _)| *start <= definition_span.start());
+        let mut entry = suffixes.get(next).map_or(post, |(_, state)| state).clone();
         let mut boundary = module.clone();
         boundary.bindings = Arc::clone(&module.root_boundary_bindings);
         if !entry.same_state(&boundary) {
@@ -1746,6 +1758,7 @@ impl SourceBindingTimeline {
         state: &ModuleCommandBindings,
         substitutions: bool,
     ) {
+        self.suffix_states.take();
         if let Some(existing) = self.states.get_mut(&span) {
             if substitutions {
                 if !existing.before_substitutions.same_state(state) {
