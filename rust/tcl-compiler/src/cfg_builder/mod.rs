@@ -45,6 +45,14 @@ use crate::naming::normalise_var_name;
 use self::global_write_info::GlobalWriteInfo;
 use self::upvar_info::{FrameReach, UpvarInfo};
 
+/// Registry traits whose terminal invocation can execute code or otherwise
+/// invalidate scalar facts. The command binding lattice resolves aliases and
+/// unresolved-command handlers to terminal registry targets before this set is
+/// consulted, so this remains generic and does not name `unknown` directly.
+const REGISTRY_BARRIER_TRAITS: Traits = Traits::EVALUATES_CODE
+    .union(Traits::CREATES_BARRIER)
+    .union(Traits::CREATES_DYNAMIC_BARRIER);
+
 /// Choose the [`CommandTokens`] for a "frozen" `while`/`for` runtime call.
 ///
 /// The frozen-loop barrier hands the source words (the condition expression
@@ -146,6 +154,8 @@ struct ConditionEffects {
     reads: Vec<String>,
     /// An embedded callee runs an unreadable script at the global frame.
     opaque_global: bool,
+    /// A timeline-resolved embedded invocation reaches a registry barrier.
+    registry_barrier: bool,
 }
 
 /// The caller-frame effects a statement's `[…]` substitutions contribute.
@@ -221,6 +231,10 @@ pub(crate) struct CfgBuilder<'a> {
     /// Closed module command state used to resolve direct and parsed embedded
     /// spellings to effective user-procedure targets, including alias chains.
     command_bindings: ModuleCommandBindings,
+    /// Source-order snapshots for the root currently being lowered. Kept
+    /// parallel to the historical module lattice so independent roots do not
+    /// contaminate each other's executable entry state.
+    source_binding_timeline: Option<crate::command_binding::SourceBindingTimeline>,
     /// Namespace in which direct command heads in this function resolve.
     invocation_namespace: crate::ir::ExecutionNamespace,
     /// Whether registry-declared `TclOO` self/next dispatch must conservatively
@@ -358,6 +372,14 @@ pub(crate) struct CfgBuilder<'a> {
 const MAX_LOWER_DEPTH: tcl_core_types::RecursionLimit = crate::depth_guard::MAX_SOURCE_NEST_DEPTH;
 
 impl<'a> CfgBuilder<'a> {
+    fn with_source_binding_timeline(
+        mut self,
+        timeline: crate::command_binding::SourceBindingTimeline,
+    ) -> Self {
+        self.source_binding_timeline = Some(timeline);
+        self
+    }
+
     fn new(inline_loops: bool, registry: &'a CommandRegistry) -> Self {
         Self::new_with_upvars(
             inline_loops,
@@ -410,6 +432,7 @@ impl<'a> CfgBuilder<'a> {
             proc_params,
             global_write_procs,
             command_bindings,
+            source_binding_timeline: None,
             invocation_namespace: crate::ir::ExecutionNamespace::exact("::"),
             widen_oo_dispatch: false,
             loop_stack: Vec::new(),
@@ -525,6 +548,91 @@ impl<'a> CfgBuilder<'a> {
                 );
             });
         combined
+    }
+
+    /// Whether a direct call's closed binding reaches a registry operation
+    /// whose declared barrier/evaluation traits invalidate scalar facts.
+    ///
+    /// `resolve_statement` includes terminal alias targets and the registry's
+    /// unresolved-command fallback, so the projection applies equally to a
+    /// builtin, an alias, and a missing command handled by a registered
+    /// fallback. Known safe handlers have no matching traits and keep their
+    /// existing scalar precision.
+    fn direct_registry_barrier(&self, stmt: &Statement) -> bool {
+        let Statement::Call { command, .. } = stmt else {
+            return false;
+        };
+        let Some(namespace) = self.invocation_namespace.for_head(command) else {
+            return false;
+        };
+        let bindings = self
+            .source_binding_timeline
+            .as_ref()
+            .and_then(|timeline| timeline.before_direct_call(stmt.span()))
+            .unwrap_or(&self.command_bindings);
+        if bindings.target_may_be_unknown(command, namespace) {
+            return true;
+        }
+        let resolved = bindings.resolve_statement(stmt, self.registry, namespace);
+        resolved
+            .iter()
+            .any(|invocation| invocation.facts.traits.intersects(REGISTRY_BARRIER_TRAITS))
+    }
+
+    /// Whether any recovered command substitution reaches a registry operation
+    /// with a barrier/evaluation trait. Substitutions execute before their
+    /// host statement, so callers place the synthetic barrier before that
+    /// host in the CFG.
+    fn embedded_registry_barrier(&self, stmt: &Statement) -> bool {
+        let bindings = self
+            .source_binding_timeline
+            .as_ref()
+            .and_then(|timeline| timeline.before_substitutions(stmt.span()))
+            .cloned()
+            .unwrap_or_else(|| self.command_bindings.clone());
+        let state = std::cell::RefCell::new(bindings);
+        let barrier = std::cell::Cell::new(false);
+        let resolve = |head: &str| {
+            state
+                .borrow()
+                .resolved_embedded_head(head, &self.invocation_namespace)
+        };
+        let observe = |words: &[crate::ir_helpers::CommandWord], conditional: bool| {
+            let found = state
+                .borrow_mut()
+                .source_order_registry_barrier_for_command(
+                    words,
+                    conditional,
+                    self.registry,
+                    &self.invocation_namespace,
+                    REGISTRY_BARRIER_TRAITS,
+                );
+            barrier.set(barrier.get() || found);
+        };
+        let embedded = crate::ir_helpers::evaluated_command_substitutions_with_replay(
+            stmt,
+            self.registry,
+            Some(&resolve),
+            Some(&observe),
+        );
+        embedded.opaque || barrier.get()
+    }
+
+    fn registry_barrier_statement(stmt: &Statement, reason: &str) -> Statement {
+        Self::registry_barrier_statement_at(stmt.span(), reason)
+    }
+
+    fn registry_barrier_statement_at(span: Span, reason: &str) -> Statement {
+        Statement::Barrier {
+            span,
+            reason: reason.to_owned(),
+            command: "<registry-barrier>".to_owned(),
+            canonical_command: None,
+            args: Vec::new(),
+            tokens: Some(crate::ir::CommandTokens::marker(
+                crate::ir::SyntheticMarker::RegistryBarrier,
+            )),
+        }
     }
 
     /// Fold one binding-resolved terminal user procedure into a caller-frame
@@ -687,7 +795,7 @@ impl<'a> CfgBuilder<'a> {
         //    summary may contain both precise caller-side defs and an opaque
         //    remainder, and dropping the known defs loses useful facts such
         //    as `uplevel 1 [list set $parameter value]`.
-        let direct_opaque_barrier = self.opaque_call_barrier(&stmt);
+        let direct_opaque_barriers = self.opaque_call_barriers(&stmt);
 
         // 3. Embedded-substitution extras: walk text for
         //    `[upvar_proc arg]` / `[global_write_proc arg]` substitutions.
@@ -696,16 +804,17 @@ impl<'a> CfgBuilder<'a> {
             read_before_write: embedded_reads,
             opaque_global: embedded_opaque_global,
         } = self.embedded_subst_extras(&stmt);
+        let embedded_registry_barrier = self.embedded_registry_barrier(&stmt);
 
         if direct_extras.is_empty()
             && embedded_extras.is_empty()
             && embedded_reads.is_empty()
             && !embedded_opaque_global
+            && !embedded_registry_barrier
         {
-            return match direct_opaque_barrier {
-                Some(barrier) => vec![stmt, barrier],
-                None => vec![stmt],
-            };
+            let mut out = vec![stmt];
+            out.extend(direct_opaque_barriers);
+            return out;
         }
 
         // 2b. An embedded call to a proc that runs an unreadable script at
@@ -715,16 +824,25 @@ impl<'a> CfgBuilder<'a> {
         //     program-order position the synthetic `<upvar-invalidate>`
         //     uses, so the host statement's own reads already see the
         //     widened state.
-        let opaque_barrier = embedded_opaque_global.then(|| Statement::Barrier {
-            span: stmt.span(),
-            reason: "embedded call runs an unreadable script at the global frame".to_owned(),
-            command: "<global-frame-script>".to_owned(),
-            canonical_command: None,
-            args: Vec::new(),
-            tokens: Some(crate::ir::CommandTokens::marker(
-                crate::ir::SyntheticMarker::GlobalFrameScript,
-            )),
-        });
+        let mut embedded_barriers = Vec::new();
+        if embedded_opaque_global {
+            embedded_barriers.push(Statement::Barrier {
+                span: stmt.span(),
+                reason: "embedded call runs an unreadable script at the global frame".to_owned(),
+                command: "<global-frame-script>".to_owned(),
+                canonical_command: None,
+                args: Vec::new(),
+                tokens: Some(crate::ir::CommandTokens::marker(
+                    crate::ir::SyntheticMarker::GlobalFrameScript,
+                )),
+            });
+        }
+        if embedded_registry_barrier {
+            embedded_barriers.push(Self::registry_barrier_statement(
+                &stmt,
+                "embedded call reaches a registry-declared evaluation barrier",
+            ));
+        }
 
         // 3. Merge into the host statement when it's a Call.
         if let Statement::Call { defs, reads, .. } = &mut stmt {
@@ -746,14 +864,9 @@ impl<'a> CfgBuilder<'a> {
                     reads.push(r);
                 }
             }
-            let mut out = Vec::new();
-            if let Some(barrier) = opaque_barrier {
-                out.push(barrier);
-            }
+            let mut out = embedded_barriers;
             out.push(stmt);
-            if let Some(barrier) = direct_opaque_barrier {
-                out.push(barrier);
-            }
+            out.extend(direct_opaque_barriers);
             return out;
         }
 
@@ -761,10 +874,7 @@ impl<'a> CfgBuilder<'a> {
         //    emit a synthetic `<upvar-invalidate>` Call before the
         //    host so the affected vars are invalidated in
         //    program order.
-        let mut out = Vec::new();
-        if let Some(barrier) = opaque_barrier {
-            out.push(barrier);
-        }
+        let mut out = embedded_barriers;
         if !embedded_extras.is_empty() || !embedded_reads.is_empty() {
             out.push(Statement::Call {
                 span: stmt.span(),
@@ -782,28 +892,36 @@ impl<'a> CfgBuilder<'a> {
             });
         }
         out.push(stmt);
-        if let Some(barrier) = direct_opaque_barrier {
-            out.push(barrier);
-        }
+        out.extend(direct_opaque_barriers);
         out
     }
 
-    /// The opaque widening barrier for a direct call whose callee's
-    /// caller-frame effect has no sound per-name def list: a callee whose
-    /// `upvar` caller-side name is unresolvable (`upvar 1 $computed x`) can
-    /// write ANY caller variable, and a callee that runs an unreadable
-    /// script at the global frame (`uplevel #0 $body`) can write or read ANY
-    /// global/namespace name.
-    fn opaque_call_barrier(&self, stmt: &Statement) -> Option<Statement> {
+    fn opaque_call_barriers(&self, stmt: &Statement) -> Vec<Statement> {
+        let mut barriers: Vec<_> = self.opaque_call_barrier(stmt).into_iter().collect();
+        if self.direct_opaque_global_effect(stmt)
+            && self.direct_registry_barrier(stmt)
+            && barriers.iter().all(|barrier| {
+                !matches!(barrier, Statement::Barrier { tokens: Some(tokens), .. }
+                    if tokens.synthetic == Some(crate::ir::SyntheticMarker::RegistryBarrier))
+            })
+        {
+            barriers.push(Self::registry_barrier_statement(
+                stmt,
+                "direct call also reaches a registry-declared evaluation barrier",
+            ));
+        }
+        barriers
+    }
+
+    fn direct_opaque_global_effect(&self, stmt: &Statement) -> bool {
         let Statement::Call {
             command,
             canonical_command,
-            span,
             tokens,
             ..
         } = stmt
         else {
-            return None;
+            return false;
         };
         let literal_head = tokens.as_ref().is_none_or(|tokens| {
             tokens.synthetic.is_none()
@@ -814,24 +932,52 @@ impl<'a> CfgBuilder<'a> {
                 })
         });
         let target = canonical_command.as_deref().unwrap_or(command.as_str());
+        self.global_write_procs
+            .get(target)
+            .is_some_and(|info| literal_head && info.opaque_global_frame)
+    }
+
+    /// The opaque widening barrier for a direct call whose callee's
+    /// caller-frame effect has no sound per-name def list: a callee whose
+    /// `upvar` caller-side name is unresolvable (`upvar 1 $computed x`) can
+    /// write ANY caller variable, and a callee that runs an unreadable
+    /// script at the global frame (`uplevel #0 $body`) can write or read ANY
+    /// global/namespace name.
+    fn opaque_call_barrier(&self, stmt: &Statement) -> Option<Statement> {
+        let Statement::Call { command, span, .. } = stmt else {
+            return None;
+        };
         let direct_upvar = self.direct_upvar_effects(stmt);
         let unresolvable_upvar = direct_upvar.has_unresolvable_target;
-        let opaque_global = self
-            .global_write_procs
-            .get(target)
-            .is_some_and(|info| literal_head && info.opaque_global_frame);
+        let opaque_global = self.direct_opaque_global_effect(stmt);
         let source_opaque_upvar = direct_upvar.opaque_arguments;
         let opaque_variable_write = self.variable_write_projection(stmt).opaque_variable_frame;
-        if !unresolvable_upvar && !source_opaque_upvar && !opaque_global && !opaque_variable_write {
+        let registry_barrier = self.direct_registry_barrier(stmt);
+        if !unresolvable_upvar
+            && !source_opaque_upvar
+            && !opaque_global
+            && !opaque_variable_write
+            && !registry_barrier
+        {
             return None;
         }
         let reason = if unresolvable_upvar || source_opaque_upvar {
             format!("{command} upvar-aliases a dynamic caller variable")
         } else if opaque_global {
             format!("{command} runs an unreadable script at the global frame")
+        } else if registry_barrier {
+            format!("{command} reaches a registry-declared evaluation barrier")
         } else {
             format!("{command} writes a source-opaque variable name")
         };
+        if registry_barrier
+            && !unresolvable_upvar
+            && !source_opaque_upvar
+            && !opaque_global
+            && !opaque_variable_write
+        {
+            return Some(Self::registry_barrier_statement(stmt, &reason));
+        }
         Some(Statement::Barrier {
             span: *span,
             // A widening *effect*, not a command to run: the call itself is
@@ -906,22 +1052,8 @@ impl<'a> CfgBuilder<'a> {
         &self,
     ) -> impl Fn(&str) -> Option<crate::ir_helpers::ResolvedEmbeddedHead> + '_ {
         |head: &str| {
-            let namespace = self.invocation_namespace.for_head(head)?;
-            if self
-                .command_bindings
-                .target_resolution_may_be_unknown(head, namespace)
-            {
-                return None;
-            }
-            let mut found = self.command_bindings.targets(head, namespace).into_iter();
-            let target = found.next()?;
-            if found.next().is_some() || !target.registry_backed {
-                return None;
-            }
-            Some(crate::ir_helpers::ResolvedEmbeddedHead {
-                command: target.command,
-                prepended: target.prepended,
-            })
+            self.command_bindings
+                .resolved_embedded_head(head, &self.invocation_namespace)
         }
     }
 
@@ -1081,101 +1213,93 @@ impl<'a> CfgBuilder<'a> {
         (defs, opaque)
     }
 
-    /// Condition-position command-substitution out-vars: unions the
-    /// registry's `ArgRole::VarWrite` scan
-    /// ([`crate::ir_helpers::condition_command_out_vars`]) with the same
-    /// known-upvar-proc /
-    /// known-global-writer resolution every *other* embedded-substitution
-    /// site already gets. Without this, a user
-    /// proc's `upvar` write was only recognised as a bare statement or an
-    /// ordinary value (`set x [getKnownOpt ...]`) — invoked from a
-    /// `while`/`if` *condition* instead (`while {[getopt argv $opts opt
-    /// arg]} { ... }`, tcllib's `cmdline::getoptions`), the write was
-    /// invisible, producing a false W210 on the guarded body's read even
-    /// though the condition's own command substitution (including the
-    /// upvar write) completes before the body ever runs
-    /// (tclsh9.0/8.6-verified).
-    /// The second return is `true` when a condition-embedded callee runs an
-    /// unreadable script at the global frame: the caller must
-    /// then push an opaque barrier alongside the `<cond>` defs, because no
-    /// def list can enumerate what the condition's evaluation clobbers.
-    fn condition_out_vars(&self, condition: &ExprNode) -> ConditionEffects {
-        let mut out = crate::ir_helpers::condition_command_out_vars(condition, self.registry);
-        let embedded = crate::ir_helpers::expression_command_substitutions(
+    /// Condition-position effects combine registry variable roles, resolved
+    /// procedure summaries, and timeline-resolved handler barriers.
+    fn condition_out_vars(&self, condition: &ExprNode, span: Span) -> ConditionEffects {
+        let mut defs = crate::ir_helpers::condition_command_out_vars(condition, self.registry);
+        let bindings = self
+            .source_binding_timeline
+            .as_ref()
+            .and_then(|timeline| timeline.before_substitutions(span))
+            .cloned()
+            .unwrap_or_else(|| self.command_bindings.clone());
+        let state = std::cell::RefCell::new(bindings);
+        let registry_barrier = std::cell::Cell::new(false);
+        let resolve = |head: &str| {
+            state
+                .borrow()
+                .resolved_embedded_head(head, &self.invocation_namespace)
+        };
+        let observe = |words: &[crate::ir_helpers::CommandWord], conditional: bool| {
+            let found = state
+                .borrow_mut()
+                .source_order_registry_barrier_for_command(
+                    words,
+                    conditional,
+                    self.registry,
+                    &self.invocation_namespace,
+                    REGISTRY_BARRIER_TRAITS,
+                );
+            registry_barrier.set(registry_barrier.get() || found);
+        };
+        let embedded = crate::ir_helpers::expression_command_substitutions_with_replay(
             condition,
             self.registry,
-            Some(&self.embedded_head_resolver()),
+            Some(&resolve),
+            Some(&observe),
         );
         let upvar = self.upvar_effects_from_commands(&embedded.commands);
         let opaque_upvar = upvar.opaque_arguments;
-        for d in upvar.defs {
-            if !out.contains(&d) {
-                out.push(d);
+        for name in upvar.defs {
+            if !defs.contains(&name) {
+                defs.push(name);
             }
         }
-        let (global_defs, mut opaque) = self.global_write_defs_from_commands(&embedded.commands);
-        opaque |= embedded.opaque || opaque_upvar;
+        let (global_defs, mut opaque_global) =
+            self.global_write_defs_from_commands(&embedded.commands);
+        opaque_global |= embedded.opaque || opaque_upvar;
         let writes = crate::ir_helpers::variable_write_effects_from_commands(
             embedded.all_commands(),
             self.registry,
         );
-        opaque |= writes.opaque;
-        for d in writes.names {
-            if !out.contains(&d) {
-                out.push(d);
+        opaque_global |= writes.opaque;
+        for name in writes.names {
+            if !defs.contains(&name) {
+                defs.push(name);
             }
         }
-        for d in global_defs {
-            if !out.contains(&d) {
-                out.push(d);
+        for name in global_defs {
+            if !defs.contains(&name) {
+                defs.push(name);
             }
         }
-        // A condition's `[incr n]` observes `n` before overwriting it, exactly
-        // as the same substitution does in an argument word. Recording only
-        // the write made the store feeding the condition look
-        // overwritten-before-read, and O109 deleted it: tclsh 9.0.4 prints `6`
-        // for `proc p {} {set n 5; if {[incr n]} {puts $n}}` and the optimised
-        // program printed `1` (#2132).
-        // An `[info exists n]` / `[array size a]` in the condition reads its
-        // target without writing it at all, so the read never appears among
-        // the write effects above. `proc p {} {set x 1; if {[info exists x]}
-        // {puts yes}}` prints `yes` on tclsh 9.0.4; without this the store was
-        // removed as unused and the program printed nothing.
         let mut reads = writes.read_names;
-        let role_reads = crate::ir_helpers::variable_read_effects_from_commands(
+        for name in crate::ir_helpers::variable_read_effects_from_commands(
             embedded.all_commands(),
             self.registry,
-        );
-        // Deliberately *not* folded into `opaque`: an unnameable **read**
-        // (`[info exists $p]`) observes a cell we cannot name, which is a
-        // precision loss, not a claim that anything is written. The
-        // `opaque_global` barrier means "this may write any name anywhere",
-        // and asserting that for a read made an `[info exists Params($k)]`
-        // guard stop folding. A dynamic read's effect on dead-store
-        // elimination is already owned by `dynamic_names.reads`, which
-        // abstains for the whole function.
-        for r in role_reads.names {
-            if !reads.contains(&r) {
-                reads.push(r);
+        )
+        .names
+        {
+            if !reads.contains(&name) {
+                reads.push(name);
             }
         }
         ConditionEffects {
-            defs: out,
+            defs,
             reads,
-            opaque_global: opaque,
+            opaque_global,
+            registry_barrier: embedded.opaque || registry_barrier.get(),
         }
     }
 
-    /// Push the `<cond>` synthetic call (and, when the condition's embedded
-    /// callees demand it, an opaque barrier) for a condition that contains
-    /// command substitutions — the shared tail of `lower_if`, `lower_while`,
-    /// and the frozen-loop barrier.
+    /// Push the synthetic condition effects and analysis-only barriers.
     fn push_condition_effects(&mut self, condition: &ExprNode, span: Span, block: &str) {
         let ConditionEffects {
             defs,
             reads,
-            opaque_global: opaque,
-        } = self.condition_out_vars(condition);
+            opaque_global,
+            registry_barrier,
+        } = self.condition_out_vars(condition, span);
         if !defs.is_empty() || !reads.is_empty() {
             self.block_mut(block).statements.push(Statement::Call {
                 span,
@@ -1192,7 +1316,7 @@ impl<'a> CfgBuilder<'a> {
                 foreach_groups: None,
             });
         }
-        if opaque {
+        if opaque_global {
             self.block_mut(block).statements.push(Statement::Barrier {
                 span,
                 reason: "condition runs an unreadable script at the global frame".into(),
@@ -1203,6 +1327,14 @@ impl<'a> CfgBuilder<'a> {
                     crate::ir::SyntheticMarker::GlobalFrameScript,
                 )),
             });
+        }
+        if registry_barrier {
+            self.block_mut(block)
+                .statements
+                .push(Self::registry_barrier_statement_at(
+                    span,
+                    "condition reaches a registry-declared evaluation barrier",
+                ));
         }
     }
 
@@ -1614,6 +1746,7 @@ impl<'a> CfgBuilder<'a> {
             read_before_write: extra_reads,
             opaque_global: opaque,
         } = self.embedded_subst_extras(stmt);
+        let registry_barrier = self.embedded_registry_barrier(stmt);
         if opaque {
             self.block_mut(current).statements.push(Statement::Barrier {
                 span: stmt.span(),
@@ -1625,6 +1758,14 @@ impl<'a> CfgBuilder<'a> {
                     crate::ir::SyntheticMarker::GlobalFrameScript,
                 )),
             });
+        }
+        if registry_barrier {
+            self.block_mut(current)
+                .statements
+                .push(Self::registry_barrier_statement(
+                    stmt,
+                    "embedded call reaches a registry-declared evaluation barrier",
+                ));
         }
         if !extras.is_empty() || !extra_reads.is_empty() {
             self.block_mut(current).statements.push(Statement::Call {
@@ -1797,6 +1938,32 @@ impl<'a> CfgBuilder<'a> {
             unreachable!();
         };
 
+        if self.embedded_subst_extras(stmt).opaque_global {
+            self.block_mut(current).statements.push(Statement::Barrier {
+                span: *span,
+                reason: "foreach list runs an unreadable script at the global frame".to_owned(),
+                command: "<global-frame-script>".to_owned(),
+                canonical_command: None,
+                args: Vec::new(),
+                tokens: Some(crate::ir::CommandTokens::marker(
+                    crate::ir::SyntheticMarker::GlobalFrameScript,
+                )),
+            });
+        }
+
+        // Foreach/lmap list words are evaluated before the header binds any
+        // iteration variables. A substitution there can reach the registry
+        // fallback just like a substitution in an ordinary value or
+        // condition, so widen scalar facts before the header executes.
+        if self.embedded_registry_barrier(stmt) {
+            self.block_mut(current)
+                .statements
+                .push(Self::registry_barrier_statement(
+                    stmt,
+                    "foreach list evaluation reaches a registry-declared evaluation barrier",
+                ));
+        }
+
         // `array for {k v} arr body` (Tcl 9.0): the body runs in the caller's
         // frame, so the analysis CFG inlines it (shared reaching-defs / const
         // lattice, loop vars bound) while codegen barriers it to the
@@ -1892,6 +2059,11 @@ impl<'a> CfgBuilder<'a> {
     /// locals, so the store the inline form emits would address the wrong
     /// variable.
     fn lower_catch_dispatch(&mut self, stmt: &Statement, current: &str) -> String {
+        self.push_embedded_control_effects(
+            stmt,
+            current,
+            "catch header invokes an opaque embedded command",
+        );
         let Statement::Catch { body, raw_args, .. } = stmt else {
             unreachable!();
         };
@@ -2006,6 +2178,13 @@ impl<'a> CfgBuilder<'a> {
 
     /// Dispatch `Try` — deferred opaque or inlined.
     fn lower_try_dispatch(&mut self, stmt: &Statement, current: &str) -> String {
+        // Header words substitute before either the generic invocation or
+        // the inlined body begins, and may mutate this frame through a handler.
+        self.push_embedded_control_effects(
+            stmt,
+            current,
+            "try header invokes an opaque embedded command",
+        );
         let Statement::Try {
             handlers,
             finally_body,
@@ -2507,16 +2686,37 @@ fn build_cfg_inner_with_context(
     } else {
         module.top_level_namespace.clone()
     };
+    let top_timeline = command_bindings.source_binding_timeline(
+        &module.top_level,
+        registry,
+        &crate::ir::ExecutionNamespace::exact(top_namespace.as_str()),
+        true,
+    );
     let mut top_builder = new_builder(!defer_top_level)
-        .with_invocation_namespace(crate::ir::ExecutionNamespace::exact(top_namespace))
+        .with_invocation_namespace(crate::ir::ExecutionNamespace::exact(top_namespace.clone()))
+        .with_source_binding_timeline(top_timeline.clone())
         .with_top_level_proc_body(module.top_level_kind == crate::ir::TopLevelKind::ProcedureBody);
     let top_cfg = top_builder.build_function("::top", &module.top_level);
 
     let mut proc_cfgs = HashMap::new();
     for (qname, proc) in &module.procedures {
-        let mut builder = new_builder(true).with_invocation_namespace(
-            crate::ir::ExecutionNamespace::exact(command_namespace(qname)),
-        );
+        let namespace = crate::ir::ExecutionNamespace::exact(command_namespace(qname));
+        let timeline = top_timeline
+            .entry_after(proc.span, command_bindings)
+            .map_or_else(
+                || {
+                    command_bindings
+                        .source_binding_timeline(&proc.body, registry, &namespace, false)
+                },
+                |initial| {
+                    ModuleCommandBindings::source_binding_timeline_from_initial(
+                        &proc.body, registry, &namespace, &initial,
+                    )
+                },
+            );
+        let mut builder = new_builder(true)
+            .with_invocation_namespace(namespace)
+            .with_source_binding_timeline(timeline);
         proc_cfgs.insert(qname.clone(), builder.build_function(qname, &proc.body));
     }
 
@@ -2707,6 +2907,11 @@ fn build_cfg_function_with_upvars_inner(
     let (upvar_procs, proc_params, global_write_procs, command_bindings) = context;
     let command_classes =
         command_classes.unwrap_or_else(|| CfgCommandClasses::from_registry(registry));
+    let timeline = command_bindings.source_binding_timeline_from_boundary(
+        script,
+        registry,
+        &execution_namespace,
+    );
     let mut builder = CfgBuilder::new_with_upvars_and_classes(
         inline_loops,
         upvar_procs,
@@ -2719,7 +2924,8 @@ fn build_cfg_function_with_upvars_inner(
     .with_faithful_exceptions()
     .with_lexer_config(config)
     .with_command_surface(plain_command_dispatch)
-    .with_invocation_namespace(execution_namespace);
+    .with_invocation_namespace(execution_namespace)
+    .with_source_binding_timeline(timeline);
     if widen_oo_dispatch {
         builder = builder.with_oo_dispatch_widening();
     }

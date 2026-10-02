@@ -459,6 +459,9 @@ fn transition_requires_wildcard(
     registry: &CommandRegistry,
     context: Option<SemanticContext>,
 ) -> bool {
+    if !stmt.is_executable_invocation() {
+        return false;
+    }
     match registry_resolution(stmt, registry, context) {
         Some(RegistryInvocationResolution::Unresolved(_)) | None => {
             matches!(stmt, Statement::Call { .. } | Statement::Barrier { .. })
@@ -504,6 +507,9 @@ pub fn is_clobber(
     registry: &CommandRegistry,
     context: Option<SemanticContext>,
 ) -> bool {
+    if !stmt.is_executable_invocation() {
+        return false;
+    }
     match stmt {
         Statement::Barrier { .. } | Statement::UpFrame { .. } => true,
         Statement::Call { .. } => match registry_resolution(stmt, registry, context) {

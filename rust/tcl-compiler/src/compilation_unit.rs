@@ -45,7 +45,7 @@ use crate::memory_ssa::{MemorySsaFunction, build_memory_ssa};
 use crate::rendered_properties::{RenderedValueProps, propagate_rendered_props};
 use crate::sccp::SccpResult;
 use crate::semantic_analysis::SemanticAnalysisBundle;
-use crate::ssa::{SsaFunction, ValueKey, build_ssa_with_config};
+use crate::ssa::{SsaFunction, ValueKey};
 use crate::taint::{TaintGraph, TaintLattice, instance_classes_for_function, propagate_taints};
 use crate::type_infer::propagate_types;
 use crate::types::TypeLattice;
@@ -668,7 +668,7 @@ impl FunctionUnit {
         if crate::ssa::is_complexity_guarded(&cfg) {
             return Self::trivial_guarded(name, cfg);
         }
-        let ssa = build_ssa_with_config(&cfg, registry, config);
+        let ssa = crate::ssa::build_ssa_for_entry(&cfg, registry, config, Some(params));
         let def_use = build_def_use_chains(&ssa, Some(&cfg), config);
         // The registry carries its dialect profile's fold policy: the octal
         // rule, which fixes how a bare leading-zero literal (`08`, `010`) is
@@ -723,6 +723,7 @@ impl FunctionUnit {
                 defining_class: None,
                 registry_engine: false,
                 trust: crate::sccp::FoldTrust::ObservedBindings,
+                proven_pure_parameters: false,
             }),
         );
         // Surface `[info exists X]` / `[array exists X]`
@@ -1386,7 +1387,11 @@ fn build_procedure_units(
                 // diagnostic & optimiser passes that read `fu.cfg` spans
                 // directly (`base_offset` stays 0; `abs_span` is identity).
                 crate::lattice_rebase::rebase_function_unit(&mut fu, i64::from(body_offset));
-                Some(fu)
+                // Source-order entry states can change this procedure's CFG
+                // without changing the closed module state in the memo key.
+                // Reuse only a unit built under the exact current CFG; the
+                // ordinary fresh path carries any missing timeline effects.
+                (fu.cfg == *cfg).then_some(fu)
             }
             _ => None,
         };

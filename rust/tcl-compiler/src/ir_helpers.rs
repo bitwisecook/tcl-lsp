@@ -661,12 +661,22 @@ pub(crate) struct EvaluatedCommandSubstitutionSurfaces<'a> {
     pub texts: Vec<&'a str>,
     /// The expression walk exceeded its shared recursion limit.
     pub opaque: bool,
+    /// At least one collected surface is conditionally evaluated by Tcl
+    /// short-circuit/ternary control flow or by a later `elseif` clause.
+    pub conditional: bool,
+}
+
+fn push_command_substitution_text<'a>(text: &'a str, out: &mut Vec<&'a str>) {
+    if text.contains('[') {
+        out.push(text);
+    }
 }
 
 fn collect_expr_command_surface_refs<'a>(
     expr: &'a ExprNode,
     out: &mut Vec<&'a str>,
     opaque: &mut bool,
+    conditional: &mut bool,
     depth: u32,
 ) {
     if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
@@ -679,26 +689,50 @@ fn collect_expr_command_surface_refs<'a>(
         }
     };
     match expr {
-        ExprNode::Command { text, .. } | ExprNode::Raw { text } => push_text(text, out),
-        ExprNode::Binary { left, right, .. } => {
-            collect_expr_command_surface_refs(left, out, opaque, depth + 1);
-            collect_expr_command_surface_refs(right, out, opaque, depth + 1);
+        ExprNode::Command { text, .. } => push_text(text, out),
+        ExprNode::Raw { text } => {
+            let before = out.len();
+            push_text(text, out);
+            if out.len() != before {
+                // A raw expression has no retained evaluation tree, so the
+                // collector cannot prove its substitutions unconditional.
+                *conditional = true;
+            }
+        }
+        ExprNode::Binary { op, left, right } => {
+            collect_expr_command_surface_refs(left, out, opaque, conditional, depth + 1);
+            let before_right = out.len();
+            collect_expr_command_surface_refs(right, out, opaque, conditional, depth + 1);
+            if matches!(
+                op,
+                crate::expr_ast::BinOp::And
+                    | crate::expr_ast::BinOp::Or
+                    | crate::expr_ast::BinOp::WordAnd
+                    | crate::expr_ast::BinOp::WordOr
+            ) && out.len() != before_right
+            {
+                *conditional = true;
+            }
         }
         ExprNode::Unary { operand, .. } => {
-            collect_expr_command_surface_refs(operand, out, opaque, depth + 1);
+            collect_expr_command_surface_refs(operand, out, opaque, conditional, depth + 1);
         }
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
         } => {
-            collect_expr_command_surface_refs(condition, out, opaque, depth + 1);
-            collect_expr_command_surface_refs(true_branch, out, opaque, depth + 1);
-            collect_expr_command_surface_refs(false_branch, out, opaque, depth + 1);
+            collect_expr_command_surface_refs(condition, out, opaque, conditional, depth + 1);
+            let before_arms = out.len();
+            collect_expr_command_surface_refs(true_branch, out, opaque, conditional, depth + 1);
+            collect_expr_command_surface_refs(false_branch, out, opaque, conditional, depth + 1);
+            if out.len() != before_arms {
+                *conditional = true;
+            }
         }
         ExprNode::Call { args, .. } => {
             for arg in args {
-                collect_expr_command_surface_refs(arg, out, opaque, depth + 1);
+                collect_expr_command_surface_refs(arg, out, opaque, conditional, depth + 1);
             }
         }
         // A word already reduced to its value. Braced, its brackets are data
@@ -727,6 +761,62 @@ fn collect_expr_command_surface_refs<'a>(
     }
 }
 
+fn collect_control_command_substitution_surfaces<'a>(
+    stmt: &'a Statement,
+    texts: &mut Vec<&'a str>,
+    opaque: &mut bool,
+    conditional: &mut bool,
+) {
+    match stmt {
+        Statement::If { clauses, .. } => {
+            for (index, clause) in clauses.iter().enumerate() {
+                let before = texts.len();
+                collect_expr_command_surface_refs(&clause.condition, texts, opaque, conditional, 0);
+                if index != 0 && texts.len() != before {
+                    *conditional = true;
+                }
+            }
+        }
+        Statement::For { condition, .. } | Statement::While { condition, .. } => {
+            collect_expr_command_surface_refs(condition, texts, opaque, conditional, 0);
+        }
+        Statement::Foreach { iterators, .. } => {
+            for iterator in iterators.iter().filter(|iterator| !iterator.list_braced) {
+                push_command_substitution_text(&iterator.list_arg, texts);
+            }
+        }
+        Statement::Catch {
+            raw_args, tokens, ..
+        } => {
+            for arg in unbraced_words(raw_args, tokens.as_ref()) {
+                push_command_substitution_text(arg, texts);
+            }
+        }
+        Statement::Try { raw_args, .. } => {
+            // `Try` does not retain per-word quoting. Include every raw word;
+            // literal-body substitutions are harmless over-approximation and
+            // the recursively lowered bodies supply the exact coverage.
+            for arg in raw_args {
+                push_command_substitution_text(arg, texts);
+            }
+        }
+        Statement::Switch {
+            subject,
+            subject_braced,
+            arms,
+            ..
+        } => {
+            if !subject_braced {
+                push_command_substitution_text(subject, texts);
+            }
+            for arm in arms.iter().filter(|arm| !arm.pattern_braced) {
+                push_command_substitution_text(&arm.pattern, texts);
+            }
+        }
+        _ => {}
+    }
+}
+
 /// Enumerate every command-substitution-bearing value/expression surface of
 /// one IR statement.
 ///
@@ -738,22 +828,17 @@ pub(crate) fn evaluated_command_substitution_surfaces<'a>(
     stmt: &'a Statement,
     registry: &CommandRegistry,
 ) -> EvaluatedCommandSubstitutionSurfaces<'a> {
-    fn push_text<'a>(text: &'a str, out: &mut Vec<&'a str>) {
-        if text.contains('[') {
-            out.push(text);
-        }
-    }
-
     let mut texts = Vec::new();
     let mut opaque = false;
+    let mut conditional = false;
     match stmt {
         Statement::AssignExpr { expr, .. } | Statement::ExprEval { expr, .. } => {
-            collect_expr_command_surface_refs(expr, &mut texts, &mut opaque, 0);
+            collect_expr_command_surface_refs(expr, &mut texts, &mut opaque, &mut conditional, 0);
         }
-        Statement::AssignValue { value, .. } => push_text(value, &mut texts),
+        Statement::AssignValue { value, .. } => push_command_substitution_text(value, &mut texts),
         Statement::Incr { amount, .. } => {
             if let Some(amount) = amount {
-                push_text(amount, &mut texts);
+                push_command_substitution_text(amount, &mut texts);
             }
         }
         Statement::Call {
@@ -776,7 +861,7 @@ pub(crate) fn evaluated_command_substitution_surfaces<'a>(
                 tokens.as_ref(),
                 registry,
             ) {
-                push_text(arg, &mut texts);
+                push_command_substitution_text(arg, &mut texts);
             }
         }
         Statement::Return {
@@ -786,58 +871,30 @@ pub(crate) fn evaluated_command_substitution_surfaces<'a>(
             ..
         } => {
             if !braced && let Some(value) = value {
-                push_text(value, &mut texts);
+                push_command_substitution_text(value, &mut texts);
             }
             if let Some(expr) = expr {
-                collect_expr_command_surface_refs(expr, &mut texts, &mut opaque, 0);
+                collect_expr_command_surface_refs(
+                    expr,
+                    &mut texts,
+                    &mut opaque,
+                    &mut conditional,
+                    0,
+                );
             }
         }
-        Statement::If { clauses, .. } => {
-            for clause in clauses {
-                collect_expr_command_surface_refs(&clause.condition, &mut texts, &mut opaque, 0);
-            }
-        }
-        Statement::For { condition, .. } | Statement::While { condition, .. } => {
-            collect_expr_command_surface_refs(condition, &mut texts, &mut opaque, 0);
-        }
-        Statement::Foreach { iterators, .. } => {
-            for iterator in iterators.iter().filter(|iterator| !iterator.list_braced) {
-                push_text(&iterator.list_arg, &mut texts);
-            }
-        }
-        Statement::Catch {
-            raw_args, tokens, ..
-        } => {
-            for arg in unbraced_words(raw_args, tokens.as_ref()) {
-                push_text(arg, &mut texts);
-            }
-        }
-        Statement::Try { raw_args, .. } => {
-            // `Try` does not retain per-word quoting. Include every raw word;
-            // literal-body substitutions are harmless over-approximation and
-            // the recursively lowered bodies supply the exact coverage.
-            for arg in raw_args {
-                push_text(arg, &mut texts);
-            }
-        }
-        Statement::Switch {
-            subject,
-            subject_braced,
-            arms,
-            ..
-        } => {
-            if !subject_braced {
-                push_text(subject, &mut texts);
-            }
-            for arm in arms.iter().filter(|arm| !arm.pattern_braced) {
-                push_text(&arm.pattern, &mut texts);
-            }
-        }
-        Statement::AssignConst { .. } | Statement::Block { .. } | Statement::UpFrame { .. } => {}
+        _ => collect_control_command_substitution_surfaces(
+            stmt,
+            &mut texts,
+            &mut opaque,
+            &mut conditional,
+        ),
     }
-    texts.sort_unstable();
-    texts.dedup();
-    EvaluatedCommandSubstitutionSurfaces { texts, opaque }
+    EvaluatedCommandSubstitutionSurfaces {
+        texts,
+        opaque,
+        conditional,
+    }
 }
 
 fn collect_expr_commands_at(expr: &ExprNode, out: &mut Vec<String>, depth: u32) {
@@ -1055,6 +1112,11 @@ pub(crate) fn tokenise_command_words(source: &str, config: LexerConfig) -> Vec<V
         .collect()
 }
 
+enum CommandSubstitutionIndex {
+    Ordinary(usize),
+    InFrameExpression(usize),
+}
+
 /// Registry/dialect-shaped command invocations recovered from every evaluated
 /// `[...]` surface owned by one statement.
 #[derive(Default)]
@@ -1076,17 +1138,26 @@ pub(crate) struct EvaluatedCommandSubstitutions {
     /// Closing that second gap means fixing the recursion summary first; the
     /// two are separate, and this split says which is which.
     pub in_frame_expression_commands: Vec<Vec<CommandWord>>,
+    /// Indices into both inventories in the order the shared walk evaluates
+    /// them. Keeping the classifications separate must not move an earlier
+    /// expression's nested invocation after a later sibling substitution.
+    evaluation_order: Vec<CommandSubstitutionIndex>,
     /// A malformed fragment or recursion-limit hit prevented complete recovery.
     pub opaque: bool,
 }
 
 impl EvaluatedCommandSubstitutions {
-    /// Every command the statement runs, whether or not it took an in-frame
-    /// expression word to reach — the view a variable-effect consumer needs.
+    /// Every command the statement may run, whether or not it took an in-frame
+    /// expression word to reach, in Tcl evaluation order. Variable-effect and
+    /// binding-transition consumers use this view; call-graph consumers may
+    /// still select the ordinary inventory without changing its classification.
     pub(crate) fn all_commands(&self) -> impl Iterator<Item = &Vec<CommandWord>> {
-        self.commands
-            .iter()
-            .chain(self.in_frame_expression_commands.iter())
+        self.evaluation_order.iter().map(|index| match *index {
+            CommandSubstitutionIndex::Ordinary(index) => &self.commands[index],
+            CommandSubstitutionIndex::InFrameExpression(index) => {
+                &self.in_frame_expression_commands[index]
+            }
+        })
     }
 }
 
@@ -1118,8 +1189,28 @@ pub(crate) fn evaluated_command_substitutions_with_heads(
     registry: &CommandRegistry,
     heads: Option<EmbeddedHeadResolver<'_>>,
 ) -> EvaluatedCommandSubstitutions {
+    evaluated_command_substitutions_with_replay(stmt, registry, heads, None)
+}
+
+/// Recover invocations while replaying each completed command before the next
+/// head's expression roles are queried. Both callbacks share the caller's
+/// binding state, so earlier alias transitions affect later descent.
+#[must_use]
+pub(crate) fn evaluated_command_substitutions_with_replay(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    heads: Option<EmbeddedHeadResolver<'_>>,
+    observe: Option<EmbeddedCommandObserver<'_>>,
+) -> EvaluatedCommandSubstitutions {
     let surfaces = evaluated_command_substitution_surfaces(stmt, registry);
-    command_substitutions_in_surfaces(&surfaces.texts, surfaces.opaque, registry, heads)
+    command_substitutions_in_surfaces_with_replay(
+        &surfaces.texts,
+        surfaces.opaque,
+        surfaces.conditional,
+        registry,
+        heads,
+        observe,
+    )
 }
 
 /// The command a recovered substitution head reaches, and the words an alias
@@ -1136,12 +1227,20 @@ pub(crate) struct ResolvedEmbeddedHead {
 /// single statically known registry-backed target — the raw spelling is then
 /// used, exactly as when no resolver is supplied.
 pub(crate) type EmbeddedHeadResolver<'a> = &'a dyn Fn(&str) -> Option<ResolvedEmbeddedHead>;
+/// Observes a completed command and whether expression control may skip it.
+pub(crate) type EmbeddedCommandObserver<'a> = &'a dyn Fn(&[CommandWord], bool);
+
+struct SubstitutionWalkContext<'a> {
+    config: LexerConfig,
+    registry: &'a CommandRegistry,
+    heads: Option<EmbeddedHeadResolver<'a>>,
+    observe: Option<EmbeddedCommandObserver<'a>>,
+    conditional: bool,
+}
 
 fn walk_text(
     text: &str,
-    config: LexerConfig,
-    registry: &CommandRegistry,
-    heads: Option<EmbeddedHeadResolver<'_>>,
+    context: &SubstitutionWalkContext<'_>,
     depth: u32,
     in_frame_expression: bool,
     out: &mut EvaluatedCommandSubstitutions,
@@ -1151,30 +1250,37 @@ fn walk_text(
         return;
     }
     let source_map = SourceMap::new(text);
-    let Ok(tokens) = tcl_lexer::Lexer::with_config(text, config).tokenise_all() else {
+    let Ok(tokens) = tcl_lexer::Lexer::with_config(text, context.config).tokenise_all() else {
         out.opaque = true;
         return;
     };
     for token in tokens.iter().filter(|token| token.kind == TokenType::Cmd) {
         let inner = source_map.token_text(*token);
-        let recovered = tokenise_command_words(inner, config);
-        for words in &recovered {
-            walk_braced_expr_words(words, config, registry, heads, depth, out);
+        let recovered = tokenise_command_words(inner, context.config);
+        for words in recovered {
+            // Tcl substitutes command words from left to right before it
+            // invokes the enclosing command. A nested `[rename …]` therefore
+            // changes the binding that resolves its outer command; recording
+            // the outer command first reverses that observable order.
+            for word in words.iter().filter(|word| !word.braced_literal) {
+                walk_text(&word.text, context, depth + 1, in_frame_expression, out);
+            }
+            walk_braced_expr_words(&words, context, depth, out);
+            if let Some(observe) = context.observe {
+                observe(&words, context.conditional);
+            }
+            if in_frame_expression {
+                out.evaluation_order
+                    .push(CommandSubstitutionIndex::InFrameExpression(
+                        out.in_frame_expression_commands.len(),
+                    ));
+                out.in_frame_expression_commands.push(words);
+            } else {
+                out.evaluation_order
+                    .push(CommandSubstitutionIndex::Ordinary(out.commands.len()));
+                out.commands.push(words);
+            }
         }
-        if in_frame_expression {
-            out.in_frame_expression_commands.extend(recovered);
-        } else {
-            out.commands.extend(recovered);
-        }
-        walk_text(
-            inner,
-            config,
-            registry,
-            heads,
-            depth + 1,
-            in_frame_expression,
-            out,
-        );
     }
 }
 
@@ -1238,9 +1344,7 @@ pub(crate) fn in_frame_expression_arg_indices(
 /// this walks the brace-quoted ones among them.
 fn walk_braced_expr_words(
     words: &[CommandWord],
-    config: LexerConfig,
-    registry: &CommandRegistry,
-    heads: Option<EmbeddedHeadResolver<'_>>,
+    context: &SubstitutionWalkContext<'_>,
     depth: u32,
     out: &mut EvaluatedCommandSubstitutions,
 ) {
@@ -1251,7 +1355,7 @@ fn walk_braced_expr_words(
     let Some(head) = words.first().and_then(CommandWord::literal) else {
         return;
     };
-    let resolved = heads.and_then(|resolve| resolve(head));
+    let resolved = context.heads.and_then(|resolve| resolve(head));
     let (lookup, prepended) = resolved.as_ref().map_or((head, [].as_slice()), |target| {
         (target.command.as_str(), target.prepended.as_slice())
     });
@@ -1269,8 +1373,36 @@ fn walk_braced_expr_words(
 
     // The variable-effect walk is reached from consumers that hold only a
     // catalogue, so it asks the same owner with no declarations attached.
-    let surface = tcl_registry::model::DocumentCommandSurface::new(registry, None);
-    for index in in_frame_expression_arg_indices(lookup, &args, &surface) {
+    let surface = tcl_registry::model::DocumentCommandSurface::new(context.registry, None);
+    let indices = in_frame_expression_arg_indices(lookup, &args, &surface);
+    let concatenated = surface.commands().get(lookup).is_some_and(|spec| {
+        spec.traits
+            .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
+    });
+    let expression_texts = if concatenated {
+        vec![args.join(" ")]
+    } else {
+        indices
+            .iter()
+            .filter_map(|&index| args.get(index).map(|arg| (*arg).to_owned()))
+            .collect()
+    };
+    let mut conditional = context.conditional
+        || (concatenated && words.iter().skip(1).any(|word| word.literal().is_none()));
+    let mut opaque = false;
+    for text in &expression_texts {
+        let expr = crate::expr_parser::parse_expr(
+            text,
+            context.registry.profile().map(|profile| profile.name),
+        );
+        collect_expr_command_surface_refs(&expr, &mut Vec::new(), &mut opaque, &mut conditional, 0);
+    }
+    out.opaque |= opaque;
+    let expression_context = SubstitutionWalkContext {
+        conditional,
+        ..*context
+    };
+    for index in indices {
         // A prepended word is a value the alias already holds, not source
         // this call substitutes.
         let Some(source_index) = index.checked_sub(shift) else {
@@ -1285,7 +1417,7 @@ fn walk_braced_expr_words(
         else {
             continue;
         };
-        walk_text(&word.text, config, registry, heads, depth + 1, true, out);
+        walk_text(&word.text, &expression_context, depth + 1, true, out);
     }
 }
 
@@ -1340,11 +1472,13 @@ fn invoked_word_surfaces<'a>(
 /// source surfaces, resolving each recovered head through `heads` when the
 /// caller can supply one.
 #[must_use]
-pub(crate) fn command_substitutions_in_surfaces(
+pub(crate) fn command_substitutions_in_surfaces_with_replay(
     surfaces: &[&str],
     initially_opaque: bool,
+    conditional: bool,
     registry: &CommandRegistry,
     heads: Option<EmbeddedHeadResolver<'_>>,
+    observe: Option<EmbeddedCommandObserver<'_>>,
 ) -> EvaluatedCommandSubstitutions {
     let config = registry
         .profile()
@@ -1355,8 +1489,15 @@ pub(crate) fn command_substitutions_in_surfaces(
         opaque: initially_opaque,
         ..EvaluatedCommandSubstitutions::default()
     };
+    let context = SubstitutionWalkContext {
+        config,
+        registry,
+        heads,
+        observe,
+        conditional,
+    };
     for text in surfaces {
-        walk_text(text, config, registry, heads, 0, false, &mut out);
+        walk_text(text, &context, 0, false, &mut out);
     }
     out
 }
@@ -1368,10 +1509,28 @@ pub(crate) fn expression_command_substitutions(
     registry: &CommandRegistry,
     heads: Option<EmbeddedHeadResolver<'_>>,
 ) -> EvaluatedCommandSubstitutions {
+    expression_command_substitutions_with_replay(expr, registry, heads, None)
+}
+
+#[must_use]
+pub(crate) fn expression_command_substitutions_with_replay(
+    expr: &ExprNode,
+    registry: &CommandRegistry,
+    heads: Option<EmbeddedHeadResolver<'_>>,
+    observe: Option<EmbeddedCommandObserver<'_>>,
+) -> EvaluatedCommandSubstitutions {
     let mut texts = Vec::new();
     let mut opaque = false;
-    collect_expr_command_surface_refs(expr, &mut texts, &mut opaque, 0);
-    command_substitutions_in_surfaces(&texts, opaque, registry, heads)
+    let mut conditional = false;
+    collect_expr_command_surface_refs(expr, &mut texts, &mut opaque, &mut conditional, 0);
+    command_substitutions_in_surfaces_with_replay(
+        &texts,
+        opaque,
+        conditional,
+        registry,
+        heads,
+        observe,
+    )
 }
 
 /// Map one segmented command onto its per-word [`CommandWord`] facts.
@@ -1713,6 +1872,35 @@ mod tests {
 
         assert_eq!(commands(false)[0][0].text, "set");
         assert!(commands(true).is_empty());
+    }
+
+    #[test]
+    fn complete_substitution_inventory_preserves_expression_sibling_order() {
+        let registry = CommandRegistry::build_default();
+        let embedded = command_substitutions_in_surfaces_with_replay(
+            &["[expr {[rename aaa {}; rename eval aaa; set _ 0]}] [aaa {set x 6}]"],
+            false,
+            false,
+            &registry,
+            None,
+            None,
+        );
+        let heads = |commands: Vec<&Vec<CommandWord>>| {
+            commands
+                .into_iter()
+                .map(|words| words[0].text.clone())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            heads(embedded.all_commands().collect()),
+            ["rename", "rename", "set", "expr", "aaa"]
+        );
+        assert_eq!(heads(embedded.commands.iter().collect()), ["expr", "aaa"]);
+        assert_eq!(
+            heads(embedded.in_frame_expression_commands.iter().collect()),
+            ["rename", "rename", "set"]
+        );
+        assert!(!embedded.opaque);
     }
 
     #[test]

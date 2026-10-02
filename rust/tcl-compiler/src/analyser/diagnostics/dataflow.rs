@@ -1584,7 +1584,11 @@ file; this call falls through to the 'unknown' handler."
         // set — this pass only covers the phi-from-undef / `unset`-killed
         // (version > 0) cases, which def-use can't express.  Skipping ver 0
         // avoids double-firing.
-        if ver == 0 {
+        let binding_version = fu
+            .ssa
+            .var_symbol(name)
+            .map_or(ver, |symbol| fu.ssa.binding_version(symbol, ver));
+        if binding_version == 0 {
             return false;
         }
         let undef_ctx = super::helpers::PhiUndefCtx {

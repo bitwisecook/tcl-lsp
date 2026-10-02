@@ -366,8 +366,10 @@ impl Function {
     }
 
     /// Whether this function can be **ahead-of-time compiled in full** — its CFG
-    /// contains no [`Statement::Barrier`], the marker for a construct that must
-    /// defer to the interpreter (`eval $dynamic`, `uplevel $level`, `upvar`, …).
+    /// contains no executable [`Statement::Barrier`], the marker for a
+    /// construct that must defer to the interpreter (`eval $dynamic`,
+    /// `uplevel $level`, `upvar`, …). Analysis-only markers do not affect this
+    /// runtime capability check.
     ///
     /// This is the per-procedure AOT gate for the WASM backend (option A,
     /// everything in-instance WASM): a clean function lowers entirely to native
@@ -384,7 +386,7 @@ impl Function {
             .blocks
             .values()
             .flat_map(|b| b.statements.iter())
-            .any(|s| matches!(s, Statement::Barrier { .. }))
+            .any(|s| matches!(s, Statement::Barrier { .. }) && s.is_executable_invocation())
     }
 
     /// Compute the predecessor map: block → set of predecessor blocks.
@@ -645,6 +647,19 @@ mod tests {
         }
     }
 
+    fn registry_barrier_marker() -> Statement {
+        Statement::Barrier {
+            span: Span::new(0, 0),
+            reason: "scalar facts".into(),
+            command: "<registry-barrier>".into(),
+            canonical_command: None,
+            args: Vec::new(),
+            tokens: Some(crate::ir::CommandTokens::marker(
+                crate::ir::SyntheticMarker::RegistryBarrier,
+            )),
+        }
+    }
+
     #[test]
     fn aot_clean_when_no_barrier() {
         // A barrier-free function (here: just an empty entry block) is AOT-clean.
@@ -662,6 +677,18 @@ mod tests {
             .statements
             .push(barrier_stmt());
         assert!(!f.is_aot_clean());
+    }
+
+    #[test]
+    fn registry_barrier_marker_does_not_block_aot() {
+        let mut f = Function::new("::p", "entry");
+        let entry = f.entry;
+        f.blocks
+            .get_mut(&entry)
+            .unwrap()
+            .statements
+            .push(registry_barrier_marker());
+        assert!(f.is_aot_clean());
     }
 
     #[test]

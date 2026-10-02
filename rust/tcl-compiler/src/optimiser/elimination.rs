@@ -1021,6 +1021,17 @@ fn dead_chain_code(
     textually_referenced: &HashSet<String>,
 ) -> Option<(DiagCode, &'static str)> {
     let var = &chain.key.0;
+    // A scalar-fact invalidation does not overwrite the executable cell.
+    // Reads of its fresh version still observe the earlier store.
+    if let Some(symbol) = fu.ssa.var_symbol(var)
+        && fu.def_use.chains.iter().any(|(key, consumer)| {
+            key.0 == *var
+                && !consumer.is_dead()
+                && fu.ssa.binding_version(symbol, key.1) == chain.key.1
+        })
+    {
+        return None;
+    }
     let any_other_live = fu
         .def_use
         .chains
@@ -1119,7 +1130,10 @@ fn build_adce_consumers(fu: &FunctionUnit) -> (ConsumerMap, HashSet<(String, u32
         if chain.definition.kind != DefKind::Statement {
             continue;
         }
-        let key = chain.key.clone();
+        let mut key = chain.key.clone();
+        if let Some(symbol) = fu.ssa.var_symbol(&key.0) {
+            key.1 = fu.ssa.binding_version(symbol, key.1);
+        }
         for use_site in &chain.uses {
             match use_site.kind {
                 // A name position consumes the value exactly as an operand
@@ -2050,6 +2064,25 @@ mod tests {
             with_cbn < no_cbn,
             "call-by-name should suppress a dead store (no_cbn={no_cbn}, with_cbn={with_cbn})",
         );
+    }
+
+    #[test]
+    fn analysis_value_clobber_keeps_executable_store_live() {
+        for body in [
+            "set local 1; upvar 1 $v alias; return $local",
+            "set local 1; upvar 1 $v alias; puts $local",
+            "set local 1; upvar 1 $v alias; set copy $local; return $copy",
+        ] {
+            let source = format!("proc p {{v}} {{{body}}}");
+            let opts = crate::optimiser::optimise(&source, &registry());
+            assert!(
+                opts.iter().all(|opt| !matches!(
+                    opt.code,
+                    DiagCode::O108 | DiagCode::O109 | DiagCode::O126
+                )),
+                "{source}: {opts:?}"
+            );
+        }
     }
 
     #[test]

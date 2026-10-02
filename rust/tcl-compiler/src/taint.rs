@@ -1797,6 +1797,23 @@ pub(crate) fn propagate_taints(
             };
             changed |= propagate_phi_taints(&mut taints, ssa_block, *bn, preds, sccp);
             changed |= propagate_statement_taints(&mut taints, ssa_block, ctx, ssa, rendered_props);
+            for versions in ssa
+                .value_clobbers
+                .get(bn)
+                .into_iter()
+                .flat_map(|markers| markers.values())
+            {
+                for (&symbol, &(prior, fresh)) in versions {
+                    if let Some(&old) = taints.get(&(symbol, prior)) {
+                        let key = (symbol, fresh);
+                        let joined = taints.get(&key).map_or(old, |&current| current.join(old));
+                        if taints.get(&key) != Some(&joined) {
+                            taints.insert(key, joined);
+                            changed = true;
+                        }
+                    }
+                }
+            }
         }
     }
 

@@ -301,6 +301,10 @@ pub struct BuiltinFoldInputs<'a> {
     /// Which half of `mutations` gates the per-command arms — see
     /// [`FoldTrust`].
     pub trust: FoldTrust,
+    /// A caller has proved this procedure pure before evaluating it with
+    /// constant arguments. Its caller-bound parameter roots cannot be mutated
+    /// by a handler; ordinary analyses must leave this false.
+    pub proven_pure_parameters: bool,
 }
 
 /// How much of the whole-module mutation summary gates a builtin fold.
@@ -483,10 +487,13 @@ pub fn sccp_with_builtin_folds(
                     &mut values,
                     ssa_block,
                     ssa,
-                    &escaping,
-                    policy,
-                    trace.has_dynamic_variable_trace,
-                    folds,
+                    StatementInputs {
+                        escaping: &escaping,
+                        policy,
+                        has_dynamic_variable_trace: trace.has_dynamic_variable_trace,
+                        folds,
+                        clobbers: ssa.value_clobbers.get(bn),
+                    },
                 );
 
                 // Terminator.
@@ -689,25 +696,62 @@ fn sccp_process_phis(
     changed
 }
 
+#[derive(Clone, Copy)]
+struct StatementInputs<'a> {
+    escaping: &'a HashSet<String>,
+    policy: FoldPolicy,
+    has_dynamic_variable_trace: bool,
+    folds: Option<BuiltinFoldInputs<'a>>,
+    clobbers: Option<&'a crate::ssa::BlockValueClobbers>,
+}
+
 /// Evaluate each statement's defs for one block, widening across barriers.
 /// Returns `true` if any lattice value changed. Extracted from [`sccp`].
 fn sccp_process_statements(
     values: &mut HashMap<ValueKey, LatticeValue>,
     ssa_block: &crate::ssa::SsaBlock,
     ssa: &SsaFunction,
-    escaping: &HashSet<String>,
-    policy: FoldPolicy,
-    has_dynamic_variable_trace: bool,
-    folds: Option<BuiltinFoldInputs<'_>>,
+    inputs: StatementInputs<'_>,
 ) -> bool {
+    let StatementInputs {
+        escaping,
+        policy,
+        has_dynamic_variable_trace,
+        folds,
+        clobbers,
+    } = inputs;
     let mut changed = false;
-    for stmt_ssa in &ssa_block.statements {
+    for (index, stmt_ssa) in ssa_block.statements.iter().enumerate() {
+        // Statement defs become live after its inputs and barrier effect.
+        let registry_barrier = stmt_ssa.statement.synthetic_marker()
+            == Some(crate::ir::SyntheticMarker::RegistryBarrier);
+        if registry_barrier {
+            for (&var, &(prior, fresh)) in clobbers
+                .and_then(|markers| markers.get(&index))
+                .into_iter()
+                .flatten()
+            {
+                let value = if folds.is_some_and(|f| f.proven_pure_parameters)
+                    && matches!(values.get(&(var, 0)), Some(LatticeValue::Const(_)))
+                {
+                    values
+                        .get(&(var, prior))
+                        .cloned()
+                        .unwrap_or(LatticeValue::Unknown)
+                } else {
+                    LatticeValue::Overdefined
+                };
+                changed |= set_value(values, (var, fresh), &value);
+            }
+            continue;
+        }
         if matches!(
             stmt_ssa.statement,
             Statement::Barrier { .. } | Statement::UpFrame { .. }
         ) {
-            // Barriers widen all currently-tracked values — EXCEPT
-            // version-0 (parameter) seeds, which hold the caller's
+            // Executable barriers widen tracked values except version-0
+            // parameter seeds. Registry boundaries use fresh versions above,
+            // preserving every earlier proof. Ordinary barrier seeds hold the caller's
             // literal and are immutable across the barrier (a barrier
             // that mutates the var produces a fresh version), so a
             // callee `dict with $param` still sees the interproc
@@ -723,10 +767,7 @@ fn sccp_process_statements(
             // the optimiser proposed folding to the stale `6`.
             let keys: Vec<ValueKey> = values.keys().copied().collect();
             for k in keys {
-                if k.1 == 0 {
-                    continue;
-                }
-                if set_value(values, k, &LatticeValue::Overdefined) {
+                if k.1 != 0 && set_value(values, k, &LatticeValue::Overdefined) {
                     changed = true;
                 }
             }
@@ -2189,6 +2230,7 @@ mod tests {
                 defining_class: None,
                 registry_engine: false,
                 trust: FoldTrust::ObservedBindings,
+                proven_pure_parameters: false,
             }),
         )
     }
@@ -2606,10 +2648,13 @@ mod tests {
             &mut values,
             &block,
             &ssa,
-            &escaping,
-            FoldPolicy::default(),
-            false,
-            None
+            StatementInputs {
+                escaping: &escaping,
+                policy: FoldPolicy::default(),
+                has_dynamic_variable_trace: false,
+                folds: None,
+                clobbers: None,
+            }
         ));
         assert_eq!(
             values.get(&(x, 2)),
@@ -3382,6 +3427,7 @@ mod tests {
                 defining_class: None,
                 registry_engine: false,
                 trust: FoldTrust::WholeModule,
+                proven_pure_parameters: false,
             }),
         )
     }
@@ -3456,6 +3502,7 @@ mod tests {
                 defining_class: None,
                 registry_engine: false,
                 trust: FoldTrust::ObservedBindings,
+                proven_pure_parameters: false,
             }),
         )
     }

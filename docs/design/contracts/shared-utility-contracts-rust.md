@@ -76,6 +76,25 @@ entry point, or gate moves without this contract being updated.
 | SslicTcl editor projection | `rust/tcl-lsp-core/src/sslictcl_diagnostics.rs`; `rust/tcl-lsp-core/src/declaration_outline.rs` | `applies_to`; `diagnostics`; `SUPERSEDED_ANALYSER_CODES`; `supersede_analyser_diagnostics`; `is_declaration_document`; `declarations` | resolved authoring surface (the `sslictcl` package) per document | none |
 <!-- end-owner-resolution-manifest -->
 
+### Compiler evaluated substitutions
+
+The compiler's crate-internal `ir_helpers::EvaluatedCommandSubstitutions`
+combines the lexical owners above with registry expression roles. Its
+`all_commands` view is one evaluation-ordered stream across ordinary and
+in-frame expression commands: nested invocations precede their enclosing
+command and later sibling words. Binding-transition and scalar-barrier
+consumers share this stream; call-graph consumers retain the separate ordinary
+inventory. The compiler library's
+`complete_substitution_inventory_preserves_expression_sibling_order` regression
+checks both ordering and classification, and `compiler_analysis_residual` checks
+the resulting scalar proof against the Tcl rename/eval witnesses.
+`command_binding::ModuleCommandBindings::resolved_embedded_head` supplies the
+shared registry target and prepended arguments for this expression descent in
+both CFG projection and binding replay, including aliases to expression commands.
+The inventory walker accepts an invocation observer alongside this resolver;
+discovery and replay advance together so an earlier substitution can introduce
+the alias whose expression words a later sibling evaluates.
+
 ### `tcl-dialect` + `tcl-test-support` — C Tcl reference toolchains
 
 - The `tcl-dialect/data/reference-toolchains.tsv` manifest is the
@@ -1207,3 +1226,25 @@ helper without reading the rationale:
   ownership rules sit inside.
 - [family-b-routing.md](../runtime/family-b-routing.md) — the runtime seam this
   crate layering serves.
+
+The substitution observer receives the expression owner’s conditional-path
+fact. Binding consumers join skipped and executed states rather than
+interpreting lexical discovery as definite execution. Elimination reads the
+SSA binding lineage to keep executable stores observed through fresh scalar-
+analysis versions live; markers themselves remain without executable uses.
+
+Value provenance uses the canonical lifted-call inventory to recognise the
+first substitution’s variable head read before invocation. Only clobbers
+belonging to that same host are undone for that operand; earlier invocations
+and following statements retain invalidation. Type inference widens registry-clobbered versions independently of binding
+and taint lineage. An unknown prior container contributes unknown elements
+to later updates, preventing a stale class from surviving a handler. A narrow
+straight-line proof retains executable type provenance for empty source-class
+factories: registry manufacturer descriptors identify the empty declarations
+and argument-free factories; any opaque invocation, binding transition,
+nonempty class body or control edge withdraws the proof. The unchanged
+homogeneous and mixed-class collection assertions gate this precision.
+
+The internal SSA entry-binding adapter receives the compilation unit’s formal
+parameters before allocating scalar value versions. The seeded-parameter
+residual tests and unchanged first-store collection assertions gate this route.

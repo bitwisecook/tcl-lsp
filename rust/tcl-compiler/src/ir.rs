@@ -402,6 +402,11 @@ pub enum SyntheticMarker {
     /// site widens. It sits *beside* the call it widens for, which is why
     /// naming the callee on it would make codegen run the callee twice.
     CallerFrameOpaque,
+    /// A registry-resolved invocation declares a dynamic evaluation or
+    /// analysis barrier. The marker sits beside the real call (or before a
+    /// host statement for an embedded substitution), so it widens scalar
+    /// facts without dispatching the command a second time.
+    RegistryBarrier,
 }
 
 /// Original parsed tokens for a command invocation.
@@ -1439,6 +1444,32 @@ pub enum Statement {
 }
 
 impl Statement {
+    /// Return the synthetic marker attached to this statement, when it has
+    /// one. Markers carry analysis-only effects beside their source command.
+    #[must_use]
+    pub fn synthetic_marker(&self) -> Option<SyntheticMarker> {
+        match self {
+            Self::Call { tokens, .. } | Self::Barrier { tokens, .. } => {
+                tokens.as_ref().and_then(|tokens| tokens.synthetic)
+            }
+            _ => None,
+        }
+    }
+
+    /// Whether this statement represents an invocation that code generation
+    /// and command-effect analyses must execute.
+    ///
+    /// `RegistryBarrier` widens scalar facts only; its adjacent source call
+    /// already performs the real dispatch. Other synthetic barriers retain
+    /// their existing executable semantics.
+    #[must_use]
+    pub fn is_executable_invocation(&self) -> bool {
+        !matches!(
+            self.synthetic_marker(),
+            Some(SyntheticMarker::RegistryBarrier)
+        )
+    }
+
     /// Return the source span of this statement.
     #[must_use]
     pub fn span(&self) -> Span {
