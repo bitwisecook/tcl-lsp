@@ -898,7 +898,8 @@ impl<'a> CfgBuilder<'a> {
 
     fn opaque_call_barriers(&self, stmt: &Statement) -> Vec<Statement> {
         let mut barriers: Vec<_> = self.opaque_call_barrier(stmt).into_iter().collect();
-        if self.direct_registry_barrier(stmt)
+        if self.direct_opaque_global_effect(stmt)
+            && self.direct_registry_barrier(stmt)
             && barriers.iter().all(|barrier| {
                 !matches!(barrier, Statement::Barrier { tokens: Some(tokens), .. }
                     if tokens.synthetic == Some(crate::ir::SyntheticMarker::RegistryBarrier))
@@ -912,22 +913,15 @@ impl<'a> CfgBuilder<'a> {
         barriers
     }
 
-    /// The opaque widening barrier for a direct call whose callee's
-    /// caller-frame effect has no sound per-name def list: a callee whose
-    /// `upvar` caller-side name is unresolvable (`upvar 1 $computed x`) can
-    /// write ANY caller variable, and a callee that runs an unreadable
-    /// script at the global frame (`uplevel #0 $body`) can write or read ANY
-    /// global/namespace name.
-    fn opaque_call_barrier(&self, stmt: &Statement) -> Option<Statement> {
+    fn direct_opaque_global_effect(&self, stmt: &Statement) -> bool {
         let Statement::Call {
             command,
             canonical_command,
-            span,
             tokens,
             ..
         } = stmt
         else {
-            return None;
+            return false;
         };
         let literal_head = tokens.as_ref().is_none_or(|tokens| {
             tokens.synthetic.is_none()
@@ -938,12 +932,24 @@ impl<'a> CfgBuilder<'a> {
                 })
         });
         let target = canonical_command.as_deref().unwrap_or(command.as_str());
+        self.global_write_procs
+            .get(target)
+            .is_some_and(|info| literal_head && info.opaque_global_frame)
+    }
+
+    /// The opaque widening barrier for a direct call whose callee's
+    /// caller-frame effect has no sound per-name def list: a callee whose
+    /// `upvar` caller-side name is unresolvable (`upvar 1 $computed x`) can
+    /// write ANY caller variable, and a callee that runs an unreadable
+    /// script at the global frame (`uplevel #0 $body`) can write or read ANY
+    /// global/namespace name.
+    fn opaque_call_barrier(&self, stmt: &Statement) -> Option<Statement> {
+        let Statement::Call { command, span, .. } = stmt else {
+            return None;
+        };
         let direct_upvar = self.direct_upvar_effects(stmt);
         let unresolvable_upvar = direct_upvar.has_unresolvable_target;
-        let opaque_global = self
-            .global_write_procs
-            .get(target)
-            .is_some_and(|info| literal_head && info.opaque_global_frame);
+        let opaque_global = self.direct_opaque_global_effect(stmt);
         let source_opaque_upvar = direct_upvar.opaque_arguments;
         let opaque_variable_write = self.variable_write_projection(stmt).opaque_variable_frame;
         let registry_barrier = self.direct_registry_barrier(stmt);
