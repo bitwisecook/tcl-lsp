@@ -131,6 +131,17 @@ fn define_host_command(
     host_commands.borrow_mut().push(name.to_owned());
 }
 
+/// Register `command` as the host command `name` on a bare [`Vm`].
+///
+/// What [`Engine::define_command`] does, for an embedder that drives a VM
+/// itself and not through the interface (the `tclvm` binary): the command
+/// converts values at the boundary the same way, and runs with the
+/// registration door open, so a command that creates commands publishes them
+/// before the calling script's next statement.
+pub fn register_host_command(vm: &mut Vm, name: &str, command: Rc<dyn HostCommand>) {
+    define_host_command(vm, &Rc::new(RefCell::new(Vec::new())), name, command);
+}
+
 /// Whether `name` is the direct form of a subcommand of an ensemble `allowed`
 /// names: `tcl::ENSEMBLE::SUBCOMMAND`, in the VM's canonical unrooted spelling.
 fn is_subcommand_of_allowed(name: &str, allowed: &[&str]) -> bool {
@@ -483,8 +494,10 @@ mod tests {
     use std::cell::RefCell;
     use std::time::Duration;
 
-    use super::{Engine, TclVmEngine};
-    use tcl_engine_api::{Budget, BudgetKind, CompileUnit, EngineError, HostCommand, Value};
+    use super::{Engine, TclVmEngine, register_host_command};
+    use tcl_engine_api::{
+        Budget, BudgetKind, CommandRegistrar, CompileUnit, EngineError, HostCommand, Value,
+    };
 
     struct Collector {
         emitted: RefCell<Vec<Vec<String>>>,
@@ -585,6 +598,61 @@ mod tests {
                 vec!["0".to_string(), "varwrite".to_string()],
                 vec!["1".to_string(), "body".to_string()],
             ],
+        );
+    }
+
+    /// A host command that creates another through the door it is given.
+    struct Factory(std::rc::Rc<Collector>);
+
+    impl HostCommand for Factory {
+        fn invoke(&self, _arguments: &[Value]) -> Result<Value, EngineError> {
+            Err(EngineError::Unsupported("a factory needs the door"))
+        }
+
+        fn invoke_with_registrar(
+            &self,
+            registrar: &mut dyn CommandRegistrar,
+            _arguments: &[Value],
+        ) -> Result<Value, EngineError> {
+            registrar.define_command("made", self.0.clone())?;
+            Ok(Value::string("built"))
+        }
+    }
+
+    #[test]
+    fn a_host_command_registers_on_a_bare_vm_with_the_door_open() {
+        let mut engine = TclVmEngine::new();
+        let collector = std::rc::Rc::new(Collector {
+            emitted: RefCell::new(Vec::new()),
+        });
+        register_host_command(
+            engine.vm_mut(),
+            "factory",
+            std::rc::Rc::new(Factory(collector.clone())),
+        );
+        let handle = engine
+            .compile(unit("set built [factory]\nmade $built 2"))
+            .expect("compiles");
+        engine
+            .invoke(&handle, &[Value::list([]), Value::dict_of::<&str>([])])
+            .expect("a command registered on the VM can register another, and both run");
+        assert_eq!(
+            *collector.emitted.borrow(),
+            vec![vec!["built".to_string(), "2".to_string()]],
+        );
+    }
+
+    #[test]
+    fn a_command_nobody_registered_on_the_vm_is_not_there() {
+        let mut engine = TclVmEngine::new();
+        let handle = engine.compile(unit("factory")).expect("compiles");
+        let error = engine
+            .invoke(&handle, &[Value::list([]), Value::dict_of::<&str>([])])
+            .expect_err("no such command");
+        assert!(
+            matches!(&error, EngineError::Script { message, .. }
+                if message == "invalid command name \"factory\""),
+            "{error:?}"
         );
     }
 

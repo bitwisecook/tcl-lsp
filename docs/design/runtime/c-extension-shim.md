@@ -32,7 +32,11 @@ through `Engine::define_command` like an emitter verb does.
 **A shimmed extension is trusted native code.** It runs with the host
 process's authority, loaded only by the host process's own configuration —
 Rust code calling `Interp::load_static`, which is an `unsafe fn` precisely
-because calling it is the act of trusting native code.
+because calling it is the act of trusting native code. A host may also let
+its own scripts `load` an extension, over a table of entry points it has linked
+in and vouched for ([The host's `load`](#the-hosts-load)); building that table
+is `unsafe` for the same reason, and registering the command is the host's
+choice and nothing a script can make.
 
 The rest of the model follows from what packs and hooks are:
 
@@ -209,6 +213,67 @@ slot, no completion codes:
   `Script { message, code }` through with the `-errorcode` in the completion
   options, so a `catch` in Tcl sees exactly what the C code set.
 
+## The host's `load`
+
+The shim is linked, not loaded against a stub table, so there is no shared
+library for `load` to open. What a host can offer a script is Tcl 9's model of
+a **static library**: an entry point the program carries, named by its prefix
+(`Pkga`, whose entry point is `Pkga_Init`), which `load {} Pkga` initialises
+into the interpreter. `StaticExtensions` (`rust/tcl-cshim/src/load.rs`) is that
+table as a host command.
+
+- **The table and the command are the host's.** `StaticExtensions::new` takes
+  a `&'static [(&str, InitProc)]` and is `unsafe`, for the reason
+  `load_static` is: putting an entry point in the table is the act of trusting
+  native code. `StaticExtensions::bundled` is the shim's own test extension
+  (`Pkga`, built by `build.rs`; empty where no C compiler built it), which a
+  program carries only if it calls it. The command exists on an engine only
+  because the host registered it: `Interp::enable_static_extensions`, which
+  also gives it the interpreter's state, so `commands` and `provided_packages`
+  show what a script loaded; or `Engine::define_command("load", …)` on an
+  engine the host drives itself; or `tcl_engine_tclvm::register_host_command`
+  on a bare VM. No pack word, hook body or script registers it, and the hook
+  host's engines never have one (`tests/sandbox_isolation.rs`, unchanged). An
+  engine that also runs untrusted bodies must not be given one:
+  `restrict_commands` keeps what `define_command` registered.
+- **It publishes through the door.** A running host command holds the
+  engine's registration door and not the engine, so the load runs the entry
+  point and publishes what it registered through the door, by the same
+  `run_init` that `load_static` publishes with through the engine. Without a
+  door (`invoke` rather than `invoke_with_registrar`) it refuses.
+- **It answers `load` as Tcl 9 does.** `load ?-global? ?-lazy? ?--? fileName
+  ?prefix? ?interp?`: the options resolve by unique prefix with the shared
+  `bad option` message, and the two flags mean nothing to a loader of linked
+  libraries, so they are accepted and ignored. The file name is a label and is
+  never opened: the prefix is the one given, or the one Tcl guesses from the
+  file name (its last path element, a leading `lib` and then `tcl9` taken off,
+  up to the first character that is not a letter or an underscore, with the
+  first letter in capitals and the rest in lower case), so an unchanged
+  `package ifneeded pkga 1.0 [list load [file join $dir
+  libpkga[info sharedlibextension]] Pkga]` reaches the table. An empty file
+  name needs a prefix, the `interp` argument must be empty (a child
+  interpreter is refused), and a prefix loads once per interpreter: a second
+  `load` of it is the no-op Tcl makes of it, and the entry point does not run
+  again. A prefix the table does not hold is `no library with prefix "X" is
+  loaded statically` for an empty file name (Tcl's own message for a static
+  library) and `couldn't load file "F": no extension with the prefix "X" is
+  linked into this program` for a file (the shape of Tcl's `couldn't load
+  file "F": …`, with the reason a table has to give). A failing entry point's
+  result and error code are the `load`'s own, and the prefix is not marked
+  loaded, so a later `load` runs the entry point again.
+- **What it does not do.** It records the packages an entry point provides in
+  the shim's state (`Interp::provided_packages`), not in the engine's package
+  database: the door an engine opens to a host command registers commands and
+  nothing else. A script that wants `package require` to find the extension
+  says `package provide` itself after the `load`; an unchanged
+  `package ifneeded … {load …}` loads the commands and then fails with
+  `attempt to provide package … failed: no version of package … provided`.
+- **`tclvm --static-extensions`.** The `tcl-vm-cli` crate's `static-extensions`
+  feature links the shim's bundled extension, the way a `tclsh` test build
+  links `Tcltest`, and the flag registers `load` over it on the VM; without the
+  flag there is no `load`, and a build without the feature refuses the flag
+  with a usage error.
+
 ## The implemented subset
 
 **One header, two hosts.** The authored, API-compatible `tcl.h` of
@@ -289,9 +354,14 @@ resolution are asserted byte-for-byte against C Tcl, not against the
 documentation.
 
 The registration and marshalling story is also tested with an extension
-defined in Rust through the same exports (`src/lib.rs` tests, and the
-trust-posture proof in `tests/sandbox_isolation.rs`), so every platform,
-Windows included, runs it. The smoke tier has one test in each file.
+defined in Rust through the same exports (`src/lib.rs` and `src/load.rs`
+tests, and the trust-posture proof in `tests/sandbox_isolation.rs`), so every
+platform, Windows included, runs it. The host's `load` runs the same vectors:
+`the_same_vectors_run_through_the_host_load_bridge` loads the extension from a
+script and then holds every case above to its bytes, and
+`load_through_the_host_bridge_defines_the_commands` holds the commands, the
+refusal of a prefix the table lacks, and the single load. The smoke tier has
+one test in each file.
 
 ## Out of scope
 
@@ -309,10 +379,12 @@ existing `.so`/`.dll`.
 ## Files
 
 - `rust/tcl-cshim/include/tclshim.h` — the header.
-- `rust/tcl-cshim/src/{ffi,obj,state,lib}.rs` — the shim.
+- `rust/tcl-cshim/src/{ffi,obj,state,lib,load}.rs` — the shim; `load.rs` is
+  the host's `load`.
 - `rust/tcl-cshim/tests/c/pkga.c`, `tests/pkga_e2e.rs`, `tests/factory.rs`,
   `tests/sandbox_isolation.rs` — the tests.
 - `rust/tcl-engine-api/src/lib.rs` — `Engine::remove_command`.
-- `rust/tcl-engine-tclvm/src/lib.rs` — the error mapping and
-  `remove_command`.
+- `rust/tcl-engine-tclvm/src/lib.rs` — the error mapping, `remove_command`
+  and `register_host_command`.
+- `rust/tcl-vm-cli/src/main.rs` — `--static-extensions`.
 - KCS: [What is the C extension shim and when should I use it?](../../kcs/kcs-qa-what-is-the-c-extension-shim.md).

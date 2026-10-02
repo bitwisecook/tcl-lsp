@@ -17,7 +17,11 @@ The [C extension shim](../GLOSSARY.md#c-extension-shim) (`rust/tcl-cshim`)
 lets a command written against the C Tcl API run on the project's own
 engines. You compile the extension's C source against the shim's header,
 `include/tclshim.h`, instead of `tcl.h` (usually just an include swap), and
-load its `<Pkg>_Init` entry point into a shim interpreter from Rust. The
+load its `<Pkg>_Init` entry point into a shim interpreter from Rust, or let
+the host's scripts `load` it: a host that links the extension in registers a
+`load` command over a table of entry points (`StaticExtensions`), which
+answers Tcl's `load` by prefix (`load {} Pkga`, or a file name such as
+`libpkga.so` that stands for it) and loads each prefix once. The
 commands it registers with `Tcl_CreateObjCommand` then work like any other
 command on the engine: the engine's words become `objv`, and
 `Tcl_SetObjResult` becomes the result. Integers and lists cross without
@@ -34,8 +38,9 @@ shipped pack is a `-native` reference to Rust code the server already
 contains. The shim is neither. It is trusted native code, loaded only by the
 host process's own configuration, and no `.tclspec` can name it, `load` it,
 or call a command it registered. Loading one is an `unsafe` call in Rust for
-exactly that reason: the shim contains Rust panics at the boundary, but it
-cannot limit or contain what the C code itself does.
+exactly that reason, and so is building the table a host's `load` reads: the
+shim contains Rust panics at the boundary, but it cannot limit or contain what
+the C code itself does.
 
 The shim covers the argument-handling core: registration, the object and list
 API, the integer, double, boolean, and index conversions, and the result and

@@ -4744,7 +4744,9 @@ version = "0.1.0"
 dependencies = [
  "tcl-bytecode",
  "tcl-compiler",
+ "tcl-cshim",
  "tcl-dialect",
+ "tcl-engine-tclvm",
  "tcl-lexer",
  "tcl-registry",
  "tcl-vm",

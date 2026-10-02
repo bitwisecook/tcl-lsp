@@ -1412,9 +1412,11 @@ tcl dis script.tcl
 
 A command written against the C Tcl API can run on the bytecode VM through
 the `tcl-cshim` crate: compile the extension against `rust/tcl-cshim/include/tclshim.h`
-instead of `tcl.h` and load its `<Pkg>_Init` from Rust. Shimmed extensions are
-trusted native code loaded only by host configuration — a spec pack cannot
-reference one. See
+instead of `tcl.h` and load its `<Pkg>_Init` from Rust, or register a `load`
+command over the extensions the host links in (`tclvm --static-extensions`, in a
+build with the `static-extensions` feature, does so for the test extension).
+Shimmed extensions are trusted native code loaded only by host configuration —
+a spec pack cannot reference one. See
 [docs/design/runtime/c-extension-shim.md](docs/design/runtime/c-extension-shim.md).
 
 ### eBPF (BPF-Tcl)
