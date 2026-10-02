@@ -4286,8 +4286,10 @@ version = "0.1.0"
 dependencies = [
  "cc",
  "tcl-cmd-core",
+ "tcl-dialect",
  "tcl-engine-api",
  "tcl-engine-tclvm",
+ "tcl-registry",
  "tcl-spec-hooks",
  "tcl-syntax",
 ]
@@ -4742,7 +4744,9 @@ version = "0.1.0"
 dependencies = [
  "tcl-bytecode",
  "tcl-compiler",
+ "tcl-cshim",
  "tcl-dialect",
+ "tcl-engine-tclvm",
  "tcl-lexer",
  "tcl-registry",
  "tcl-vm",

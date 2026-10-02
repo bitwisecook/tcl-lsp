@@ -29,7 +29,7 @@
 
 use std::ffi::{c_int, c_void};
 
-use tcl_cshim::{Interp, InterpState};
+use tcl_cshim::{InitProc, Interp, InterpState, StaticExtensions};
 use tcl_engine_tclvm::TclVmEngine;
 
 unsafe extern "C" {
@@ -60,6 +60,21 @@ fn loaded() -> Interp<TclVmEngine> {
     interp
 }
 
+/// The extension as a host links it: its prefix and entry point.
+static TABLE: &[(&str, InitProc)] = &[("Pkga", pkga_init)];
+
+/// A shim interpreter whose host has opted in to `load` over [`TABLE`]; nothing
+/// is loaded until a script asks.
+fn bridged() -> Interp<TclVmEngine> {
+    let mut interp = Interp::new(TclVmEngine::new());
+    // SAFETY: `Pkga_Init` is the test extension built against the shim header.
+    let extensions = unsafe { StaticExtensions::new(TABLE) };
+    interp
+        .enable_static_extensions(extensions)
+        .expect("the engine takes the command");
+    interp
+}
+
 /// Run `script` under `catch`, returning `(code, result, errorCode)` the way
 /// the reference probe recorded them.
 fn catching(interp: &mut Interp<TclVmEngine>, script: &str) -> (i64, String, String) {
@@ -84,6 +99,52 @@ fn catching(interp: &mut Interp<TclVmEngine>, script: &str) -> (i64, String, Str
         result.as_str().unwrap_or_default().to_owned(),
         error_code,
     )
+}
+
+/// The loaded report bridges to the analyser's vocabulary: every command the
+/// real extension registered is declared, at the conservative default for a
+/// command native code registers and at no narrower fact, and the name of each
+/// is the one the shell would answer to.
+#[test]
+fn the_loaded_report_bridges_to_the_default_fact() {
+    use tcl_registry::{CommandSpec, Traits};
+
+    let mut interp = Interp::new(TclVmEngine::new());
+    // SAFETY: `Pkga_Init` is the test extension built against the shim header.
+    let loaded = unsafe { interp.load_static(pkga_init) }.expect("pkga loads");
+    let declared = loaded.declared_surface();
+    let names: Vec<&str> = declared.iter().map(|c| c.name.as_str()).collect();
+    assert_eq!(
+        names,
+        loaded
+            .commands
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>()
+    );
+    assert!(!declared.is_empty(), "pkga registers commands");
+    let default = CommandSpec::extension_default("pkga_calc");
+    for command in &declared {
+        assert_eq!(command.traits, default.traits, "{}", command.name);
+        assert_eq!(
+            command.side_effects, default.side_effects,
+            "{}",
+            command.name
+        );
+        // What every consumer asks of the declared command: a taint sink, hidden
+        // in a safe interpreter, never pure.
+        assert!(
+            command.traits.contains(Traits::TAINT_SINK),
+            "{}",
+            command.name
+        );
+        assert!(
+            command.traits.contains(Traits::SAFE_INTERP_HIDDEN),
+            "{}",
+            command.name
+        );
+        assert!(!command.traits.contains(Traits::PURE), "{}", command.name);
+    }
 }
 
 #[test]
@@ -335,16 +396,139 @@ const CASES: &[(&str, i64, &str, &str)] = &[
     ("expr {[pkga_calc neg 1.5] + 1}", 0, "-0.5", ""),
 ];
 
-#[test]
-fn results_and_errors_match_c_tcl_byte_for_byte() {
-    let mut interp = loaded();
+fn check_cases(interp: &mut Interp<TclVmEngine>) {
     for &(script, code, result, error_code) in CASES {
         assert_eq!(
-            catching(&mut interp, script),
+            catching(interp, script),
             (code, result.to_owned(), error_code.to_owned()),
             "{script}"
         );
     }
+}
+
+#[test]
+fn results_and_errors_match_c_tcl_byte_for_byte() {
+    check_cases(&mut loaded());
+}
+
+/// A script that loads the extension itself, through the host's `load`, gets
+/// the same bytes: nothing about the extension depends on who called its entry
+/// point. The file name is the label a `pkgIndex.tcl` writes, and the prefix
+/// Tcl would guess from it is what reaches the table.
+#[test]
+fn the_same_vectors_run_through_the_host_load_bridge() {
+    let mut interp = bridged();
+    assert_eq!(
+        catching(
+            &mut interp,
+            "load [file join /opt/pkga libpkga[info sharedlibextension]]"
+        ),
+        (0, String::new(), String::new())
+    );
+    check_cases(&mut interp);
+}
+
+/// `load` over the host's table defines the extension's commands in the
+/// engine, in the script that loads them and after it; what the table does not
+/// hold is `couldn't load`, and a prefix loads once.
+#[test]
+fn load_through_the_host_bridge_defines_the_commands() {
+    // Without the host's opt-in there is no `load` for a script to call.
+    let mut bare = Interp::new(TclVmEngine::new());
+    assert_eq!(
+        catching(&mut bare, "load {} Pkga"),
+        (
+            1,
+            "invalid command name \"load\"".into(),
+            "TCL LOOKUP COMMAND load".into()
+        )
+    );
+
+    let mut interp = bridged();
+    assert!(interp.commands().is_empty(), "opting in loads nothing");
+    // One script loads and calls: the registration door published the commands
+    // before the next statement ran.
+    let answer = interp
+        .eval("load {} Pkga\npkga_eq abc abc")
+        .expect("loads and calls in one script");
+    assert_eq!(answer.as_str(), Some("1"));
+    assert_eq!(
+        interp.commands(),
+        [
+            "pkga_calc",
+            "pkga_count",
+            "pkga_eq",
+            "pkga_forget",
+            "pkga_quote"
+        ]
+    );
+    assert_eq!(
+        interp.provided_packages(),
+        [("pkga".to_owned(), "1.0".to_owned())]
+    );
+
+    // The negatives: a name the table does not hold, by file and by prefix.
+    assert_eq!(
+        catching(&mut interp, "load nosuch"),
+        (
+            1,
+            "couldn't load file \"nosuch\": no extension with the prefix \"Nosuch\" is linked \
+             into this program"
+                .into(),
+            "NONE".into()
+        )
+    );
+    assert_eq!(
+        catching(&mut interp, "load {} Nosuch"),
+        (
+            1,
+            "no library with prefix \"Nosuch\" is loaded statically".into(),
+            "TCL OPERATION LOAD NOTSTATIC".into()
+        )
+    );
+
+    // A prefix loads once per interpreter: the entry point does not run again,
+    // so a command the extension deleted stays deleted.
+    assert_eq!(
+        catching(&mut interp, "pkga_forget"),
+        (0, "1".into(), String::new())
+    );
+    assert_eq!(
+        catching(&mut interp, "load ./libpkga.so Pkga"),
+        (0, String::new(), String::new())
+    );
+    assert_eq!(
+        catching(&mut interp, "pkga_count"),
+        (
+            1,
+            "invalid command name \"pkga_count\"".into(),
+            "TCL LOOKUP COMMAND pkga_count".into()
+        )
+    );
+}
+
+/// The shim's own bundle is the same extension a host would link, and loading
+/// it through the engine's `define_command` directly, without an `Interp`, is
+/// the other way a host opts in.
+#[test]
+fn the_bundled_extension_loads_through_a_command_a_host_registers_itself() {
+    use std::rc::Rc;
+
+    use tcl_engine_api::{CompileUnit, Engine};
+
+    let mut engine = TclVmEngine::new();
+    engine
+        .define_command("load", Rc::new(StaticExtensions::bundled()))
+        .expect("registers");
+    let handle = engine
+        .compile(CompileUnit {
+            name: "script",
+            parameters: &[],
+            body: "load {} Pkga\npkga_calc add 2 3",
+        })
+        .expect("compiles");
+    let answer = engine.invoke(&handle, &[]).expect("loads and calls");
+    assert_eq!(answer.as_str(), Some("5"));
 }
 
 #[test]

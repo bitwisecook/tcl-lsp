@@ -389,24 +389,37 @@ under-specify:
 `embtest.c` is deliberately excluded: it *embeds* Tcl (`main()` +
 `Tcl_FindExecutable`), which is the opposite of extending it.
 
-## 12. The unproven seam
+## 12. The seam, proven
 
-One seam in §4.6 has never been exercised against the real product: a Tcl
-script compiled by `tcl_compiler::codegen::wasm` calling an
-**extension-registered** command and dispatching into that extension. Every
-demonstration so far used a hand-written driver as the stand-in for compiled
-user code.
+One seam in §4.6 was never exercised against the real product by anything but a
+stand-in: a Tcl script compiled by `tcl_compiler::codegen::wasm` calling an
+**extension-registered** command and dispatching into that extension.
+`a_compiled_script_calls_an_extension_registered_command`
+(`rust/tcl-compiler/tests/wasm_real_link.rs`) runs it against the real runtime:
+an extension module shares the runtime's memory and function table, installs its
+`Tcl_ObjCmdProc` in the table and registers it from `Foo_Init` through the
+runtime's `Tcl_CreateObjCommand` export, and a compiled `foo` then reaches it
+with the `clientData` it was registered with and the completion code it answers.
+The same compiled module, run before `Foo_Init`, fails with `invalid command name
+"foo"`, so what finds `foo` afterwards is the registration and not anything the
+compiled code carries.
 
-Half of what it needs is now in place. Compiled code reaching an arbitrary
-runtime command through the live command table is shipped: `tcl_invoke_argv`
-(`codegen_abi.rs`) takes a prebuilt argv from generated code and routes it
-through the same `Interp::dispatch` interpreted Tcl uses, so namespaces,
-`unknown`, aliases, ensembles, and TclOO all resolve identically. A compiled
-script therefore already reaches any command the table holds, without the
-lookup needing an addition.
-
-What is missing is the registration side: there is no `Tcl_CreateObjCommand`
-export and no `Command` variant holding a shared-table function index, so
-nothing can put an extension's `Tcl_ObjCmdProc` into that table for
-`tcl_invoke_argv` to find. Proving the seam means adding both, then having
-`Foo_Init` register `foo` and a compiled script call it.
+Compiled code reaches an arbitrary runtime command through the live command
+table: `tcl_invoke_argv` (`codegen_abi.rs`) takes a prebuilt argv from generated
+code and routes it through the same `Interp::dispatch` interpreted Tcl uses, so
+namespaces, `unknown`, aliases, ensembles, and TclOO all resolve identically, and
+a compiled script reaches any command the table holds without the lookup needing
+an addition. The registration side is `Tcl_CreateObjCommand`
+(`runtime/rust/src/capi.rs`), which binds the name — in the current namespace, or
+the one a qualified name names — to a `Command::ObjCmd` (`interp.rs`). That holds
+the procedure (an index into the shared function table under `wasm32`, an ordinary
+function pointer natively), its `clientData` and its delete procedure behind an
+`Rc`; dispatch calls the procedure with the call's words as `objv` and takes the
+completion code it answers, the result being what it left through
+`Tcl_SetObjResult`. The delete procedure runs when the command's last handle
+drops: at the deletion, a replacement or a `rename` to the empty name for an idle
+command, and when the call returns for one that deletes itself, so its
+`clientData` stays live for as long as its own procedure runs (C Tcl runs it at
+the deletion itself). `Tcl_DeleteCommand` is `rename name {}`.
+`runtime/rust/tests/extension_commands.rs` holds this natively with extensions
+written against the C ABI in Rust.

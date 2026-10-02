@@ -50,6 +50,7 @@
 //! where the C code made text authoritative. See [`obj`].
 
 pub mod ffi;
+pub mod load;
 pub mod obj;
 pub mod state;
 
@@ -57,8 +58,11 @@ use std::ffi::c_int;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::rc::Rc;
 
+use tcl_dialect::model::Provenance;
 use tcl_engine_api::{CommandRegistrar, CompileUnit, Engine, EngineError, HostCommand, Value};
+use tcl_registry::model::DeclaredCommand;
 
+pub use load::StaticExtensions;
 pub use obj::{Obj, ObjRef, TclError};
 pub use state::{CommandChange, InitProc, InterpState};
 
@@ -69,6 +73,26 @@ pub struct Loaded {
     pub commands: Vec<String>,
     /// The packages it provided, `(name, version)` in provision order.
     pub packages: Vec<(String, String)>,
+}
+
+impl Loaded {
+    /// The commands the entry point registered, as the analyser would have them
+    /// declared: each at the conservative default for a command native code
+    /// registers (`tcl_registry::extension_default`), because nothing the shim
+    /// is given says what a C command does to state.
+    ///
+    /// This is the third source an extension is described from, beside a scan of
+    /// its C source and a probe of a shell that requires it: the one for a host
+    /// that loads the extension in-process and so knows exactly which commands
+    /// it registered. The provenance is [`Provenance::User`], the host's own
+    /// configuration, since [`Interp::load_static`] is the host's act.
+    #[must_use]
+    pub fn declared_surface(&self) -> Vec<DeclaredCommand> {
+        self.commands
+            .iter()
+            .map(|name| DeclaredCommand::extension(name.clone(), Vec::new(), Provenance::User))
+            .collect()
+    }
 }
 
 /// Why [`Interp::load_static`] failed.
@@ -258,6 +282,50 @@ impl<E: Engine> CommandRegistrar for EngineDoor<'_, E> {
     }
 }
 
+/// Call `init` against `state` and publish what it registered through
+/// `registrar`: the part of a load that does not depend on who owns the engine,
+/// so [`Interp::load_static`] (the engine in hand) and the `load` command
+/// ([`StaticExtensions`], the engine's registration door in hand) share it.
+///
+/// # Safety
+///
+/// As [`Interp::load_static`].
+pub(crate) unsafe fn run_init(
+    state: &Rc<InterpState>,
+    registrar: &mut dyn CommandRegistrar,
+    init: InitProc,
+) -> Result<Loaded, LoadError> {
+    let state_ptr = Rc::as_ptr(state).cast_mut();
+    state.reset_result();
+    // SAFETY: the caller vouches for `init`; `state_ptr` is live.
+    let code = catch_unwind(AssertUnwindSafe(|| unsafe { init(state_ptr) }));
+    let code = match code {
+        Ok(code) => code,
+        Err(payload) => return Err(LoadError::Crashed(panic_text(payload.as_ref()))),
+    };
+    if let Some(panic) = ffi::take_panic() {
+        return Err(LoadError::Crashed(panic));
+    }
+    if code != ffi::TCL_OK {
+        return Err(LoadError::InitFailed {
+            code,
+            message: state.result().get().text(),
+        });
+    }
+    let mut commands: Vec<String> = ShimCommand::publish(state, registrar)?
+        .into_iter()
+        .filter_map(|change| match change {
+            CommandChange::Created(name) => Some(name),
+            CommandChange::Deleted(_) => None,
+        })
+        .collect();
+    commands.sort();
+    Ok(Loaded {
+        commands,
+        packages: state.provided_packages(),
+    })
+}
+
 /// A shim interpreter: an engine plus the `Tcl_Interp` state C code sees.
 ///
 /// Generic over the engine rather than boxing a trait object because
@@ -291,43 +359,36 @@ impl<E: Engine> Interp<E> {
     /// `include/tclshim.h`: the shim contains Rust panics, not C undefined
     /// behaviour. Calling this is the act of trusting native code.
     pub unsafe fn load_static(&mut self, init: InitProc) -> Result<Loaded, LoadError> {
-        let state_ptr = self.raw();
-        self.state.reset_result();
-        // SAFETY: the caller vouches for `init`; `state_ptr` is live.
-        let code = catch_unwind(AssertUnwindSafe(|| unsafe { init(state_ptr) }));
-        let code = match code {
-            Ok(code) => code,
-            Err(payload) => return Err(LoadError::Crashed(panic_text(payload.as_ref()))),
-        };
-        if let Some(panic) = ffi::take_panic() {
-            return Err(LoadError::Crashed(panic));
-        }
-        if code != ffi::TCL_OK {
-            return Err(LoadError::InitFailed {
-                code,
-                message: self.state.result().get().text(),
-            });
-        }
-        let mut commands: Vec<String> = self
-            .sync()?
-            .into_iter()
-            .filter_map(|change| match change {
-                CommandChange::Created(name) => Some(name),
-                CommandChange::Deleted(_) => None,
-            })
-            .collect();
-        commands.sort();
-        Ok(Loaded {
-            commands,
-            packages: self.state.provided_packages(),
-        })
+        // SAFETY: the caller vouches for `init`.
+        unsafe { run_init(&self.state, &mut EngineDoor(&mut self.engine), init) }
+    }
+
+    /// Give the engine a `load` command over `extensions`, the extensions the
+    /// host has linked in and vouched for ([`StaticExtensions`]), sharing this
+    /// interpreter's state: the commands a script loads appear in
+    /// [`Self::commands`] and the packages they provide in
+    /// [`Self::provided_packages`].
+    ///
+    /// The opt-in is the host's: nothing a script, a pack or a hook body can
+    /// say registers it. An engine that also runs untrusted bodies must not
+    /// be given one, since [`Engine::restrict_commands`] keeps what
+    /// [`Engine::define_command`] registered.
+    pub fn enable_static_extensions(
+        &mut self,
+        extensions: StaticExtensions,
+    ) -> Result<(), EngineError> {
+        self.engine.define_command(
+            load::COMMAND,
+            Rc::new(extensions.sharing(Rc::clone(&self.state))),
+        )
     }
 
     /// Apply the command-table changes C code has made since the last sync
     /// to the engine, returning them.
     ///
-    /// [`Self::load_static`] calls this, and [`Self::eval`] does afterwards
-    /// as a backstop. During an invocation the engine's registration door
+    /// [`Self::load_static`] publishes what the entry point registered the
+    /// same way, and [`Self::eval`] calls this afterwards as a backstop.
+    /// During an invocation the engine's registration door
     /// ([`CommandRegistrar`]) publishes changes as they happen, so a host
     /// driving the engine directly only needs this after a change made
     /// outside any invocation.
@@ -380,9 +441,13 @@ mod tests {
     use std::ffi::{c_int, c_void};
     use std::rc::Rc;
 
+    use tcl_dialect::model::Provenance;
     use tcl_engine_api::{Budget, Engine, EngineError, HostCommand, Value};
 
-    use super::{CommandChange, Interp, InterpState, LoadError, Obj, ffi};
+    use super::{
+        CommandChange, EngineDoor, InitProc, Interp, InterpState, LoadError, Loaded, Obj,
+        StaticExtensions, ffi,
+    };
 
     /// `echo ?arg …?` — answers with its arguments as a list.
     unsafe extern "C" fn echo(
@@ -595,6 +660,68 @@ mod tests {
             matches!(command(&interp, "echo").invoke(&[]), Ok(Value::List(_))),
             "the interpreter is still usable"
         );
+    }
+
+    #[test]
+    fn a_loaded_report_declares_every_command_at_the_default_fact() {
+        use tcl_registry::CommandSpec;
+
+        let mut interp = Interp::new(RecordingEngine::default());
+        // SAFETY: `init` is written against the shim's own exports.
+        let loaded = unsafe { interp.load_static(init) }.expect("loads");
+        let declared = loaded.declared_surface();
+        let names: Vec<&str> = declared.iter().map(|c| c.name.as_str()).collect();
+        assert_eq!(names, ["boom", "echo", "twice"]);
+        let default = CommandSpec::extension_default("");
+        for command in &declared {
+            assert_eq!(command.traits, default.traits, "{}", command.name);
+            assert_eq!(
+                command.side_effects, default.side_effects,
+                "{}",
+                command.name
+            );
+            assert_eq!(command.provenance(), Provenance::User);
+            assert!(command.arguments.is_empty(), "no argument is known");
+        }
+    }
+
+    #[test]
+    fn a_load_that_registered_nothing_declares_nothing() {
+        let mut interp = Interp::new(RecordingEngine::default());
+        // SAFETY: as above.
+        assert!(unsafe { interp.load_static(failing_init) }.is_err());
+        let empty = Loaded {
+            commands: Vec::new(),
+            packages: Vec::new(),
+        };
+        assert!(empty.declared_surface().is_empty());
+    }
+
+    #[test]
+    fn the_host_load_registers_with_the_engine_and_shares_the_interpreters_state() {
+        static TABLE: &[(&str, InitProc)] = &[("Demo", init)];
+        let mut interp = Interp::new(RecordingEngine::default());
+        // SAFETY: `init` is written against the shim's own exports.
+        let extensions = unsafe { StaticExtensions::new(TABLE) };
+        interp
+            .enable_static_extensions(extensions)
+            .expect("registers");
+        assert!(interp.commands().is_empty(), "nothing is loaded yet");
+
+        let load = command(&interp, "load");
+        load.invoke_with_registrar(
+            &mut EngineDoor(interp.engine_mut()),
+            &[Value::string(""), Value::string("Demo")],
+        )
+        .expect("loads");
+        assert_eq!(interp.commands(), ["boom", "echo", "twice"]);
+        assert_eq!(
+            interp.provided_packages(),
+            [("demo".to_owned(), "1.0".to_owned())]
+        );
+        for name in ["boom", "echo", "twice"] {
+            command(&interp, name);
+        }
     }
 
     #[test]

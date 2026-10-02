@@ -211,7 +211,32 @@ patterns: `docs/design/spec-dsl-examples/external/`.
 
 Proc inference sees nothing from a compiled extension (`.c`/`.cpp` with
 `tcl.h`, `critcl::cproc`/`ccommand`, SWIG `.i`, cffi, a `pkgIndex.tcl` that
-`load`s a library). Derive from the C, citing file:line:
+`load`s a library). Start from the tools, which write a draft pack:
+
+- `tcl spec import --c-source DIR` scans the C source (every `.c`, `.h`, `.cc`,
+  `.cpp`, `.cxx` and `.hpp` under DIR) for `Tcl_CreateObjCommand`,
+  `Tcl_CreateCommand` and `Tcl_NRCreateCommand`, `Tcl_PkgProvide`, the
+  `Tcl_WrongNumArgs` usage messages and the `Tcl_GetIndexFromObj` tables of each
+  command's own procedure. Every row has the provenance `c-scan`, with the line
+  each fact was read at. A registration whose name is computed is listed as
+  dynamic and not given a name; a call to the TclOO C API or a C-built ensemble
+  is listed as a call the scan cannot read, and the commands behind it are not in
+  the pack.
+- `tcl spec import --probe PACKAGE` requires the package in a real shell, under
+  the package manager's policy (it runs the package: `tcl pkg trust PACKAGE`
+  first), and lists the commands it added. Those rows have the provenance
+  `probe`; with `--c-source` a command both found carries both.
+
+Both start every command at the conservative default for a command native code
+registers: unknown arity, a dynamic barrier, unknown reads and writes, a taint
+sink and source, hidden in a safe interpreter, never pure, host-native. Nothing
+in a C source says what a command does to state, so neither tool narrows it; the
+scan reports whether the procedure's own body calls anything that evaluates,
+touches a variable or changes the command table, and its callees are not read.
+Narrow a command only from what you know: in a stub, `-extension` declares the
+default and `-pure` or `-mutator` narrows its effects
+(`docs/design/contracts/dialect-stubs.md` § *Extension commands*); in a pack,
+state the facts. Derive the rest from the C by hand, citing file:line:
 
 - `Tcl_CreateObjCommand(interp, "name", handler, …)` — the name; a
   registration inside another handler is a factory (`defines_command_at`,

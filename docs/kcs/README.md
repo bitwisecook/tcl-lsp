@@ -291,6 +291,11 @@ symptom with several possible causes worth telling apart. See rule 13 in
   — tell the server that a compiled `.dll` / `.so` extension brings Tk (or
   any other package) up from its C `Init`, so the Tk completions, hover and
   checks switch on without a `package require Tk` in the source.
+- [kcs-howto-describe-a-c-extension.md](kcs-howto-describe-a-c-extension.md)
+  — describe a compiled Tcl extension's commands from its C source and a
+  sandboxed `package require` with `tcl spec import --c-source` and
+  `--probe`, each row at the conservative default for native code and
+  carrying its provenance, and narrow what you know.
 - [kcs-howto-derive-version-ranges-from-releases.md](kcs-howto-derive-version-ranges-from-releases.md)
   — derive `introduced_version` / `retired_version` facts from several
   package releases with `tcl spec import`, read the evidence header it

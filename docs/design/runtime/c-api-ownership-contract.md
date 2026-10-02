@@ -135,7 +135,8 @@ no per-call error channel, hence `no-error` for constructors.
 
 | Function | Obj args | Return | Errors | Notes |
 |---|---|---|---|---|
-| `Tcl_CreateObjCommand` | n/a | `token` (`Tcl_Command`) | `no-error` | `proc` is a shared-table index (§4.5); `clientData` opaque, freed by `deleteProc`. |
+| `Tcl_CreateObjCommand` | n/a | `token` (`Tcl_Command`) | `no-error` | `proc` is a shared-table index (§4.5); `clientData` opaque, freed by `deleteProc`. The runtime answers NULL, binding nothing, for a NULL interpreter, name or `proc`; replacing a name deletes the old command. |
+| `Tcl_DeleteCommand` | n/a | `status` | `no-error` | `0` when the command existed, `-1` when not (`rename name {}`). Runs the command's `deleteProc` when its last handle drops: at once for an idle command, and when the call returns for one that deletes itself, so its `clientData` stays live while its own procedure runs. |
 | `Tcl_CreateObjCommand2` | n/a | `token` | `no-error` | Tcl 9 `Tcl_Size`-arity variant. |
 | `Tcl_CreateObjTrace2` | n/a | `token` (`Tcl_Trace`) | `no-error` | Trace proc is a shared-table index. |
 | `Tcl_NRCreateCommand` | n/a | `token` | `no-error` | NRE variant; both `proc`/`nreProc` are table indices. |

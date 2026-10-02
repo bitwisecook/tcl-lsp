@@ -230,7 +230,15 @@ slices proceed without deciding anything here.
 > source, hidden in a safe interpreter, never pure, any completion code,
 > host-native, no stamp), and a stub's `-extension` flag declares it for a
 > command a document names, the other flags narrowing it one axis each
-> (`DeclaredCommand::extension` and `DeclaredCommand::narrowed_by`).
+> (`DeclaredCommand::extension` and `DeclaredCommand::narrowed_by`). An
+> extension is described from a scan of its C source, from a sandboxed
+> `package require` and from the shim's loaded report — `tcl spec import
+> --c-source` and `--probe`, and `Loaded::declared_surface` — each command a
+> row at that default carrying its provenance, `c-scan` or `probe`, and none of
+> the sources narrowing it. A host that lets its scripts `load` an extension
+> registers `StaticExtensions`, a `load` over the entry points it has linked in
+> (`Interp::enable_static_extensions`); `tclvm --static-extensions` does so
+> for the shim's test extension.
 >
 > The rest of the vocabulary is not built, and names nothing in the
 > workspace: the `ShippedImplementation` claim and `IdentityKind`.
@@ -537,13 +545,15 @@ as missing, which are what `Tcl_ObjSetVar2` and `Tcl_EvalObjEx` need;
 against Tcl 9.0.4's own `tcl.h`, become the shared conformance vectors for
 both legs.
 
-**What the WASM leg needs first**, in order: `Tcl_CreateObjCommand`
-exported from `runtime/rust/src/capi.rs`, and a `Command` variant in
-`runtime/rust/src/interp.rs` holding a shared-table function index — the
-two halves § 12 of the ABI names as the unproven seam, since
-`tcl_invoke_argv` already routes a prebuilt argv through `Interp::dispatch`
-and so already reaches any command the table holds. Then the ownership
-categories of [../runtime/c-api-ownership-contract.md](../runtime/c-api-ownership-contract.md)
+**The WASM leg's registration seam** is built: `Tcl_CreateObjCommand` and
+`Tcl_DeleteCommand` are exported from `runtime/rust/src/capi.rs`, and a
+`Command::ObjCmd` in `runtime/rust/src/interp.rs` holds the extension's
+procedure (a shared-table function index under `wasm32`), so `tcl_invoke_argv`,
+which routes a prebuilt argv through `Interp::dispatch`, reaches an extension's
+command like any other the table holds — § 12 of the ABI, run by
+`a_compiled_script_calls_an_extension_registered_command` against the real
+runtime. What the leg does not have: the ownership categories of
+[../runtime/c-api-ownership-contract.md](../runtime/c-api-ownership-contract.md)
 encoded per export and gated, the `GOT.mem` / `GOT.func` list wired for
 the address-of-runtime-symbol pattern, and the syntax-only `wasm32-wasi`
 check turned into a CI gate that compiles the test extension. The engine
@@ -2443,16 +2453,29 @@ flowchart LR
   carries the completion code the host command returned — before a hosted
   extension can exercise the default, and the correction is part of the
   fourth ruling's WASM-leg order.
-- **Describe from three sources**, each with its own provenance: a
-  mechanical scan of C source, blind to methods registered through the OO C
-  API and to ensembles built in C; a sandboxed probe under the package
-  manager's opt-in policy; and, for a host that loads an extension
-  in-process, a bridge from the shim's `Loaded` report to the declared
-  surface. A stub's purity and mutation flags are workspace-authored facts
-  honoured as declared under the third ruling, and a declared
-  fact narrows the default axis by axis.
+- **Describe from three sources**, each with its own provenance, none of them
+  narrowing the default: a mechanical scan of C source
+  (`rust/tcl-spec-studio/src/infer/c_scan.rs`; `tcl spec import --c-source`),
+  which reads each registration's name when it is a literal, the package a
+  `Tcl_PkgProvide` provides, the usage messages and option tables of the
+  registered procedure, and what that procedure's own body calls, marks a
+  registration with a computed name as dynamic rather than name it, and is blind,
+  by declaration, to methods registered through the `TclOO` C API and to ensembles
+  built in C; a sandboxed probe under the package manager's opt-in policy
+  (`tcl spec import --probe`), which requires the package in a real shell and lists
+  the commands it added; and, for a host that loads an extension in-process, a
+  bridge from the shim's `Loaded` report to the declared surface
+  (`Loaded::declared_surface`). A row carries `c-scan`, `probe` or both, and a
+  note naming the line each proposal was read at. A stub's purity and mutation
+  flags are workspace-authored facts honoured as declared under the third ruling,
+  and a declared fact narrows the default axis by axis.
 - **Run** natively through `rust/tcl-cshim` under a host opt-in `load`
-  bridge, and under WASM through the same authored header once the seam in
+  (`StaticExtensions`): Tcl 9's `load` for static libraries, over a table of
+  the entry points the host has linked in and vouched for, registered on an
+  engine only by the host, so no pack word reaches it and a hook engine has
+  none; the file name is a label, the prefix names the entry, and a prefix
+  loads once. It records a provided package in the shim and not in the engine's
+  package database. Under WASM the same authored header serves once the seam in
   the fourth ruling's order is closed, with the syntax-only
   `wasm32-wasi` check the shim document mentions turned into a CI gate that
   compiles the test extension.
@@ -2549,12 +2572,13 @@ and come before any runtime guard work.
 - `rust/tcl-registry/src/runtime_backing.rs`, `rust/tcl-spectcl/src/backing.rs` — `RuntimeBacking` and `BodySource`, and `BackingSyntax`, the one spelling of the `runtime_backing` statement for the loader and the Spec Studio
 - `rust/tcl-spec-hooks/src/sandbox.rs`, `pack_eval.rs`, `host.rs` — the hook whitelist, the pack evaluator, and the hook host with its per-pack engines, budgets, and context keys
 - `rust/tcl-registry/src/extension_default.rs`, `rust/tcl-registry/src/model/declaration.rs` — the conservative default for an extension command and the declared form that narrows it
+- `rust/tcl-spec-studio/src/infer/c_scan.rs`, `rust/tcl-spec-studio/src/infer/extension.rs`, `rust/tcl-cli/src/commands/spec_probe.rs`, `rust/tcl-cli-support/src/spec_import.rs` — the C scan, the rows it and the probe describe an extension with, the probe's script and report, and the pack they render as
 - `rust/tcl-compiler/src/inlining/reference.rs`, `rust/tcl-spectcl/src/package_sources.rs` — `inline_reference_bodies` and `ReferenceBodies`, and `provision`, which reads a `-package-source` body at load
 - `rust/tcl-registry/src/value_transfer/reference_body.rs`, `rust/tcl-spectcl/src/loader/reference.rs`, `rust/tcl-spec-studio/src/infer.rs` — the scan of a reference body, the loader pass that derives its declared implementation, and `infer_from_body`
 - `rust/tcl-cli/src/commands/spec.rs`, `spec_test.rs` — `tcl spec test` and the probe it sends to the shell
 - `rust/tcl-spec-studio/src/render_spectcl.rs`, `render_rs.rs`, `coverage.rs`, `schema.rs`, `draft.rs`, `help.rs` — `GAPS`, `GapKind`, the `.rs` contribution export, and the four studio surfaces
 - `rust/tcl-vm/src/compiled.rs` — `CompiledUnit`, `CompilerProvenance`, and the generations and manifest a unit carries
-- `rust/tcl-engine-api/src/lib.rs`, `rust/tcl-engine-tclvm/src/lib.rs`, `rust/tcl-cshim/src/lib.rs`, `rust/tcl-cshim/src/ffi.rs`, `rust/tcl-cshim/src/obj.rs`, `rust/tcl-cshim/include/tclshim.h` — the engine interface, its one implementation, `Interp::load_static` and its `Loaded` report, the 34 exported symbols, and the header
+- `rust/tcl-engine-api/src/lib.rs`, `rust/tcl-engine-tclvm/src/lib.rs`, `rust/tcl-cshim/src/lib.rs`, `rust/tcl-cshim/src/load.rs`, `rust/tcl-cshim/src/ffi.rs`, `rust/tcl-cshim/src/obj.rs`, `rust/tcl-cshim/include/tclshim.h`, `rust/tcl-vm-cli/src/main.rs` — the engine interface, its one implementation and `register_host_command`, `Interp::load_static` and its `Loaded` report, `StaticExtensions` (the host's `load`), the 34 exported symbols, the header, and `tclvm --static-extensions`
 - `rust/tcl-dialect/src/version.rs`, `profile.rs`, `rust/tcl-registry/src/model/ingress.rs`, `assembly.rs`, `runtime_context.rs`, `rust/tcl-compiler/src/compile_service.rs`, `rust/tcl-lsp-db/src/lib.rs` — the release, the pin and the `RuntimeContext` it resolves, the overlay ingress and its `OverlayMiss`, the compile service's overlay door, and the salsa registry queries
 - `rust/tcl-pkg-model/src/manifest.rs`, `lockfile.rs`, `tier.rs`, `rust/tcl-pkg/src/docker.rs` — the package manager's data model and the derivation of a package's dependency tier, which the pack loader reads too, and the container generator
 - `rust/xtask/src/command_backing.rs`, `gen_irule_test_data.rs`, `docs/generated/wasm-command-backing.md` — the backing gate and its one waiver list, the registry-generated iRules mocks, and the rendered report
@@ -2565,7 +2589,7 @@ and come before any runtime guard work.
 - `rust/tcl-registry/tests/analyser_hooks.rs` — pins the analyser-hook stamps and, through `analyser_hook_stamps_are_disjoint_from_definer_families`, the member-axis separation; re-baselined as variants retire
 - `runtime/rust/src/interp.rs`, `rust/tcl-vm/src/interp.rs` — `an_unrelated_mutation_keeps_the_guard_and_a_rebinding_drops_it`, the per-token guard contract in each runtime
 - `rust/tcl-compiler/tests/wasm_real_link.rs` — `guarded_boxed_intrinsic_runs_and_falls_back_against_the_real_runtime`, the guarded path against the real runtime, and `a_module_with_a_foreign_intrinsic_table_is_refused`, the link check against the runtime's own `tcl_runtime_identity`
-- `rust/tcl-cshim/tests/sandbox_isolation.rs` — a pack program and a hook body cannot reach a shimmed command
+- `rust/tcl-cshim/tests/sandbox_isolation.rs` — a pack program and a hook body cannot reach a shimmed command or `load`
 - `rust/tcl-spectcl/tests/spec_corpus.rs` — every shipped pack loaded, analysed, and run through the hook host at budget; a loading and containment gate, not a value oracle
 - `rust/tcl-spectcl/src/loader.rs` — `native_hook_tables_cover_their_catalogues`, the gate the argument-role hook body keeps
 - `rust/tcl-spec-studio/tests/spectcl_ports.rs` — `the_clause_grammar_derivation_agrees_with_the_shipped_walk`, widened to every grammar-carrying command
@@ -2575,7 +2599,7 @@ and come before any runtime guard work.
 - `rust/tcl-registry/tests/tcl91_dialect.rs` — the availability of `subst`'s positive option family
 - `rust/tcl-compiler/tests/mro_lattice_adversarial.rs`, `analyser.rs`, `cfg.rs` — the hierarchy, member, and clause behavioural parity gates
 - `rust/tcl-lsp-server/tests/preview_tickets_e2e.rs` — the definer spelling that reaches every provider with no consumer edit
-- `rust/tcl-cshim/tests/pkga_e2e.rs` — the byte-for-byte expectations captured against Tcl 9.0.4's own `tcl.h`, the shared conformance vectors for both C legs
+- `rust/tcl-cshim/tests/pkga_e2e.rs` — the byte-for-byte expectations captured against Tcl 9.0.4's own `tcl.h`, the shared conformance vectors for both C legs, `the_loaded_report_bridges_to_the_default_fact`, the shim's report declared at the extension default, and `load_through_the_host_bridge_defines_the_commands` with `the_same_vectors_run_through_the_host_load_bridge`, the host's `load`
 - `rust/tcl-spectcl/tests/i6_security_floor.rs` — the floor and its take-shipped extension
 - `rust/tcl-spectcl/tests/codegen_stamps.rs` — rung 3: `a_tcl_body_backed_command_is_inlined_and_admitted`, `a_host_native_backing_never_defines_a_proc` and `a_pack_text_body_that_diverges_turns_the_site_plain`; `rust/tcl-cli/tests/spec_verbs.rs` — `spec_test_reports_an_arity_divergence` and the verb's other rows
 - `rust/tcl-spectcl/tests/workspace_packs.rs`, `codegen_stamps.rs` — the stamp rejection rule's two witnesses: a refused stamp under the tier gate, and a bundled `alias_of` stamp whose recorded target identity the VM admits through its alias hop (refused for a proc at the pack name); the claims' admission: a changed pack refuses the site, and a pack's fold is admitted only under its facts; and, in `workspace_packs.rs`, the capability gate: `a_transitive_dependencys_alias_of_is_dropped` and `a_direct_dependency_keeps_alias_of_but_not_a_stamp`

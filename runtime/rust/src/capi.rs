@@ -23,15 +23,71 @@
 //! from the runtime. The ownership/error category of every function here is
 //! fixed by `c-api-ownership-contract.md`, which nothing currently enforces
 //! mechanically — a new export must be given its row by hand. The
-//! obj-lifecycle and result/eval-core slice is exported; the rest of the
+//! obj-lifecycle and result/eval-core slice is exported, with command
+//! registration (`Tcl_CreateObjCommand`, `Tcl_DeleteCommand`); the rest of the
 //! 81-function surface is not yet.
 
 #![allow(non_snake_case)]
 
-use core::ffi::{c_char, c_int};
+use core::ffi::{c_char, c_int, c_void, CStr};
 
-use crate::interp::Interp;
+use crate::interp::{Interp, ObjCommand, TclCmdDeleteProc, TclObjCmdProc};
+use crate::namespace::RenameOutcome;
 use crate::obj::{self, TclObj, TclSize, TclWideInt};
+
+// command registration
+
+/// `Tcl_CreateObjCommand` — bind `cmdName` to the extension's `proc`, which a
+/// dispatch of that command calls with `clientData` and the call's words;
+/// `deleteProc`, when given, runs with `clientData` when the command goes.
+/// Answers an opaque token for the new command (never null on success), or null
+/// when there is nothing to bind (a null interpreter, name or procedure).
+///
+/// `proc` is a function pointer: on `wasm32`, an index into the shared
+/// `__indirect_function_table` the extension's module installed its procedure
+/// in (`c-extension-abi.md` §4.5).
+///
+/// # Safety
+/// `interp` must be a live `Interp`; `cmdName` a NUL-terminated string;
+/// `proc` a valid `Tcl_ObjCmdProc` that stays callable for as long as the
+/// command lives.
+#[no_mangle]
+pub unsafe extern "C" fn Tcl_CreateObjCommand(
+    interp: *mut Interp,
+    cmdName: *const c_char,
+    proc_: Option<TclObjCmdProc>,
+    clientData: *mut c_void,
+    deleteProc: Option<TclCmdDeleteProc>,
+) -> *mut c_void {
+    let (Some(proc_), false, false) = (proc_, interp.is_null(), cmdName.is_null()) else {
+        return core::ptr::null_mut();
+    };
+    // SAFETY: caller guarantees a terminated name and a live interpreter.
+    let (name, interp) = unsafe { (CStr::from_ptr(cmdName).to_bytes(), &mut *interp) };
+    interp
+        .create_obj_command(name, ObjCommand::new(proc_, clientData, deleteProc))
+        .and_then(|generation| generation.checked_add(1))
+        .and_then(|token| usize::try_from(token).ok())
+        .map_or(core::ptr::null_mut(), |token| token as *mut c_void)
+}
+
+/// `Tcl_DeleteCommand` — delete the command `cmdName` names, as `rename
+/// cmdName {}` does. `0` when there was one, `-1` when there was none.
+///
+/// # Safety
+/// `interp` must be a live `Interp`; `cmdName` a NUL-terminated string.
+#[no_mangle]
+pub unsafe extern "C" fn Tcl_DeleteCommand(interp: *mut Interp, cmdName: *const c_char) -> c_int {
+    if interp.is_null() || cmdName.is_null() {
+        return -1;
+    }
+    // SAFETY: caller guarantees a terminated name and a live interpreter.
+    let (name, interp) = unsafe { (CStr::from_ptr(cmdName).to_bytes(), &mut *interp) };
+    match interp.rename_command(name, b"") {
+        RenameOutcome::Deleted => 0,
+        _ => -1,
+    }
+}
 
 // object creation (all `fresh_zero` — refCount 0)
 
