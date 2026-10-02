@@ -1320,10 +1320,11 @@ impl<'a> CfgBuilder<'a> {
         // target variable as a side effect; record it so copy / constant
         // propagation (O100) does not propagate a stale value past the
         // mutation (FP-OPT-06).
-        // The variable-effect view takes the in-frame expression words too: a
-        // `[incr x]` inside `[expr {…}]` writes `x` whatever word carried it.
+        // The variable-effect view takes the in-frame words too: a `[incr x]`
+        // inside `[expr {…}]`, or the `incr x` of `[catch {incr x}]`, writes
+        // `x` whatever word carried it.
         // The call-graph consumers above deliberately do not — see
-        // `EvaluatedCommandSubstitutions::in_frame_expression_commands`.
+        // `EvaluatedCommandSubstitutions::in_frame_commands`.
         let writes = crate::ir_helpers::variable_write_effects_from_commands(
             embedded.all_commands(),
             self.registry,

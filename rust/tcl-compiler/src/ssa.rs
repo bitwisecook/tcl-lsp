@@ -5351,15 +5351,16 @@ mod tests {
         );
     }
 
-    /// The same for a body whose locals are set inside it — `catch`'s script
-    /// declares `inner`, so the enclosing frame neither reads nor defines it.
+    /// A script a substitution runs in this frame — `catch`'s — shares the
+    /// frame's names, so `inner` is the frame's: its write is the effect
+    /// call's. The walk cannot order the script's read of it after the
+    /// script's own write, so the effect call reads it by name beside that
+    /// write, and nothing the host substitutes names it.
     #[test]
-    fn body_locals_of_a_nested_substitution_are_not_frame_reads() {
+    fn a_protected_scripts_local_is_read_by_name_beside_its_write() {
         let uses = classified_call_uses("puts [catch {set inner 1; expr {$inner + 1}}]");
-        assert!(
-            !uses.iter().any(|(name, _)| name == "inner"),
-            "a nested body's own local is not a read of this frame: {uses:?}"
-        );
+        let inner: Vec<_> = uses.iter().filter(|(name, _)| name == "inner").collect();
+        assert_eq!(inner, [&("inner".to_owned(), UseClass::Name)], "{uses:?}");
     }
 
     /// The classified uses of every `AssignValue` in a one-statement proc —

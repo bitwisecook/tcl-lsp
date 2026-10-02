@@ -1427,7 +1427,8 @@ dominance and which stays byte-identical in effect.
   place; so `proc p {} { incr n; if {[info exists n]} { puts yes } }`
   keeps its `incr n`, and `collect_rmw_hidden_reads` keeps only the
   names the SSA does not record. A read inside a script body nested in a
-  substitution (`[catch {unset x}]`, #2231) or an `uplevel 0` body is not
+  substitution other than the protected script of a `catch` and the body of
+  a `try` (`[eval {info exists x}]`, #2323) or an `uplevel 0` body is not
   recorded yet, for existence and value reads alike.
 - **I230 and O101**: the existence branch fact is an ordinary
   `ConstantBranch` with applied reachability; the post-pass extension in

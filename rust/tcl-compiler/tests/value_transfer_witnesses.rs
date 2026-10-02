@@ -4058,6 +4058,92 @@ fn a_store_a_catch_body_may_leave_untouched_is_not_dead() {
     }
 }
 
+/// Programs whose `catch` stands in a `[…]` substitution, with what tclsh
+/// 8.4 to 9.1 print: the three of #2231 (the second is the statement form),
+/// one in a procedure, a result variable beside the substitution, a `catch`
+/// in a `catch`, one reached through an alias of `catch`, and a body that sets
+/// a name, unsets one, substitutes a command, or writes through an expression
+/// word.
+const CATCH_BODY_PROGRAMS: &[(&str, &str)] = &[
+    (
+        "set x 1\nset c [catch {incr x}]\nif {$x == 2} {puts two} else {puts \"not two: $x\"}\n",
+        "two\n",
+    ),
+    ("set x 5\ncatch {incr x} m\nputs \"$x $m\"\n", "6 6\n"),
+    ("set x 1\nset c [catch {append x y}]\nputs $x\n", "1y\n"),
+    (
+        "proc p {} {\n set x 1\n set c [catch {incr x}]\n if {$x == 2} {return two} else {return other}\n}\nputs [p]\n",
+        "two\n",
+    ),
+    (
+        "set x 5\nputs [catch {incr x} m]\nputs \"$x $m\"\n",
+        "0\n6 6\n",
+    ),
+    (
+        "set x 1\nset c [catch {catch {incr x}}]\nif {$x == 2} {puts two} else {puts other}\n",
+        "two\n",
+    ),
+    (
+        "set g 5\nset rc [catch {set g 0}]\nif {$g} {puts a} else {puts b}\n",
+        "b\n",
+    ),
+    (
+        "set x 1\nputs [catch {unset x}]\nputs [info exists x]\n",
+        "0\n0\n",
+    ),
+    (
+        "set x 1\nputs [catch {expr {[incr x] + [error mid]}}]\nputs $x\n",
+        "1\n2\n",
+    ),
+    ("set x 5\nset c [catch {puts $x}]\nputs $c\n", "5\n0\n"),
+    ("set x 5\nset c [catch {incr x}]\nputs $c\n", "0\n"),
+    (
+        "set x 1\nset c [catch {set y [incr x]}]\nif {$x == 2} {puts two} else {puts other}\n",
+        "two\n",
+    ),
+    (
+        "interp alias {} c {} catch\nset x 1\nset r [c {incr x}]\n\
+         if {$x == 2} {puts two} else {puts other}\n",
+        "two\n",
+    ),
+];
+
+/// The body of a `catch`, or of a `try`, inside a `[…]` substitution runs once
+/// in the frame the substitution is written in, whatever it completes with,
+/// so what it writes and what it reads are the statement's own effect: the
+/// writes are definitions after the statement and the reads are uses of the
+/// definitions before it (#2231). Each program prints what it did before the
+/// multipass optimiser rewrote it, where the lattice held the value before
+/// the body and the stores the body reads were deleted; the condition is
+/// decided by no diagnostic, and a store the body reads stays. A `try` body
+/// does the same from 8.6.
+#[test]
+fn a_nested_catch_body_is_the_statements_effect() {
+    for &(source, expected) in CATCH_BODY_PROGRAMS {
+        prints_under_every_release(source, expected);
+        for dialect in DIALECTS {
+            assert!(
+                !reports(source, dialect, DiagCode::I230),
+                "{dialect}: no condition is decided:\n{source}"
+            );
+            for store in ["set x 1", "set x 5"] {
+                if source.contains(store) {
+                    assert!(
+                        !removes_store(source, dialect, store),
+                        "{dialect}: {store} is read:\n{source}"
+                    );
+                }
+            }
+        }
+    }
+    let in_try = "set x 1\nset r [try {incr x} on error {} {set y 0}]\n\
+                  if {$x == 2} {puts two} else {puts other}\n";
+    prints_under_releases_from(in_try, "two\n", "8.6");
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        assert!(!reports(in_try, dialect, DiagCode::I230), "{dialect}");
+    }
+}
+
 /// A call to a command the module cannot see reads its words before its head
 /// runs and may read or write any global afterwards: `foo` here is defined at
 /// run time, reads `g` and sets `g` and `m`, and tclsh 8.4 to 9.1 print what each

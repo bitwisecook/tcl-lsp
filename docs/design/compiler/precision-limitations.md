@@ -138,10 +138,17 @@ existence and a value read there are invisible — not a precision loss but
 a miscompile, verified against `tclsh` 8.6.18 (each pair below is the
 original's printed output, then the optimised program's):
 
-- **A script body nested in a substitution** (`[catch {…}]`, `[eval {…}]`,
-  `[lmap v {1} {…}]`) — records no read or write of the outer frame's
-  names at all (#2231): `set x 1; puts [catch {unset x}]` loses `set x 1`
-  to O109 / O126.
+- **A script body nested in a substitution** (`[eval {…}]`,
+  `[lmap v {1} {…}]`, an `if` arm or a loop body, `[namespace eval …]`,
+  `[apply …]`) — records no read or write of the outer frame's names at
+  all (#2323): `set x 1; puts [eval {info exists x}]; set x 2` loses
+  `set x 1` to O109 and prints `0` where tclsh prints `1`, and `set x 1;
+  puts [foreach v 1 {incr x}]; puts $x` prints `1` where tclsh prints `2`.
+  The one script a substitution runs once, in this frame, whatever it
+  completes with — the protected script of a `catch` and the body of a
+  `try`, which the clause grammar names — is recorded: `set x 1; puts
+  [catch {unset x}]` keeps `set x 1`, and `set x 1; set c [catch {incr x}];
+  if {$x == 2} …` is not decided on the value `x` held before the body.
 - **An `uplevel 0 {…}` body** (#2261) — that is the *current* frame, not a
   nested one, so its reads and writes are the caller's, but nothing records
   them:
@@ -159,9 +166,9 @@ original's printed output, then the optimised program's):
 
 Why it has not been done: each position needs the lowering to model a body
 it does not open a synthetic statement for at all, which is more than a
-scan-order fix — the nested-substitution case is tracked as #2231 and its
-write side as #2323; `uplevel 0` (#2261) and the loop header's list word
-(#2262) are tracked on their own. Extend the synthetic-statement placement (or, for
+scan-order fix — the bodies a substitution runs other than those of `catch`
+and `try` are tracked as #2323; `uplevel 0` (#2261) and the loop header's
+list word (#2262) are tracked on their own. Extend the synthetic-statement placement (or, for
 `uplevel 0`, model the body as reading and writing the *current* frame
 rather than a nested one) when one of these is the motivating case.
 

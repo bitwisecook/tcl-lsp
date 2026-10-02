@@ -1122,8 +1122,9 @@ pub(crate) struct EvaluatedCommandSubstitutions {
     /// Commands in evaluation order within each recovered bracket script.
     pub commands: Vec<Vec<CommandWord>>,
     /// Commands reached only by descending into a brace-quoted word the
-    /// callee evaluates as an **expression in this frame** — the `[incr x]`
-    /// of `puts [expr {$x + [incr x]}]`.
+    /// callee evaluates **in this frame**: an expression — the `[incr x]` of
+    /// `puts [expr {$x + [incr x]}]` — or a protected script, the body of a
+    /// `catch` — the `incr x` of `[catch {incr x}]`.
     ///
     /// Kept apart from [`Self::commands`] rather than merged into it because
     /// the two answer different questions. A consumer asking *what cells does
@@ -1135,23 +1136,21 @@ pub(crate) struct EvaluatedCommandSubstitutions {
     /// unbraced `return [fib $n]` earns for a reason unrelated to this word.
     /// Closing that second gap means fixing the recursion summary first; the
     /// two are separate, and this split says which is which.
-    pub in_frame_expression_commands: Vec<Vec<CommandWord>>,
+    pub in_frame_commands: Vec<Vec<CommandWord>>,
     /// The brace-quoted words themselves — the text of each `{$x + [incr x]}`
-    /// a recovered command evaluates as an expression in this frame, which is
-    /// where the variable reads of that expression sit: no command word of
-    /// [`Self::in_frame_expression_commands`] holds them.
-    pub in_frame_expression_texts: Vec<String>,
+    /// or `{incr x; puts $y}` a recovered command evaluates in this frame,
+    /// which is where the variable reads of that word sit: no command word of
+    /// [`Self::in_frame_commands`] holds them.
+    pub in_frame_texts: Vec<String>,
     /// A malformed fragment or recursion-limit hit prevented complete recovery.
     pub opaque: bool,
 }
 
 impl EvaluatedCommandSubstitutions {
     /// Every command the statement runs, whether or not it took an in-frame
-    /// expression word to reach — the view a variable-effect consumer needs.
+    /// word to reach — the view a variable-effect consumer needs.
     pub(crate) fn all_commands(&self) -> impl Iterator<Item = &Vec<CommandWord>> {
-        self.commands
-            .iter()
-            .chain(self.in_frame_expression_commands.iter())
+        self.commands.iter().chain(self.in_frame_commands.iter())
     }
 }
 
@@ -1208,7 +1207,7 @@ fn walk_text(
     registry: &CommandRegistry,
     heads: Option<EmbeddedHeadResolver<'_>>,
     depth: u32,
-    in_frame_expression: bool,
+    in_frame: bool,
     out: &mut EvaluatedCommandSubstitutions,
 ) {
     if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
@@ -1224,27 +1223,19 @@ fn walk_text(
         let inner = source_map.token_text(*token);
         let recovered = tokenise_command_words(inner, config);
         for words in &recovered {
-            walk_braced_expr_words(words, config, registry, heads, depth, out);
+            walk_in_frame_words(words, config, registry, heads, depth, out);
         }
-        if in_frame_expression {
-            out.in_frame_expression_commands.extend(recovered);
+        if in_frame {
+            out.in_frame_commands.extend(recovered);
         } else {
             out.commands.extend(recovered);
         }
-        walk_text(
-            inner,
-            config,
-            registry,
-            heads,
-            depth + 1,
-            in_frame_expression,
-            out,
-        );
+        walk_text(inner, config, registry, heads, depth + 1, in_frame, out);
     }
 }
 
-/// Descend the brace-quoted words a recovered command evaluates **as an
-/// expression in this frame**.
+/// Descend the brace-quoted words a recovered command evaluates **in this
+/// frame**: an expression, and a protected script.
 ///
 /// The word lexer is right to stop at `{…}` — the *command* parser
 /// substitutes nothing there — but `expr` re-parses that text as an
@@ -1264,10 +1255,17 @@ fn walk_text(
 ///   9.0.4 both print `3` then `2` for
 ///   `set x 1; puts [expr 1 + {[incr x]}]; puts $x`.
 ///
-/// Only `Expr` is descended, never `Body`: a body word runs in this frame
-/// too but may bind names of its own, which a flat command list cannot
+/// A script the call's clause plan places as protected
+/// ([`tcl_registry::ClauseTiming::Protected`]: the body of `catch` and of
+/// `try`) runs once in this frame whatever it does, and its completion is
+/// observed rather than propagated, so what it writes and reads is the
+/// statement's: `set c [catch {incr x}]` writes `x`, and an `if` that reads
+/// it was folded on the value `x` held before (#2231). Its commands are
+/// descended, and their own protected scripts and expression words with
+/// them. Every other body is left: it may run zero or many times, in
+/// another frame, or bind names of its own, which a flat command list cannot
 /// represent.
-fn walk_braced_expr_words(
+fn walk_in_frame_words(
     words: &[CommandWord],
     config: LexerConfig,
     registry: &CommandRegistry,
@@ -1326,7 +1324,37 @@ fn walk_braced_expr_words(
         else {
             continue;
         };
-        out.in_frame_expression_texts.push(word.text.clone());
+        out.in_frame_texts.push(word.text.clone());
+        walk_text(&word.text, config, registry, heads, depth + 1, true, out);
+    }
+
+    let protected: Vec<usize> = registry
+        .clause_plan(lookup, &args)
+        .map(|plan| {
+            plan.clauses
+                .iter()
+                .filter(|clause| clause.timing == tcl_registry::ClauseTiming::Protected)
+                .flat_map(|clause| clause.operands(tcl_registry::ArgRole::Body))
+                .collect()
+        })
+        .unwrap_or_default();
+    for index in protected {
+        let Some(source_index) = index.checked_sub(shift) else {
+            continue;
+        };
+        // A script that substitutes is not known text.
+        let Some(word) = words
+            .get(source_index + 1)
+            .filter(|word| word.braced_literal)
+        else {
+            continue;
+        };
+        out.in_frame_texts.push(word.text.clone());
+        let recovered = tokenise_command_words(&word.text, config);
+        for inner in &recovered {
+            walk_in_frame_words(inner, config, registry, heads, depth + 1, out);
+        }
+        out.in_frame_commands.extend(recovered);
         walk_text(&word.text, config, registry, heads, depth + 1, true, out);
     }
 }
@@ -1439,12 +1467,12 @@ pub(crate) fn statement_substituted_reads(
         .into_iter()
         .collect();
     let surfaces = evaluated_command_substitution_surfaces(stmt, registry);
-    for text in surfaces.texts.iter().copied().chain(
-        embedded
-            .in_frame_expression_texts
-            .iter()
-            .map(String::as_str),
-    ) {
+    for text in surfaces
+        .texts
+        .iter()
+        .copied()
+        .chain(embedded.in_frame_texts.iter().map(String::as_str))
+    {
         reads.extend(scanner.scan_word(text, registry));
     }
     reads
@@ -1466,12 +1494,10 @@ pub(crate) fn condition_substituted_reads(
     let mut texts: Vec<&str> = Vec::new();
     let mut opaque = false;
     collect_expr_command_surface_refs(condition, &mut texts, &mut opaque, 0);
-    for text in texts.into_iter().chain(
-        embedded
-            .in_frame_expression_texts
-            .iter()
-            .map(String::as_str),
-    ) {
+    for text in texts
+        .into_iter()
+        .chain(embedded.in_frame_texts.iter().map(String::as_str))
+    {
         reads.extend(scanner.scan_word(text, registry));
     }
     reads
@@ -1816,6 +1842,71 @@ mod tests {
 
         assert_eq!(commands(false)[0][0].text, "set");
         assert!(commands(true).is_empty());
+    }
+
+    /// The commands of `surface` a statement's substitution recovers, under
+    /// the 8.6 registry.
+    fn recovered(surface: &str) -> EvaluatedCommandSubstitutions {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        command_substitutions_in_surfaces(&[surface], false, registry, None)
+    }
+
+    /// The head spelling of each command, sorted.
+    fn heads<'a>(commands: impl IntoIterator<Item = &'a Vec<CommandWord>>) -> Vec<&'a str> {
+        let mut heads: Vec<&str> = commands
+            .into_iter()
+            .filter_map(|words| words.first())
+            .map(|word| word.text.as_str())
+            .collect();
+        heads.sort_unstable();
+        heads
+    }
+
+    /// The script a `catch` protects, and the body of a `try`, run once in the
+    /// frame the substitution is written in, so their commands are the
+    /// statement's: `[catch {incr x}]` writes `x`. Nothing else is descended
+    /// by a command's name — a handler, a `finally`, an `if` arm, a loop body,
+    /// an `eval` — and a script that is not brace-quoted is not known text.
+    #[test]
+    fn a_protected_script_is_descended_and_no_other_body_is() {
+        let one = recovered("[catch {incr x}]");
+        assert_eq!(heads(&one.commands), ["catch"]);
+        assert_eq!(heads(&one.in_frame_commands), ["incr"]);
+        assert_eq!(one.in_frame_texts, ["incr x"]);
+
+        let two = recovered("[catch {catch {incr x}}]");
+        assert_eq!(heads(&two.in_frame_commands), ["catch", "incr"]);
+        assert_eq!(two.in_frame_texts, ["catch {incr x}", "incr x"]);
+
+        let in_expr = recovered("[catch {expr {[incr x] + 1}}]");
+        assert_eq!(heads(&in_expr.in_frame_commands), ["expr", "incr"]);
+
+        let in_substitution = recovered("[catch {set y [incr x]}]");
+        assert_eq!(heads(&in_substitution.in_frame_commands), ["incr", "set"]);
+
+        let body_only = recovered("[try {incr x} on error {} {incr y} finally {incr z}]");
+        assert_eq!(heads(&body_only.in_frame_commands), ["incr"]);
+        assert_eq!(body_only.in_frame_texts, ["incr x"]);
+
+        for other in [
+            "[if {1} {incr x}]",
+            "[eval {incr x}]",
+            "[foreach v {1} {incr x}]",
+            "[while {1} {incr x}]",
+            "[catch \"incr x\"]",
+            "[catch $script]",
+            "[catch [list incr x]]",
+        ] {
+            let embedded = recovered(other);
+            assert!(
+                !heads(&embedded.in_frame_commands).contains(&"incr")
+                    && embedded
+                        .in_frame_texts
+                        .iter()
+                        .all(|text| !text.contains("incr")),
+                "{other}"
+            );
+        }
     }
 
     #[test]
