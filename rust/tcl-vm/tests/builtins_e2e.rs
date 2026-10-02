@@ -1810,6 +1810,171 @@ puts [list $afterFailure [package require P 1] [package provide P]]
     );
 }
 
+#[test]
+fn package_ifneeded_non_error_completions_become_badresult_and_can_be_retried() {
+    out_eq(
+        r#"foreach {kind script} {break {break} continue {continue} return {return} custom {return -level 0 -code 10}} {
+    package forget foo
+    package ifneeded foo 1 "package provide foo 1; $script"
+    set status [catch {package require foo 1} message options]
+    puts [list $kind $status $message [dict get $options -errorcode] [string match {* ("package ifneeded foo 1" script)*} [dict get $options -errorinfo]] [package provide foo] [expr {[package ifneeded foo 1] eq "package provide foo 1; $script"}]]
+    package ifneeded foo 1 {package provide foo 1}
+    puts [list retry [package require foo 1]]
+}
+"#,
+        "break 1 {attempt to provide package foo 1 failed: bad return code: 3} {TCL PACKAGE BADRESULT} 1 {} 1\n\
+retry 1\n\
+continue 1 {attempt to provide package foo 1 failed: bad return code: 4} {TCL PACKAGE BADRESULT} 1 {} 1\n\
+retry 1\n\
+return 1 {attempt to provide package foo 1 failed: bad return code: 2} {TCL PACKAGE BADRESULT} 1 {} 1\n\
+retry 1\n\
+custom 1 {attempt to provide package foo 1 failed: bad return code: 10} {TCL PACKAGE BADRESULT} 1 {} 1\n\
+retry 1\n",
+    );
+}
+
+#[test]
+fn package_unknown_non_error_completions_become_badresult() {
+    out_eq(
+        r#"set previous [package unknown]
+foreach {kind script} {break {break} continue {continue} return {return} custom {return -level 0 -code 10}} {
+    package forget foo
+    package unknown "$script ;#"
+    set status [catch {package require foo 1} message options]
+    puts [list $kind $status $message [dict get $options -errorcode] [string match {* ("package unknown" script)*} [dict get $options -errorinfo]]]
+}
+package unknown {package ifneeded foo 1 {package provide foo 1};#}
+puts [list retry [package require foo 1]]
+package unknown $previous
+"#,
+        "break 1 {bad return code: 3} {TCL PACKAGE BADRESULT} 1\n\
+continue 1 {bad return code: 4} {TCL PACKAGE BADRESULT} 1\n\
+return 1 {bad return code: 2} {TCL PACKAGE BADRESULT} 1\n\
+custom 1 {bad return code: 10} {TCL PACKAGE BADRESULT} 1\n\
+retry 1\n",
+    );
+}
+
+#[test]
+fn package_discovery_preserves_ordinary_script_errors() {
+    out_eq(
+        r#"package forget foo bar
+package ifneeded foo 1 {error boom LOAD {LOADER ORIGINAL}}
+set status [catch {package require foo 1} message options]
+puts [list ifneeded $status $message [dict get $options -errorcode] [string match {LOAD*} [dict get $options -errorinfo]] [string match {* ("package ifneeded foo 1" script)*} [dict get $options -errorinfo]] [package provide foo]]
+set previous [package unknown]
+package unknown {error boom UNKNOWN {UNKNOWN ORIGINAL};#}
+set status [catch {package require bar 1} message options]
+puts [list unknown $status $message [dict get $options -errorcode] [string match {UNKNOWN*} [dict get $options -errorinfo]] [string match {* ("package unknown" script)*} [dict get $options -errorinfo]]]
+package unknown $previous
+"#,
+        "ifneeded 1 boom {LOADER ORIGINAL} 1 1 {}\nunknown 1 boom {UNKNOWN ORIGINAL} 1 1\n",
+    );
+}
+
+#[test]
+fn package_badresult_seeds_explicitly_empty_error_info() {
+    // Unmodified Tcl 9.0.4 seeds the generated BADRESULT message before the
+    // loader frame even when return carries an explicitly empty -errorinfo.
+    out_eq(
+        r"package ifneeded foo 1 {return -code error -errorinfo {} boom}
+catch {package require foo 1} message options
+puts [list $message [dict get $options -errorinfo] [dict get $options -errorcode]]
+package unknown {return -code error -errorinfo {} boom;#}
+catch {package require bar 1} message options
+puts [list $message [dict get $options -errorinfo] [dict get $options -errorcode]]
+",
+        concat!(
+            "{attempt to provide package foo 1 failed: bad return code: 2} ",
+            "{attempt to provide package foo 1 failed: bad return code: 2\n",
+            "    (\"package ifneeded foo 1\" script)\n",
+            "    invoked from within\n\"package require foo 1\"} {TCL PACKAGE BADRESULT}\n",
+            "{bad return code: 2} {bad return code: 2\n",
+            "    (\"package unknown\" script)\n",
+            "    invoked from within\n\"package require bar 1\"} {TCL PACKAGE BADRESULT}\n",
+        ),
+    );
+}
+
+#[test]
+fn package_badresult_resets_non_error_traces_and_preserves_carried_error_info() {
+    out_eq(
+        r#"set previous [package unknown]
+foreach {kind script carried} {
+    break {break} {}
+    continue {continue} {}
+    return {return} {}
+    custom {return -level 0 -code 10} {}
+    pendingError {return -code error boom} {}
+    nonErrorInfo {return -errorinfo EXPLICIT boom} {}
+    errorInfo {return -code error -errorinfo EXPLICIT boom} EXPLICIT
+} {
+    package forget foo bar
+    package ifneeded foo 1 $script
+    catch {package require foo 1} message options
+    set prefix [expr {$carried eq "" ? $message : $carried}]
+    set expected [format "%s\n    (\"package ifneeded foo 1\" script)\n    invoked from within\n\"package require foo 1\"" $prefix]
+    puts [list ifneeded $kind [expr {[dict get $options -errorinfo] eq $expected}]]
+    package unknown "$script ;#"
+    catch {package require bar 1} message options
+    set prefix [expr {$carried eq "" ? $message : $carried}]
+    set expected [format "%s\n    (\"package unknown\" script)\n    invoked from within\n\"package require bar 1\"" $prefix]
+    puts [list unknown $kind [expr {[dict get $options -errorinfo] eq $expected}]]
+}
+
+package unknown $previous
+"#,
+        concat!(
+            "ifneeded break 1\nunknown break 1\n",
+            "ifneeded continue 1\nunknown continue 1\n",
+            "ifneeded return 1\nunknown return 1\n",
+            "ifneeded custom 1\nunknown custom 1\n",
+            "ifneeded pendingError 1\nunknown pendingError 1\n",
+            "ifneeded nonErrorInfo 1\nunknown nonErrorInfo 1\n",
+            "ifneeded errorInfo 1\nunknown errorInfo 1\n",
+        ),
+    );
+}
+
+#[test]
+fn package_badresult_preserves_ancillary_options_and_pending_error_stack() {
+    use std::fmt::Write as _;
+    // Tcl 9.0.4: custom options survive both discovery paths, while only a
+    // pending error return retains its explicit error stack.
+    for (script, pending) in [
+        (
+            "return -level 0 -code break -foo BAR -errorinfo OLD -errorcode OLD",
+            false,
+        ),
+        (
+            "return -level 0 -code 10 -foo BAR -errorinfo OLD -errorcode OLD",
+            false,
+        ),
+        (
+            "return -code error -errorinfo EXPLICIT -errorstack {INNER {invokeStk1 boom}} -foo BAR boom",
+            true,
+        ),
+        (
+            "return -foo BAR -errorinfo OLD -errorstack {INNER {invokeStk1 boom}}",
+            false,
+        ),
+    ] {
+        for package in ["foo", "bar"] {
+            let mut source = format!(
+                "package forget foo bar\npackage ifneeded foo 1 {{{script}}}\npackage unknown {{{script} ;#}}\ncatch {{package require {package} 1}} message options\n"
+            );
+            if pending {
+                source.push_str("set expected {INNER {invokeStk1 boom}}\nset prefix EXPLICIT\nset stackOK [expr {[dict get $options -errorstack] eq $expected}]\n");
+            } else {
+                writeln!(source, "set expected {{INNER {{invokeStk1 package require {package} 1}}}}\nset prefix $message\nset stackOK [string match {{*package require {package} 1}} [lindex [dict get $options -errorstack] 1]]").unwrap();
+            }
+            source.push_str(r#"puts [list [dict get $options -foo] [dict get $options -code] [dict get $options -level] [dict get $options -errorcode] $stackOK [string match "$prefix\n*" [dict get $options -errorinfo]]]
+"#);
+            out_eq(&source, "BAR 1 0 {TCL PACKAGE BADRESULT} 1 1\n");
+        }
+    }
+}
+
 /// `package forget` removes the active package record, including a loader's
 /// circular marker. A loader can therefore replace its record and require the
 /// replacement before the outer loader returns.

@@ -300,6 +300,7 @@ fn each_loop(vm: &mut Vm, args: &[Value], collect: bool) -> Completion<Value> {
         groups,
         iterations,
         body: script,
+        invocation: None,
     });
     ok(Value::empty())
 }

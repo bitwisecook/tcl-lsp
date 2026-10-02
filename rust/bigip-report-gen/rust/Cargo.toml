@@ -100,6 +100,9 @@ cli = ["dep:tcl-bigip-io", "chrono/clock"]
 # validated against the same inputs.
 tcl-bigip-io = { path = "../../tcl-bigip-io" }
 
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+js-sys = "0.3"
+
 # The native CLI generator: `cargo run -p bigip-report-gen-rust --features cli
 # --bin bigip-report-gen -- device.ucs -o report.html`. Requires `cli` (which
 # pulls the UCS reader + a real clock); a plain `cargo build` skips it.
