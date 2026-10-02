@@ -2869,6 +2869,11 @@ fn build_cfg_function_with_upvars_inner(
     let (upvar_procs, proc_params, global_write_procs, command_bindings) = context;
     let command_classes =
         command_classes.unwrap_or_else(|| CfgCommandClasses::from_registry(registry));
+    let timeline = command_bindings.source_binding_timeline_from_boundary(
+        script,
+        registry,
+        &execution_namespace,
+    );
     let mut builder = CfgBuilder::new_with_upvars_and_classes(
         inline_loops,
         upvar_procs,
@@ -2881,7 +2886,8 @@ fn build_cfg_function_with_upvars_inner(
     .with_faithful_exceptions()
     .with_lexer_config(config)
     .with_command_surface(plain_command_dispatch)
-    .with_invocation_namespace(execution_namespace);
+    .with_invocation_namespace(execution_namespace)
+    .with_source_binding_timeline(timeline);
     if widen_oo_dispatch {
         builder = builder.with_oo_dispatch_widening();
     }

@@ -307,6 +307,10 @@ pub struct ModuleCommandBindings {
     /// source body was readable and could be replayed. The optimiser's trust
     /// contract deliberately treats that metadata as a whole-domain mutation.
     has_redefined_procedures: bool,
+    /// Closed boundary effects of executable roots, retained while the
+    /// source-order view advances. User calls join this proven effect state
+    /// instead of inventing whole-domain mutation for every retained body.
+    source_order_user_call_effects: Option<Arc<Self>>,
 }
 
 impl PartialEq for ModuleCommandBindings {
@@ -326,17 +330,30 @@ impl PartialEq for ModuleCommandBindings {
             && self.rebound_names == other.rebound_names
             && self.proc_rebound_names == other.proc_rebound_names
             && self.has_redefined_procedures == other.has_redefined_procedures
+            && self.source_order_user_call_effects == other.source_order_user_call_effects
     }
 }
 
 impl Eq for ModuleCommandBindings {}
 
 impl ModuleCommandBindings {
-    /// Source-order projection for a user procedure without an available
-    /// command-table effect summary. Kept private to binding consumers so the
-    /// historical module lattice cannot be widened accidentally.
+    /// Closed root-boundary effects do not include pre-definition missing
+    /// candidates from historical observations. A completed retained call can
+    /// publish those effects without inventing arbitrary binding mutation.
+    fn source_order_call_boundary(&self) -> Arc<Self> {
+        let mut effects = self.clone();
+        effects.bindings.clone_from(&self.root_boundary_bindings);
+        effects.source_order_user_call_effects = None;
+        Arc::new(effects)
+    }
+
+    /// Apply the closed module effects after a retained user call.
     pub(crate) fn mark_source_order_user_procedure_call(&mut self) {
-        self.mark_opaque_binding_mutation();
+        if let Some(effects) = self.source_order_user_call_effects.clone() {
+            self.join(&effects);
+        } else {
+            self.mark_opaque_binding_mutation();
+        }
     }
 
     /// Resolve recovered substitutions in Tcl evaluation order for the
@@ -350,6 +367,9 @@ impl ModuleCommandBindings {
         namespace: &crate::ir_helpers::ExecutionNamespace,
         barrier_traits: tcl_registry::Traits,
     ) -> bool {
+        if self.source_order_user_call_effects.is_none() {
+            self.source_order_user_call_effects = Some(self.source_order_call_boundary());
+        }
         for words in commands {
             let Some(head) = words
                 .first()
@@ -444,6 +464,7 @@ impl std::hash::Hash for ModuleCommandBindings {
         self.rebound_names.hash(state);
         self.proc_rebound_names.hash(state);
         self.has_redefined_procedures.hash(state);
+        self.source_order_user_call_effects.hash(state);
     }
 }
 
@@ -693,6 +714,20 @@ impl ModuleCommandBindings {
         }
     }
 
+    /// Replay an independently callable body from completed root boundaries,
+    /// excluding historical pre-definition missing candidates.
+    pub(crate) fn source_binding_timeline_from_boundary(
+        &self,
+        script: &Script,
+        registry: &CommandRegistry,
+        namespace: &crate::ir::ExecutionNamespace,
+    ) -> SourceBindingTimeline {
+        let effects = self.source_order_call_boundary();
+        let mut initial = effects.as_ref().clone();
+        initial.source_order_user_call_effects = Some(effects);
+        Self::source_binding_timeline_from_initial(script, registry, namespace, &initial)
+    }
+
     /// Replay one root in source order for CFG-local registry projections.
     /// Top level begins with its fresh registry state; independently callable
     /// procedure roots begin from the historical state reachable after module
@@ -706,6 +741,9 @@ impl ModuleCommandBindings {
         top_level_root: bool,
     ) -> SourceBindingTimeline {
         let mut initial = self.clone();
+        if initial.source_order_user_call_effects.is_none() {
+            initial.source_order_user_call_effects = Some(self.source_order_call_boundary());
+        }
         if top_level_root {
             initial.bindings = Arc::new(HashMap::new());
             initial.root_boundary_bindings = Arc::new(HashMap::new());
@@ -2229,7 +2267,7 @@ fn apply_embedded_transitions(
                 .iter()
                 .any(|target| !target.registry_backed)
         {
-            bindings.mark_opaque_binding_mutation();
+            bindings.mark_source_order_user_procedure_call();
         }
         let facts = bindings.resolve_command_words(&words, registry, command_namespace);
         apply_resolved_may_transitions(
@@ -2396,7 +2434,7 @@ fn apply_may_invocation_transitions(
         *bindings = state;
     }
     if reaches_user_procedure {
-        bindings.mark_opaque_binding_mutation();
+        bindings.mark_source_order_user_procedure_call();
     }
     observe_exact_procedure_definition(observed, bindings, exact_definition_key)
 }

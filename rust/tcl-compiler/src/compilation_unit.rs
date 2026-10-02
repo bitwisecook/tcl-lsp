@@ -1387,7 +1387,11 @@ fn build_procedure_units(
                 // diagnostic & optimiser passes that read `fu.cfg` spans
                 // directly (`base_offset` stays 0; `abs_span` is identity).
                 crate::lattice_rebase::rebase_function_unit(&mut fu, i64::from(body_offset));
-                Some(fu)
+                // Source-order entry states can change this procedure's CFG
+                // without changing the closed module state in the memo key.
+                // Reuse only a unit built under the exact current CFG; the
+                // ordinary fresh path carries any missing timeline effects.
+                (fu.cfg == *cfg).then_some(fu)
             }
             _ => None,
         };

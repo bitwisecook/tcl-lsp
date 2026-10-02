@@ -2072,7 +2072,7 @@ fn info_exists_after_my_dispatch_to_an_upvar_sibling_does_not_fire_i230() {
 }
 
 /// Rooted helper identities do not close the runtime object's method surface.
-/// Tcl 9.0.4: an oo::objdefine replacement of helper can upvar-define zzz in
+/// Tcl 9.0.4: an `oo::objdefine` replacement of helper can upvar-define zzz in
 /// m, changing info exists from 0 to 1 without changing this class body.
 #[test]
 fn info_exists_after_runtime_selected_object_dispatch_does_not_fire_i230() {
