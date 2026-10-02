@@ -703,8 +703,13 @@ fn collect_expr_command_surface_refs<'a>(
             collect_expr_command_surface_refs(left, out, opaque, conditional, depth + 1);
             let before_right = out.len();
             collect_expr_command_surface_refs(right, out, opaque, conditional, depth + 1);
-            if matches!(op, crate::expr_ast::BinOp::And | crate::expr_ast::BinOp::Or)
-                && out.len() != before_right
+            if matches!(
+                op,
+                crate::expr_ast::BinOp::And
+                    | crate::expr_ast::BinOp::Or
+                    | crate::expr_ast::BinOp::WordAnd
+                    | crate::expr_ast::BinOp::WordOr
+            ) && out.len() != before_right
             {
                 *conditional = true;
             }
@@ -1142,7 +1147,7 @@ pub(crate) struct EvaluatedCommandSubstitutions {
 }
 
 impl EvaluatedCommandSubstitutions {
-    /// Every command the statement runs, whether or not it took an in-frame
+    /// Every command the statement may run, whether or not it took an in-frame
     /// expression word to reach, in Tcl evaluation order. Variable-effect and
     /// binding-transition consumers use this view; call-graph consumers may
     /// still select the ordinary inventory without changing its classification.
@@ -1201,6 +1206,7 @@ pub(crate) fn evaluated_command_substitutions_with_replay(
     command_substitutions_in_surfaces_with_replay(
         &surfaces.texts,
         surfaces.opaque,
+        surfaces.conditional,
         registry,
         heads,
         observe,
@@ -1221,13 +1227,15 @@ pub(crate) struct ResolvedEmbeddedHead {
 /// single statically known registry-backed target — the raw spelling is then
 /// used, exactly as when no resolver is supplied.
 pub(crate) type EmbeddedHeadResolver<'a> = &'a dyn Fn(&str) -> Option<ResolvedEmbeddedHead>;
-pub(crate) type EmbeddedCommandObserver<'a> = &'a dyn Fn(&[CommandWord]);
+/// Observes a completed command and whether expression control may skip it.
+pub(crate) type EmbeddedCommandObserver<'a> = &'a dyn Fn(&[CommandWord], bool);
 
 struct SubstitutionWalkContext<'a> {
     config: LexerConfig,
     registry: &'a CommandRegistry,
     heads: Option<EmbeddedHeadResolver<'a>>,
     observe: Option<EmbeddedCommandObserver<'a>>,
+    conditional: bool,
 }
 
 fn walk_text(
@@ -1259,7 +1267,7 @@ fn walk_text(
             }
             walk_braced_expr_words(&words, context, depth, out);
             if let Some(observe) = context.observe {
-                observe(&words);
+                observe(&words, context.conditional);
             }
             if in_frame_expression {
                 out.evaluation_order
@@ -1366,7 +1374,35 @@ fn walk_braced_expr_words(
     // The variable-effect walk is reached from consumers that hold only a
     // catalogue, so it asks the same owner with no declarations attached.
     let surface = tcl_registry::model::DocumentCommandSurface::new(context.registry, None);
-    for index in in_frame_expression_arg_indices(lookup, &args, &surface) {
+    let indices = in_frame_expression_arg_indices(lookup, &args, &surface);
+    let concatenated = surface.commands().get(lookup).is_some_and(|spec| {
+        spec.traits
+            .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
+    });
+    let expression_texts = if concatenated {
+        vec![args.join(" ")]
+    } else {
+        indices
+            .iter()
+            .filter_map(|&index| args.get(index).map(|arg| (*arg).to_owned()))
+            .collect()
+    };
+    let mut conditional = context.conditional
+        || (concatenated && words.iter().skip(1).any(|word| word.literal().is_none()));
+    let mut opaque = false;
+    for text in &expression_texts {
+        let expr = crate::expr_parser::parse_expr(
+            text,
+            context.registry.profile().map(|profile| profile.name),
+        );
+        collect_expr_command_surface_refs(&expr, &mut Vec::new(), &mut opaque, &mut conditional, 0);
+    }
+    out.opaque |= opaque;
+    let expression_context = SubstitutionWalkContext {
+        conditional,
+        ..*context
+    };
+    for index in indices {
         // A prepended word is a value the alias already holds, not source
         // this call substitutes.
         let Some(source_index) = index.checked_sub(shift) else {
@@ -1381,7 +1417,7 @@ fn walk_braced_expr_words(
         else {
             continue;
         };
-        walk_text(&word.text, context, depth + 1, true, out);
+        walk_text(&word.text, &expression_context, depth + 1, true, out);
     }
 }
 
@@ -1439,6 +1475,7 @@ fn invoked_word_surfaces<'a>(
 pub(crate) fn command_substitutions_in_surfaces_with_replay(
     surfaces: &[&str],
     initially_opaque: bool,
+    conditional: bool,
     registry: &CommandRegistry,
     heads: Option<EmbeddedHeadResolver<'_>>,
     observe: Option<EmbeddedCommandObserver<'_>>,
@@ -1457,6 +1494,7 @@ pub(crate) fn command_substitutions_in_surfaces_with_replay(
         registry,
         heads,
         observe,
+        conditional,
     };
     for text in surfaces {
         walk_text(text, &context, 0, false, &mut out);
@@ -1485,7 +1523,14 @@ pub(crate) fn expression_command_substitutions_with_replay(
     let mut opaque = false;
     let mut conditional = false;
     collect_expr_command_surface_refs(expr, &mut texts, &mut opaque, &mut conditional, 0);
-    command_substitutions_in_surfaces_with_replay(&texts, opaque, registry, heads, observe)
+    command_substitutions_in_surfaces_with_replay(
+        &texts,
+        opaque,
+        conditional,
+        registry,
+        heads,
+        observe,
+    )
 }
 
 /// Map one segmented command onto its per-word [`CommandWord`] facts.
@@ -1834,6 +1879,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let embedded = command_substitutions_in_surfaces_with_replay(
             &["[expr {[rename aaa {}; rename eval aaa; set _ 0]}] [aaa {set x 6}]"],
+            false,
             false,
             &registry,
             None,

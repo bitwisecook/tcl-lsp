@@ -2242,3 +2242,46 @@ fn expression_alias_created_by_earlier_substitution_replays_nested_effects() {
     assert_eq!(safe.top_level.sccp.constant_branches.len(), 1);
     assert!(safe.top_level.sccp.constant_branches[0].value);
 }
+
+#[test]
+fn conditional_expression_binding_replay_keeps_skipped_paths() {
+    // Tcl 9.0.4 prints changed: each skipped replacement leaves e as eval.
+    for expression in [
+        "0 && [interp alias {} e {} list]",
+        "1 || [interp alias {} e {} list]",
+        "1 ? 0 : [interp alias {} e {} list]",
+        "0 ? [interp alias {} e {} list] : 0",
+        "$flag && [interp alias {} e {} list]",
+    ] {
+        for middle in [
+            format!("list [expr {{{expression}}}] [e {{set x 6}}]"),
+            format!("set ignored [expr {{{expression}}}]; e {{set x 6}}"),
+            format!("if {{{expression}}} {{puts ignored}}; e {{set x 6}}"),
+        ] {
+            let source = format!(
+                "interp alias {{}} e {{}} eval; set flag 0; set x 5; {middle}; if {{$x == 5}} {{puts stale}} else {{puts changed}}"
+            );
+            let cu = CompilationUnit::build_for(&source, &reg(), false);
+            assert!(
+                !cu.top_level
+                    .sccp
+                    .constant_branches
+                    .iter()
+                    .any(|branch| branch.value && branch.condition.contains("x")),
+                "{middle}"
+            );
+        }
+    }
+    let safe = CompilationUnit::build_for(
+        "set x 5; list [expr {0 && [string length safe]}]; if {$x == 5} {puts kept} else {puts changed}",
+        &reg(),
+        false,
+    );
+    assert!(
+        safe.top_level
+            .sccp
+            .constant_branches
+            .iter()
+            .any(|branch| branch.value)
+    );
+}

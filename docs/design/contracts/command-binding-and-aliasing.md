@@ -297,3 +297,8 @@ alias redefinition does not hide an earlier expression's nested effects.
 The owner replays each recovered invocation before discovering the next head's
 expression roles. An alias created by an earlier substitution therefore enables
 descent into a later sibling's expression without precomputing a stale inventory.
+
+Conditional expression substitutions retain both executed and skipped binding
+states. The shared expression AST owner identifies short-circuit and ternary
+paths; replay joins the incoming state after each possibly executed command,
+so a skipped alias replacement cannot erase an earlier evaluation target.

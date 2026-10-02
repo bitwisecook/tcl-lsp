@@ -1226,3 +1226,9 @@ helper without reading the rationale:
   ownership rules sit inside.
 - [family-b-routing.md](../runtime/family-b-routing.md) — the runtime seam this
   crate layering serves.
+
+The substitution observer receives the expression owner’s conditional-path
+fact. Binding consumers join skipped and executed states rather than
+interpreting lexical discovery as definite execution. Elimination reads the
+SSA binding lineage to keep executable stores observed through fresh scalar-
+analysis versions live; markers themselves remain without executable uses.

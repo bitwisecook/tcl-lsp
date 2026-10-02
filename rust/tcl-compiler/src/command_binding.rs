@@ -385,6 +385,7 @@ impl ModuleCommandBindings {
     pub(crate) fn source_order_registry_barrier_for_command(
         &mut self,
         words: &[crate::ir_helpers::CommandWord],
+        conditional: bool,
         registry: &CommandRegistry,
         namespace: &crate::ir_helpers::ExecutionNamespace,
         barrier_traits: tcl_registry::Traits,
@@ -403,6 +404,7 @@ impl ModuleCommandBindings {
             self.mark_opaque_binding_mutation();
             return true;
         };
+        let skipped = conditional.then(|| self.clone());
         let source_may_be_unknown = self.target_may_be_unknown(head, command_namespace);
         let reaches_user_procedure = self
             .targets(head, command_namespace)
@@ -416,6 +418,9 @@ impl ModuleCommandBindings {
         apply_resolved_may_transitions(facts, source_may_be_unknown, true, self, namespace);
         if reaches_user_procedure {
             self.mark_source_order_user_procedure_call();
+        }
+        if let Some(skipped) = skipped {
+            self.join(&skipped);
         }
         barrier
     }
@@ -2262,7 +2267,8 @@ fn apply_embedded_transitions(
 ) -> bool {
     let state = std::cell::RefCell::new(bindings);
     let resolve = |head: &str| state.borrow().resolved_embedded_head(head, namespace);
-    let observe = |words: &[crate::ir_helpers::CommandWord]| {
+    let observe = |words: &[crate::ir_helpers::CommandWord], conditional: bool| {
+        let skipped = conditional.then(|| (**state.borrow()).clone());
         apply_embedded_command_transition(
             words,
             registry,
@@ -2270,6 +2276,9 @@ fn apply_embedded_transitions(
             namespace,
             source_order_mode,
         );
+        if let Some(skipped) = skipped {
+            state.borrow_mut().join(&skipped);
+        }
     };
     let embedded =
         evaluated_command_substitutions_with_replay(stmt, registry, Some(&resolve), Some(&observe));

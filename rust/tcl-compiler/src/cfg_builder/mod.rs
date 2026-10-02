@@ -597,11 +597,12 @@ impl<'a> CfgBuilder<'a> {
                 .borrow()
                 .resolved_embedded_head(head, &self.invocation_namespace)
         };
-        let observe = |words: &[crate::ir_helpers::CommandWord]| {
+        let observe = |words: &[crate::ir_helpers::CommandWord], conditional: bool| {
             let found = state
                 .borrow_mut()
                 .source_order_registry_barrier_for_command(
                     words,
+                    conditional,
                     self.registry,
                     &self.invocation_namespace,
                     REGISTRY_BARRIER_TRAITS,
@@ -1218,11 +1219,12 @@ impl<'a> CfgBuilder<'a> {
                 .borrow()
                 .resolved_embedded_head(head, &self.invocation_namespace)
         };
-        let observe = |words: &[crate::ir_helpers::CommandWord]| {
+        let observe = |words: &[crate::ir_helpers::CommandWord], conditional: bool| {
             let found = state
                 .borrow_mut()
                 .source_order_registry_barrier_for_command(
                     words,
+                    conditional,
                     self.registry,
                     &self.invocation_namespace,
                     REGISTRY_BARRIER_TRAITS,
