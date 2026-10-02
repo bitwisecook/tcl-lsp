@@ -1448,6 +1448,21 @@ fn foreach_lmap_runtime_explicit_error_info_logs_invocation() {
 }
 
 #[test]
+fn tailcalled_each_loop_retains_its_entered_error_invocation() {
+    // Exact errorInfo from Tcl 9.0.4, including the tailcall's replacement
+    // invocation rather than the removed procedure's source instruction.
+    for name in ["foreach", "lmap"] {
+        let source = format!(
+            "proc p {{}} {{set c {name}; tailcall $c x 1 {{error direct EI}}}}; catch {{p}}; set ::errorInfo"
+        );
+        let expected = format!(
+            "EI\n    (\"{name}\" body line 1)\n    invoked from within\n\"{name} x 1 {{error direct EI}}\"\n    invoked from within\n\"p\""
+        );
+        assert_eq!(run(&source).1, expected, "{name}");
+    }
+}
+
+#[test]
 fn foreach_in_package_ifneeded_logs_invocation_before_loader_frame() {
     assert_eq!(
         run(concat!(

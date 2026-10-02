@@ -190,6 +190,8 @@ pub(crate) struct Frame {
     /// would add on error (`("eval" body line N)` / `("uplevel" body line N)`).
     /// `None` for a command-substitution `EVAL_STK`, which adds no body frame.
     body_label: Option<&'static str>,
+    /// Entered invocation retained when a tailcall removes its issuing frame.
+    body_invocation: Option<(String, u32)>,
     /// Set on a **catch** activation: the body runs on the explicit stack (like a
     /// script frame) but its completion — of *any* code — is absorbed by the catch
     /// epilogue (`Vm::finish_catch`) rather than propagated. Carries the optional
@@ -329,6 +331,7 @@ pub(crate) struct EachLoopReq {
     pub(crate) groups: Vec<EachLoopGroup>,
     pub(crate) iterations: usize,
     pub(crate) body: crate::compiled::CompiledUnit,
+    pub(crate) invocation: Option<(String, u32)>,
 }
 
 /// [`EachLoopReq`]'s live iteration state, carried on the activation
@@ -408,6 +411,7 @@ impl Frame {
             is_script: false,
             replay_namespace_restore: None,
             body_label: None,
+            body_invocation: None,
             catch: None,
             subst: None,
             each_loop: None,
@@ -501,6 +505,7 @@ impl Frame {
         placeholder: crate::compiled::CompiledUnit,
     ) -> Self {
         let mut f = Self::new(placeholder, false);
+        f.body_invocation = req.invocation;
         f.each_loop = Some(Box::new(EachLoopState {
             name: req.name,
             collect: req.collect,
@@ -1877,6 +1882,13 @@ impl Vm {
             return;
         };
         self.append_body_frame(label);
+        if let Some((cmd, line)) = &act.body_invocation {
+            self.log_command_info(cmd, "", *line);
+            // The entered replacement and the original procedure call are
+            // separate Tcl command frames, even though tailcall removed the
+            // procedure activation between them.
+            self.clear_error_logged();
+        }
         if let Some((cmd, line)) = acts.last().and_then(|parent| {
             parent
                 .asm
@@ -5893,14 +5905,19 @@ impl Vm {
             self.dispatch_words(parent, words)
         };
         match dispatched {
-            Ok(Some(tick)) => match self.install_tick(acts, tick) {
-                TickAction::Resume => None,
-                TickAction::Complete(completion) => {
-                    self.settle_completion(acts, completion).map(RunExit::Done)
+            Ok(Some(mut tick)) => {
+                if let Tick::PushEachLoop { req, .. } = &mut tick {
+                    req.invocation = Some((Value::list(words.to_vec()).to_str().to_string(), 1));
                 }
-                TickAction::Tailcall(next) => self.run_tailcall(acts, &next, mode),
-                TickAction::Suspend(req) => self.handle_suspend(acts, mode, req),
-            },
+                match self.install_tick(acts, tick) {
+                    TickAction::Resume => None,
+                    TickAction::Complete(completion) => {
+                        self.settle_completion(acts, completion).map(RunExit::Done)
+                    }
+                    TickAction::Tailcall(next) => self.run_tailcall(acts, &next, mode),
+                    TickAction::Suspend(req) => self.handle_suspend(acts, mode, req),
+                }
+            }
             Ok(None) => None,
             Err(completion) => self.unwind(acts, completion).map(RunExit::Done),
         }
