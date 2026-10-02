@@ -2328,3 +2328,85 @@ fn global_script_and_registry_barriers_both_widen_seeded_parameter() {
     assert_eq!(safe.constant_branches.len(), 1);
     assert!(safe.constant_branches[0].value);
 }
+
+#[test]
+fn catch_header_handler_widens_seeded_parameter_on_both_dispatch_paths() {
+    use tcl_compiler::cfg_builder::{build_cfg_codegen_with_registry, build_cfg_with_registry};
+    let registry = reg();
+    for body in ["", "set body_value ok"] {
+        let source = format!(
+            "proc p {{x}} {{catch {{{body}}} [missing_command]; if {{$x == 5}} {{return stale}} else {{return changed}}}}"
+        );
+        assert!(
+            seeded_parameter_result(&source)
+                .constant_branches
+                .is_empty()
+        );
+        let cu = CompilationUnit::build_for(&source, &registry, false);
+        for cfg in [
+            build_cfg_with_registry(&cu.ir_module, false, &registry),
+            build_cfg_codegen_with_registry(&cu.ir_module, false, &registry),
+        ] {
+            assert!(
+                cfg.procedures["::p"]
+                    .blocks
+                    .values()
+                    .flat_map(|block| &block.statements)
+                    .any(|stmt| stmt.synthetic_marker()
+                        == Some(tcl_compiler::ir::SyntheticMarker::RegistryBarrier))
+            );
+        }
+    }
+    assert_eq!(
+        seeded_parameter_result(
+            "proc p {x} {catch {} [list result]; if {$x == 5} {return kept} else {return changed}}"
+        )
+        .constant_branches
+        .len(),
+        1
+    );
+}
+
+#[test]
+fn registry_handler_widens_collection_classes_before_later_updates() {
+    for middle in ["missing_command", "set ignored [missing_command]"] {
+        let source = format!(
+            "oo::class create A {{}}; oo::class create B {{}}; set d [dict create k [A new]]; {middle}; dict set d k2 [A new]; set x [dict get $d k]"
+        );
+        let cu = CompilationUnit::build_for(&source, &reg(), false);
+        let fu = cu.function("::top").unwrap();
+        let x = fu.ssa.var_symbol("x").unwrap();
+        assert!(
+            fu.types
+                .iter()
+                .filter(|((symbol, _), _)| *symbol == x)
+                .all(|(_, ty)| ty.class_name().is_none()),
+            "{middle}: {:?}",
+            fu.types
+        );
+    }
+}
+
+#[test]
+fn constructor_effects_and_redefinitions_withdraw_collection_type_precision() {
+    for source in [
+        "oo::class create A {constructor {} {upvar 1 acc cell; set cell {changed}}}; set acc [list]; lappend acc [A new]; set x [lindex $acc 0]",
+        "oo::class create A {}; set acc [list]; oo::define A constructor {} {upvar 1 acc cell; set cell {changed}}; lappend acc [A new]; set x [lindex $acc 0]",
+        "oo::class create A {}; set acc [list]; missing_command; lappend acc [A new]; set x [lindex $acc 0]",
+    ] {
+        let cu = CompilationUnit::build_for(source, &reg(), false);
+        let fu = cu.function("::top").unwrap();
+        let x = fu.ssa.var_symbol("x").unwrap();
+        let inferred: Vec<_> = fu
+            .types
+            .iter()
+            .filter(|((symbol, _), _)| *symbol == x)
+            .map(|(_, ty)| ty)
+            .collect();
+        assert!(!inferred.is_empty());
+        assert!(
+            inferred.iter().all(|ty| ty.class_name().is_none()),
+            "{source}: {inferred:?}"
+        );
+    }
+}

@@ -2059,6 +2059,11 @@ impl<'a> CfgBuilder<'a> {
     /// locals, so the store the inline form emits would address the wrong
     /// variable.
     fn lower_catch_dispatch(&mut self, stmt: &Statement, current: &str) -> String {
+        self.push_embedded_control_effects(
+            stmt,
+            current,
+            "catch header invokes an opaque embedded command",
+        );
         let Statement::Catch { body, raw_args, .. } = stmt else {
             unreachable!();
         };

@@ -1236,10 +1236,14 @@ analysis versions live; markers themselves remain without executable uses.
 Value provenance uses the canonical lifted-call inventory to recognise the
 first substitution’s variable head read before invocation. Only clobbers
 belonging to that same host are undone for that operand; earlier invocations
-and following statements retain invalidation. Type inference carries executable
-definition provenance through scalar-only value versions, like the binding
-and taint domains, so fresh scalar versions do not become uninitialised
-containers or erase the existing homogeneous and mixed-class evolution.
+and following statements retain invalidation. Type inference widens registry-clobbered versions independently of binding
+and taint lineage. An unknown prior container contributes unknown elements
+to later updates, preventing a stale class from surviving a handler. A narrow
+straight-line proof retains executable type provenance for empty source-class
+factories: registry manufacturer descriptors identify the empty declarations
+and argument-free factories; any opaque invocation, binding transition,
+nonempty class body or control edge withdraws the proof. The unchanged
+homogeneous and mixed-class collection assertions gate this precision.
 
 The internal SSA entry-binding adapter receives the compilation unit’s formal
 parameters before allocating scalar value versions. The seeded-parameter

@@ -313,3 +313,10 @@ An unbound local version zero has no prior value to invalidate; parameter
 seeds still receive fresh versions, while the first real local store retains
 its executable definition identity. Raw CFG-only callers remain conservative
 when entry-binding facts are unavailable.
+
+Catch header substitutions materialise their effects before either inline or
+opaque dispatch. Registry-clobbered type reads widen rather than follow the
+binding domain's executable lineage; subsequent collection writes retain the
+unknown prior elements. Empty source-class factories retain collection type
+precision only under the straight-line, registry-described proof documented
+in the shared owner contract.
