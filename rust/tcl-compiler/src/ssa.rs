@@ -3153,6 +3153,17 @@ pub fn build_ssa_with_config(
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
 ) -> SsaFunction {
+    build_ssa_for_entry(func, registry, config, None)
+}
+
+/// With known entry bindings, only bound version-zero values need clobbers.
+/// A first local store must not follow a fabricated value definition.
+pub(crate) fn build_ssa_for_entry(
+    func: &cfg::Function,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    entry_bindings: Option<&[String]>,
+) -> SsaFunction {
     let initial = build_ssa_inner(func, registry, config, &HashMap::new());
     let live = crate::slot_allocation::registry_barrier_live_names(func, &initial, registry);
     let clobbers: RegistryClobberNames = live
@@ -3176,7 +3187,21 @@ pub fn build_ssa_with_config(
                     let mut names: Vec<_> = symbols
                         .into_iter()
                         .filter(|symbol| {
+                            let version = statements[..index]
+                                .iter()
+                                .rev()
+                                .find_map(|stmt| stmt.defs.get(symbol).copied())
+                                .or_else(|| {
+                                    initial.blocks[&block].entry_versions.get(symbol).copied()
+                                })
+                                .unwrap_or(0);
                             preceding_defs.is_none_or(|defs| !defs.contains_key(symbol))
+                                && entry_bindings.is_none_or(|bindings| {
+                                    version != 0
+                                        || bindings
+                                            .iter()
+                                            .any(|name| name == initial.var_name(*symbol))
+                                })
                         })
                         .map(|symbol| initial.var_name(symbol).to_owned())
                         .collect();

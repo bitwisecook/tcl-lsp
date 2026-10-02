@@ -1240,3 +1240,7 @@ and following statements retain invalidation. Type inference carries executable
 definition provenance through scalar-only value versions, like the binding
 and taint domains, so fresh scalar versions do not become uninitialised
 containers or erase the existing homogeneous and mixed-class evolution.
+
+The internal SSA entry-binding adapter receives the compilation unit’s formal
+parameters before allocating scalar value versions. The seeded-parameter
+residual tests and unchanged first-store collection assertions gate this route.

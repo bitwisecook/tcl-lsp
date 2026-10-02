@@ -307,3 +307,9 @@ Global-frame script and registry-handler boundaries are independent effects.
 When one statement reaches both, CFG construction retains both typed markers
 in ordinary substitutions, conditions, control inputs and direct calls; the
 global boundary cannot replace the registry value clobber for seeded parameters.
+
+Compilation supplies the known entry bindings to SSA value clobber placement.
+An unbound local version zero has no prior value to invalidate; parameter
+seeds still receive fresh versions, while the first real local store retains
+its executable definition identity. Raw CFG-only callers remain conservative
+when entry-binding facts are unavailable.

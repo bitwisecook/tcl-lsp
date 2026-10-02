@@ -507,7 +507,8 @@ fn lookup_var_type(
     ssa: &SsaFunction,
 ) -> Option<TypeLattice> {
     let sym = ssa.var_symbol(name)?;
-    let ver = *uses.get(&sym)?;
+    // Scalar-only versions carry no new executable definition or type fact.
+    let ver = ssa.binding_version(sym, *uses.get(&sym)?);
     if ver == 0 {
         return None;
     }
@@ -924,17 +925,8 @@ fn value_word_type<S: std::hash::BuildHasher>(
     // Pure variable reference: inherit source type.
     if is_pure_var_ref(stripped) {
         let name = normalise_var_name(stripped);
-        if let Some(&ver) = ctx.ssa.var_symbol(name).and_then(|s| ctx.uses.get(&s))
-            && ver > 0
-        {
-            return ctx
-                .ssa
-                .var_symbol(name)
-                .and_then(|s| ctx.types.get(&(s, ver)))
-                .cloned()
-                .unwrap_or_else(TypeLattice::unknown);
-        }
-        return TypeLattice::unknown();
+        return lookup_var_type(name, ctx.uses, ctx.types, ctx.ssa)
+            .unwrap_or_else(TypeLattice::unknown);
     }
     // Command substitution: [cmd ...].
     if stripped.starts_with('[')
@@ -1010,6 +1002,7 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
                 .uses
                 .iter()
                 .filter_map(|(&sym, &ver)| {
+                    let ver = ctx.ssa.binding_version(sym, ver);
                     if ver == 0 {
                         return None;
                     }
@@ -1392,7 +1385,10 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
                     }
                     let mut phi_type = TypeLattice::unknown();
                     for pred in &exec_preds {
-                        let ver = phi.incoming.get(pred).copied().unwrap_or(0);
+                        let ver = ssa.binding_version(
+                            phi.name,
+                            phi.incoming.get(pred).copied().unwrap_or(0),
+                        );
                         // A version-0 incoming is the entry / live-in root (a
                         // proc parameter, global, or other caller-supplied
                         // value). Its runtime type is unknown at compile time,
@@ -1430,28 +1426,6 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
             // Statements.
             if type_infer_process_statements(&mut types, ssa_block, &ctx) {
                 changed = true;
-            }
-            // Scalar-only clobbers retain the executable definition's type
-            // provenance, like the binding and taint domains. Treating a fresh
-            // value version as an uninitialised container loses prior elements.
-            if let Some(markers) = ssa.value_clobbers.get(bn) {
-                for versions in markers.values() {
-                    for (&symbol, &(prior, fresh)) in versions {
-                        let prior_type = types
-                            .get(&(symbol, prior))
-                            .cloned()
-                            .unwrap_or_else(TypeLattice::unknown);
-                        let old = types
-                            .get(&(symbol, fresh))
-                            .cloned()
-                            .unwrap_or_else(TypeLattice::unknown);
-                        let joined = type_join(&old, &prior_type);
-                        if joined != old {
-                            types.insert((symbol, fresh), joined);
-                            changed = true;
-                        }
-                    }
-                }
             }
         }
     }

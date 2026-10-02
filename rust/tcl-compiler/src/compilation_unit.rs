@@ -45,7 +45,7 @@ use crate::memory_ssa::{MemorySsaFunction, build_memory_ssa};
 use crate::rendered_properties::{RenderedValueProps, propagate_rendered_props};
 use crate::sccp::SccpResult;
 use crate::semantic_analysis::SemanticAnalysisBundle;
-use crate::ssa::{SsaFunction, ValueKey, build_ssa_with_config};
+use crate::ssa::{SsaFunction, ValueKey};
 use crate::taint::{TaintGraph, TaintLattice, instance_classes_for_function, propagate_taints};
 use crate::type_infer::propagate_types;
 use crate::types::TypeLattice;
@@ -668,7 +668,7 @@ impl FunctionUnit {
         if crate::ssa::is_complexity_guarded(&cfg) {
             return Self::trivial_guarded(name, cfg);
         }
-        let ssa = build_ssa_with_config(&cfg, registry, config);
+        let ssa = crate::ssa::build_ssa_for_entry(&cfg, registry, config, Some(params));
         let def_use = build_def_use_chains(&ssa, Some(&cfg), config);
         // The registry carries its dialect profile's fold policy: the octal
         // rule, which fixes how a bare leading-zero literal (`08`, `010`) is
