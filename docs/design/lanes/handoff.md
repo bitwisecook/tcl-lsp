@@ -10,25 +10,26 @@ says where each lane stands, what is queued, and how the work is run.
 
 | Lane | Tracking document | Landed | In flight | Remaining |
 |---|---|---|---|---|
-| Value transfers | [value-transfers.md](value-transfers.md) | slices 1, 2, 3, 4, 5, 8, 6 (reviewed, reworked in three rounds, re-checked "land as is") and 9 (landed at `f06639de`) | slice 10 (completion paths): its first item is committed at `ddb53a10`, its second (per-path publication) is in draft on the running implementer | the rest of slice 10, then the fable review of slices 9 and 10 together with its fixes; then slices 11, 12, 7a, 13, 7, in that order |
-| Consumer contracts | [consumer-contracts.md](consumer-contracts.md) | steps 1 to 7, each reviewed with fixes landed; the step 8 rework (three groups) and step 9 (landed at `ef740eb8` on `cc-step5`) | step 10 (the extension legs) on the running implementer, and the fable review of the step 8 rework and step 9 in the gate worktree | the step 10 review with its fixes, then the merge of `cc-step5` into the main branch at a value-transfer checkpoint |
+| Value transfers | [value-transfers.md](value-transfers.md) | slices 1, 2, 3, 4, 5, 8, 6 (reviewed, reworked in three rounds, re-checked "land as is") and 9 (landed at `f06639de`) | slice 10 (completion paths): items 1 and 2 are committed (`ddb53a10`, `b9ab4993`); item 3 (the `catch`/`try` protocols, with the wider scope the implementer read from the code: `return`/`break`/`continue` routes, a body's non-normal completion reaching `catch`, embedded pairs beyond `expr`) is on the running implementer, its scope recorded as D230 before it builds | the rest of slice 10, then the fable review of slices 9 and 10 together with its fixes; then slices 11, 12, 7a, 13, 7, in that order |
+| Consumer contracts | [consumer-contracts.md](consumer-contracts.md) | steps 1 to 7, each reviewed with fixes landed; the step 8 rework (three groups) and step 9 (`ef740eb8` on `cc-step5`); step 10's first item, the extension default (`69f5211b`) | the fixes from the fable review of the step 8 rework and step 9 (verdict: the inliner rework blocked by four wrong-value findings the VM admits, B1 an `lmap` body left `Dropped`, B2 a braced literal re-substituted by the wrap, B3 a namespaced definition losing a sibling command that shadows a builtin, B4 a name read through `[set y]` not gated; step 9 lands with S1 the `tcl spec test` policy following the nearest manifest, N1 an unvalidated `ambient_package` version, N2 slot names unreserved), in three groups on the running implementer, then the rest of step 10 | the step 10 review with its fixes, then the merge of `cc-step5` into the main branch at a value-transfer checkpoint |
 | Diagnostic policy | (landed; see the design page `docs/design/compiler/diagnostic-policy.md`) | complete | | |
 
 Branch heads at the last rewrite of this page: the main branch at the
-commit that rewrites this page, above `e96cb2b5` (the move to Rust 1.99.0)
-and `ddb53a10` (slice 10's first item); `cc-step5` at `ef740eb8` (step 9
-landed) with step 10 in draft, containing the main branch up to `203fb917`.
+commit that rewrites this page, above `b9ab4993` (slice 10's second item)
+and `156d18f5` (the move to Rust 1.99.0); `cc-step5` at `69f5211b` (step
+10's first item), containing the main branch up to `203fb917`; the main
+branch is merged into `cc-step5` at that implementer's next green commit,
+which also moves its worktree to the 1.99.0 toolchain.
 
 ## Queued on the running implementers
 
-- Value transfers: slice 10's second item is in draft; the implementer
-  commits it on top of the 1.99.0 move and stops for the gate. The slice 9
-  review runs together with slice 10's once slice 10 lands.
-- Consumer contracts: step 10 runs under Rust 1.98.1 until the main branch
-  is next merged into `cc-step5`, which brings the 1.99.0 move; the
-  worktree's toolchain override moves to 1.99.0 at that merge. The review
-  of the step 8 rework and step 9 reports its findings as fixes to land on
-  that implementer before step 10's own review.
+- Value transfers: slice 10 item 3 is being built, each sub-item its own
+  green commit. The slice 9 review runs together with slice 10's once
+  slice 10 lands.
+- Consumer contracts: the review fixes land in three groups (the inliner;
+  the `tcl spec test` policy; the `ambient_package` version), then the
+  rest of step 10. The merge from the main branch (and the move of the
+  worktree to Rust 1.99.0) happens after the first group's commit.
 
 ## After the lanes
 
@@ -63,7 +64,7 @@ landed) with step 10 in draft, containing the main branch up to `203fb917`.
   findings land as "review fixes" commits (blocking ones before the next
   item), and pre-existing defects found in passing become GitHub issues
   (#2253 to #2272, #2291 to #2297, #2299 to #2303, #2305 to #2316, #2323
-  to #2328, #2330 to #2335 so far), never fixes on this branch.
+  to #2328, #2330 to #2335, #2337 so far), never fixes on this branch.
 - Implementers are sonnet, reviewers fable. Commit messages are
   `wip(<lane>): <slice or step> — <phrase>` with the session's two trailer
   lines; files outside this directory describe current state only.
@@ -83,6 +84,9 @@ landed) with step 10 in draft, containing the main branch up to `203fb917`.
   `target/debug/deps` are deleted after each run, never while that tree's
   implementer is running; a gate worktree's `target/` can be removed
   whenever it is idle.
+- Each agent keeps its scripts in a private directory under the scratchpad
+  (two agents once collided on a shared `gates.sh`), and nothing is run with
+  a gate worktree as its working directory except the gate itself.
 - The session has restarted several times; drafts survive on disk, so a
   restart is recovered by reading `git status` and `git log` in each
   worktree and relaunching the implementer on the draft.
