@@ -285,4 +285,8 @@ before the boundary. Explicit outputs of the invocation already have fresh
 versions and keep their binding evidence. Preliminary SSA supplies name-level
 liveness; the final rename walk places clobber joins through ordinary phis.
 Brace-quoted expression substitutions use the canonical owner's complete
-command view for the same registry projection as ordinary substitutions.
+command view for the same registry projection as ordinary substitutions. The
+owner records one evaluation-ordered index stream across the ordinary and
+in-frame expression inventories. Binding transitions and scalar barriers replay
+that stream; an earlier expression's nested renames reach both later siblings
+and following statements without changing the inventories used by call graphs.

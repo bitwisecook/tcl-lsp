@@ -1107,6 +1107,11 @@ pub(crate) fn tokenise_command_words(source: &str, config: LexerConfig) -> Vec<V
         .collect()
 }
 
+enum CommandSubstitutionIndex {
+    Ordinary(usize),
+    InFrameExpression(usize),
+}
+
 /// Registry/dialect-shaped command invocations recovered from every evaluated
 /// `[...]` surface owned by one statement.
 #[derive(Default)]
@@ -1128,17 +1133,26 @@ pub(crate) struct EvaluatedCommandSubstitutions {
     /// Closing that second gap means fixing the recursion summary first; the
     /// two are separate, and this split says which is which.
     pub in_frame_expression_commands: Vec<Vec<CommandWord>>,
+    /// Indices into both inventories in the order the shared walk evaluates
+    /// them. Keeping the classifications separate must not move an earlier
+    /// expression's nested invocation after a later sibling substitution.
+    evaluation_order: Vec<CommandSubstitutionIndex>,
     /// A malformed fragment or recursion-limit hit prevented complete recovery.
     pub opaque: bool,
 }
 
 impl EvaluatedCommandSubstitutions {
     /// Every command the statement runs, whether or not it took an in-frame
-    /// expression word to reach — the view a variable-effect consumer needs.
+    /// expression word to reach, in Tcl evaluation order. Variable-effect and
+    /// binding-transition consumers use this view; call-graph consumers may
+    /// still select the ordinary inventory without changing its classification.
     pub(crate) fn all_commands(&self) -> impl Iterator<Item = &Vec<CommandWord>> {
-        self.commands
-            .iter()
-            .chain(self.in_frame_expression_commands.iter())
+        self.evaluation_order.iter().map(|index| match *index {
+            CommandSubstitutionIndex::Ordinary(index) => &self.commands[index],
+            CommandSubstitutionIndex::InFrameExpression(index) => {
+                &self.in_frame_expression_commands[index]
+            }
+        })
     }
 }
 
@@ -1228,8 +1242,14 @@ fn walk_text(
             }
             walk_braced_expr_words(&words, config, registry, heads, depth, out);
             if in_frame_expression {
+                out.evaluation_order
+                    .push(CommandSubstitutionIndex::InFrameExpression(
+                        out.in_frame_expression_commands.len(),
+                    ));
                 out.in_frame_expression_commands.push(words);
             } else {
+                out.evaluation_order
+                    .push(CommandSubstitutionIndex::Ordinary(out.commands.len()));
                 out.commands.push(words);
             }
         }
@@ -1772,6 +1792,33 @@ mod tests {
 
         assert_eq!(commands(false)[0][0].text, "set");
         assert!(commands(true).is_empty());
+    }
+
+    #[test]
+    fn complete_substitution_inventory_preserves_expression_sibling_order() {
+        let registry = CommandRegistry::build_default();
+        let embedded = command_substitutions_in_surfaces(
+            &["[expr {[rename aaa {}; rename eval aaa; set _ 0]}] [aaa {set x 6}]"],
+            false,
+            &registry,
+            None,
+        );
+        let heads = |commands: Vec<&Vec<CommandWord>>| {
+            commands
+                .into_iter()
+                .map(|words| words[0].text.clone())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            heads(embedded.all_commands().collect()),
+            ["rename", "rename", "set", "expr", "aaa"]
+        );
+        assert_eq!(heads(embedded.commands.iter().collect()), ["expr", "aaa"]);
+        assert_eq!(
+            heads(embedded.in_frame_expression_commands.iter().collect()),
+            ["rename", "rename", "set"]
+        );
+        assert!(!embedded.opaque);
     }
 
     #[test]

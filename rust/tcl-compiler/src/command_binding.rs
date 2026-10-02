@@ -2244,11 +2244,11 @@ fn apply_embedded_transitions(
     source_order_mode: bool,
 ) -> bool {
     let embedded = evaluated_command_substitutions(stmt, registry);
-    let observed = embedded.opaque || !embedded.commands.is_empty();
+    let observed = embedded.opaque || embedded.all_commands().next().is_some();
     if embedded.opaque {
         bindings.mark_opaque_binding_mutation();
     }
-    for words in embedded.commands {
+    for words in embedded.all_commands() {
         let Some(head) = words.first() else {
             continue;
         };
@@ -2269,7 +2269,7 @@ fn apply_embedded_transitions(
         {
             bindings.mark_source_order_user_procedure_call();
         }
-        let facts = bindings.resolve_command_words(&words, registry, command_namespace);
+        let facts = bindings.resolve_command_words(words, registry, command_namespace);
         apply_resolved_may_transitions(
             facts,
             source_may_be_unknown,
