@@ -1,6 +1,6 @@
-# Caller-frame injection cluster (issue #923 audit idx 7 / 22 / 57 / 58 / 98,
-# issue #1019).  Every claim below is pinned on tclsh 9.0.4 and 8.6.16, which
-# agree on all of it.
+# Caller-frame injection cluster (audit idx 7 / 22 / 57 / 58 / 98).
+# Every claim below is pinned on tclsh 9.0.4 and 8.6.16, which agree on
+# all of it.
 #
 # idx 58 -- an out-parameter helper whose caller-frame variable happens to
 # share its name with an unrelated TclOO method.  `chart new` prints

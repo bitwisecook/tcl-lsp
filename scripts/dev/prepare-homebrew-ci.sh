@@ -8,7 +8,7 @@
 # uses. Homebrew inspects every configured tap during a later `brew install`,
 # and an untrusted aws/tap then emits a workflow annotation before the pinned
 # Rust setup action can install bash. Remove only that exact unused tap; do not
-# trust it or weaken Homebrew's tap-trust policy (issue #1684).
+# trust it or weaken Homebrew's tap-trust policy.
 
 set -eu
 

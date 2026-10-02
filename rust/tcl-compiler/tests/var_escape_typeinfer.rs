@@ -16,8 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Behaviour-driven coverage for three under-covered `tcl-compiler`
-//! modules: `var_escape/` (variable escape analysis), `type_infer`
+//! Behaviour-driven coverage for three `tcl-compiler` modules:
+//! `var_escape/` (variable escape analysis), `type_infer`
 //! (the SSA `TclType` lattice), and `subst_nocommands` (the compile-time
 //! `subst -nocommands` evaluator).
 //!
@@ -171,7 +171,7 @@ fn var_escape_subst(template: &str, m: &HashMap<String, String>) -> Option<Strin
     tcl_compiler::subst_nocommands::subst_nocommands(template, m)
 }
 
-// PART 1 — var_escape: escape via scope-crossing constructs
+// var_escape: escape via scope-crossing constructs
 
 #[test]
 fn upvar_escapes_local_alias_and_records_source() {
@@ -314,7 +314,7 @@ fn dynamic_set_name_spills_all_known_locals() {
     assert!(p.dynamic_barrier());
 }
 
-// --- NEGATIVE cases: a pure local does NOT escape ---
+// Negative cases: a pure local does NOT escape.
 
 #[test]
 fn pure_local_does_not_escape() {
@@ -356,7 +356,7 @@ fn plain_set_at_top_level_no_escape() {
     assert!(!top.dynamic_barrier());
 }
 
-// PART 2 — var_escape: interprocedural propagation
+// var_escape: interprocedural propagation
 
 #[test]
 fn interprocedural_caller_inherits_upvar_pessimism() {
@@ -480,7 +480,7 @@ fn solve_interprocedural_escape_on_synthetic_summaries() {
     assert!(solve_interprocedural_escape(&HashMap::<String, ProcEscapeSummary>::new()).is_empty());
 }
 
-// PART 3 — var_escape: CFG/SSA path (analyse_var_escape_cu)
+// var_escape: CFG/SSA path (analyse_var_escape_cu)
 
 #[test]
 fn cu_path_upvar_escapes_alias() {
@@ -496,10 +496,9 @@ fn cu_path_upvar_escapes_alias() {
 
 #[test]
 fn cu_path_pure_local_needs_no_frame() {
-    // On the CU path `pure_leaf` is intentionally left at its default
-    // (the inlining predicate is only computed on the IR walk — see
-    // `analyse_var_escape_cu`'s docs), so we assert the frame verdict
-    // rather than pure_leaf here.
+    // On the CU path `pure_leaf` stays `false`: the inlining predicate is
+    // only computed on the IR walk, so the frame verdict is what this
+    // asserts.
     let s = escape_cu("proc ::pure {a b} { set t [expr {$a + $b}]\n return $t }");
     let p = summary(&s, "::pure");
     assert_eq!(p.tag("t"), EscapeTag::Local);
@@ -517,7 +516,7 @@ fn cu_path_includes_top_level_key() {
     assert!(s.contains_key("::p"));
 }
 
-// PART 4 — var_escape: slot resolution
+// var_escape: slot resolution
 
 #[test]
 fn slot_resolution_assigns_params_then_locals() {
@@ -559,7 +558,7 @@ fn assign_local_slots_direct_api() {
     assert!((slots.len() as usize) <= LOCALS_ARRAY_CAP);
 }
 
-// PART 5 — var_escape: info-subcommand classification
+// var_escape: info-subcommand classification
 
 #[test]
 fn info_subcommand_classification_sets() {
@@ -610,7 +609,7 @@ fn info_body_in_proc_is_safe() {
     );
 }
 
-// PART 6 — var_escape: ProcEscapeSummary / types unit surface
+// var_escape: ProcEscapeSummary / types unit surface
 
 #[test]
 fn summary_join_and_default_tag() {
@@ -683,7 +682,7 @@ fn summary_explicit_reason_passthrough_and_flags() {
     assert!(s.reasons_for("unknown").is_empty());
 }
 
-// PART 7 — type_infer: literal classification (set-statement context)
+// type_infer: literal classification (set-statement context)
 
 #[test]
 fn literal_scalar_types() {
@@ -725,7 +724,7 @@ fn incr_result_is_int() {
     assert_eq!(ty("set c 5\nincr c 3", "c"), TclType::Int);
 }
 
-// PART 8 — type_infer: command return types (via `set v [cmd …]`)
+// type_infer: command return types (via `set v [cmd …]`)
 
 #[test]
 fn command_return_type_llength_is_int() {
@@ -790,7 +789,7 @@ fn unknown_command_result_is_unknown() {
     );
 }
 
-// PART 9 — type_infer: expr results (the `expr {…}` lowered form)
+// type_infer: expr results (the `expr {…}` lowered form)
 
 #[test]
 fn expr_integer_arithmetic_is_int() {
@@ -851,9 +850,8 @@ fn expr_math_functions_infer_return_type() {
 #[test]
 fn expr_ceil_is_double() {
     // tclsh: `set v [expr {ceil(3.1)}]; string is integer $v` = 0, `$v` ==
-    // 4.0 => Double. The pass infers Double, matching tclsh. (An earlier
-    // revision mis-inferred Int here; the current `expr_call_type` lists
-    // ceil/floor under double-returning math, so the two agree.)
+    // 4.0 => Double. `expr_call_type` lists ceil/floor under
+    // double-returning math, so the pass infers Double and the two agree.
     assert_eq!(ty("set v [expr {ceil(3.1)}]", "v"), TclType::Double);
     assert_eq!(ty("set v [expr {floor(9.9)}]", "v"), TclType::Double);
 }
@@ -899,7 +897,7 @@ fn expr_arithmetic_over_untyped_var_is_numeric() {
     assert_eq!(lat.tcl_type(), Some(TclType::Numeric));
 }
 
-// PART 10 — type_infer: propagation through pure copies and scope aliases
+// type_infer: propagation through pure copies and scope aliases
 
 #[test]
 fn pure_var_copy_inherits_source_type() {
@@ -947,7 +945,7 @@ fn global_alias_def_widens_to_overdefined() {
     );
 }
 
-// PART 11 — subst_nocommands: the compile-time `-nocommands` evaluator
+// subst_nocommands: the compile-time `-nocommands` evaluator
 
 #[test]
 fn subst_nocommands_leaves_brackets_literal_and_substitutes_var() {
@@ -1019,7 +1017,7 @@ fn subst_nocommands_stray_close_bracket_is_literal() {
     assert_eq!(subst("a]b", &[]).as_deref(), Some("a]b"));
 }
 
-// --- Refusal (None) cases: the helper conservatively bails out ---
+// Refusal (None) cases: the helper conservatively bails out.
 
 #[test]
 fn subst_nocommands_missing_var_refuses() {

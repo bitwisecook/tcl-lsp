@@ -18,10 +18,8 @@
 
 //! `lset` — change an element in a list variable.
 //
-// Cross-checked against the tcl-lang.org lset(n) manpages for Tcl 8.4,
-// 8.5, 8.6, 9.0, and 9.1 (independently re-fetched and re-verified,
-// verifier pass, against raw manpage HTML rather than a prior summary).
-// Forms and arity are identical across that range; two facts are
+// Per the tcl-lang.org lset(n) manpages for Tcl 8.4, 8.5, 8.6, 9.0, and
+// 9.1, forms and arity are identical across that range; two facts are
 // version-gated:
 //
 // - index-equals-length: 8.4/8.5 raise "list index out of range" for an
@@ -35,8 +33,7 @@
 //   upstream doc staleness fixed in the 9.0/9.1 manpage's EXAMPLES
 //   (which show `{2 3}` appending and add a new `{2 4}` example for the
 //   real boundary). This file follows the DESCRIPTION prose plus the
-//   corrected 9.0/9.1 example, not the stale 8.6 one — confirmed against
-//   the raw HTML of all five pages, not just an AI summary of them.
+//   corrected 9.0/9.1 example, not the stale 8.6 one.
 // - index arithmetic: 8.4 accepts only a bare integer, `end`, or
 //   `end-integer`; 8.5+ adds the fuller `string index` arithmetic (e.g.
 //   `end-1+1`), per the manpage's own cross-reference to `string index`

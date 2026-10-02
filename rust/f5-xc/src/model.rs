@@ -24,6 +24,7 @@
 //! kept as the IR-native byte [`Span`](tcl_lexer::Span); the
 //! [`crate::diagnostics`] layer resolves them to line/column positions.
 
+use tcl_core_types::DiagCode;
 use tcl_lexer::Span;
 
 /// Whether an iRule construct could be translated to XC.
@@ -321,8 +322,10 @@ pub struct TranslationItem {
     pub xc_description: String,
     /// Optional note / caveat.
     pub note: String,
-    /// XC-series diagnostic code (e.g. `"XC100"`).
-    pub diagnostic_code: String,
+    /// XC-series diagnostic code (e.g. [`DiagCode::Xc100`]). A typed
+    /// [`DiagCode`] rather than a free string, so the code carries its
+    /// published section, description and LSP tag everywhere it travels.
+    pub diagnostic_code: DiagCode,
 }
 
 // Top-level result

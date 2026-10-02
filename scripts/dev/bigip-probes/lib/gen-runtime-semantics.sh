@@ -74,7 +74,7 @@ elseif {1} {
   set out "elseif-branch"
 }
 EOF
-# --- N4: a non-brace line terminates the command ---
+# N4: a non-brace line terminates the command.
 gen blankline_between <<'EOF'
 set out "NOTRUN"
 if {1}
@@ -122,7 +122,7 @@ if {1} {
 }
 set out "$out+after"
 EOF
-# --- N2: the rule is lexical, not command-specific. Same commands, both forms ---
+# N2: the rule is lexical, not command-specific — same commands, both forms.
 gen lex_set_bare     <<<$'set\nq 5\nset out "q=$q"'
 gen lex_set_brace    <<<$'set\n{q} 5\nset out "q=$q"'
 gen lex_incr_bare    <<<$'set c 0\nincr\nc\nset out "c=$c"'
@@ -139,10 +139,10 @@ gen lex_lindex_brace <<<$'set out [lindex\n{a b} 1]'
 gen lex_lindex_bare  <<<$'set out [lindex\n"a b" 1]'
 gen lex_llength_brace <<<$'set out [llength\n{a b}]'
 gen lex_llength_bare  <<<$'set out [llength\n"a b"]'
-# --- N2 unconditional: absorbed even when the command is already complete ---
+# N2 unconditional: absorbed even when the command is already complete.
 gen unconditional_list <<<$'set out [list a b\n{c}]'
 gen unconditional_nested <<<$'set out "NOTRUN"\nif {1} {\n  set out\n  {inner}\n}'
-# --- expr sub-parser: adjacency is NOT a divergence (see controls/expr_ctl.tcl) ---
+# expr sub-parser: adjacency is NOT a divergence (see controls/expr_ctl.tcl).
 gen expr_adjacent_eq         <<<$'set out [expr {"a"eq"a"}]'
 gen expr_adjacent_startswith <<<$'set out [expr {"abc"starts_with"a"}]'
 gen expr_adjacent_cmdsub     <<<$'set out [expr {[string length "xy"]eq"2"}]'

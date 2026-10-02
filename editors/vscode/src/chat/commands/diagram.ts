@@ -168,8 +168,9 @@ export async function handleDiagram(ctx: CommandContext): Promise<vscode.ChatRes
 
   // Extract the Mermaid code block and open it in a webview tab.
   // Accept any fenced block whose body looks like Mermaid, not just one tagged
-  // exactly ```mermaid — models label these inconsistently, and an untagged or
-  // oddly-tagged fence used to mean no diagram panel at all.
+  // exactly ```mermaid — models label these inconsistently, and an untagged
+  // or oddly-tagged fence must still open a diagram panel rather than
+  // silently producing none.
   const mermaidSource = extractMermaid(fullText);
   if (mermaidSource) {
     openDiagramPanel(mermaidSource);

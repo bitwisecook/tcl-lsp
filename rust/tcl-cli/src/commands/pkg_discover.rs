@@ -180,8 +180,12 @@ pub fn run(options: &DiscoverOptions<'_>) -> anyhow::Result<u8> {
         let profile = document.effective_dialect(explicit_dialect);
         let registry = tcl_cli_support::registry_for_dialect(profile.name);
         let file = display_path(document.path.as_deref(), &project_dir, &document.label);
+        // A lone-CR document must scan the same reading `diag`/`opt` give it:
+        // the raw form parses as one command under the lexer's treatment of a
+        // bare `\r`, which would hide every `package require` after the first
+        // line (#1953).
         let (requirements, warning) = discover_document_requirements(
-            &document.source,
+            &document.analysis_source(),
             &file,
             profile,
             &registry,

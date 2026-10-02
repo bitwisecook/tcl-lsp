@@ -209,10 +209,10 @@ pub fn eval_tcl_expr_with_octal(
 /// Like [`eval_tcl_expr_with_octal`] but for the (more common) optimiser call
 /// sites that already have both an `octal` policy and a resolved dialect
 /// profile in scope — so, unlike `eval_tcl_expr_with_octal`'s plain
-/// `None`-profile callers, these can resolve [`FoldOps::is_irules`] precisely instead of
-/// defaulting it to declined (issue #983/#985 residual: several of these
-/// sites were passing the string on to `leading_zero_is_octal` for the octal
-/// policy while never using it to gate the iRules word-operator fold).
+/// `None`-profile callers, these can resolve [`FoldOps::is_irules`] precisely
+/// instead of defaulting it to declined.  A profile used only for
+/// `leading_zero_is_octal` and never to gate the iRules word-operator fold
+/// leaves that fold silently off.
 #[must_use]
 pub fn eval_tcl_expr_with_octal_and_dialect(
     node: &ExprNode,
@@ -542,7 +542,7 @@ struct FoldOps<'a> {
     /// (`irules_ops()`), but several call sites into this evaluator (the
     /// optimiser's `parse_expr(text, None)` sites) have no dialect to hand,
     /// so this is a defence-in-depth check at the fold site itself rather
-    /// than trusting the lexer gate alone (issue #983/#985 residual).
+    /// than trusting the lexer gate alone.
     /// `false` — including when the dialect is genuinely unknown — declines
     /// the fold; that is always safe, it just forgoes an optimisation.
     is_irules: bool,
@@ -613,8 +613,19 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
     fn literal(&mut self, text: &str) -> Result<FoldValue, ()> {
         Ok(FoldValue::Str(text.to_owned()))
     }
-    fn string(&mut self, inner: &str) -> Result<FoldValue, ()> {
-        Ok(FoldValue::Str(inner.to_owned()))
+    fn string(&mut self, inner: &str, substitutes: bool) -> Result<FoldValue, ()> {
+        // A `"…"` operand substitutes `$var`, `[cmd]` and backslashes, and a
+        // folded constant must be the value Tcl computes, not the spelling.
+        // Taking the text as-is folded `expr {"pre$x"}` to `pre$x` and
+        // `if {"$x" eq "5"}` to false, and O112 then deleted the live branch
+        // (#2227). Declining costs an optimisation; folding wrong costs the
+        // program.
+        // A `{…}` operand's backslash-newline folds to a space in Tcl and
+        // stays as written in Jim; the folder does not know which, so it
+        // declines that too rather than guess.
+        tcl_syntax::expr::fixed_string_body(inner, substitutes)
+            .map(|body| FoldValue::Str(body.to_owned()))
+            .ok_or(())
     }
     fn var(&mut self, name: &str) -> Result<FoldValue, ()> {
         match self.env.get(name) {
@@ -1112,7 +1123,7 @@ where
         }),
         // Any float operand contaminates to double arithmetic — including a
         // bignum operand, with C's same double-conversion rounding. Two
-        // divergence guards (oracle-pinned):
+        // divergence guards, pinned against tclsh:
         // - a NaN *result* is C's "domain error" (`Inf - Inf`, `Inf * 0`),
         //   and a NaN *operand* is "can't use non-numeric floating-point
         //   value" — both decline (the NaN result covers both);
@@ -1461,8 +1472,8 @@ mod tests {
     /// `matches_regex`/`in`/`ni` word operators. Must use the
     /// dialect-threading evaluator, not the bare [`eval_tcl_expr`] — the
     /// word operators parse under any dialect gate, but only actually
-    /// *fold* when [`FoldOps::is_irules`] is set (issue #983/#985's
-    /// defence-in-depth fix), which only [`eval_tcl_expr_in_dialect`] does.
+    /// *fold* when [`FoldOps::is_irules`] is set, which only
+    /// [`eval_tcl_expr_in_dialect`] does.
     fn eval_irules(expr: &str) -> Option<TclValue> {
         let env = Env::new();
         eval_tcl_expr_in_dialect(
@@ -2069,7 +2080,7 @@ mod tests {
         );
     }
 
-    // -- matches_regex is never constant-folded --
+    // matches_regex is never constant-folded.
 
     #[test]
     fn irules_matches_regex_is_not_folded() {
@@ -2090,11 +2101,11 @@ mod tests {
         }
     }
 
-    // -- simple iRules string ops --
+    // Simple iRules string ops.
 
-    /// #983/#985 residual: `FoldOps::binary_other` must only fold the iRules
-    /// word operators under an iRules dialect, and decline (not panic, not
-    /// silently misfold) everywhere else — the defence-in-depth check for
+    /// `FoldOps::binary_other` must only fold the iRules word operators under
+    /// an iRules dialect, and decline (not panic, not silently misfold)
+    /// everywhere else — the defence-in-depth check for
     /// call sites that reach this evaluator without a dialect string
     /// (`eval_tcl_expr`/`eval_tcl_expr_with_octal`).
     #[test]
@@ -2176,7 +2187,7 @@ mod tests {
         );
     }
 
-    // -- matches_glob + in/ni --
+    // matches_glob + in/ni.
 
     #[test]
     fn irules_matches_glob_star() {
@@ -2200,18 +2211,21 @@ mod tests {
             eval_irules(r#""abc" matches_glob "a?c""#),
             Some(TclValue::Int(1))
         );
+        // A class is written braced: inside `"…"` the `[bxy]` is a command
+        // substitution, which the folder declines (#2227).
         assert_eq!(
-            eval_irules(r#""abc" matches_glob "a[bxy]c""#),
+            eval_irules(r#""abc" matches_glob {a[bxy]c}"#),
             Some(TclValue::Int(1))
         );
         assert_eq!(
-            eval_irules(r#""axc" matches_glob "a[bxy]c""#),
+            eval_irules(r#""axc" matches_glob {a[bxy]c}"#),
             Some(TclValue::Int(1))
         );
         assert_eq!(
-            eval_irules(r#""azc" matches_glob "a[bxy]c""#),
+            eval_irules(r#""azc" matches_glob {a[bxy]c}"#),
             Some(TclValue::Int(0))
         );
+        assert_eq!(eval_irules(r#""abc" matches_glob "a[bxy]c""#), None);
     }
 
     #[test]
@@ -2284,7 +2298,7 @@ mod tests {
     // (string-delimiter stripping now lives in the shared `tcl_syntax::expr`
     // walk — `strip_delims` — and is exercised by its tests.)
 
-    // -- Math function dispatch --
+    // Math function dispatch.
 
     #[test]
     fn math_abs_int_and_float() {
@@ -2335,7 +2349,7 @@ mod tests {
         assert_eq!(eval_str("!Inf"), Some(TclValue::Int(0)));
     }
 
-    /// The float-edge oracle table (tclsh 8.6.14; 9.0 agrees). Errors fold
+    /// The float-edge reference table (tclsh 8.6.14; 9.0 agrees). Errors fold
     /// to `None`; values fold to C's exact canonical text:
     ///
     /// ```text
@@ -2399,8 +2413,8 @@ mod tests {
         assert_eq!(eval_str("int(NaN)"), None);
     }
 
-    /// The P4 oracle corpus (tclsh 8.6.14/9.0-verified values from
-    /// type-tracking.md): exact integer arithmetic at and beyond the wide
+    /// Values verified on tclsh 8.6.14/9.0 (see type-tracking.md):
+    /// exact integer arithmetic at and beyond the wide
     /// boundary, floor div/mod, double contamination, and bignum demotion.
     #[test]
     fn bignum_oracle_corpus() {
@@ -2614,9 +2628,9 @@ mod tests {
     fn math_isqrt_accepts_float_truncating_first() {
         assert_eq!(eval_str("isqrt(16)"), Some(TclValue::Int(4)));
         assert_eq!(eval_str("isqrt(17)"), Some(TclValue::Int(4)));
-        // Adversarial-review finding: a `Float` operand used to fall to
+        // A `Float` operand must not fall to
         // `tcl_syntax::expr::mathfunc::dispatch`'s catch-all `None` (treated
-        // as a domain error) even though real Tcl accepts one, truncating
+        // as a domain error): real Tcl accepts one, truncating
         // toward zero first (`expr {isqrt(4.0)}` -> `2`, `isqrt(4.9)` -> `2`
         // same as `isqrt(4)`; confirmed tclsh8.6/9.0) — this const-folder
         // must fold the same value the real interpreter evaluates to, or a

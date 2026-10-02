@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Channels (M2 / L2) — `open`/`close`/`read`/`gets`/`puts`/`flush`/`eof`/
+//! Channels — `open`/`close`/`read`/`gets`/`puts`/`flush`/`eof`/
 //! `seek`/`tell`/`fconfigure`/`fblocked`. C refs `tclIO.c`/`tclIOCmd.c`.
 //!
 //! `stdout`/`stderr` go through the host's [`StdIo`](tcl_platform::StdIo)
@@ -839,11 +839,11 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
-    /// Issue #1607: `seek`'s origin word is a `Tcl_GetIndexFromObj(…,
-    /// "origin", 0)` table (`originOptions[]`, `tclIOCmd.c`). This matched
-    /// exactly and left the offending word out of the message entirely
-    /// (`bad origin: must be …`); C quotes it, abbreviates `s`/`c`/`e`, and
-    /// words the empty origin — a prefix of all three — `ambiguous`.
+    /// `seek`'s origin word is a `Tcl_GetIndexFromObj(…,
+    /// "origin", 0)` table (`originOptions[]`, `tclIOCmd.c`); C quotes the
+    /// offending word in the message (`bad origin "x": must be …`),
+    /// abbreviates `s`/`c`/`e`, and words the empty origin — a prefix of all
+    /// three — `ambiguous`.
     ///
     /// tclsh 8.6.16 / 9.0.4:
     ///   seek $f 0 x  -> bad origin "x": must be start, current, or end

@@ -122,9 +122,10 @@ is unlisted, mismatched, or unable to start.
 
 ```text
 error: the native tcl CLI has no musl release asset, so it cannot run on
-alpine (its glibc shim is missing fcntl64 and __res_init). Use a glibc base
-image (debian, ubuntu, fedora, rockylinux, …), or build a Tcl-only alpine
-image with --no-packages and no --venv.
+alpine (its glibc shim is missing fcntl64 and __res_init). Use the default
+Debian image, or if Alpine is required, build tcl-lsp from source for musl
+inside the image. A Tcl-only Alpine image can still use --no-packages and no
+--venv.
 ```
 
 Every published Linux `tcl` asset is glibc-linked, and `gcompat` re-exports

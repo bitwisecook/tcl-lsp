@@ -1,6 +1,6 @@
 # TclOO constructor call-site arity (`ClassName new` / `ClassName create`)
-# and direct `apply {{params} body}` lambda-call arity — previously neither
-# produced any diagnostic at all, even with a plainly wrong argument count.
+# and direct `apply {{params} body}` lambda-call arity must both produce a
+# diagnostic when the argument count is plainly wrong.
 
 oo::class create Widget {
     constructor {a b} {

@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Every consumer of `definition::resolve_called_proc` must agree about a call
-//! a live `namespace import -force` shadows (issue #1116 item 1).
+//! a live `namespace import -force` shadows.
 //!
 //! The whole point of that item is that no rule reading only [`MAIN`] can
 //! decide it: both directions below hand the providers **byte-identical**
@@ -60,8 +60,8 @@ const MAIN: &str = "namespace eval src {\n    proc helper {alpha beta} { puts \"
 const SIBLING_SHADOWS: &str = "namespace eval src {\n    namespace export helper\n}\n";
 
 /// The sibling that does not: nothing in the program exports `helper`, so the
-/// import binds only `other` and the local definition survives. Issue #1116's
-/// pinned true negative.
+/// import binds only `other` and the local definition survives — the pinned
+/// true negative.
 const SIBLING_INERT: &str = "namespace eval other {\n    proc q {} { puts Q }\n}\n";
 
 const MAIN_URI: &str = "file:///main.tcl";

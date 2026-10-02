@@ -30,11 +30,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 LOGS_DIR = HERE / "logs"
 
-# ---------------------------------------------------------------------------
-# Message code catalogue
-# ---------------------------------------------------------------------------
-# A *small* curated set of codes that real BIG-IPs emit, with the
-# severity nibble F5 uses.  Picked so each surface in the
+# Message code catalogue: a *small* curated set of codes that real BIG-IPs
+# emit, with the severity nibble F5 uses.  Picked so each surface in the
 # multi-device topology has a plausible mix.
 
 CODES = {
@@ -60,11 +57,9 @@ CODES = {
     "icmd_fail": ("01010013", 3, "err"),
 }
 
-# ---------------------------------------------------------------------------
-# Config introspection — pull real object names out of each .conf so
-# the generated log lines reference the same VSes, pools, nodes that
-# the corresponding query examples will navigate.
-# ---------------------------------------------------------------------------
+# Config introspection: pull real object names out of each .conf so the
+# generated log lines reference the same VSes, pools, nodes that the
+# corresponding query examples will navigate.
 
 _HEADER_RE = re.compile(
     r"^(?P<kind>ltm virtual|ltm pool|ltm node|gtm pool a|gtm wideip a|gtm server)"
@@ -154,9 +149,7 @@ def _read_devices() -> list[DeviceConfig]:
     return devices
 
 
-# ---------------------------------------------------------------------------
 # Line emitter
-# ---------------------------------------------------------------------------
 
 
 def _emit(
@@ -209,9 +202,7 @@ def _basename(full_path: str) -> str:
     return full_path.rsplit("/", 1)[-1]
 
 
-# ---------------------------------------------------------------------------
 # Per-device timelines
-# ---------------------------------------------------------------------------
 
 
 def _gen_ltm_lines(device: DeviceConfig, rng: random.Random) -> list[str]:
@@ -464,9 +455,7 @@ def _gen_gtm_lines(device: DeviceConfig, rng: random.Random) -> list[str]:
     return lines
 
 
-# ---------------------------------------------------------------------------
 # Entry point
-# ---------------------------------------------------------------------------
 
 
 def main() -> None:

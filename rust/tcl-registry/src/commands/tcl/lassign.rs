@@ -64,13 +64,16 @@ fn lassign_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lassign",
-        traits: Traits::FRAMELESS_RUNTIME | Traits::FRAME_HASH_BUILTIN | Traits::BYTE_COMPILED,
+        traits: Traits::FRAMELESS_RUNTIME
+            | Traits::FRAME_HASH_BUILTIN
+            | Traits::BYTE_COMPILED
+            | Traits::UNCONDITIONAL_VARIABLE_WRITE,
         surface: Some(SpecSurface::TCL85_PLUS),
         arity: Arity::at_least(1),
         return_type: Some(TclType::List),
         // `lassign` writes list *elements* to its targets — of any intrep —
         // while returning the *leftover* list.  The elements are not the
-        // return value, so they must not be typed `List` (issue #867).
+        // return value, so they must not be typed `List`.
         var_write_typing: VarWriteTyping::ElementsOf { container_arg: 0 },
         // The returned leftover elements are a contiguous tail sub-list of
         // `list` (arg 0) — the same element-type-inference relationship as

@@ -48,16 +48,12 @@ export function getDocUri(fileName: string): vscode.Uri {
   return vscode.Uri.file(path.resolve(__dirname, "../../testFixture", fileName));
 }
 
-// ---------------------------------------------------------------------------
-// Server log capture
-//
-// The LSP server emits ``window/logMessage`` notifications which the
-// vscode-languageclient routes into an OutputChannel.  Output channels are
-// write-only from a test's perspective, so we snoop the messages directly
-// off the client with ``onNotification`` once on first request and let
-// tests query the ring buffer when they want to see what the server was
+// Server log capture: the LSP server emits ``window/logMessage`` notifications
+// which the vscode-languageclient routes into an OutputChannel.  Output
+// channels are write-only from a test's perspective, so we snoop the messages
+// directly off the client with ``onNotification`` once on first request and
+// let tests query the ring buffer when they want to see what the server was
 // doing (e.g. dialect resolution diagnostics).
-// ---------------------------------------------------------------------------
 
 const _serverLog: string[] = [];
 const _SERVER_LOG_MAX = 2000;
@@ -296,9 +292,10 @@ export async function waitForMasterOffDiagnostics(
 /**
  * Shape of the value returned by ``tcl-lsp.getEffectiveConfig``.
  *
- * Mirrors ``on_get_effective_config`` in ``lsp/commands.py``; covers the
- * fields tests poll on.  Any field the server adds in future is
- * harmlessly ignored by predicates that do not name it.
+ * Mirrors ``get_effective_config_command`` in
+ * ``rust/tcl-lsp-server/src/lib.rs``; covers the fields tests poll on.  Any
+ * field the server adds is harmlessly ignored by predicates that do not name
+ * it.
  */
 export interface EffectiveConfig {
   uri: string;
@@ -539,12 +536,12 @@ export async function waitForFeatureToggle(
  * Each await here is already the right *shape* — it resolves when the work
  * completes — but none of them carried a bound, so a wedged step could only be
  * caught by mocha's 60s per-test timeout, which fires knowing nothing about
- * which step was outstanding.  That is what issue #1274 recorded: two
- * `shimmerPrecision` tests each hit the raw 60s timeout, a number no wait in
- * their body could produce (``waitForDiagnostics`` bounds at 20s and would have
- * failed the assertion long before), so the stall was inside this function and
- * the log said nothing about where.  [`bounded`] wraps each step with a
- * load-scaled deadline that names it.
+ * which step was outstanding — as when two `shimmerPrecision` tests each hit
+ * that raw 60s timeout, a number no wait in their body could produce
+ * (``waitForDiagnostics`` bounds at 20s and would have failed the assertion
+ * long before), so the stall was inside this function and the log said
+ * nothing about where.  [`bounded`] wraps each step with a load-scaled
+ * deadline that names it.
  */
 export async function activate(docUri: vscode.Uri): Promise<vscode.TextDocument> {
   // Ensure the extension is activated first.
@@ -579,7 +576,7 @@ export async function activate(docUri: vscode.Uri): Promise<vscode.TextDocument>
   }
 
   // The server resolves this document's dialect from the ``didOpen`` and
-  // loads the matching command catalog (large for ``f5-irules`` /
+  // loads the matching command catalogue (large for ``f5-irules`` /
   // ``f5-iapps``).  Send a request that will be serialised behind the
   // server's processing queue so we don't return until that ``didOpen`` has
   // been drained.  Two hovers — one to flush, one belt-and-braces —
@@ -699,7 +696,7 @@ interface ThreadSyscalls {
  * The file reports the syscall number followed by its arguments, so a thread
  * parked in `read` or `write` names the descriptor it is parked on — which is
  * exactly the "is anything still reading stdin / stuck writing stdout"
- * question issue #1657 turns on.
+ * question a transport wedge turns on.
  *
  * Syscall numbers are architecture-specific, so an unrecognised architecture
  * degrades to bare numbers rather than guessing wrong names. A thread that is
@@ -798,8 +795,8 @@ function readProcSample(pid: number): ProcSample | undefined {
 
 /**
  * What the server process and this extension host were *doing* while the probes
- * went unanswered — the capture issue #1600 asks for, so a wedge is
- * attributable on its first occurrence instead of only re-runnable.
+ * went unanswered, so a wedge is attributable on its first occurrence instead
+ * of only re-runnable.
  *
  * A verdict of "nothing answered" is a symptom with several very different
  * causes, and the three probes cannot separate them: a server spinning on a
@@ -907,10 +904,10 @@ async function eventLoopDilation(): Promise<number> {
  * server did not answer even a request that touches no document.
  *
  * That verdict is terminal, not transient. Every test after it pays its whole
- * wait budget to re-discover the same dead server: issue #1294's second
- * occurrence spent ~27 of its 32 minutes that way, 47 tests × ~34s, after the
- * first failure had already diagnosed the fault. The run learned nothing in
- * that time and reported it half an hour later than it could have.
+ * wait budget to re-discover the same dead server: one run spent ~27 of its
+ * 32 minutes that way, 47 tests × ~34s, after the first failure had already
+ * diagnosed the fault. The run learned nothing in that time and reported it
+ * half an hour later than it could have.
  *
  * Deliberately *only* the transport verdict. The other three
  * [`classifyLiveness`] outcomes are recoverable — a dropped request, or one
@@ -939,10 +936,10 @@ export function resetServerTransportWedged(): void {
  * on one unanswered request is a claim the evidence has to actually support: an
  * answer to *either* of the other two questions is a reply that travelled the
  * whole client → server → client path, which contradicts "the server answers
- * nothing" outright. Issue #1600's occurrence is exactly that shape — the
- * verdict fired at 687/899, and a byte-identical re-run passed 899/899 — so a
- * single slow document-free request must read as "slow", not as "dead", and
- * the run must be allowed to continue and report what it finds.
+ * nothing" outright. A run once hit exactly that shape — the verdict fired at
+ * 687/899, and a byte-identical re-run passed 899/899 — so a single slow
+ * document-free request must read as "slow", not as "dead", and the run must
+ * be allowed to continue and report what it finds.
  *
  * Latch-only: it never clears the flag, so a later probe that happens to get
  * an answer out of a dying server cannot un-diagnose an earlier wedge.
@@ -1050,10 +1047,10 @@ async function probeOutcome(
  * Separate "the server is wedged" from "this document's queue is wedged" after
  * a wait on *stalledUri* has already expired.
  *
- * This is the gap issue #1294 records. Four consecutive waits on one fixture's
- * ``didOpen`` drain expired with the machine measurably healthy, and the
- * evidence could say only that the request never came back — not whether the
- * server was answering *anything*. Three cheap questions separate the cases:
+ * This is a real gap: four consecutive waits on one fixture's ``didOpen``
+ * drain once expired with the machine measurably healthy, and the evidence
+ * could say only that the request never came back — not whether the server
+ * was answering *anything*. Three cheap questions separate the cases:
  *
  * 1. ``getEffectiveConfig`` with **no URI at all** — a request that touches
  *    neither the analyser nor any document's work queue, so it answers whenever
@@ -1066,8 +1063,8 @@ async function probeOutcome(
  *    permanently wedged queue from a request that was simply dropped.
  *
  * Alongside them, [`serverStateEvidence`] reads what the server process and
- * this extension host were actually *doing* — the capture issue #1600 asks for.
- * Three unanswered probes say "nothing answered"; they do not say whether the
+ * this extension host were actually *doing*. Three unanswered probes say
+ * "nothing answered"; they do not say whether the
  * server was spinning, parked, or had stopped reading stdin, and without that
  * a wedge is only ever re-runnable.
  *
@@ -1234,13 +1231,13 @@ export function documentClosed(docUri: vscode.Uri, opts?: { timeout?: number }):
  *
  * # Why the timeout rejects
  *
- * It used to resolve with ``getDiagnostics(uri)`` — whatever happened to be
- * published when the clock ran out.  A test that timed out therefore carried
- * on and asserted against a set the server had never finished producing.  For
- * a positive assertion that surfaces as a confusing content failure; for a
+ * Resolving with ``getDiagnostics(uri)`` on timeout — whatever happened to be
+ * published when the clock ran out — would let a timed-out test carry on and
+ * assert against a set the server had never finished producing.  For a
+ * positive assertion that surfaces as a confusing content failure; for a
  * *negative* one ("no diagnostic of kind X on line N") an unanalysed, empty
- * set satisfies it trivially and the test passes vacuously — the suite's
- * strongest tests are precisely the negative ones (issue #1274).
+ * set would satisfy it trivially and the test would pass vacuously — the
+ * suite's strongest tests are precisely the negative ones.
  *
  * Callers that genuinely want "settle, then look" and cannot name what they
  * are waiting for are asking a different question; those are the ones that

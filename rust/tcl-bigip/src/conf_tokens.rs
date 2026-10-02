@@ -20,7 +20,7 @@
 //! for syntax highlighting.
 //!
 //! A `bigip.conf` is **not Tcl** — it is a brace-delimited declarative config.
-//! Running the Tcl tokenizer over it reads each stanza body as one literal
+//! Running the Tcl tokeniser over it reads each stanza body as one literal
 //! braced word and emits whole *lines* as `string` tokens, which actively
 //! mis-colours the file.  This is the config-mode analogue of
 //! [`crate::apl::tokenise_apl`].
@@ -198,7 +198,7 @@ enum LexClass {
 /// `}`.
 ///
 /// A rule body is Tcl, not config: it must be handed to the Tcl/iRules
-/// tokenizer, not read as `key value` property lines.  Without this its `when` /
+/// tokeniser, not read as `key value` property lines.  Without this its `when` /
 /// `if` / `switch` came out as config *property keys* and its `[HTTP::uri]`
 /// substitutions were not tokenised at all — config highlighting applied to
 /// code, which is worse than none.

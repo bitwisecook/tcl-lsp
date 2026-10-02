@@ -9,8 +9,8 @@
   ],
   "expected_tests": {
     "single_root": {
-      "identities": 977,
-      "passed": 976,
+      "identities": 973,
+      "passed": 972,
       "pending": 1
     },
     "multi_folder": {
@@ -54,6 +54,7 @@
       "commandAliasTracking.test.js",
       "definition.test.js",
       "diagnostics.test.js",
+      "dialectChoices.test.js",
       "errorRecovery.test.js",
       "extensionActivation.test.js",
       "grammar.test.js",

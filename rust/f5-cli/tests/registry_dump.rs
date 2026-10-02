@@ -72,8 +72,7 @@ fn all_section_bundles_every_subsection() {
 
 #[test]
 fn unknown_section_fails_cleanly() {
-    // A genuinely unknown section still exits 2 with no stdout; `commands` and
-    // `all` are now implemented (see the tests above).
+    // An unknown section exits 2 with no stdout.
     let output = run_f5(&["registry-dump", "--section", "bogus"]);
     assert_eq!(output.status.code(), Some(2), "unknown section exits 2");
     assert!(output.stdout.is_empty(), "unknown section emits no stdout");
@@ -81,8 +80,8 @@ fn unknown_section_fails_cleanly() {
 
 #[test]
 fn default_section_is_all_and_serialises() {
-    // The default `--section all` now emits the full bundle (commands + the
-    // graph snapshots), so the bare verb succeeds.
+    // The default `--section all` emits the full bundle (commands + the graph
+    // snapshots).
     let output = run_f5(&["registry-dump"]);
     assert_eq!(output.status.code(), Some(0));
     assert!(String::from_utf8_lossy(&output.stdout).contains("\"commands\":"));

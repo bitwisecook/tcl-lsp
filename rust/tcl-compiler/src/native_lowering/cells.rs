@@ -35,7 +35,7 @@
 //! spelled name or variable word denote" for every backend — [`cell_place`] for
 //! a name word, [`variable_word_place`] for a `$…` / `${…}` word. Both are
 //! built on the `tcl_syntax::naming` split rules, so no backend re-parses an
-//! argument's compatibility text for itself (issue #1772).
+//! argument's compatibility text for itself.
 
 use std::collections::BTreeMap;
 
@@ -112,7 +112,7 @@ pub(crate) fn has_substitution(text: &str) -> bool {
 /// Note the braced form here is decided by the *last* `}` in the word, so it
 /// only ever sees a word the caller already knows is one variable reference.
 /// The release-aware `${…}` close rule lives with the decoders in
-/// `codegen::values::parse_simple_var_ref` and is issue #1568's territory.
+/// `codegen::values::parse_simple_var_ref`.
 pub(crate) fn whole_reference(spelling: &str) -> Option<&str> {
     if let Some(name) = spelling
         .strip_prefix("${")

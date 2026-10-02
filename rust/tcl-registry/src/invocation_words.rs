@@ -367,7 +367,30 @@ pub struct InvocationWords<'w> {
 pub struct VariableWriteProjection {
     /// Statically known literal variable names written by the invocation.
     pub literal_names: Vec<String>,
+    /// The subset of [`Self::literal_names`] the invocation **reads before
+    /// writing** ([`Traits::READS_BEFORE_WRITE`](crate::Traits::READS_BEFORE_WRITE)
+    /// — `incr` / `append` / `lappend` / `lset` / `lpop` / `ledit`). An
+    /// effect consumer needs the read as much as the write: the store that
+    /// feeds `[incr n]` is observed by it, not overwritten by it.
+    pub read_before_write_names: Vec<String>,
     /// Whether the invocation may write another, unnameable variable cell.
+    pub opaque_variable_frame: bool,
+}
+
+/// Registry-owned projection of the variable cells an invocation reads **by
+/// name** — the read-only counterpart of [`VariableWriteProjection`].
+///
+/// An [`ArgRole::VarRead`](crate::ArgRole::VarRead) word names a cell the
+/// command observes without storing to it: `info exists n`, `array exists a`,
+/// `array size a`. The store feeding such a name is observed, not
+/// overwritten, so an effect consumer that records only writes reports that
+/// store dead (#2132).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct VariableReadProjection {
+    /// Statically known literal variable names read by the invocation.
+    pub literal_names: Vec<String>,
+    /// Whether the invocation may also read a cell that cannot be named — a
+    /// substituted or `{*}`-expanded name word.
     pub opaque_variable_frame: bool,
 }
 

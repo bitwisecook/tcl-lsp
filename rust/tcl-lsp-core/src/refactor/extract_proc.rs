@@ -32,7 +32,7 @@
 //! ```
 //!
 //! into `proc extracted_proc {x} { set x 1; puts $x }` prints `after=0`, not
-//! `after=1`: the write moved into the proc's own `x` (issue #1201).
+//! `after=1`: the write moved into the proc's own `x`.
 //!
 //! Passing the variable in as a parameter is exactly what causes this.  A
 //! parameter is a *copy*; the caller never sees it change.
@@ -221,9 +221,9 @@ fn plan_extraction(
     reject_frame_sensitive_selection(source, selected, registry)?;
     // The document's own `${…}` close rule — a brace-bearing name read by
     // the wrong release's rule produces a proc built for a variable that
-    // does not exist (issue #1605).
+    // does not exist.
     let style = super::braced_var_style(analysis);
-    let walk = FrameWalk::new(source, analysis);
+    let walk = super::FrameWalk::new(source, analysis);
     let roles = classify_variables(source, selected, registry, &walk, style)?;
 
     // The selection's own byte range, snapped to the commands it covers.
@@ -233,31 +233,30 @@ fn plan_extraction(
         .get(block_start as usize..block_end as usize)
         .ok_or_else(|| "the selected range is unreadable".to_string())?;
 
-    // A written variable that is read again after the selection must keep
-    // reaching the caller's frame; one that is not becomes a proc local.
-    let tail = source
-        .get(block_end as usize..scope.end as usize)
-        .unwrap_or("");
-    // Segmented at its real offset so the same-frame walk below can address
-    // the tail's nested bodies in `source`'s own coordinates.
-    let tail_commands: Vec<SegmentedCommand> =
-        segment_commands_with_offset_and_config(tail, block_end, config)
-            .into_iter()
-            .filter(|command| !command.name().is_empty())
-            .collect();
-    let mut used_after: BTreeSet<String> = variable_references(tail, style);
+    // A written variable that is read again by the frame the selection runs
+    // in must keep reaching the caller; one that is not becomes a proc local.
+    let mut used_after: BTreeSet<String> = BTreeSet::new();
     let mut nested_tail = Vec::new();
-    for command in &tail_commands {
-        used_after.extend(role_named_variables(command, registry));
-        // A read after the selection decides `upvar` versus proc local, so a
-        // role-named read nested in a control-flow body has to count exactly
-        // as a top-level one does: `if {$ok} {incr total}` carries no
-        // `$total` for the text scan to find, and missing it would turn the
-        // selection's write into a proc local and lose the caller's value.
-        nested_tail.clear();
-        nested_same_frame_commands(source, command, &walk, 0, &mut nested_tail);
-        for inner in &nested_tail {
-            used_after.extend(role_named_variables(inner, registry));
+    for (start, end) in observing_regions(source, &walk, block_start, block_end) {
+        let text = source.get(start as usize..end as usize).unwrap_or_default();
+        used_after.extend(variable_references(text, style));
+        // Segmented at its real offset so the same-frame walk below can
+        // address nested bodies in `source`'s own coordinates.
+        for command in segment_commands_with_offset_and_config(text, start, config) {
+            if command.name().is_empty() {
+                continue;
+            }
+            used_after.extend(role_named_variables(&command, registry));
+            // A read decides `upvar` versus proc local, so a role-named read
+            // nested in a control-flow body has to count exactly as a
+            // top-level one does: `if {$ok} {incr total}` carries no `$total`
+            // for the text scan to find, and missing it would turn the
+            // selection's write into a proc local and lose the caller's value.
+            nested_tail.clear();
+            walk.nested_same_frame_commands(source, &command, &mut nested_tail);
+            for inner in &nested_tail {
+                used_after.extend(role_named_variables(inner, registry));
+            }
         }
     }
 
@@ -310,6 +309,89 @@ fn plan_extraction(
     })
 }
 
+/// The byte ranges that can still observe what the selection writes.
+///
+/// A variable the selection assigns has to keep reaching the caller's frame
+/// whenever anything in that frame reads it again, so the question runs to the
+/// nearest boundary that opens a variable frame of its own — a `proc` body, a
+/// `namespace eval`, an `apply` lambda — or the end of the file.  An `if` or
+/// `foreach` body is *not* such a boundary: it shares the caller's variables,
+/// and stopping the scan at it classifies a selection made inside a loop as
+/// writing a proc local, dropping every value the loop accumulates.
+///
+/// Each enclosing same-frame body counts in full rather than only after the
+/// selection, because such a body can run again and read on its next pass what
+/// this one assigned.
+fn observing_regions(
+    source: &str,
+    walk: &super::FrameWalk,
+    block_start: u32,
+    block_end: u32,
+) -> Vec<(u32, u32)> {
+    let mut frame = (0, u32::try_from(source.len()).unwrap_or(u32::MAX));
+    let mut enclosing: Vec<(u32, u32)> = Vec::new();
+    let mut search = frame;
+    let mut depth = 0;
+    while !crate::references::MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) {
+        let Some((region, opens_frame)) = containing_region(source, walk, search, block_start)
+        else {
+            break;
+        };
+        // Every step has to narrow the window, or a region that reports itself
+        // would spin here.
+        if region.0 <= search.0 && region.1 >= search.1 {
+            break;
+        }
+        if opens_frame {
+            frame = region;
+            enclosing.clear();
+        } else {
+            enclosing.push(region);
+        }
+        search = region;
+        depth += 1;
+    }
+    let mut regions = vec![(block_end, frame.1)];
+    regions.extend(enclosing.into_iter().map(|(start, _)| (start, block_start)));
+    regions
+}
+
+/// The innermost region of `search` containing `offset`, and whether it opens
+/// a variable frame of its own.
+fn containing_region(
+    source: &str,
+    walk: &super::FrameWalk,
+    search: (u32, u32),
+    offset: u32,
+) -> Option<((u32, u32), bool)> {
+    let text = source.get(search.0 as usize..search.1 as usize)?;
+    for command in walk.segment(text, search.0) {
+        if command.name().is_empty() {
+            continue;
+        }
+        if let Some(region) =
+            region_containing(&walk.frame_shifted_regions(source, &command), offset)
+        {
+            return Some((region, true));
+        }
+        if let Some(region) = region_containing(&walk.same_frame_regions(source, &command), offset)
+        {
+            return Some((region, false));
+        }
+    }
+    None
+}
+
+/// The first of `regions` that contains `offset`.
+fn region_containing(regions: &[(usize, usize)], offset: u32) -> Option<(u32, u32)> {
+    regions.iter().copied().find_map(|(start, end)| {
+        let (Ok(start), Ok(end)) = (u32::try_from(start), u32::try_from(end)) else {
+            return None;
+        };
+        (offset >= start && offset < end).then_some((start, end))
+    })
+}
+
 /// The variables the selection reads and writes, each with the offset that
 /// decides whether a read is an input.
 ///
@@ -325,146 +407,94 @@ struct VariableRoles {
     written: BTreeMap<String, u32>,
 }
 
-/// The document facts a same-frame statement walk needs, built once per
-/// extraction.
+/// The braced word interiors of `command` that substitute nothing, appended to
+/// `out`.
 ///
-/// `nesting` is deliberately the **document's own** registry rather than the
-/// caller's: which nested words are same-frame scripts is a question
-/// [`crate::references::nested_dispatch_regions`] answers from the dialect
-/// profile's registry (a `switch` clause list reaches its arm bodies only
-/// through that registry's `CaseListSpec`), whereas the argument roles this
-/// module classifies stay the caller's to decide.
-struct FrameWalk {
-    dialect: &'static tcl_dialect::DialectProfile,
-    nesting: &'static CommandRegistry,
-    identities: tcl_compiler::realm::CommandBindingRealm,
-    config: LexerConfig,
-    expr_surface: tcl_registry::expr_surface::RuntimeExprSurface,
-}
-
-impl FrameWalk {
-    fn new(source: &str, analysis: &AnalysisResult) -> Self {
-        let dialect = crate::profile_for_dialect(&analysis.dialect);
-        let nesting = crate::registry_for_dialect_profile(dialect);
-        Self {
-            dialect,
-            nesting,
-            identities: tcl_compiler::realm::document_realm_bindings(source, dialect, nesting),
-            config: LexerConfig::from_grammar(dialect.grammar),
-            expr_surface: tcl_registry::expr_surface::RuntimeExprSurface::for_profile(dialect),
-        }
-    }
-}
-
-/// The regions of `command` that run in `command`'s own variable frame.
+/// A braced word is a literal: `set msg {$notavar}` reads no variable at all,
+/// and scanning its text for `$name` would put a name in the generated
+/// parameter list that the caller need not have — the extraction then rewrites
+/// a working file into one that dies on `can't read`.
 ///
-/// [`crate::references::nested_dispatch_regions`] owns the script ones. It
-/// cannot see inside a *braced* expression argument, which the script lexer
-/// treats as one opaque word and `expr` substitutes itself, so `if {[set x 1]}
-/// …` would hide a write to the caller's `x`.  Those spans come from
-/// [`tcl_syntax::expr::substitution::command_substitution_spans`], the
-/// expression owner's own script bridge, gated on the dialect's runtime
-/// expression surface: an expression the release would reject at run time
-/// substitutes nothing.
-fn same_frame_regions(
+/// Four kinds of braced word are *not* such a literal and stay scanned: an
+/// [`ArgRole::Expr`] word, whose `$name`s `expr` substitutes; any word a
+/// same-frame or frame-opening region overlaps, which is script rather than
+/// data; every word of a command that performs Tcl substitution, which reads
+/// through its own arguments; and every word of a command the registry does
+/// not know, where nothing says the word is data.
+fn literal_word_holes(
     source: &str,
     command: &SegmentedCommand,
-    walk: &FrameWalk,
-) -> Vec<(usize, usize)> {
-    let mut regions = crate::references::nested_dispatch_regions_with_identities(
-        source,
-        walk.dialect,
-        walk.nesting,
-        &walk.identities,
-        command,
-    );
+    registry: &CommandRegistry,
+    walk: &super::FrameWalk,
+    out: &mut Vec<(u32, u32)>,
+) {
     let head = command.name();
+    if registry.get(head).is_none() {
+        return;
+    }
     let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
-    for index in walk
-        .nesting
-        .arg_indices_for_role(head, &args, ArgRole::Expr)
+    // `subst {hello $name}` substitutes `$name` straight out of a braced word,
+    // so a substituting command's arguments are not the inert text a braced
+    // word usually is.  Which of the three substitutions this *call* runs is
+    // the registry's answer, not a switch spelling matched here: with
+    // `-novariables` the `$name` really is literal, and cutting it is right.
+    if registry
+        .substitutions_performed(head, &args)
+        .is_some_and(|kinds| kinds.variables)
     {
-        let Some(token) = command.argv.get(index + 1) else {
+        return;
+    }
+    let evaluated: Vec<usize> = registry.arg_indices_for_role(head, &args, ArgRole::Expr);
+    let mut scripts = walk.same_frame_regions(source, command);
+    scripts.extend(walk.frame_shifted_regions(source, command));
+    for (index, token) in command.argv.iter().enumerate().skip(1) {
+        if evaluated.contains(&(index - 1)) {
             continue;
-        };
-        // An unbraced or quoted expression word is substituted by the script
-        // lexer before `expr` ever parses it, so its `[…]` are already among
-        // the dispatch regions above; only a braced one needs the expression
-        // parser to find them.
-        if source.as_bytes().get(token.span.start() as usize) != Some(&b'{')
+        }
+        if token.kind != tcl_lexer::TokenType::Str
             || token.content_offset != 1
+            || source.as_bytes().get(token.span.start() as usize) != Some(&b'{')
         {
             continue;
         }
-        let start = token.span.start() as usize + token.content_offset as usize;
-        let end = token.span.end() as usize;
-        let Some(expression) = source.get(start..end) else {
+        let start = token.span.start() + u32::from(token.content_offset);
+        let end = token.span.end();
+        if start >= end {
             continue;
-        };
-        for span in tcl_syntax::expr::substitution::command_substitution_spans(
-            expression,
-            walk.dialect,
-            walk.config,
-            |parsed| walk.expr_surface.validate(parsed).is_ok(),
-        ) {
-            // The span carries the `[` and `]`; the script inside them is what
-            // runs.
-            let (Some(inner_start), Some(inner_end)) = (
-                start.checked_add(span.start() as usize + 1),
-                start
-                    .checked_add(span.end() as usize)
-                    .and_then(|e| e.checked_sub(1)),
-            ) else {
-                continue;
-            };
-            if inner_start < inner_end {
-                regions.push((inner_start, inner_end));
-            }
+        }
+        let overlaps_script = scripts.iter().any(|(from, to)| {
+            u32::try_from(*to).is_ok_and(|to| to > start)
+                && u32::try_from(*from).is_ok_and(|from| from < end)
+        });
+        if !overlaps_script {
+            out.push((start, end));
         }
     }
-    regions
 }
 
-/// Every command nested inside `command` that still runs in `command`'s own
-/// variable frame, appended to `out` innermost-first.
-///
-/// The nesting itself is [`crate::references::nested_dispatch_regions`]'s
-/// answer — the same walker Find-References and the caller-frame scan use for
-/// "which nested scripts run in this frame": an [`ArgRole::Body`] argument
-/// with a `Plain` body kind (`if`, `while`, `foreach`, `try`, `catch`, …), a
-/// `switch`-style clause list flattened through the registry's own
-/// `CaseListSpec`, and every `[…]` command substitution.  A `Structural`
-/// body — `proc`, `namespace eval`, `uplevel`, `oo::define` — and `apply`'s
-/// lambda are deliberately *not* descended: a `set` inside one writes that
-/// frame's variable, not the selection's, so classifying it here would put a
-/// stranger's name in the generated parameter list or, worse, an `upvar`
-/// against a variable the moved code never touches.
-fn nested_same_frame_commands(
-    source: &str,
-    command: &SegmentedCommand,
-    walk: &FrameWalk,
-    depth: u32,
-    out: &mut Vec<SegmentedCommand>,
-) {
-    if crate::references::MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) {
-        return;
-    }
-    for (start, end) in same_frame_regions(source, command, walk) {
-        let Some(text) = source.get(start..end) else {
-            continue;
-        };
-        for nested in segment_commands_with_offset_and_config(
-            text,
-            u32::try_from(start).unwrap_or(0),
-            walk.config,
-        ) {
-            if nested.name().is_empty() {
-                continue;
-            }
-            nested_same_frame_commands(source, &nested, walk, depth + 1, out);
-            out.push(nested);
+/// `start..end` with every range in `holes` cut out of it.
+fn same_frame_slices(start: u32, end: u32, holes: &[(u32, u32)]) -> Vec<(u32, u32)> {
+    let mut cuts: Vec<(u32, u32)> = holes
+        .iter()
+        .copied()
+        .filter(|(from, to)| *to > start && *from < end && from < to)
+        .collect();
+    cuts.sort_unstable();
+    let mut slices = Vec::new();
+    let mut cursor = start;
+    for (from, to) in cuts {
+        if from > cursor {
+            slices.push((cursor, from.min(end)));
+        }
+        cursor = cursor.max(to);
+        if cursor >= end {
+            break;
         }
     }
+    if cursor < end {
+        slices.push((cursor, end));
+    }
+    slices
 }
 
 /// Classify the selection's variable use from the registry's argument roles
@@ -482,13 +512,13 @@ fn nested_same_frame_commands(
 /// still the caller's write, and reading it as anything else hands back a
 /// proc that silently drops the assignment — `foreach n {1 2 3} {set total …}`
 /// extracted with `total` as a value parameter never updates the caller's
-/// `total` (issue #1201).  [`nested_same_frame_commands`]
+/// `total`.  [`nested_same_frame_commands`]
 /// decides what "nested" means, so a body that opens its own frame stays out.
 fn classify_variables(
     source: &str,
     selected: &[&SegmentedCommand],
     registry: &CommandRegistry,
-    walk: &FrameWalk,
+    walk: &super::FrameWalk,
     style: BracedVarStyle,
 ) -> Result<VariableRoles, String> {
     let mut roles = VariableRoles {
@@ -496,22 +526,33 @@ fn classify_variables(
         written: BTreeMap::new(),
     };
     let mut nested = Vec::new();
+    let mut holes = Vec::new();
     for command in selected {
-        // One text scan per selected command already covers the `$name` reads
-        // of its whole subtree, nested bodies included.
+        // One text scan per selected command covers the `$name` reads of its
+        // whole subtree, minus the parts of it that read nothing the caller
+        // owns: a body that opens a variable frame of its own, and a braced
+        // word that substitutes nothing.  Either one would ask the caller for
+        // a variable that need not exist there.
         let (start, end) = command_span_offsets(source, command);
-        let text = source.get(start as usize..end as usize).unwrap_or("");
-        for (name, at, _) in super::variable_reference_spans(text, style) {
-            let at = start.saturating_add(u32::try_from(at).unwrap_or(0));
-            roles
-                .read
-                .entry(name)
-                .and_modify(|first| *first = (*first).min(at))
-                .or_insert(at);
+        nested.clear();
+        walk.nested_same_frame_commands(source, command, &mut nested);
+        holes.clear();
+        walk.frame_shifted_regions_within(source, command, &mut holes);
+        for inner in std::iter::once(*command).chain(nested.iter()) {
+            literal_word_holes(source, inner, registry, walk, &mut holes);
+        }
+        for (from, to) in same_frame_slices(start, end, &holes) {
+            let text = source.get(from as usize..to as usize).unwrap_or("");
+            for (name, at, _) in super::variable_reference_spans(text, style) {
+                let at = from.saturating_add(u32::try_from(at).unwrap_or(0));
+                roles
+                    .read
+                    .entry(name)
+                    .and_modify(|first| *first = (*first).min(at))
+                    .or_insert(at);
+            }
         }
         classify_command(source, command, registry, &mut roles)?;
-        nested.clear();
-        nested_same_frame_commands(source, command, walk, 0, &mut nested);
         for inner in &nested {
             classify_command(source, inner, registry, &mut roles)?;
         }
@@ -846,7 +887,7 @@ fn render_definition(
 /// *matching* `}`, so `${a{b}c}` reads `a{b}c`, and the 8.x scanner ends it at
 /// the first `}`, so `${a{b}` reads `a{b}`'s 8.x form `a{b`. Emitting the bare
 /// `$a{b}c` instead would parse as `$a` followed by literal text on **both**
-/// releases — the same mistake the minifier made (issue #1605, fifth site).
+/// releases — the same mistake the minifier made.
 fn var_ref(name: &str) -> String {
     if tcl_syntax::naming::is_bare_var_name(name) {
         format!("${name}")
@@ -882,7 +923,7 @@ fn render_call(name: &str, by_value: &[String], by_name: &[String]) -> String {
 /// would occupy is `::<candidate>` — a `::app::extracted_proc` in some other
 /// namespace is a different command and is no reason to pick a different
 /// placeholder.  (A namespace-blind `proc_def.name == candidate` scan is also
-/// the M1 drift class `cargo xtask resolution-drift` flags.)
+/// the drift class `cargo xtask resolution-drift` flags.)
 fn unique_proc_name(analysis: &AnalysisResult, registry: &CommandRegistry) -> String {
     let taken = |candidate: &str| {
         let global = format!("::{candidate}");
@@ -912,7 +953,7 @@ fn unique_proc_name(analysis: &AnalysisResult, registry: &CommandRegistry) -> St
 /// `style` is the document's `${…}` close rule: the captured-variable set
 /// decides the generated proc's parameter list and its call-site arguments,
 /// so reading a brace-bearing name by the wrong release's rule emits a proc
-/// built for a variable that does not exist (issue #1605).
+/// built for a variable that does not exist.
 fn variable_references(text: &str, style: BracedVarStyle) -> BTreeSet<String> {
     super::variable_reference_spans(text, style)
         .into_iter()
@@ -947,7 +988,7 @@ mod tests {
     }
 
     /// [`at`] against a document analysed under a named release — the
-    /// `${…}` close rule is release-dependent (issue #1605).
+    /// `${…}` close rule is release-dependent.
     fn at_dialect(src: &str, needle: &str, dialect: &str) -> Option<Refactoring> {
         let registry = super::super::test_registry();
         let mut analyser = Analyser::new();
@@ -966,7 +1007,7 @@ mod tests {
         }
     }
 
-    // -- TP: a pure selection with live-ins and no live-outs ---------------
+    // TP: a pure selection with live-ins and no live-outs.
 
     #[test]
     fn tp_extracts_a_read_only_selection_as_value_parameters() {
@@ -979,7 +1020,7 @@ mod tests {
         assert!(result.contains("extracted_proc $x"), "{result}");
     }
 
-    /// Issue #1605 — the captured-variable set decides the generated proc's
+    /// The captured-variable set decides the generated proc's
     /// parameters and its call-site arguments, so a brace-bearing `${…}`
     /// name must be read by the **document's** release rule, not always the
     /// 8.x first-`}` one.
@@ -991,10 +1032,9 @@ mod tests {
     ///
     /// Asserted on `variable_references` rather than through a whole
     /// extraction because the **segmenter**'s own `${…}` word span still
-    /// truncates at the first `}` on a 9.x document (issue #1568, the
-    /// compiled-word path — explicitly out of #1605's scope), so the block
-    /// boundary an end-to-end extraction computes is wrong for a reason this
-    /// change does not touch.
+    /// truncates at the first `}` on a 9.x document (the compiled-word
+    /// path), so the block boundary an end-to-end extraction computes is
+    /// wrong for a reason unrelated to the captured-variable set.
     #[test]
     fn variable_references_read_braced_names_by_the_documents_release() {
         let text = "puts ${a{b}c}";
@@ -1023,7 +1063,7 @@ mod tests {
     /// The **plumb**: the style must come from the document's own dialect,
     /// not a constant. The reference sits inside a braced body so the whole
     /// command's span is balanced and the segmenter hands over the complete
-    /// `${a{b}c}` (issue #1568 only truncates a bare `${…}` word).
+    /// `${a{b}c}`.
     ///
     /// Oracle: `puts ${a{b}c}` reads the variable `a{b}c` on tclsh 9.0.4 and
     /// `a{b` on 8.6.16, so the two releases capture different names — and
@@ -1061,8 +1101,7 @@ mod tests {
         );
         // …and one that cannot be written bare gets the `${…}` spelling.
         // `$a{b}c` would parse as `$a` followed by the literal `{b}c` on both
-        // 8.6.16 and 9.0.4, so the call passed the wrong value (issue #1636
-        // review).
+        // 8.6.16 and 9.0.4, so passing it bare passes the wrong value.
         assert_eq!(
             render_call("p", &["a{b}c".to_string()], &[]),
             "p ${a{b}c}",
@@ -1085,8 +1124,7 @@ mod tests {
     #[test]
     fn extracted_call_passes_a_brace_bearing_name_braced() {
         // End-to-end, with the reference inside a braced body so the command
-        // span is balanced and the segmenter hands over the complete word
-        // (the #1568 cap the PR documents).
+        // span is balanced and the segmenter hands over the complete word.
         let src = "if {1} {puts ${a{b}c}}\nputs done\n";
         let out = at_dialect(src, "if {1} {puts ${a{b}c}}", "tcl9.0")
             .expect("a selection")
@@ -1114,7 +1152,115 @@ mod tests {
         assert!(!result.contains("upvar"), "no upvar needed: {result}");
     }
 
-    // -- TP: caller-frame writes survive via upvar -------------------------
+    // TP: caller-frame writes survive via upvar.
+    /// The same command with its variable substitution switched off reads
+    /// nothing: `-novariables` leaves `$name` as four literal characters, so
+    /// asking the caller for `name` would invent a parameter. Which kinds a
+    /// call runs is the registry's per-call answer, not a switch spelling
+    /// matched in this module.
+    ///
+    /// Oracle (tclsh 9.0.4): original and extraction both print the literal
+    /// `hello $name`.
+    #[test]
+    fn tp_a_substituting_call_can_switch_its_variable_reads_off() {
+        let src = "set name world\nset msg [subst -novariables {hello $name}]\nputs $msg\n";
+        let result = outcome(src, "set msg [subst -novariables {hello $name}]").unwrap();
+        assert!(
+            result.contains("proc extracted_proc {msgName} {"),
+            "a disabled substitution reads nothing: {result}"
+        );
+        assert!(!result.contains("$name msg"), "{result}");
+    }
+
+    /// A `[…]` inside that argument runs even when variable substitution is
+    /// off — the manpage's "nested inside a command still runs" — and its
+    /// contents are ordinary script, so the read is the caller's after all.
+    #[test]
+    fn tp_a_substituted_bracket_reads_the_caller_even_with_variables_off() {
+        let src = "set name world\nset msg [subst -novariables {hello [string toupper $name]}]\nputs $msg\n";
+        let result = outcome(
+            src,
+            "set msg [subst -novariables {hello [string toupper $name]}]",
+        )
+        .unwrap();
+        assert!(
+            result.contains("proc extracted_proc {name msgName} {"),
+            "the bracket still runs: {result}"
+        );
+    }
+
+    /// That bracket is script in the caller's own frame, so a write it makes
+    /// has to leave by name like any other. The script lexer sees one braced
+    /// word here, so only the substitution grammar reaches inside it.
+    ///
+    /// Oracle (tclsh 9.0.4): original and extraction both print `1`; a proc
+    /// local instead leaves the caller's `total` at `0`.
+    #[test]
+    fn tp_a_substituted_bracket_writes_through_to_the_caller() {
+        let src = "set total 0\nset msg [subst {x[incr total]}]\nputs $total\n";
+        let result = outcome(src, "set msg [subst {x[incr total]}]").unwrap();
+        assert!(
+            result.contains("upvar 1 $totalName total"),
+            "the substituted bracket writes the caller's variable: {result}"
+        );
+        assert!(result.contains("extracted_proc total\n"), "{result}");
+    }
+
+    /// A command that performs Tcl substitution reads through its own braced
+    /// argument, so that word is not the inert literal a braced word usually
+    /// is: `subst {hello $name}` substitutes `$name`.
+    ///
+    /// Oracle (tclsh 8.6.18 and 9.0.4 alike): the original prints
+    /// `hello world`; so does the extraction.  Dropping the `name` parameter
+    /// makes the rewritten call die with `can't read "name"`.
+    #[test]
+    fn tp_a_substituting_command_reads_through_its_braced_word() {
+        let src = "set name world\nset msg [subst {hello $name}]\nputs $msg\n";
+        let result = outcome(src, "set msg [subst {hello $name}]").unwrap();
+        assert!(
+            result.contains("proc extracted_proc {name msgName} {"),
+            "the substituted name is the caller's: {result}"
+        );
+        assert!(result.contains("extracted_proc $name msg"), "{result}");
+    }
+
+    /// A braced word substitutes nothing, so the `$name` spelled inside one
+    /// is not a variable the caller has to supply.
+    ///
+    /// Oracle (tclsh 8.6.18 and 9.0.4 alike): the original prints the four
+    /// characters `$notavar`; so does the extraction.  A `notavar` parameter
+    /// makes the rewritten call die with `can't read "notavar"`.
+    #[test]
+    fn tp_a_braced_literal_is_not_a_variable_read() {
+        let src = "set msg {$notavar}\nputs $msg\n";
+        let result = outcome(src, "set msg {$notavar}").unwrap();
+        assert!(
+            result.contains("proc extracted_proc {msgName} {"),
+            "a braced word reads nothing: {result}"
+        );
+        assert!(result.contains("extracted_proc msg\n"), "{result}");
+    }
+
+    /// The same rule reaches a lambda inside a callback word. `lsort`'s
+    /// `-command` value is data to the script lexer, so the lambda's own
+    /// parameters are neither the selection's reads nor the caller's to pass.
+    ///
+    /// Oracle: the original prints `1 2 3`; so does the extraction.
+    #[test]
+    fn tp_a_lambda_in_a_callback_word_is_not_a_parameter() {
+        let src = "set items {3 1 2}\nset sorted [lsort -command {apply {{a b} {expr {$a - $b}}}} $items]\nputs $sorted\n";
+        let result = outcome(
+            src,
+            "set sorted [lsort -command {apply {{a b} {expr {$a - $b}}}} $items]",
+        )
+        .unwrap();
+        assert!(
+            result.contains("proc extracted_proc {items sortedName} {"),
+            "only the list is the caller's: {result}"
+        );
+        assert!(result.contains("extracted_proc $items sorted"), "{result}");
+    }
+
     /// A name the selection reads *before* it writes is still an input. The
     /// list word of `foreach x $x` is evaluated before the loop binds `x`, so
     /// the caller has to hand that list over.
@@ -1163,6 +1309,62 @@ mod tests {
             "the expression's substitution writes the caller's variable: {result}"
         );
         assert!(result.contains("extracted_proc x\n"), "{result}");
+    }
+
+    /// A selection made *inside* a loop body still writes the caller's
+    /// variable: a control-flow body shares the frame it sits in, so the
+    /// "read after the selection?" question runs past the body's closing
+    /// brace to the frame that owns the variable.
+    ///
+    /// Oracle (tclsh 8.6.18 and 9.0.4 alike): original and extraction both
+    /// print `6`.  Classifying `total` as a proc local prints `0`.
+    #[test]
+    fn tp_a_write_inside_a_loop_body_reaches_the_caller() {
+        let src = "set total 0\nforeach n {1 2 3} {\n    incr total $n\n}\nputs $total\n";
+        let result = outcome(src, "incr total $n").unwrap();
+        assert!(
+            result.contains("proc extracted_proc {n totalName} {\n    upvar 1 $totalName total\n"),
+            "the loop body's write is the caller's write: {result}"
+        );
+        assert!(result.contains("extracted_proc $n total\n"), "{result}");
+    }
+
+    /// The enclosing body counts in full, not only the part after the
+    /// selection: a loop runs again, so a read *above* the selection reads
+    /// what the previous iteration assigned.
+    ///
+    /// Oracle: the original prints `0`, `1`, `3`; so does the extraction.
+    #[test]
+    fn tp_a_loop_carried_read_above_the_selection_keeps_the_upvar() {
+        let src = "set total 0\nforeach n {1 2 3} {\n    puts $total\n    incr total $n\n}\n";
+        let result = outcome(src, "incr total $n").unwrap();
+        assert!(
+            result.contains("upvar 1 $totalName total"),
+            "the next iteration reads what this one wrote: {result}"
+        );
+        assert!(result.contains("extracted_proc $n total\n"), "{result}");
+    }
+
+    /// A `$name` inside a body that opens its own variable frame names *that*
+    /// frame's variable, so it is neither a parameter of the extracted proc
+    /// nor an argument at the call site — the caller has no such variable to
+    /// pass.
+    ///
+    /// Oracle: the original defines `helper` and prints `done`; so does the
+    /// extraction.  Asking the caller for `$name` dies with
+    /// `can't read "name": no such variable`.
+    #[test]
+    fn tp_a_read_inside_a_nested_procs_body_is_not_a_parameter() {
+        let src = "proc helper {name} {\n    puts \"hello $name\"\n}\nputs done\n";
+        let result = outcome(src, "proc helper {name} {\n    puts \"hello $name\"\n}").unwrap();
+        assert!(
+            result.contains("proc extracted_proc {} {"),
+            "the nested proc's parameter is nobody else's: {result}"
+        );
+        assert!(
+            !result.contains("extracted_proc $name"),
+            "the caller has no `name` to pass: {result}"
+        );
     }
 
     /// A write nested in a control-flow body is still the caller's write.
@@ -1270,7 +1472,7 @@ mod tests {
 
     #[test]
     fn tp_a_write_read_after_the_selection_is_carried_by_upvar() {
-        // The issue's reproducer.  With a value parameter the original
+        // With a value parameter the original
         // printed `after=1` and the refactored one printed `after=0`.
         let src = "set x 0\nset x 1\nputs $x\nputs \"after=$x\"\n";
         let result = outcome(src, "set x 1\nputs $x").unwrap();
@@ -1303,7 +1505,7 @@ mod tests {
         assert!(result.contains("proc extracted_proc_2 {x}"), "{result}");
     }
 
-    // -- FP/TN: refusals that keep behaviour -------------------------------
+    // FP/TN: refusals that keep behaviour.
 
     #[test]
     fn fp_refuses_a_selection_containing_return() {
@@ -1384,7 +1586,7 @@ mod tests {
         assert!(at(src, "\n\n\n").is_none());
     }
 
-    // -- Dialect-drift regression -------------------------------------------
+    // Dialect drift.
 
     /// iRules' `}{` ghost word separator (no space between an `if`'s
     /// condition and its body — the idiom every real iRule uses) must be
@@ -1445,7 +1647,7 @@ mod tests {
         );
     }
 
-    // -- Unit-level helpers ------------------------------------------------
+    // Unit-level helpers.
 
     #[test]
     fn variable_references_collects_bare_and_braced_names() {

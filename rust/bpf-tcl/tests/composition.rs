@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Handler composition, executed end to end (issue #1204).
+//! Handler composition, executed end to end.
 //!
 //! Two `when XDP` handlers compose deterministically: an early "deny" handler
 //! terminates on a blocked port, while an "audit" handler continues with `next`

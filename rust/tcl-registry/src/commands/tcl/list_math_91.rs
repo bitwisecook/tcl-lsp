@@ -61,8 +61,7 @@ fn make(
         // while deliberately *omitting* `CSE_CANDIDATE` — see lseq.rs's own
         // comment: a `[...]` inside that brace can be side-effecting, so
         // eliding a "duplicate" call there would be an unsound false
-        // guarantee (this was a real, previously-shipped bug in `lseq`'s
-        // classification, since fixed). No such expression-argument
+        // guarantee. No such expression-argument
         // mechanism exists for these four — confirmed via their manpages
         // and via `tcl-vm`, which has no dedicated implementation for any
         // of them at all (falls through to generic invoke, so there's no

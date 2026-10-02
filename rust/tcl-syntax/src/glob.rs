@@ -64,7 +64,7 @@ pub fn string_match_bytes(pattern: &[u8], text: &[u8]) -> bool {
 ///
 /// Lets a caller that matches one pattern set against many names put the
 /// literal patterns in a hash set and glob-match only the rest — the shape
-/// [`crate::glob`]'s `namespace export` consumers need (issue #1297).
+/// [`crate::glob`]'s `namespace export` consumers need.
 #[must_use]
 pub fn is_literal(pattern: &str) -> bool {
     is_literal_bytes(pattern.as_bytes())
@@ -100,7 +100,7 @@ pub fn is_literal_bytes(pattern: &[u8]) -> bool {
 /// a plain name are what `namespace export` / `namespace import` patterns
 /// almost always are. The workspace import walk alone called this ~5 M times
 /// to answer one `textDocument/references`, and the two `Vec<char>`
-/// allocations per call were ~1 s of it (issue #1297).
+/// allocations per call were ~1 s of it.
 #[must_use]
 pub fn string_case_match(pattern: &str, text: &str, nocase: bool) -> bool {
     if pattern == "*" {
@@ -211,15 +211,14 @@ fn match_one(p: &[char], pi: usize, sc: char, nocase: bool) -> Option<usize> {
 }
 
 /// Iterative glob matcher with a single `*` resume point, giving `O(n·m)` worst
-/// case instead of the old recursion's `O(2^n)` (a pattern like
-/// `a*a*…a*b` against a run of `a`s used to blow up exponentially — a denial of
+/// case rather than a naive recursion's `O(2^n)` (a pattern like
+/// `a*a*…a*b` against a run of `a`s would blow up exponentially with naive
+/// backtracking — a denial of
 /// service, since glob patterns come from attacker-controllable LSP buffers via
 /// `string match`, `lsearch -glob`, `switch -glob`, `array names`, and the
 /// compiler's glob folding). This is the classic backtracking wildcard match: on
 /// a literal mismatch we rewind only to the most recent `*` and let it swallow
-/// one more string char, never re-exploring earlier `*`s. Results are
-/// byte-identical to the previous recursion (verified against the existing
-/// tests).
+/// one more string char, never re-exploring earlier `*`s.
 fn do_match(p: &[char], mut pi: usize, s: &[char], mut si: usize, nocase: bool) -> bool {
     // The single resume point: `star_pat` is the pattern index just after the
     // last `*` we committed to, and `star_str` is the string index it was first
@@ -342,12 +341,12 @@ mod tests {
         // No member match before the (missing) close ⇒ no match.
         assert!(!string_match("[xyz", "a"));
         // An unterminated class ending in a dangling `-` still honours an earlier
-        // member match (the old recursion's run-to-`]` skip of the `-`).
+        // member match: the scan runs to the (missing) `]`, skipping the `-`.
         assert!(string_match("[ab-", "a"));
         assert!(!string_match("[ab-", "aa"));
     }
 
-    /// Issue #1297: [`string_case_match`]'s two allocation-free fast paths
+    /// [`string_case_match`]'s two allocation-free fast paths
     /// (`*`, and a metacharacter-free pattern) must answer exactly what the
     /// general matcher would. Checked over a full pattern × text matrix, in
     /// both case modes, against [`do_match`] called directly — so a future
@@ -431,8 +430,8 @@ mod tests {
 
     #[test]
     fn star_backtracking_is_not_exponential() {
-        // Regression test: the old recursive `*` handling was O(2^n), so
-        // `a*a*…a*b` (16 stars) against a run of 'a's with no trailing 'b' took
+        // A naive recursive `*` handling is O(2^n): `a*a*…a*b` (16 stars)
+        // against a run of 'a's with no trailing 'b' takes
         // ~14s for 32 'a's — a DoS reachable from `string match`/`switch -glob`/
         // `array names` on attacker-controlled buffers. The iterative single-
         // resume matcher is O(n·m), so 40 'a's must return (no match) instantly.

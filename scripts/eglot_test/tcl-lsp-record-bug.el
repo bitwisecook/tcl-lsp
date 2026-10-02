@@ -18,8 +18,7 @@
 ;; SPDX-License-Identifier: AGPL-3.0-or-later
 
 ;;
-;; A self-contained emacs recorder for users hitting eglot+tcl-lsp issues
-;; (e.g. https://github.com/bitwisecook/tcl-lsp/issues/333).
+;; A self-contained emacs recorder for users hitting eglot+tcl-lsp issues.
 ;;
 ;; Usage:
 ;;   1. Save this file somewhere, e.g. ~/.emacs.d/lisp/tcl-lsp-record-bug.el
@@ -80,7 +79,7 @@ having to call `tcl-lsp-bug-record-mark' for every event."
 (defvar tcl-lsp-bug-record--server nil)
 
 
-;;; ---------- helpers ----------------------------------------------------
+;;; Helpers.
 
 (defun tcl-lsp-bug-record--ts ()
   "Return seconds since recording start, as a float."
@@ -330,7 +329,7 @@ through `read'."
       s)))
 
 
-;;; ---------- hooks ------------------------------------------------------
+;;; Hooks.
 
 (defun tcl-lsp-bug-record--on-change (beg end old-len)
   "after-change-functions hook: record the change region."
@@ -410,7 +409,7 @@ through `read'."
   (funcall orig connection message))
 
 
-;;; ---------- public commands -------------------------------------------
+;;; Public commands.
 
 ;;;###autoload
 (defun tcl-lsp-bug-record-start ()

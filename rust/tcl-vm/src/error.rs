@@ -22,7 +22,8 @@ use tcl_runtime_api::Code;
 
 use crate::value::Value;
 
-/// A Tcl runtime error — a message plus (eventually) the options dict.
+/// A Tcl runtime error — a message plus the completion detail needed to
+/// reconstruct the full `Completion` at the dispatch boundary.
 ///
 /// Internal `Result<_, TclError>` is converted to a `Completion { code: Error,
 /// result: <message> }` at the dispatch boundary.

@@ -1203,7 +1203,7 @@ fn run_outdated(common: &PkgCommon) -> anyhow::Result<u8> {
 /// Whether any of `requires` (a list of `name@version` requirement strings)
 /// names `package`.  Matches the requirement's package *name* — the part
 /// before `@` — not a substring, so `why http` does not falsely match a
-/// dependent that requires `shttp@1.0` or `http2@…` (issue 197).
+/// dependent that requires `shttp@1.0` or `http2@…`.
 fn requires_package(requires: &[String], package: &str) -> bool {
     requires.iter().any(|r| locked_req_name(r) == package)
 }
@@ -1757,7 +1757,7 @@ mod why_tests {
         assert!(requires_package(&reqs, "http"));
         assert!(requires_package(&reqs, "shttp"));
         assert!(requires_package(&reqs, "http2"));
-        // Substrings that are not the full name must NOT match (issue 197).
+        // Substrings that are not the full name must NOT match.
         assert!(!requires_package(&reqs, "ttp"));
         assert!(!requires_package(&reqs, "htt"));
         // A dependent whose only requirement is `shttp` is not a dependent of

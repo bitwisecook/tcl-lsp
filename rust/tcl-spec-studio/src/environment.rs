@@ -17,8 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The spec studio's dialect ingress — its face of the one shared seam,
-//! [`tcl_registry::model::ingress`] (centralisation contract R-a; P1-F
-//! wave 4, alongside the CLIs and the MCP server).
+//! [`tcl_registry::model::ingress`].
 //!
 //! Every dialect **name** the studio threads — the picker's selection, a
 //! draft's `SOURCE_DIALECT_KEY`, the fixed `spectcl` the pack formatter
@@ -28,14 +27,12 @@
 //!
 //! Nothing here changes what the studio shows. The catalogue names the
 //! picker offers map to their same-named environments, whose `unit_profile`
-//! is the profile the retired `by_name`/`find` returned and whose
-//! generation store is the very `Arc` the old `(profile, overlay)` cache
-//! owns.
+//! is the same profile `DialectProfile::by_name`/`find` returns and whose
+//! generation store is the very `Arc` the `(profile, overlay)` cache owns.
 //!
-//! Ledger row T7 (P2) is untouched by this: the studio's `DIALECT_BITS`
-//! editor, its dialect-string APIs, `SOURCE_DIALECT_KEY`, and the
-//! dialect-as-language-id client are *payload* the row retires, not
-//! ingresses this wave ports.
+//! Row T7 is untouched by this: the studio's `DIALECT_BITS` editor, its
+//! dialect-string APIs, `SOURCE_DIALECT_KEY`, and the dialect-as-language-id
+//! client are *payload* that row covers, not ingresses this module handles.
 
 use tcl_dialect::DialectProfile;
 use tcl_registry::CommandRegistry;
@@ -46,10 +43,6 @@ pub const DEFAULT_DIALECT: &str = "tcl9.0";
 
 /// Resolve a dialect **name** to the profile the studio threads — the
 /// environment-model form of `DialectProfile::by_name`.
-///
-/// Post-P1-G (which deleted the name validators): the threaded profile
-/// handle itself retires with ledger C1's re-type, when the studio reads
-/// its labels off the environment instead.
 #[must_use]
 pub fn profile_for_dialect(name: &str) -> &'static DialectProfile {
     tcl_registry::model::resolve_environment(name).unit_profile()
@@ -98,8 +91,8 @@ mod tests {
         }
     }
 
-    /// The generation store is the very allocation the retired name-keyed
-    /// cache published, so nothing the studio browses moves.
+    /// The generation store is the very allocation the name-keyed cache
+    /// publishes, so nothing the studio browses moves.
     #[test]
     fn the_generation_store_is_the_cached_one() {
         for name in ["spectcl", "tcl9.0", "f5-irules"] {

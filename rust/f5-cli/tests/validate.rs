@@ -60,8 +60,8 @@ fn lint_alias_matches_validate() {
     assert_eq!(vc, lc, "lint alias exit code differs from validate");
 }
 
-// JSON output pins the `"category"` field's wire spelling (issue #1614: the
-// enum backing this must not change what's on the wire).
+// JSON output pins the `"category"` field's wire spelling: the enum backing
+// this must not change what's on the wire.
 
 #[test]
 fn json_category_field_is_config_or_irule() {

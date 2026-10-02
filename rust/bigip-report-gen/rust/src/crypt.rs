@@ -46,9 +46,9 @@
 //! no `$scheme$` prefix), `BSDi` extended DES-crypt, Apache's `$apr1$`
 //! variant, bcrypt (`$2a$`/`$2b$`/`$2y$`) and any other/unrecognised
 //! representation are reported as [`Verdict::Unsupported`] — the finding is
-//! "could not inspect", never a guess. See the issue's acceptance criteria:
-//! *"Unsupported or malformed formats fail closed and do not produce false
-//! positives."* Classic DES-crypt in particular is rare on a modern BIG-IP
+//! "could not inspect", never a guess: unsupported or malformed formats fail
+//! closed and must never produce false positives. Classic DES-crypt in
+//! particular is rare on a modern BIG-IP
 //! (TMOS defaults to SHA-512-crypt) and its crypt(3) variant folds the salt
 //! into a modified DES expansion permutation rather than just keying
 //! standard DES, so — lacking an audited pure-Rust implementation — it is

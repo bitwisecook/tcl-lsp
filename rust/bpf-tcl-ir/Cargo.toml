@@ -34,7 +34,7 @@ tcl-compiler = { path = "../tcl-compiler" }
 # The toolchain's one number facility: DSL integer literals are read through it
 # so the eBPF backend agrees with the compiler and VM about what a numeral means
 # under the target dialect. Also drives the operator-completeness test in
-# `lower.rs` (iterating `ALL_BIN_OPS`/`ALL_UNARY_OPS`) — issue #983's plan.
+# `lower.rs` (iterating `ALL_BIN_OPS`/`ALL_UNARY_OPS`).
 tcl-syntax = { path = "../tcl-syntax" }
 
 [dev-dependencies]

@@ -29,6 +29,8 @@
 
 use tcl_registry::hooks::CodegenHookId;
 
+use crate::ir::CommandTokens;
+
 use super::super::CodegenCtx;
 use super::super::Op;
 use super::super::Operand;
@@ -49,6 +51,18 @@ pub fn try_bytecoded(
     args: &[String],
     used_generic_invoke: &mut bool,
 ) -> bool {
+    try_bytecoded_with_tokens(ctx, cmd, args, None, used_generic_invoke)
+}
+
+/// Source-aware variant used by executable IR emission.  Hand-built callers
+/// have no lexical word facts and therefore take the conservative wrapper.
+pub fn try_bytecoded_with_tokens(
+    ctx: &mut CodegenCtx,
+    cmd: &str,
+    args: &[String],
+    tokens: Option<&CommandTokens>,
+    used_generic_invoke: &mut bool,
+) -> bool {
     if let Some((hook, identity)) = resolved_codegen_hook(ctx, cmd, args) {
         let emitted = dispatch_codegen_hook(hook, ctx, args, used_generic_invoke);
         if emitted {
@@ -60,7 +74,7 @@ pub fn try_bytecoded(
     // Some typed inline hooks are shared with value position. Their command
     // statement bridge owns the narrower applicability check and trailing
     // result discard; unsupported hook variants safely fall through here.
-    ctx.try_inline_statement_codegen(cmd, args, used_generic_invoke)
+    ctx.try_inline_statement_codegen(cmd, args, tokens, used_generic_invoke)
 }
 
 /// Return the registry hook and binding identity available to the bytecode
@@ -90,7 +104,7 @@ fn registry_codegen_hook(
     args: &[String],
 ) -> Option<(CodegenHookId, tcl_runtime_api::CommandBindingIdentity)> {
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    // The registry's own point (issues #1462/#1463): a
+    // The registry's own point: a
     // profile-built registry suppresses the specialised emission of a
     // command its release does not have, keeping it on the generic invoke
     // where the runtime's availability gate can reject it.
@@ -1030,7 +1044,7 @@ mod tests {
         assert!(!try_bytecoded(&mut ctx, "array", &args, &mut used));
     }
 
-    // -- lrange / linsert / lset --
+    // Lrange / linsert / lset.
 
     #[test]
     fn lrange_constant_indices() {
@@ -1110,7 +1124,7 @@ mod tests {
         assert!(!try_bytecoded(&mut ctx, "lset", &args, &mut used));
     }
 
-    // -- dict subcommands --
+    // Dict subcommands.
 
     #[test]
     fn dict_set_proc_uses_dict_set_opcode() {
@@ -1213,7 +1227,7 @@ mod tests {
         assert!(!ops.contains(&Op::DICT_SET));
     }
 
-    // -- append / lappend statement-position specialisations --
+    // Append / lappend statement-position specialisations.
 
     #[test]
     fn append_scalar_single_uses_append_scalar1() {
@@ -1359,7 +1373,7 @@ mod tests {
         );
     }
 
-    // -- unset statement-position specialisation --
+    // Unset statement-position specialisation.
 
     #[test]
     fn unset_scalar_uses_unset_scalar() {
@@ -1472,7 +1486,7 @@ mod tests {
         );
     }
 
-    // -- tailcall statement-position specialisation --
+    // Tailcall statement-position specialisation.
 
     #[test]
     fn tailcall_pushes_literal_prefix_then_args() {
@@ -1523,7 +1537,7 @@ mod tests {
         );
     }
 
-    // -- concat statement-position specialisation --
+    // Concat statement-position specialisation.
 
     #[test]
     fn concat_all_literal_folds() {
@@ -1602,7 +1616,7 @@ mod tests {
         );
     }
 
-    // -- global / upvar statement-position specialisation --
+    // Global / upvar statement-position specialisation.
 
     #[test]
     fn global_single_uses_nsupvar() {

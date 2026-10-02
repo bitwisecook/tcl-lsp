@@ -64,8 +64,8 @@ fn gather(dir: &Path, out: &mut Vec<PathBuf>, cap: usize) {
     }
 }
 
-// Regression (Codex review on #739, P2): a command alias declared *outside* any
-// body (`interp alias {} = {} expr`) populates the lowerer's alias table that
+// A command alias declared *outside* any body (`interp alias {} = {} expr`)
+// populates the lowerer's alias table that
 // `resolve_alias` consults while lowering every body — but the isolated body-cache
 // lowering starts with an empty table, so a cached body resolves `=` as an unknown
 // command instead of `expr`. The file-level `source_may_alias_commands` guard makes

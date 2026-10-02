@@ -26,7 +26,7 @@ pub const fn spec() -> CommandSpec {
         side_switch_target: Some(SideSwitchTarget::Server),
         surface: Some(SpecSurface::IRULES),
         // `serverside (NESTING_SCRIPT)?` — the bare query form (0 args,
-        // returns 1/0) or a single optional nesting-script body (#501).
+        // returns 1/0) or a single optional nesting-script body.
         arity: Arity::new(0, 1),
         // The optional nesting script (index 0) is a body evaluated in
         // the server-side context; it runs synchronously in the

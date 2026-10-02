@@ -48,9 +48,9 @@
 //! `&'static DialectProfile`'s `grammar` field, and the ingress hands
 //! consumers `&'static DialectProfile` values from a compiled table. A
 //! dynamic family has a `LexerGrammar` — [`dynamic_core_grammar`] returns
-//! it — and nothing on the analysis path can yet be given one that is not
-//! a compiled profile's. Closing that is the `DialectProfile` re-type
-//! (ledger C1), not a change here.
+//! it — and nothing on the analysis path can be given one that is not a
+//! compiled profile's. That limitation belongs to `DialectProfile`'s own
+//! representation, not this module.
 //!
 //! # Trust (§6.4)
 //!

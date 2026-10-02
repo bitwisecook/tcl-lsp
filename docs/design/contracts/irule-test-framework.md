@@ -265,7 +265,7 @@ is CMP-shared across all TMMs.  This is a common source of bugs: a
 static variable updated on one TMM is stale on others.
 
 Enable multi-TMM mode with `-tmm_count`.  Write the test for the
-*desired* behavior — if the iRule has a CMP bug, the test fails:
+*desired* behaviour — if the iRule has a CMP bug, the test fails:
 
 ```tcl
 ::orch::configure_tests -tmm_count 4 -profiles {TCP HTTP} \

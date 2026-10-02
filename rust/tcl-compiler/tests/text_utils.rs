@@ -18,19 +18,18 @@
 
 //! Edit-distance and suggestion utilities.
 //!
-//! The feature under test lives in `tcl-compiler/src/text.rs`
-//! and is re-exported via `pub mod text;` in `lib.rs`, so it is
-//! reachable from an integration test as
-//! `tcl_compiler::text::{edit_distance, suggest_similar}`.
+//! The feature under test lives in `tcl-compiler/src/text.rs`, declared
+//! `pub mod text;` in `lib.rs`, so it is reachable from an integration test
+//! as `tcl_compiler::text::{edit_distance, suggest_similar}`.
 //!
 //! Edit distance is a pure algorithm (no Tcl semantics), so the
 //! values are asserted directly — no `tclsh` round-trip needed.
 //!
 //! Signature note: `suggest_similar(attempted, candidates,
 //! max_suggestions, max_distance)` takes all four positionally, with
-//! no defaults, and `max_suggestions` precedes `max_distance`. Tests
-//! that want the default behaviour pass the explicit values
-//! `max_suggestions = 3, max_distance = 3`.
+//! no defaults, and `max_suggestions` precedes `max_distance`. Cases
+//! that do not narrow the search pass `max_suggestions = 3,
+//! max_distance = 3`.
 
 use tcl_compiler::text::{
     edit_distance, rank_containment_suggestions, rank_suggestions, suggest_similar,
@@ -91,9 +90,8 @@ fn test_completely_different() {
 //
 // `suggest_similar` borrows `&'a str` from the candidate
 // iterator and returns `Vec<&'a str>`, so the candidate slices are
-// bound to `&str` literals here. The default arguments
-// (`max_suggestions=3`, `max_distance=3`) are supplied
-// explicitly.
+// bound to `&str` literals here. Every case passes `max_suggestions`
+// and `max_distance` explicitly.
 
 #[test]
 fn test_exact_match_first() {

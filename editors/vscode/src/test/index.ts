@@ -48,7 +48,7 @@ export async function run(): Promise<void> {
     // A per-test backstop, not a budget: every wait a test takes is itself
     // bounded and load-scaled (see `signal.ts`), so a test that reaches this
     // number has stalled somewhere with no bound of its own. Scaled by measured
-    // load for the same reason those waits are — the shimmer tests in #1274 hit
+    // load for the same reason those waits are — the shimmer tests hit
     // a raw 60s each under ~9 concurrent build trees. `runnerWatchdog.ts`'s
     // no-progress window is itself derived from this same constant, so the
     // two cannot drift out of the relationship it depends on.
@@ -192,8 +192,8 @@ export async function run(): Promise<void> {
   // remaining tests cannot pass and cannot learn anything new — they can only
   // each burn a full wait budget rediscovering it. Skip them instead, so a
   // wedged run reports in about the time a healthy one takes rather than
-  // grinding to the watchdog's absolute ceiling (issue #1294; the second
-  // occurrence spent ~27 of its 32 minutes this way).
+  // grinding to the watchdog's absolute ceiling (measured: one wedged run
+  // spent ~27 of its 32 minutes this way).
   //
   // A skip, not a bail: the failure that *did* diagnose the wedge stays in the
   // report as a failure, and the skipped count makes the lost coverage visible

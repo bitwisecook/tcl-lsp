@@ -29,16 +29,52 @@ built-in server list, so configure it with one of the forms below.
 ```lua
 vim.filetype.add({
   extension = {
-    tcl = 'tcl', tk = 'tcl', itcl = 'tcl', tm = 'tcl', tclspec = 'tcl',
-    sslictcl = 'tcl',
+    -- <generated: neovim-extensions>
+    -- Tcl
+    tcl = 'tcl', tk = 'tcl', itcl = 'tcl', tm = 'tcl', test = 'tcl',
+    -- Expect
+    exp = 'tcl', expect = 'tcl',
+    -- F5 BIG-IP
+    scf = 'tcl',
+    -- F5 iApps
+    iapp = 'tcl', iappimpl = 'tcl', impl = 'tcl',
+    -- F5 iRules
     irul = 'tcl', irule = 'tcl', irules = 'tcl',
-    iapp = 'tcl', iappimpl = 'tcl', impl = 'tcl', tmsh = 'tcl',
-    apl = 'tcl-apl', exp = 'tcl', expect = 'tcl',
-    -- EDA vendor scripts; the server picks the vendor dialect from the
-    -- extension (`.globals` is Innovus/Genus, `.do` is ModelSim/Questa —
-    -- `do` is a Lua keyword, hence the bracket form).
-    globals = 'tcl', qsf = 'tcl', qpf = 'tcl', qip = 'tcl',
-    ['do'] = 'tcl', sdc = 'tcl', upf = 'tcl', xdc = 'tcl',
+    -- F5 tmsh Scripts
+    tmsh = 'tcl',
+    -- SpecTcl
+    tclspec = 'tcl',
+    -- SslicTcl
+    sslictcl = 'tcl',
+    -- Cadence Genus / Innovus / Xcelium
+    globals = 'tcl',
+    -- Intel Quartus Prime
+    qsf = 'tcl', qpf = 'tcl', qip = 'tcl',
+    -- Siemens Questa / ModelSim
+    ['do'] = 'tcl',
+    -- Synopsys DC / PrimeTime / ICC2 / Formality
+    sdc = 'tcl', upf = 'tcl',
+    -- Xilinx Vivado
+    xdc = 'tcl',
+    -- iApp APL
+    apl = 'tcl-apl',
+    -- </generated>
+  },
+  pattern = {
+    -- <generated: neovim-shebangs>
+    -- Scripts named by their interpreter rather than an extension.
+    ['.*'] = {
+      function(_, bufnr)
+        local first = vim.api.nvim_buf_get_lines(bufnr, 0, 1, false)[1] or ''
+        for _, word in ipairs({ 'expect', 'jimsh', 'tclsh', 'wish' }) do
+          if first:find('^#!.-%f[%w]' .. vim.pesc(word)) then
+            return 'tcl'
+          end
+        end
+      end,
+      { priority = -math.huge },
+    },
+    -- </generated>
   },
 })
 
@@ -123,11 +159,13 @@ Settings are sent under the `tclLsp` namespace. Key options:
 | `formatting.braceStyle` | string | `k_and_r` | `k_and_r` |
 | `formatting.maxLineLength` | integer | `120` | Maximum line length |
 
-The dialect profiles `dialect` accepts: `tcl8.4`, `tcl8.5`, `tcl8.6`,
-`tcl9.0`, `tcl9.1`, `f5-irules`, `f5-iapps`, `f5-tmsh`, `f5-bigip`, `bpf`,
-`expect`, `spectcl`, `sslictcl`, `cadence-eda-tcl`,
-`intel-quartus-eda-tcl`, `mentor-eda-tcl`, `microchip-libero-eda-tcl`,
-`synopsys-eda-tcl`, `xilinx-eda-tcl`.
+<!-- <generated: neovim-dialects> -->
+`dialect` takes any of `bpf`, `expect`, `f5-bigip`, `f5-iapps`, `f5-irules`,
+`f5-tmsh`, `jim`, `spectcl`, `sslictcl`, `tcl8.4`, `tcl8.5`, `tcl8.6`,
+`tcl9.0`, `tcl9.1`, `cadence-eda-tcl`, `intel-quartus-eda-tcl`,
+`mentor-eda-tcl`, `microchip-libero-eda-tcl`, `synopsys-eda-tcl`, `tk`, and
+`xilinx-eda-tcl`.
+<!-- </generated> -->
 
 See the top-level README for the full list of formatting, diagnostic, and optimiser settings.
 

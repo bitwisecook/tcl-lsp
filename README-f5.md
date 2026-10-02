@@ -407,6 +407,21 @@ when HTTP_REQUEST {
 # - Coverage report showing translated vs. untranslatable constructs
 ```
 
+`Tcl: Translate iRule to F5 XC (Console JSON)` renders the same objects for
+the Distributed Cloud Console instead, one document per object, each shaped
+as the create request its schema defines so it pastes straight into that
+object's JSON editor. The same rendering is reached from the `xc_translate`
+MCP tool and the `tcl-lsp.xcTranslate` workspace command with
+`output_format` set to `console`.
+
+XC object names must follow DNS-1035, which a BIG-IP path is not, so a pool
+named `/Common/web-pool` becomes a derived name that keeps the partition and
+stays distinct from the same pool name in another partition. Every rendering
+derives the name the same way and records the BIG-IP path in the object's
+description, so nothing about the original is lost. The
+[output contract](docs/design/f5/xc-translation-output-contract.md) has the
+details.
+
 ## iRule Event Orchestrator (test framework)
 
 Generate and run deterministic tests for F5 iRules.  The framework simulates

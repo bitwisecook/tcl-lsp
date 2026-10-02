@@ -18,8 +18,8 @@
 
 //! `diagram` verb: extract structured control-flow data from the IR.
 //!
-//! The extraction itself lives in [`tcl_diagram`] (shared with the
-//! `tcl_lsp_py` facade); this verb is the CLI I/O + text-rendering wrapper
+//! The extraction itself lives in [`tcl_diagram`]; this verb is the CLI
+//! I/O + text-rendering wrapper
 //! that combines the inputs, resolves the registry, and prints the
 //! `{events, procedures}` flow tree the VS Code `/diagram` command forwards
 //! to the LLM.

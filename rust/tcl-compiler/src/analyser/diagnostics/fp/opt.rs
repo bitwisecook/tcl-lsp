@@ -28,8 +28,6 @@ use tcl_registry::model::ingress::static_context_for;
 
 use super::D;
 
-// Shared helpers
-
 /// True if any optimisation with `code` fires on `src` under `dialect`.
 fn opt_fires(src: &str, dialect: &str, code: &str) -> bool {
     let registry = static_context_for(dialect).commands();
@@ -187,19 +185,14 @@ fn fp_opt_03_inner_impure_blocks_licm() {
 
 #[test]
 fn fp_opt_03_outer_pure_inner_pure_abstains_in_a_procedure_body() {
-    // This was a true-positive control while loop-invariance was decided by the
-    // legacy command-string classifier, which treated `format` as pure because
-    // of its name. It is not sound: hoisting a call out of a loop changes how
-    // many times it is dispatched, and a caller can install an execution trace
-    // on `format` before invoking this procedure, so the hoist would change the
-    // number of trace callbacks.
-    //
-    // Loop-invariance now consults the same dispatch-stability proof as reuse
-    // (`find_loop_invariants_for_function`). A procedure body carries the
-    // `UnknownWorld` entry contract, so no proof succeeds inside one and the
-    // pass abstains. Restoring this finding needs an entry contract for
-    // procedure bodies derived from workspace, package, and sourced-file facts
-    // -- the contract issue #1364 requires -- not a return to name-based purity.
+    // Loop-invariance consults the same dispatch-stability proof as reuse
+    // (`find_loop_invariants_for_function`). Hoisting a call out of a loop
+    // changes how many times it is dispatched, and a caller can install an
+    // execution trace on `format` before invoking this procedure, so a
+    // name-based purity rule ("`format` is pure") is unsound. A procedure body
+    // carries the `UnknownWorld` entry contract, so no proof succeeds inside
+    // one and the pass abstains. Firing here would need an entry contract for
+    // procedure bodies derived from workspace, package and sourced-file facts.
     let src = "\
 proc f {} {
     set k 42
@@ -275,7 +268,7 @@ proc f {} {
     );
 }
 
-// FP-OPT-05 — O126 must NOT delete an RHS with observable side effects (D2-O126)
+// FP-OPT-05 — O126 must NOT delete an RHS with observable side effects
 
 const FP_OPT_05_REPRO: &str = "proc f {} { set unused [puts side]; puts done }";
 
@@ -300,7 +293,7 @@ fn fp_opt_05_o126_pure_rhs_still_fires() {
     );
 }
 
-// FP-OPT-06 — O100/O109/O127: cmd-sub writes are SSA kills (D2-O100)
+// FP-OPT-06 — O100/O109/O127: cmd-sub writes are SSA kills
 
 const FP_OPT_06_REPRO: &str = "proc f {} { set x a; set y [append x b]; puts $x; puts $y }";
 
@@ -315,7 +308,7 @@ fn fp_opt_06_o100_does_not_propagate_past_cmd_sub_write() {
     );
 }
 
-// FP-OPT-07 — O126 extends to pure user-proc RHS via interproc purity (D2-O126-FU)
+// FP-OPT-07 — O126 extends to pure user-proc RHS via interproc purity
 
 const FP_OPT_07_REPRO: &str =
     "proc add {a b} { expr {$a + $b} }\nproc f {} { set unused [add 1 2]; puts done }";
@@ -342,7 +335,7 @@ fn fp_opt_07_impure_user_proc_rhs_preserved() {
     );
 }
 
-// FP-OPT-08 — O109/O126 overlap filter: segment_commands + EXPR/BODY descent (D4-F10)
+// FP-OPT-08 — O109/O126 overlap filter: segment_commands + EXPR/BODY descent
 
 const FP_OPT_08_REPRO: &str = "\
 proc f {} {
@@ -378,7 +371,7 @@ fn fp_opt_08_unrelated_set_still_eligible_for_o126() {
     );
 }
 
-// FP-OPT-09 — D5-O110: O110 identity/annihilator rewrites must preserve coercion semantics
+// FP-OPT-09 — O110 identity/annihilator rewrites must preserve coercion semantics
 
 const FP_OPT_09_TP_REPRO: &str = "proc f {x} {\n  puts [expr {$x + 0}]\n}\nf abc\n";
 const FP_OPT_09_TN_REPRO: &str = "proc f {} {\n  for {set i 0} {$i < 3} {incr i} {\n    set y [expr {$i + 0}]\n    puts $y\n  }\n}\nf\n";
@@ -421,7 +414,7 @@ fn fp_opt_09_provably_numeric_var_still_fires() {
     );
 }
 
-// FP-OPT-10 — D5-O114: set x [expr {$x + N}] -> incr x N requires proof x is INT
+// FP-OPT-10 — set x [expr {$x + N}] -> incr x N requires proof x is INT
 
 const FP_OPT_10_TP_REPRO: &str = "proc foo {x} {\n  set x [expr {$x + 1}]\n  puts $x\n}\nfoo 1.5\n";
 const FP_OPT_10_TN_REPRO: &str = "proc foo {n} {\n  for {set x 0} {$x < $n} {incr x} {\n    set x [expr {$x + 1}]\n    puts $x\n  }\n}\nfoo 3\n";
@@ -446,7 +439,7 @@ fn fp_opt_10_provably_int_var_still_fires() {
     );
 }
 
-// FP-OPT-11 — O120 ==/!= -> eq/ne requires at-least-one provably-non-numeric operand (D5-O120)
+// FP-OPT-11 — O120 ==/!= -> eq/ne requires at-least-one provably-non-numeric operand
 
 const FP_OPT_11_TP_REPRO: &str = "proc f {raw} {\n    set a [string trim $raw]\n    if {$a == \"1\"} { puts yes } else { puts no }\n}\n";
 const FP_OPT_11_TN_REPRO: &str = "proc f {raw} {\n    set a [string trim $raw]\n    if {$a == \"hello\"} { puts yes } else { puts no }\n}\n";
@@ -476,11 +469,11 @@ fn fp_opt_11_non_numeric_literal_still_rewrites() {
     );
 }
 
-// FP-OPT-12 — TclOO method purity wired into O126 (SF-2 PARTIAL)
+// FP-OPT-12 — TclOO method purity wired into O126
 
 #[test]
 fn fp_opt_12_pure_user_proc_via_my_dispatch_handled_at_word_level() {
-    // SF-2 wiring TP: pure user-proc set unused [pure_helper] must fire O126.
+    // TP: pure user-proc `set unused [pure_helper]` must fire O126.
     let src = "proc pure_helper {} { return 42 }\nproc m {} {\n    set unused [pure_helper]\n    puts done\n}\n";
     assert!(
         opt_fires(src, D, "O126"),
@@ -514,7 +507,7 @@ fn fp_opt_12_runtime_selected_tcloo_method_rhs_not_deleted() {
 
 #[test]
 fn fp_opt_12_tcloo_impure_method_rhs_preserved() {
-    // SF-2 TN: impure TclOO method RHS must NOT fire O126.
+    // TN: impure TclOO method RHS must NOT fire O126.
     let src = "oo::class create C {\n    method impure_helper {} { puts hi; return 0 }\n    method m {} {\n        set unused [my impure_helper]\n        puts done\n    }\n}\n";
     assert!(
         !opt_fires(src, D, "O126"),
@@ -525,7 +518,7 @@ fn fp_opt_12_tcloo_impure_method_rhs_preserved() {
 
 #[test]
 fn fp_opt_12_class_level_instance_var_write_not_deleted() {
-    // SF-2 soundness: method that writes class-level variable is not pure.
+    // A method that writes a class-level variable is not pure.
     let src = "oo::class create C {\n    variable counter\n    method bump {} { set counter [expr {$counter + 1}]; return $counter }\n    method m {} { set unused [my bump]; puts done }\n}\n";
     assert!(
         !opt_fires(src, D, "O126"),
@@ -536,7 +529,7 @@ fn fp_opt_12_class_level_instance_var_write_not_deleted() {
 
 #[test]
 fn fp_opt_12_method_local_instance_var_write_not_deleted() {
-    // SF-2 soundness: method-local variable counter write makes method impure.
+    // A method-local counter write makes the method impure.
     let src = "oo::class create C {\n    method bump {} { variable counter; set counter 5; return $counter }\n    method m {} { set unused [my bump]; puts done }\n}\n";
     assert!(
         !opt_fires(src, D, "O126"),
@@ -547,7 +540,7 @@ fn fp_opt_12_method_local_instance_var_write_not_deleted() {
 
 #[test]
 fn fp_opt_12_array_element_instance_var_write_not_deleted() {
-    // SF-2 soundness: array-element write of instance var makes method impure.
+    // An array-element write of an instance variable makes the method impure.
     let src = "oo::class create C {\n    variable counter\n    method bump {} { set counter(0) 1 }\n    method m {} { set unused [my bump]; puts done }\n}\n";
     assert!(
         !opt_fires(src, D, "O126"),
@@ -570,7 +563,7 @@ fn fp_opt_12_runtime_selected_instance_var_reader_not_deleted() {
 
 #[test]
 fn fp_opt_12_redefined_method_via_oo_define_not_pure() {
-    // SF-2 soundness: method redefined by oo::define (pure -> impure) must not fire O126.
+    // A method redefined by oo::define (pure -> impure) must not fire O126.
     let src = "oo::class create C {\n    method helper {} { return 42 }\n    method m {} { set unused [my helper]; puts done }\n}\noo::define C { method helper {} { puts side; return 42 } }\n";
     assert!(
         !opt_fires(src, D, "O126"),
@@ -581,7 +574,7 @@ fn fp_opt_12_redefined_method_via_oo_define_not_pure() {
 
 #[test]
 fn fp_opt_12_duplicate_in_body_method_not_pure() {
-    // SF-2 soundness: method listed twice in same class body is conservatively impure.
+    // A method listed twice in the same class body is conservatively impure.
     let src = "oo::class create C {\n    method helper {} { return 42 }\n    method helper {} { puts side; return 42 }\n    method m {} { set unused [my helper]; puts done }\n}\n";
     assert!(
         !opt_fires(src, D, "O126"),
@@ -589,15 +582,6 @@ fn fp_opt_12_duplicate_in_body_method_not_pure() {
         opt_rewrites(src, D)
     );
 }
-
-// bridge-only: nested proc in method body not lifted.
-// An IR-structure assertion on `ir_module.procedures` / `m.methods` with no
-// diagnostic / rewrite analogue, so it is not reproduced here.
-
-// bridge-only: test_FP_OPT_12_methods_survive_incremental_chunk_cache
-// Tests `lower_commands_to_ir` + `lower_to_ir(src, chunk_ir=cache, chunks=chunks)`
-// with green_tree_scope() and segmenter — incremental-chunk-cache plumbing that
-// has no counterpart in the Rust optimiser surface.
 
 #[test]
 fn fp_opt_12_runtime_selected_oo_define_method_rhs_not_deleted() {

@@ -30,10 +30,9 @@ use tcl_dialect::model::SpecSurface;
 /// under iRules — excluded from iRules exactly as `cd`/`open` are, with no
 /// disable list involved.
 ///
-/// Fetched and compared word-for-word across all five manpages
-/// (tcl8.4/8.5/8.6/9.0/9.1 `TclCmd/filename.html`, 8.6 via the `.htm`
-/// swap). The INTRODUCTION, PATH TYPES, and Windows PATH SYNTAX sections
-/// are byte-identical on every version. Real deltas found:
+/// Across the five manpages (tcl8.4/8.5/8.6/9.0/9.1 `TclCmd/filename.html`,
+/// 8.6 via the `.htm` swap), the INTRODUCTION, PATH TYPES, and Windows PATH
+/// SYNTAX sections are byte-identical on every version. Version deltas:
 /// - Unix PATH SYNTAX: the "any number of trailing slashes are ignored"
 ///   sentence is absent from 8.4 and present from 8.5 on; the "except for
 ///   the first double slash `//` in absolute paths" clause on slash
@@ -47,8 +46,8 @@ use tcl_dialect::model::SpecSurface;
 ///   — implicit expansion is gone except when initialising `auto_path`/the
 ///   Tcl module path from an environment variable, and `file home` /
 ///   `file tildeexpand` are introduced as the explicit replacement. (`cd`'s
-///   own audited spec independently documents this same 8.4-8.6 vs. 9.0+
-///   boundary for its `dirName` argument.)
+///   own spec documents this same 8.4-8.6 vs. 9.0+ boundary for its
+///   `dirName` argument.)
 /// - PORTABILITY ISSUES: the forbidden-character list gains `?` from 8.5
 ///   on (8.4 lists `<>:"/\|` without it); the "care with spaces / backslash
 ///   as separator" sentence is absent from 8.4 and present from 8.5 on; the

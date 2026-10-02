@@ -1091,8 +1091,8 @@ mod tests {
         });
     }
 
-    /// The bug the browser caught: a body's own statements have to be
-    /// *rendered*, not swallowed by the braced word that holds them.
+    /// A body's own statements must be rendered as their own chunks, not
+    /// swallowed by the braced word that holds them.
     #[test]
     fn a_nested_statement_gets_its_own_render_chunk() {
         bench_on(PACK, |bench| {

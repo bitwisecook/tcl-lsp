@@ -51,7 +51,7 @@ use crate::representation::RepresentationEffect;
 use crate::side_effects::{SideEffect, StorageType};
 use crate::state_transition::StateTransitionDescriptor;
 use crate::symbol_def::SymbolDef;
-use crate::taint::{SetterConstraint, TaintColour, TaintTransformCondition};
+use crate::taint::{SetterConstraint, TaintColour, TaintNumericCoercion, TaintTransformCondition};
 use crate::traits::Traits;
 use crate::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
 use crate::world_effect::WorldEffectDescriptor;
@@ -250,7 +250,7 @@ pub enum OoContextFact {
     /// constant word, so it feeds the ordinary `const_fold` callbacks: this is
     /// what makes the real-corpus ticklecharts chain
     /// `set ns [namespace qualifiers [self class]] ; ${ns}::setdef …` resolve
-    /// in one step (issue #1096).  `namespace qualifiers` / `namespace tail`
+    /// in one step.  `namespace qualifiers` / `namespace tail`
     /// are pure string operations — they split a string at its last `::` and
     /// never consult the interpreter's namespace table — so no namespace has
     /// to exist for the chain to be sound.
@@ -274,7 +274,7 @@ pub enum OoContextFact {
 /// ensemble subcommand.  This is the registry half of the object-method
 /// pattern: knowing the class of an object handle (via the compiler's
 /// object-type tracking) plus the class's methods lets `$chart Xaxis -name …`
-/// light up its options precisely rather than by shape alone (issue #748).
+/// light up its options precisely rather than by shape alone.
 #[derive(Debug)]
 pub struct ObjectClassSpec {
     /// Fully-qualified class name — equal to the factory command name for a
@@ -445,6 +445,9 @@ pub struct CaseInvocation {
     pub inline_clause_start: Option<usize>,
     /// Comparison mode selected by registry-declared options.
     pub mode: CaseMatchMode,
+    /// The canonical [`CaseListSpec::special_match_options`] entry that
+    /// selected [`CaseMatchMode::Other`] (`-integer`), else `None`.
+    pub special_option: Option<&'static str>,
     /// Whether matching is case-insensitive.
     pub nocase: bool,
 }
@@ -584,6 +587,7 @@ impl CaseListSpec {
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<CaseInvocation> {
         let mut mode = CaseMatchMode::Exact;
+        let mut special_option = None;
         let mut saw_match_mode = false;
         let mut nocase = false;
         let mut saw_regex_value_option = false;
@@ -673,6 +677,7 @@ impl CaseListSpec {
                             }
                             saw_match_mode = true;
                             mode = CaseMatchMode::Other;
+                            special_option = Some(option_name);
                             i += 1;
                             continue;
                         }
@@ -743,6 +748,7 @@ impl CaseListSpec {
                 clause_list_index: Some(i),
                 inline_clause_start: None,
                 mode,
+                special_option,
                 nocase,
             })
         } else if remaining == 1 && !force_inline && (sole_clause_list || self.subject_args == 1) {
@@ -760,6 +766,7 @@ impl CaseListSpec {
                 clause_list_index: Some(i),
                 inline_clause_start: None,
                 mode,
+                special_option,
                 nocase,
             })
         } else if per_clause_flags {
@@ -772,6 +779,7 @@ impl CaseListSpec {
                 clause_list_index: None,
                 inline_clause_start: Some(i),
                 mode,
+                special_option,
                 nocase,
             })
         } else if remaining >= 2
@@ -783,6 +791,7 @@ impl CaseListSpec {
                 clause_list_index: None,
                 inline_clause_start: Some(i),
                 mode,
+                special_option,
                 nocase,
             })
         } else {
@@ -1203,10 +1212,10 @@ pub struct ConstraintReport {
     pub conflict: bool,
 }
 
-/// What the option-relation checker did, for the P-B measurement.
+/// What the option-relation checker did, as a measurement.
 ///
-/// Principle P-B's claim — "every relation the declarative vocabulary can
-/// express is checked natively with no VM entry" — is only worth as much as
+/// The claim that "every relation the declarative vocabulary can
+/// express is checked natively with no VM entry" is only worth as much as
 /// the number behind it, so the checker counts rather than asserting. Three
 /// thread-local counters, incremented once per call site: cheap enough to
 /// leave on (they are `Cell<u64>` adds on a path that already allocates a
@@ -1314,7 +1323,7 @@ pub struct CommandSpec {
     pub arity: Arity,
 
     /// Per-release signature shapes, for a command whose arity changed across
-    /// its owning package's releases (issue #1627).
+    /// its owning package's releases.
     ///
     /// Empty for almost every command — a signature that never changed needs no
     /// windows, and [`Self::arity`] alone describes it. When non-empty, the
@@ -1340,7 +1349,7 @@ pub struct CommandSpec {
 
     /// Formatter **presentation** overrides, keyed by 0-based argument index
     /// — how an argument should be *laid out*, as distinct from what
-    /// [`Self::arg_roles`] says it *is* (issue #1186).
+    /// [`Self::arg_roles`] says it *is*.
     ///
     /// Only overrides are declared: every [`ArgRole::Body`] argument is an
     /// [`ArgPresentation::BlockScript`] by default, so a spec with nothing
@@ -1360,7 +1369,7 @@ pub struct CommandSpec {
     /// Folded into [`crate::CommandRegistry::arg_indices_for_role`] alongside
     /// [`Self::arg_roles`] and [`Self::arg_role_resolver`], so a consumer
     /// asking which arguments carry a role gets the unbounded tail without
-    /// knowing the command (issue #1185). See [`crate::repeated`].
+    /// knowing the command. See [`crate::repeated`].
     pub repeated_args: &'static [RepeatedArgLayout],
 
     /// How the command crosses stack frames — which argument is the level
@@ -1399,6 +1408,14 @@ pub struct CommandSpec {
     /// actual invocation (`send -async`, callback registration/removal forms).
     /// Static option values carry timing directly on [`crate::hover::OptionArg`].
     pub script_timing_resolver: Option<ScriptTimingResolver>,
+
+    /// Which substitutions this call performs over its own argument text, for
+    /// a [`Traits::PERFORMS_SUBSTITUTION`] command whose switches change the
+    /// answer (`subst -novariables`).
+    ///
+    /// `None` means the trait alone describes the command: every kind runs on
+    /// every call. See [`crate::substitution`].
+    pub substitution_resolver: Option<crate::substitution::SubstitutionResolver>,
 
     /// External callback substitutions for deferred executable arguments,
     /// keyed by their argument index. Option values carry the same fact on
@@ -1580,7 +1597,7 @@ pub struct CommandSpec {
     /// lowerer's alias table, and the analyser's rename / alias
     /// records via [`crate::CommandTableEffect::transitions`], which
     /// resolves this selector to the stock state-transition descriptor a
-    /// shipped spec names directly (centralisation ledger C8).
+    /// shipped spec names directly.
     pub command_table_effect: Option<CommandTableEffect>,
 
     /// Structured side-effect declarations.
@@ -1657,7 +1674,7 @@ pub struct CommandSpec {
     /// The mirror of [`Self::event_requires`]: that says where a command may
     /// be *written*, this says what running it *starts*. Consumers building
     /// event-rooted reachability follow this rather than growing a table of
-    /// command names (issue #1708). `None` means the command raises no event.
+    /// command names. `None` means the command raises no event.
     pub event_emits: Option<crate::events::EventEmission>,
 
     /// Argument-prefix-specific emissions, overriding [`Self::event_emits`]
@@ -1868,6 +1885,12 @@ pub struct CommandSpec {
     /// `tcl_registry::commands::tcl::subst_::subst_evaluates_commands`.
     pub taint_sink_gate: Option<fn(&[&str]) -> bool>,
 
+    /// Which of a call's own argument words this command reads as numbers —
+    /// a T100 numeric-coercion sink when one carries taint, as an operand of a
+    /// braced `expr` is. `None` (the default) = the command coerces nothing a
+    /// caller controls. See [`TaintNumericCoercion`].
+    pub taint_numeric_coercion: Option<TaintNumericCoercion>,
+
     /// Option flags whose value carries a secret (e.g. `-password`,
     /// `-headers`) — drives credential-exposure checks. Empty = none.
     pub credential_options: &'static [&'static str],
@@ -2018,8 +2041,8 @@ pub struct CommandSpec {
     /// another argument saying which class (`set NAME [TYPE inst …]`).  The
     /// handle scan reads the two indices (and any required keyword) from the
     /// descriptor rather than matching the command word, so `::set` and a
-    /// provable static alias/rename of it bind exactly like the bare spelling
-    /// — issue #1185.  A member-body-only installer such as snit's `install`
+    /// provable static alias/rename of it bind exactly like the bare spelling.
+    /// A member-body-only installer such as snit's `install`
     /// carries the same descriptor on its
     /// [`crate::definer::MemberBodyCommand`] instead, so it stays scoped to
     /// the class system that provides it.  `None` = the command binds no
@@ -2034,7 +2057,7 @@ pub struct CommandSpec {
     /// The descriptor says which word is the handle, which word is the method,
     /// and whether the call awaits a reply, so the navigation providers cross
     /// from an iRule to the Node.js `ILXServer.addMethod` registration without
-    /// naming a command — issue #1707.  `None` = the command takes part in no
+    /// naming a command.  `None` = the command takes part in no
     /// RPC family.  See [`crate::remote_method`].
     pub remote_method: Option<&'static crate::remote_method::RemoteMethodRole>,
 
@@ -2274,6 +2297,68 @@ fn optional_trailing_placeholders(synopsis: &'static str) -> Vec<&'static str> {
     names
 }
 
+/// The write classes one of which every `VarWrite` position should declare,
+/// so a consumer (the O109/O126 raise proof) knows whether the target is set
+/// once the command completes: always written, written on a match, read then
+/// written, destroyed, aliased, or a loop variable an empty loop leaves unset.
+pub const VARIABLE_WRITE_CLASSES: Traits = Traits::UNCONDITIONAL_VARIABLE_WRITE
+    .union(Traits::CONDITIONAL_VARIABLE_WRITE)
+    .union(Traits::READS_BEFORE_WRITE)
+    .union(Traits::DESTROYS_VARIABLE)
+    .union(Traits::CREATES_SCOPE_ALIAS)
+    .union(Traits::HAS_LOOP_BODY)
+    .union(Traits::LOOP_LIST_HEADER);
+
+fn declares_variable_write(
+    arg_roles: &[(u8, ArgRole)],
+    resolver_roles: &[ArgRole],
+    repeated: &[RepeatedArgLayout],
+    options: &[OptionSpec],
+) -> bool {
+    arg_roles.iter().any(|&(_, role)| role == ArgRole::VarWrite)
+        || resolver_roles.contains(&ArgRole::VarWrite)
+        || repeated.iter().any(|layout| layout.role == ArgRole::VarWrite)
+        || options.iter().any(|option| {
+            matches!(option.value, crate::hover::OptionValue::Takes(arg) if arg.role == ArgRole::VarWrite)
+        })
+}
+
+impl CommandSpec {
+    /// This command's, and each subcommand's, `VarWrite` positions that
+    /// declare none of [`VARIABLE_WRITE_CLASSES`], named `name` or
+    /// `name sub`. A consumer treats such a target as possibly unset.
+    #[must_use]
+    pub fn unclassified_variable_writers(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        if (self.assigns_variable_at.is_some()
+            || declares_variable_write(
+                self.arg_roles,
+                self.arg_role_resolver_roles,
+                self.repeated_args,
+                self.options,
+            ))
+            && !self.traits.intersects(VARIABLE_WRITE_CLASSES)
+        {
+            out.push(self.name.to_owned());
+        }
+        for sub in self.subcommands {
+            if declares_variable_write(
+                sub.arg_roles,
+                sub.arg_role_resolver_roles,
+                sub.repeated_args,
+                sub.options,
+            ) && !sub
+                .traits
+                .union(self.traits)
+                .intersects(VARIABLE_WRITE_CLASSES)
+            {
+                out.push(format!("{} {}", self.name, sub.name));
+            }
+        }
+        out
+    }
+}
+
 impl CommandSpec {
     /// Default value for all fields — used with `..CommandSpec::DEFAULT`.
     pub const DEFAULT: Self = Self {
@@ -2292,6 +2377,7 @@ impl CommandSpec {
         command_prefixes: &[],
         command_prefix_resolver: None,
         script_timing_resolver: None,
+        substitution_resolver: None,
         callback_taint_inputs: &[],
         return_type: None,
         return_type_hook: None,
@@ -2363,6 +2449,7 @@ impl CommandSpec {
         taint_double_encode_colour: None,
         taint_sink_safe_colour: None,
         taint_sink_gate: None,
+        taint_numeric_coercion: None,
         credential_options: &[],
         sensitive_headers: &[],
         setter_constraints: &[],
@@ -2655,8 +2742,8 @@ impl CommandSpec {
     ///
     /// `args` excludes the command name. `None` means the result's intrep is
     /// unknown for this call — the honest answer for an untypeable form, and
-    /// one every caller already handles; a confidently wrong type is what
-    /// issue #1720 was.
+    /// one every caller already handles; a confidently wrong type is the
+    /// hazard this guards against.
     ///
     /// A [`Self::return_type_hook`] wins over `return_type`. Subcommands
     /// resolve to their own static `return_type`: no subcommand needs a hook
@@ -3155,7 +3242,7 @@ pub struct SubCommand {
     /// [`Self::arity_windows`] selects nothing.
     pub arity: Arity,
 
-    /// Per-release signature shapes for this subcommand (issue #1627), with
+    /// Per-release signature shapes for this subcommand, with
     /// the same contract as [`CommandSpec::arity_windows`].
     pub arity_windows: &'static [ArityWindow],
 
@@ -3463,8 +3550,8 @@ pub struct SubCommand {
     /// word selects a further operation — `info object <subcommand> object …`
     /// and `info class <subcommand> class …` (per the `info` man page's OBJECT
     /// INTROSPECTION and CLASS INTROSPECTION sections). Declaring them here lets
-    /// the semantic-token pass colour that word as a subcommand keyword (issue
-    /// #798), and drives hover and completion for it. Empty for the
+    /// the semantic-token pass colour that word as a subcommand keyword, and
+    /// drives hover and completion for it. Empty for the
     /// overwhelmingly-common single-level subcommand.
     pub sub_subcommands: &'static [SubSubCommand],
 
@@ -3499,7 +3586,7 @@ pub struct SubCommand {
 ///
 /// Lighter than a full [`SubCommand`]: it carries just what the LSP needs to
 /// highlight, hover, and complete the word after the first-level subcommand
-/// (issue #798). Resolution accepts a unique prefix, matching how Tcl's own
+/// Resolution accepts a unique prefix, matching how Tcl's own
 /// ensemble dispatch abbreviates subcommands.
 #[derive(Debug, Clone, Copy)]
 pub struct SubSubCommand {
@@ -3532,7 +3619,7 @@ pub struct SubSubCommand {
     ///   merged with it, because merging is exactly the bug the field exists
     ///   to fix.
     ///
-    /// `namespace ensemble` needs all three (issue #1610). `create` and
+    /// `namespace ensemble` needs all three. `create` and
     /// `configure` are two different C option tables — `ensembleCreateOptions`
     /// has `-command` and no `-namespace`, `ensembleConfigOptions` the reverse
     /// (`tclEnsemble.c`) — so one merged table simultaneously offers `create`'s
@@ -3763,8 +3850,8 @@ impl SubCommand {
     ///
     /// For the overwhelmingly common single-level subcommand this is just
     /// [`Self::options`]. For a two-level ensemble whose operations disagree
-    /// about their options — `namespace ensemble create` vs `configure`,
-    /// issue #1610 — it is the resolved [`SubSubCommand::options`] instead,
+    /// about their options — `namespace ensemble create` vs `configure` —
+    /// it is the resolved [`SubSubCommand::options`] instead,
     /// and *instead* is the point: merging the two tables reintroduces the
     /// bug, since each table's distinctive entry is the other's error.
     ///
@@ -3776,7 +3863,7 @@ impl SubCommand {
     ///
     /// A resolved operation answers with whatever it declares, **including an
     /// explicitly empty table**: `Some(&[])` means "no options here" and must
-    /// not fall back (issue #1610, Codex review). Only
+    /// not fall back. Only
     /// [`SubSubCommand::options`] `== None` — declaring nothing either way —
     /// inherits.
     ///
@@ -4060,7 +4147,22 @@ mod tests {
     use super::*;
     use crate::registry::CommandRegistry;
 
-    // -- optional_trailing_arg_names (issue #1190) ------------------------
+    #[test]
+    fn a_writer_declared_only_by_its_assigned_variable_index_must_say_how_it_writes() {
+        let spec = CommandSpec {
+            name: "w",
+            assigns_variable_at: Some(0),
+            ..CommandSpec::DEFAULT
+        };
+        assert_eq!(spec.unclassified_variable_writers(), vec!["w".to_owned()]);
+        let classified = CommandSpec {
+            traits: Traits::UNCONDITIONAL_VARIABLE_WRITE,
+            ..spec
+        };
+        assert!(classified.unclassified_variable_writers().is_empty());
+    }
+
+    // Optional trailing argument names.
     //
     // A quick fix that appends a documented optional argument learns both how
     // many words it may append and what to call them from the synopsis, so a
@@ -4103,7 +4205,7 @@ mod tests {
         );
     }
 
-    // -- FormSpec lifecycle in the form-selection queries -----------------
+    // `FormSpec` lifecycle in the form-selection queries.
     //
     // A `FormSpec` carries its own lifecycle, so a synopsis a later release
     // added must not be shown to — nor its optional words offered to — a
@@ -4203,7 +4305,7 @@ mod tests {
         );
     }
 
-    // -- command-level argument-value gates ------------------------------
+    // Command-level argument-value gates.
     //
     // A literal value can be gated by its own `ArgValue::lifecycle`, by a
     // positional `versioned_arg_values` entry, or by both; the accessor must
@@ -4268,7 +4370,7 @@ mod tests {
         assert_eq!(names(None), vec!["old", "new"]);
     }
 
-    // -- second-level subcommand gates -----------------------------------
+    // Second-level subcommand gates.
 
     const OPS: &[SubSubCommand] = &[
         SubSubCommand {

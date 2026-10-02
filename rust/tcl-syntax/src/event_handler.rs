@@ -14,7 +14,8 @@ pub struct ScriptCommand {
     pub words: Vec<Vec<Token>>,
 }
 
-/// One syntactically complete `when EVENT ?priority N? { ... }` command.
+/// One syntactically complete `when EVENT ?priority N? ?timing on|off? { ... }`
+/// command.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EventHandler {
     /// Upper-case event identity.
@@ -25,7 +26,7 @@ pub struct EventHandler {
     pub event_span: Span,
     /// Body interior span, excluding its braces.
     pub body_span: Span,
-    /// Explicit handler priority, when it is a valid integer.
+    /// Explicit handler priority, when written as an integer in 0..=1000.
     pub priority: Option<i64>,
     /// Effective priority after applying any preceding file-level `priority`
     /// declaration. Syntax-only parsing defaults this to 500; the registry

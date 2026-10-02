@@ -22,8 +22,8 @@
 //!
 //! [`SecurityFloor`] is the fix, and it is deliberately **not** keyed on the
 //! tier. §6.4 keys its untrusted class on the editor's Workspace Trust state,
-//! which nothing on the discovery path is told (ledger O9), so a tier-keyed
-//! rule would protect nothing today; and a security fact that a *trusted*
+//! which nothing on the discovery path is told, so a tier-keyed rule would
+//! protect nothing today; and a security fact that a *trusted*
 //! pack may quietly drop is not much of a security fact. Every override, from
 //! every tier, keeps the shipped command's floor.
 //!
@@ -120,6 +120,10 @@ impl SecurityFloor {
             shipped.taint_sink_safe_colour,
         );
         take_shipped(&mut spec.taint_sink_gate, shipped.taint_sink_gate);
+        take_shipped(
+            &mut spec.taint_numeric_coercion,
+            shipped.taint_numeric_coercion,
+        );
         take_shipped(&mut spec.codegen_hook, shipped.codegen_hook);
         take_shipped(&mut spec.inline_codegen_hook, shipped.inline_codegen_hook);
         spec.callback_taint_inputs =
@@ -141,8 +145,8 @@ fn take_shipped<T>(target: &mut Option<T>, shipped: Option<T>) {
 /// (`Box::leak` in `tcl-spectcl/src/loader.rs`) and is bounded by the number of
 /// overrides in a workspace's packs, not by edits: a registry generation is
 /// built per pack-set key, and the merge runs once per overriding command in
-/// it. Ledger D10's generation work is what would reclaim these along with
-/// everything else the loader leaks.
+/// it. The generation-arena work tracked at redesign §11 D10 is what would
+/// reclaim these along with everything else the loader leaks.
 fn union_leaked<T: Clone + PartialEq + 'static>(
     declared: &'static [T],
     shipped: &'static [T],
@@ -185,6 +189,7 @@ pub const MERGED_FIELDS: &[&str] = &[
     "taint_double_encode_colour",
     "taint_sink_safe_colour",
     "taint_sink_gate",
+    "taint_numeric_coercion",
     "credential_options",
     "callback_taint_inputs",
     "codegen_hook",

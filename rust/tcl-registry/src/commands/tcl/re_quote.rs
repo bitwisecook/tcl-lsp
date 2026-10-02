@@ -29,9 +29,10 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// `regex::quote` / `regexp::quote`). None of the four is a documented
 /// core Tcl command: Tcl ships no metacharacter-quoting builtin, and
 /// `re_quote.html`/`.htm` 404s on every tcl-lang.org manpage tree for
-/// 8.4, 8.5, 8.6, 9.0, and 9.1 alike; `re_syntax.n` (the previous,
-/// inaccurate `source` citation below) documents regexp syntax only and
-/// never mentions a `re_quote` command or any quoting utility.
+/// 8.4, 8.5, 8.6, 9.0, and 9.1 alike; `re_syntax.n` documents regexp
+/// syntax only and never mentions a `re_quote` command or any quoting
+/// utility, so the `source` field below is left empty rather than
+/// citing it.
 /// `regex::quote` is the spelling the T103 (regex-injection) quick fix
 /// actually generates and inserts
 /// (`tcl_lsp_core::code_actions::REGEX_QUOTE_PROC`); this spec — like its

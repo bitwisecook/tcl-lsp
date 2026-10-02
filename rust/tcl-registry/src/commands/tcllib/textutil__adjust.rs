@@ -25,7 +25,7 @@
 //! `textutil` *umbrella* package creates via `namespace import -force
 //! adjust::adjust ...` (tcllib-2.0 `modules/textutil/textutil.tcl`) — real
 //! and callable, but only after `package require textutil`, never after
-//! `package require textutil::adjust` alone (issue #923 idx 3/4; confirmed
+//! `package require textutil::adjust` alone (confirmed
 //! against tclsh 9.0.4 + real tcllib-2.0: `package require textutil::adjust`
 //! creates no bare `::textutil::adjust` command, only the three-segment
 //! `::textutil::adjust::adjust`).

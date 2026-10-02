@@ -67,9 +67,9 @@ pub fn run_command_info(
     }
     let registry = registry_for_dialect(dialect.name);
     // The dialect's assistance view — the `ResolvedContext` that replaces
-    // `ProfileQueries` (ledger row F1's assistance half). It answers over
-    // the pack-layered store this verb holds rather than its own
-    // generation, which is what `resolve_spec` exists for.
+    // `ProfileQueries`. It answers over the pack-layered store this verb
+    // holds rather than its own generation, which is what `resolve_spec`
+    // exists for.
     let context = tcl_cli_support::environment::context_for_dialect(dialect.name);
     let target = OutputTarget::from_arg(output);
 
@@ -131,8 +131,8 @@ pub fn run_command_info(
         .map(str::to_owned)
         .collect();
     switches.sort();
-    // NOTE: iRules `validEvents` resolution (event_requires → events_matching)
-    // is not implemented; non-iRules dialects resolve to an empty list anyway.
+    // iRules `validEvents` resolution (event_requires → events_matching) is
+    // not supported; non-iRules dialects resolve to an empty list anyway.
     let valid_events: Vec<String> = Vec::new();
 
     if json {

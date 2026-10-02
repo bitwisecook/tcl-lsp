@@ -3,9 +3,9 @@
 //   * the vendored `tree-sitter-tcl`, pinned to the rev in `vendor/REV` /
 //     `editors/zed/extension.toml`;
 //   * the two grammars this repo owns — `tree-sitter-apl` and
-//     `tree-sitter-bigip` (issue #903), which back Zed's APL and TMSH
-//     languages. Those languages used to point at the *Tcl* grammar and ship no
-//     queries at all, so this check only ever saw one grammar.
+//     `tree-sitter-bigip`, which back Zed's APL and TMSH languages, each
+//     with their own queries to validate — as opposed to pointing at the
+//     *Tcl* grammar and shipping no queries at all.
 fn main() {
     let vendor = std::path::Path::new("vendor");
     println!("cargo:rerun-if-changed=vendor");

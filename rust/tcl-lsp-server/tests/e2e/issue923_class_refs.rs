@@ -16,13 +16,14 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Issue #923 — a fully-qualified class name used as a `superclass` / `mixin` /
+//! A fully-qualified class name used as a `superclass` / `mixin` /
 //! `inherit` argument in another file is a first-class reference to the class.
 //!
-//! Before the fix, `superclass ::ns::Base` in one file was invisible to Find
-//! All References on `::ns::Base` and was left dangling by rename (silent
-//! corruption of the inheritance graph).  These TP/FP tests drive the packaged
-//! server over real JSON-RPC across two or three open documents.
+//! Without cross-file resolution, `superclass ::ns::Base` in one file would be
+//! invisible to Find All References on `::ns::Base` and left dangling by
+//! rename — silent corruption of the inheritance graph.  These TP/FP tests
+//! drive the packaged server over real JSON-RPC across two or three open
+//! documents.
 
 use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};
@@ -44,8 +45,8 @@ fn lines_in(result: &Value, uri: &str) -> Vec<i64> {
 }
 
 // TP: `superclass ::ns::Base` in a sibling file is a reference, and rename
-// rewrites it — the reported #923 shape (a class referenced by its
-// fully-qualified name from another file).
+// rewrites it — a class referenced by its fully-qualified name from another
+// file.
 #[test]
 fn tp_superclass_cross_file_reference_and_rename() {
     let mut lsp = Lsp::tcl();

@@ -476,8 +476,8 @@ impl<'a> Scan<'a> {
             // invisible for a short expression, where head and tail together
             // reproduce the source either way, but decides which end gets
             // elided once the skipped run passes `LIMIT`: C keeps the *last* 22
-            // bytes behind a leading `...`. Reachable in practice only now that
-            // a comment can be the whole expression body.
+            // bytes behind a leading `...`. Only a body that is entirely
+            // comment reaches this with anything to elide.
             return ExprSyntaxError::at(ExprSyntaxErrorKind::EmptyExpression, self.source.len(), 0);
         }
         while self.pos < self.tokens.len() {
@@ -1100,8 +1100,8 @@ mod tests {
     /// C centres the quote on `start`, which for an all-skipped body sits at the
     /// *end* of the input — so once the comment passes the 25-byte window it is
     /// the head that elides, keeping the last 22 bytes behind a leading `...`
-    /// (`tclCompExpr.c:1435-1444`). A comment is the first body long enough to
-    /// make this observable.
+    /// (`tclCompExpr.c:1435-1444`). Only an all-comment body can be long
+    /// enough to make this observable.
     #[test]
     fn a_long_comment_only_expression_elides_from_the_left() {
         // 27 bytes: longer than `LIMIT`, so the head cannot be quoted whole.

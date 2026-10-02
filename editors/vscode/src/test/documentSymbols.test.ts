@@ -106,7 +106,7 @@ suite("Document Symbols", () => {
     }
   });
 
-  // Issue #790: tcltest `test` cases appear in the outline for navigation.
+  // tcltest `test` cases appear in the outline for navigation.
   test("lists tcltest test cases as symbols", async () => {
     const tcltestUri = getDocUri("tcltestImport.tcl");
     await activate(tcltestUri);
@@ -130,7 +130,7 @@ suite("Document Symbols", () => {
     );
   });
 
-  // Issue #790: every tcltest command that binds a name gets its own kind —
+  // Every tcltest command that binds a name gets its own kind —
   // test cases (Function), constraints (Constant), custom match modes (Operator).
   test("lists tcltest constraints and match modes with their own kinds", async () => {
     const defsUri = getDocUri("tcltestDefinitions.tcl");
@@ -164,10 +164,10 @@ suite("Document Symbols", () => {
     );
   });
 
-  // Issue #934: a proc named `:` (and a namespace named `:`) must produce
-  // symbols with real, non-empty names.  The 2.1.9 regression returned an
-  // empty name, which VS Code's DocumentSymbol validation rejects with
-  // "name must not be falsy" — killing the entire outline.
+  // A proc named `:` (and a namespace named `:`) must produce
+  // symbols with real, non-empty names.  An empty name is what VS Code's
+  // DocumentSymbol validation rejects with "name must not be falsy" —
+  // killing the entire outline.
   test("colon-named definitions keep non-empty symbol names (#934)", async () => {
     const uri = getDocUri("colonNames.tcl");
     await activate(uri);

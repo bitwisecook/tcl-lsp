@@ -16,16 +16,15 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Issue #1312 — `ClassName create objName` resolves no members, where
-//! `[ClassName new]` gives full member support (W308, hover, completion,
-//! go-to-definition, semantic tokens).
+//! `ClassName create objName` must resolve members exactly as `[ClassName
+//! new]` does (W308, hover, completion, go-to-definition, semantic tokens).
 //!
-//! Go-to-definition, hover, and completion already resolved this shape
+//! Go-to-definition, hover, and completion resolve this shape
 //! (`AnalysisResult::instance_classes` / `created_instance_commands`, read
-//! by `tcl_lsp_core::definition::receiver_instance_class`) before this fix —
-//! only the W308 diagnostic and the semantic-token `method` classification
-//! abstained.  This file exercises all four so a future regression in any
-//! one of them is caught here.
+//! by `tcl_lsp_core::definition::receiver_instance_class`); the W308
+//! diagnostic and the semantic-token `method` classification must not
+//! abstain from it either.  This file exercises all four so a future
+//! regression in any one of them is caught here.
 
 use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};

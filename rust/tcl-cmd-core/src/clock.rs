@@ -67,8 +67,8 @@ pub struct Now {
 /// UTC) at `ts`, used by `format`/`add` without `-gmt`.
 ///
 /// # Errors
-/// A bad subcommand, bad option, non-integer argument, or `clock scan` (which is
-/// not yet implemented).
+/// A bad subcommand, bad option, non-integer argument, or `clock scan`
+/// (which this dispatcher does not implement).
 pub fn dispatch<O, V>(
     ops: &mut O,
     args: &[V],
@@ -977,7 +977,7 @@ mod tests {
                 .message(),
             msg
         );
-        // A non-overflowing add still works (regression guard on the i128 path).
+        // A non-overflowing add still works on the i128 path.
         assert_eq!(add_units(0, 1, "weeks", true, &off).unwrap(), 7 * 86_400);
     }
 

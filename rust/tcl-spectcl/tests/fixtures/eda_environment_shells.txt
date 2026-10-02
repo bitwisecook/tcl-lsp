@@ -3,13 +3,19 @@
         id: EnvironmentId(
             "cadence-eda-tcl",
         ),
-        aliases: [],
-        display_name: "Cadence EDA Tcl",
+        aliases: [
+            "genus",
+            "innovus",
+        ],
+        display_name: "Cadence Genus / Innovus / Xcelium",
+        short_name: "Cadence",
+        kind: Packages,
         editor_identity: Some(
             EditorLanguageIdentityId(
                 "tcl-cadence",
             ),
         ),
+        selecting_identities: [],
         core: Some(
             CoreProfileSelector {
                 family: Tcl,
@@ -41,20 +47,6 @@
         },
         expected_packages: [
             PackagePlacement {
-                package: "sdc",
-                version: Keyed(
-                    SdcVersion,
-                ),
-                ambient: true,
-            },
-            PackagePlacement {
-                package: "upf",
-                version: Keyed(
-                    UpfVersion,
-                ),
-                ambient: true,
-            },
-            PackagePlacement {
                 package: "cadence-genus",
                 version: Keyed(
                     ToolVersion,
@@ -79,6 +71,20 @@
                 package: "cadence-xcelium",
                 version: Keyed(
                     ToolVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "sdc",
+                version: Keyed(
+                    SdcVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "upf",
+                version: Keyed(
+                    UpfVersion,
                 ),
                 ambient: true,
             },
@@ -120,13 +126,18 @@
         id: EnvironmentId(
             "intel-quartus-eda-tcl",
         ),
-        aliases: [],
-        display_name: "Intel Quartus EDA Tcl",
+        aliases: [
+            "quartus",
+        ],
+        display_name: "Intel Quartus Prime",
+        short_name: "Quartus",
+        kind: Packages,
         editor_identity: Some(
             EditorLanguageIdentityId(
                 "tcl-quartus",
             ),
         ),
+        selecting_identities: [],
         core: Some(
             CoreProfileSelector {
                 family: Tcl,
@@ -157,20 +168,6 @@
             ],
         },
         expected_packages: [
-            PackagePlacement {
-                package: "sdc",
-                version: Keyed(
-                    SdcVersion,
-                ),
-                ambient: true,
-            },
-            PackagePlacement {
-                package: "upf",
-                version: Keyed(
-                    UpfVersion,
-                ),
-                ambient: true,
-            },
             PackagePlacement {
                 package: "quartus-project",
                 version: Keyed(
@@ -220,6 +217,20 @@
                 ),
                 ambient: true,
             },
+            PackagePlacement {
+                package: "sdc",
+                version: Keyed(
+                    SdcVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "upf",
+                version: Keyed(
+                    UpfVersion,
+                ),
+                ambient: true,
+            },
         ],
         policy_defaults: EnvironmentPolicy {
             closed_world: Open,
@@ -265,13 +276,19 @@
         id: EnvironmentId(
             "mentor-eda-tcl",
         ),
-        aliases: [],
-        display_name: "Mentor EDA Tcl",
+        aliases: [
+            "questa",
+            "modelsim",
+        ],
+        display_name: "Siemens Questa / ModelSim",
+        short_name: "Questa",
+        kind: Packages,
         editor_identity: Some(
             EditorLanguageIdentityId(
                 "tcl-mentor",
             ),
         ),
+        selecting_identities: [],
         core: Some(
             CoreProfileSelector {
                 family: Tcl,
@@ -303,20 +320,6 @@
         },
         expected_packages: [
             PackagePlacement {
-                package: "sdc",
-                version: Keyed(
-                    SdcVersion,
-                ),
-                ambient: true,
-            },
-            PackagePlacement {
-                package: "upf",
-                version: Keyed(
-                    UpfVersion,
-                ),
-                ambient: true,
-            },
-            PackagePlacement {
                 package: "questa",
                 version: Keyed(
                     ToolVersion,
@@ -334,6 +337,20 @@
                 package: "calibre",
                 version: Keyed(
                     ToolVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "sdc",
+                version: Keyed(
+                    SdcVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "upf",
+                version: Keyed(
+                    UpfVersion,
                 ),
                 ambient: true,
             },
@@ -375,13 +392,22 @@
         id: EnvironmentId(
             "microchip-libero-eda-tcl",
         ),
-        aliases: [],
-        display_name: "Microchip Libero EDA Tcl",
+        aliases: [
+            "libero",
+        ],
+        display_name: "Microchip Libero SoC",
+        short_name: "Libero",
+        kind: Packages,
         editor_identity: Some(
             EditorLanguageIdentityId(
                 "tcl-microchip",
             ),
         ),
+        selecting_identities: [
+            EditorLanguageIdentityId(
+                "tcl-libero",
+            ),
+        ],
         core: Some(
             CoreProfileSelector {
                 family: Tcl,
@@ -413,6 +439,13 @@
         },
         expected_packages: [
             PackagePlacement {
+                package: "libero",
+                version: Keyed(
+                    ToolVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
                 package: "sdc",
                 version: Keyed(
                     SdcVersion,
@@ -423,13 +456,6 @@
                 package: "upf",
                 version: Keyed(
                     UpfVersion,
-                ),
-                ambient: true,
-            },
-            PackagePlacement {
-                package: "libero",
-                version: Keyed(
-                    ToolVersion,
                 ),
                 ambient: true,
             },
@@ -467,13 +493,19 @@
         id: EnvironmentId(
             "synopsys-eda-tcl",
         ),
-        aliases: [],
-        display_name: "Synopsys EDA Tcl",
+        aliases: [
+            "dc_shell",
+            "primetime",
+        ],
+        display_name: "Synopsys DC / PrimeTime / ICC2 / Formality",
+        short_name: "Synopsys",
+        kind: Packages,
         editor_identity: Some(
             EditorLanguageIdentityId(
                 "tcl-synopsys",
             ),
         ),
+        selecting_identities: [],
         core: Some(
             CoreProfileSelector {
                 family: Tcl,
@@ -504,20 +536,6 @@
             ],
         },
         expected_packages: [
-            PackagePlacement {
-                package: "sdc",
-                version: Keyed(
-                    SdcVersion,
-                ),
-                ambient: true,
-            },
-            PackagePlacement {
-                package: "upf",
-                version: Keyed(
-                    UpfVersion,
-                ),
-                ambient: true,
-            },
             PackagePlacement {
                 package: "synopsys-dc",
                 version: Keyed(
@@ -550,6 +568,20 @@
                 package: "synopsys",
                 version: Keyed(
                     ToolVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "sdc",
+                version: Keyed(
+                    SdcVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "upf",
+                version: Keyed(
+                    UpfVersion,
                 ),
                 ambient: true,
             },
@@ -595,13 +627,18 @@
         id: EnvironmentId(
             "xilinx-eda-tcl",
         ),
-        aliases: [],
-        display_name: "Xilinx EDA Tcl",
+        aliases: [
+            "vivado",
+        ],
+        display_name: "Xilinx Vivado",
+        short_name: "Vivado",
+        kind: Packages,
         editor_identity: Some(
             EditorLanguageIdentityId(
                 "tcl-xilinx",
             ),
         ),
+        selecting_identities: [],
         core: Some(
             CoreProfileSelector {
                 family: Tcl,
@@ -633,6 +670,13 @@
         },
         expected_packages: [
             PackagePlacement {
+                package: "vivado",
+                version: Keyed(
+                    ToolVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
                 package: "sdc",
                 version: Keyed(
                     SdcVersion,
@@ -643,13 +687,6 @@
                 package: "upf",
                 version: Keyed(
                     UpfVersion,
-                ),
-                ambient: true,
-            },
-            PackagePlacement {
-                package: "vivado",
-                version: Keyed(
-                    ToolVersion,
                 ),
                 ambient: true,
             },

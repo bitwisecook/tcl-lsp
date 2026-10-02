@@ -389,9 +389,9 @@ pub enum Op {
     /// `iruleMatches` — the F5 trunk's bare `matches` word operator. Its
     /// presence is measured
     /// (`docs/design/f5/bigip-irule-parser-measurements.md` §4a `e_matches`);
-    /// its discriminating semantics are §12's outstanding re-probe, so
-    /// the VM answers it as a string equality — the reading the measured
-    /// cell exercises — and the compiler declines to constant-fold it.
+    /// its discriminating semantics are not yet confirmed, so the VM
+    /// answers it as a string equality — the reading the measured cell
+    /// exercises — and the compiler declines to constant-fold it.
     IRULE_MATCHES,
     IRULE_WORD_AND,
     IRULE_WORD_OR,
@@ -1365,6 +1365,16 @@ impl LiteralTable {
 pub struct LocalVarTable {
     slots: Vec<String>,
     index: HashMap<String, usize>,
+    /// Slots the *compiler* allocated for its own bookkeeping — a `dict for`
+    /// iterator, a `catch` result temporary — rather than for a variable the
+    /// source names.
+    ///
+    /// They share the table with source locals but are not the source's, and
+    /// a consumer asking "does this body name that variable?" must not be
+    /// fooled by one. The generated names carry a `#` prefix to avoid
+    /// colliding in practice, but that prefix is legal in a Tcl variable name,
+    /// so the marker is recorded rather than inferred.
+    synthetic: std::collections::HashSet<usize>,
 }
 
 impl LocalVarTable {
@@ -1376,6 +1386,27 @@ impl LocalVarTable {
             lvt.intern(p);
         }
         lvt
+    }
+
+    /// Get or create a slot index the compiler allocated for itself.
+    ///
+    /// See [`LocalVarTable::synthetic`]; [`Self::is_source_local`] is how a
+    /// consumer tells the two apart.
+    pub fn intern_synthetic(&mut self, name: &str) -> usize {
+        let slot = self.intern(name);
+        self.synthetic.insert(slot);
+        slot
+    }
+
+    /// Whether the compiled source names a local called `name`.
+    ///
+    /// False both for a name with no slot at all and for one whose only slot
+    /// is a compiler temporary.
+    #[must_use]
+    pub fn is_source_local(&self, name: &str) -> bool {
+        self.index
+            .get(name)
+            .is_some_and(|slot| !self.synthetic.contains(slot))
     }
 
     /// Get or create a slot index for `name`.

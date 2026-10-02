@@ -20,14 +20,13 @@ import * as assert from "assert";
 import * as vscode from "vscode";
 import { getDocUri, activate, setTestContent } from "./helper";
 
-// Issue #954 follow-up: the original fix (a bare-unbraced-parameter-list
-// highlighting bug in `apply {dir {...}}`) shipped in v2.1.11, but the
-// reporter's actual screenshot -- a pkgIndex.tcl-style
-// `package ifneeded name ver [list apply {dir {...}} $dir]` entry -- reaches
-// `apply` *indirectly* through the `[list ...]` command-quoting idiom, a
-// shape the first fix never touched. These tests drive the real repro (and
-// the closely related shapes the general, registry-driven fix now also
-// covers) through VS Code's semantic-tokens provider.
+// A bare-unbraced-parameter-list highlighting bug in `apply {dir {...}}`
+// must be fixed not only for the direct form but also for a
+// pkgIndex.tcl-style `package ifneeded name ver [list apply {dir {...}}
+// $dir]` entry, which reaches `apply` *indirectly* through the `[list ...]`
+// command-quoting idiom. These tests drive that repro (and the closely
+// related shapes the general, registry-driven fix covers) through VS
+// Code's semantic-tokens provider.
 
 interface DecodedToken {
   line: number;

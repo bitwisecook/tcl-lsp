@@ -16,8 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Liveness-based slot coalescing (Phase 5 core), the standalone analysis
-//! surface in [`tcl_compiler::slot_allocation`].
+//! Liveness-based slot coalescing, the standalone analysis surface in
+//! [`tcl_compiler::slot_allocation`].
 //!
 //! This exercises the slot-allocation **module in isolation**
 //! (`build_interference`, `coalesce_slots`, `slot_count` over a CFG/SSA plus

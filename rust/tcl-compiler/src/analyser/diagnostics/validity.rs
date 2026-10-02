@@ -472,6 +472,15 @@ fn widen_token_end_in(source_map: &tcl_lexer::SourceMap<'_>, tok: tcl_lexer::Tok
     super::super::utils::full_word_span_in(source_map, tok).end()
 }
 
+/// Whether `word` is a literal list value: braced, or free of outer Tcl
+/// substitutions. A braced word is literal even when its eventual elements
+/// contain `$` / `[`. A computed value can be valid or invalid at runtime, so
+/// reporting it would be an unsound claim.
+fn is_literal_list_word(word: &str, token: &tcl_lexer::Token) -> bool {
+    token.kind == tcl_lexer::TokenType::Str
+        || (token.kind != tcl_lexer::TokenType::Expand && !has_substitution(word, token))
+}
+
 /// Emit E006 for every registry-identified, statically-known formal-parameter
 /// list that Tcl would reject while creating its callable.  Callers supply the
 /// role-derived indices so this routine deliberately has no knowledge of the
@@ -486,13 +495,7 @@ pub(in crate::analyser) fn emit_invalid_formal_parameter_list_diagnostics(
         let (Some(params), Some(token)) = (args.get(index), arg_tokens.get(index)) else {
             continue;
         };
-        // A braced word is literal even when its eventual formal names contain
-        // `$` / `[`.  Every other accepted shape must be free of outer Tcl
-        // substitutions; a computed value can be valid or invalid at runtime,
-        // so reporting it would be an unsound claim.
-        let literal = token.kind == tcl_lexer::TokenType::Str
-            || (token.kind != tcl_lexer::TokenType::Expand && !has_substitution(params, token));
-        if !literal {
+        if !is_literal_list_word(params, token) {
             continue;
         }
         let Err(error) =
@@ -519,6 +522,45 @@ pub(in crate::analyser) fn emit_invalid_formal_parameter_list_diagnostics(
             )
             .with_fixes(fixes),
         );
+    }
+}
+
+/// E006 for a registry-identified ([`tcl_registry::ArgRole::StaticVarList`]),
+/// statically-known static-variable list with an element of more than two
+/// fields: a static is a name, a `{name value}` pair or `&name`, and `jimsh`
+/// rejects any other shape while creating the procedure.
+pub(in crate::analyser) fn emit_invalid_static_variable_list_diagnostics(
+    analyser: &mut Analyser,
+    args: &[String],
+    arg_tokens: &[tcl_lexer::Token],
+    static_indices: &[usize],
+) {
+    for &index in static_indices {
+        let (Some(statics), Some(token)) = (args.get(index), arg_tokens.get(index)) else {
+            continue;
+        };
+        if !is_literal_list_word(statics, token) {
+            continue;
+        }
+        let word_rules = analyser.word_rules();
+        let Ok(elements) = word_rules.split_list(statics) else {
+            continue;
+        };
+        let too_many = elements.iter().find(|element| {
+            word_rules
+                .split_list(element)
+                .is_ok_and(|fields| fields.len() > 2)
+        });
+        let Some(element) = too_many else {
+            continue;
+        };
+        let span = super::super::utils::full_word_span(*token, &analyser.source);
+        analyser.result.diagnostics.push(crate::analyser::types::Diagnostic::new(
+            DiagCode::E006,
+            span,
+            format!("Invalid static variable list: too many fields in static specifier \"{element}\""),
+            Severity::Error,
+        ));
     }
 }
 
@@ -594,6 +636,13 @@ struct OptionScanContext {
     sub_name: Option<String>,
     /// Whether abbreviations resolve in this table.
     prefix_matching: tcl_registry::abbrev::PrefixMatching,
+    /// Mandatory trailing operands the scan must stop before, from
+    /// [`tcl_registry::CommandSpec::reserved_trailing_words`]. `subst`'s
+    /// `string`, `switch`'s `string` and pattern list, `lsearch`'s `list` and
+    /// `pattern` are operands whatever their shape: the C implementations
+    /// stop scanning for switches before them, so a `-`-looking value there
+    /// is data, not an option.
+    reserved_trailing_words: usize,
 }
 
 /// The dialect-available options (canonical spellings plus declared aliases)
@@ -769,14 +818,16 @@ got {nargs_min}{usage_suffix}",
 /// Empty when `surface` is `None` (unrestricted) or has no primitive
 /// member (defensive; a restricted spec always has at least one).
 ///
-/// Members print as the profile catalog's `short_name` ("Tcl 8.5",
+/// Members print as the profile catalogue's `short_name` ("Tcl 8.5",
 /// "iRules") — this suffix is the highest-traffic dialect naming in
 /// editor-visible prose, so it uses the human spelling; a member with no
-/// catalog profile keeps its canonical name.
+/// catalogue profile keeps its canonical name.
 fn dialect_availability_suffix(surface: Option<&'static [SpecSurface]>) -> String {
-    let Some(rows) = surface else {
-        return String::new();
-    };
+    surface.map_or_else(String::new, dialect_availability_suffix_for_rows)
+}
+
+/// [`dialect_availability_suffix`] over surface rows the caller already holds.
+fn dialect_availability_suffix_for_rows(rows: &[SpecSurface]) -> String {
     // The dialect ids the rows name, in the registry's own projection —
     // the reader wants the dialects they can select, not the row spelling.
     let labels: Vec<String> = tcl_registry::model::surface::dialect_names_for_rows(rows)
@@ -828,11 +879,10 @@ fn qualify_candidates(ns: &str, cmd_name: &str) -> Vec<String> {
 /// Without the path a bare word written in a method body only ever qualifies
 /// to `::WORD`, so a document that installs its own
 /// `proc ::oo::Helpers::callback` — the documented "`TclOO` Tricks" wiki
-/// helper `ticklecharts` uses under 8.6 — did not count as shadowing the
-/// like-named 9.0 builtin, and the call drew a W002 "disabled in the active
-/// dialect profile" the program provably never sees (issue #923 audit,
-/// `ticklecharts` idx 51). tclsh 8.6.14 runs that file: the helper *is* the
-/// command the method body reaches.
+/// helper `ticklecharts` uses under 8.6 — would not count as shadowing the
+/// like-named 9.0 builtin, and the call would draw a W002 "disabled in the
+/// active dialect profile" the program provably never sees. tclsh 8.6.14 runs
+/// that file: the helper *is* the command the method body reaches.
 fn qualify_candidates_with_path(ns: &str, cmd_name: &str, path: &[&str]) -> Vec<String> {
     crate::naming::command_resolution_candidates(ns, path, cmd_name)
 }
@@ -868,7 +918,7 @@ pub(super) struct UserResolutionFacts {
     /// the point from which the name denotes a user command at all. A name
     /// declared twice keeps the first offset here (`all_procs` alone only
     /// remembers the second), so a call between the two still suppresses the
-    /// builtin-mismatch diagnostic it shadows (issue #923 idx 45).
+    /// builtin-mismatch diagnostic it shadows.
     proc_offsets: FxHashMap<String, u32>,
     /// Qualified *new* name (a static `rename OLD NEW`) → the `rename`
     /// statement's token offset. `rename` moves an existing command's
@@ -969,8 +1019,8 @@ impl UserResolutionFacts {
     /// *file* needs loaded, and a file that defines the command needs nothing
     /// loaded to make the name exist, whatever line the definition is on.
     /// Deliberately permissive for the same reason the non-proc set is
-    /// (issue #923 idx 11, verification pass: `proc ::argparse {args}`
-    /// beside a call to it was told to `package require argparse`).
+    /// (a file with `proc ::argparse {args}` beside a call to it must not be
+    /// told to `package require argparse`).
     pub(super) fn declares_any(&self, candidates: &[String], bare: &str) -> bool {
         candidates.iter().any(|c| {
             self.non_proc_qnames.contains(c.as_str())
@@ -1206,6 +1256,18 @@ impl Analyser {
         {
             return;
         }
+        // "Disabled here" needs a dialect that has the command and that this
+        // document's world is related to: a `tcl8.4` document writing a `tcl8.6`
+        // command, a `jim` document writing a Tcl command Jim's roster omits.
+        // A name only an unrelated environment offers — Expect's `system` in a
+        // `jim` document — is not disabled here, it is unknown here: W123
+        // reports it, as it would any other name nothing defines.
+        if registry
+            .providers_in_any_dialect(bare)
+            .is_some_and(|offered| !generation.context().is_related_to_a_provider_of(offered))
+        {
+            return;
+        }
         // An earlier *unconditional* user proc with this name shadows the
         // would-be-disabled built-in at the call site.
         let qualified = crate::naming::normalise_qualified_name(bare);
@@ -1244,18 +1306,22 @@ impl Analyser {
                 .push((cmd_name.to_string(), ns, enforce_order, diag));
             return;
         }
-        // Best-effort "available in: …" hint read straight from the
-        // registry spec's own dialect gate. Only resolves when the spec is
-        // among the packs this registry instance loaded regardless of
-        // dialect (core Tcl / stdlib / tcllib / Tk / itcl / …, via
-        // `CommandRegistry::build_default`); a command exclusive to a
-        // *different* dialect family (e.g. an iRules-only name referenced
-        // from a `tcl8.6` file) isn't loaded here, so `get` returns `None`
-        // and the message falls back to the plain form — never wrong, just
-        // sometimes less specific.
-        let suffix = registry.get(bare).map_or(String::new(), |spec| {
-            dialect_availability_suffix(spec.surface)
-        });
+        // The "available in: …" hint is read from the spec's own dialect gate.
+        // A command exclusive to a *different* dialect family (an iRules-only
+        // name, Jim's `loop`, referenced from a `tcl8.6` file) isn't loaded in
+        // this registry, so its gate is read from the rows every dialect's
+        // specs of the name state.
+        let suffix = registry.get(bare).map_or_else(
+            || {
+                registry
+                    .providers_in_any_dialect(bare)
+                    .filter(|offered| !offered.unrestricted)
+                    .map_or_else(String::new, |offered| {
+                        dialect_availability_suffix_for_rows(&offered.rows)
+                    })
+            },
+            |spec| dialect_availability_suffix(spec.surface),
+        );
         let diag = crate::analyser::types::Diagnostic::new(
             DiagCode::W002,
             cmd_tok.span,
@@ -1389,7 +1455,7 @@ impl Analyser {
             .or_else(tk_fallback)
         else {
             // Not a registered ensemble — buffer as a widget-dispatch
-            // candidate, resolved post-walk (issue #927).
+            // candidate, resolved post-walk.
             self.record_widget_dispatch_candidate(
                 cmd_name,
                 args,
@@ -1405,8 +1471,8 @@ impl Analyser {
         if shape_exempt_from_w001(&sig, first_arg) {
             return;
         }
-        // Resolve the word through the shared registry abbreviation API
-        // (#1231): a unique prefix (`string le` ⇒ `length`) is legal and must
+        // Resolve the word through the shared registry abbreviation API:
+        // a unique prefix (`string le` ⇒ `length`) is legal and must
         // not trip W001; an ambiguous one (`string l`) is a guaranteed
         // runtime error with its own diagnostic (W145) rather than an
         // "unknown subcommand" guess.
@@ -1428,7 +1494,7 @@ impl Analyser {
         // The subcommand is unknown *in the active dialect* — before
         // reporting it as nonexistent, check whether it exists in some
         // *other* dialect (e.g. a Tcl 9.0-only subcommand under an 8.6
-        // profile) and report disabled-in-dialect instead (issue #812).
+        // profile) and report disabled-in-dialect instead.
         if self.check_disabled_in_other_dialect_subcommand(
             cmd_name, first_arg, cmd_tok, arg_tokens, scope_path,
         ) {
@@ -1438,7 +1504,7 @@ impl Analyser {
         // runtime `namespace ensemble configure <cmd> -map [dict replace
         // [namespace ensemble configure <cmd> -map] NAME impl]` patch (the
         // real tcllib `dicttool.tcl` idiom for `dict getnull`/`print`/
-        // `is_dict`/…, issue #923 idx 105) — if a proc exists at this
+        // `is_dict`/…) — if a proc exists at this
         // ensemble's conventional implementation location for the written
         // subcommand name, treat it as known rather than reporting a false
         // "unknown subcommand". Registry-driven via
@@ -1572,8 +1638,7 @@ impl Analyser {
     /// ensemble's conventional implementation location — the real tcllib
     /// `dicttool.tcl` idiom: `proc ::tcl::dict::getnull {d args} {...} ;
     /// namespace ensemble configure dict -map [dict replace [namespace
-    /// ensemble configure dict -map] getnull ::tcl::dict::getnull]` (issue
-    /// #923 idx 105).
+    /// ensemble configure dict -map] getnull ::tcl::dict::getnull]`.
     ///
     /// Deliberately does **not** require observing an actual `namespace
     /// ensemble configure -map` call in the file — only that
@@ -1609,7 +1674,7 @@ impl Analyser {
     /// extends via `namespace ensemble create`/`configure`
     /// ([`super::super::handlers::Analyser::handle_namespace_ensemble`],
     /// which populates [`AnalysisResult::ensemble_subcommand_targets`]) —
-    /// the real `tk/library/systray.tcl` idiom (issue #923 idx 84):
+    /// the real `tk/library/systray.tcl` idiom:
     /// `namespace ensemble configure tk -map [dict merge [namespace
     /// ensemble configure tk -map] {systray ::tk::systray sysnotify
     /// ::tk::sysnotify::sysnotify}]`, which splices `systray`/`sysnotify`
@@ -1643,7 +1708,7 @@ impl Analyser {
 
     /// `first_arg` is unknown in the active dialect profile but exists as a
     /// real subcommand in some *other* dialect (e.g. a Tcl 9.0-only
-    /// subcommand checked under an 8.6 profile, issue #812) — the
+    /// subcommand checked under an 8.6 profile) — the
     /// subcommand-level analogue of the whole-command W002 check
     /// (`emit_w002_disabled_command`): it EXISTS, just not here, so report
     /// disabled-in-dialect rather than "Unknown subcommand" with a
@@ -2326,11 +2391,11 @@ impl Analyser {
     /// actually supplied by something else: a proc defined in a file this one
     /// `source`s, an `interp alias` set up by its host application.
     ///
-    /// The real corpus case (issue #923 idx 11, verification pass) is
+    /// The real corpus case is
     /// georgtree/argparse's own `proc ::argparse {args}`: a sibling file that
     /// `source`s it and calls `argparse` with no arguments — which real tclsh
-    /// 9.0.4 / 8.6.16 both run happily, printing `case0` — was told
-    /// `Too few arguments for 'argparse': expected at least 1, got 0`,
+    /// 9.0.4 / 8.6.16 both run happily, printing `case0` — must not draw
+    /// `Too few arguments for 'argparse': expected at least 1, got 0`
     /// resolved against the *package's* spec that this workspace never loads.
     /// Whole-file `source`-graph knowledge is not available here (the analyser
     /// is single-file by construction, see
@@ -2654,10 +2719,9 @@ impl Analyser {
                 // `member_next_provider` routes the two nameless slots to
                 // their own providers, so a `next` inside a `constructor`
                 // (or `destructor`) is arity-checked exactly like one
-                // inside a plain `method` — it used to be dropped
-                // silently, letting a real `wrong # args` crash into a
-                // superclass constructor go undiagnosed (issue #923 idx
-                // 37).
+                // inside a plain `method`.  Dropping it silently would let a
+                // real `wrong # args` crash into a superclass constructor go
+                // undiagnosed.
                 let Some(provider) = hierarchy.member_next_provider(
                     &cand.class_qualified,
                     &cand.method_name,
@@ -2935,13 +2999,13 @@ impl Analyser {
     /// A deletion recorded *inside* a proc/class/method body is itself
     /// conditional — it executes only if and when that body is ever
     /// invoked, which the textual load-order gate can't know — so it
-    /// never supersedes anything (issue #1007: confirmed against tclsh
+    /// never supersedes anything (confirmed against tclsh
     /// 8.6.14 that `proc p {a b} {}`, `proc maybeDelete {} { rename p {}
     /// }`, `p 1 2 3` still fails "wrong # args" against `p`'s original
     /// 2-arg signature, since `maybeDelete` is never called and the
     /// `rename` never runs). Mirrors the equivalent guard
     /// [`Self::fact_live_for_call`] applies for the same question in the
-    /// W123 pass (see issue #973).
+    /// W123 pass.
     fn fact_superseded_by_deletion(
         &self,
         name: &str,
@@ -2992,7 +3056,7 @@ impl Analyser {
     /// definition went unreported. Oracle (tclsh 8.6.16 and 9.0.4): with
     /// `proc p {} {…}`, `p a b` between the declarations fails `wrong # args:
     /// should be "p"` — against the *first* signature, whatever the later one
-    /// says (issue #923 idx 45).
+    /// says.
     fn proc_definition_reached_by<'a>(
         &'a self,
         qualified: &str,
@@ -4094,56 +4158,69 @@ before this value so it is treated as data, not an option."
         } else {
             spec.prefix_matching
         };
-        let (options, parent_surface, start_idx, sub_name) = if spec.subcommands.is_empty() {
-            (spec.options, spec.surface, 0usize, None::<String>)
-        } else {
-            // Ensemble-shaped: index 0 is always the subcommand word.  A
-            // `{*}`-expanded or substituted word resolves to an unknown name
-            // at runtime; abstain rather than guess.
-            if arg_expand.first().copied().unwrap_or(false) {
-                return None;
-            }
-            if arg_tokens
-                .first()
-                .is_some_and(|tok| has_substitution(&args[0], tok))
-            {
-                return None;
-            }
-            let sub = spec.resolve_subcommand_for_dialect(
-                &args[0],
-                Some(self.analysis_context().context().authoring_query()),
-            )?;
-            // A two-level ensemble dispatches once more on the next word, and
-            // its operations can carry genuinely different option tables
-            // (`namespace ensemble create` vs `configure`, issue #1610). Read
-            // that word only when it is a literal: a `{*}`-expanded or
-            // substituted dispatch word resolves at run time, and
-            // `option_scope` keeps the subcommand's wider table for it rather
-            // than guessing which operation is meant.
-            let dispatch = args.get(1).filter(|_| {
-                !arg_expand.get(1).copied().unwrap_or(false)
-                    && !arg_tokens
-                        .get(1)
-                        .is_some_and(|tok| has_substitution(&args[1], tok))
-            });
-            let scope = sub.option_scope(
-                dispatch.map(String::as_str),
-                Some(self.analysis_context().context().authoring_query()),
-                None,
-                spec.surface,
-            );
-            let name = match scope.sub_subcommand {
-                Some(op) => format!("{} {op}", sub.name),
-                None => sub.name.to_owned(),
+        let (options, parent_surface, start_idx, sub_name, reserved_trailing_words) =
+            if spec.subcommands.is_empty() {
+                (
+                    spec.options,
+                    spec.surface,
+                    0usize,
+                    None::<String>,
+                    spec.reserved_trailing_words,
+                )
+            } else {
+                // Ensemble-shaped: index 0 is always the subcommand word.  A
+                // `{*}`-expanded or substituted word resolves to an unknown name
+                // at runtime; abstain rather than guess.
+                if arg_expand.first().copied().unwrap_or(false) {
+                    return None;
+                }
+                if arg_tokens
+                    .first()
+                    .is_some_and(|tok| has_substitution(&args[0], tok))
+                {
+                    return None;
+                }
+                let sub = spec.resolve_subcommand_for_dialect(
+                    &args[0],
+                    Some(self.analysis_context().context().authoring_query()),
+                )?;
+                // A two-level ensemble dispatches once more on the next word, and
+                // its operations can carry genuinely different option tables
+                // (`namespace ensemble create` vs `configure`). Read
+                // that word only when it is a literal: a `{*}`-expanded or
+                // substituted dispatch word resolves at run time, and
+                // `option_scope` keeps the subcommand's wider table for it rather
+                // than guessing which operation is meant.
+                let dispatch = args.get(1).filter(|_| {
+                    !arg_expand.get(1).copied().unwrap_or(false)
+                        && !arg_tokens
+                            .get(1)
+                            .is_some_and(|tok| has_substitution(&args[1], tok))
+                });
+                let scope = sub.option_scope(
+                    dispatch.map(String::as_str),
+                    Some(self.analysis_context().context().authoring_query()),
+                    None,
+                    spec.surface,
+                );
+                let name = match scope.sub_subcommand {
+                    Some(op) => format!("{} {op}", sub.name),
+                    None => sub.name.to_owned(),
+                };
+                // No subcommand declares a reserved trailing operand today,
+                // the same convention `resolve_option_terminator` keeps: the
+                // field lives on `CommandSpec`, and an ensemble's parent
+                // reservation describes the parent's argument positions, not
+                // a subcommand's.
+                (scope.options, scope.surface, 1usize, Some(name), 0usize)
             };
-            (scope.options, scope.surface, 1usize, Some(name))
-        };
         (!options.is_empty()).then_some(OptionScanContext {
             options,
             parent_surface,
             start_idx,
             sub_name,
             prefix_matching,
+            reserved_trailing_words,
         })
     }
 
@@ -4200,10 +4277,17 @@ before this value so it is treated as data, not an option."
             start_idx,
             sub_name,
             prefix_matching,
+            reserved_trailing_words,
         } = context;
 
+        // The command's mandatory trailing operands are never option
+        // candidates — `subst -commands` is `subst`'s *string* operand, and
+        // tclsh 8.6.18 prints `-commands` for `puts [subst -commands]` rather
+        // than rejecting a 9.1-only switch. Same rule, same owner field, as
+        // the registry's own `source_option_layout_is_proven` (#2136).
+        let scan_end = args.len().saturating_sub(reserved_trailing_words);
         let mut i = start_idx;
-        while i < args.len() {
+        while i < scan_end {
             let arg = args[i].as_str();
             if arg == "--" {
                 break;
@@ -4277,7 +4361,7 @@ in the active dialect ({}).",
             // No exact spelling or declared alias: the word may still be an
             // abbreviation. A unique prefix is legal and is left to the
             // canonical-option handling above once resolved; an ambiguous one
-            // is a guaranteed runtime error (W145, issue #1234).
+            // is a guaranteed runtime error (W145).
             let generation = self.analysis_context();
             let table = option_keyword_table(
                 options,
@@ -4432,7 +4516,7 @@ in the active dialect ({}).",
         };
 
         // Both the parse and the re-tokenise below force the `f5-irules`
-        // dialect rather than the active one (issue #985): the lexer's
+        // dialect rather than the active one: the lexer's
         // iRules word-operator recognition (`contains`, `and`, …) is
         // itself gated on the tokenisation dialect, so under any other
         // dialect these words would lex as plain `Word` tokens, the parse
@@ -4587,7 +4671,7 @@ in the active dialect ({}).",
             return;
         };
         // Forced to `f5-irules` for the same reason as the braced-argument
-        // path (issue #985): under any other dialect the tokeniser lexes
+        // path: under any other dialect the tokeniser lexes
         // the iRules words (`contains`, `and`, …) as plain `Word`s rather
         // than operators, so the parse below would never see a valid
         // infix application and would fall back to `ExprNode::Raw`,
@@ -4642,17 +4726,17 @@ Vec::new()));
 /// which doesn't have (and doesn't need) a specific dialect to check against
 /// here since a stub shadowing a function that exists in some other dialect
 /// is still worth flagging. Derived from
-/// [`tcl_syntax::expr::mathfunc::added_in`] — issue #983's unification —
-/// rather than a hand-typed list that had already drifted once (`added_in`
-/// claiming the TIP 745 batch before `dispatch()` actually implemented it).
+/// [`tcl_syntax::expr::mathfunc::added_in`] rather than a hand-typed list,
+/// which drifts (a list claiming the TIP 745 batch before `dispatch()`
+/// implements it).
 fn is_builtin_math_function(name: &str) -> bool {
     tcl_syntax::expr::mathfunc::added_in(name).is_some()
 }
 
 /// Whether `name` is a built-in `expr` operator spelling **not** gated to
 /// iRules only (`+`, `in`, `**`, `eq`, …) — used by the W117 stub-shadow
-/// check. Derived from [`tcl_syntax::expr::operators`] (issue #983's
-/// unification) rather than a hand-typed list: a `BinOp`/`UnaryOp` whose
+/// check. Derived from [`tcl_syntax::expr::operators`] rather than a
+/// hand-typed list: a `BinOp`/`UnaryOp` whose
 /// `dialects` isn't exactly `Some(SpecSurface::IRULES)` is available outside
 /// iRules (`None` = ungated, `Some(TCL90_PLUS)` etc. = version-gated but not
 /// dialect-*identity*-gated — both count as "built-in" here; only the nine
@@ -4808,13 +4892,12 @@ pub(super) fn last_literal_set_value_for_var(
 /// Single source for the three W003 steps — the prefilter
 /// ([`contains_gated_word`]), the per-token gate check ([`gated_operator_name`]),
 /// and the message ([`w003_tip_citation`]). `op`/`word_shaped`/`min_version`
-/// are derived from [`tcl_syntax::expr::operators`] (issue #983's
-/// unification) — only the TIP citation number is still local prose (two
+/// are derived from [`tcl_syntax::expr::operators`] — only the TIP citation
+/// number is local prose (two
 /// operators can share a minimum version but not a TIP: `**` is TIP 123,
-/// `in`/`ni` is TIP 201, both Tcl 8.5). Before the `tcl_syntax` derivation
-/// this whole table was three separate hardcoded matches that had drifted
-/// from each other (the symbolic `**` was in none of them, so
-/// `expr {2 ** 3}` under tcl8.4 was a false negative).
+/// `in`/`ni` is TIP 201, both Tcl 8.5). Three separate hardcoded matches
+/// drift from each other instead — with the symbolic `**` in none of them,
+/// `expr {2 ** 3}` under tcl8.4 is a false negative.
 struct GatedExprOp {
     /// The operator text as the expr lexer emits it (`in`, `**`).
     op: &'static str,
@@ -4822,7 +4905,7 @@ struct GatedExprOp {
     /// the prefilter; symbolic ones (`**`) match on any occurrence.
     word_shaped: bool,
     /// What must hold for this operator to be valid: a minimum `expr`-grammar
-    /// version, or (issue #985) iRules dialect identity.
+    /// version, or iRules dialect identity.
     gate: ExprOpGate,
     /// The TIP citation surfaced in the W003 message.
     tip: &'static str,
@@ -4858,7 +4941,7 @@ fn w003_tip_string(spelling: &str) -> &'static str {
 /// 8.5; the string comparison words `lt`/`le`/`gt`/`ge` from 9.0) — every
 /// `BinOp` whose
 /// [`tcl_syntax::expr::operators::OperatorSpec::expr_grammar_min_version`]
-/// is `Some(_)` — plus (issue #985) the 9 iRules-only word operators, every
+/// is `Some(_)` — plus the 9 iRules-only word operators, every
 /// `BinOp`/`UnaryOp` whose `OperatorSpec::dialects` is exactly
 /// `Some(SpecSurface::IRULES)`. Computed once (not `const`: `OperatorSpec`
 /// isn't cheaply iterable in a const context) and cached for the process
@@ -5003,11 +5086,11 @@ fn rewrite_gated_operator(op_name: &str, left: &str, right: &str) -> Option<Stri
 mod w117_tests {
     use super::{is_builtin_expr_op, is_builtin_math_function, is_irules_only_expr_op};
 
-    /// The W117 stub-shadow check's own `is_builtin_*` helpers used to be
-    /// three hand-typed lists (`BUILTIN_MATH_FUNCTIONS`/`BUILTIN_EXPR_OPS`/
-    /// `IRULES_EXPR_OPS`) — this proves the `tcl_syntax`-derived
-    /// replacements recognise exactly the same names (issue #983's
-    /// unification: no behaviour change, only the source of truth moved).
+    /// The W117 stub-shadow check's `is_builtin_*` helpers are derived from
+    /// `tcl_syntax`; these lists are the hand-typed sets they replace
+    /// (`BUILTIN_MATH_FUNCTIONS` / `BUILTIN_EXPR_OPS` / `IRULES_EXPR_OPS`),
+    /// kept here to prove the derived helpers recognise exactly the same
+    /// names.
     const OLD_BUILTIN_MATH_FUNCTIONS: &[&str] = &[
         "abs",
         "acos",

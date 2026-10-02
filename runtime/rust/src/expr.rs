@@ -41,9 +41,7 @@ use tcl_syntax::expr::errors::{OperandDesc, OperandSide};
 use tcl_syntax::expr::mathfunc::MathFuncError;
 use tcl_syntax::expr::{eval, BinOp, ExprNode, ExprOps, NumericCompare, UnaryOp};
 
-// ---------------------------------------------------------------------------
 // `TCL_EXPR_TYPE` — the parsed-expression internal rep.
-// ---------------------------------------------------------------------------
 
 /// The expression cache's backing: the parsed AST, plus the emulated release
 /// its registry validation was performed against.
@@ -225,8 +223,7 @@ pub(crate) fn arith_err(e: ArithError) -> ExprError {
 /// C's `IllegalExprOperandType` (`tclExecute.c`), through the shared owner
 /// [`tcl_syntax::expr::errors`]: the *wording* is a release axis (9.0 names
 /// the value and the side, 8.4-8.6 name neither and have no list branch),
-/// while the `-errorcode ARITH DOMAIN <description>` is invariant. Both were
-/// hard-coded to 9.0's form with no `-errorcode` at all before #1581.
+/// while the `-errorcode ARITH DOMAIN <description>` is invariant.
 fn operand_type_err(desc: OperandDesc, value: &[u8], side: OperandSide, op: &[u8]) -> ExprError {
     let release = tcl_syntax::expr::errors::ambient_release();
     let message = tcl_syntax::expr::errors::illegal_operand_message(
@@ -410,7 +407,7 @@ pub fn dispatch_shared(name: &str, args: &[Owned]) -> Result<Owned, ExprError> {
 }
 
 /// A shared math-function refusal as this engine's error: C's verbatim
-/// message and `-errorcode` (#1581). `Abstain` cannot occur here — the
+/// message and `-errorcode`. `Abstain` cannot occur here — the
 /// runtime's backend has an arbitrary-precision rung and its release is
 /// resolved — so it falls back to the generic domain error.
 pub(crate) fn math_func_err(e: MathFuncError) -> ExprError {
@@ -436,7 +433,13 @@ impl ExprOps for TowerOps<'_> {
     fn literal(&mut self, text: &str) -> Result<Owned, ExprError> {
         Ok(make_literal(text))
     }
-    fn string(&mut self, inner: &str) -> Result<Owned, ExprError> {
+    fn string(&mut self, inner: &str, substitutes: bool) -> Result<Owned, ExprError> {
+        // Only a `"…"` operand substitutes; a `{…}` one is its text with its
+        // backslash-newlines folded, as they are even inside braces (#2227).
+        if !substitutes {
+            let text = tcl_syntax::backslash::collapse_brace_continuations(inner.as_bytes());
+            return Ok(Owned::fresh(obj::new_string_bytes(&text)));
+        }
         self.ctx.subst_string(inner)
     }
     fn var(&mut self, name: &str) -> Result<Owned, ExprError> {
@@ -575,7 +578,7 @@ pub fn eval_mathop(
     tcl_cmd_core::mathop::eval(&mut ops, op, args)
 }
 
-// ---- value helpers ---------------------------------------------------------
+// value helpers
 
 /// Tcl boolean context (`Tcl_GetBooleanFromObj`) as an `expr` error: the
 /// runtime's one typed-read owner ([`crate::typed_value::boolean`]) — the

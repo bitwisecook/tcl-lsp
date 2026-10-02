@@ -70,8 +70,8 @@ impl Width {
 
 /// How the bytes of a multi-byte packet field are interpreted.
 ///
-/// `Native` is the host order of whatever executes the program — an explicit,
-/// temporary compatibility mode for synthetic test packets. Real network
+/// `Native` is the host order of whatever executes the program — an explicit
+/// compatibility mode for synthetic test packets. Real network
 /// headers are `Big` (network order); profile fields default to it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ByteOrder {

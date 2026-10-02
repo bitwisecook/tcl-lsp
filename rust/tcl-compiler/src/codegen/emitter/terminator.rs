@@ -30,6 +30,7 @@
 
 use crate::cfg::{Function as CfgFunction, Terminator};
 use crate::expr_ast::ExprNode;
+use crate::word_subst::whole_word_command_tokens;
 
 use super::super::cmd_subst::is_pure_cmd_subst;
 use super::super::{CodegenCtx, Op, Operand};
@@ -71,8 +72,13 @@ impl CodegenCtx<'_> {
                 let false_target = cfg.block_name(*false_target);
                 self.emit_branch(condition, true_target, false_target, next_block);
             }
-            Terminator::Return { value, expr, .. } => {
-                self.emit_return(value.as_deref(), expr.as_ref());
+            Terminator::Return {
+                value,
+                expr,
+                braced,
+                ..
+            } => {
+                self.emit_return(value.as_deref(), expr.as_ref(), *braced);
             }
         }
     }
@@ -149,13 +155,16 @@ impl CodegenCtx<'_> {
         }
     }
 
-    fn emit_return(&mut self, value: Option<&str>, expr: Option<&ExprNode>) {
+    fn emit_return(&mut self, value: Option<&str>, expr: Option<&ExprNode>, braced: bool) {
         if let Some(e) = expr {
             // Proc with `return [expr {...}]` lowered to an expression
             let guaranteed_numeric = self.emit_expr(e);
             if !guaranteed_numeric {
                 self.emit(Op::TRY_CVT_TO_NUMERIC, vec![]);
             }
+        } else if braced {
+            // See `emit_proc_return`: a braced value is literal text.
+            self.push_lit_verbatim(value.unwrap_or(""));
         } else {
             let val = value.unwrap_or("");
             self.emit_value(val, true);
@@ -193,7 +202,14 @@ impl CodegenCtx<'_> {
         block_idx: usize,
         cfg: &CfgFunction,
     ) {
-        let Terminator::Return { value, expr, .. } = term else {
+        let Terminator::Return {
+            value,
+            value_word,
+            expr,
+            braced,
+            ..
+        } = term
+        else {
             unreachable!("emit_proc_return called with non-Return terminator");
         };
         // Stamp the return's source span onto its instructions.
@@ -204,7 +220,13 @@ impl CodegenCtx<'_> {
         // that merely begins and ends with a bracket (`[llength $a]:[join $a ,]`
         // — a three-part concatenation) would be mangled into a single bogus
         // command. `is_pure_cmd_subst` matches the bracket, not the ends.
-        let is_cmd_subst = expr.is_none() && is_pure_cmd_subst(val);
+        //
+        // A *braced* value is neither: `return {[id 9]}` returns the six
+        // characters `[id 9]` and runs nothing. `value` is the word with its
+        // braces already stripped, so without `braced` it is indistinguishable
+        // from `return [id 9]` — which is exactly how tclvm came to call `id`
+        // where tclsh 8.4.20 through 9.1b0 all return the literal (#2228).
+        let is_cmd_subst = !*braced && expr.is_none() && is_pure_cmd_subst(val);
         let is_final = next_block.is_none();
 
         // startCommand count: 2 when return wraps [expr {...}]
@@ -249,7 +271,18 @@ impl CodegenCtx<'_> {
             }
         } else if self.is_proc && is_cmd_subst {
             // In a proc body, a return value of [cmd ...] inlines.
-            self.emit_inline_cmd_subst(val);
+            let tokens = value_word.as_ref().and_then(|word| {
+                whole_word_command_tokens(
+                    word,
+                    tcl_lexer::LexerConfig::for_profile(self.registry.profile()),
+                )
+            });
+            self.emit_inline_cmd_subst_with_tokens(val, tokens.as_ref());
+        } else if *braced {
+            // Literal text, pushed verbatim so the VM's runtime word
+            // substitution leaves it alone; `emit_value` would interpolate
+            // `a [id 9] b` into `a RAN b`.
+            self.push_lit_verbatim(val);
         } else {
             self.emit_value(val, true);
         }
@@ -319,7 +352,7 @@ impl CodegenCtx<'_> {
             }
             // A jump table keys on *literal* strings, so only a pattern that
             // is one qualifies: a braced arm list's decoded element, or the
-            // `Literal` shape this used to be handed. A substituting pattern
+            // `Literal` shape. A substituting pattern
             // (the multi-word `switch $s $pat …` form) has no key until run
             // time and keeps the branch chain.
             let (ExprNode::Literal { text: pattern, .. }
@@ -529,6 +562,7 @@ mod tests {
         let cfg = cfg_with_blocks(&["entry"]);
         let term = Terminator::Return {
             value: Some("hello".into()),
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -544,6 +578,7 @@ mod tests {
         let cfg = cfg_with_blocks(&["entry"]);
         let term = Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,

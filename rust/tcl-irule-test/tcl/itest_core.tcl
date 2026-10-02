@@ -9,7 +9,7 @@
 #
 # Depends on: ::state::event_ctl (from state_layers.tcl)
 #
-# Boundary contract (issue #1472): this embedded Tcl runtime is deliberately
+# Boundary contract: this embedded Tcl runtime is deliberately
 # self-hosted and cannot call Rust. Its `when` header recognition is a narrow
 # loader carve-out; Rust consumers must use `tcl-irules::when_blocks`.
 # `rust/tcl-irule-test/src/embedded.rs::itest_core_when_loader_contract` is the
@@ -76,6 +76,27 @@ namespace eval ::itest {
                     incr pos
                 }
                 set body [string range $rest 1 [expr {$pos - 2}]]
+
+                # Abstain on a body that is not a complete script rather than
+                # registering a handler invented from invalid source. The
+                # brace scan above is quote-blind, exactly as Tcl's own is, so
+                # a close-brace inside a quoted word ends the body early and
+                # leaves a malformed fragment behind. The canonical Rust walker
+                # (tcl_irules::when_blocks) reports no block for such a source,
+                # and this boundary must agree.
+                #
+                # This check is explicit because proc cannot supply it: Tcl
+                # compiles a procedure body when the procedure is *called*, so
+                # defining a proc with a malformed body succeeds and raises
+                # only on the first fire (verified on tclsh 8.6.18 and 9.0.4).
+                # Relying on a definition-time failure would be relying on a
+                # divergence.
+                #
+                # NB: keep braces balanced in comments in this file - Tcl
+                # counts them when scanning the enclosing namespace body.
+                if {![info complete $body]} {
+                    error "incomplete handler body for event \"$event_name\""
+                }
 
                 # Register the handler
                 if {![info exists event_handlers($event_name)]} {

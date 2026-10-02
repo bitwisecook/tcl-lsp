@@ -16,8 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Cross-version vectors for the array element a trace access does not name
-//! (issue #1633 rows 6 and 7).
+//! Cross-version vectors for the array element a trace access does not name.
 //!
 //! Tcl 9.0 added the recovery in three places at once —
 //! `TclVarFindHiddenArray` (`tclInt.h` 9.0.4:866), the `part2` refill in

@@ -16,7 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! PARSER-CONVERGENCE PROBE (dev tool).
+//! Dev tool: dumps lexer tokens for a set of sample inputs, for eyeballing
+//! lexer behaviour by hand.
 use tcl_lexer::{Lexer, SourceMap, TokenType};
 fn dump(s: &str) {
     let sm = SourceMap::new(s);

@@ -85,9 +85,9 @@ EDIT_COUNT = 400
 SAMPLE_INTERVAL_S = 0.25
 
 #: Per-request ceiling. A request that exceeds this is recorded as a failed
-#: check with `ok: false` rather than hanging the suite — several releases
-#: have shipped navigation requests that never return (#1297), and the
-#: benchmark has to survive them and *report* them.
+#: check with `ok: false` rather than hanging the suite — a navigation
+#: request can fail to return at all, and the
+#: benchmark has to survive that and *report* it.
 REQUEST_TIMEOUT_S = 30.0
 
 SEED = 20260807
@@ -99,7 +99,7 @@ SEED = 20260807
 #: check, teardown — so a fault outside any individually-bounded wait still
 #: produces a clean, attributed failure instead of relying on an external
 #: killer (sweep.sh's `timeout --foreground`, CI's job timeout) with no idea
-#: which phase died. See issue #1399.  Generous for `--scope small` (a
+#: which phase died.  Generous for `--scope small` (a
 #: healthy run finishes in well under a minute per sweep.sh's own comment);
 #: override with `--deadline` or `BENCH_DEADLINE_S` for a larger scope or a
 #: slower host.
@@ -181,8 +181,7 @@ class Sampler(threading.Thread):
         return self.samples[-1] if self.samples else None
 
 
-# --------------------------------------------------------------------------
-# Outer deadline (#1399)
+# Outer deadline
 
 
 class Progress:
@@ -223,7 +222,7 @@ class Watchdog(threading.Thread):
     external timeout, a hang in corpus staging or teardown, or simply a
     slower host than `--deadline` assumed — still ends in a clean,
     attributed nonzero exit instead of an external `timeout(1)` SIGKILL that
-    explains nothing (see issue #1399 and sweep.sh's 8h45m wedge note).
+    explains nothing (see sweep.sh's own wedge-timing note).
 
     Deliberately a hard `os._exit`, not a raised exception the main thread
     could ignore or get stuck handling: the whole point is that this fires
@@ -404,7 +403,7 @@ class Bench:
         self.root = root
         self.checks: list[dict] = []
         self._ord = 0
-        #: `--deadline` phase attribution (#1399). Optional so `Bench` stays
+        #: `--deadline` phase attribution. Optional so `Bench` stays
         #: usable without a watchdog wired up.
         self.progress = progress
 
@@ -656,7 +655,7 @@ def build_suite(bench: Bench, docs: list[Path], root: Path) -> None:
     bench.check("nav.symbols", "Document symbols + folding", doc_wide)
 
     # 10 — code lens, including resolve, which is where the reference counts
-    # are actually computed (and where #1297 lives).
+    # are actually computed.
     def lenses():
         fails = 0
         for s in state:
@@ -763,14 +762,14 @@ def build_suite(bench: Bench, docs: list[Path], root: Path) -> None:
 
     # 14 — navigation *after* the renames. Separate from check 8 on purpose:
     # a retire path that strands per-URI state shows up as this check being
-    # dramatically slower than its pre-rename twin (#1298).
+    # dramatically slower than its pre-rename twin.
     bench.check(
         "nav.after_rename",
         "Find references after rename",
         nav("textDocument/references", {"context": {"includeDeclaration": True}}),
     )
 
-    # 15 — close everything; the closed-file retention path (#1144).
+    # 15 — close everything; the closed-file retention path.
     def close_all():
         for s in state:
             c.send_notification(

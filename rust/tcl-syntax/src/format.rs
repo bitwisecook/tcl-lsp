@@ -28,9 +28,10 @@
 //!
 //! Arg-driven `*` width/`.*` precision parse into `width_star`/`precision_star`
 //! (the runtime renderer consumes a leading argument; the const-folder declines
-//! them). The modelled subset still bails (`None`) on an over-[`MAX_FIELD`]
-//! field, positional `%n$`, and unknown size modifiers — a missed parse is
-//! never wrong for a const-fold, and the runtime can extend it.
+//! them), and a positional `%n$` selector into `arg_index`. The modelled subset
+//! still bails (`None`) on an over-[`MAX_FIELD`] field and on unknown size
+//! modifiers — a missed parse is never wrong for a const-fold, and the runtime
+//! can extend it.
 
 /// Field sizes beyond this bail — never fold a literal into kilobytes of
 /// padding (sound: a missed fold is never wrong).
@@ -63,6 +64,12 @@ bitflags::bitflags! {
 pub enum SizeModifier {
     /// `h` — truncate an integer conversion to C `short` width.
     Short,
+    /// `I` — use Tcl 9's C `int` width.
+    Int,
+    /// `I32` — use Tcl 9's C `int` width explicitly.
+    Int32,
+    /// `I64` — use Tcl 9's wide-integer width explicitly.
+    Int64,
     /// `l` — use Tcl's wide-integer path.
     Long,
     /// `ll` — use Tcl's bignum path.
@@ -79,6 +86,117 @@ pub enum SizeModifier {
     Big,
 }
 
+/// The integer width an integer conversion renders through, once the size
+/// modifier and the release are both known.
+///
+/// C Tcl's rule is one rule: take the value modulo 2^width, then read those
+/// bits **signed** for `d`/`i` and **unsigned** for `u`/`x`/`X`/`o`/`b`.
+/// Measured on tclsh 8.4.20/8.5.19/8.6.18/9.0.4/9.1b0 —
+/// `format %hd 5000000000` is `-3584` and `format %hu 5000000000` is `61952`
+/// on every one of them, `format %hd 32768` is `-32768`, and
+/// `format %d 4294967296` is `4294967296` on 8.x but `0` on 9.x.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IntegerWidth {
+    /// C `short`, from an `h` modifier. 16 bits on every platform Tcl
+    /// supports, so this one needs no platform axis.
+    Short,
+    /// C `int` — Tcl 9's width for an unmodified integer conversion. 32 bits
+    /// on every platform Tcl supports.
+    Int,
+    /// 64 bits: `Tcl_WideInt`, and the unmodified width before Tcl 9.
+    Wide,
+}
+
+impl IntegerWidth {
+    /// The mask selecting this width's low bits, or `None` for the full
+    /// 64, whose mask does not fit a positive `i64`.
+    const fn low_mask(self) -> Option<i64> {
+        match self {
+            Self::Short => Some(0xFFFF),
+            Self::Int => Some(0xFFFF_FFFF),
+            Self::Wide => None,
+        }
+    }
+
+    /// The value's low bits, read as a signed integer of this width.
+    ///
+    /// Masked and sign-extended arithmetically rather than cast: a narrowing
+    /// cast is what `clippy::pedantic` rejects, and the arithmetic says what
+    /// is meant.
+    #[must_use]
+    pub fn signed(self, value: i64) -> i64 {
+        let Some(mask) = self.low_mask() else {
+            return value;
+        };
+        let sign_bit = (mask >> 1) + 1;
+        let low = value & mask;
+        if low & sign_bit == 0 {
+            low
+        } else {
+            low - mask - 1
+        }
+    }
+
+    /// The value's low bits, read as an unsigned integer of this width.
+    #[must_use]
+    pub fn unsigned(self, value: i64) -> u64 {
+        // The two's-complement bit pattern, without a sign-losing cast.
+        let bits = u64::from_ne_bytes(value.to_ne_bytes());
+        match self.low_mask() {
+            Some(mask) => bits & u64::from_ne_bytes(mask.to_ne_bytes()),
+            None => bits,
+        }
+    }
+}
+
+/// The width `size` selects for an integer conversion under `syntax`.
+///
+/// The one owner of this policy, so the renderers cannot drift apart on it.
+///
+/// **Two families are deliberately answered [`IntegerWidth::Wide`] rather than
+/// correctly**, because answering them needs facts this crate does not have:
+///
+/// * `ll` and `L` select Tcl's **bignum** path, not a 64-bit one —
+///   `format %lld 9223372036854775808` prints `9223372036854775808` where
+///   `%ld` prints `-9223372036854775808`. A renderer whose value type is
+///   `i64` has already lost the distinction before it gets here.
+/// * `l` before Tcl 9, `z` and `t` are **platform**-dependent (C `long`,
+///   `TCL_WIDE_INT_IS_LONG`, and `sizeof(void *) > sizeof(int)` respectively).
+///   `Wide` is right on LP64 and wrong on an ILP32 build; `tcl-dialect` has no
+///   platform axis to ask.
+///
+/// Both are recorded as gaps rather than guessed at; the unmodified and `h`
+/// answers below are determined on every platform Tcl supports.
+#[must_use]
+pub fn integer_width(
+    size: Option<SizeModifier>,
+    syntax: tcl_dialect::NumberSyntax,
+) -> IntegerWidth {
+    match size {
+        Some(SizeModifier::Short) => IntegerWidth::Short,
+        Some(SizeModifier::Int | SizeModifier::Int32) => IntegerWidth::Int,
+        Some(
+            SizeModifier::Int64
+            | SizeModifier::Long
+            | SizeModifier::LongLong
+            | SizeModifier::IntMax
+            | SizeModifier::Size
+            | SizeModifier::Quad
+            | SizeModifier::PtrDiff
+            | SizeModifier::Big,
+        ) => IntegerWidth::Wide,
+        // Unmodified: Tcl 9 renders through C `int`, 8.x through the wide
+        // path. `NumberSyntax::Tcl90` is this module's existing discriminator
+        // for "Tcl 9 or later" (it already decides the `%#d` -> `0d` prefix);
+        // Jim keeps the pre-9 answer, since no jimsh oracle was available to
+        // establish otherwise.
+        None => match syntax {
+            tcl_dialect::NumberSyntax::Tcl90 => IntegerWidth::Int,
+            _ => IntegerWidth::Wide,
+        },
+    }
+}
+
 impl SizeModifier {
     /// Whether this modifier selects Tcl's bignum formatting path.
     #[must_use]
@@ -93,6 +211,7 @@ impl SizeModifier {
     const fn surface(self) -> &'static [SpecSurface] {
         match self {
             Self::Short | Self::Long => &[],
+            Self::Int | Self::Int32 | Self::Int64 => SpecSurface::TCL90_PLUS,
             Self::LongLong => SpecSurface::TCL85_PLUS,
             Self::IntMax | Self::Size | Self::Quad | Self::PtrDiff | Self::Big => {
                 SpecSurface::TCL90_PLUS
@@ -104,6 +223,7 @@ impl SizeModifier {
     const fn minimum_version(self) -> Option<tcl_dialect::TclVersion> {
         match self {
             Self::Short | Self::Long => None,
+            Self::Int | Self::Int32 | Self::Int64 => Some(tcl_dialect::TclVersion::V9_0),
             Self::LongLong => Some(tcl_dialect::TclVersion::V8_5),
             Self::IntMax | Self::Size | Self::Quad | Self::PtrDiff | Self::Big => {
                 Some(tcl_dialect::TclVersion::V9_0)
@@ -115,6 +235,9 @@ impl SizeModifier {
     const fn feature(self) -> &'static str {
         match self {
             Self::Short => "%h size modifier",
+            Self::Int => "%I size modifier",
+            Self::Int32 => "%I32 size modifier",
+            Self::Int64 => "%I64 size modifier",
             Self::Long => "%l size modifier",
             Self::LongLong => "%ll size modifier",
             Self::IntMax => "%j size modifier",
@@ -146,6 +269,16 @@ pub struct Spec {
     /// conversion draws its value from `args[n-1]` instead of the next
     /// sequential argument (`format {%2$d-%1$d} 10 20` → `20-10`). `None` for
     /// the ordinary sequential form.
+    ///
+    /// **`Some(0)` is reachable**, and deliberately so: `%0$d` is grammatical
+    /// — C Tcl parses the selector and then rejects the *index*, with
+    /// `"%n$" argument index out of range` (tclsh8.6.18 / tclsh9.0.4,
+    /// `format {%0$d} a b`). Refusing it here would instead re-read `0` as a
+    /// zero-pad flag and leave `$` as the verb, reporting `bad field
+    /// specifier` — a different error for the same input. So the 1-based →
+    /// 0-based conversion is the consumer's, and a consumer that subtracts
+    /// must do so checked; `tcl_cmd_core::format` raises C Tcl's own message
+    /// on the underflow.
     pub arg_index: Option<usize>,
     /// The C size modifier, if present. A `ll` / `L` modifier selects Tcl's
     /// bignum path; in particular, its combination with `u` raises before Tcl
@@ -168,6 +301,7 @@ pub fn is_verb(verb: u8) -> bool {
             | b'G'
             | b'i'
             | b'o'
+            | b'p'
             | b's'
             | b'u'
             | b'x'
@@ -187,10 +321,12 @@ pub fn is_available(spec: &Spec, profile: &tcl_dialect::DialectProfile) -> bool 
             || (profile.runtime_base.is_some()
                 && surface_admits(required, Some(&profile.surface_query())))
     };
-    let verb_surface = if spec.verb == b'b' {
-        SpecSurface::TCL86_PLUS
-    } else {
-        &[]
+    let verb_surface = match spec.verb {
+        b'b' => SpecSurface::TCL86_PLUS,
+        // `%p` was added with Tcl 9's extended format conversions; Tcl 8.4
+        // rejects it as a bad field specifier.
+        b'p' => SpecSurface::TCL90_PLUS,
+        _ => &[],
     };
     let size_surface = spec.size.map_or(&[][..], SizeModifier::surface);
     let unsigned_big_surface = if spec.size.is_some_and(SizeModifier::is_big) && spec.verb == b'u' {
@@ -211,9 +347,40 @@ enum Field {
     Size(usize),
 }
 
-/// Parse one conversion's flags / width / `.precision` / verb, starting just
-/// past the `%` and advancing `i` past the verb. Bails on `*` width / precision,
-/// an over-[`MAX_FIELD`] field, or a missing verb.
+/// The parsed portion of a conversion whose verb has not arrived yet.
+/// Runtime format rendering uses this to apply Tcl's ordinary argument
+/// consumption and error precedence before reporting the incomplete field.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PartialSpec {
+    /// Parsed flags.
+    pub flags: FmtFlags,
+    /// Parsed literal width, if any.
+    pub width: Option<usize>,
+    /// Parsed literal precision, if any.
+    pub precision: Option<usize>,
+    /// Width is supplied by an argument.
+    pub width_star: bool,
+    /// Precision is supplied by an argument.
+    pub precision_star: bool,
+    /// Positional argument selector, if present.
+    pub arg_index: Option<usize>,
+    /// Parsed size modifier, if present.
+    pub size: Option<SizeModifier>,
+}
+
+/// A parser condition that a runtime renderer may need to distinguish from a
+/// generic malformed conversion. The size modifier is retained because Tcl 9
+/// reports a truncated `%I` family conversion as incomplete while Tcl 8
+/// reports the modifier itself as unsupported.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParseSpecError {
+    /// The fields ended before a conversion verb was present.
+    MissingVerb(PartialSpec),
+}
+
+/// Parse one conversion's selector / flags / width / `.precision` / size / verb,
+/// starting just past the `%` and advancing `i` past the verb. Bails on an
+/// over-[`MAX_FIELD`] field or a missing verb.
 pub fn parse_spec(fmt: &[u8], i: &mut usize) -> Option<Spec> {
     parse_spec_with_limit(fmt, i, MAX_FIELD)
 }
@@ -221,11 +388,63 @@ pub fn parse_spec(fmt: &[u8], i: &mut usize) -> Option<Spec> {
 /// Parse a conversion with an explicit field-size ceiling. Renderers use the
 /// Tcl value limit; conservative constant-folders retain `MAX_FIELD`.
 pub fn parse_spec_with_limit(fmt: &[u8], i: &mut usize, max_field: usize) -> Option<Spec> {
+    parse_spec_with_limit_diagnostic(fmt, i, max_field)
+        .ok()
+        .flatten()
+}
+
+/// Parse a conversion while retaining the source-aware reason for a missing
+/// verb. Most consumers should use [`parse_spec_with_limit`], which preserves
+/// its historical `Option` API; runtime format rendering uses this form to
+/// distinguish an incomplete Tcl 9 `%I` family conversion from Tcl 8's
+/// unsupported `I` modifier.
+pub fn parse_spec_with_limit_diagnostic(
+    fmt: &[u8],
+    i: &mut usize,
+    max_field: usize,
+) -> Result<Option<Spec>, ParseSpecError> {
+    let partial = parse_partial_spec(fmt, i);
+    let Some(&verb) = fmt.get(*i) else {
+        return Err(ParseSpecError::MissingVerb(partial));
+    };
+    *i += 1;
+    let spec = Spec {
+        flags: partial.flags,
+        width: partial.width,
+        precision: partial.precision,
+        verb,
+        width_star: partial.width_star,
+        precision_star: partial.precision_star,
+        arg_index: partial.arg_index,
+        size: partial.size,
+    };
+    if spec.width.is_some_and(|n| n > max_field) || spec.precision.is_some_and(|n| n > max_field) {
+        Ok(None)
+    } else {
+        Ok(Some(spec))
+    }
+}
+
+fn parse_partial_spec(fmt: &[u8], i: &mut usize) -> PartialSpec {
     // Optional positional selector `n$` (1-based), right after the `%` and
-    // before any flags: `%2$d` draws from the 2nd argument. A digit run *not*
-    // followed by `$` is an ordinary width, so only commit when the `$` is
-    // present (otherwise leave `i` untouched for the width parse below).
+    // before any flags. A digit run not followed by `$` remains a width.
     let arg_index = parse_arg_index(fmt, i);
+    let flags = parse_flags(fmt, i);
+    let (width_star, width) = parse_width(fmt, i);
+    let (precision_star, precision) = parse_precision(fmt, i);
+    let size = parse_size_modifier(fmt, i);
+    PartialSpec {
+        flags,
+        width,
+        precision,
+        width_star,
+        precision_star,
+        arg_index,
+        size,
+    }
+}
+
+fn parse_flags(fmt: &[u8], i: &mut usize) -> FmtFlags {
     let mut flags = FmtFlags::empty();
     loop {
         let bit = match fmt.get(*i) {
@@ -239,7 +458,10 @@ pub fn parse_spec_with_limit(fmt: &[u8], i: &mut usize, max_field: usize) -> Opt
         flags |= bit;
         *i += 1;
     }
-    // `*` width: take it from an argument at render time.
+    flags
+}
+
+fn parse_width(fmt: &[u8], i: &mut usize) -> (bool, Option<usize>) {
     let width_star = fmt.get(*i) == Some(&b'*');
     let width = if width_star {
         *i += 1;
@@ -250,28 +472,30 @@ pub fn parse_spec_with_limit(fmt: &[u8], i: &mut usize, max_field: usize) -> Opt
             Field::Size(n) => Some(n),
         }
     };
-    let mut precision_star = false;
-    let precision = if fmt.get(*i) == Some(&b'.') {
+    (width_star, width)
+}
+
+fn parse_precision(fmt: &[u8], i: &mut usize) -> (bool, Option<usize>) {
+    if fmt.get(*i) != Some(&b'.') {
+        return (false, None);
+    }
+    *i += 1;
+    if fmt.get(*i) == Some(&b'*') {
         *i += 1;
-        if fmt.get(*i) == Some(&b'*') {
-            *i += 1;
-            precision_star = true;
-            None
-        } else {
-            // a `.` with no digits means precision 0
-            Some(match parse_field(fmt, i) {
-                Field::Absent => 0,
-                Field::Size(n) => n,
-            })
-        }
-    } else {
-        None
-    };
-    // C size modifiers: `l`/`ll`, or a single `h`/`j`/`z`/`q`/`t`/`L`. Keep
-    // the exact spelling because the integer coercion width differs. `hh` is
-    // *not* accepted — the second `h` is left to fail as the verb (`format
-    // %hhd` → `bad field specifier "h"`, matching C).
-    let size = match fmt.get(*i) {
+        return (true, None);
+    }
+    // A `.` with no digits means precision 0.
+    let precision = Some(match parse_field(fmt, i) {
+        Field::Absent => 0,
+        Field::Size(n) => n,
+    });
+    (false, precision)
+}
+
+/// Parse C size modifiers, retaining Tcl 9's explicit `I32` and `I64` forms.
+/// `hh` is intentionally not accepted; its second `h` remains the verb.
+fn parse_size_modifier(fmt: &[u8], i: &mut usize) -> Option<SizeModifier> {
+    match fmt.get(*i) {
         Some(b'l') => {
             *i += 1;
             if fmt.get(*i) == Some(&b'l') {
@@ -288,6 +512,18 @@ pub fn parse_spec_with_limit(fmt: &[u8], i: &mut usize, max_field: usize) -> Opt
         Some(b'h') => {
             *i += 1;
             Some(SizeModifier::Short)
+        }
+        Some(b'I') => {
+            if fmt.get(*i + 1) == Some(&b'6') && fmt.get(*i + 2) == Some(&b'4') {
+                *i += 3;
+                Some(SizeModifier::Int64)
+            } else if fmt.get(*i + 1) == Some(&b'3') && fmt.get(*i + 2) == Some(&b'2') {
+                *i += 3;
+                Some(SizeModifier::Int32)
+            } else {
+                *i += 1;
+                Some(SizeModifier::Int)
+            }
         }
         Some(b'j') => {
             *i += 1;
@@ -306,29 +542,16 @@ pub fn parse_spec_with_limit(fmt: &[u8], i: &mut usize, max_field: usize) -> Opt
             Some(SizeModifier::PtrDiff)
         }
         _ => None,
-    };
-    let verb = *fmt.get(*i)?;
-    *i += 1;
-    let spec = Spec {
-        flags,
-        width,
-        precision,
-        verb,
-        width_star,
-        precision_star,
-        arg_index,
-        size,
-    };
-    if spec.width.is_some_and(|n| n > max_field) || spec.precision.is_some_and(|n| n > max_field) {
-        None
-    } else {
-        Some(spec)
     }
 }
 
 /// Parse an optional positional selector `n$` (1-based) at `*i`. Advances `i`
 /// past `n$` and returns `Some(n)` only when a digit run is immediately
 /// followed by `$`; otherwise leaves `i` unchanged (the digits are a width).
+///
+/// The digit run has no lower bound, so `%0$d` yields `Some(0)` — see
+/// [`FormatSpec::arg_index`] for why that is the grammar C Tcl implements and
+/// what the consumer owes.
 fn parse_arg_index(fmt: &[u8], i: &mut usize) -> Option<usize> {
     let mut j = *i;
     let mut n = 0usize;
@@ -386,6 +609,7 @@ pub struct VersionGatedUse {
 /// Modelled (evidence-bounded):
 /// - `%b` (binary) — added in Tcl 8.6 (raises "bad field specifier" on
 ///   8.4/8.5).
+/// - `%p` (pointer-style hexadecimal) — added in Tcl 9.0.
 /// - `ll` — added in Tcl 8.5; `j`/`z`/`q`/`t`/`L` — Tcl 9.0+.
 /// - the `ll`/`L` + `u` combination — unsigned bignum, Tcl 9.0+
 ///   (oracle-verified: tclsh8.6 `format %llu 5` → "unsigned bignum format
@@ -422,6 +646,13 @@ pub fn version_gated_uses(fmt: &str) -> Vec<VersionGatedUse> {
                 min: TclVersion::V8_6,
             });
         }
+        if spec.verb == b'p' {
+            uses.push(VersionGatedUse {
+                offset: start,
+                feature: "%p pointer conversion",
+                min: TclVersion::V9_0,
+            });
+        }
         if let Some(size) = spec.size
             && let Some(min) = size.minimum_version()
         {
@@ -444,9 +675,93 @@ pub fn version_gated_uses(fmt: &str) -> Vec<VersionGatedUse> {
 
 #[cfg(test)]
 mod tests {
+    use super::{IntegerWidth, integer_width};
+    use tcl_dialect::NumberSyntax;
+
+    /// #1782: the width table, and the two readings of the truncated bits.
+    ///
+    /// Values are transcripts from real tclsh (8.4.20 / 8.5.19 / 8.6.18 /
+    /// 9.0.4 / 9.1b0), which agree on every `h` case and split only on the
+    /// unmodified width.
+    #[test]
+    fn integer_width_follows_the_modifier_and_the_release_issue_1782() {
+        // `h` is C `short` on every release — no platform axis needed.
+        for syntax in [
+            NumberSyntax::Tcl84,
+            NumberSyntax::Tcl85,
+            NumberSyntax::Tcl90,
+            NumberSyntax::Jim,
+        ] {
+            assert_eq!(
+                integer_width(Some(SizeModifier::Short), syntax),
+                IntegerWidth::Short,
+                "{syntax:?}"
+            );
+        }
+
+        // Unmodified: `int` from Tcl 9, the wide path before it. Jim keeps
+        // the pre-9 answer, since no jimsh oracle established otherwise.
+        assert_eq!(integer_width(None, NumberSyntax::Tcl84), IntegerWidth::Wide);
+        assert_eq!(integer_width(None, NumberSyntax::Tcl85), IntegerWidth::Wide);
+        assert_eq!(integer_width(None, NumberSyntax::Tcl90), IntegerWidth::Int);
+        assert_eq!(integer_width(None, NumberSyntax::Jim), IntegerWidth::Wide);
+        assert_eq!(
+            integer_width(None, NumberSyntax::Jim080),
+            IntegerWidth::Wide
+        );
+
+        // The Tcl 9 `I` family has fixed widths: `I`/`I32` are C `int`, while
+        // `I64` is Tcl's wide-integer path. Other explicit modifiers answer
+        // `Wide` today — right for `l`/`j`/`q` on LP64, a stated gap for the
+        // bignum and pointer-width families.
+        for size in [SizeModifier::Int, SizeModifier::Int32] {
+            assert_eq!(
+                integer_width(Some(size), NumberSyntax::Tcl90),
+                IntegerWidth::Int,
+                "{size:?}"
+            );
+        }
+        assert_eq!(
+            integer_width(Some(SizeModifier::Int64), NumberSyntax::Tcl90),
+            IntegerWidth::Wide
+        );
+        for size in [
+            SizeModifier::Long,
+            SizeModifier::LongLong,
+            SizeModifier::IntMax,
+            SizeModifier::Size,
+            SizeModifier::Quad,
+            SizeModifier::PtrDiff,
+            SizeModifier::Big,
+        ] {
+            assert_eq!(
+                integer_width(Some(size), NumberSyntax::Tcl90),
+                IntegerWidth::Wide,
+                "{size:?}"
+            );
+        }
+    }
+
+    /// The same low bits, read two ways — this is what `%hd` and `%hu`
+    /// disagreeing about 5000000000 (`-3584` against `61952`) measures.
+    #[test]
+    fn a_widths_bits_read_signed_and_unsigned_issue_1782() {
+        assert_eq!(IntegerWidth::Short.signed(5_000_000_000), -3584);
+        assert_eq!(IntegerWidth::Short.unsigned(5_000_000_000), 61952);
+        assert_eq!(IntegerWidth::Short.signed(32768), -32768);
+        assert_eq!(IntegerWidth::Short.signed(-32769), 32767);
+
+        assert_eq!(IntegerWidth::Int.signed(5_000_000_000), 705_032_704);
+        assert_eq!(IntegerWidth::Int.signed(4_294_967_296), 0);
+        assert_eq!(IntegerWidth::Int.unsigned(-1), 4_294_967_295);
+
+        assert_eq!(IntegerWidth::Wide.signed(5_000_000_000), 5_000_000_000);
+        assert_eq!(IntegerWidth::Wide.unsigned(-1), u64::MAX);
+    }
+
     use super::{
-        SizeModifier, Spec, is_available, is_verb, parse_spec, parse_spec_with_limit,
-        version_gated_uses,
+        ParseSpecError, SizeModifier, Spec, is_available, is_verb, parse_spec,
+        parse_spec_with_limit, parse_spec_with_limit_diagnostic, version_gated_uses,
     };
     use tcl_dialect::DialectProfile;
 
@@ -455,6 +770,30 @@ mod tests {
         assert!(is_verb(b'b'));
         assert!(!is_verb(b'q'));
         assert!(!is_verb(b'a'));
+    }
+
+    /// `%0$d` is grammatical: the selector parses, and it is the *index* C
+    /// Tcl rejects one layer up. Rejecting it here would re-read `0` as a
+    /// zero-pad flag and report `bad field specifier` for a different reason
+    /// (#2076).
+    #[test]
+    fn a_zero_positional_selector_parses_and_is_the_consumers_to_reject() {
+        let mut i = 0;
+        let spec = parse_spec(b"0$d", &mut i).expect("a zero selector is still a complete spec");
+        assert_eq!(spec.arg_index, Some(0));
+        assert_eq!(spec.verb, b'd');
+        assert_eq!(spec.width, None, "the digits are the selector, not a width");
+
+        // The ordinary form is unchanged, and a digit run with no `$` is
+        // still a width.
+        let mut i = 0;
+        assert_eq!(
+            parse_spec(b"2$d", &mut i).expect("positional").arg_index,
+            Some(2)
+        );
+        let mut i = 0;
+        let width_only = parse_spec(b"2d", &mut i).expect("width");
+        assert_eq!((width_only.arg_index, width_only.width), (None, Some(2)));
     }
 
     #[test]
@@ -496,6 +835,9 @@ mod tests {
     fn size_modifier_spelling_is_preserved() {
         for (text, expected) in [
             (b"hd".as_slice(), SizeModifier::Short),
+            (b"Id".as_slice(), SizeModifier::Int),
+            (b"I32d".as_slice(), SizeModifier::Int32),
+            (b"I64d".as_slice(), SizeModifier::Int64),
             (b"ld".as_slice(), SizeModifier::Long),
             (b"lld".as_slice(), SizeModifier::LongLong),
             (b"jd".as_slice(), SizeModifier::IntMax),
@@ -518,6 +860,41 @@ mod tests {
         assert!(SizeModifier::LongLong.is_big());
         assert!(SizeModifier::Big.is_big());
         assert!(!SizeModifier::Short.is_big());
+        assert!(!SizeModifier::Int.is_big());
+        assert!(!SizeModifier::Int32.is_big());
+        assert!(!SizeModifier::Int64.is_big());
+    }
+
+    #[test]
+    fn malformed_i32_suffix_leaves_the_bad_verb_for_the_consumer() {
+        let mut i = 0;
+        let spec = parse_spec(b"I3d", &mut i).expect("I is a complete modifier");
+        assert_eq!(spec.size, Some(SizeModifier::Int));
+        assert_eq!(spec.verb, b'3');
+        assert_eq!(i, 2);
+    }
+
+    #[test]
+    fn truncated_i_family_retains_its_modifier_for_runtime_policy() {
+        for (text, size) in [
+            (b"I".as_slice(), SizeModifier::Int),
+            (b"I32".as_slice(), SizeModifier::Int32),
+            (b"I64".as_slice(), SizeModifier::Int64),
+        ] {
+            let mut i = 0;
+            let Err(ParseSpecError::MissingVerb(partial)) =
+                parse_spec_with_limit_diagnostic(text, &mut i, usize::MAX)
+            else {
+                panic!("{text:?} should retain its incomplete modifier");
+            };
+            assert_eq!(partial.size, Some(size), "{text:?}");
+            assert!(!partial.width_star, "{text:?}");
+            assert!(!partial.precision_star, "{text:?}");
+            assert_eq!(partial.arg_index, None, "{text:?}");
+            assert_eq!(i, text.len(), "{text:?}");
+            let mut i = 0;
+            assert!(parse_spec(text, &mut i).is_none(), "{text:?}");
+        }
     }
 
     fn parsed(text: &[u8]) -> Spec {
@@ -538,6 +915,9 @@ mod tests {
         assert!(!is_available(&parsed(b"lld"), v84));
         assert!(is_available(&parsed(b"lld"), v85));
         for text in [
+            b"Id".as_slice(),
+            b"I32d".as_slice(),
+            b"I64d".as_slice(),
             b"jd".as_slice(),
             b"zd".as_slice(),
             b"qd".as_slice(),
@@ -549,17 +929,24 @@ mod tests {
         }
         assert!(!is_available(&parsed(b"llu"), v86));
         assert!(is_available(&parsed(b"llu"), v90));
+        assert!(!is_available(&parsed(b"p"), v86));
+        assert!(is_available(&parsed(b"p"), v90));
     }
 
     #[test]
     fn size_modifier_diagnostics_report_their_own_lifecycle() {
-        let uses = version_gated_uses("%hd %ld %lld %jd %zd %qd %td %Ld");
+        let uses = version_gated_uses("%hd %ld %b %p %lld %Id %I32d %I64d %jd %zd %qd %td %Ld");
         assert_eq!(
             uses.iter()
                 .map(|use_| (use_.feature, use_.min))
                 .collect::<Vec<_>>(),
             vec![
+                ("%b binary conversion", tcl_dialect::TclVersion::V8_6),
+                ("%p pointer conversion", tcl_dialect::TclVersion::V9_0),
                 ("%ll size modifier", tcl_dialect::TclVersion::V8_5),
+                ("%I size modifier", tcl_dialect::TclVersion::V9_0),
+                ("%I32 size modifier", tcl_dialect::TclVersion::V9_0),
+                ("%I64 size modifier", tcl_dialect::TclVersion::V9_0),
                 ("%j size modifier", tcl_dialect::TclVersion::V9_0),
                 ("%z size modifier", tcl_dialect::TclVersion::V9_0),
                 ("%q size modifier", tcl_dialect::TclVersion::V9_0),

@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Issue #1302, end-to-end: a `namespace import` cannot bind a name the
+//! End-to-end: a `namespace import` cannot bind a name the
 //! **registry** says a fresh interpreter already holds, so a bare call to
 //! such a name is not a reference to the exported proc.
 //!

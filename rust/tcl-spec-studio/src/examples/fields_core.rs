@@ -31,7 +31,7 @@ use super::{Example, focus};
 
 /// One entry per field key this half owns, in catalogue order.
 pub(super) const ENTRIES: &[(&str, Example)] = &[
-    // ---- Identity -------------------------------------------------------
+    // Identity
     (
         "name",
         Example {
@@ -50,7 +50,7 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
             ],
         },
     ),
-    // ---- Availability ---------------------------------------------------
+    // Availability
     (
         "surface",
         Example {
@@ -65,7 +65,7 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
             ],
         },
     ),
-    // ---- Arity and arguments -------------------------------------------
+    // Arity and arguments
     (
         "arity",
         Example {
@@ -159,7 +159,7 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
             ],
         },
     ),
-    // ---- Types ----------------------------------------------------------
+    // Types
     (
         "return_type",
         Example {
@@ -292,7 +292,7 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
             ],
         },
     ),
-    // ---- Subcommands ----------------------------------------------------
+    // Subcommands
     (
         "subcommands",
         Example {
@@ -365,7 +365,7 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
             ],
         },
     ),
-    // ---- Documentation --------------------------------------------------
+    // Documentation
     (
         "hover",
         Example {
@@ -395,7 +395,7 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
             ],
         },
     ),
-    // ---- Arity and arguments (continued) -------------------------------
+    // Arity and arguments (continued)
     (
         "assigns_variable_at",
         Example {
@@ -414,7 +414,7 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
             ],
         },
     ),
-    // ---- Availability (continued) --------------------------------------
+    // Availability (continued)
     (
         "safe_on_uninit",
         Example {
@@ -433,7 +433,7 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
             ],
         },
     ),
-    // ---- Types (continued) ---------------------------------------------
+    // Types (continued)
     (
         "inferred_storage_type",
         Example {
@@ -448,7 +448,7 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
             ],
         },
     ),
-    // ---- Availability (continued) --------------------------------------
+    // Availability (continued)
     (
         "required_package",
         Example {
@@ -481,7 +481,7 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
             ],
         },
     ),
-    // ---- Options and values --------------------------------------------
+    // Options and values
     (
         "closed_value_args",
         Example {
@@ -575,7 +575,7 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
             ],
         },
     ),
-    // ---- Availability (continued) --------------------------------------
+    // Availability (continued)
     (
         "versioned_arg_values",
         Example {
@@ -594,7 +594,7 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
             ],
         },
     ),
-    // ---- Arity and arguments (continued) -------------------------------
+    // Arity and arguments (continued)
     (
         "body_arg_implicit_args",
         Example {
@@ -613,7 +613,7 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
             ],
         },
     ),
-    // ---- Options and values (continued) --------------------------------
+    // Options and values (continued)
     (
         "pattern_type",
         Example {
@@ -653,7 +653,7 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
             ],
         },
     ),
-    // ---- Availability (continued) --------------------------------------
+    // Availability (continued)
     (
         "tcllib_package",
         Example {
@@ -747,7 +747,7 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
             ],
         },
     ),
-    // ---- Subcommands (continued) ---------------------------------------
+    // Subcommands (continued)
     (
         "creates_instance_at",
         Example {
@@ -790,7 +790,7 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
             ],
         },
     ),
-    // ---- Documentation (continued) -------------------------------------
+    // Documentation (continued)
     (
         "detail",
         Example {
@@ -813,7 +813,7 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
             )],
         },
     ),
-    // ---- Options and values (continued) --------------------------------
+    // Options and values (continued)
     (
         "min_abbrev",
         Example {
@@ -847,7 +847,7 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
             ],
         },
     ),
-    // ---- Subcommands (continued) ---------------------------------------
+    // Subcommands (continued)
     (
         "sub_subcommands",
         Example {
@@ -867,7 +867,7 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
             ],
         },
     ),
-    // ---- Options and values (continued) --------------------------------
+    // Options and values (continued)
     (
         "max_leading_option_words",
         Example {

@@ -398,7 +398,7 @@ fn pack_load_notices_are_diagnostics_on_the_pack_file() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
-/// `tclLsp.diagnostics.exclude` (#1556) suppresses pack-load notices too.
+/// `tclLsp.diagnostics.exclude` suppresses pack-load notices too.
 ///
 /// Pack notices publish outside the analyser pipeline's exclusion gate, so
 /// they need their own filter: without it, a `.tclspec` matching an exclude
@@ -940,11 +940,10 @@ speclib extlib 1 {
 }
 ";
 
-/// Issue #1626: the server advertises the extensions its discovered packs
-/// claim, each resolved to an editor language id a client can actually
-/// associate with.
+/// The server advertises the extensions its discovered packs claim, each
+/// resolved to an editor language id a client can actually associate with.
 ///
-/// The server half of lazy registration was already done — pack routing is
+/// The server half of lazy registration already exists — pack routing is
 /// consulted ahead of the static catalogue by `dialect_from_extension` — but
 /// an editor learns associations from a manifest written long before the
 /// user's pack existed, so it has to be *told*. This is that channel.
@@ -1190,14 +1189,12 @@ speclib envprobe 2.0 {
     let _ = std::fs::remove_dir_all(&root);
 }
 
-// ---------------------------------------------------------------------------
 // The pack file as a *document*: what a spec author sees while writing one.
 //
 // Everything above is about a pack's effect on the Tcl around it. These are
 // about the `.tclspec` buffer itself — the Spec Studio's Pack DSL editor is a
 // client of this very server, so whatever the server answers here is what a
 // pack author gets, in the studio and in their own editor alike.
-// ---------------------------------------------------------------------------
 
 /// A pack with one command and enough shape to exercise every document
 /// surface: nested blocks to outline and fold, statement words to hover, and
@@ -1241,7 +1238,7 @@ fn symbol_names(node: &Value, out: &mut Vec<String>) {
 
 /// A pack outlines as its declarations. Its dialect declares a document
 /// grammar, so its *blocks* are its structure — the analyser's proc/namespace
-/// symbolizer has nothing to find in a file that declares rather than runs.
+/// symboliser has nothing to find in a file that declares rather than runs.
 #[test]
 fn a_pack_outlines_as_its_own_declarations() {
     let (root, mut lsp, uri) = open_pack("outline", AUTHORING_PACK);

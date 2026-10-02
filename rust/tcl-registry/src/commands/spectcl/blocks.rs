@@ -244,7 +244,7 @@ fn environment_statement() -> CommandSpec {
         "environment",
         Arity::exact(2),
         "Declare a selectable environment identity.",
-        "`environment NAME { … }` declares the selectable, aliasable identity a `# tcl-dialect:` directive, a settings string, or a detected file extension resolves to (redesign §3.3). Rows: `core FAMILY RELEASE ?-build P?`, `ambient PACKAGE VERSION|tracks-base|keyed KEY`, `hosted PACKAGE REQUIREMENT`, `alias NAME`, `editor_identity ID` (selected from the fixed contributed set, never minted), `file_extension EXT ?-name NAME?`, `filename NAME`, `signature TEXT`, `display_name TEXT`, and `policy open|closed|ambient-plus-require`. Every compiled environment name and alias is reserved: a block claiming one is rejected. Unknown rows are semantic-class vocabulary and reject the whole block; the pack's other content still loads.",
+        "`environment NAME { … }` declares the selectable, aliasable identity a `# tcl-dialect:` directive, a settings string, or a detected file extension resolves to (redesign §3.3). Rows: `core FAMILY RELEASE ?-build P?`, `ambient PACKAGE VERSION|tracks-base|keyed KEY`, `hosted PACKAGE REQUIREMENT`, `alias NAME`, `editor_identity ID` and `selecting_identity ID` (selected from the fixed contributed set, never minted), `file_extension EXT ?-name NAME?`, `filename NAME`, `signature TEXT`, `display_name TEXT`, and `policy open|closed|ambient-plus-require`. Every compiled environment name and alias is reserved: a block claiming one is rejected. Unknown rows are semantic-class vocabulary and reject the whole block; the pack's other content still loads.",
     )
 }
 
@@ -254,7 +254,7 @@ fn dialect_statement() -> CommandSpec {
         "dialect",
         Arity::exact(2),
         "Declare a language family and its grammar axes.",
-        "`dialect NAME { … }` declares a language family: `release R ?-build P?` rows build the ladder, and `axis NAME VALUE` rows set values for axes Rust defines (`expand_syntax`, `braced_var`, `expr_comments`, `numbers`, `escapes`, `irules_brace_separator`, `bom_skip`). The axis vocabulary is CLOSED — a new axis is a Rust change, because the lexer has to implement it — so an unknown axis or an unknown value rejects the whole block and names the axis. A block whose axes reproduce an existing family release is not a dialect at all but a selection of one, and is rejected with the `environment` it should have been (redesign §2).",
+        "`dialect NAME { … }` declares a language family: `release R ?-build P?` rows build the ladder, and `axis NAME VALUE` rows set values for axes Rust defines (`expand_syntax`, `braced_var`, `array_index`, `expr_comments`, `numbers`, `escapes`, `irules_brace_separator`, `brace_line_continuation`, `bom_skip`, `word_separators`, `brace_backslash_newline`, `quote_termination`, `var_syntax`, `list_parse`). The axis vocabulary is CLOSED — a new axis is a Rust change, because the lexer has to implement it — so an unknown axis or an unknown value rejects the whole block and names the axis. A block whose axes reproduce an existing family release is not a dialect at all but a selection of one, and is rejected with the `environment` it should have been (redesign §2).",
     )
 }
 
@@ -378,7 +378,7 @@ pub(super) fn specs() -> Vec<CommandSpec> {
             "case_list",
             &crate::definer::SPECTCL_CASE_LIST_GRAMMAR,
             "Declare the pattern/body list shape of a `switch`-like command.",
-            "A case list is a *value* (`{pattern body …}` inside one word) rather than a word grammar, which is why it is a separate field from `clause_grammar`. `case_list switch` names the shipped descriptor; the block spells out all eighteen plain-data fields.",
+            "A case list is a *value* (`{pattern body …}` inside one word) rather than a word grammar, which is why it is a separate field from `clause_grammar`. `case_list switch` names the shipped descriptor; the block spells out every plain-data field.",
         ),
         // --- iRules event surface ---
         block(

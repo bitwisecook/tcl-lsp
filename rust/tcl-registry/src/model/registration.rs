@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! **Live environment registration** — the P2 seam the centralisation
+//! **Live environment registration** — the seam the centralisation
 //! contract's §1.1 documents: pack- or configuration-declared
 //! environments join the one [`EnvironmentRegistry`] the ingress
 //! ([`crate::model::ingress`]) resolves through, under the redesign's
@@ -283,14 +283,6 @@ pub fn live_environments() -> Arc<EnvironmentRegistry> {
     Arc::clone(&live_cell().lock().expect("live environment registry lock"))
 }
 
-/// Whether `provenance` is one of the untrusted tiers E-R2 gates.
-fn untrusted(provenance: Provenance) -> bool {
-    matches!(
-        provenance,
-        Provenance::WorkspaceUntrusted | Provenance::StudioOverride | Provenance::Document
-    )
-}
-
 /// Apply one extension to `definition`, additively and idempotently:
 /// detection claims already present (and placements for packages the base
 /// already places) are dropped rather than duplicated.
@@ -371,7 +363,7 @@ fn assemble(
     for extension in &contributed {
         let compiled_base = compiled.resolve(&extension.base);
         if let Some(base) = &compiled_base {
-            if untrusted(extension.provenance) {
+            if extension.provenance.is_untrusted() {
                 return Err(EnvironmentRegistrationError::UntrustedExtension {
                     base: base.id.as_str().to_owned(),
                     provenance: extension.provenance,
@@ -693,8 +685,8 @@ mod tests {
     /// Every test that syncs takes this first.
     static SYNCING: Mutex<()> = Mutex::new(());
     use tcl_dialect::model::{
-        CoreProfileSelector, DetectionFacts, EnvironmentId, EnvironmentPolicy, Family, KeyedAxis,
-        Placement, Release, VersionAxisId, VersionSet, WorldPolicy,
+        CoreProfileSelector, DetectionFacts, EnvironmentId, EnvironmentKind, EnvironmentPolicy,
+        Family, KeyedAxis, Placement, Release, VersionAxisId, VersionSet, WorldPolicy,
     };
 
     fn arc(text: &str) -> Arc<str> {
@@ -706,7 +698,10 @@ mod tests {
             id: EnvironmentId::new(id),
             aliases: Vec::new(),
             display_name: arc(id),
+            short_name: arc(id),
+            kind: EnvironmentKind::Packages,
             editor_identity: None,
+            selecting_identities: Vec::new(),
             core: Some(CoreProfileSelector {
                 family: Family::Tcl,
                 default_release: Release::TCL_8_6,
@@ -769,6 +764,83 @@ mod tests {
                 .iter()
                 .any(|claim| claim.extension.as_ref() == "regprobe")
         );
+    }
+
+    /// A registration whose names collide with the live registry's claims
+    /// registers nothing: an alias that spells a package another environment
+    /// places, a shebang word another environment claims, and a language id
+    /// another environment selects.
+    #[test]
+    fn the_live_registry_refuses_the_claims_it_cannot_resolve_one_way() {
+        use tcl_dialect::model::EditorLanguageIdentityId;
+        let claiming = |id: &str, edit: fn(&mut EnvironmentDefinition)| {
+            let mut claimant = definition(id, Provenance::User);
+            edit(&mut claimant);
+            register_environments(vec![claimant], Vec::new())
+        };
+        let alias_package = claiming("alias-package-env", |claimant| {
+            claimant.aliases = vec![arc("sdc")];
+        });
+        assert!(
+            matches!(
+                alias_package,
+                Err(EnvironmentRegistrationError::Collision(
+                    EnvironmentRegistryError::AliasSpellsPackage { ref alias, .. }
+                )) if alias == "sdc"
+            ),
+            "{alias_package:?}"
+        );
+        let shebang = claiming("shebang-word-env", |claimant| {
+            claimant.server_detection.shebang_words = vec![arc("JIMSH")];
+        });
+        assert!(
+            matches!(
+                shebang,
+                Err(EnvironmentRegistrationError::Collision(
+                    EnvironmentRegistryError::DuplicateShebangWord(ref word)
+                )) if word == "JIMSH"
+            ),
+            "{shebang:?}"
+        );
+        let selecting = claiming("selecting-identity-env", |claimant| {
+            claimant.selecting_identities = EditorLanguageIdentityId::new("tcl-bpf")
+                .into_iter()
+                .collect();
+        });
+        assert!(
+            matches!(
+                selecting,
+                Err(EnvironmentRegistrationError::Collision(
+                    EnvironmentRegistryError::DuplicateSelectingIdentity(ref id)
+                )) if id == "tcl-bpf"
+            ),
+            "{selecting:?}"
+        );
+        for id in [
+            "alias-package-env",
+            "shebang-word-env",
+            "selecting-identity-env",
+        ] {
+            assert!(!is_known_environment_name(id), "{id} is not registered");
+        }
+    }
+
+    /// The live selectable set reads the registry as it stands: a registered
+    /// environment appears in it, and the lenient sink never does.
+    #[test]
+    fn a_registered_environment_joins_the_live_selectable_set() {
+        register_environments(
+            vec![definition("selectable-probe-env", Provenance::User)],
+            Vec::new(),
+        )
+        .expect("registration succeeds");
+        let ids: Vec<String> = crate::model::selectable_environments()
+            .iter()
+            .map(|environment| environment.id.to_string())
+            .collect();
+        assert!(ids.iter().any(|id| id == "selectable-probe-env"), "{ids:?}");
+        assert!(ids.iter().any(|id| id == "jim"), "{ids:?}");
+        assert!(ids.iter().all(|id| id != "tcl"), "{ids:?}");
     }
 
     /// D17: a bundled pack restating an environment the compiled seed

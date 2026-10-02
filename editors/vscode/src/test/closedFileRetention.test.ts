@@ -27,12 +27,11 @@ import {
   getServerLogSize,
 } from "./helper";
 
-// #865 — "File Explorer doesn't seem to retain files with issues": a workspace
-// file that was opened and showed problems must keep its Problems / File-Explorer
-// badge after its editor tab is closed. Before the fix the server cleared a
-// closed file's diagnostics (an empty publishDiagnostics), so badges vanished as
-// VS Code cycled background tabs closed. The fix republishes the on-disk file's
-// diagnostics on close, so they survive.
+// A workspace file that was opened and showed problems must keep its
+// Problems / File-Explorer badge after its editor tab is closed: closing a
+// tab must not clear that file's diagnostics (an empty publishDiagnostics)
+// as VS Code cycles background tabs closed. The server republishes the
+// on-disk file's diagnostics on close, so they survive.
 suite("Closed-file diagnostics retention (#865)", () => {
   const docUri = getDocUri("closedFileRetention.tcl");
 

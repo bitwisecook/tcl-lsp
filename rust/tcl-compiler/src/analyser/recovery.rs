@@ -36,10 +36,10 @@
 //!   E100 diagnostic (`syntax_checks::find_first_stray_bracket` /
 //!   `find_bracket_insertion_point`) so this repair only ever fires
 //!   where E100 also fires, at the position E100's own quick-fix
-//!   would insert ``[`` — two independent copies of this heuristic
-//!   previously drifted apart and could repair (and corrupt
-//!   downstream command-invocation recording for) brackets E100
-//!   itself did not flag.
+//!   would insert ``[``.  Sharing one detector is what keeps the repair
+//!   from firing on a bracket E100 does not flag, which would repair — and
+//!   corrupt the downstream command-invocation recording for — source E100
+//!   said nothing about.
 //! - [`looks_like_switch_case`] — peeks at a follow-on command
 //!   to see if it looks like a ``pattern { body }`` pair (used
 //!   by `recover_missing_open_brace`).
@@ -312,13 +312,13 @@ impl Analyser {
         }
 
         // Build a known-command set so ``looks_like_switch_case`` can
-        // reject command-name-headed orphans.  Registry builtins alone
-        // missed calls to procs/classes/aliases the analyser has
-        // already tracked earlier in the same file — a genuine call
-        // like ``renderReport { prose text }`` right after the case
-        // list was silently swallowed as an extra case, corrupting the
-        // switch's argv and running its braced argument text through
-        // command analysis (a phantom "Unknown command" on prose).
+        // reject command-name-headed orphans.  Registry builtins alone would
+        // miss calls to procs/classes/aliases the analyser has already tracked
+        // earlier in the same file, so a genuine call like
+        // ``renderReport { prose text }`` right after the case list would be
+        // swallowed as an extra case, corrupting the switch's argv and running
+        // its braced argument text through command analysis (a phantom
+        // "Unknown command" on prose).
         // Passed by reference for O(1) lookup in the per-command loop.
         let mut builtins_owned = self.builtin_command_names_const();
         builtins_owned.extend(self.user_command_tail_names());
@@ -394,15 +394,14 @@ impl Analyser {
     /// re-segments into two commands). Guessing in the latter case
     /// picks whichever brace happens to be last and offers a fix that
     /// silently nests the following statement(s) inside the unclosed
-    /// body instead of closing it where the user meant — confirmed by
-    /// applying the old fix and finding the "repaired" file parses
-    /// clean but nests a sibling `proc` inside its neighbour. Re-
-    /// segmenting the swallowed text with the real segmenter (which
-    /// already understands command boundaries, unlike a byte scan)
-    /// and requiring exactly one command out is the same signal
-    /// `recover_missing_open_brace` already trusts elsewhere in this
-    /// file, so this only fires on the unambiguous single-construct
-    /// shape and abstains (falling back to the generic E200) otherwise.
+    /// body instead of closing it where the user meant: such a "repaired"
+    /// file parses clean but nests a sibling `proc` inside its neighbour,
+    /// silently changing the program.  Re-segmenting the swallowed text with
+    /// the real segmenter (which already understands command boundaries,
+    /// unlike a byte scan) and requiring exactly one command out is the same
+    /// signal `recover_missing_open_brace` already trusts elsewhere in this
+    /// file, so this only fires on the unambiguous single-construct shape and
+    /// abstains (falling back to the generic E200) otherwise.
     ///
     /// Returns ``true`` when E103 was emitted; the caller skips
     /// E200 in that case.
@@ -833,8 +832,6 @@ mod tests {
         assert!(!looks_like_switch_case(&cmd, &empty_builtins()));
     }
 
-    // missing-open-brace recovery
-
     #[test]
     fn recover_missing_open_brace_emits_e101_and_consumes_orphans() {
         // ``switch $x\nfoo { puts hi }\nbar { puts bye }`` —
@@ -895,12 +892,11 @@ mod tests {
 
     #[test]
     fn recover_missing_open_brace_stops_at_known_user_proc() {
-        // Regression: only registry builtins were excluded from
-        // looking like a switch case, so a genuine call to an
-        // already-declared user proc with a single braced argument
-        // — ``renderReport { prose text }`` — was swallowed as an
-        // extra orphaned case, corrupting the switch's argv and
-        // running the braced prose through command analysis.
+        // Excluding only registry builtins would let a genuine call to an
+        // already-declared user proc with a single braced argument —
+        // ``renderReport { prose text }`` — be swallowed as an extra orphaned
+        // case, corrupting the switch's argv and running the braced prose
+        // through command analysis.
         let source = "switch $x\na { puts hi }\nrenderReport { prose text }";
         let mut a = analyser_with_source(source);
         a.extra_commands = std::sync::Arc::new(["renderReport".to_owned()].into_iter().collect());
@@ -922,8 +918,6 @@ mod tests {
         let consumed = a.recover_missing_open_brace(&mut cmd, &commands, 0);
         assert_eq!(consumed, 0);
     }
-
-    // stolen-close-brace detection
 
     #[test]
     fn detect_stolen_close_brace_emits_e103_for_inner_brace_pattern() {
@@ -993,17 +987,14 @@ mod tests {
 
     #[test]
     fn detect_stolen_close_brace_no_op_when_multiple_top_level_commands_swallowed() {
-        // Regression: a missing ``}`` followed by more than one
-        // subsequent top-level statement (here a sibling ``proc``,
-        // not just the one control-structure that stole the brace)
-        // used to still fire, picking the LAST balanced closer in the
-        // swallowed text — the sibling proc's own closing brace.
-        // Confirmed by hand: applying that fix nested the sibling
-        // proc inside the unclosed one instead of closing it where
-        // the missing brace actually belongs, which parses clean but
-        // silently changes the program. Re-segmenting the swallowed
-        // text now shows two commands here, so this abstains in
-        // favour of the generic (fix-less but not misleading) E200.
+        // A missing ``}`` followed by more than one subsequent top-level
+        // statement (here a sibling ``proc``, not just the one control
+        // structure that stole the brace) must not fire: picking the last
+        // balanced closer in the swallowed text would nest the sibling proc
+        // inside the unclosed one instead of closing it where the missing
+        // brace belongs, which parses clean but silently changes the program.
+        // Re-segmenting the swallowed text shows two commands here, so this
+        // abstains in favour of the generic (fix-less but not misleading) E200.
         let source = "{\n    if {1} {\n        puts hi\n    }\nproc bar {} {\n    return 1\n}\n";
         let mut a = analyser_with_source(source);
         let commands: Vec<SegmentedCommand> = segment_commands_with_offset(source, 0);

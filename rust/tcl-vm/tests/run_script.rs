@@ -238,8 +238,7 @@ fn list_operand_error_wording() {
     // operand *quoted*: a bare `abc` never reaches the operand check in C either
     // (`ParseExpr` rejects it as `invalid bareword` first — `tclCompExpr.c:766`),
     // whereas a quoted string is a legal operand whose coercion is what fails
-    // (expr-old-5.13/5.14). This used to be routed through `mathop` to dodge the
-    // VM's old `exprStk` fallback, which handed a bare `abc + 1` back as text.
+    // (expr-old-5.13/5.14).
     let (ok, result, _) = run("catch {expr {\"abc\" + 1}} m\nset m");
     assert!(ok, "script should complete: {result}");
     assert_eq!(
@@ -326,8 +325,8 @@ fn namespace_path_resolves_commands() {
 
 /// A loop whose body redefines `break`/`continue` runs through the runtime
 /// builtin (which dispatches them) instead of the inline JUMP fast-path, so the
-/// redefinition is honoured rather than looping forever. Regression for
-/// proc-7.3 (Bug 729692) — this previously hung.
+/// redefinition is honoured; the inline fast-path would ignore the
+/// redefinition and loop forever. Matches tclsh's proc-7.3 (Bug 729692).
 #[test]
 fn loop_body_redefining_continue_is_honoured() {
     let (ok, result, _) = run(concat!(
@@ -456,7 +455,7 @@ fn concat_keeps_backslash_escaped_trailing_space() {
 
 /// `TclParseBackslash` recognises only raw `\<LF>` as a continuation. A source
 /// channel may normalise CRLF first, but bytes passed directly to the compiler
-/// and VM retain raw CR/CRLF exactly like `Tcl_EvalObjEx` (issue #1579).
+/// and VM retain raw CR/CRLF exactly like `Tcl_EvalObjEx`.
 #[test]
 fn raw_backslash_cr_is_data_not_a_line_continuation() {
     for (source, expected) in [
@@ -600,7 +599,7 @@ fn lpop_removes_and_returns_element() {
 /// uncompiled command: as the last index `end+N` clamps to the end (keeps
 /// everything), as the first index it is past the end (empty). Regression for
 /// lrange.test's lrange-5 "shared compiled" battery, where `end+N` encodes as
-/// `INDEX_END + N` (above the old `<= INDEX_END` detection) and was misread as a
+/// `INDEX_END + N` (above a `<= INDEX_END` detection) and would be misread as a
 /// huge plain index.
 #[test]
 fn compiled_lrange_handles_end_plus_n() {
@@ -667,7 +666,7 @@ fn nested_array_read_in_key_template_substitutes() {
 
 /// A `\<newline>` line continuation inside an inline command substitution
 /// assigned with `set` is a word separator: the inner command keeps all its
-/// arguments. Regression for the inline-cmd-subst tokenizer dropping an arg
+/// arguments. Regression for the inline-cmd-subst tokeniser dropping an arg
 /// across a continuation (spurious `wrong # args`), which crashed tcltest's
 /// `SubstArguments` and every test file using the `{-body … -result …}` dict
 /// form (info / lrepeat / lseq).
@@ -722,10 +721,9 @@ fn extra_chars_after_close_quote_is_catchable() {
 }
 
 /// `subst` decodes one backslash escape at a time and handles the multi-byte
-/// forms: a `\` before a multi-byte UTF-8 character (previously a fixed
-/// two-byte slice split the char boundary and panicked), `\xHH` hex, and the
-/// `\<newline><whitespace>` line continuation. Regression for the subst.rs
-/// panic that aborted subst.test.
+/// forms: a `\` before a multi-byte UTF-8 character (a fixed two-byte slice
+/// would split the char boundary and panic), `\xHH` hex, and the
+/// `\<newline><whitespace>` line continuation.
 #[test]
 fn subst_backslash_escapes_handle_multibyte_and_hex() {
     assert_eq!(run("subst {\\é}").1, "é");
@@ -742,8 +740,8 @@ fn subst_backslash_escapes_handle_multibyte_and_hex() {
 /// `info level` runs through the shared Family-B core
 /// (`tcl_cmd_core::info::level`, over the `Introspect` role trait): the current
 /// depth with no argument, and the correct coercion error for a non-integer
-/// argument (the VM previously diverged from the runtime / real Tcl with a
-/// "bad level" message — routing through the shared core unifies the behaviour).
+/// argument: a local "bad level" message here would diverge from the runtime
+/// and from real Tcl.
 #[test]
 fn info_level_shared_core() {
     assert_eq!(run("info level").1, "0"); // global scope: depth 0
@@ -752,9 +750,9 @@ fn info_level_shared_core() {
     assert_eq!(result, "expected integer but got \"foo\"");
 }
 
-/// `info exists` runs through the shared core (`VarStore::exists`). Routing it
-/// surfaced and fixed a VM bug: the current-frame existence check was scalar-only
-/// (`var_exists`), so arrays like `::env` / `a` reported as not existing.
+/// `info exists` runs through the shared core (`VarStore::exists`). A
+/// current-frame existence check that is scalar-only
+/// (`var_exists`) would report arrays like `::env` / `a` as not existing.
 #[test]
 fn info_exists_shared_core() {
     assert_eq!(run("info exists nope").1, "0");
@@ -766,25 +764,25 @@ fn info_exists_shared_core() {
 }
 
 /// `namespace tail`/`qualifiers` run through the shared pure core
-/// (`tcl_cmd_core::namespace`). Routing fixed the VM's `::`-run handling: a run
-/// of 3+ colons is one separator (C semantics), where the VM's old `rsplit("::")`
-/// yielded a stray `:`.
+/// (`tcl_cmd_core::namespace`). A run
+/// of 3+ colons is one separator (C semantics); `rsplit("::")` alone
+/// would yield a stray `:`.
 #[test]
 fn namespace_tail_qualifiers_colon_runs() {
     assert_eq!(run("namespace tail ::a::b::c").1, "c");
     assert_eq!(run("namespace qualifiers ::a::b::c").1, "::a::b");
-    assert_eq!(run("namespace tail foo:::").1, ""); // was ":" before the fix
+    assert_eq!(run("namespace tail foo:::").1, ""); // not a stray `:`
     assert_eq!(run("namespace qualifiers foo:::").1, "foo");
 }
 
 /// `info complete` runs through the shared core (`tcl_cmd_core::info::complete`,
-/// C's `Tcl_CommandComplete`). Routing fixed the VM, whose old counter tracked
-/// brackets even inside `{braces}` (where `[` is literal): `{[}` is complete.
+/// C's `Tcl_CommandComplete`). A counter that tracks
+/// brackets even inside `{braces}` (where `[` is literal) would call `{[}` incomplete.
 #[test]
 fn info_complete_shared_core() {
     assert_eq!(run("info complete {set x 1}").1, "1");
     assert_eq!(run("info complete {set x [}").1, "0"); // unclosed bracket
-    assert_eq!(run("info complete {{[}}").1, "1"); // `{[}` — was "0" before the fix
+    assert_eq!(run("info complete {{[}}").1, "1"); // `{[}` — brackets inside braces are literal
 }
 
 /// `namespace current`/`which` route through the shared `Namespaces` cores
@@ -798,8 +796,8 @@ fn namespace_current_which_shared_core() {
 }
 
 /// `file dirname`/`tail`/`extension`/`rootname` run through the shared
-/// `/`-based byte path core (platform-independent), replacing the VM's old
-/// `std::path::Path` versions.
+/// `/`-based byte path core (platform-independent), not `std::path::Path`,
+/// which is not platform-independent.
 #[test]
 fn file_path_ops_shared_core() {
     assert_eq!(run("file tail /a/b/c").1, "c");
@@ -843,8 +841,8 @@ fn incr_and_var_substitution() {
 /// array elements (the name carries `base(key)`; the VM parses it), and the
 /// canonical coercion errors. Crucially, an overflowing `incr` now **promotes**
 /// through the integer tower (`i128`, then an arbitrary-precision bignum),
-/// matching tclsh, rather than silently wrapping as the old hand-rolled
-/// `wrapping_add` did.
+/// matching tclsh, rather than silently wrapping as a hand-rolled
+/// `wrapping_add` would.
 #[test]
 fn incr_shared_core() {
     // Unset variable starts at 0 (no prior `set`).
@@ -874,8 +872,8 @@ fn incr_shared_core() {
 /// `append`/`lappend` routed through the shared cores
 /// (`tcl_cmd_core::var::{append_bytes, lappend_value}`). Pins the user-visible
 /// behaviour against tclsh: concatenation/list building, the no-values read
-/// form, and — the fix — `append`/`lappend` of an unset variable with no values
-/// errors (`can't read`) rather than the VM's old silent empty-variable create.
+/// form, and `append`/`lappend` of an unset variable with no values
+/// errors (`can't read`) rather than silently creating an empty variable.
 #[test]
 fn append_lappend_shared_core() {
     assert_eq!(run("set x ab\nappend x cd ef").1, "abcdef");
@@ -1174,8 +1172,8 @@ fn dict_core_helpers() {
         run("puts [dict merge {a 1 b 2} {b 3 c 4}]").2,
         "a 1 b 3 c 4\n"
     );
-    // canonicalisation (last value wins) — the VM's old non-deduping path was
-    // wrong here; the shared core corrects it.
+    // canonicalisation (last value wins) — a non-deduping path would be
+    // wrong here; the shared core handles it correctly.
     assert_eq!(run("puts [dict get [dict create x 1 x 2] x]").2, "2\n");
 }
 
@@ -2028,8 +2026,8 @@ fn interp_eval_current() {
 /// Regression tests for inline `set x [cmd]` command-substitution edge cases.
 #[test]
 fn inline_cmd_subst_review_fixes() {
-    // `string is` generic fallback must keep the `is` subcommand (it used to be
-    // dropped, yielding `string list …`).
+    // `string is` generic fallback must keep the `is` subcommand — dropping it
+    // would yield `string list …`.
     assert_eq!(run("set x [string is list {a b c}]; puts $x").2, "1\n");
     assert_eq!(run("set x [string is wideinteger 99]; puts $x").2, "1\n");
     // `-strict` char-class: STR_CLASS can't honour it (empty is a member), so it
@@ -2075,7 +2073,7 @@ fn inline_cmd_subst_review_fixes() {
     );
 }
 
-// -- the pre-compiled proc-body cache -------------------------------------
+// The pre-compiled proc-body cache.
 
 /// Compiler wrapper that replaces one exact compiler-authored procedure body
 /// while preserving the compiler's profile, namespace, source provenance, and
@@ -2243,7 +2241,7 @@ fn the_proc_command_that_runs_is_the_one_whose_body_is_installed() {
     );
 }
 
-// -- the inline emitters a proc-shaped body reaches ------------------------
+// The inline emitters a proc-shaped body reaches.
 //
 // These paths are gated on `is_proc`, so until a proc body actually ran with
 // the procedure codegen none of them executed through the `proc` command. Every
@@ -2318,7 +2316,7 @@ fn an_inlined_catch_body_substitutes_its_command_name() {
 /// invoked the whole script value as a command name. A trailing separator
 /// (`{error boom;}`) and a leading comment (`{# note\nerror boom}`) each still
 /// segment to one command, but the splitter reads `boom;` as an argument and
-/// `#` as a command name. All three now take the dispatched `catch`.
+/// `#` as a command name. All three take the dispatched `catch`.
 #[test]
 fn the_inline_catch_needs_a_braced_body_that_is_only_one_command() {
     // A dynamic body, single- and multi-command alike.

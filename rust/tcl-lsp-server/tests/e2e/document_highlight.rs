@@ -41,7 +41,7 @@ fn kind_or_text(h: &Value) -> i64 {
     h.get("kind").and_then(Value::as_i64).unwrap_or(TEXT)
 }
 
-// -- TestDocumentHighlightProc -------------------------------------------
+// Proc definitions and calls.
 
 #[test]
 fn test_highlights_proc_definition_and_calls() {
@@ -99,7 +99,7 @@ fn test_no_duplicate_ranges() {
     assert_eq!(keys.len(), unique.len(), "{keys:?}");
 }
 
-// -- TestDocumentHighlightVariable ---------------------------------------
+// Variable reads and writes.
 
 #[test]
 fn test_highlights_variable_uses() {

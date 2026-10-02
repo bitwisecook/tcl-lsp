@@ -18,8 +18,7 @@
 
 /*
  * Rust → WASM Web Worker — loads the `tcl-explorer-wasm` module and runs
- * the compiler pipeline in response to {source, dialect} messages. No
- * Pyodide, no Python at runtime.
+ * the compiler pipeline in response to {source, dialect} messages.
  *
  * The module is built by `make explorer-wasm` (wasm-pack --target
  * no-modules), which emits `tcl_explorer_wasm.js` (defining the global
@@ -28,7 +27,7 @@
  * `index.html`'s `new Worker('worker.js')` and `explorer-core.js` are
  * unchanged.
  *
- * Protocol (unchanged from the Pyodide worker, plus `ready.meta`):
+ * Protocol, including `ready.meta`:
  *   main → worker:  { type: "compile", source: string, dialect: string,
  *                     optimisations?: string }
  *   worker → main:  { type: "result", data: <serialised JSON> }

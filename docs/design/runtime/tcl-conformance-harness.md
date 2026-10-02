@@ -45,8 +45,10 @@ silently changing the comparison baseline.
 
 `cargo xtask tcltest-sweep` has two distinct modes:
 
-- no `--stem`: run the complete capability ladder against the pinned Tcl 9.0
-  patchlevel and write or check the baseline and scoreboard;
+- no `--stem`: enumerate every upstream `.test` file in the pinned Tcl 9.0
+  source tree, run classified files in capability-ladder order, then run
+  unclassified files and show them explicitly in the scoreboard; write or
+  check the baseline and scoreboard;
 - one or more `--stem` values: run only those files and print results without
   touching generated artifacts. `--match` narrows Tcltest IDs further and is
   valid only with a focused run.

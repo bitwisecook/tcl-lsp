@@ -130,10 +130,9 @@ use tcl_dialect::EscapeSyntax;
 
 /// Format a string as a canonical Tcl list element (`Tcl_ConvertElement`).
 ///
-/// Delegates to the shared [`tcl_syntax::list::list_element`] (now also used by
-/// the runtime and the registry const-folder) — the single Tcl-faithful
-/// quoter, correct on the leading-`#` and control-char cases this local copy
-/// previously mis-quoted.
+/// Delegates to the shared [`tcl_syntax::list::list_element`], also used by
+/// the runtime and the registry const-folder — the single Tcl-faithful
+/// quoter, correct on the leading-`#` and control-char cases.
 #[must_use]
 pub fn tcl_list_element(s: &str) -> String {
     tcl_syntax::list::list_element(s)
@@ -144,8 +143,7 @@ pub fn tcl_list_element(s: &str) -> String {
 /// There is deliberately **no** variant for the retired `$={name}`
 /// braced-scalar marker: nothing in this workspace ever emitted that spelling,
 /// so every word that reached its decoder came from the user's own source,
-/// where `$={y}` is plain literal text in every supported release (issue
-/// #1617).
+/// where `$={y}` is plain literal text in every supported release.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SubstPart {
     /// Literal text.
@@ -239,10 +237,10 @@ fn scan_dollar(
     }
     if bytes[i] == b'{' {
         // Braced variable: ${name}, closed by the target release's
-        // `Tcl_ParseVarName` rule. This used to be `find('}')` — the 8.x
-        // first-close rule applied at every release, disagreeing with
+        // `Tcl_ParseVarName` rule. A plain `find('}')` would apply the 8.x
+        // first-close rule at every release, disagreeing with
         // `values::parse_simple_var_ref`'s 9.x nesting rule on the very same
-        // encoding (issue #1568).
+        // encoding.
         return match tcl_lexer::braced_var_name_end(bytes, i + 1, braced_var) {
             tcl_lexer::BracedVarEnd::Closed(end) => {
                 DollarScan::Subst(SubstPart::Var(template[i + 1..end].to_owned()), end + 1)
@@ -297,9 +295,9 @@ fn scan_dollar(
 /// `braced_var` is the same release's `${…}` close rule, resolved through the
 /// shared owner [`tcl_lexer::braced_var_name_end`]. It is a second grammar
 /// fact about the same target and travels beside `escapes` for the same
-/// reason: this decoder hard-coded the 8.x first-`}` rule at every release
-/// while `values::parse_simple_var_ref` hard-coded the 9.x nesting rule, so
-/// the compiled-word path was wrong in both directions at once (issue #1568).
+/// reason: hard-coding the 8.x first-`}` rule here while
+/// `values::parse_simple_var_ref` hard-codes the 9.x nesting rule leaves the
+/// compiled-word path wrong in both directions at once.
 #[must_use]
 pub fn parse_subst_template(
     template: &str,
@@ -348,10 +346,10 @@ pub fn parse_subst_template(
         if ch == b'$' {
             // A `$` that starts no substitution is *data*, not a reason to give
             // up on the whole word: C rewrites the token as the literal `$` and
-            // keeps parsing (`justADollarSign`). Bailing here left every word
-            // that mixes a literal `$` with a real substitution un-decomposed —
-            // `[list $={y}$x]` pushed its argument raw, so the `$x` was never
-            // substituted (both oracles: `{$={y}X}`; #1668 review).
+            // keeps parsing (`justADollarSign`). Bailing here would leave every
+            // word that mixes a literal `$` with a real substitution
+            // un-decomposed — `[list $={y}$x]` would push its argument raw and
+            // never substitute the `$x` (both oracles: `{$={y}X}`).
             match scan_dollar(template, bytes, n, i, braced_var) {
                 DollarScan::Subst(part, next) => {
                     flush_subst_lit(&mut parts, template, lit_start, i, escapes);
@@ -430,8 +428,8 @@ pub fn fold_cmd_args(
 ) -> Option<String> {
     // `Tcl_Merge`, not a per-element `Tcl_ConvertElement` loop: a leading `#`
     // is comment-unsafe only in list position 0, so mapping the single-element
-    // quoter over every argument rendered `[list a #]` as `a {#}` where both
-    // tclsh oracles print `a #` (issues #1439 / #1608).
+    // quoter over every argument renders `[list a #]` as `a {#}` where both
+    // tclsh oracles print `a #`.
     Some(tcl_syntax::list::join_list(fold_cmd_arg_values(
         value, prefix, rules,
     )?))
@@ -441,8 +439,8 @@ pub fn fold_cmd_args(
 /// rather than the rendered list.
 ///
 /// Split out because `dict create` cannot simply join its arguments: it has to
-/// collapse duplicate keys first (issue #1427), which is a decision about
-/// values, not about rendered list elements.
+/// collapse duplicate keys first, which is a decision about values, not about
+/// rendered list elements.
 #[must_use]
 fn fold_cmd_arg_values(
     value: &str,
@@ -473,9 +471,10 @@ fn fold_cmd_arg_values(
     // "Braced" means *the word is a braced word*, which is why the quote state
     // has to be tracked alongside the depth: inside a `"…"` word a brace is
     // ordinary content, not a group, and it suppresses nothing. Counting it as
-    // a group made `"{$x}"` look protected, so `[list "{$x}"]` folded and froze
-    // the source spelling — `{{$x}}` where both oracles say `{{7}}` — and
-    // `[dict create k "{[…]}"]` froze an unrun command substitution.
+    // a group would make `"{$x}"` look protected, so `[list "{$x}"]` would
+    // fold and freeze the source spelling — `{{$x}}` where both oracles say
+    // `{{7}}` — and `[dict create k "{[…]}"]` would freeze an unrun command
+    // substitution.
     //
     // Deliberately still blind to backslashes: an escaped `\$` in a bare word
     // is a constant this declines to fold, which costs a fold and answers
@@ -491,7 +490,7 @@ fn fold_cmd_arg_values(
             // word is equally content, so it opens no quoted region — miss that
             // and the `}` that closes the brace is skipped as "inside a quote",
             // depth never returns to 0, and everything after `[list {"} $x]`
-            // looks protected: it folded to `{"} {$x}` where both oracles say
+            // looks protected, folding to `{"} {$x}` where both oracles say
             // `{"} 7`.
             b'"' if depth == 0 => in_quotes = !in_quotes,
             b'{' if !in_quotes => depth += 1,
@@ -554,18 +553,17 @@ pub fn fold_list_cmd(value: &str, rules: tcl_syntax::word_rules::WordValueRules)
 /// The walk is the shared owner's,
 /// [`tcl_syntax::value::canonical_dict_slots`] — the same function behind the
 /// runtime seam `ValueOps::dict_pairs` and the registry's `dict` const-folds.
-/// This site used to carry its own (`Vec::iter_mut().find`, O(N²)) copy; three
-/// correct copies and one place the rule had been missed is what issue #1608
-/// was filed about, and the cross-crate `dict_canonicalisation_parity` gate now
-/// fails if a copy reappears and diverges. Only the *rendering* is local: a
+/// A local copy here (`Vec::iter_mut().find`, O(N²)) is exactly what the
+/// cross-crate `dict_canonicalisation_parity` gate forbids: it fails if a copy
+/// reappears and diverges. Only the *rendering* is local: a
 /// folded `dict create` is re-quoted element by element here.
 ///
 /// Joining instead froze `[dict create a 1 a 2]` into the literal `a 1 a 2`,
 /// whose *string representation* is a dict nothing canonicalises — `dict size`
 /// and `dict get` read it correctly (they re-canonicalise on the way in), but
 /// `puts`/`string length` and every other string consumer saw the duplicate.
-/// The bug was invisible whenever a value was non-literal, because that
-/// defeats the fold and the correct runtime path runs (issue #1427).
+/// Such a slip is invisible whenever a value is non-literal, because that
+/// defeats the fold and the correct runtime path runs.
 ///
 /// An odd argument count is `wrong # args`, which only the runtime should
 /// report, so it declines to fold.
@@ -599,7 +597,7 @@ pub fn fold_dict_create_cmd(
 /// Returns `None` if the format cannot be folded.
 ///
 /// `escapes` is the *document's* escape grammar, threaded because the fold
-/// decodes its arguments and that decode is a release axis (#1479): `\x`
+/// decodes its arguments and that decode is a release axis: `\x`
 /// runs unbounded before 8.6, so `[format %s "\x4142"]` is the one byte `B`
 /// on 8.4 and `A42` from 8.6 on. Folding under one grammar for every document
 /// answered `A42` at `--dialect tcl8.4`, where the real 8.4 says `B`.
@@ -686,11 +684,10 @@ fn parse_format_parts(inner: &str, escapes: EscapeSyntax) -> Option<Vec<String>>
                 // Scanned by *slice*, not by pushing one byte at a time
                 // through `char::from`: that maps a byte to the Latin-1 code
                 // point of its value, so every byte of a multi-byte character
-                // became its own mojibake char and `[format %s "café"]` folded
-                // to five characters of `cafÃ©`. The same mistake was fixed in
-                // `parse_subst_template` for issue #1441
-                // (`subst_template_multibyte_literal_text_with_var`) and
-                // survived here, in its neighbour.
+                // becomes its own mojibake char and `[format %s "café"]` folds
+                // to five characters of `cafÃ©`. `parse_subst_template` has the
+                // same hazard — see
+                // `subst_template_multibyte_literal_text_with_var`.
                 i += 1;
                 let start = i;
                 let mut subst = false;
@@ -722,7 +719,7 @@ fn parse_format_parts(inner: &str, escapes: EscapeSyntax) -> Option<Vec<String>>
                 // Decoded under the *document's* escape grammar, which the
                 // caller threads: the release-variant forms (`\x` with three or
                 // more hex digits, `\U`, three-digit octal at or above `\40`)
-                // fold to different values per release (#1479), and this fold
+                // fold to different values per release, and this fold
                 // is one the optimiser shows in the editor.
                 parts.push(tcl_lexer::backslash_subst_in(buf, escapes).into_owned());
             }
@@ -752,10 +749,10 @@ fn parse_format_parts(inner: &str, escapes: EscapeSyntax) -> Option<Vec<String>>
                 // the scan may not break on that space, and `\{\}` is the
                 // two-byte value `{}`, so the escapes are substituted here for
                 // the same reason the quoted arm above substitutes its own. The
-                // scan used to stop at any blank and the word went out as its
-                // *source spelling*, so `set v [format %s \{\}]` measured 4 where
-                // both oracles say 2, `[format %s a\ b]` folded to `a\`, and
-                // `[format %s a\tb]` froze the escape text instead of a tab.
+                // scan must not stop at any blank, or the word goes out as its
+                // *source spelling*: `set v [format %s \{\}]` measures 4 where
+                // both oracles say 2, `[format %s a\ b]` folds to `a\`, and
+                // `[format %s a\tb]` freezes the escape text instead of a tab.
                 let start = i;
                 while i < bytes.len() && !matches!(bytes[i], b' ' | b'\t' | b'\n' | b'\r') {
                     if bytes[i] == b'\\' {
@@ -799,7 +796,7 @@ mod tests {
     fn subst_template_literals_decode_for_the_target_release() {
         // The compile target's escape grammar reaches the template parser, so
         // an 8.5 build freezes `B` where a 9.0 build freezes `A42`, and the
-        // skip width used to find the next `$`/`[` trigger matches (#1479).
+        // skip width used to find the next `$`/`[` trigger matches.
         let lit = |text: &str, escapes| match parse_subst_template(
             text,
             escapes,
@@ -820,7 +817,7 @@ mod tests {
         assert_eq!(lit(r"\400", EscapeSyntax::Tcl90), " 0");
     }
 
-    // -- split_list_simple --
+    // split_list_simple.
 
     #[test]
     fn split_list_simple_basic() {
@@ -859,7 +856,7 @@ mod tests {
         assert_eq!(split_list_simple(r"a\ b c"), vec![r"a\ b", "c"]);
     }
 
-    // -- tcl_string_hash --
+    // tcl_string_hash.
 
     #[test]
     fn tcl_string_hash_empty() {
@@ -878,7 +875,7 @@ mod tests {
         assert_ne!(tcl_string_hash("a"), tcl_string_hash("b"));
     }
 
-    // -- tcl_hash_table_order --
+    // tcl_hash_table_order.
 
     #[test]
     fn hash_table_order_preserves_all() {
@@ -905,7 +902,7 @@ mod tests {
         assert_eq!(ordered.len(), 15);
     }
 
-    // -- tcl_list_element --
+    // tcl_list_element.
 
     #[test]
     fn tcl_list_element_empty() {
@@ -930,7 +927,7 @@ mod tests {
         assert!(!result.starts_with('{'));
     }
 
-    // -- parse_subst_template --
+    // parse_subst_template.
 
     #[test]
     fn subst_template_lit_only() {
@@ -979,7 +976,7 @@ mod tests {
         assert_eq!(template("$"), Some(vec![SubstPart::Lit("$".into())]));
         assert_eq!(template("a$"), Some(vec![SubstPart::Lit("a$".into())]));
         // The whole point: a literal `$` must not cost the *rest* of the word
-        // its substitution (#1668 review).
+        // its substitution.
         assert_eq!(
             template("$x$"),
             Some(vec![SubstPart::Var("x".into()), SubstPart::Lit("$".into()),])
@@ -1044,15 +1041,15 @@ mod tests {
 
     /// `$=` is not a substitution trigger in any release: `=` is not a name
     /// character, so `Tcl_ParseVarName` leaves the `$` literal. This decoder
-    /// used to read `$={name}` as the compiler's "braced scalar" marker — a
-    /// producer-less port artifact that only ever fired on the user's own text
-    /// (issue #1617). Both tclsh oracles print `$={y}` for `puts $={y}`.
+    /// must not read `$={name}` as a "braced scalar" marker: nothing emits
+    /// that spelling, so it only ever fires on the user's own text. Both tclsh
+    /// oracles print `$={y}` for `puts $={y}`.
     #[test]
     fn subst_template_dollar_equals_is_not_a_marker() {
         // No name follows the `$`, so the marker text is literal — and it is
         // *only* the marker text: a real substitution later in the same word
         // still decomposes (`Tcl_ParseVarName`'s `justADollarSign` keeps
-        // parsing; #1668 review).
+        // parsing).
         assert_eq!(
             template("$={a(1)}rest"),
             Some(vec![SubstPart::Lit("$={a(1)}rest".into())])
@@ -1086,12 +1083,12 @@ mod tests {
         assert_eq!(template("${y}"), Some(vec![SubstPart::Var("y".into())]),);
     }
 
-    // -- parse_subst_template: full backslash decoding (issue #1441) --
+    // parse_subst_template: full backslash decoding.
 
     #[test]
     fn subst_template_hex_escape_then_var() {
-        // Regression for issue #1441: `\x41` was emitted as the literal text
-        // `x41` instead of decoding to `A`.
+        // `\x41` must decode to `A`, not be emitted as the literal text
+        // `x41`.
         let parts = template(r"\x41$v").unwrap();
         assert_eq!(
             parts,
@@ -1101,7 +1098,7 @@ mod tests {
 
     #[test]
     fn subst_template_hex_escape_then_array_var() {
-        // The exact issue #1441 reproducer shape: `"\x41$arr(0)"`.
+        // An escape followed by an array reference: `"\x41$arr(0)"`.
         let parts = template(r"\x41$arr(0)").unwrap();
         assert_eq!(
             parts,
@@ -1133,17 +1130,16 @@ mod tests {
 
     #[test]
     fn subst_template_octal_escape() {
-        // Regression for issue #1441: `\101` was emitted as the literal text
-        // `101` instead of decoding to `A`.
+        // `\101` must decode to `A`, not be emitted as the literal text
+        // `101`.
         let parts = template(r"\101").unwrap();
         assert_eq!(parts, vec![SubstPart::Lit("A".into())]);
     }
 
     #[test]
     fn subst_template_unicode_escape() {
-        // Regression for issue #1441: `\uNNNN` fell to the `_ =>
-        // char::from(next_ch)` branch and was emitted as literal `u00e9`
-        // instead of decoding to `é`.
+        // `\uNNNN` must decode to `é`, not fall to a `char::from(next_ch)`
+        // branch and emit the literal `u00e9`.
         let parts = template("\\u00e9").unwrap();
         assert_eq!(parts, vec![SubstPart::Lit("é".into())]);
     }
@@ -1156,9 +1152,8 @@ mod tests {
 
     #[test]
     fn subst_template_multibyte_literal_text_with_var() {
-        // Regression for issue #1441: non-escape bytes were pushed one at a
-        // time via `char::from(byte)`, mangling multi-byte UTF-8 (e.g. `é`)
-        // into separate Latin-1 code points.
+        // Non-escape bytes pushed one at a time via `char::from(byte)` mangle
+        // multi-byte UTF-8 (e.g. `é`) into separate Latin-1 code points.
         let parts = template("café $name").unwrap();
         assert_eq!(
             parts,
@@ -1187,7 +1182,7 @@ mod tests {
         );
     }
 
-    // -- regexp_to_glob --
+    // regexp_to_glob.
 
     #[test]
     fn regexp_to_glob_unanchored() {
@@ -1224,7 +1219,7 @@ mod tests {
         assert_eq!(regexp_to_glob("^abc$"), Some("abc".into()));
     }
 
-    // -- fold_cmd_args / fold_list_cmd / fold_dict_create_cmd --
+    // fold_cmd_args / fold_list_cmd / fold_dict_create_cmd.
 
     /// The two delimiter states gate each other. A brace inside a quoted word
     /// opens no group, and a quote inside a braced word opens no quoted
@@ -1239,8 +1234,8 @@ mod tests {
         assert_eq!(fold_list_cmd(r#"[list "{$x}"]"#, tcl), None);
         assert_eq!(fold_list_cmd(r#"[list "{[cmd]}"]"#, tcl), None);
         // Braced word containing a quote: the brace still closes, so the `$x`
-        // after it is unprotected and the fold declines. Folding it froze the
-        // literal `{$x}` where both oracles substitute.
+        // after it is unprotected and the fold declines. Folding it would
+        // freeze the literal `{$x}` where both oracles substitute.
         assert_eq!(fold_list_cmd(r#"[list {"} $x]"#, tcl), None);
         // A braced word really does protect its own markers.
         assert_eq!(
@@ -1297,7 +1292,7 @@ mod tests {
         );
     }
 
-    // -- try_format_fold --
+    // try_format_fold.
 
     #[test]
     fn format_fold_simple_s() {

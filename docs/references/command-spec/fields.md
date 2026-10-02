@@ -413,7 +413,7 @@ Separates *when* a script runs from `body_kind`, which says only which frame it 
 
 *nested OptionArg field* — User-controlled callback substitutions that must be treated as taint sources.
 
-Lists only callback substitutions whose bytes are externally controlled. For Tk validation, `%P`, `%s`, and `%S` carry editable text; for key bindings, `%A` and `%K` carry the typed character or keysym. Do not declare widget paths, indices, validation actions, or reasons (`%W`, `%i`, `%d`, `%V`) here: those are framework metadata, not taint sources. The callback must be deferred; dynamic script construction remains intentionally unanalyzed. In SpecTcl, write an option's `-callback-taint-inputs {%P %S}` or the positional `callback_taint_inputs {{INDEX {%A %K}}}` table.
+Lists only callback substitutions whose bytes are externally controlled. For Tk validation, `%P`, `%s`, and `%S` carry editable text; for key bindings, `%A` and `%K` carry the typed character or keysym. Do not declare widget paths, indices, validation actions, or reasons (`%W`, `%i`, `%d`, `%V`) here: those are framework metadata, not taint sources. The callback must be deferred; dynamic script construction remains intentionally unanalysed. In SpecTcl, write an option's `-callback-taint-inputs {%P %S}` or the positional `callback_taint_inputs {{INDEX {%A %K}}}` table.
 
 ## Behaviour
 
@@ -613,7 +613,7 @@ How attacker-influenced data flows through the command: whether it is a source (
 
 *command and subcommand* — User-controlled substitutions injected into deferred positional callback arguments.
 
-Lists only callback substitutions whose bytes are externally controlled. For Tk validation, `%P`, `%s`, and `%S` carry editable text; for key bindings, `%A` and `%K` carry the typed character or keysym. Do not declare widget paths, indices, validation actions, or reasons (`%W`, `%i`, `%d`, `%V`) here: those are framework metadata, not taint sources. The callback must be deferred; dynamic script construction remains intentionally unanalyzed. In SpecTcl, write an option's `-callback-taint-inputs {%P %S}` or the positional `callback_taint_inputs {{INDEX {%A %K}}}` table.
+Lists only callback substitutions whose bytes are externally controlled. For Tk validation, `%P`, `%s`, and `%S` carry editable text; for key bindings, `%A` and `%K` carry the typed character or keysym. Do not declare widget paths, indices, validation actions, or reasons (`%W`, `%i`, `%d`, `%V`) here: those are framework metadata, not taint sources. The callback must be deferred; dynamic script construction remains intentionally unanalysed. In SpecTcl, write an option's `-callback-taint-inputs {%P %S}` or the positional `callback_taint_inputs {{INDEX {%A %K}}}` table.
 
 ### `taint_output_sink` — Output-sink code
 
@@ -644,6 +644,12 @@ Argument positions that take a network destination (host, URL). Tainted data rea
 *command only* — The specific slots where a tainted value reaches eval-style evaluation.
 
 Argument positions where a value is evaluated as code. Tainted data reaching one is the classic injection: `eval $userInput`. Declaring the precise slots keeps the finding accurate on commands where only some arguments are executed.
+
+### `taint_numeric_coercion` — Numeric-coercion operands
+
+*command only* — Which argument words a call reads as numbers — a T100 numeric-coercion sink.
+
+Which argument words a call reads as *numbers* — `switch -integer`'s subject. Tainted data reaching one is not executed, but Tcl's numeric reading of it (`0x10` is 16, a non-number raises) can subvert the decision taken on it, the same hazard as a tainted operand of a braced `expr`. The shape names the option that turns coercion on, so other calls of the command stay quiet.
 
 ### `taint_interp_eval_subcommands` — Cross-interpreter eval subcommands
 
@@ -772,6 +778,12 @@ The dynamic sibling of the command-prefix positions: a hook for when *which* wor
 *command and subcommand* — Callback assigning SameInvocation, Deferred, or ReferenceOnly to executable positions from the actual argument list.
 
 The dynamic sibling of per-option `script_timing`: use it when the same executable position runs now in one invocation shape but is stored in another, as with `send -async`. It emits an exact index plus `SameInvocation`, `Deferred`, or `ReferenceOnly`; the index must already be a `Body`, `LambdaLiteral`, or `CommandPrefix`. Silence leaves the option timing or command-level compatibility fallback in force. In SpecTcl the body calls `timing IDX SameInvocation|Deferred|ReferenceOnly`.
+
+### `substitution_resolver` — Substitution resolver
+
+*command only* — Callback reporting which of backslash, command and variable substitution this call runs over its own argument text, for a PERFORMS_SUBSTITUTION command whose switches change the answer. Absent means every kind on every call.
+
+The per-call sibling of the `PERFORMS_SUBSTITUTION` trait: use it when switches decide *which* of backslash, command and variable substitution the call runs over its own argument, as with `subst -novariables`. The trait alone tells a consumer only that some substitution happens, which is not enough to answer "does this argument read a variable?". Silence means every kind on every call, and a call the resolver cannot read must answer every kind — assuming a substitution does not happen is what loses a real read.
 
 ### `command_forms` — Invocation refinements
 
@@ -1058,6 +1070,7 @@ What an argument position *is*. Roles are how the tools know `while`'s second wo
 | `VarRead` | names a variable the command reads |
 | `LoopVarList` | loop variable list (foreach / lmap) |
 | `ParamList` | procedure parameter list |
+| `StaticVarList` | procedure static-variable list (`proc name args statics body`) |
 | `Name` | symbolic name (proc, namespace, class) |
 | `Pattern` | glob or regex pattern |
 | `Option` | option flag word |
@@ -1265,6 +1278,14 @@ Compiler internals: the named per-command translations into the compiler's inter
 | `Apply` | apply |
 | `ArrayFor` | array for |
 
+### Numeric-coercion shapes
+
+Which argument words a call reads as numbers, so a tainted one is a T100 numeric-coercion sink. Each shape names the option that turns the coercion on — `switch -integer` reads its subject as a wide integer, plain `switch` compares text — so only the calls that coerce are flagged.
+
+| Value | Meaning |
+|---|---|
+| `IntegerModeOperands` | with `-integer`, the subject and inline patterns are wide integers (`switch -integer`) |
+
 ### Option arity
 
 How many value words an option consumes: one (`-index i`) or a fixed count. Options that take no value are declared by leaving takes-value off instead.
@@ -1426,6 +1447,8 @@ The registry's behavioural vocabulary — one flag per fact a consumer might nee
 | `DEFINES_PROCEDURE` | defines a procedure |
 | `DESTROYS_VARIABLE` | destroys a variable |
 | `READS_BEFORE_WRITE` | reads its target before writing it |
+| `CONDITIONAL_VARIABLE_WRITE` | writes its target variables only when a runtime match succeeds |
+| `UNCONDITIONAL_VARIABLE_WRITE` | writes every target variable whenever it completes |
 | `CREATES_SCOPE_ALIAS` | creates an upvar-like scope alias |
 | `ALIASES_GLOBAL` | creates an alias to the interpreter global namespace |
 | `CREATES_BARRIER` | creates an analysis barrier |

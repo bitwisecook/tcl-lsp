@@ -44,13 +44,12 @@
 //!
 //! F5's per-service management hardening — `sys sshd` (remote root / shell
 //! restrictions) and `sys httpd` (management GUI TLS/HTTP settings) — is not
-//! yet covered: the generated BIG-IP object model
-//! ([`tcl_bigip::model::gen`]) currently keeps both as untyped
-//! [`tcl_bigip::model::BigipMinimalObject`]s (identity + description only,
-//! no properties preserved), so a rule has no fields to read. Extending
-//! those `@generated … do not edit` files by hand was judged higher-risk
-//! than shipping without the checks; a follow-up should give the two kinds
-//! typed fields, then extend [`RULES`].
+//! covered: the generated BIG-IP object model ([`tcl_bigip::model::gen`])
+//! keeps both as untyped [`tcl_bigip::model::BigipMinimalObject`]s (identity
+//! and description only, no properties preserved), so a rule has no fields
+//! to read. Hand-editing those `@generated … do not edit` files was judged
+//! higher-risk than shipping without the checks; giving the two kinds typed
+//! fields would let [`RULES`] cover them.
 //!
 //! A source that is only a partial `bigip.conf` (no `auth password-policy`
 //! block, no UCS filestore, no `/etc/shadow`) naturally yields
@@ -90,10 +89,9 @@ impl Severity {
     }
 }
 
-/// A finding's disposition — the three-way (plus "confirmed") split the
-/// issue calls for: *confirmed* (acted on), *clear* (checked, not an issue),
-/// *not applicable* (nothing here to check), *could not inspect* (present,
-/// but not in a form this generator can verify).
+/// A finding's disposition: *confirmed* (acted on), *clear* (checked, not
+/// an issue), *not applicable* (nothing here to check), or *could not
+/// inspect* (present, but not in a form this generator can verify).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Status {
     Confirmed,
@@ -154,9 +152,9 @@ struct Ctx<'a> {
 
 /// The subset of `auth user` facts a rule needs, plus the `role` value this
 /// generator recovers itself (the generated model's `partition_access` field
-/// carries only partition names — see the module doc's "not yet inspected"
-/// note on why this one small extra scan lives here instead of in the typed
-/// model).
+/// carries only partition names — see the module doc's "what is not
+/// inspected" note on why this one small extra scan lives here instead of
+/// in the typed model).
 struct AuthUserFacts {
     name: String,
     full_path: String,
@@ -702,9 +700,9 @@ const RULES: &[SecurityRule] = &[
 ///
 /// `actionable` counts findings whose `status` is `confirmed` or
 /// `could_not_inspect` — the ones worth a human's attention; `clear` and
-/// `not_applicable` findings are still returned (for the "we checked, no
-/// forgotten defaults were found" states the issue's acceptance criteria
-/// asks the report to distinguish) but never inflate the review count.
+/// `not_applicable` findings are still returned, so the report can
+/// distinguish "we checked, no forgotten defaults were found" states, but
+/// never inflate the review count.
 #[must_use]
 pub fn collect_security(source: &str, files: &[J]) -> J {
     let ctx = Ctx::build(source, files);
@@ -763,7 +761,7 @@ mod tests {
             .collect()
     }
 
-    // ---- BIGIP-SEC-001: default credentials ----------------------------
+    // BIGIP-SEC-001: default credentials.
 
     #[test]
     fn true_positive_default_admin_password_is_confirmed() {
@@ -807,8 +805,8 @@ mod tests {
     #[test]
     fn false_negative_now_caught_root_default_via_shadow_file() {
         // `root` never appears as an `auth user` stanza — it's an OS account
-        // only visible via the UCS `/etc/shadow`. Before UCS-inventory support
-        // this would be a false negative (silently unchecked); now it's caught.
+        // only visible via the UCS `/etc/shadow`, so the rule must check that
+        // inventory or it silently misses `root`'s credential.
         let files = vec![json!({
             "path": "etc/shadow",
             "content": "root:$6$abcsalt12$xVTHU6Ifw7m21v5IXNpEQM1G/HDajebt/qt8a3FrnxzBmgXWpecsAYQNalE3Oaotb83HDNkXt3gc4TbJMjplv1:19000:0:99999:7:::\n",
@@ -898,7 +896,7 @@ mod tests {
         );
     }
 
-    // ---- BIGIP-SEC-002: SNMP communities --------------------------------
+    // BIGIP-SEC-002: SNMP communities.
 
     #[test]
     fn true_positive_default_snmp_community_rw_is_high() {
@@ -949,7 +947,7 @@ mod tests {
         assert_eq!(statuses(&f), vec!["clear"]);
     }
 
-    // ---- BIGIP-SEC-003: password policy ---------------------------------
+    // BIGIP-SEC-003: password policy.
 
     #[test]
     fn true_positive_password_policy_disabled() {
@@ -987,7 +985,7 @@ mod tests {
         assert_eq!(statuses(&f), vec!["could_not_inspect"]);
     }
 
-    // ---- BIGIP-SEC-004: plaintext secrets --------------------------------
+    // BIGIP-SEC-004: plaintext secrets.
 
     #[test]
     fn true_positive_plaintext_secret_detected() {
@@ -1010,7 +1008,7 @@ mod tests {
         assert_eq!(statuses(&f), vec!["clear"]);
     }
 
-    // ---- BIGIP-SEC-005: exposed private keys -----------------------------
+    // BIGIP-SEC-005: exposed private keys.
 
     #[test]
     fn true_positive_unprotected_private_key() {
@@ -1045,7 +1043,7 @@ mod tests {
         assert_eq!(statuses(&f), vec!["not_applicable"]);
     }
 
-    // ---- BIGIP-SEC-006: shell access --------------------------------------
+    // BIGIP-SEC-006: shell access.
 
     #[test]
     fn true_positive_non_admin_bash_shell_flagged() {
@@ -1074,7 +1072,7 @@ mod tests {
         assert_eq!(statuses(&f), vec!["clear"]);
     }
 
-    // ---- overall model shape ----------------------------------------------
+    // Overall model shape.
 
     #[test]
     fn counts_reflect_severities() {

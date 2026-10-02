@@ -940,24 +940,26 @@ body {
     <select id="dialect">
       <!-- @generated:dialect-options:begin -- cargo xtask gen-editor-dialects -->
       <option value="bpf">BPF</option>
-      <option value="cadence-eda-tcl">Cadence EDA</option>
       <option value="expect">Expect</option>
       <option value="f5-bigip">BIG-IP</option>
       <option value="f5-iapps">iApps</option>
       <option value="f5-irules">iRules</option>
       <option value="f5-tmsh">tmsh</option>
-      <option value="intel-quartus-eda-tcl">Intel Quartus</option>
-      <option value="mentor-eda-tcl">Mentor EDA</option>
-      <option value="microchip-libero-eda-tcl">Microchip Libero</option>
+      <option value="jim">Jim</option>
       <option value="spectcl">SpecTcl</option>
       <option value="sslictcl">SslicTcl</option>
-      <option value="synopsys-eda-tcl">Synopsys EDA</option>
       <option value="tcl8.4">Tcl 8.4</option>
       <option value="tcl8.5">Tcl 8.5</option>
       <option value="tcl8.6" selected>Tcl 8.6</option>
       <option value="tcl9.0">Tcl 9.0</option>
       <option value="tcl9.1">Tcl 9.1</option>
-      <option value="xilinx-eda-tcl">Xilinx EDA</option>
+      <option value="cadence-eda-tcl">Cadence</option>
+      <option value="intel-quartus-eda-tcl">Quartus</option>
+      <option value="mentor-eda-tcl">Questa</option>
+      <option value="microchip-libero-eda-tcl">Libero</option>
+      <option value="synopsys-eda-tcl">Synopsys</option>
+      <option value="tk">Tk</option>
+      <option value="xilinx-eda-tcl">Vivado</option>
       <!-- @generated:dialect-options:end -->
     </select>
     <div class="spinner" id="spinner"></div>
@@ -1220,7 +1222,7 @@ window.addEventListener('message', function(event) {
         }
       } finally {
         // The spinner must stop whatever the renderers did — a stuck
-        // throbber is indistinguishable from a hung compile (issue #1183).
+        // throbber is indistinguishable from a hung compile.
         $('#spinner').style.display = 'none';
         updateStatusLight();
       }
@@ -1330,7 +1332,7 @@ function updateStatusLight() {
 // Every step runs in isolation (runRenderSteps, from explorer-core.js): a
 // renderer that throws reports the failure in its own pane while the other
 // tabs still render, and renderAll itself never throws — so the caller's
-// spinner always settles (issues #1182 / #1183).
+// spinner always settles.
 function renderAll() {
   const genericViews = reconcileExplorerViews();
   return runRenderSteps([

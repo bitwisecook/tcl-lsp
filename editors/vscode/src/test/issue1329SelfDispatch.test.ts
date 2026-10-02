@@ -16,14 +16,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Issue #1329, editor-integration layer: bareword `my <method>` was the only
-// TclOO same-object dispatch spelling that navigated and highlighted
-// correctly but was never diagnosed — `my nosuchmethod` drew nothing.
+// Bareword `my <method>` is a TclOO same-object dispatch spelling that must
+// navigate and highlight correctly and must also be diagnosed —
+// `my nosuchmethod` must draw a diagnostic.
 //
-// Issue #1330, same layer: the range a dispatch diagnostic reports. That one
-// already fired before the fix and only its range was wrong, so every
-// assertion below compares the reported range against the *actual document
-// text* it should cover, not merely against the presence of a code.
+// The range a dispatch diagnostic reports must match the *actual document
+// text* it covers, so every assertion below compares the reported range
+// against that text, not merely against the presence of a code.
 
 import * as assert from "assert";
 import * as vscode from "vscode";

@@ -178,6 +178,24 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
         },
     ),
     (
+        "substitution_resolver",
+        Example {
+            code: "subst {hello $name}\nsubst -novariables {hello $name}",
+            focuses: &[
+                focus(
+                    0,
+                    "$name",
+                    "the resolver reports variables on, so this reads the variable",
+                ),
+                focus(
+                    1,
+                    "$name",
+                    "-novariables turns that kind off, so this is literal text",
+                ),
+            ],
+        },
+    ),
+    (
         "callback_taint_inputs",
         Example {
             code: "entry .password -validatecommand {set proposed %P; eval $proposed}\nbind .password <Key> {set typed %A; eval $typed}",
@@ -859,6 +877,24 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
                     2,
                     "$safe",
                     "the response sink accepts the proven value without a finding",
+                ),
+            ],
+        },
+    ),
+    (
+        "taint_numeric_coercion",
+        Example {
+            code: "set n [gets stdin]\nswitch -integer -- $n {1 {puts one}}\nswitch -- $n {1 {puts one}}",
+            focuses: &[
+                focus(
+                    1,
+                    "-integer",
+                    "the subject is read as a wide integer, so a tainted one raises T100",
+                ),
+                focus(
+                    2,
+                    "--",
+                    "the default mode compares text: nothing is coerced and T100 stays quiet",
                 ),
             ],
         },

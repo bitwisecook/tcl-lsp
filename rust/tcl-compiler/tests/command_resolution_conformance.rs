@@ -32,8 +32,8 @@ use tcl_syntax::naming::conformance::vectors;
 /// executes, minus the runtime plumbing.
 ///
 /// Namespace / definition fields are **constructed keys**: a key may hold a
-/// colon-named segment (issue #934: `":::"` is the proc — or namespace —
-/// named `:`) with no absolute written spelling, so definitions descend the
+/// colon-named segment (`":::"` is the proc — or namespace — named `:`)
+/// with no absolute written spelling, so definitions descend the
 /// holder chain one `namespace eval {tail}` at a time with brace-quoted
 /// relative tails, exactly as `vector_script` does for real tclsh.
 fn vector_source(ns: &str, path: &[String], defs: &[String], call: &str) -> String {

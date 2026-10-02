@@ -235,7 +235,7 @@ impl Lifecycle {
 
     /// Whether the entity is *ever* deprecated, independent of any target
     /// release. Used by version-agnostic surfaces (a plain hover with no
-    /// resolved dialect version) that previously read a boolean flag.
+    /// resolved dialect version).
     #[must_use]
     pub const fn is_deprecated_anywhere(&self) -> bool {
         self.deprecated.is_some() || self.retired.is_some()

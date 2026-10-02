@@ -16,13 +16,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Ensembles (T1.5) — the canonical `ens sub …` → `target …` redirect.
+//! Ensembles — the canonical `ens sub …` → `target …` redirect.
 //!
 //! An ensemble command maps its first argument (a subcommand) to a target
 //! command prefix and forwards the rest — the generalisation of the
-//! `dict for` → `::tcl::dict::for` rewrite (the A3 contract: "ensembles map
-//! `ens sub` → target (default `::ens::sub` or `-map`, unambiguous-prefix unless
-//! `-prefix 0`)"). Modelled on C Tcl 9's `tclEnsemble.c`.
+//! `dict for` → `::tcl::dict::for` rewrite: ensembles map `ens sub` → target
+//! (default `::ens::sub` or `-map`, unambiguous-prefix unless `-prefix 0`).
+//! Modelled on C Tcl 9's `tclEnsemble.c`.
 //!
 //! This module is the **pure** part: the config an ensemble carries and the
 //! subcommand-resolution + error-wording rules. `namespace ensemble create`

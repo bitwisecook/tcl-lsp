@@ -127,6 +127,13 @@ is populated from the active dialect's `LexerGrammar`
   a braced literal `{*}` concatenated with `$x`.  `GRAMMAR_F5_TCL` is also
   the grammar that treats `}{` as a word separator.
 
+Bytecode emission consumes those flags in argv order through one expanded-word
+path. Position zero is not special: an expanded command word is substituted,
+split as a list, and contributes the command plus any leading arguments before
+the ordinary argument tail is emitted. Expanding an empty command-word list is
+a successful empty invocation, while a malformed list preserves the shared
+list owner's structured `TCL VALUE LIST ...` error code.
+
 Arity checks at both the analyser (user-proc call sites) and the IR layer
 (`check_simple_arity` in
 `rust/tcl-compiler/src/analyser/diagnostics/validity.rs`, which takes the

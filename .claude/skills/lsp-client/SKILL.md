@@ -45,7 +45,7 @@ subcommand. All line/col arguments are **0-based**.
 
 `definition`, `references`, `diagnostics`, `code-actions`, `context`, `all`,
 `completion`, and `code-lens` wait for the background workspace scan
-(`--scan-timeout`, default 30 s) before proceeding; otherwise cross-file
+(`--scan-timeout`) before proceeding; otherwise cross-file
 results race the scan. A new cross-file check must call
 `client.wait_for_workspace_scan()` *before* `didOpen`. `--also-open FILE`
 (repeatable) opens companion files after that wait and before `<file>`:
@@ -55,8 +55,10 @@ python3 .claude/skills/lsp-client/lsp_client.py --also-open lib.tcl definition c
 ```
 
 The scan covers the workspace root — the current directory, or `--server-dir`.
-Scanning the whole repository exceeds the default timeout on a debug build, so
-point `--server-dir` at the directory holding the files under test:
+It is the slow part: this repository is ~540 indexed files, which a `--release`
+server scans in ~9 s and a `debug` one in ~65 s, so `--scan-timeout` defaults to
+30 s and 180 s respectively. Point `--server-dir` at the directory holding the
+files under test to scan less and finish sooner:
 
 ```bash
 python3 .claude/skills/lsp-client/lsp_client.py --server-dir editors/vscode/testFixture diagnostics editors/vscode/testFixture/diagnostics.tcl
@@ -70,9 +72,9 @@ a position-dependent feature at a cursor; `all` as a smoke test; `bench` and
 
 ```bash
 python3 .claude/skills/lsp-client/lsp_client.py semantic-tokens samples/for_screenshots/03-completions.tcl
-python3 .claude/skills/lsp-client/lsp_client.py --server-dir editors/vscode/testFixture diagnostics editors/vscode/testFixture/diagnostics.tcl
+python3 .claude/skills/lsp-client/lsp_client.py diagnostics editors/vscode/testFixture/diagnostics.tcl
 python3 .claude/skills/lsp-client/lsp_client.py hover editors/vscode/testFixture/procs.tcl 1 6
-python3 .claude/skills/lsp-client/lsp_client.py --server-dir editors/vscode/testFixture code-lens editors/vscode/testFixture/objMethodDispatch.tcl
+python3 .claude/skills/lsp-client/lsp_client.py code-lens editors/vscode/testFixture/objMethodDispatch.tcl
 python3 .claude/skills/lsp-client/lsp_client.py diagram samples/for_screenshots/ai-scene.irul
 python3 .claude/skills/lsp-client/lsp_client.py event-info HTTP_REQUEST
 python3 .claude/skills/lsp-client/lsp_client.py bench samples/tcl/09_long_code.tcl --iterations 3

@@ -152,9 +152,9 @@ fn well_formed_templates_are_unchanged() {
     );
 }
 
-/// Issue #1646 was in compiler literal emission, not the word decomposer. This
-/// records the fixed behaviour at that owner and keeps the boundary that rules
-/// out a compensating decode in the VM.
+/// A decode hazard here belongs to compiler literal emission, not the word
+/// decomposer. This records the correct behaviour at that owner and keeps
+/// the boundary that rules out a compensating decode in the VM.
 ///
 /// The former divergence was in the compiler's literal emission for a word
 /// nested in a bracket word, not in how the VM splits a word into parts. The

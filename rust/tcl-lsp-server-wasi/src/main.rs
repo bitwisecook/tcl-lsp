@@ -78,7 +78,7 @@ mod wasi_poll;
 
 /// The analysis stack's stack budget — the wasip1 twin of `main.rs`'s
 /// `WORKER_STACK_SIZE` and of `build-wasm.sh`'s `STACK_SIZE`, and load-bearing
-/// for the same reason (issue #996).
+/// for the same reason.
 ///
 /// The analyser's `analyse_body` recursion and the CFG builder's `lower_script`
 /// recursion each cap their nesting depth, but a cap on the *number* of frames

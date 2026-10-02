@@ -30,7 +30,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 
 /// `proc name args body` — the synopsis, arity, and argument grammar are
 /// byte-for-byte identical across the fetched Tcl 8.4, 8.5, 8.6, 9.0, and
-/// 9.1 manpages (8.6, 9.0, and 9.1 — 9.1b0, the live beta — share
+/// 9.1 manpages (8.6, 9.0, and 9.1 — 9.1b0 and 9.1.0 alike — share
 /// byte-identical DESCRIPTION text, differing only in incidental
 /// line-wrapping and the version banner). No option/flag has ever existed
 /// and no second form was ever added, so this is the command's only form,
@@ -68,7 +68,7 @@ pub fn spec() -> CommandSpec {
             // …and the same "stored, not executed" fact the comment below
             // spells out, in the form a consumer can read: `DEFERS_BODY`
             // is what tells a static walk that an unreadable `body` word
-            // costs it nothing about *this* call's completion (issue #1571).
+            // costs it nothing about *this* call's completion.
             | Traits::DEFERS_BODY,
         // Deliberately no `TAINT_SINK` / `DYNAMIC_EVAL_BODY`: `body` is
         // *stored*, not executed, by this call. Unlike `eval` / `uplevel`

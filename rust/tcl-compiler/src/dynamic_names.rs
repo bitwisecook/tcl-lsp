@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Dynamic-name barrier facts — issue #923 audit cluster C10.
+//! Dynamic-name barrier facts.
 //!
 //! Name-level SSA and the def-use chains built on it answer questions of the
 //! form "is `x` defined here?" and "is this store to `x` ever read?".  Both
@@ -53,7 +53,7 @@
 //! eliminate (`O101` / `O109` / `O126`).  Both are the same direction — say
 //! less rather than say something wrong.
 //!
-//! # Caller-frame injection (issue #923 audit cluster C1)
+//! # Caller-frame injection
 //!
 //! A second, independent way to lose the name space is to have somebody
 //! *else* write it.  Tcl's frame-crossing commands make a callee's writes
@@ -222,7 +222,7 @@ pub fn names_a_dynamic_variable(word: &str) -> bool {
 
 /// Whether the variable-name word `word` — one
 /// [`names_a_dynamic_variable`] has already classified dynamic — **can spell**
-/// the fully-qualified cell `qualified_cell` (issue #1093).
+/// the fully-qualified cell `qualified_cell`.
 ///
 /// The per-site provenance question the rename gate needs: "any dynamic
 /// variable word in the document" is a far blunter refusal than the language
@@ -266,12 +266,11 @@ pub fn names_a_dynamic_variable(word: &str) -> bool {
 ///   by the literal `c}` — a narrower pattern, so a cell the word really can
 ///   spell is judged out of reach and the rename proceeds *unsafely*.
 ///
-/// A convenience overload defaulting to [`tcl_dialect::BracedVarStyle::default`]
-/// used to exist here; every production caller
-/// (`tcl_lsp_core::rename_safety`, `tcl_lsp_core::namespace_rename`) already
-/// holds a resolved `DialectProfile`, and one of them silently taking the
-/// default is exactly the defect issue #1604 is about. It was removed so the
-/// style cannot be omitted by accident (PR #1645 review).
+/// There is deliberately no overload defaulting to
+/// [`tcl_dialect::BracedVarStyle::default`]: every production caller
+/// (`tcl_lsp_core::rename_safety`, `tcl_lsp_core::namespace_rename`) holds a
+/// resolved `DialectProfile`, and silently taking the default is the defect
+/// this parameter exists to prevent.
 #[must_use]
 pub fn dynamic_variable_word_can_spell(
     word: &str,
@@ -319,7 +318,7 @@ fn name_word_pattern(word: &str, braced_var: tcl_dialect::BracedVarStyle) -> Vec
             b'$' if i + 1 < bytes.len() && bytes[i + 1] == b'{' => {
                 // The name starts just past the `${`. An unterminated
                 // reference has no closer, so the wildcard runs to the end of
-                // the word — which is what a lenient tokenizer does with it.
+                // the word — which is what a lenient tokeniser does with it.
                 i = match tcl_lexer::braced_var_name_end(bytes, i + 2, braced_var) {
                     tcl_lexer::BracedVarEnd::Closed(end) => end + 1,
                     tcl_lexer::BracedVarEnd::Unterminated => bytes.len(),
@@ -451,8 +450,8 @@ pub fn lexer_config_for(registry: &CommandRegistry) -> LexerConfig {
 /// into three words and a Tcl-configured split into two; under `tcl8.4` a
 /// `{*}` is a literal word rather than an expansion marker.  A boundary
 /// disagreement can drop a dynamic write off the name-role index, leaving the
-/// barrier clear and letting SCCP propagate a constant across it (issue
-/// #1393).  Build it from the same dialect the lowering used —
+/// barrier clear and letting SCCP propagate a constant across it.
+/// Build it from the same dialect the lowering used —
 /// [`lexer_config_for`] does that from a profile-built registry.
 #[must_use]
 pub fn dynamic_name_barrier(
@@ -559,10 +558,9 @@ fn scan_statement(
             scan_text(subject, registry, barrier, 0, config);
         }
         // `Incr` names its target literally: `try_lower_incr` declines the
-        // specialisation for a computed name word (issue #1487's gate,
-        // mirroring `lower_set`'s #1484 one) and falls back to `Call`, which
-        // the arm above already scans. Every remaining statement carries no
-        // word text.
+        // specialisation for a computed name word — as `lower_set` does —
+        // and falls back to `Call`, which the arm above already scans. Every
+        // remaining statement carries no word text.
         _ => {}
     }
 }
@@ -593,11 +591,11 @@ fn scan_text(
     depth: u32,
     config: LexerConfig,
 ) {
-    // Native-stack safety net (issue #996): `[a [b [c …]]]` nests inside one
-    // word. This is a soundness fact, not a best-effort diagnostic: past the
-    // cap the unread suffix may contain any dynamic read, write, or destroy.
-    // Fail closed for every consumer rather than treating a bounded walk as a
-    // proof that no barrier exists (issue #1497).
+    // Native-stack safety net: `[a [b [c …]]]` nests inside one word. This is
+    // a soundness fact, not a best-effort diagnostic: past the cap the unread
+    // suffix may contain any dynamic read, write, or destroy. Fail closed for
+    // every consumer rather than treating a bounded walk as a proof that no
+    // barrier exists.
     if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
         *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
         return;
@@ -775,7 +773,7 @@ fn scan_command(
     // variable (`info locals` / `info vars` / `info globals`, all
     // pattern-only) — observes which variables *exist* in the frame, so
     // every store is observable: deleting a "dead" `set longvariable 1`
-    // changes what `info locals` returns (issue #1193's differential).
+    // changes what `info locals` returns.
     // Subcommands that do take a name argument (`info exists x`) are
     // covered precisely by the `VarRead` role walk above and raise
     // nothing here.  A dynamic subcommand word (`info $sub`) could be any
@@ -803,7 +801,7 @@ fn scan_command(
     // over its argument string. With a literal template the names are in the
     // text and the ordinary scanners see them; with a computed one the names
     // come from run-time data, so every local is reachable —
-    // `[subst $[subst $locVar]]` (issue #923 idx 2) is exactly this shape.
+    // `[subst $[subst $locVar]]` is exactly this shape.
     if spec.traits.contains(Traits::PERFORMS_SUBSTITUTION)
         && arg_strs.iter().enumerate().any(|(i, w)| {
             !w.starts_with('-')
@@ -822,7 +820,7 @@ mod braced_var_close_rule_tests {
     use super::dynamic_variable_word_can_spell as can_spell;
     use tcl_dialect::BracedVarStyle::{FirstClose, Tcl9Nesting};
 
-    /// Issue #1604 — the wildcard extents come from the shared owner, so the
+    /// The wildcard extents come from the shared owner, so the
     /// *literal* characters that bound what a dynamic word can spell move with
     /// the release.
     ///
@@ -860,7 +858,7 @@ mod tests {
 
     /// The barrier for `src` analysed **as** `dialect` — registry, lexer
     /// config, and expression grammar all that dialect's, which is the
-    /// configuration a real host builds (issue #1393).
+    /// configuration a real host builds.
     fn barrier_for_dialect(
         src: &str,
         dialect: &'static tcl_dialect::DialectProfile,
@@ -905,12 +903,12 @@ mod tests {
         assert!(names_a_dynamic_variable("pre$x"));
     }
 
-    // Issue #1093 — per-site provenance: which cells a dynamic name word can
-    // actually spell.  `true` is the abstention (could reach it), `false` is
-    // the proof it cannot.
+    // Per-site provenance: which cells a dynamic name word can actually
+    // spell.  `true` is the abstention (could reach it), `false` is the proof
+    // it cannot.
 
     /// TP (must stay refused): a bare substitution is a lone wildcard, so it
-    /// reaches every spelling of every cell.  The issue's own oracle shape.
+    /// reaches every spelling of every cell.
     #[test]
     fn a_bare_substitution_can_spell_any_cell() {
         for word in ["$n", "${n}", "[pick]"] {
@@ -1050,7 +1048,7 @@ mod tests {
         assert!(b.reads);
     }
 
-    // PR #1076 review, P2 — a brace-quoted name is a *literal* name.
+    // A brace-quoted name is a *literal* name.
     //
     // tclsh 9.0.4 / 8.6.14 (identical):
     //   set {$n} v; info exists {$n} → 1 ; info exists n → 0
@@ -1086,7 +1084,7 @@ computed; got {b:?}"
         assert!(b.writes, "`set $n 1` is still a dynamic write; got {b:?}");
     }
 
-    // PR #1076 review, P2 — a computed command head is an unknown command.
+    // A computed command head is an unknown command.
 
     #[test]
     fn substituted_command_head_raises_no_flag() {
@@ -1109,14 +1107,13 @@ computed; got {b:?}"
         assert!(b.writes, "got {b:?}");
     }
 
-    // Issue #1393 — the barrier is computed under the *document's* dialect.
+    // The barrier is computed under the *document's* dialect.
     //
-    // It used to come from a hand-rolled tokenisation pinned to
-    // `LexerConfig::default()`, so under a non-default dialect the word
-    // boundaries it saw were not the ones the IR was built from.  The barrier
-    // is an optimisation-soundness fact — SCCP and, since #1374, every
-    // value-motion pass abstain on it — so a boundary disagreement that hides
-    // a dynamic write lets a constant propagate across one.
+    // A tokenisation pinned to `LexerConfig::default()` would see word
+    // boundaries the IR was not built from under a non-default dialect.  The
+    // barrier is an optimisation-soundness fact — SCCP and every value-motion
+    // pass abstain on it — so a boundary disagreement that hides a dynamic
+    // write lets a constant propagate across one.
 
     /// The two shapes the dialects disagree about, as facts about the
     /// splitter now shared with the lowering.
@@ -1208,8 +1205,8 @@ computed; got {b:?}"
             vec![false, false, true],
         );
 
-        // A compound word substitutes as a whole and is no longer a brace
-        // literal, whichever fragment carries the `$`.
+        // A compound word substitutes as a whole and is not a brace literal,
+        // whichever fragment carries the `$`.
         for src in ["cmd a$b", "cmd {a}$b", "cmd $b-a"] {
             let word =
                 crate::ir_helpers::tokenise_command_words(src, tcl_lexer::LexerConfig::default())
@@ -1246,7 +1243,7 @@ computed; got {b:?}"
     /// around a nested dynamic write.  Whichever way the words fall, the
     /// write inside the `[…]` is still there and the barrier must find it —
     /// this is the walk re-splitting script text under the document's own
-    /// config, the fact #1393 is about.
+    /// config.
     #[test]
     fn dialect_specific_word_shapes_do_not_hide_a_dynamic_write() {
         for dialect in ["tcl8.6", "tcl8.4", "f5-irules"] {
@@ -1271,7 +1268,7 @@ computed; got {b:?}"
     /// is an expansion marker plus the brace-literal name `{$n}`, which is
     /// *static* — so a barrier computed from a differently-configured
     /// tokenisation reports "no dynamic write" for a script that has one, and
-    /// SCCP then propagates constants across it (issue #1393).
+    /// SCCP then propagates constants across it.
     #[test]
     fn an_84_expansionless_name_word_is_still_a_dynamic_write() {
         let b = barrier_for_dialect(
@@ -1297,14 +1294,14 @@ computed; got {b:?}"
         }
     }
 
-    /// Issue #1484 — the same expansionless `{*}` word as a *statement* of its
-    /// own, not buried in a `[…]` the text walk re-segments.
+    /// The same expansionless `{*}` word as a *statement* of its own, not
+    /// buried in a `[…]` the text walk re-segments.
     ///
     /// Under 8.4 / iRules `set {*}$n 1` is the literal `*` welded to `$n`: a
-    /// computed name.  The lowering used to specialise it to `AssignConst`,
-    /// whose name is static by contract, so [`scan_statement`] never looked at
-    /// it and the write barrier stayed down — leaving the value-motion passes
-    /// free to move stores across a write that can land on any name.
+    /// computed name.  Specialising it to `AssignConst`, whose name is static
+    /// by contract, would keep [`scan_statement`] from looking at it and leave
+    /// the write barrier down — freeing the value-motion passes to move stores
+    /// across a write that can land on any name.
     #[test]
     fn an_expansionless_computed_name_statement_raises_the_write_barrier() {
         let b = barrier_for_dialect(
@@ -1329,11 +1326,10 @@ computed; got {b:?}"
         );
     }
 
-    /// The 9.0 grammar reaches the same answer by the path it always did:
-    /// `{*}$n` really is an expansion there, so the word is a plain `$n`
-    /// substitution and `set` was never specialised in the first place.  Pinned
-    /// so the #1484 gate cannot be credited with a result the old path already
-    /// produced — or quietly change it.
+    /// The 9.0 grammar reaches the same answer by a different path: `{*}$n`
+    /// really is an expansion there, so the word is a plain `$n` substitution
+    /// and `set` is not specialised at all.  Pinned so the expansionless gate
+    /// cannot be credited with this result, or quietly change it.
     #[test]
     fn an_expanded_computed_name_statement_still_raises_the_write_barrier() {
         for dialect in ["tcl9.0", "tcl8.6"] {
@@ -1348,7 +1344,7 @@ computed; got {b:?}"
         }
     }
 
-    /// TN control for #1484: a fully spelled-out `set` names one variable, so
+    /// TN control: a fully spelled-out `set` names one variable, so
     /// the gate must not blind a function that computes nothing.  The array
     /// element with a computed *key* is the near miss — its array is named
     /// statically, which is the line [`names_a_dynamic_variable`] draws.
@@ -1365,15 +1361,13 @@ computed; got {b:?}"
         }
     }
 
-    /// Issue #1487 — `incr $n` is a computed name, not the literal target
-    /// `try_lower_incr` used to assume.  Before the gate, the lowering
-    /// specialised it to `Statement::Incr { name: "${n}" }`, whose name is
-    /// static by contract, so [`scan_statement`]'s `Incr` arm — which reads
-    /// no word text at all — never looked at it and the write barrier stayed
-    /// down, leaving the value-motion passes free to move stores across a
-    /// write that can land on any name. Unlike #1484's `{*}$n` shape, a bare
-    /// `$n` substitutes under every grammar, so all four dialects see the
-    /// same computed name.
+    /// `incr $n` is a computed name, not a literal target.  Specialising it
+    /// to `Statement::Incr { name: "${n}" }`, whose name is static by
+    /// contract, would keep [`scan_statement`]'s `Incr` arm — which reads no
+    /// word text at all — from looking at it and leave the write barrier down,
+    /// freeing the value-motion passes to move stores across a write that can
+    /// land on any name. Unlike the `{*}$n` shape, a bare `$n` substitutes
+    /// under every grammar, so all four dialects see the same computed name.
     #[test]
     fn incr_of_a_computed_name_raises_the_write_barrier() {
         for dialect in ["tcl8.4", "f5-irules", "tcl8.6", "tcl9.0"] {
@@ -1388,7 +1382,7 @@ computed; got {b:?}"
         }
     }
 
-    /// TN control for #1487: a fully spelled-out `incr` names one variable,
+    /// TN control: a fully spelled-out `incr` names one variable,
     /// and a computed array *element* (`incr a($i)`) is not a computed
     /// *name* — the array is named statically, the same line
     /// [`names_a_dynamic_variable`] draws for `set` — so neither shape may
@@ -1406,7 +1400,7 @@ computed; got {b:?}"
         }
     }
 
-    /// Issue #1497 — the bracket-depth cap protects the native stack, but it
+    /// The bracket-depth cap protects the native stack, but it
     /// cannot certify that the unread suffix has no dynamic variable access.
     /// The source mutation is deliberately under the cap boundary: replacing
     /// the dynamic `set $name` with a literal `set x` must not make a bounded

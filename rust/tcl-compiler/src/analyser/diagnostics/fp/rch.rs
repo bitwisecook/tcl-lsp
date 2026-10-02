@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! RCH family — reachability (O107) + the read-before-set (W210) fallout of
-//! handler bodies that used to be CFG islands.
+//! handler bodies that would otherwise be CFG islands.
 
 use super::{D, fires};
 use crate::analyser::Analyser;
@@ -87,7 +87,7 @@ fn fp_rch_01_while1_break_after_reachable() {
 
 #[test]
 fn fp_rch_01_for_true_break_reachable() {
-    // FP-RCH-01: same fix applies to `for {…} true {…}` constant-true forms.
+    // FP-RCH-01: the same rule applies to `for {…} true {…}` constant-true forms.
     let src = "proc f {c} { for {set i 0} true {incr i} { if {$c} break }\n puts after }";
     assert!(
         !o107_fires(src, D),
@@ -172,7 +172,7 @@ fn fp_rch_03_on_ok_reads_body_var() {
 #[test]
 fn fp_rch_03_on_ok_unset_var_still_fires() {
     // FP-RCH-03 TP control: a `$vneversetbeforetry` read in `on ok` IS
-    // read-before-set — the SSA-inheritance fix must not blanket-suppress it.
+    // read-before-set — SSA inheritance must not blanket-suppress it.
     let src = "\
 proc f {} {
     try {
@@ -211,7 +211,6 @@ fn fp_rch_04_infinite_loop_dead_code_fires() {
 }
 
 // FP-RCH-05 — a dynamic-name write / destroy weakens the existence fold
-// (issue #923 audit idx 1)
 //
 // `set $switch {}` defines whatever variable `$switch` names, so
 // `[info exists mixed]` cannot be folded to a constant `false` and neither

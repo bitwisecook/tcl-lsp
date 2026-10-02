@@ -35,9 +35,7 @@ if {[file exists [file join $script_dir _mock_stubs.tcl]]} {
 source [file join $script_dir itest_core.tcl]
 source [file join $script_dir orchestrator.tcl]
 
-# ══════════════════════════════════════════════════════════════════
 # Scenario 1: BUGGY rate limiter using static:: (per-TMM, not global)
-# ══════════════════════════════════════════════════════════════════
 #
 # This iRule tries to limit each client to 100 requests using a
 # static:: variable.  BUG: static:: is per-TMM, so with 4 TMMs a
@@ -95,9 +93,7 @@ source [file join $script_dir orchestrator.tcl]
         "rate-1.0: total $total_rejects rejected (expected >= 20)"
 }
 
-# ══════════════════════════════════════════════════════════════════
 # Scenario 2: CORRECT rate limiter using table (CMP-shared)
-# ══════════════════════════════════════════════════════════════════
 #
 # Same test, but the iRule uses the table command (CMP-shared).
 # This test PASSES because all TMMs share the counter.
@@ -158,9 +154,7 @@ source [file join $script_dir orchestrator.tcl]
     ::orch::assert_equal $total 40 "table counter should be 40 across all TMMs"
 }
 
-# ══════════════════════════════════════════════════════════════════
 # Scenario 3: Static variable divergence between TMMs
-# ══════════════════════════════════════════════════════════════════
 #
 # Each TMM initializes independently.  If one TMM processes traffic
 # that changes static state, other TMMs won't see that change.
@@ -222,9 +216,7 @@ source [file join $script_dir orchestrator.tcl]
         "TMM 2 should have no statics (never selected)"
 }
 
-# ══════════════════════════════════════════════════════════════════
 # Scenario 4: fakeCMP auto-select mode
-# ══════════════════════════════════════════════════════════════════
 #
 # With -tmm_select auto, the framework uses fakeCMP (a simulated
 # hash, NOT the real BIG-IP CMP algorithm) to pick the TMM from
@@ -307,6 +299,6 @@ source [file join $script_dir orchestrator.tcl]
         "plan output should list TMM 3"
 }
 
-# ── Summary ──────────────────────────────────────────────────────
+# Summary
 
 ::orch::run_and_exit

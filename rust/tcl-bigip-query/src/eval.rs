@@ -41,7 +41,7 @@
 
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 
 use tcl_bigip::parser::BigipConfig;
 
@@ -72,6 +72,66 @@ pub struct Root {
     /// projection, caching the expensive `build_bigip_object_graph` step so
     /// repeated per-object queries don't rebuild the whole graph each time.
     pub object_graph: RefCell<Option<Rc<tcl_bigip::graph::ObjectGraph>>>,
+    /// The merged namespace this root belongs to, when one is installed.
+    /// [`graph`](Root::graph) serves the view's graph instead of a
+    /// single-source one, so every reference walk — the graph builtins, the
+    /// `rename` safety checks, and the `ltm rule` `.refs` projection — spans
+    /// the whole namespace. Empty outside `--merge`.
+    pub merged_view: RefCell<Option<Rc<MergedView>>>,
+}
+
+/// The set of roots `--merge` treats as one namespace, with their combined
+/// reference graph built on first use and memoised.
+///
+/// Roots are held weakly: each root also points back at the view, and the
+/// runner owns the strong references for as long as the statement runs.
+pub struct MergedView {
+    roots: RefCell<Vec<Weak<Root>>>,
+    graph: RefCell<Option<Rc<tcl_bigip::graph::ObjectGraph>>>,
+}
+
+impl MergedView {
+    /// Install a shared view over *roots* on each of them.
+    pub fn install(roots: &[Rc<Root>]) {
+        let view = Rc::new(MergedView {
+            roots: RefCell::new(roots.iter().map(Rc::downgrade).collect()),
+            graph: RefCell::new(None),
+        });
+        for root in roots {
+            *root.merged_view.borrow_mut() = Some(Rc::clone(&view));
+        }
+    }
+
+    /// The roots still alive in this view, in source order.
+    #[must_use]
+    pub fn roots(&self) -> Vec<Rc<Root>> {
+        self.roots
+            .borrow()
+            .iter()
+            .filter_map(Weak::upgrade)
+            .collect()
+    }
+
+    /// The combined graph over every live root in the view.
+    #[must_use]
+    pub fn graph(&self) -> Rc<tcl_bigip::graph::ObjectGraph> {
+        if let Some(g) = self.graph.borrow().as_ref() {
+            return Rc::clone(g);
+        }
+        let live = self.roots();
+        let ctx = tcl_bigip::graph::GraphContext::new();
+        let sources: Vec<(String, String)> = live
+            .iter()
+            .map(|r| (r.uri.clone(), r.source.clone()))
+            .collect();
+        let configs: Vec<(String, &BigipConfig)> =
+            live.iter().map(|r| (r.uri.clone(), &r.config)).collect();
+        let graph = Rc::new(tcl_bigip::graph::build_bigip_object_graph(
+            &sources, &configs, &ctx,
+        ));
+        *self.graph.borrow_mut() = Some(Rc::clone(&graph));
+        graph
+    }
 }
 
 impl std::fmt::Debug for Root {
@@ -94,6 +154,7 @@ impl Root {
             config: BigipConfig::default(),
             object_cache: RefCell::new(HashMap::new()),
             object_graph: RefCell::new(None),
+            merged_view: RefCell::new(None),
         })
     }
 
@@ -112,6 +173,7 @@ impl Root {
             config,
             object_cache: RefCell::new(HashMap::new()),
             object_graph: RefCell::new(None),
+            merged_view: RefCell::new(None),
         })
     }
 
@@ -120,13 +182,21 @@ impl Root {
         self.json_value.is_some()
     }
 
-    /// Return this root's BIG-IP reference graph, building it on first use
-    /// and memoising it for subsequent graph-builtin / projection calls.
+    /// Return the BIG-IP reference graph this root's callers should walk,
+    /// building it on first use and memoising it for subsequent
+    /// graph-builtin / projection calls.
+    ///
+    /// Under `--merge` a [`MergedView`] is installed and its namespace-wide
+    /// graph is served, so a reference in one source resolves into an object
+    /// in another. Otherwise the graph spans this source alone.
     ///
     /// The (expensive) `build_bigip_object_graph` result is cached so a query
     /// touching `refs` / `referenced_by` / `.refs` per object stays cheap.
     #[must_use]
     pub fn graph(&self) -> Rc<tcl_bigip::graph::ObjectGraph> {
+        if let Some(view) = self.merged_view.borrow().as_ref() {
+            return view.graph();
+        }
         if let Some(g) = self.object_graph.borrow().as_ref() {
             return Rc::clone(g);
         }
@@ -177,12 +247,6 @@ pub type FilesReader = Rc<dyn Fn(&str, &FileOp) -> Result<Value, QueryError>>;
 pub struct EvalContext {
     pub root: Rc<Root>,
     pub named_roots: HashMap<String, Rc<Root>>,
-    pub merge_mode: bool,
-    /// Every loaded root, in source order — the merge-mode "active roots".
-    /// Graph builtins consult this when `merge_mode` so `refs` / `referenced_by`
-    /// walk references across files. Empty / single-element in non-merge
-    /// mode, where graph builtins stay scoped to the originating source.
-    pub merge_roots: Vec<Rc<Root>>,
     /// Lexical `expr as $name | body` bindings; `$name` lookup checks here
     /// first and falls back to `named_roots`.
     pub bindings: HashMap<String, Value>,
@@ -203,78 +267,49 @@ pub struct EvalContext {
     /// Reader hook for the forensic `files` / `file` / `glob` / `grep`
     /// builtins. `None` means no reader is wired (e.g. the in-browser console).
     pub files_reader: Option<FilesReader>,
-    /// Lazily built merged reference graph spanning every [`merge_roots`]
-    /// entry — built on first graph-builtin call in merge mode and memoised
-    /// for the duration of the statement so cross-file `refs` /
-    /// `referenced_by` per object stay cheap. `None` until first use; unused
-    /// in non-merge mode (graph builtins fall back to `Root::graph`).
-    ///
-    /// [`merge_roots`]: EvalContext::merge_roots
-    pub merge_graph: RefCell<Option<Rc<tcl_bigip::graph::ObjectGraph>>>,
 }
 
 impl EvalContext {
-    /// Return the merged reference graph spanning every [`merge_roots`] entry,
-    /// building it on first use and memoising it on [`merge_graph`].
-    ///
-    /// Feeds every active root's `(uri, source)` + `(uri, config)` into the
-    /// graph builder so a reference in one file resolves into an object in
-    /// another. Built once per statement (the runner constructs a fresh
-    /// context per root, but the merge graph is identical across them, so each
-    /// rebuilds at most once).
-    ///
-    /// [`merge_roots`]: EvalContext::merge_roots
-    /// [`merge_graph`]: EvalContext::merge_graph
-    #[must_use]
-    pub fn merged_graph(&self) -> Rc<tcl_bigip::graph::ObjectGraph> {
-        if let Some(g) = self.merge_graph.borrow().as_ref() {
-            return Rc::clone(g);
-        }
-        let ctx = tcl_bigip::graph::GraphContext::new();
-        let sources: Vec<(String, String)> = self
-            .merge_roots
-            .iter()
-            .map(|r| (r.uri.clone(), r.source.clone()))
-            .collect();
-        let configs: Vec<(String, &BigipConfig)> = self
-            .merge_roots
-            .iter()
-            .map(|r| (r.uri.clone(), &r.config))
-            .collect();
-        let graph = Rc::new(tcl_bigip::graph::build_bigip_object_graph(
-            &sources, &configs, &ctx,
-        ));
-        *self.merge_graph.borrow_mut() = Some(Rc::clone(&graph));
-        graph
-    }
-
     /// Resolve the [`ObjectRef`] a [`PathRef`] points to, against the whole
     /// view the query is running over.
     ///
     /// The iterating root is tried first. Under `--merge` every loaded source
-    /// is one namespace, so a miss falls back across the remaining
-    /// [`merge_roots`]: a GTM wideip's pool reference resolves while the
+    /// is one namespace, so a miss falls back across the rest of the
+    /// [`MergedView`]: a GTM wideip's pool reference resolves while the
     /// iterating root is the LTM config, and each further hop off the
     /// resolved object resolves the same way — every hop of a chain may land
     /// in a different source.
     ///
     /// JSON side-input roots never produce `PathRef`s, so they are not
-    /// consulted. Non-merge mode stays scoped to the iterating source, which
-    /// is what per-file semantics mean.
-    ///
-    /// [`merge_roots`]: EvalContext::merge_roots
+    /// consulted. Without a view the lookup stays scoped to the iterating
+    /// source, which is what per-file semantics mean.
     #[must_use]
     pub fn resolve_pathref(&self, reference: &PathRef) -> Option<Rc<ObjectRef>> {
         if let Some(found) = projection::resolve_pathref(reference, &self.root) {
             return Some(found);
         }
-        if !self.merge_mode {
-            return None;
-        }
-        self.merge_roots
+        self.merged_roots()
             .iter()
             .filter(|r| !Rc::ptr_eq(r, &self.root))
             .find_map(|r| projection::resolve_pathref(reference, r))
+    }
+
+    /// The roots `--merge` treats as one namespace with this context's root,
+    /// or empty outside `--merge`.
+    #[must_use]
+    pub fn merged_roots(&self) -> Vec<Rc<Root>> {
+        self.root
+            .merged_view
+            .borrow()
+            .as_ref()
+            .map(|v| v.roots())
+            .unwrap_or_default()
+    }
+
+    /// Whether this context runs over a merged namespace (`--merge`).
+    #[must_use]
+    pub fn is_merged(&self) -> bool {
+        self.root.merged_view.borrow().is_some()
     }
 }
 
@@ -284,15 +319,12 @@ impl EvalContext {
         EvalContext {
             root,
             named_roots: HashMap::new(),
-            merge_mode: false,
-            merge_roots: Vec::new(),
             bindings: HashMap::new(),
             edits: crate::edit_plan::EditPlan::new(),
             probes_enabled: false,
             ca_bundle: None,
             ucs_cert_reader: None,
             files_reader: None,
-            merge_graph: RefCell::new(None),
         }
     }
 }
@@ -1005,7 +1037,7 @@ fn unresolved_ref_error(reference: &PathRef, what: &str, ctx: &EvalContext) -> Q
     } else {
         reference.expected_kind.clone()
     };
-    let hint = if ctx.merge_mode || ctx.named_roots.len() < 2 {
+    let hint = if ctx.is_merged() || ctx.named_roots.len() < 2 {
         String::new()
     } else {
         " (pass --merge to resolve references across every loaded source)".to_owned()

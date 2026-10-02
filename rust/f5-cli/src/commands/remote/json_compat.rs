@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Pretty JSON serialization for the remote verbs.
+//! Pretty JSON serialisation for the remote verbs.
 //!
 //! The output uses two-space indentation, `": "` / `", "` separators, and
 //! ASCII-only escaping: every non-ASCII scalar is escaped to `\uXXXX` (astral
@@ -97,7 +97,7 @@ impl Formatter for AsciiPretty<'_> {
     }
 }
 
-/// Serialize `value` as two-space-indented, ASCII-escaped JSON
+/// Serialise `value` as two-space-indented, ASCII-escaped JSON
 /// (no trailing newline). The verbs append the `"\n"` themselves.
 #[must_use]
 pub fn dumps_indent2(value: &Value) -> String {

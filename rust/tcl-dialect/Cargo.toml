@@ -31,7 +31,7 @@
 # `wasm32`-clean — the runtime (a workspace-excluded wasm32 crate) reaches it
 # through its tcl-lexer / tcl-syntax path-deps.
 #
-# See `docs/design/registry/dialect-profile-model.md` (§3, the DECIDED Option-A
+# See `docs/design/registry/dialect-profile-model.md` (§3, the tcl-dialect
 # foundational crate).
 [package]
 name = "tcl-dialect"

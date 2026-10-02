@@ -44,7 +44,7 @@ pub const fn spec() -> CommandSpec {
         // subcommands raise anything. `request`/`response` are *possible*
         // rather than definite: with an mblb profile applied the same call
         // marks a message boundary instead, and nothing at the call site says
-        // which (issue #1708).
+        // which.
         event_emission_forms: &[
             EventEmissionForm {
                 argument_prefix: &["request"],

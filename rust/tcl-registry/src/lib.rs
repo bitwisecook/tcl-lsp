@@ -34,7 +34,7 @@
 //! - [`registry`] — [`CommandRegistry`] lookup facade.
 //! - [`commands`] — one file per command, one directory per dialect.
 //! - [`events`] — iRules event metadata (176 events, firing order, flow chains).
-//! - [`profiles`] — F5 profile types (65 profiles), protocol namespaces (113),
+//! - [`profiles`] — F5 profile types (66 profiles), protocol namespaces (113),
 //!   and stack modification commands.
 //! - [`special_vars`] — dialect-versioned interpreter-provided variables
 //!   (`auto_path`, `env`, `tcl_platform`, the iRules `static::` namespace).
@@ -109,6 +109,7 @@ pub mod snapshot;
 pub mod spec;
 pub mod special_vars;
 pub mod state_transition;
+pub mod substitution;
 pub mod symbol_def;
 pub mod taint;
 pub mod tk_geometry;
@@ -118,7 +119,7 @@ pub mod version;
 pub mod version_range;
 pub mod world_effect;
 
-pub use crate::hover::first_positional_index;
+pub use crate::hover::{first_positional_index, leading_option_specs};
 
 /// Convenience prelude for command spec files.
 ///
@@ -172,7 +173,7 @@ pub mod prelude {
     pub use crate::hover::{
         ArgValue, CallbackTaintInput, FormKind, FormSpec, HoverSnippet, IntegerDomain, OptionArg,
         OptionArity, OptionSpec, OptionValue, OptionValueHook, OptionValueOutcome, ScriptTiming,
-        VariableScope, first_positional_index,
+        VariableScope, first_positional_index, leading_option_specs,
     };
     pub use crate::intrinsic::IntrinsicId;
     pub use crate::invocation_words::{CommandPrefixArguments, InvocationArguments};
@@ -217,7 +218,8 @@ pub mod prelude {
     };
     pub use crate::symbol_def::{DefinedSymbolKind, SymbolDef};
     pub use crate::taint::{
-        SetterConstraint, TaintColour, TaintColourAtom, TaintTransformCondition,
+        SetterConstraint, TaintColour, TaintColourAtom, TaintNumericCoercion,
+        TaintTransformCondition,
     };
     pub use crate::tk_geometry::{
         GRID_GEOMETRY, PACK_GEOMETRY, PLACE_GEOMETRY, TkGeometryContainerPolicy,
@@ -239,7 +241,10 @@ pub use arity::Arity;
 pub use bigip::{BigipObjectSpec, BigipPropertySpec, BigipRegistry, ValueKind};
 pub use body_kind::{BodyInterpreter, BodyKind};
 pub use byte_array_effect::ByteArrayEffect;
-pub use cache::{default_registry, registry_for_profile_with_overlay, safe_interp_hidden_commands};
+pub use cache::{
+    core_surface_generation, default_registry, register_core_surface_specs,
+    registry_for_profile_with_overlay, safe_interp_hidden_commands,
+};
 pub use clause_shape::{ClauseShapeChecker, ClauseShapeError};
 pub use command_prefix_target::CommandPrefixTarget;
 pub use command_table::CommandTableEffect;
@@ -248,8 +253,8 @@ pub use completion::{
     CompletionPayloadObligations, CompletionValueSemantics,
 };
 pub use dialects::{
-    DETECT_SCAN_BYTES, KNOWN_DIALECTS, available_dialects, detect_dialect,
-    detect_dialect_directive, detect_dialect_from_source, dialect_from_extension,
+    DETECT_SCAN_BYTES, detect_dialect, detect_dialect_directive, detect_dialect_from_source,
+    dialect_from_extension,
 };
 pub use dispatch_stability::{
     DispatchDependencies, DispatchDependencyComposition, DispatchDependencyDescriptor,
@@ -268,7 +273,7 @@ pub use hover::{ArgValue, CallbackTaintInput, ScriptTiming, VariableScope};
 pub use intrinsic::IntrinsicId;
 pub use invocation_words::{
     CommandPrefixArguments, InvocationArgument, InvocationArguments, InvocationWord,
-    InvocationWordKind, InvocationWords, VariableWriteProjection,
+    InvocationWordKind, InvocationWords, VariableReadProjection, VariableWriteProjection,
 };
 pub use literal_validation::{
     LiteralArgumentIssue, LiteralArgumentIssueReason, LiteralArgumentValidation,
@@ -280,8 +285,8 @@ pub use presentation::ArgPresentation;
 pub use profile_queries::VendorSurface;
 pub use registry::{
     CommandRegistry, EffectiveCommandSemantics, EffectiveRegistrySemantics, FormatStringArg,
-    MethodDispatchKind, ResolvedCall, ResolvedTerminator, TryClauseKind, TryCompletionSelector,
-    TryControlClause, TryControlInvocation,
+    MethodDispatchKind, NameProviders, ProcedureWords, ResolvedCall, ResolvedTerminator,
+    TryClauseKind, TryCompletionSelector, TryControlClause, TryControlInvocation,
 };
 pub use relation::{
     Relation, RelationFactSource, RelationKind, RelationMode, RelationTermKind, RelationVerdict,

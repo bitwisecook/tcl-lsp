@@ -97,8 +97,6 @@ fn settle(lsp: &mut Lsp, what: &str, predicate: impl Fn(&mut Lsp) -> bool) {
     }
 }
 
-// -- TestEffectiveConfigShape --------------------------------------------
-
 #[test]
 fn reports_resolved_feature_map() {
     let mut lsp = Lsp::tcl();
@@ -122,6 +120,82 @@ fn reports_resolved_feature_map() {
     }
 }
 
+/// A session-scope `tclLsp.dialect` that names no environment is not stored:
+/// the server logs a warning naming the value and the selectable dialects and
+/// uses the default, rather than resolving every document to the lenient `tcl`
+/// sink. A document then opens under the default: Jim's `loop` is a command
+/// Tcl 8.6 does not have, and the report says which dialect does.
+#[test]
+fn an_unknown_session_dialect_warns_and_uses_the_default() {
+    let mut lsp = Lsp::with_config(json!({ "dialect": "tcl9.0" }));
+    let settled = lsp.apply_configuration_settle(json!({ "dialect": "nonsense" }), "", |cfg| {
+        cfg.get("dialect") == Some(&json!("tcl8.6"))
+    });
+    assert_eq!(settled["dialect_explicitly_set"], json!(false), "{settled}");
+    let warning = lsp.await_warning_log(
+        &["`nonsense`", "Valid dialects", "jim", "xilinx-eda-tcl"],
+        std::time::Duration::from_secs(10),
+        0,
+    );
+    assert!(warning.contains("tcl8.6"), "{warning}");
+
+    let uri = unique_uri("tcl");
+    let diagnostics = lsp.open_ready_lang(&uri, "loop i 0 3 { puts $i }\n", "tcl");
+    let cfg = lsp.effective_config(&uri);
+    assert_eq!(cfg["dialect_id"], json!("tcl8.6"), "{cfg}");
+    assert!(
+        diagnostics.iter().any(|d| d["code"] == json!("W002")
+            && d["message"]
+                .as_str()
+                .is_some_and(|message| message.contains("jim"))),
+        "`loop` is Jim's, disabled under Tcl 8.6: {diagnostics:#?}"
+    );
+}
+
+/// `getEffectiveConfig` labels the dialect from its resolved environment
+/// (`jim` carries them too) and `listDialects` lists that same environment
+/// with its kind and description.
+#[test]
+fn effective_config_and_list_dialects_describe_the_same_environment() {
+    let mut lsp = Lsp::with_config(json!({ "dialect": "jim" }));
+    let cfg = lsp.effective_config("");
+    assert_eq!(cfg["dialect"], json!("jim"), "{cfg}");
+    assert_eq!(cfg["dialect_id"], json!("jim"), "{cfg}");
+    assert_eq!(cfg["dialect_display_name"], json!("Jim Tcl"), "{cfg}");
+    assert_eq!(cfg["dialect_short_name"], json!("Jim"), "{cfg}");
+    assert_eq!(cfg["dialect_kind"], json!("language"), "{cfg}");
+    assert_eq!(cfg["dialect_provenance"], json!("built-in"), "{cfg}");
+
+    let listed = lsp.execute_command("tcl-lsp.listDialects", json!([]));
+    let entries = listed.as_array().expect("listDialects answers an array");
+    let jim = entries
+        .iter()
+        .find(|entry| entry["name"] == "jim")
+        .expect("jim is selectable");
+    assert_eq!(jim["display_name"], cfg["dialect_display_name"]);
+    assert_eq!(jim["description"], cfg["dialect_description"]);
+    assert_eq!(jim["kind"], cfg["dialect_kind"]);
+    assert_eq!(jim["editor_language_id"], json!("tcl-jim"));
+    let names: Vec<&str> = entries
+        .iter()
+        .filter_map(|entry| entry["name"].as_str())
+        .collect();
+    assert!(names.contains(&"tk"), "{names:?}");
+    assert!(!names.contains(&"tcl"), "the lenient sink is not listed");
+}
+
+/// A tool shell is `packages` kind and bundled-pack provenance — what the
+/// notice keys on — and its alias resolves as the configured dialect.
+#[test]
+fn a_bundled_tool_shell_reports_packages_kind_and_bundled_provenance() {
+    let mut lsp = Lsp::with_config(json!({ "dialect": "vivado" }));
+    let cfg = lsp.effective_config("");
+    assert_eq!(cfg["dialect_id"], json!("xilinx-eda-tcl"), "{cfg}");
+    assert_eq!(cfg["dialect_kind"], json!("packages"), "{cfg}");
+    assert_eq!(cfg["dialect_provenance"], json!("bundled-pack"), "{cfg}");
+    assert_eq!(cfg["dialect_short_name"], json!("Vivado"), "{cfg}");
+}
+
 #[test]
 fn reports_dialect_and_scalars() {
     let mut lsp = Lsp::tcl();
@@ -137,7 +211,7 @@ fn reports_dialect_and_scalars() {
     );
 }
 
-// -- Per-provider disable contract — one case per toggleable feature. -----
+// Per-provider disable contract — one case per toggleable feature.
 //
 // Each test opens a document that yields a non-empty result for its feature,
 // asserts the enabled baseline is non-empty, disables just that feature (settling
@@ -181,7 +255,7 @@ fn query_probe(lsp: &mut Lsp, uri: &str, feature: &str) -> Value {
     }
 }
 
-/// The body of the parametrized `test_disabling_feature_suppresses_its_provider`.
+/// The body of the parameterised `test_disabling_feature_suppresses_its_provider`.
 fn disabling_feature_suppresses_its_provider(feature: &str) {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
@@ -250,8 +324,6 @@ disable_feature_test!(
     "documentLinks"
 );
 
-// -- TestOptimiserToggle -------------------------------------------------
-
 #[test]
 fn optimiser_disable_round_trips() {
     let mut lsp = Lsp::tcl();
@@ -294,8 +366,6 @@ fn optimiser_disable_round_trips() {
         "{on_again}"
     );
 }
-
-// -- TestFormattingIndentRoundTrip ---------------------------------------
 
 const FMT_SRC: &str = "proc f {} {\nputs hi\n}\n";
 
@@ -347,7 +417,6 @@ fn four_space_indent() {
     assert_eq!(body_indent(&first_edit_text(&edits)), "    ");
 }
 
-// -- TestToggleNoStickyState ---------------------------------------------
 //
 // A feature flipped off and back on leaves no sticky state: across repeated
 // disable→re-enable cycles the provider works, goes empty while off, and works
@@ -377,7 +446,7 @@ fn repeated_cycles_keep_provider_working() {
     }
 }
 
-// -- Per-code severity override (issue #941) ------------------------------
+// Per-code severity override.
 //
 // `tclLsp.diagnosticSeverity.<CODE>` re-levels how prominently a diagnostic is
 // published, without changing the analysis. LSP severity ints: 1=Error,
@@ -469,14 +538,14 @@ fn diagnostic_severity_override_is_per_code() {
     );
 }
 
-/// Regression (#407): a folder-scoped `tclLsp.dialect` must reach the server.
+/// A folder-scoped `tclLsp.dialect` must reach the server.
 ///
 /// A multi-root editor answers the *unscoped* `workspace/configuration` pull
 /// with the workspace-merged settings — folder-level values are invisible
 /// there — and only the *scoped* pull carries a folder's own `tclLsp.dialect`.
-/// The scoped reply used to be parsed into a `FolderConfig` that had no dialect
-/// field at all, so the value was dropped on the floor and every document in
-/// every root resolved to the session default. Mirrors the multi-root VS Code
+/// The scoped reply's `FolderConfig` must carry a dialect field, or the
+/// value is dropped on the floor and every document in every root resolves
+/// to the session default. Mirrors the multi-root VS Code
 /// suite (`multiFolderConfig.test.ts`) without an editor.
 #[test]
 fn folder_scoped_dialect_reaches_documents_in_that_folder() {
@@ -491,8 +560,8 @@ fn folder_scoped_dialect_reaches_documents_in_that_folder() {
     std::fs::create_dir_all(&root_b).expect("mk proj-b");
     // Deliberately signature-free source: nothing in it makes
     // `detect_dialect` (directive / shebang / `package require Tcl` / content
-    // signatures) pick a dialect, so the folder override is what decides — the
-    // exact case issue #407 is about.  `puts` is a core Tcl command and is
+    // signatures) pick a dialect, so the folder override is what decides.
+    // `puts` is a core Tcl command and is
     // *not* in the iRules surface, so it is the cross-folder discriminator.
     let src = "proc greet {who} {\n    puts \"hi $who\"\n}\ngreet world\n";
     let file_a = root_a.join("foo.tcl");
@@ -552,7 +621,7 @@ fn folder_scoped_dialect_reaches_documents_in_that_folder() {
     );
 
     // The four fields the multi-root VS Code suite's `EffectiveConfig` shape
-    // declares, and which nothing used to emit.
+    // declares.
     let cfg = lsp.effective_config(&doc_a);
     assert_eq!(cfg.get("folder_uri"), Some(&json!(uri_a)));
     assert_eq!(cfg.get("dialect_explicitly_set"), Some(&json!(true)));
@@ -573,15 +642,15 @@ fn folder_scoped_dialect_reaches_documents_in_that_folder() {
     std::fs::remove_dir_all(&base).ok();
 }
 
-/// Issue #1295: `getEffectiveConfig`'s `features` map must resolve through the
+/// `getEffectiveConfig`'s `features` map must resolve through the
 /// same folder chain the provider gates use.
 ///
-/// It used to report the process-global toggles while every gate consulted the
-/// deepest containing folder first.  A client that polls this command before
-/// asserting a toggle took effect — which is exactly what the VS Code suite's
-/// `waitForFeatureToggle` barrier does — was therefore waiting on a different
-/// fact from the one the provider would act on, and in a multi-root workspace
-/// a folder-scoped toggle was invisible here entirely.
+/// A client that polls this command before asserting a toggle took effect
+/// — which is exactly what the VS Code suite's `waitForFeatureToggle`
+/// barrier does — must see the fact the provider would act on: the deepest
+/// containing folder first, not the process-global toggles. Otherwise, in
+/// a multi-root workspace a folder-scoped toggle is invisible here
+/// entirely.
 ///
 /// Both halves are asserted together, because the report is only worth anything
 /// if it agrees with the behaviour: the folder that disables `selectionRange`
@@ -646,7 +715,7 @@ fn a_folder_scoped_feature_toggle_is_reported_and_applied_for_that_folder() {
     std::fs::remove_dir_all(&base).ok();
 }
 
-/// Issue #1217: a session dialect override survives a `workspace/configuration`
+/// A session dialect override survives a `workspace/configuration`
 /// pull, and is cleared only by the command that set it.
 ///
 /// The chat commands pin a buffer to `f5-irules` and put it back afterwards.
@@ -692,14 +761,13 @@ fn a_session_dialect_override_outlives_a_config_pull() {
     assert_eq!(cfg["session_dialect_override"], Value::Null, "{cfg}");
 }
 
-/// Issue #1931: a per-document override reaches only the document it names,
+/// A per-document override reaches only the document it names,
 /// and outranks every inference — including an explicit language id.
 ///
 /// The Spec Studio's sample surface is always materialised as `test.tcl`, so
 /// without a per-document seam the server resolves it as generic Tcl however
 /// the studio's dialect selector is set. Both session-wide dialect commands
-/// would re-tag every other open buffer instead, which is what #1217 moved
-/// away from.
+/// would re-tag every other open buffer instead.
 #[test]
 fn a_document_dialect_override_reaches_only_the_document_it_names() {
     let sample = unique_uri("studio-sample");
@@ -752,13 +820,14 @@ fn a_document_dialect_override_rejects_an_unknown_dialect() {
     assert_eq!(cfg["dialect"], json!("tcl8.6"), "{cfg}");
 }
 
-/// Issue #1213: a burst of `didChangeConfiguration` notifications must produce
+/// A burst of `didChangeConfiguration` notifications must produce
 /// **one** `workspace/configuration` pull, not one per notification.
 ///
-/// A settings-editor burst of 16 used to produce 32 pull batches (one unscoped
-/// request plus one scoped batch per folder, each time) and re-analyse every
-/// open buffer 16 times.  The last generation must still run to completion, so
-/// the settings the final notification carried are the ones in effect.
+/// A settings-editor burst of 16 must not produce 32 pull batches (one
+/// unscoped request plus one scoped batch per folder, each time) and
+/// re-analyse every open buffer 16 times.  The last generation must still
+/// run to completion, so the settings the final notification carried are
+/// the ones in effect.
 #[test]
 fn a_configuration_burst_pulls_once_and_settles_on_the_last_generation() {
     use std::time::{Duration, Instant};
@@ -817,13 +886,13 @@ fn a_configuration_burst_pulls_once_and_settles_on_the_last_generation() {
     );
 }
 
-/// Issue #1215: the `workspace/didChangeWatchedFiles` registration must match
+/// The `workspace/didChangeWatchedFiles` registration must match
 /// every casing of every extension the server itself treats as Tcl.
 ///
 /// VS Code matches watcher globs against the platform file system —
 /// case-sensitively on Linux — and the registration carries no `ignoreCase`
-/// option, so the single-cased `**/*.{tcl,…}` it used to send never fired for
-/// an `UPPER.TCL`.  The glob now folds case per character.  Also asserts the
+/// option, so a single-cased `**/*.{tcl,…}` would never fire for
+/// an `UPPER.TCL`.  The glob must fold case per character.  Also asserts the
 /// project-config watcher rides along, so the layered-settings live-reload does
 /// not depend on each client registering its own watcher.
 #[test]
@@ -876,7 +945,7 @@ fn watched_files_registration_folds_case_and_covers_project_config() {
     std::fs::remove_dir_all(&root).ok();
 }
 
-/// Issue #1215, the behavioural half: an external create / change / delete
+/// The behavioural half: an external create / change / delete
 /// cycle on an upper-cased `.TCL` must reach the cross-document index, exactly
 /// as a lower-cased one does.
 #[test]
@@ -970,10 +1039,10 @@ fn watched_upper_case_extension_round_trips_through_the_index() {
 /// An out-of-band rename (`mv` in a terminal, a branch switch) makes the editor
 /// send `didChangeWatchedFiles` DELETED for the old path and CREATED for the
 /// new one — but no `didClose`, because the buffer is still on screen. The
-/// DELETED event used to be skipped outright for any URI with an open document,
-/// so the dead path stayed in the workspace index forever: every proc appeared
-/// twice in the symbol picker, and go-to-definition could land on a file that
-/// no longer exists.
+/// DELETED event must not be skipped outright for a URI with an open
+/// document, or the dead path stays in the workspace index forever: every
+/// proc would appear twice in the symbol picker, and go-to-definition
+/// could land on a file that no longer exists.
 #[test]
 fn watched_delete_retires_an_open_documents_index_entry() {
     use std::time::{Duration, Instant};

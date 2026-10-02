@@ -10,8 +10,8 @@
 #
 # Prerequisites:
 #   - Rust stable with cargo (via rustup).  The workspace tracks the floating
-#     `stable` channel pinned in rust-toolchain.toml; current stable is 1.98.1,
-#     released 2026-09-03.  `Cargo.toml` `rust-version` is authoritative.
+#     `stable` channel pinned in rust-toolchain.toml; current stable is 1.99.0,
+#     released 2026-10-01.  `Cargo.toml` `rust-version` is authoritative.
 #   - Node.js 24+ with npm
 #   - macOS WASM builds: `make ensure-rust-deps` installs the pinned wasi-sdk;
 #     stock Apple clang has no wasm32 backend.
@@ -19,6 +19,11 @@
 
 SHELL := /bin/bash
 .DELETE_ON_ERROR:
+
+# Clippy 1.99's assert_is_empty suggests assertions that do not compile for
+# some of our test types. Keep the existing assertion checks while the test
+# suite is migrated to a form that preserves useful failure output.
+CLIPPY_LINT_FLAGS := -D warnings -A clippy::assert_is_empty
 
 # ---------------------------------------------------------------------------
 # Directories
@@ -209,8 +214,8 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: rust-check check-all prep-pr _prep-pr-checks _prep-pr-tests _prep-pr-smoke _prep-pr-smoke-tier
 # Tests
 .PHONY: test test-ext test-ext-partition test-ext-multi-folder test-emacs test-jetbrains test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all print-server-targets-jetbrains
-.PHONY: xtask-check xtask-editor-extensions xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-command-backing xtask-audit-option-dialects xtask-registry-oracle xtask-sslictcl-data xtask-runtime-stdlib tcltest-sweep tcltest-sweep-check xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-api-ownership
-.PHONY: xtask-workflow-sync xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-gen-tmlanguage-keywords xtask-option-registry-drift xtask-callback-inventory check-tcl-reference-toolchains check-spectcl-compat-paths check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-vscode-test-partitions check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-release-dependency-graph xtask-dialect-drift xtask-segmentation-drift
+.PHONY: xtask-check xtask-editor-extensions xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-editor-configs xtask-gen-environment-docs xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-catalogue-callers xtask-command-backing xtask-audit-option-dialects xtask-registry-oracle xtask-sslictcl-data xtask-runtime-stdlib tcltest-sweep tcltest-sweep-check xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-api-ownership
+.PHONY: xtask-workflow-sync xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-gen-tmlanguage-keywords xtask-option-registry-drift xtask-callback-inventory check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-vscode-test-partitions check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph xtask-dialect-drift xtask-segmentation-drift
 # Lint / format / typecheck
 .PHONY: lint format lint-ts format-ts typecheck-ts check-rust check-rust-pr _check-rust-pr rust-deny
 .PHONY: build-report-assets build-report-pyz lint-report-ts typecheck-report-ts check-report-assets lint-spec-studio-ts typecheck-spec-studio-ts
@@ -890,7 +895,7 @@ coverage-ext: compile $(NPM_STAMP) ensure-vscode-test-deps ## Run VS Code extens
 # --- Native (cargo xtask) check gates.  These need the Rust toolchain, so CI
 # runs them in the rust-tests-shard matrix and its stable rust-tests aggregate
 # (ci.yml). `xtask-check` is the CI aggregate.
-xtask-check: check-tcl-reference-toolchains check-spectcl-compat-paths check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-release-dependency-graph check-vsix-web-assets-contract xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-segmentation-drift xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
+xtask-check: check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph check-vsix-web-assets-contract xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-catalogue-callers xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-segmentation-drift xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-gen-editor-configs xtask-gen-environment-docs xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
 
 check-lsp-wasi-lto: ## Verify functional WASI uses thin LTO and tags retain fat LTO
 	@bash scripts/dev/test-lsp-wasi-lto.sh
@@ -903,6 +908,10 @@ check-tcl-reference-toolchains: ## Verify pinned C Tcl patchlevels across shell 
 check-spectcl-compat-paths: ## Verify CI's SpecTcl dependency closure and central shipped-pack inventory
 	@echo "==> Checking SpecTcl compatibility path ownership"
 	@bash scripts/dev/test-spectcl-compat-paths.sh
+
+check-pr-gate-path: ## Verify the independent Rust fast worker and stable aggregate wiring (#2014)
+	@echo "==> Checking pr-gate overlap and fail-closed wiring"
+	@bash scripts/dev/test-pr-gate-path.sh
 
 check-runtime-rust-paths: ## Verify CI's standalone-runtime dependency closure and job wiring (#1768)
 	@echo "==> Checking standalone runtime CI path ownership"
@@ -957,6 +966,10 @@ check-sign-and-upload: ## Verify release artefact resolution, attestation pin, a
 	@echo "==> Checking release attestation action"
 	@bash scripts/release/test-sign-and-upload-action.sh
 
+check-retired-asset-names: ## Verify no retired release asset name survives anywhere in the tree
+	@echo "==> Checking retired release asset names"
+	@bash scripts/dev/test-retired-asset-names.sh
+
 check-release-dependency-graph: ## Verify release producers overlap safely without bypassing validation
 	@echo "==> Checking release dependency graph"
 	@bash scripts/dev/test-release-dependency-graph.sh
@@ -969,17 +982,29 @@ xtask-gen-bundled-environments: ## Verify the compiled environment seed matches 
 	@echo "==> Checking the bundled-pack environment seed against specs/ (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-bundled-environments --check
 
-xtask-gen-editor-dialects: ## Verify editor selectable dialect lists match DialectProfile::all
+xtask-gen-editor-dialects: ## Verify editor selectable dialect lists match the selectable environments (drift gate)
 	@echo "==> Checking generated editor dialect lists (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-editor-dialects --check
 
-xtask-editor-extensions: ## Verify the editors' extension/language lists match the dialect catalog + bundled packs (drift gate)
-	@echo "==> Checking editor extension/language lists against the dialect catalog (cargo xtask)"
+xtask-editor-extensions: ## Verify the editors' language, extension and first-line lists match the environment registry + bundled packs (drift gate)
+	@echo "==> Checking editor extension/language lists against the environment registry (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-editor-extensions --check
+
+xtask-gen-editor-configs: ## Verify the Zed extension.toml language table, the editor guides' generated regions and INSTALL-editors.md match the environment registry (drift gate)
+	@echo "==> Checking generated editor configuration regions (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-editor-configs --check
+
+xtask-gen-environment-docs: ## Verify the README dialect tables, docs/generated/environments.md, the dialect-selection KCS lists and the AI prompt manifest match the environment registry (drift gate)
+	@echo "==> Checking generated environment documentation and the prompt manifest (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-environment-docs --check
 
 xtask-owner-resolution: ## Verify the shared semantic-owner contract resolves to live source and gates
 	@echo "==> Checking shared semantic-owner contract (cargo xtask)"
 	cd $(ROOT) && cargo xtask owner-resolution
+
+xtask-catalogue-callers: ## Hold DialectProfile::all() / KNOWN_DIALECTS callers to the allowlist (user-facing lists read the environment registry)
+	@echo "==> Checking dialect catalogue callers against the allowlist (cargo xtask)"
+	cd $(ROOT) && cargo xtask catalogue-callers --check
 
 xtask-workflow-sync: ## Verify .github/workflows/ copies match their canonical deploy sources (drift gate)
 	@echo "==> Checking installed workflows match their canonical sources (cargo xtask)"
@@ -1117,7 +1142,7 @@ _prep-pr-smoke: smoke-vsix verify-standalone-eda
 _prep-pr-smoke-tier: smoke
 
 # Rust-side check gate (fmt + clippy + generated-file drift).  Mirrors the
-# pr-gate job in GitHub Actions (ci.yml).
+# rust-check worker behind the stable pr-gate aggregate in GitHub Actions.
 rust-check: check-rust-pr xtask-check ## Rust fmt + clippy + generated-file drift gates (mirrors the GitHub Actions PR gate)
 
 # The local pre-push gate: format + codegen + lint/typecheck + the smoke test
@@ -1422,7 +1447,7 @@ _check-rust-pr:
 	echo "==> Checking top-level Rust workspace (fmt + clippy)"; \
 	cd $(ROOT); \
 	cargo fmt --all --check; \
-	cargo clippy --workspace --all-targets -- -D warnings; \
+	cargo clippy --workspace --all-targets -- $(CLIPPY_LINT_FLAGS); \
 	if [ -f "$(RUNTIME_RUST_DIR)/Cargo.toml" ]; then \
 		echo "==> Checking runtime/rust (fmt + clippy)"; \
 		$(MAKE) --no-print-directory -C $(ROOT) runtime-rust-lint; \
@@ -1432,6 +1457,18 @@ _check-rust-pr:
 # then every other crate excluded from the root workspace (Zed and the wasm32
 # cdylibs, which have their own targets and lockfiles). Skip with
 # SKIP_CHECK_RUST=1.
+#
+# Two tiers, and the difference is deliberate. Six standalone crates get the
+# full fmt + clippy treatment below, because the gate can assume their build
+# prerequisites (a rustup target it checks for first). The remaining four get
+# fmt only: bigip-report-gen/python links libpython, bigip-report-gen/wasm and
+# bigip-query-wasm need a wasm32 toolchain plus their build scripts, and
+# zed-query-check pulls a pinned tree-sitter grammar — prerequisites a lint
+# gate should not demand. rustfmt needs none of them and no build at all, so
+# the cheap half is still worth having: #2086's first failure was a rustfmt
+# diff in bigip-report-gen/python that sat unseen because NOTHING formatted it.
+# This comment used to claim the target covered every excluded crate. It did
+# not: it covered six of ten.
 check-rust: ensure-rust-deps ## Rust fmt-check + clippy on the workspace and excluded standalone crates
 	@set -eu; \
 	if [ -n "$${SKIP_CHECK_RUST:-}" ]; then \
@@ -1455,7 +1492,7 @@ check-rust: ensure-rust-deps ## Rust fmt-check + clippy on the workspace and exc
 		echo "==> Checking Zed extension (fmt + clippy --target wasm32-wasip2 + host tests)"; \
 		cd $(ZED_DIR); \
 		cargo fmt --all --check; \
-		cargo clippy --target wasm32-wasip2 --all-targets -- -D warnings; \
+		cargo clippy --target wasm32-wasip2 --all-targets -- $(CLIPPY_LINT_FLAGS); \
 		cargo test --lib; \
 	fi; \
 	if [ -f "$(EXPLORER_WASM_DIR)/Cargo.toml" ] && \
@@ -1463,36 +1500,46 @@ check-rust: ensure-rust-deps ## Rust fmt-check + clippy on the workspace and exc
 		echo "==> Checking tcl-explorer-wasm (fmt + clippy --target wasm32-unknown-unknown)"; \
 		cd $(EXPLORER_WASM_DIR); \
 		cargo fmt --all --check; \
-		cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings; \
+		cargo clippy --target wasm32-unknown-unknown --all-targets -- $(CLIPPY_LINT_FLAGS); \
 	fi; \
 	if [ -f "$(ROOT)rust/tcl-vm-wasm/Cargo.toml" ] && \
 			rustup target list --installed 2>/dev/null | grep -q wasm32-unknown-unknown; then \
 		echo "==> Checking tcl-vm-wasm (fmt + clippy --target wasm32-unknown-unknown)"; \
 		cd $(ROOT)rust/tcl-vm-wasm; \
 		cargo fmt --all --check; \
-		cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings; \
+		cargo clippy --target wasm32-unknown-unknown --all-targets -- $(CLIPPY_LINT_FLAGS); \
 	fi; \
 	if [ -f "$(ROOT)rust/tcl-spec-studio-wasm/Cargo.toml" ] && \
 			rustup target list --installed 2>/dev/null | grep -q wasm32-unknown-unknown; then \
 		echo "==> Checking tcl-spec-studio-wasm (fmt + clippy --target wasm32-unknown-unknown)"; \
 		cd $(ROOT)rust/tcl-spec-studio-wasm; \
 		cargo fmt --all --check; \
-		cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings; \
+		cargo clippy --target wasm32-unknown-unknown --all-targets -- $(CLIPPY_LINT_FLAGS); \
 	fi; \
 	if [ -f "$(ROOT)rust/tcl-lsp-server-wasm/Cargo.toml" ] && \
 			rustup target list --installed 2>/dev/null | grep -q wasm32-unknown-unknown; then \
 		echo "==> Checking tcl-lsp-server-wasm (fmt + clippy --target wasm32-unknown-unknown)"; \
 		cd $(ROOT)rust/tcl-lsp-server-wasm; \
 		cargo fmt --all --check; \
-		cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings; \
+		cargo clippy --target wasm32-unknown-unknown --all-targets -- $(CLIPPY_LINT_FLAGS); \
 	fi; \
 	if [ -f "$(ROOT)rust/tcl-lsp-server-wasi/Cargo.toml" ] && \
 			rustup target list --installed 2>/dev/null | grep -q wasm32-wasip1; then \
 		echo "==> Checking tcl-lsp-server-wasi (fmt + clippy --target wasm32-wasip1)"; \
 		cd $(ROOT)rust/tcl-lsp-server-wasi; \
 		cargo fmt --all --check; \
-		cargo clippy --target wasm32-wasip1 --all-targets -- -D warnings; \
-	fi
+		cargo clippy --target wasm32-wasip1 --all-targets -- $(CLIPPY_LINT_FLAGS); \
+	fi; \
+	for manifest in \
+			rust/bigip-report-gen/python \
+			rust/bigip-report-gen/wasm \
+			rust/bigip-query-wasm \
+			rust/zed-query-check; do \
+		if [ -f "$(ROOT)$$manifest/Cargo.toml" ]; then \
+			echo "==> Checking $$manifest (fmt only — see the note above this target)"; \
+			cd $(ROOT) && cargo fmt --all --check --manifest-path "$$manifest/Cargo.toml"; \
+		fi; \
+	done
 
 # Supply-chain audit for every tracked Cargo lockfile: RustSec advisories,
 # license policy, banned/duplicate crates, and source allowlist — all four
@@ -1795,18 +1842,59 @@ editors/zed/languages/tcl/highlights.scm: $(_CATALOG_DEPS)
 # the ownership explicit so a `make generate` after a dialect, lexical grammar,
 # or command-registry change always refreshes every affected editor surface.
 _EDITOR_DIALECT_DEPS := $(shell find $(ROOT)rust/tcl-dialect/src $(ROOT)rust/xtask/src -name '*.rs')
-_EDITOR_DIALECT_OUTPUTS := editors/vscode/package.json editors/vscode/src/extension.ts editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/TclLspSettings.kt editors/sublime-text/plugin.py editors/sublime-text/sublime-package.json
+_EDITOR_DIALECT_OUTPUTS := \
+	editors/vscode/package.json \
+	editors/vscode/src/languageIds.ts \
+	editors/vscode/src/compilerExplorerHtml.ts \
+	editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/TclLspSettings.kt \
+	editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/TclFileType.kt \
+	editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/packs/PackAssociationReconciler.kt \
+	editors/jetbrains/src/main/resources/META-INF/plugin.xml \
+	editors/jetbrains/src/main/resources/textmate/package.json \
+	editors/sublime-text/plugin.py \
+	editors/sublime-text/sublime-package.json \
+	editors/sublime-text/LSP-Tcl.sublime-settings \
+	editors/zed/languages/tcl/config.toml \
+	editors/zed/languages/expect/config.toml \
+	editors/zed/languages/iapps/config.toml \
+	editors/zed/languages/irules/config.toml \
+	editors/zed/languages/tmsh/config.toml \
+	editors/zed/languages/apl/config.toml
 $(_EDITOR_DIALECT_OUTPUTS): $(_EDITOR_DIALECT_DEPS)
+
+_EDITOR_CONFIG_OUTPUTS := \
+	editors/zed/extension.toml \
+	editors/zed/README.md \
+	editors/helix/README.md \
+	editors/emacs/README.md \
+	editors/neovim/tcl_lsp.lua \
+	editors/neovim/README.md \
+	editors/sublime-text/README.md \
+	INSTALL-editors.md
+$(_EDITOR_CONFIG_OUTPUTS): $(_EDITOR_DIALECT_DEPS)
+
+_ENVIRONMENT_DOC_OUTPUTS := \
+	README.md \
+	docs/generated/environments.md \
+	docs/kcs/features/kcs-feature-dialect-selection.md \
+	ai/prompts/manifest.json
+$(_ENVIRONMENT_DOC_OUTPUTS): $(_EDITOR_DIALECT_DEPS)
 
 _TMLANGUAGE_KEYWORD_DEPS := $(shell find $(ROOT)rust/tcl-registry/src $(ROOT)rust/tcl-dialect/src $(ROOT)rust/tcl-syntax/src $(ROOT)rust/xtask/src -name '*.rs')
 _TMLANGUAGE_KEYWORD_OUTPUTS := editors/vscode/syntaxes/tcl.tmLanguage.json editors/jetbrains/src/main/resources/syntaxes/tcl.tmLanguage.json
 $(_TMLANGUAGE_KEYWORD_OUTPUTS): $(_TMLANGUAGE_KEYWORD_DEPS)
 
-generate: editors/vscode/src/generated/iruleEvents.json editors/zed/languages/tcl/highlights.scm $(_EDITOR_DIALECT_OUTPUTS) $(_TMLANGUAGE_KEYWORD_OUTPUTS) gen-irule-test-data ## Regenerate editor catalogs, dialect projections, lexical grammars, and iRule-test data
+generate: editors/vscode/src/generated/iruleEvents.json editors/zed/languages/tcl/highlights.scm $(_EDITOR_DIALECT_OUTPUTS) $(_EDITOR_CONFIG_OUTPUTS) $(_ENVIRONMENT_DOC_OUTPUTS) $(_TMLANGUAGE_KEYWORD_OUTPUTS) gen-irule-test-data ## Regenerate editor catalogs, dialect projections, lexical grammars, and iRule-test data
 	@echo "==> Generating the bundled-pack environment seed (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-bundled-environments
 	@echo "==> Generating editor dialect projections (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-editor-dialects
+	@echo "==> Generating editor language and extension lists (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-editor-extensions
+	@echo "==> Generating editor configuration regions (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-editor-configs
+	@echo "==> Generating environment documentation and the prompt manifest (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-environment-docs
 	@echo "==> Generating TextMate keyword grammars (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-tmlanguage-keywords
 
@@ -2753,7 +2841,7 @@ runtime-rust-test-no-tommath: ## Run the Rust runtime port's cargo test with lib
 	cd $(RUNTIME_RUST_DIR) && cargo test --locked
 
 runtime-rust-lint: ## Rust runtime port: cargo fmt --check + locked clippy -D warnings
-	cd $(RUNTIME_RUST_DIR) && cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings
+	cd $(RUNTIME_RUST_DIR) && cargo fmt --check && cargo clippy --locked --all-targets -- $(CLIPPY_LINT_FLAGS)
 
 zed-query-check: ## Validate the generated Zed highlight queries against the pinned tree-sitter grammar
 	cd $(ROOT)rust/zed-query-check && cargo test
@@ -2763,4 +2851,4 @@ vm-test: ## Run the bytecode VM crates' cargo test (tcl-bytecode + tcl-runtime-a
 
 vm-lint: ## Bytecode VM crates: cargo fmt --check + clippy -D warnings
 	cargo fmt -p tcl-bytecode -p tcl-runtime-api -p tcl-vm --check
-	cargo clippy -p tcl-bytecode -p tcl-runtime-api -p tcl-vm --all-targets -- -D warnings
+	cargo clippy -p tcl-bytecode -p tcl-runtime-api -p tcl-vm --all-targets -- $(CLIPPY_LINT_FLAGS)

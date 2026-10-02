@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `load` — load a shared library extension and initialize new commands.
+//! `load` — load a shared library extension and initialise new commands.
 use crate::prelude::*;
 use tcl_dialect::model::Family;
 use tcl_dialect::model::SpecSurface;

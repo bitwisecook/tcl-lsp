@@ -17,7 +17,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The native lowered IR (NLIR): a small typed vocabulary over SSA values
-//! with explicit framing operations (plan §3.3).
+//! with explicit framing operations
+//! (`docs/design/compiler/wasm-native-lowering-plan.md` §3.3).
 //!
 //! An NLIR function mirrors the executable semantic function block for block:
 //! every executable block becomes one [`NativeBlock`] with the same index and

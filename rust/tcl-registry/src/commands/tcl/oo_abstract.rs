@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `TclOO` class.
+//! `oo::abstract` — `TclOO` metaclass for abstract classes.
 use super::oo_class::{CLASS_FACTORY_SUBCOMMANDS, oo_class_arg_roles};
 use crate::prelude::*;
 use tcl_dialect::model::SpecSurface;

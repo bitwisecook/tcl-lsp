@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! `next` — the explicit, non-terminal continuation outcome for handler
-//! composition (issue #1204). A handler that ends a path with `next` yields no
+//! composition. A handler that ends a path with `next` yields no
 //! decision, so the next handler in priority order runs; if every handler on a
 //! path yields `next`, the event's declared default verdict applies.
 //!

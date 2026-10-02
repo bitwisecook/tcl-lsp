@@ -30,7 +30,7 @@
 //! value→value function here — the adapter only maps the result/error onto its
 //! protocol.
 //!
-//! Semantics verified against tclsh 9.0.
+//! Semantics follow tclsh 9.0.
 
 // The sorted binary search and stride/index arithmetic mirror C's `isize`/`usize`
 // index math (each cast is range-checked by the surrounding logic — list lengths
@@ -47,6 +47,7 @@
 
 use core::cmp::Ordering;
 
+use tcl_dialect::TclVersion;
 use tcl_syntax::value::ValueOps;
 
 use tcl_syntax::list::split_list;
@@ -181,6 +182,7 @@ struct Opts {
 pub fn lsearch<O: ValueOps, E: RegexEngine>(
     ops: &mut O,
     args: &[O::Value],
+    version: TclVersion,
 ) -> Result<O::Value, LsearchError> {
     let n = args.len();
     if n < 2 {
@@ -323,10 +325,10 @@ pub fn lsearch<O: ValueOps, E: RegexEngine>(
     let mut re = if o.mode == SearchMode::Regexp {
         let flags = RegexFlags {
             nocase: o.nocase,
-            ..RegexFlags::default()
+            ..RegexFlags::for_release(version)
         };
         Some(E::compile(&pattern, flags).map_err(|d| {
-            let mut m = b"cannot compile regular expression pattern: ".to_vec();
+            let mut m = version.regex_compile_error_prefix().as_bytes().to_vec();
             m.extend_from_slice(&d);
             LsearchError::msg(m)
         })?)
@@ -462,7 +464,10 @@ fn elem_cmp<O: ValueOps>(
         }
         SortMode::Ascii => {
             if nocase {
-                pattern.to_ascii_lowercase().cmp(&ob.to_ascii_lowercase())
+                // Full-range fold, as C's `TclUtfCasecmp` (#2125): tclsh
+                // 8.5.19 onwards answer `lsearch -nocase [list \u00c9] \u00e9`
+                // with `0`, in `-exact` and `-sorted` alike.
+                crate::string::fold_lower_bytes(pattern).cmp(&crate::string::fold_lower_bytes(&ob))
             } else {
                 pattern.cmp(ob.as_ref())
             }
@@ -589,8 +594,6 @@ fn subindex_obj<O: ValueOps>(
     ops.new_list(out)
 }
 
-// index-path helpers
-
 /// Split an `-index` argument (a Tcl list) into its component specs.
 fn split_index(arg: &[u8]) -> Result<Vec<Vec<u8>>, LsearchError> {
     let s = str_opt(arg).ok_or_else(|| bad_index(arg))?;
@@ -636,6 +639,7 @@ fn str_opt(b: &[u8]) -> Option<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::regex::RegMatch;
 
     /// `split_index` result as a `Vec<Vec<u8>>` (`LsearchError` has no Debug,
     /// so we can't `.unwrap()`).
@@ -648,8 +652,7 @@ mod tests {
 
     #[test]
     fn split_index_parses_list_specs() {
-        // `lsearch -index {…}` splits a Tcl list into component specs
-        // (cmd-core lsearch.rs had no unit coverage).
+        // `lsearch -index {…}` splits a Tcl list into component specs.
         assert_eq!(
             split_ok(b"0 1 2"),
             vec![b"0".to_vec(), b"1".to_vec(), b"2".to_vec()]
@@ -666,5 +669,134 @@ mod tests {
         assert!(validate_index_path(&[b"-1".to_vec()]).is_err()); // out of range
         assert!(validate_index_path(&[b"end+1".to_vec()]).is_err()); // out of range
         assert!(validate_index_path(&[b"bad".to_vec()]).is_err()); // bad index
+    }
+
+    /// A throwaway string-only `ValueOps`, as `switch`/`string` keep for their
+    /// own core tests: `elem_cmp` only ever reads the element's bytes.
+    #[derive(Default)]
+    struct StrOps;
+
+    impl ValueOps for StrOps {
+        type Value = String;
+        fn new_str(&mut self, s: &str) -> String {
+            s.to_owned()
+        }
+        fn new_int(&mut self, n: i64) -> String {
+            n.to_string()
+        }
+        fn new_double(&mut self, f: f64) -> String {
+            tcl_syntax::number::format_double(f)
+        }
+        fn new_bool(&mut self, b: bool) -> String {
+            (if b { "1" } else { "0" }).to_owned()
+        }
+        fn new_list(&mut self, items: Vec<String>) -> String {
+            items.join(" ")
+        }
+        fn as_str(&mut self, v: &String) -> std::rc::Rc<str> {
+            std::rc::Rc::from(v.as_str())
+        }
+        fn as_int(&mut self, v: &String) -> Result<i64, tcl_syntax::value::ValueError> {
+            v.parse()
+                .map_err(|_| tcl_syntax::value::ValueError::NotInteger(v.clone()))
+        }
+        fn as_double(&mut self, _v: &String) -> Result<f64, tcl_syntax::value::ValueError> {
+            Ok(0.0)
+        }
+        fn as_bool(&mut self, _v: &String) -> Result<bool, tcl_syntax::value::ValueError> {
+            Ok(false)
+        }
+        fn list_elements(
+            &mut self,
+            v: &String,
+        ) -> Result<Vec<String>, tcl_syntax::value::ValueError> {
+            Ok(v.split_whitespace().map(str::to_owned).collect())
+        }
+    }
+
+    /// An engine whose every pattern fails to compile.
+    enum RejectingEngine {}
+
+    impl RegexEngine for RejectingEngine {
+        type Regex = ();
+        fn compile(_pattern: &[u8], _flags: RegexFlags) -> Result<(), Vec<u8>> {
+            Err(b"parentheses () not balanced".to_vec())
+        }
+        fn nsub(_re: &()) -> usize {
+            unreachable!()
+        }
+        fn exec(
+            _re: &mut (),
+            _cps: &[i32],
+            _offset: usize,
+            _notbol: bool,
+        ) -> Option<Vec<RegMatch>> {
+            unreachable!()
+        }
+    }
+
+    #[test]
+    fn regexp_compile_error_prefix_follows_the_release() {
+        // tclsh 8.4.20 / 8.5.19 / 8.6.18 say `couldn't`, 9.0.4 / 9.1.0 `cannot`:
+        //   % lsearch -regexp {a b} (
+        //   couldn't compile regular expression pattern: parentheses () not balanced
+        for (version, verb) in [
+            (TclVersion::V8_4, "couldn't"),
+            (TclVersion::V8_5, "couldn't"),
+            (TclVersion::V8_6, "couldn't"),
+            (TclVersion::V9_0, "cannot"),
+            (TclVersion::V9_1, "cannot"),
+        ] {
+            let args = ["-regexp", "a b", "("].map(str::to_owned);
+            let Err(e) = lsearch::<StrOps, RejectingEngine>(&mut StrOps, &args, version) else {
+                panic!("{version:?}: a bad pattern must not compile")
+            };
+            assert_eq!(
+                String::from_utf8_lossy(&e.message),
+                format!("{verb} compile regular expression pattern: parentheses () not balanced"),
+                "{version:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn nocase_element_compare_folds_the_full_unicode_range() {
+        // Regression (#2125): the `-exact`/`-sorted` `-nocase` comparison folded
+        // with `to_ascii_lowercase`, so a non-ASCII letter never matched. tclsh
+        // 8.5.19 / 8.6.18 / 9.0.4 / 9.1b0 (the releases with `lsearch -nocase`):
+        //   % lsearch -nocase [list É] é        ;# 0
+        //   % lsearch -exact -nocase [list É] é ;# 0
+        //   % lsearch -sorted -nocase [list É] é ;# 0
+        //   % lsearch -nocase [list İ] i             ;# 0
+        let mut ops = StrOps;
+        let cmp = |ops: &mut StrOps, pattern: &str, elem: &str| {
+            let Ok(o) = elem_cmp(
+                ops,
+                SortMode::Ascii,
+                true,
+                pattern.as_bytes(),
+                &elem.to_owned(),
+            ) else {
+                panic!("ascii compare cannot fail")
+            };
+            o
+        };
+        assert_eq!(cmp(&mut ops, "\u{e9}", "\u{c9}"), Ordering::Equal);
+        assert_eq!(cmp(&mut ops, "\u{410}", "\u{430}"), Ordering::Equal);
+        assert_eq!(cmp(&mut ops, "i", "\u{130}"), Ordering::Equal);
+        // Ordering (which `-sorted` bisects on) follows the folded code points.
+        assert_eq!(cmp(&mut ops, "\u{e1}", "\u{c2}"), Ordering::Less);
+        assert_eq!(cmp(&mut ops, "aBc", "AbC"), Ordering::Equal);
+        // Case-sensitive comparison is untouched.
+        let Ok(o) = elem_cmp(
+            &mut ops,
+            SortMode::Ascii,
+            false,
+            "\u{e9}".as_bytes(),
+            &"\u{c9}".to_owned(),
+        ) else {
+            panic!("ascii compare cannot fail")
+        };
+        assert_eq!(o, Ordering::Greater);
     }
 }

@@ -16,8 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Differential and property tests for the new axis-typed `VersionSet`
-//! algebra (design invariant I2 and review finding B3).
+//! Differential and property tests for the axis-typed `VersionSet` algebra
+//! (invariant I2, `docs/design/registry/dialect-and-package-registry-redesign.md`).
 //!
 //! The differential half re-uses the hermetic corpus pinned from real
 //! interpreters (`data/package_version_oracle.txt`, byte-identical on

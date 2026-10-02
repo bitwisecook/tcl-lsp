@@ -98,6 +98,8 @@ if {[string first "World" $s] >= 0} {
 
     subcommand is {
         semantic_operation {Intrinsic StringIs}
+        # -failindex is written only when the class test fails.
+        traits {CONDITIONAL_VARIABLE_WRITE}
         arity 2..
         detail   {Test if string is a member of a character class.}
         synopsis {string is class ?-strict? ?-failindex varname? string}

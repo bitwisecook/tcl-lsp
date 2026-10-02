@@ -49,7 +49,7 @@
 // discrepancy from the documented example worth an independent look by
 // whoever next touches that file.
 //
-// Security-relevant fact not previously modelled: an argument word that is
+// An underdocumented security-relevant fact: an argument word that is
 // neither a plain number nor one of the `..`/`to`/`count`/`by` keywords is
 // evaluated as a Tcl *expression* — the manpage's own worked example
 // `foreach i [lseq {[llength $l]-1} 0] { ... }` only works because of this

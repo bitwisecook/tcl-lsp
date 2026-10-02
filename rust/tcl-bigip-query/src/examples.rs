@@ -18,7 +18,7 @@
 
 //! Worked examples rendered by `f5 query --help-examples`.
 //!
-//! The `_EXAMPLES` cookbook tuple plus `format_examples()`. Each entry is a
+//! The `EXAMPLES` cookbook table plus `format_examples()`. Each entry is a
 //! `(title, query, comment)` triple; the formatter lays them out as a
 //! numbered list with the invocation and a one-line gloss.
 
@@ -29,7 +29,7 @@ struct Example {
     comment: &'static str,
 }
 
-/// The cookbook, in display order — verbatim from `_EXAMPLES`.
+/// The cookbook, in the display order `format_examples` renders.
 const EXAMPLES: &[Example] = &[
     Example {
         title: "List every virtual server's default pool",

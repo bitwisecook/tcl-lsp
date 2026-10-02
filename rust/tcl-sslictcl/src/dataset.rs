@@ -2,13 +2,13 @@
 // Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Normalized input schema and deterministic compiler for trust-store updates.
+//! Normalised input schema and deterministic compiler for trust-store updates.
 //!
 //! Fetchers are intentionally outside this crate: release tooling may obtain
 //! Trust Stores Observatory or vendor data, but ordinary builds and reports
-//! never use the network. Each fetcher emits this small normalized snapshot,
+//! never use the network. Each fetcher emits this small normalised snapshot,
 //! then this module performs identity validation, DER projection, merge, sort,
-//! and canonical serialization.
+//! and canonical serialisation.
 
 use std::collections::BTreeMap;
 use std::error::Error;
@@ -26,7 +26,7 @@ use crate::trust::{
 /// One root-program snapshot produced by a source-specific updater.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TrustProgramSnapshot {
-    /// Normalized input schema.
+    /// Normalised input schema.
     pub schema: u32,
     /// Root program represented by the snapshot.
     pub client: ClientFamily,
@@ -40,7 +40,7 @@ pub struct TrustProgramSnapshot {
     pub anchors: Vec<ProgramAnchor>,
 }
 
-/// One normalized anchor record from a root-program snapshot.
+/// One normalised anchor record from a root-program snapshot.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProgramAnchor {
     /// SHA-256 of certificate DER. May be empty when `der_base64` is present;
@@ -61,7 +61,7 @@ pub struct ProgramAnchor {
     pub distrust_after: Option<i64>,
 }
 
-/// Invalid normalized input or conflicting source records.
+/// Invalid normalised input or conflicting source records.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DatasetError {
     /// Human-readable explanation.
@@ -81,7 +81,7 @@ struct MergedAnchor {
     anchor: Anchor,
 }
 
-/// Merge normalized snapshots into the exact embedded-data schema.
+/// Merge normalised snapshots into the exact embedded-data schema.
 pub fn compile_trust_snapshots(
     snapshots: &[TrustProgramSnapshot],
 ) -> Result<EmbeddedDataset, DatasetError> {

@@ -57,7 +57,7 @@ pub fn event_is_described(event: &str) -> bool {
 
 /// Map the registry's dependency-free program-type enum onto the IR's, for the
 /// codegen-ready targets. `None` for events the IR has no lowering for yet
-/// (none today — issue #1310 completed TC/cgroup codegen; kept `Option` so a
+/// (none today, with TC/cgroup codegen implemented; kept `Option` so a
 /// future event can land its schema ahead of its codegen, as TC/cgroup did).
 #[must_use]
 pub fn prog_type_of(pt: BpfEventProgType) -> Option<ProgType> {

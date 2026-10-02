@@ -32,9 +32,10 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// available since 8.6 (dialect `None`, inheriting the parent subcommand).
 ///
 /// Every `9.0`-gated fact below (`sub_since` call sites) was cross-checked
-/// against the Tcl 9.1 beta manpage as well: `info.n` in 9.1 is byte-for-byte
-/// identical to 9.0 apart from the version banner, so a `TCL90_PLUS` gate is
-/// exact for both releases — there is no 9.1-only delta to model separately.
+/// against the Tcl 9.1b0 and 9.1.0 manpages as well: `info.n` in 9.1 differs
+/// from 9.0 only in the version banner and synopsis typesetting, so a
+/// `TCL90_PLUS` gate is exact for both releases — there is no 9.1-only delta to
+/// model separately.
 const fn sub(name: &'static str, detail: &'static str, synopsis: &'static str) -> SubSubCommand {
     SubSubCommand {
         name,
@@ -401,7 +402,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         surface: Some(SpecSurface::TCL86_PLUS),
         // `info class` is itself an ensemble: the word after `class` selects a
-        // CLASS INTROSPECTION operation (issue #798).
+        // CLASS INTROSPECTION operation.
         sub_subcommands: INFO_CLASS_SUBS,
         ..SubCommand::DEFAULT
     },
@@ -443,7 +444,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // navigable reference that asserts nothing about existence (an
         // absent name returns an empty list).  The analyser's probe
         // recorder abstains on any word with glob metacharacters, so a
-        // real pattern contributes no reference (issue #945 fault 9).
+        // real pattern contributes no reference.
         arg_roles: &[(0, ArgRole::CommandNameProbe)],
         ..SubCommand::DEFAULT
     },
@@ -493,7 +494,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         name: "default",
         // Reflects a named proc's parameter defaults by the proc's spelled
         // name — observable identity for both symbol kinds.
-        traits: Traits::INTROSPECTS_BY_NAME.union(Traits::REFLECTS_COMMAND_NAMES),
+        // `varname` is written either way: the default, or `""` without one.
+        traits: Traits::INTROSPECTS_BY_NAME
+            .union(Traits::REFLECTS_COMMAND_NAMES)
+            .union(Traits::UNCONDITIONAL_VARIABLE_WRITE),
         arity: Arity::exact(3),
         detail: "If the parameter has a default value, stores that value in varname and returns 1; otherwise returns 0.",
         synopsis: "info default procname parameter varname",
@@ -631,7 +635,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         surface: Some(SpecSurface::TCL86_PLUS),
         // `info object` is itself an ensemble: the word after `object` selects
-        // an OBJECT INTROSPECTION operation (issue #798).
+        // an OBJECT INTROSPECTION operation.
         sub_subcommands: INFO_OBJECT_SUBS,
         ..SubCommand::DEFAULT
     },

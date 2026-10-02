@@ -38,7 +38,7 @@ pub const TK_UI_SCHEMA_VERSION: u32 = 1;
 pub const MAX_TK_UI_UNCERTAINTIES: usize = 200;
 
 /// Maximum number of statically constructed widgets retained in one model,
-/// excluding the implicit root. This bounds the serialized response and the
+/// excluding the implicit root. This bounds the serialised response and the
 /// editor's recursive DOM work for generated or otherwise untrusted source.
 pub const MAX_TK_UI_WIDGETS: usize = 1_000;
 
@@ -161,7 +161,7 @@ pub enum TkUncertaintyKind {
     /// A fact occurs inside a body whose execution is not statically proven.
     PotentialExecution,
     /// A later widget instance operation changes state the static model does
-    /// not yet fold into the constructor fact.
+    /// not fold into the constructor fact.
     PostConstructorMutation,
     /// A destroy/rename-like operation changes a previously created widget's
     /// lifetime or command identity.
@@ -208,7 +208,7 @@ pub struct TkGeometryConflictPlacement {
 /// Versioned static Tk UI data for one source document.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TkUiModel {
-    /// Version of this model's serialized schema.
+    /// Version of this model's serialised schema.
     pub schema_version: u32,
     /// Whether Tcl's Tk package is statically active for this document.
     pub tk_active: bool,

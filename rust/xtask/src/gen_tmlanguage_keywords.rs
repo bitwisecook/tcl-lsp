@@ -21,16 +21,17 @@
 //! Text `.sublime-syntax` port — from `tcl-registry`, the same way
 //! [`crate::gen_zed_queries`] already does for Zed's tree-sitter queries.
 //!
-//! ## Why this exists (issue #862)
+//! ## Why this exists
 //!
-//! Before this generator, the three grammars each hand-maintained their own
-//! copy of the `keyword.control` / `keyword.other` / `support.function`
-//! command-name alternations. They had already drifted from each other and
-//! from the registry: `lmap` was miscategorised as a plain builtin (it binds
+//! Hand-maintaining three separate copies of the
+//! `keyword.control` / `keyword.other` / `support.function`
+//! command-name alternations lets them drift from each other and
+//! from the registry: `lmap` binds
 //! a loop variable like `foreach`, so the registry carries it with the
-//! `LANGUAGE_KEYWORD` trait) in all three files, and a PR fixing it by hand in
-//! one of the three left the other two silently unfixed until review caught
-//! it. This generator makes `tcl-registry` the single source of truth for
+//! `LANGUAGE_KEYWORD` trait, but a hand-written list can miscategorise it as
+//! a plain builtin, and a fix applied to one of the three files can leave the
+//! other two silently unfixed. This generator makes `tcl-registry` the single
+//! source of truth for
 //! *which* ambient core-Tcl commands are keywords vs. plain builtins, so a
 //! future addition/removal in the registry can never leave any grammar
 //! behind — only the `--check` gate fails, the same day.
@@ -46,7 +47,7 @@
 //! configuration changes. The variable body comes from
 //! [`tcl_syntax::naming::textmate_variable_name_body`]. Thus the static
 //! fallback grammars remain one cross-editor projection instead of three
-//! hand-rolled lexical parsers (issue #1469).
+//! hand-rolled lexical parsers.
 //!
 //! Comments, strings, operators, punctuation, the `proc`/`method`
 //! name-capture rule, and the `regexp`/`regsub` pattern highlighting remain
@@ -69,8 +70,8 @@
 //! namespaced) would bulk-highlight F5-only commands even in plain `.tcl`
 //! files that will never see them. So the registry projection here is scoped
 //! to [`SpecSurface::ALL_TCL`] (core Tcl 8.4-9.1 + Tk) only — the same
-//! ambient ground the old hand lists actually covered — and the one
-//! iRules-only word the old lists carried (`when`) is kept as a small static
+//! ambient ground the three hand-maintained lists actually covered — and the one
+//! iRules-only word those lists carried (`when`) is kept as a small static
 //! addition alongside the non-command clause words below, rather than
 //! justifying the full dialect union for one word.
 //!
@@ -96,8 +97,7 @@
 //!   grammar cannot, so they are deliberately excluded here, matching
 //!   [`crate::gen_zed_queries`]'s equivalent judgement call for its `my`-style
 //!   words. The same reasoning covers the `TclOO` method-body helpers
-//!   `callback` and `mymethod` (registry-modelled since issue #923's
-//!   `ticklecharts` idx 51): `proc callback {…}` is ordinary, common Tcl, and
+//!   `callback` and `mymethod`: `proc callback {…}` is ordinary, common Tcl, and
 //!   a context-free regex cannot tell that definition — or any call of it —
 //!   from the 9.0 helper, so both bare words join the exclusion list. Their
 //!   **qualified** `oo::Helpers::…` spellings stay in, on the same
@@ -159,8 +159,8 @@ const CONTROL_STYLE: &[&str] = &[
     "catch",
     "continue",
     // `error` sits here with `catch`/`throw`/`try`: it is a non-local exit, not
-    // a computation. Before #904 it was not a `LANGUAGE_KEYWORD` at all, so
-    // `catch { error boom }` coloured its two halves differently.
+    // a computation. Leaving it off `LANGUAGE_KEYWORD` would colour
+    // `catch { error boom }`'s two halves differently.
     "error",
     "for",
     "foreach",
@@ -254,7 +254,7 @@ fn lexical_regexes() -> LexicalRegexes {
         None => r"x[0-9a-fA-F]+".to_owned(),
     };
     // 8.6+ takes a third octal digit only when the first digit is 0–3. The
-    // `octal_takes_third_digit` owner says this directly, avoiding the old
+    // `octal_takes_third_digit` owner says this directly, avoiding an
     // unsound flat `[0-7]{1,3}` grammar.
     let octal_escape = if escapes.octal_takes_third_digit(0o37) {
         if escapes.octal_takes_third_digit(0o40) {
@@ -585,7 +585,7 @@ mod tests {
 
     #[test]
     fn lmap_is_control_not_builtin() {
-        // The bug this generator exists to prevent (issue #862).
+        // The miscategorisation this generator exists to prevent.
         let reg = CommandRegistry::build_default();
         let b = classify(&reg);
         assert!(b.control.contains("lmap"));
@@ -597,7 +597,7 @@ mod tests {
     fn lexical_projection_uses_shared_modern_number_escape_and_name_owners() {
         let lexical = lexical_regexes();
         // Tcl 9's explicit decimal prefix and separator runs must reach every
-        // static fallback grammar; these were absent from all three hand lists.
+        // static fallback grammar.
         assert!(lexical.decimal.contains("0[dD]"));
         assert!(lexical.decimal.contains("_+"));
         // TIP 388's wide unicode form and its first-octal-digit cap are both
@@ -610,8 +610,8 @@ mod tests {
         assert!(lexical.escape.contains("[0-3][0-7]{0,2}"));
         assert!(lexical.escape.contains("[4-7][0-7]?"));
         assert!(lexical.escape.contains("{}()"));
-        // Namespace separator runs use the shared naming fragment, not the
-        // former exactly-two-colon spelling.
+        // Namespace separator runs use the shared naming fragment, matching a
+        // colon run of any length, not only exactly two.
         assert!(lexical.variable.contains("[:]{2,}"));
     }
 

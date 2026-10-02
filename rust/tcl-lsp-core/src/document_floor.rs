@@ -19,7 +19,7 @@
 //! The version floor a **request-time** provider answers at.
 //!
 //! Every lifecycle-bearing fact in the registry — a command, a subcommand, an
-//! option, an enumerable value, and since issue #1644 a per-argument row — is
+//! option, an enumerable value, and a per-argument row — is
 //! read through an accessor taking `package_version: Option<&str>`. The floor
 //! itself is a per-document fact, so `tcl-registry` never holds one: its
 //! handles are cached per (profile, pack overlay) and shared across documents.
@@ -30,7 +30,7 @@
 //! document's `package require` lines, which exist only once the walk that
 //! records them has finished. A consumer running *during* the walk cannot use
 //! this — that is why the arity gate defers its verdict to a post-walk flush
-//! (issue #1627) rather than asking mid-walk.
+//! rather than asking mid-walk.
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_registry::model::KeyedVersions;

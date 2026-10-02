@@ -54,9 +54,7 @@ use serde_json::{Value, json};
 use std::fmt::Write as _;
 use std::time::Duration;
 
-// --------------------------------------------------------------------------- #
 // Client-side text mirror.
-// --------------------------------------------------------------------------- #
 
 /// Length of `s` in UTF-16 code units (astral chars count as two).
 fn utf16_len(s: &str) -> usize {
@@ -207,9 +205,7 @@ fn char_boundary(text: &str, off: usize) -> usize {
     o
 }
 
-// --------------------------------------------------------------------------- #
 // Oracle helpers.
-// --------------------------------------------------------------------------- #
 
 /// The semantic-tokens legend (`tokenTypes`, `tokenModifiers`) advertised by the
 /// server.
@@ -340,9 +336,9 @@ fn assert_buffer_equiv(
     // Either buffer's first `semanticTokens/full` can be served the transient
     // *coarse* tier when its enriched (SSA/SCCP-informed) computation overruns
     // the 40 ms fast-path budget under load; the server then fires
-    // `workspace/semanticTokens/refresh` once the enriched stream lands (issue
-    // #829). A raw compare can therefore catch a coarse/enriched *tier split*
-    // that is a scheduling artefact, not a stale-cache divergence.
+    // `workspace/semanticTokens/refresh` once the enriched stream lands. A raw
+    // compare can therefore catch a coarse/enriched *tier split* that is a
+    // scheduling artefact, not a stale-cache divergence.
     //
     // Fast path: if the first reads already agree, the buffers are consistent —
     // whichever tier each was served, they match, which is the whole invariant.
@@ -396,8 +392,6 @@ fn codes(diags: &[Value]) -> std::collections::BTreeSet<String> {
 }
 
 const SEED_DOC: &str = "proc greet {name} {\n    puts \"Hello $name\"\n}\nset total [expr {1 + 2}]\nif $cond { puts $total }\ngreet World\n";
-
-// -- TestRandomEditStorm -------------------------------------------------
 
 /// Dumps the full state of a random-seeded run when the test thread is
 /// unwinding, so a failure — a mirror-vs-server divergence *or* the diagnostics
@@ -545,8 +539,6 @@ fn batched_multi_edit_changes_64() {
     batched_multi_edit_changes(64);
 }
 
-// -- TestSupersession ----------------------------------------------------
-
 #[test]
 fn rapid_edits_final_version_wins() {
     // Fire a burst of edits without waiting between them, then demand the publish
@@ -582,8 +574,6 @@ fn introduce_then_immediately_fix_error() {
     let final_diags = lsp.await_diagnostics_version(&uri, Some(3), Duration::from_secs(30));
     assert!(!codes(&final_diags).contains("E002"));
 }
-
-// -- TestStructuralEdits -------------------------------------------------
 
 #[test]
 fn multiline_insertions_and_deletions() {
@@ -664,8 +654,6 @@ fn delete_to_empty_then_rebuild() {
     assert_buffer_equiv(&mut lsp, &uri, version, &fresh, &text);
 }
 
-// -- TestUnicodeTracking -------------------------------------------------
-
 #[test]
 fn utf16_offsets_survive_astral_chars() {
     // Astral-plane characters occupy two UTF-16 code units; a tracker that
@@ -709,8 +697,6 @@ fn utf16_offsets_survive_astral_chars() {
     let text = mirror.text.clone();
     assert_buffer_equiv(&mut lsp, &uri, version, &fresh, &text);
 }
-
-// -- TestReopenLifecycle -------------------------------------------------
 
 #[test]
 fn close_and_reopen_resets_version_without_stale_cache() {
@@ -763,8 +749,8 @@ fn feature_requests_interleaved_with_edits() {
             content-equivalence oracle on small documents in CI"]
 #[test]
 fn every_snapshot_consumer_stays_correct_while_typing_a_large_document() {
-    // Issue #1184: request handlers no longer receive a deep copy of the
-    // document — they share one immutable text + line-index allocation, taken
+    // Request handlers do not receive a deep copy of the document — they
+    // share one immutable text + line-index allocation, taken
     // under the store lock and released before any `.await`. The sharing is
     // only safe because each snapshot stays pinned to the revision it was taken
     // at, so the property to pin here is that *every* major `read_document`
@@ -795,8 +781,8 @@ fn every_snapshot_consumer_stays_correct_while_typing_a_large_document() {
         mirror.apply(&edit);
         version += 1;
         lsp.change_document(&uri, version, json!([edit.as_content_change()]));
-        // Fan out across the snapshot consumers named in #1184's test matrix,
-        // rotating so each one lands at a different point in the edit stream.
+        // Fan out across the snapshot consumers, rotating so each one lands at
+        // a different point in the edit stream.
         lsp.semantic_tokens(&uri);
         lsp.document_symbols(&uri);
         match round % 4 {
@@ -820,13 +806,9 @@ fn every_snapshot_consumer_stays_correct_while_typing_a_large_document() {
     assert_buffer_equiv(&mut lsp, &uri, version, &fresh, &text);
 }
 
-// --------------------------------------------------------------------------- #
 // Token alignment: semantic tokens must never go out of alignment under edits.
-// --------------------------------------------------------------------------- #
 
 const ALIGN_DOC: &str = "proc tally {items} {\n    set count 0\n    foreach item $items {\n        set count [expr {$count + 1}]\n        puts \"item $item count $count\"\n    }\n    return $count\n}\n";
-
-// -- TestTokenAlignmentUnderEdits ----------------------------------------
 
 #[test]
 fn multicursor_rename_keeps_tokens_aligned() {

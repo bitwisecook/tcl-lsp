@@ -29,11 +29,10 @@ use tcl_lsp_core::source_style::StyleDiagnostic;
 /// Source file extensions the CLI accepts — the registry's single list, shared
 /// with the LSP server's workspace scan and the VS Code activation glob.
 ///
-/// `test` is the standard `tcltest` suite-file extension — `tcl check
-/// path/to/tests/` skipped a project's whole test suite without it, the CLI
-/// twin of the workspace-scan gap in issue #923 differential-audit findings
-/// idx 10 / idx 27. The CLI's own copy had additionally drifted from the
-/// server's by `exp` / `apl` (issue #1242).
+/// `test` is the standard `tcltest` suite-file extension — without it,
+/// `tcl check path/to/tests/` would skip a project's whole test suite,
+/// mirroring the same gap in the workspace scan. The list must also stay in
+/// sync with the server's `exp` / `apl` extensions.
 use tcl_registry::dialects::TCL_SOURCE_EXTENSIONS as SOURCE_SUFFIXES;
 
 /// Directory names skipped during recursive discovery.
@@ -77,7 +76,7 @@ pub struct InputDocument {
     /// The originating file path, if any.
     pub path: Option<PathBuf>,
     /// What the decoder had to substitute to produce [`Self::source`] from the
-    /// bytes on disk (issue #1326).
+    /// bytes on disk.
     ///
     /// [`DecodeReport::is_faithful`] holds for every document read from text
     /// the caller already had — `--source`, stdin — because there were no bytes
@@ -102,7 +101,7 @@ impl InputDocument {
     /// The server normalises at every entry point that reaches the analyser
     /// (`DocumentState::normalised_for_analysis`), and detection there runs on
     /// the normalised text. This is the CLI's one place to do the same, so a
-    /// verb gets it by asking rather than by remembering (issue #1799).
+    /// verb gets it by asking rather than by remembering.
     ///
     /// [`Self::source`] stays the bytes the caller supplied — the byte-backed
     /// encoding diagnostics describe the file on disk and must not be
@@ -128,10 +127,10 @@ impl InputDocument {
         if let Some(profile) = explicit {
             return profile;
         }
-        // T4: the `tcl8.6` invocation default stays the detector's own
-        // fallback spelling until the configured default environment
-        // lands (ledger row T4, P1) — resolving it here would change what
-        // an unstated document is analysed as.
+        // The `tcl8.6` invocation default stays the detector's own
+        // fallback spelling rather than the configured default environment:
+        // resolving it here would change what an unstated document is
+        // analysed as.
         crate::environment::profile_for_dialect(tcl_registry::dialects::detect_dialect(
             &self.analysis_source(),
             self.filename(),
@@ -201,7 +200,7 @@ pub fn combined_effective_dialect(
     documents
         .iter()
         .find_map(InputDocument::detected_dialect)
-        // T4: the hardcoded `tcl8.6` invocation default, unchanged — see
+        // The hardcoded `tcl8.6` invocation default — see
         // `InputDocument::effective_dialect`.
         .unwrap_or_else(|| crate::environment::profile_for_dialect("tcl8.6"))
 }
@@ -210,40 +209,50 @@ pub fn combined_effective_dialect(
 ///
 /// This is the CLI ingest boundary: an unrecognised spelling is an input
 /// error, never an accidental fallback to plain Tcl. Every accepted
-/// spelling — a canonical id, a registered alias (`irules` → `f5-irules`),
-/// and the set-only `tk` ingress that has no catalog profile by design —
-/// resolves through the one environment resolver
-/// ([`crate::environment::known_profile_for_dialect`]), which hands back
-/// the typed additive profile for `tk` exactly as the retired
-/// `DialectProfile::resolve_known` did.
+/// spelling — a canonical id, an alias (`irules` → `f5-irules`), or an editor
+/// language id — resolves through the one environment resolver
+/// ([`crate::environment::known_profile_for_dialect`]), which hands back the
+/// typed additive profile for `tk` the same way it does for a catalogue
+/// profile.
+///
+/// A name the compiled environments know resolves at once. Any other name is
+/// looked up again after the workspace and user packs are discovered and
+/// published, because a pack may declare it: an environment a pack declares is
+/// in the live registry from then on. The argument parsers accept any
+/// non-empty string for that reason, and this is the only place the value is
+/// checked.
+///
+/// # Errors
+///
+/// An input error naming the selectable ids when `value` resolves to no
+/// environment.
 pub fn resolve_dialect(value: Option<&str>) -> Result<Option<&'static DialectProfile>, CliError> {
     value
         .map(|name| {
-            crate::environment::known_profile_for_dialect(name).ok_or_else(|| {
-                CliError::input(format!(
-                    "unknown dialect `{name}`; valid names are {} (registered aliases such as `irules` are also accepted)",
-                    known_dialect_names()
-                ))
-            })
+            crate::environment::known_profile_for_dialect(name)
+                .or_else(|| {
+                    crate::cli_packs();
+                    crate::environment::known_profile_for_dialect(name)
+                })
+                .ok_or_else(|| {
+                    CliError::input(format!(
+                        "unknown dialect `{name}`; valid names are {} (aliases such as \
+                         `irules`, editor language ids and environments declared by \
+                         discovered packs are also accepted)",
+                        known_dialect_names()
+                    ))
+                })
         })
         .transpose()
 }
 
-/// The canonical dialect names [`resolve_dialect`] accepts, comma-separated:
-/// the profile catalog plus the additive `tk` ingress, which has no catalog
-/// profile by design but resolves all the same.
+/// The canonical ids of the selectable environments [`resolve_dialect`]
+/// accepts, comma-separated, read from the live registry so a registered pack
+/// environment is named too.
 fn known_dialect_names() -> String {
-    DialectProfile::all()
+    tcl_registry::model::selectable_environments()
         .iter()
-        .map(|profile| profile.name)
-        // T1: the `+ tk` chain is the *payload* this row retires (ledger
-        // row T1, P1) — the environment enumeration has different
-        // contents, so re-keying it changes this user-facing list rather
-        // than refactoring it. The `tk` name itself now resolves through
-        // the seam.
-        .chain(std::iter::once(
-            crate::environment::profile_for_dialect("tk").name,
-        ))
+        .map(|environment| environment.id.as_str().to_owned())
         .collect::<Vec<_>>()
         .join(", ")
 }
@@ -409,10 +418,10 @@ pub fn read_input_documents(
         }
         let bytes = std::fs::read(&file_path)
             .map_err(|e| CliError::input(format!("failed to read {}: {e}", file_path.display())))?;
-        // The one byte -> text boundary for Tcl source: still a lossy decode
-        // (so a broken file is analysed rather than refused), but no longer a
-        // silent one — `decode` carries exactly what was substituted, and
-        // `encoding_diagnostics` turns it into a real finding. Issue #1326.
+        // The one byte -> text boundary for Tcl source: a lossy decode (so a
+        // broken file is analysed rather than refused), but not a silent
+        // one — `decode` carries exactly what was substituted, and
+        // `encoding_diagnostics` turns it into a real finding.
         let (source, decode) = decode_source(&bytes);
         documents.push(InputDocument {
             label: file_path.display().to_string(),
@@ -449,11 +458,19 @@ pub fn read_input_documents(
 /// Combine documents into one source string: each doc's trailing newlines are
 /// stripped and the chunks are joined with a blank line (mirrors
 /// `_combine_sources`).
+///
+/// Every combining verb (the transforms, the graph verbs, the explorer, and
+/// the compile verbs) feeds its result straight into the analyser or the
+/// compiler, so this joins each document's [`InputDocument::analysis_source`]
+/// rather than its raw `source` — the one join point normalising lone `\r`
+/// once means a verb that starts combining documents tomorrow gets it by
+/// construction, rather than by remembering to call `analysis_source` itself
+/// (#1953: six verbs had not).
 #[must_use]
 pub fn combine_sources(documents: &[InputDocument]) -> String {
     documents
         .iter()
-        .map(|d| d.source.trim_end_matches('\n'))
+        .map(|d| d.analysis_source().trim_end_matches('\n').to_owned())
         .collect::<Vec<_>>()
         .join("\n\n")
 }
@@ -478,8 +495,8 @@ fn expand_user(path: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests {
 
-    use super::resolve_dialect;
-    use tcl_dialect::DialectProfile;
+    use super::{known_dialect_names, resolve_dialect};
+    use tcl_dialect::model::EnvironmentRegistry;
 
     #[test]
     fn explicit_irules_alias_resolves_to_the_canonical_profile() {
@@ -517,14 +534,51 @@ mod tests {
             message.starts_with("unknown dialect `not-a-real-dialect`; valid names are "),
             "unexpected message: {message}"
         );
-        for profile in DialectProfile::all() {
+        for environment in EnvironmentRegistry::compiled_selectable() {
             assert!(
-                message.contains(profile.name),
+                message.contains(environment.id.as_str()),
                 "message omits `{}`: {message}",
-                profile.name
+                environment.id
             );
         }
+        assert!(message.contains("jim"), "message omits `jim`: {message}");
         assert!(message.contains("tk"), "message omits `tk`: {message}");
+    }
+
+    /// The names the unknown-dialect message lists are the live registry's
+    /// selectable canonical ids, in selectable order: no hand list, and not
+    /// the lenient sink.
+    #[test]
+    fn every_runtime_enumeration_is_the_registry() {
+        let expected: Vec<String> = tcl_registry::model::selectable_environments()
+            .iter()
+            .map(|environment| environment.id.as_str().to_owned())
+            .collect();
+        let listed = known_dialect_names();
+        assert_eq!(listed.split(", ").collect::<Vec<_>>(), expected);
+    }
+
+    /// The language ids an environment lists as selecting it are dialect
+    /// names too, though no argument parser knows them.
+    #[test]
+    fn a_selecting_language_id_resolves() {
+        for (name, canonical) in [
+            ("tcl-bpf", "bpf"),
+            ("tcl-libero", "microchip-libero-eda-tcl"),
+            ("tcl-spec", "spectcl"),
+            ("tcl-apl", "f5-iapps"),
+        ] {
+            let profile = resolve_dialect(Some(name))
+                .unwrap_or_else(|error| panic!("`{name}` resolves: {error}"))
+                .expect("an explicit dialect resolves");
+            assert_eq!(
+                profile.name,
+                crate::environment::known_profile_for_dialect(canonical)
+                    .expect("the canonical id resolves")
+                    .name,
+                "{name}"
+            );
+        }
     }
 
     #[test]

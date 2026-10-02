@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! `array` ensemble cores — the *read-side* + `unset` of the `array` command,
-//! shared once over [`VarStore`] (+ its new [`array_keys`](VarStore::array_keys)
+//! shared once over [`VarStore`] (and its [`array_keys`](VarStore::array_keys)
 //! enumeration rung) + [`ValueOps`].
 //!
 //! `array exists`/`size`/`names`/`get`/`unset` are value→value-ish reads over the
@@ -34,7 +34,7 @@
 //! iterate-and-unset over each element, which would leave an empty array
 //! behind.
 //!
-//! Semantics verified against tclsh 9.0.
+//! Semantics follow tclsh 9.0.
 
 use tcl_runtime_api::{
     ArrayElementRead, ArrayInvalidation, ArrayReadMiss, ArrayTarget, Frames, VarStore,

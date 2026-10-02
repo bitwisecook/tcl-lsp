@@ -37,8 +37,7 @@
 //! source (an F5 rule-profiler log format this crate has no reader for) and
 //! a CFG the compiler crate exposes but `f5-cli` does not currently depend
 //! on, to safely reorder `if`/`switch` arms without changing behaviour. That
-//! is a standalone compiler feature, out of scope for a CLI-wiring fix — see
-//! issue #1315.
+//! is a standalone compiler feature, out of scope for a CLI-wiring fix.
 
 use std::path::{Path, PathBuf};
 
@@ -90,11 +89,12 @@ struct LoadedIrules {
 /// The filename suffixes that name a **standalone** iRule file, as opposed to
 /// a `bigip.conf` / SCF / UCS the rules are extracted from.
 ///
-/// Projected from the dialect catalog rather than restated: the `f5-irules`
+/// Projected from the dialect catalogue rather than restated: the `f5-irules`
 /// profile owns `irul`, `irule` and `irules`, and every editor registers all
-/// three, but this list was hand-written with two of them — so `foo.irules`
-/// was parsed as a BIG-IP config instead of an iRule (issue #1625). `tcl` is
-/// added on top because the catalog deliberately leaves the generic extension
+/// three, so this list must not be hand-written with only two of them —
+/// otherwise `foo.irules` would be parsed as a BIG-IP config instead of an
+/// iRule. `tcl` is
+/// added on top because the catalogue deliberately leaves the generic extension
 /// unowned (content decides the dialect there), while `f5-query irule` is
 /// already in iRules context by the time it reads a file.
 fn irule_suffixes() -> &'static [&'static str] {
@@ -112,7 +112,7 @@ fn irule_suffixes() -> &'static [&'static str] {
 }
 
 /// The container suffixes a standalone iRule is *extracted from* — the other
-/// half of the input taxonomy, and not a dialect-catalog fact: `.conf` and
+/// half of the input taxonomy, and not a dialect-catalogue fact: `.conf` and
 /// `.ucs` are deliberately not owned by any profile (a bare `.conf` belongs
 /// to every unrelated config file), and `.scf` is `f5-bigip`'s.
 const CONTAINER_SUFFIXES: &[&str] = &["conf", "scf", "ucs"];
@@ -591,7 +591,7 @@ fn run_event_info(
     json: bool,
     output: &str,
 ) -> Result<u8, u8> {
-    // The profile-stamped registry: the §9 operator-head exclusion applies
+    // The profile-stamped registry: its operator-head exclusion applies
     // inside the event/command cross-product, and availability otherwise comes
     // from each spec's own surface — a raw `build_default` registry would
     // re-admit commands that carry no iRules row.
@@ -1118,13 +1118,12 @@ fn run_extract(paths: &[String], output: &Path) -> Result<u8, u8> {
 
 /// The formatter knobs from the command line, aimed at `profile`.
 ///
-/// The profile is the formatter's whole dialect story (issue #1465): with
-/// `--dialect f5-irules` (this command's default, and its `irules` /
-/// `tcl-irule` alias spellings) the formatter tokenises with the iRules
-/// grammar, so an iRule's `}{` re-emits as `} {` and a `{*}` stays the
-/// literal braced word TMM's 8.4 core reads it as. Starting from
-/// `FormatterConfig::default()` instead formatted every iRule with the
-/// modern Tcl 9 lexer.
+/// The profile is the formatter's whole dialect story: with `--dialect
+/// f5-irules` (this command's default, and its `irules` / `tcl-irule` alias
+/// spellings) the formatter tokenises with the iRules grammar, so an
+/// iRule's `}{` re-emits as `} {` and a `{*}` stays the literal braced word
+/// TMM's 8.4 core reads it as. Starting from `FormatterConfig::default()`
+/// instead would format every iRule with the modern Tcl 9 lexer.
 fn build_formatter_config(
     formatter: &IruleFormatterArgs,
     profile: &'static DialectProfile,

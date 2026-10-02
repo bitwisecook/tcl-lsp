@@ -35,7 +35,7 @@
 //! evaluates against isn't double-borrowed); [`build_command`] builds the result
 //! with `ValueOps` afterwards. Three sequential calls, no borrow conflict.
 //!
-//! Semantics verified against tclsh 9.0.
+//! Semantics follow tclsh 9.0.
 
 use tcl_syntax::list::split_list;
 use tcl_syntax::value::ValueOps;
@@ -326,8 +326,8 @@ pub fn sort_command<V: Clone, E>(
     Ok(())
 }
 
-/// Stable bottom-up-free recursive merge sort driven by `cmp` (reentrant — the
-/// comparator runs arbitrary Tcl, so a plain `sort_by` won't do).
+/// Stable recursive merge sort driven by `cmp`, which is reentrant: the
+/// comparator runs arbitrary Tcl, so a plain `sort_by` won't do.
 fn merge_sort<V: Clone, E>(
     a: &mut [(usize, V)],
     increasing: bool,
@@ -397,8 +397,6 @@ fn build_result<O: ValueOps>(
     }
     ops.new_list(out)
 }
-
-// option helpers
 
 fn split_index(arg: &[u8]) -> Result<Vec<Vec<u8>>, LsortError> {
     let Ok(s) = core::str::from_utf8(arg) else {

@@ -21,8 +21,8 @@
 use crate::analyses::ConstValue;
 // The static variable-name grammar lives with the other word-shape
 // predicates in `value_shapes`; re-exported here so the optimiser's
-// existing `helpers::literals::is_static_var_word` call sites keep one
-// import path and there is still only one definition.
+// `helpers::literals::is_static_var_word` call sites keep one import
+// path and there is still only one definition.
 use crate::tcl_expr_eval::{TclValue, format_tcl_value};
 pub use crate::value_shapes::is_static_var_word;
 
@@ -89,9 +89,9 @@ pub enum Literal {
 ///
 /// - bool → `"1"` / `"0"`.
 /// - int → decimal string.
-/// - float whose value is an integer → decimal string, rendered
-///   via [`format_tcl_value`] so it round-trips; other floats
-///   return `None` (Tcl's default formatting is lossy).
+/// - float whose value is an integer of magnitude below 1e16 →
+///   that integer's decimal string; every other float returns
+///   `None` (Tcl's default formatting is lossy).
 /// - string → echoed verbatim when [`is_safe_word`]; otherwise
 ///   `None`.
 #[must_use]
@@ -104,8 +104,7 @@ pub fn render_folded_literal(value: &Literal) -> Option<String> {
                 // Integral float within +/-1e16 is exactly representable and
                 // fits `i64`; render its exact integer decimal (no lossy
                 // `as` cast — `{:.0}` of an integral float is exact here).
-                // `+ 0.0` normalises `-0.0` to `0.0` so it renders as "0",
-                // matching the previous `as i64` cast.
+                // `+ 0.0` normalises `-0.0` to `0.0` so it renders as "0".
                 Some(format!("{:.0}", f + 0.0))
             } else {
                 None
@@ -230,9 +229,9 @@ mod tests {
             literal_from_constant_str("foo"),
             Some(Literal::Str("foo".into())),
         );
-        // Leading zero disqualifies decimal parse — falls through
-        // to safe-word, which matches "0" → Int(0), but "01" stays
-        // a safe word.
+        // A multi-digit leading zero is octal-shaped, so it is not a
+        // decimal int and falls through to safe-word; the single digit
+        // "0" is still an int.
         assert_eq!(literal_from_constant_str("0"), Some(Literal::Int(0)));
         assert_eq!(
             literal_from_constant_str("01"),

@@ -225,7 +225,7 @@ fn statement_has_frame_reach(stmt: &Statement, registry: &CommandRegistry) -> bo
         }
         Statement::If {
             clauses, else_body, ..
-        } => clauses.iter().any(|c| reaches(&c.body)) || else_body.as_ref().is_some_and(&reaches),
+        } => clauses.iter().any(|c| reaches(&c.body)) || else_body.as_ref().is_some_and(reaches),
         Statement::For {
             init, next, body, ..
         } => reaches(init) || reaches(next) || reaches(body),
@@ -241,13 +241,13 @@ fn statement_has_frame_reach(stmt: &Statement, registry: &CommandRegistry) -> bo
         } => {
             reaches(body)
                 || handlers.iter().any(|h| reaches(&h.body))
-                || finally_body.as_ref().is_some_and(&reaches)
+                || finally_body.as_ref().is_some_and(reaches)
         }
         Statement::Switch {
             arms, default_body, ..
         } => {
-            arms.iter().any(|a| a.body.as_ref().is_some_and(&reaches))
-                || default_body.as_ref().is_some_and(&reaches)
+            arms.iter().any(|a| a.body.as_ref().is_some_and(reaches))
+                || default_body.as_ref().is_some_and(reaches)
         }
         _ => false,
     }
@@ -708,8 +708,8 @@ mod tests {
 
     #[test]
     fn static_passthrough_with_return_rejected() {
-        // Splicing a `return` into the caller would return the CALLER's
-        // proc; the erased passthrough boundary used to absorb it.
+        // Splicing a `return` into the caller would return from the CALLER's
+        // proc, since the erased passthrough boundary no longer absorbs it.
         let m = lower_to_ir("proc run {} { uplevel 1 {return 5} }", &reg());
         assert!(detect_static_passthrough(&m, &reg()).is_empty());
     }

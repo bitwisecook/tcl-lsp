@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Issue #945 resolution-model follow-up, editor-integration layer:
+// Resolution-model follow-up, editor-integration layer:
 // constant-`$cmd` rename provenance (fault 1), TclOO export visibility +
 // dispatch entry + per-object binding identity (faults 4-6), and probe
 // references (fault 9).  The deep TP/FP/TN/FN coverage lives in the
@@ -61,9 +61,9 @@ suite("Issue #945 resolution model", () => {
     );
   });
 
-  // Issue #1009: the const-`$cmd` dispatch settlement resolved through a
+  // The const-`$cmd` dispatch settlement resolved through a
   // proc renamed/deleted away with no later re-establishment, the same
-  // root cause #973/#1006/#1007 fixed for bareword calls. Deep TP/FP/TN
+  // root cause responsible for the equivalent bareword-call case. Deep TP/FP/TN
   // coverage lives in the analyser and native e2e suites (see
   // rust/tcl-lsp-server/tests/e2e/issue945.rs); this proves the fix
   // reaches a real VS Code session.
@@ -93,8 +93,8 @@ suite("Issue #945 resolution model", () => {
     );
   });
 
-  // Codex PR #1014 review follow-up — two confirmed false positives found
-  // in review after the #1009/#1006/#973 fixes landed. Both confirmed
+  // Two confirmed false positives, found after related
+  // dispatch-resolution fixes landed. Both confirmed
   // against tclsh 8.6.14; deep TP/FP/TN coverage lives in the analyser and
   // native e2e suites (see `fact_live_for_call` / `finalise_invocation_resolutions`
   // unit tests and `rust/tcl-lsp-server/tests/e2e/issue945.rs`); these

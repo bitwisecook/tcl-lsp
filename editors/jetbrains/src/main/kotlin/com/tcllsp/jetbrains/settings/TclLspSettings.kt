@@ -36,12 +36,12 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
 
     // General
 
-    // Kept for XML deserialization of old settings; the server is now a
-    // bundled native binary launched directly, so no Python interpreter is
-    // discovered or used.
+    // Kept only so XML deserialization of previously saved settings does not
+    // fail; the bundled native server is launched directly, so no Python
+    // interpreter is discovered or used.
     var pythonPath: String = "auto"
     var serverPath: String = ""
-    var dialect: String = "tcl8.6"
+    var dialect: String = DEFAULT_DIALECT
     var extraCommands: String = ""  // comma-separated
     var libraryPaths: String = ""   // comma-separated
     // null means this editor layer inherits config.ini; an explicit empty
@@ -53,7 +53,8 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var featureHover: Boolean = true
     var featureCompletion: Boolean = true
     var featureDiagnostics: Boolean = true
-    // Kept for XML deserialization of old settings; no longer sent to server.
+    // Kept only so XML deserialization of previously saved settings does not
+    // fail; not sent to the server.
     var featureFormatting: Boolean = true
     var featureSemanticTokens: Boolean = true
     var featureCodeActions: Boolean = true
@@ -69,7 +70,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var featureCallHierarchy: Boolean = true
     var featureDocumentLinks: Boolean = true
     var featureSelectionRange: Boolean = true
-    // New in 1.6.x — see editors/vscode/package.json for matching defaults.
+    // See editors/vscode/package.json for matching defaults.
     var featureDocumentHighlight: Boolean = true
     var featureCodeLens: Boolean = true
     var featureWorkspaceFileOps: Boolean = true
@@ -162,6 +163,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var diagnosticW152: Boolean = true
     var diagnosticW200: Boolean = true
     var diagnosticW201: Boolean = true
+    var diagnosticW202: Boolean = true
     var diagnosticW230: Boolean = true
     var diagnosticW231: Boolean = true
     var diagnosticW232: Boolean = true
@@ -262,6 +264,19 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var diagnosticIAPP7001: Boolean = true
     var diagnosticIAPP7002: Boolean = true
     var diagnosticIAPP7003: Boolean = true
+    var diagnosticXC100: Boolean = true
+    var diagnosticXC101: Boolean = true
+    var diagnosticXC102: Boolean = true
+    var diagnosticXC103: Boolean = true
+    var diagnosticXC105: Boolean = true
+    var diagnosticXC106: Boolean = true
+    var diagnosticXC107: Boolean = true
+    var diagnosticXC200: Boolean = true
+    var diagnosticXC201: Boolean = true
+    var diagnosticXC203: Boolean = true
+    var diagnosticXC250: Boolean = true
+    var diagnosticXC300: Boolean = true
+    var diagnosticXC301: Boolean = true
     var diagnosticSSLIC1001: Boolean = true
     var diagnosticSSLIC1002: Boolean = true
     var diagnosticSSLIC1003: Boolean = true
@@ -282,6 +297,13 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     // Style
 
     var styleLineLength: Int = 120
+
+    // Workspace scan
+
+    // Most on-disk Tcl files the server's start-up workspace scan indexes,
+    // across every workspace folder (issue #2021). Open files are always
+    // analysed regardless.
+    var workspaceScanMaxFiles: Int = 2000
 
     // @generated:optimiser-vars:begin
     var optimiserEnabled: Boolean = true
@@ -342,7 +364,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     // Diagnostic patterns
 
     var diagnosticsGenericVariablePatterns: String = ""  // newline-separated regexes
-    var diagnosticsExclude: String = ""  // newline-separated file globs (#1556)
+    var diagnosticsExclude: String = ""  // newline-separated file globs
 
     override fun getState(): TclLspSettings = this
 
@@ -474,6 +496,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "W152" to diagnosticW152,
                 "W200" to diagnosticW200,
                 "W201" to diagnosticW201,
+                "W202" to diagnosticW202,
                 "W230" to diagnosticW230,
                 "W231" to diagnosticW231,
                 "W232" to diagnosticW232,
@@ -574,6 +597,19 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "IAPP7001" to diagnosticIAPP7001,
                 "IAPP7002" to diagnosticIAPP7002,
                 "IAPP7003" to diagnosticIAPP7003,
+                "XC100" to diagnosticXC100,
+                "XC101" to diagnosticXC101,
+                "XC102" to diagnosticXC102,
+                "XC103" to diagnosticXC103,
+                "XC105" to diagnosticXC105,
+                "XC106" to diagnosticXC106,
+                "XC107" to diagnosticXC107,
+                "XC200" to diagnosticXC200,
+                "XC201" to diagnosticXC201,
+                "XC203" to diagnosticXC203,
+                "XC250" to diagnosticXC250,
+                "XC300" to diagnosticXC300,
+                "XC301" to diagnosticXC301,
                 "SSLIC1001" to diagnosticSSLIC1001,
                 "SSLIC1002" to diagnosticSSLIC1002,
                 "SSLIC1003" to diagnosticSSLIC1003,
@@ -604,6 +640,9 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
             },
             "style" to mapOf(
                 "lineLength" to styleLineLength,
+            ),
+            "workspaceScan" to mapOf(
+                "maxFiles" to workspaceScanMaxFiles,
             ),
             "optimiser" to mapOf(
                 // @generated:optimiser-map:begin
@@ -674,26 +713,29 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
             ApplicationManager.getApplication().getService(TclLspSettings::class.java)
 
         // @generated:dialect-options:begin
+        const val DEFAULT_DIALECT = "tcl8.6"
         val DIALECT_OPTIONS = listOf(
             "bpf" to "BPF",
-            "cadence-eda-tcl" to "Cadence EDA Tcl",
             "expect" to "Expect",
             "f5-bigip" to "F5 BIG-IP",
             "f5-iapps" to "F5 iApps",
             "f5-irules" to "F5 iRules",
             "f5-tmsh" to "F5 tmsh Scripts",
-            "intel-quartus-eda-tcl" to "Intel Quartus EDA Tcl",
-            "mentor-eda-tcl" to "Mentor EDA Tcl",
-            "microchip-libero-eda-tcl" to "Microchip Libero EDA Tcl",
+            "jim" to "Jim Tcl",
             "spectcl" to "SpecTcl",
             "sslictcl" to "SslicTcl",
-            "synopsys-eda-tcl" to "Synopsys EDA Tcl",
             "tcl8.4" to "Tcl 8.4",
             "tcl8.5" to "Tcl 8.5",
             "tcl8.6" to "Tcl 8.6",
             "tcl9.0" to "Tcl 9.0",
             "tcl9.1" to "Tcl 9.1",
-            "xilinx-eda-tcl" to "Xilinx EDA Tcl",
+            "cadence-eda-tcl" to "Cadence Genus / Innovus / Xcelium",
+            "intel-quartus-eda-tcl" to "Intel Quartus Prime",
+            "mentor-eda-tcl" to "Siemens Questa / ModelSim",
+            "microchip-libero-eda-tcl" to "Microchip Libero SoC",
+            "synopsys-eda-tcl" to "Synopsys DC / PrimeTime / ICC2 / Formality",
+            "tk" to "Tk",
+            "xilinx-eda-tcl" to "Xilinx Vivado",
         )
         // @generated:dialect-options:end
     }

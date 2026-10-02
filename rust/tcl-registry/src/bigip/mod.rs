@@ -25,7 +25,7 @@
 //!
 //! The spec data (`data::ltm`, `data::apm`, `data::gtm`, … — one file per
 //! tmsh module word) is hand-maintained `&'static` const
-//! data; see `data/mod.rs` and issue #1404 for provenance and the
+//! data; see `data/mod.rs` for provenance and the
 //! `cargo xtask bigip-data-schema --check` consistency gate.
 
 use std::collections::HashMap;

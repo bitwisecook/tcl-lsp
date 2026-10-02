@@ -159,8 +159,8 @@ fn proc_is_slot_eligible(summary: &ProcEscapeSummary) -> bool {
 }
 
 /// Depth cap for [`walk_statements`]'s recursion over nested `if`/`for`/
-/// `while`/`foreach`/`catch`/`try`/`switch`/`Block`/`UpFrame` bodies —
-/// issue #996. Transitively bounded today via `MAX_LOWER_NEST_DEPTH`
+/// `while`/`foreach`/`catch`/`try`/`switch`/`Block`/`UpFrame` bodies.
+/// Transitively bounded via `MAX_LOWER_NEST_DEPTH`
 /// (every `Script` this walk sees was built by `crate::lowering`, which
 /// already caps its own construction at 256), capped here independently
 /// for defence-in-depth and consistency with every other full-tree walker
@@ -476,7 +476,7 @@ mod tests {
         Script::from_statements(stmts)
     }
 
-    /// Regression coverage for issue #996: `walk_statements` recurses once
+    /// `walk_statements` recurses once
     /// per nested `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch`/
     /// `Block`/`UpFrame` body, with no depth cap of its own before this
     /// fix. Transitively bounded to `MAX_LOWER_NEST_DEPTH` (256) by the

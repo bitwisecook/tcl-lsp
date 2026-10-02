@@ -508,8 +508,8 @@ fn cmd_append(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if vals.is_empty() {
         // `append x` with no values is a read: it fires the read trace, whose
         // error aborts the command exactly as for `set x`, and returns the
-        // current value, erroring if the variable is unset (matching tclsh —
-        // the old VM wrongly created an empty variable here). `var_get` parses
+        // current value, erroring if the variable is unset (matching tclsh;
+        // creating an empty variable here instead would be wrong). `var_get` parses
         // `a(k)`.
         return match vm.read_var_traced(&n) {
             Err(c) => c,

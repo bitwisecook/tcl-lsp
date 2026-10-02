@@ -45,7 +45,7 @@
 //! `TCL_NUMBER_BIG`), so [`Num`] carries a fixed `i64`/`f64` pair — sound for both
 //! the bignum runtime and the `i64`+`double` VM.
 //!
-//! Semantics verified against tclsh 9.0.
+//! Semantics follow tclsh 9.0.
 
 // `lseq` is faithful to C's mixed `Tcl_WideInt`/`double` arithmetic and scaled
 // length formula: i64↔f64 conversions and length-to-index casts are pervasive
@@ -195,7 +195,7 @@ where
         return Err(syntax());
     }
 
-    // -- decode each argument (the `SequenceIdentifyArgument` state machine) ---
+    // Decode each argument (the `SequenceIdentifyArgument` state machine).
     // `allowed_num`/`allowed_kw` gate what each position may be; after a keyword
     // only a number is allowed; a number after the first restricts when the next
     // may be a keyword (mirrors C's `remNums`/`allowedArgs`).
@@ -557,9 +557,9 @@ mod tests {
     #[test]
     #[allow(clippy::approx_constant)] // `3.14` is parsed test data, not π
     fn as_number_parses_ints_doubles_and_precision() {
-        // `lseq` number parsing (cmd-core lseq.rs had no unit coverage):
-        // ints stay ints, doubles record their fractional precision, hex is
-        // an int, and non-numbers / bignums are rejected.
+        // `lseq` number parsing: ints stay ints, doubles record their
+        // fractional precision, hex is an int, and non-numbers / bignums are
+        // rejected.
         let i = as_number(b"42").unwrap();
         assert!(!i.is_double);
         assert_eq!(i.i, 42);

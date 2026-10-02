@@ -41,10 +41,10 @@ thiserror = "2.0"
 unicode-general-category = "1.1.0"
 rustc-hash = { workspace = true }
 regex = "1"
-# Arbitrary-precision integers for exact `expr` constant folding (the P4
-# numeric-tower phase of docs/design/compiler/type-tracking.md): the folder
-# mirrors the VM's `num-bigint` tower so `2**64` / `i64::MAX + 1` fold to the
-# exact values C Tcl computes — never wrapped, never approximated.
+# Arbitrary-precision integers for exact `expr` constant folding (the numeric
+# tower of docs/design/compiler/type-tracking.md): the folder mirrors the VM's
+# `num-bigint` tower so `2**64` / `i64::MAX + 1` fold to the exact values
+# C Tcl computes — never wrapped, never approximated.
 # `num-integer`/`num-traits` supply floor div/mod and primitive narrowing.
 num-bigint = "0.5"
 num-integer = "0.1"

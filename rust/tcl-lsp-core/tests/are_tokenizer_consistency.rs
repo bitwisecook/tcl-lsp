@@ -35,7 +35,7 @@ use tcl_registry::CommandRegistry;
 /// ARE patterns spanning the construct space: literals, quantifiers (greedy /
 /// non-greedy / bounded), groups (capturing / non-capturing / lookahead /
 /// embedded flags), alternation, anchors, escapes, backreferences, and — the
-/// case the hand-rolled scanner used to get wrong — bracket expressions with
+/// case a hand-rolled scanner most easily gets wrong — bracket expressions with
 /// POSIX / collating / equivalence sub-brackets. Kept ASCII so a UTF-16 LSP
 /// column equals a byte offset on the single source line.
 const ARE_CORPUS: &[&str] = &[

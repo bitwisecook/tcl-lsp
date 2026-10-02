@@ -325,7 +325,7 @@ fn trace_to_uri_family(
                 // URI-getter result. Skipping it would attribute a merge like
                 // `φ(x0_livein, x1_from_HTTP::uri)` wholly to `HTTP::uri` and
                 // fire a spurious IRULE3103. The value is therefore not
-                // *provably* a single URI family: bail (issue 150).
+                // *provably* a single URI family: bail.
                 return None;
             }
             let candidate = trace_to_uri_family(var_name, *inc_ver, ctx, depth + 1)?;
@@ -589,7 +589,13 @@ fn is_comparison_op(op: BinOp) -> bool {
 /// Return the unquoted literal text from an expression node, or `None`.
 fn expr_literal_text(node: &ExprNode) -> Option<String> {
     match node {
-        ExprNode::String { text, .. } => Some(strip_tcl_quotes(text).to_owned()),
+        // `$` and `[` substitute, so `"/api$x"` is not the text `/api$x`.
+        // Backslash escapes stay as written: the classifier reads a regex's
+        // `\?` / `\&` in that form.
+        ExprNode::String { text, .. } => match tcl_syntax::expr::quoted_string_body(text) {
+            Some(body) => (!body.contains(['$', '['])).then(|| body.to_owned()),
+            None => tcl_syntax::word_rules::whole_braced_word(text).map(str::to_owned),
+        },
         ExprNode::Literal { text, .. } => Some(text.clone()),
         _ => None,
     }
@@ -736,7 +742,7 @@ fn walk_expr(
     out: &mut Vec<ExprHit>,
     depth: u32,
 ) {
-    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // Native-stack safety net: walks the `ExprNode` tree, one
     // native frame per level. Past the cap, stop descending — a collector
     // that returns the hits gathered so far is the safe fallback (IRULE31xx
     // hits buried deeper than the cap go unreported; never a crash).
@@ -1096,8 +1102,8 @@ mod tests {
         warnings_for_dialect(source, Some(tcl_dialect::DialectProfile::irules()))
     }
 
-    /// Regression coverage for issue #996: `walk_expr` recurses once per
-    /// `ExprNode` level with no depth cap before this fix. A tree built
+    /// `walk_expr` recurses once per
+    /// `ExprNode` level, so it needs a depth cap. A tree built
     /// directly is unbounded (the Pratt parser caps its own output at 256)
     /// and empirically overflowed the native stack (SIGABRT) in the low
     /// thousands of levels on a 2 MiB thread. 3000 is past that crash range
@@ -1221,7 +1227,7 @@ set m [::string match "/api/*" $uri]"#,
         // `uri` is `[HTTP::uri]` only on one branch; on the other it keeps its
         // parameter (live-in, version-0) value. The phi merge is therefore NOT
         // provably a single URI getter, so IRULE3103 must NOT fire — dropping
-        // the version-0 operand would mis-attribute it to HTTP::uri (issue 150).
+        // the version-0 operand would mis-attribute it to HTTP::uri.
         let ws = warnings_for(
             r#"proc handle {uri flag} {
     if {$flag} {
@@ -1338,6 +1344,16 @@ set parts [split $uri "?"]"#,
         assert_eq!(ws.len(), 1, "got {ws:?}");
         assert!(ws[0].message.contains("HTTP::path"));
         assert!(ws[0].message.contains("starts_with"));
+    }
+
+    /// A quoted operand substitutes, so `"/api$v"` is not the literal the
+    /// classification reads; the hint declines it (#2227, found in review).
+    #[test]
+    fn starts_with_a_substituting_operand_is_not_read_as_a_literal() {
+        let ws = warnings_for(r#"if { [HTTP::uri] starts_with "/api$v" } { log local0. x }"#);
+        assert!(ws.is_empty(), "got {ws:?}");
+        let ws = warnings_for(r"if { [HTTP::uri] starts_with {/api} } { log local0. x }");
+        assert_eq!(ws.len(), 1, "a braced operand is still literal: {ws:?}");
     }
 
     #[test]

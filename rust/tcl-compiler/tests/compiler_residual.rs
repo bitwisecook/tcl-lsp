@@ -73,6 +73,10 @@
 
 use std::collections::HashMap;
 
+mod common;
+
+use common::command_tokens;
+
 use tcl_compiler::cfg_builder::build_cfg;
 use tcl_compiler::codegen::{CodegenCtx, FunctionAsm, Op, Operand, codegen_module};
 use tcl_compiler::compilation_unit::CompilationUnit;
@@ -84,7 +88,7 @@ use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
 use tcl_registry::model::ingress::static_context_for;
 
-// ── Shared helpers ──────────────────────────────────────────────────────────
+// Shared helpers.
 
 fn registry() -> CommandRegistry {
     CommandRegistry::build_default()
@@ -126,11 +130,9 @@ fn proc_asm(source: &str, qname: &str) -> FunctionAsm {
         .unwrap_or_else(|| panic!("procedure {qname} not found"))
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// PART A — codegen/cmd_subst.rs : the less-common substitution shapes
-// ════════════════════════════════════════════════════════════════════════════
+// codegen/cmd_subst.rs: the less-common substitution shapes.
 
-// ── A.1  string equal/compare with option flags → INVOKE_REPLACE ────────────
+// String equal/compare with option flags → INVOKE_REPLACE.
 
 #[test]
 fn string_equal_nocase_uses_invoke_replace() {
@@ -238,7 +240,7 @@ fn string_compare_nocase_uses_invoke_replace() {
     );
 }
 
-// ── A.2  string is CLASS ?-strict? — the per-class lowering arms ─────────────
+// String is CLASS ?-strict? — the per-class lowering arms.
 
 #[test]
 fn string_is_integer_non_strict_lowers_to_numeric_type_chain() {
@@ -369,7 +371,7 @@ fn string_is_charclass_strict_defers_to_generic() {
     assert!(lits.iter().any(|l| l == "is"), "keeps `is`: {lits:?}");
 }
 
-// ── A.3  string replace — fast path vs generic ──────────────────────────────
+// String replace — fast path vs generic.
 
 #[test]
 fn string_replace_zero_prefix_uses_reverse_range_concat() {
@@ -408,7 +410,7 @@ fn string_replace_general_uses_str_replace() {
     assert!(!ops.contains(&Op::STR_RANGE_IMM));
 }
 
-// ── A.4  regexp — -nocase glob lowering vs plain REGEXP ─────────────────────
+// Regexp — -nocase glob lowering vs plain REGEXP.
 
 #[test]
 fn regexp_nocase_literal_pattern_lowers_to_str_match() {
@@ -439,7 +441,7 @@ fn regexp_plain_two_arg_uses_regexp_opcode() {
     assert!(!ops.contains(&Op::STR_MATCH));
 }
 
-// ── A.5  linsert / lreplace → LREPLACE4 (distinct operand discriminator) ─────
+// Linsert / lreplace → LREPLACE4 (distinct operand discriminator).
 
 #[test]
 fn linsert_lowers_to_lreplace4() {
@@ -490,7 +492,7 @@ fn lreplace_lowers_to_lreplace4_with_replace_discriminator() {
     );
 }
 
-// ── A.6  dict get multi-key + info exists (scalar / stk) ────────────────────
+// Dict get multi-key + info exists (scalar / stk).
 
 #[test]
 fn dict_get_single_and_multi_key() {
@@ -519,7 +521,8 @@ fn info_exists_proc_uses_exist_scalar() {
     // not the generic invoke.
     let reg = registry();
     let mut ctx = proc_ctx(&reg, &["v"]);
-    ctx.emit_inline_cmd_subst("[info exists v]");
+    let tokens = command_tokens("info exists v");
+    ctx.emit_inline_cmd_subst_with_tokens("[info exists v]", Some(&tokens));
     let ops = ctx_ops(&ctx);
     assert!(
         ops.contains(&Op::EXIST_SCALAR),
@@ -533,7 +536,8 @@ fn info_exists_script_uses_exist_stk() {
     // At script scope (no LVT) the same `info exists` emits push + existStk.
     let reg = registry();
     let mut ctx = CodegenCtx::new(false, &[], &reg);
-    ctx.emit_inline_cmd_subst("[info exists v]");
+    let tokens = command_tokens("info exists v");
+    ctx.emit_inline_cmd_subst_with_tokens("[info exists v]", Some(&tokens));
     let ops = ctx_ops(&ctx);
     assert_eq!(
         ops,
@@ -542,7 +546,84 @@ fn info_exists_script_uses_exist_stk() {
     );
 }
 
-// ── A.7  array exists (imm) / array names (fqn invoke) ──────────────────────
+#[test]
+fn info_exists_without_source_tokens_stays_generic() {
+    // The compatibility helper has no structured word form, so it cannot
+    // prove that a flattened `$` or command substitution is absent. Keep the
+    // ordinary invoke rather than claiming a local slot from text alone.
+    let reg = registry();
+    let mut ctx = proc_ctx(&reg, &["v"]);
+    ctx.emit_inline_cmd_subst("[info exists v]");
+    let ops = ctx_ops(&ctx);
+    assert!(ops.contains(&Op::INVOKE_STK1), "no source facts: {ops:?}");
+    assert!(!ops.contains(&Op::EXIST_SCALAR), "no source facts: {ops:?}");
+}
+
+#[test]
+fn catch_body_introspection_keeps_source_word_slot_rules() {
+    // The straight-line catch CFG shares the enclosing procedure's local
+    // table. Direct source words get slots, while a qualified name built from
+    // `$n` remains a runtime invocation.
+    let direct_ops = proc_ops(
+        "proc p {v arr} {catch {info exists v; array exists arr}}",
+        "::p",
+    );
+    assert!(
+        direct_ops.contains(&Op::EXIST_SCALAR),
+        "catch direct info exists: {direct_ops:?}"
+    );
+    assert!(
+        direct_ops.contains(&Op::ARRAY_EXISTS_IMM),
+        "catch direct array exists: {direct_ops:?}"
+    );
+
+    let dynamic_ops = proc_ops(
+        "proc p {} {set n x; set ::x 1; catch {info exists ::$n}}",
+        "::p",
+    );
+    assert!(
+        dynamic_ops.contains(&Op::INVOKE_STK1),
+        "catch dynamic info exists: {dynamic_ops:?}"
+    );
+    assert!(
+        !dynamic_ops.contains(&Op::EXIST_SCALAR),
+        "catch dynamic info exists: {dynamic_ops:?}"
+    );
+
+    let braced_ops = proc_ops(
+        r"proc p {} {set {p\x75b} 1; catch {info exists {p\x75b}}}",
+        "::p",
+    );
+    assert!(
+        braced_ops.contains(&Op::EXIST_SCALAR),
+        "catch braced info exists: {braced_ops:?}"
+    );
+}
+
+#[test]
+fn braced_continuation_names_use_collapsed_local_slots() {
+    // C Tcl folds a braced backslash-newline and following indentation to one
+    // space, while preserving other braced backslashes verbatim.
+    let scalar_ops = proc_ops(
+        "proc p {} {set {p ub} 1; return [info exists {p\\\n  ub}]}",
+        "::p",
+    );
+    assert!(
+        scalar_ops.contains(&Op::EXIST_SCALAR),
+        "braced continuation scalar: {scalar_ops:?}"
+    );
+
+    let array_ops = proc_ops(
+        "proc p {} {array set {p ub} {}; return [array exists {p\\\n  ub}]}",
+        "::p",
+    );
+    assert!(
+        array_ops.contains(&Op::ARRAY_EXISTS_IMM),
+        "braced continuation array: {array_ops:?}"
+    );
+}
+
+// Array exists (imm) / array names (fqn invoke).
 
 #[test]
 fn array_exists_proc_uses_array_exists_imm() {
@@ -550,7 +631,8 @@ fn array_exists_proc_uses_array_exists_imm() {
     // tclsh: array exists undefined  →  0   (8.6 + 9.0)
     let reg = registry();
     let mut ctx = proc_ctx(&reg, &["arr"]);
-    ctx.emit_inline_cmd_subst("[array exists arr]");
+    let tokens = command_tokens("array exists arr");
+    ctx.emit_inline_cmd_subst_with_tokens("[array exists arr]", Some(&tokens));
     let ops = ctx_ops(&ctx);
     assert_eq!(
         ops,
@@ -582,7 +664,7 @@ fn array_names_uses_fqn_invoke() {
     assert_all_labels_resolve(ctx);
 }
 
-// ── A.8  catch with a ::-qualified result var → generic, not inline ─────────
+// Catch with a ::-qualified result var → generic, not inline.
 
 #[test]
 fn catch_with_qualified_result_var_falls_back_to_generic() {
@@ -604,7 +686,7 @@ fn catch_with_qualified_result_var_falls_back_to_generic() {
     );
 }
 
-// ── A.9  incr ::g <big> — the INCR_STK 1-byte-range guard ───────────────────
+// Incr ::g <big> — the INCR_STK 1-byte-range guard.
 
 #[test]
 fn incr_qualified_large_amount_uses_full_incr_stk() {
@@ -640,7 +722,7 @@ fn incr_proc_variable_amount_loads_then_incr_scalar1() {
     );
 }
 
-// ── A.10  emit_cmd_subst_arg / emit_cmd_word — interpolation & escape arms ──
+// Emit_cmd_subst_arg / emit_cmd_word — interpolation & escape arms.
 
 #[test]
 fn cmd_subst_arg_multipart_interpolation_concats() {
@@ -663,9 +745,9 @@ fn cmd_subst_arg_multipart_interpolation_concats() {
 fn cmd_subst_arg_dollar_equals_stays_literal() {
     // `$={foo}` is *user text*, not a compiler marker: `=` is not a name
     // character, so both tclsh oracles leave the `$` literal and print
-    // `$={foo}`. This used to decode as a "braced scalar" marker and compile
-    // to `push "foo"; loadStk` — a whole-word wrong-code path with no
-    // producer anywhere in the workspace (issue #1617).
+    // `$={foo}`. Decoding it as a "braced scalar" marker and compiling to
+    // `push "foo"; loadStk` would be a whole-word wrong-code path with no
+    // producer anywhere in the workspace.
     let reg = registry();
     let mut ctx = proc_ctx(&reg, &[]);
     ctx.emit_cmd_subst_arg("$={foo}", false);
@@ -756,7 +838,7 @@ fn generic_cmd_subst_leading_dollar_interpolated_word() {
     );
 }
 
-// ── A.11  empty subst + expanded value-position form ────────────────────────
+// Empty subst + expanded value-position form.
 
 #[test]
 fn empty_cmd_subst_pushes_empty() {
@@ -793,14 +875,12 @@ fn expanded_value_position_keeps_braced_word_verbatim() {
     );
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// PART B — codegen/mod.rs : the CodegenCtx driver / errorInfo machinery
+// codegen/mod.rs: the CodegenCtx driver / errorInfo machinery.
 //
 // These methods (set_source / span_text / span_line / emit-stamping /
 // fresh_label / place_label / into_function_asm) are the module-level driver
 // state the emitter free functions exercise only indirectly; the existing
 // codegen ports never construct the errorInfo surface text directly.
-// ════════════════════════════════════════════════════════════════════════════
 
 /// Consume `ctx` into a `FunctionAsm` and assert every `Operand::Label`
 /// reference resolves to a recorded label position. `into_function_asm` moves
@@ -1000,8 +1080,7 @@ fn module_dispatch_empty_source_is_just_top_level_done() {
     assert_eq!(m.top_level.instructions.last().unwrap().op, Op::DONE);
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// PART C — var_escape walkers : the uncovered escape-detection arms
+// var_escape walkers: the uncovered escape-detection arms.
 //
 // Disjoint from var_escape_cfg.rs (which covers conditional upvar, loop /
 // switch-arm escapes, the dynamic-set spill, the cfg_result surface, and the
@@ -1010,7 +1089,6 @@ fn module_dispatch_empty_source_is_just_top_level_done() {
 // population, the Return / ExprEval value scans, the standalone namespace-upvar
 // handler, and the name-first append/lappend literal-vs-dynamic split — are not
 // exercised there.
-// ════════════════════════════════════════════════════════════════════════════
 
 fn reg_static() -> &'static CommandRegistry {
     static_context_for("tcl8.6").commands()
@@ -1037,7 +1115,7 @@ fn summary<'a>(m: &'a HashMap<String, ProcEscapeSummary>, q: &str) -> &'a ProcEs
     })
 }
 
-// ── C.1  apply_value_scan: a non-frameless [cmd] head in a value → fallback ──
+// Apply_value_scan: a non-frameless [cmd] head in a value → fallback.
 
 #[test]
 fn cu_value_with_user_cmd_subst_head_records_fallback() {
@@ -1088,7 +1166,7 @@ fn ir_value_with_user_cmd_subst_head_records_fallback() {
     assert_eq!(p.tag("x"), EscapeTag::Local);
 }
 
-// ── C.2  direct_callees population on the CFG path (record_callee) ───────────
+// Direct_callees population on the CFG path (record_callee).
 
 #[test]
 fn cu_records_statically_resolvable_callees() {
@@ -1130,7 +1208,7 @@ fn cu_dynamic_command_head_not_recorded_as_callee() {
     );
 }
 
-// ── C.3  Return-value / ExprEval scans catch [info exists ...] (IR walk) ─────
+// Return-value / ExprEval scans catch [info exists ...] (IR walk).
 
 #[test]
 fn ir_return_value_info_exists_escapes_target() {
@@ -1163,7 +1241,7 @@ fn ir_expr_eval_info_exists_escapes_target() {
     );
 }
 
-// ── C.4  standalone namespace upvar handler (handle_namespace_call) ──────────
+// Standalone namespace upvar handler (handle_namespace_call).
 
 #[test]
 fn cu_standalone_namespace_upvar_escapes_alias_and_records_namespace_callee() {
@@ -1198,7 +1276,7 @@ fn ir_standalone_namespace_upvar_escapes_alias() {
     assert!(p.frame_needed);
 }
 
-// ── C.5  name-first append/lappend: literal (no escape) vs dynamic (barrier) ─
+// Name-first append/lappend: literal (no escape) vs dynamic (barrier).
 
 #[test]
 fn cu_append_literal_name_does_not_escape() {
@@ -1238,7 +1316,7 @@ fn cu_lappend_dynamic_name_is_pessimistic() {
     assert!(p.frame_needed);
 }
 
-// ── C.6  uplevel #0 literal body via the CFG UpFrame path (not a barrier) ────
+// Uplevel #0 literal body via the CFG UpFrame path (not a barrier).
 
 #[test]
 fn cu_uplevel_zero_literal_body_needs_fallback_only() {

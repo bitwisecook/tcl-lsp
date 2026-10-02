@@ -17,13 +17,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The pack loader's dialect **name** ingress — `tcl-spectcl`'s face of
-//! the one shared seam, [`tcl_registry::model::ingress`] (centralisation
-//! contract R-a; P1-F wave 4).
+//! the one shared seam, [`tcl_registry::model::ingress`].
 //!
 //! Only the name ingress lives here. Everything else in this crate keys off
-//! an already-resolved [`DialectProfile`] or off a pack's own declarations,
-//! and moves with the profile when ledger C1's re-type retires it
-//! (post-P1-G, which deleted the name validators).
+//! an already-resolved [`DialectProfile`] or off a pack's own declarations.
 //!
 //! The pack-carrying registries this crate publishes are deliberately
 //! resolved through the **analyser** profile

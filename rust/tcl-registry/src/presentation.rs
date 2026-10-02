@@ -35,7 +35,7 @@
 //! than `Body`) would break every analysis consumer that walks scripts, and
 //! keeping a `name == "for"` branch in the formatter is the command-specific
 //! knowledge the registry contract forbids. So the layout preference is its
-//! own registry fact, declared beside the roles it refines (issue #1186).
+//! own registry fact, declared beside the roles it refines.
 //!
 //! Only *overrides* are declared. Every `Body` argument is a
 //! [`ArgPresentation::BlockScript`] by default, so a spec that has nothing

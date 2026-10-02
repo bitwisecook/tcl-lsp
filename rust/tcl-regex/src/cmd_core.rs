@@ -23,7 +23,7 @@
 //! VM). Gated behind the `cmd-core` feature so the engine stays dependency-free
 //! by default.
 
-use crate::{Regex, defs};
+use crate::{InfoFlag, Regex, defs};
 use tcl_cmd_core::regex::{NO_MATCH, RegMatch, RegexEngine, RegexFlags};
 
 /// The ARE engine as the shared plumbing's provider.
@@ -46,6 +46,9 @@ impl RegexEngine for AreEngine {
         if flags.lineanchor {
             cflags |= defs::REG_NLANCH;
         }
+        if flags.z_anchor {
+            cflags |= defs::REG_ZANCHOR;
+        }
         let text = core::str::from_utf8(pattern)
             .map_err(|_| b"invalid UTF-8 in regular expression".to_vec())?;
         let cps: Vec<u32> = text.chars().map(|c| c as u32).collect();
@@ -54,6 +57,20 @@ impl RegexEngine for AreEngine {
 
     fn nsub(re: &Regex) -> usize {
         re.nsub()
+    }
+
+    /// The `re_info` flag names, in `re_info` bit order — what `regexp -about`
+    /// reports as the second element of its result.
+    ///
+    /// This engine records the bits as it compiles, which is the only place
+    /// they exist: nothing downstream can recompute "which constructs did this
+    /// pattern use" without being a second ARE parser, which is why the trait
+    /// defaults to an empty list and the engine that knows overrides it.
+    /// `InfoFlag::ALL` is `infonames[]`'s order from `tclRegexp.c`, so the
+    /// rendered list matches tclsh element for element — `regexp -about
+    /// {(?:a)}` is `0 REG_UNONPOSIX` on 8.4.20 through 9.1b0.
+    fn info_names(re: &Regex) -> Vec<&'static str> {
+        re.info().flags().into_iter().map(InfoFlag::name).collect()
     }
 
     fn exec(re: &mut Regex, cps: &[i32], offset: usize, _notbol: bool) -> Option<Vec<RegMatch>> {

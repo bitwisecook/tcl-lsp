@@ -17,8 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The sweeps' and generators' dialect ingress — `xtask`'s face of the one
-//! shared seam, [`tcl_registry::model::ingress`] (centralisation contract
-//! R-a; P1-F wave 3, alongside the two engines these sweeps exercise).
+//! shared seam, [`tcl_registry::model::ingress`].
 //!
 //! Every dialect **name** an `xtask` subcommand accepts — a `--dialect` flag,
 //! a projection target's canonical id, the fixed `f5-irules` the iRule-test
@@ -28,8 +27,8 @@
 //!
 //! Nothing here changes what a generator emits. The catalogue names these
 //! sweeps use resolve to their same-named environments, whose
-//! [`unit_profile`] is the profile `by_name`/`find` returned and whose
-//! generation store is the very `Arc` the old `(profile, overlay)` cache
+//! [`unit_profile`] is the same profile `by_name`/`find` returns and whose
+//! generation store is the same `Arc` the `(profile, overlay)` cache
 //! owns — including the profile *stamp* the projections read back
 //! ([`tcl_registry::CommandRegistry::profile`]), which the generation
 //! shares by handle rather than re-deriving. The `--check` modes are the
@@ -45,10 +44,6 @@ use tcl_registry::model::ResolvedContext;
 /// Resolve a dialect **name** to the profile a projection threads — the
 /// environment-model form of `DialectProfile::by_name` and of the named
 /// constructors (`plain_tcl`, `irules`, `tk`).
-///
-/// Post-P1-G (which deleted the name validators): the threaded profile
-/// handle itself retires with ledger C1's re-type, when these projections
-/// read their grammar unions and labels off the environment instead.
 pub fn profile_for_dialect(name: &str) -> &'static DialectProfile {
     tcl_registry::model::resolve_environment(name).unit_profile()
 }
@@ -77,8 +72,7 @@ pub fn store_for_profile(profile: &'static DialectProfile) -> &'static CommandRe
 }
 
 /// The **document context** a dialect name is projected under — the
-/// assistance view that replaces the whole `ProfileQueries` surface
-/// (ledger row F1's assistance half).
+/// assistance view that replaces the whole `ProfileQueries` surface.
 pub fn context_for_dialect(name: &str) -> &'static ResolvedContext {
     tcl_registry::model::static_document_context_for(name)
 }

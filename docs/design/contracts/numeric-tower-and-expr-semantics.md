@@ -226,7 +226,7 @@ then `x`, and `0x1p2` is `0x1` then `p2`. For 8.5+, the same lower owner also
 owns `NaN(...)`: `TclParseNumber` accepts ASCII whitespace among one through
 thirteen hex digits, but a fourteenth digit invalidates the parenthesised form
 instead of truncating it. `tcl_syntax::number` calls `scan_nan_payload` for the
-decoded value, so tokenization and semantic validation share that ceiling.
+decoded value, so tokenisation and semantic validation share that ceiling.
 
 ### One facility, dialect-parameterised
 

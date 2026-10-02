@@ -86,7 +86,7 @@ pub fn select_non_overlapping(optimisations: &[Optimisation]) -> Vec<Optimisatio
     // apply the group *partially* — e.g. a fold that deletes
     // `set s ""; append s foo` and rewrites the final `append s bar`, if the
     // rewrite loses an overlap, would leave the deletions in place and change
-    // the result to `s == "bar"` (issue 153).
+    // the result to `s == "bar"`.
     if !dropped_groups.is_empty() {
         selected.retain(|opt| opt.group.is_none_or(|g| !dropped_groups.contains(&g)));
     }
@@ -148,7 +148,7 @@ mod tests {
     fn group_dropped_entirely_when_sibling_dropped() {
         // Two members of group 7. The later one overlaps a higher-priority
         // rewrite and is dropped → the *surviving* member must be dropped too,
-        // so the group is never applied partially (issue 153). Only the
+        // so the group is never applied partially. Only the
         // higher-priority non-group rewrite remains.
         let opts = vec![
             grouped(DiagCode::O101, 0, 5, 7),

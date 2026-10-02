@@ -66,10 +66,10 @@
 //!
 //! Set **`TCL_REQUIRE_WASM_LINK=1`** in any environment that is supposed to
 //! have the whole toolchain — above all CI — and a missing dimension becomes a
-//! failure instead of a skip. This is not optional ceremony: until issue #1542
-//! no CI job installed any of the four, so all eight tests here reported green
-//! while linking nothing at all, for as long as the file has existed. A test
-//! that cannot fail is worse than no test, because it is counted.
+//! failure instead of a skip. This is not optional ceremony: without it, a CI
+//! job that installs none of the four toolchain pieces gets all eight tests
+//! here reporting green while linking nothing at all. A test that cannot fail
+//! is worse than no test, because it is counted.
 //!
 //! The gate, the reserved-runtime build and the scratch paths live in
 //! `tests/common/wasm_link.rs`, shared with `wasm_tiers.rs` — one copy, so the
@@ -92,10 +92,9 @@
 //! when that stale runtime lacks the current tree's host wiring `puts` is
 //! silently dropped into a hostless `StdIo` (`runtime/rust`'s
 //! `cmd_chan.rs:474`). The module still runs and still exits 0, so the failure
-//! surfaces only as `"2"` against `"6\n2"` — which is how issue #1590 was
-//! first read as a `puts` leak in the runtime, and how #1542 was first read as
-//! a capture bug. See AGENTS.md and issue #1052 on never sharing a target dir
-//! across worktrees.
+//! surfaces only as `"2"` against `"6\n2"`, indistinguishable from a `puts`
+//! leak in the runtime or a capture bug in the harness. See AGENTS.md on
+//! never sharing a target dir across worktrees.
 
 use std::fmt::Write as _;
 use std::path::Path;
@@ -738,7 +737,8 @@ fn compiled_argv_invocations_run_against_the_real_runtime() {
     }
 }
 
-/// Issue #1772's exact repro, against the real runtime.
+/// The retired analysis-tier `puts` fast path's exact failure mode, against
+/// the real runtime.
 ///
 /// The retired analysis-tier `puts` fast path took a single-argument `puts`
 /// and re-read the argument's *compatibility text* to find a variable name.
@@ -925,7 +925,7 @@ fn sealed_native_i64_add_runs_and_trace_registration_falls_back() {
 /// A bootstrap that installs a function of its own into the **runtime's**
 /// indirect function table and calls it back through that table.
 ///
-/// This is the whole of issue #1774's transport, minus the emitter: a wasm32
+/// This is the whole of the table-install transport, minus the emitter: a wasm32
 /// function pointer *is* an index into this table, so a module can only hand
 /// the runtime a callable body by growing the table, `ref.func`-ing its
 /// function into the new slot, and passing the index across the ABI. Every
@@ -1183,9 +1183,9 @@ set answer [outer 7]
 /// its own would refuse a third sooner; one that dropped the runtime's would
 /// run past the bound. Measured on this exact script: `runtime/rust`'s
 /// `run_script` answers `ok` through depth 61 and refuses at 62, and so does
-/// this. Both are the #996 divergence from tclsh 9.0.4 and 8.6.16, which run
-/// every depth here — that gap belongs to the native eval-depth limit, not to
-/// this issue, and is deliberately left visible.
+/// this. Both diverge from tclsh 9.0.4 and 8.6.16, which run every depth
+/// here — that gap belongs to the native eval-depth limit, not to this
+/// harness, and is deliberately left visible.
 ///
 /// `probe` keeps the `catch` out of `::top`: a top-level `catch` declines the
 /// entry point's own lowering, and nothing binds in a module whose `::top`

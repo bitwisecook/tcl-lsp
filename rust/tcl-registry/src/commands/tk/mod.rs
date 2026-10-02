@@ -362,7 +362,7 @@ mod tests {
     #[test]
     fn console_and_consoleinterp_eval_bodies_are_registered_correctly() {
         use crate::{ArgRole, Arity};
-        // Issue #925: `console eval` / `consoleinterp eval` / `consoleinterp
+        // `console eval` / `consoleinterp eval` / `consoleinterp
         // record` each take exactly one script argument that must resolve as
         // `ArgRole::Body` (so the LSP recurses into it) and must be listed as
         // a cross-interpreter eval sink (T105) — same shape as `interp eval`.
@@ -395,7 +395,7 @@ mod tests {
 
     #[test]
     fn ttk_instate_script_arg_is_a_body_with_tight_arity() {
-        // Found while auditing for issue #925 siblings: `pathName instate
+        // A sibling case: `pathName instate
         // statespec ?script?` runs `script` as `if {[pathName instate
         // statespec]} script` per the ttk::widget manual page — a real body,
         // same shape as `console eval`, but was declared with an unbounded
@@ -527,17 +527,21 @@ mod tests {
             "-size",
             "-style",
             "-takefocus",
+            "-text",
+            "-textvariable",
+            "-underline",
             "-variable",
+            "-width",
         ] {
             assert!(
                 toggleswitch.find_option(supported, None, None).is_some(),
                 "ttk::toggleswitch must expose its documented option: {supported}"
             );
         }
-        for unsupported in ["-text", "-textvariable", "-underline", "-width"] {
+        for unsupported in ["-compound", "-image", "-padding"] {
             assert!(
                 toggleswitch.find_option(unsupported, None, None).is_none(),
-                "ttk::toggleswitch must not inherit an undocumented text option: {unsupported}"
+                "ttk::toggleswitch must not inherit an undocumented label option: {unsupported}"
             );
         }
         let treeview = specs
@@ -1445,7 +1449,16 @@ mod tests {
             .iter()
             .find(|spec| spec.name == "ttk::toggleswitch")
             .unwrap();
-        for invalid in ["-text", "-textvariable", "-underline", "-width"] {
+        // Tk 9.1.0 added the optional text element (ttkToggleswitch.c).
+        for text_option in ["-text", "-textvariable", "-underline", "-width"] {
+            assert!(
+                toggle
+                    .find_option(text_option, None, Some(floor("9.1")))
+                    .is_some(),
+                "ttk::toggleswitch exposes its 9.1.0 text option: {text_option}"
+            );
+        }
+        for invalid in ["-compound", "-image", "-padding"] {
             assert!(
                 toggle
                     .find_option(invalid, None, Some(floor("9.1")))

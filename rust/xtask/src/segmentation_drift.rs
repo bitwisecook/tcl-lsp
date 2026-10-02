@@ -18,8 +18,8 @@
 
 //! `segmentation-drift` — the command / word boundary drift gate.
 //!
-//! Issue #1786 counted the answers to "where does this command end and
-//! where does each word begin" and found **four** implementations of it:
+//! "Where does this command end and where does each word begin" has
+//! **four** implementations:
 //! `tcl-compiler`'s CST builder, `runtime/rust`'s `parse_script`, the
 //! compiler segmenter, and `tcl_lexer::structural_index`'s byte-scanned
 //! `command_boundaries`. They disagreed measurably — on `{*}` welded to a
@@ -47,8 +47,8 @@
 //!    pattern that alternates `\n` with `;` (`b'\n' | b';'`, `'\n' | ';'`,
 //!    either order). Those two bytes together are Tcl's *command
 //!    terminator set*, and a loop that tests for them is splitting a script
-//!    into commands by hand. It is the exact shape of all four
-//!    implementations #1786 collapsed, and of the three private splitters
+//!    into commands by hand. It is the exact shape of the four
+//!    implementations named above, and of the three private splitters
 //!    still live in `tcl-lsp-core` and the optimiser (each waived in place,
 //!    with what it re-derives named).
 //!
@@ -73,9 +73,9 @@
 //! flush_word(…)`, `TokenType::Eol => push_command(…)` — is not flagged,
 //! because a `match tok.kind` with one arm per kind is also how every
 //! legitimate token consumer (a formatter, a highlighter, a minifier) is
-//! written. `runtime/rust/src/parse.rs` is the live example, and it is the
-//! consumer PR #1818 folds onto the owner; the gate scans `rust/` only, as
-//! `dialect-drift` does.
+//! written. `runtime/rust/src/parse.rs` is the live example: it is a
+//! consumer that delegates to the owner rather than reimplementing it; the
+//! gate scans `rust/` only, as `dialect-drift` does.
 //!
 //! Escapes: the owners themselves are exempt (see [`SANCTIONED_FILES`]);
 //! test modules, `tests/` trees, examples and benches are skipped; and a
@@ -96,10 +96,10 @@ use std::process::ExitCode;
 const SANCTIONED_FILES: &[&str] = &[
     // The tokeniser: `\n` / `;` *are* its grammar.
     "rust/tcl-lexer/src/lexer.rs",
-    // The boundary owner (#1786).
+    // The boundary owner.
     "rust/tcl-lexer/src/script.rs",
-    // The parse-error cut owner (#1787), which classifies the failures
-    // rule 4 bans a private list of.
+    // The parse-error cut owner, which classifies the failures rule 4
+    // bans a private list of.
     "rust/tcl-lexer/src/parse_cut.rs",
     // The registered `Tcl_CommandComplete` port + reparse split points.
     "rust/tcl-lexer/src/structural_index.rs",
@@ -156,10 +156,9 @@ const WORD_START_WHY: &str = "carries a previous-token kind across a token loop 
 
 /// C's hard `Tcl_ParseCommand` failures, in the spelling a Rust string
 /// literal uses.  A *list* of two or more of these is a private fatal-parse
-/// classifier — the shape `tcl-compiler` carried as `FATAL_PARSE_MESSAGES`
-/// until the cut owner replaced it, and the shape that made
+/// classifier — the shape that makes
 /// `list [sfx one] [list "oops]` answer `missing close-bracket` where C says
-/// `missing "` (#1787).  A single message is not flagged: raising one, or
+/// `missing "`.  A single message is not flagged: raising one, or
 /// asserting one, is ordinary.
 const PARSE_MESSAGE_NEEDLES: &[&str] = &[
     "extra characters after close-quote",
@@ -454,7 +453,7 @@ fn test_module_ranges(lines: &[&str]) -> Vec<Range<usize>> {
         // A module's closer is a `}` at the module keyword's own
         // indentation.  Every test module in this workspace is rustfmt'd,
         // so that is exact; an unclosed one exempts the rest of the file,
-        // which is the pre-#1787 behaviour and the safe direction.
+        // which is the safe direction.
         let indent = decl.len() - trimmed.len();
         let end = lines[at + 1..]
             .iter()

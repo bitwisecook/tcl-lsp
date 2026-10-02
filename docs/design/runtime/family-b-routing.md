@@ -41,6 +41,20 @@ folds in "absent value = 0". Its default is fixed-`i64` with overflow →
 the seam that let `incr` be shared (§2) without the core ever naming a number
 representation.
 
+Arbitrary-precision `format` conversions use
+`ValueOps::integer_magnitude(value, radix, syntax)`. The adapter returns a sign
+and unsigned lowercase digits without a radix prefix, under the selected
+release's numeral grammar. The VM uses its bignum value model and the native
+runtime uses libtommath; neither narrows this path through `i64`. Fixed-width
+format conversions on Tcl 8.5+/9 also use that magnitude seam: fixed-width
+`d`/`i`/`u`/`x`/`X`/`o`/`b`/`p` operands are reduced modulo 2^64 before the
+selected `short`/`int`/`wide` width is applied. Tcl 8.4 and Jim retain their
+legacy wide-integer coercion and overflow behavior. This truncation is local to
+the formatter; dynamic width and precision arguments, `%c`, and unbounded
+`ll`/`L` conversions retain their existing paths. The shared formatter owns
+modifier selection, prefixes, case, precision, padding, and the structured
+`TCL FORMAT BADUNSIGNED` error for negative unsigned bignum conversions.
+
 Notes:
 - `CompileService` (the runtime-`eval` injection point) was abstracted behind an
   associated `Module` type so the contract crate carries no bytecode dependency
@@ -344,12 +358,24 @@ manipulates list *element values*, never their string rep. This is the
   write trace that runs on a mutating append — is covered; the exact count is
   not. The matching read-trace on the no-argument read forms is likewise not
   fired (the runtime's `var_get` does not). This is an accepted simplification.
-- `regexp`/`regsub` engine divergence is deliberate (the shared layer is the
-  *plumbing*, not the engine): (a) the VM's `regex` crate is not full ARE, so
-  ARE-only syntax (`\m`/`\M`/`[[:<:]]`, some back-reference forms) compiles on the
-  runtime but errors on the VM; (b) the runtime's engine driving *slices*
-  `text[offset..]` (+ `REG_NOTBOL`) rather than tclsh's whole-string+offset, so a
-  **truly-empty** pattern at end-of-string diverges (`regsub -all {} abc X` →
-  `XaXbXcX` vs tclsh's `XaXbXc`) — a pre-existing low-level quirk, not introduced
-  by the share; (c) `regexp -about` and `regsub -command` are `not yet supported`
-  on both (the latter invokes a proc — Family-B).
+- `regexp`/`regsub` divergence from tclsh is confined to the engine (the shared
+  layer is the *plumbing*, not the engine). Both runtimes now drive the same
+  pure-Rust ARE engine (`tcl-regex`), so ARE-only syntax — `\m`/`\M`/`[[:<:]]`
+  word edges, POSIX longest-match submatches — behaves alike on both and matches
+  tclsh. What still diverges is the engine driving *slices* `text[offset..]`
+  (+ `REG_NOTBOL`) rather than tclsh's whole-string+offset, so a **truly-empty**
+  pattern at end-of-string differs (`regsub -all {} abc X` → `XaXbXcX` on both
+  runtimes vs tclsh 8.6.18/9.0.4's `XaXbXc`) — a low-level quirk, not introduced
+  by the share.
+- `regexp -about` and `regsub -command` are served on both runtimes (#2124).
+  `-about` is an ordinary answer on every release. `-command` is versioned by
+  the interpreter's pinned release, because its option table is: a `bad switch
+  "-command"` through 8.5, a `bad option "-command"` on 8.6, served from 9.0
+  (tclsh 8.4.20/8.5.19/8.6.18 vs 9.0.4/9.1b0). Serving it *is* Family-B — the
+  prefix is a command invocation — so the core takes the evaluator as a
+  closure (`tcl_cmd_core::regex::regsub_eval`, the `lsort -command` shape) and
+  each adapter supplies its own dispatch. A prefix that fails propagates its
+  completion code unchanged and, for an error, gains C's
+  `\n    (-command substitution computation script)` `errorInfo` frame. The
+  evaluator-less `tcl_cmd_core::regex::regsub` remains for the registry's
+  const-folder, which cannot run script and declines `-command`.

@@ -33,7 +33,10 @@ pub mod rand;
 pub mod substitution;
 pub mod syntax_error;
 
-pub use ast::{BinOp, ExprNode, ExprOffset, UnaryOp};
+pub use ast::{
+    BinOp, ExprNode, ExprOffset, UnaryOp, fixed_string_body, fixed_string_operand,
+    quoted_string_body,
+};
 pub use eval::{ExprOps, NumericCompare, eval};
 pub use mathfunc::MathFuncSpec;
 pub use operators::{ALL_BIN_OPS, ALL_UNARY_OPS, CommandArity, OperatorShape, OperatorSpec};

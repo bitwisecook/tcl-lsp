@@ -168,18 +168,13 @@ async fn hover_smoke() {
 /// A `tk` document hovers under the Tk surface — a characterisation pin.
 ///
 /// `tk` is an additive command surface with no catalogue profile of its own,
-/// so the analyser ingress form of `"tk"` sinks to the plain-Tcl fallback
-/// while `profile_for_dialect("tk")` keeps the Tk package. The hover ingress
-/// now uses the latter, for consistency with every other ingress.
-///
-/// It is worth being precise about what that did **not** fix: this test passes
-/// against both resolutions. Hover was never broken for `tk`, because the
-/// registry beside the profile is built from the dialect *name*
-/// (`registry_for_dialect("tk")`, which loads the Tk rows) and the plain-Tcl
-/// fallback profile is permissive enough to resolve them. The ingress change
-/// is therefore behaviour-preserving here; this test exists to keep it that
-/// way, and to catch a future change to either half that would make a `wish`
-/// buffer stop documenting its own widgets.
+/// so the analyser ingress form of `"tk"` sinks to the plain-Tcl fallback,
+/// while `profile_for_dialect("tk")` keeps the Tk package, matching every
+/// other ingress. The registry beside the profile is built from the dialect
+/// *name* (`registry_for_dialect("tk")`, which loads the Tk rows), and the
+/// plain-Tcl fallback profile is permissive enough to resolve them. This test
+/// pins that combination, so a future change to either half cannot make a
+/// `wish` buffer stop documenting its own widgets.
 #[tokio::test]
 async fn hover_on_a_tk_document_resolves_a_tk_command() {
     let (client_side, server_side) = tokio::io::duplex(8192);

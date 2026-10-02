@@ -25,7 +25,7 @@
 //! `$OUT_DIR/kcs_help.db` and embedded by `commands::help` via `include_bytes!`,
 //! so the binary carries the index with no committed blob.
 //! Indexing the same column values with the same `porter unicode61`
-//! tokenizer reproduces the BM25 ranks byte-for-byte.
+//! tokeniser reproduces the BM25 ranks byte-for-byte.
 
 use std::collections::BTreeSet;
 use std::fmt::Write as _;

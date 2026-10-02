@@ -58,8 +58,8 @@
 //!
 //! The primary object-typing signal is read straight out of the existing
 //! SSA type lattice (`FunctionUnit::types`, which already infers
-//! `TclType::Object { class_name }` per SSA version — that *is* the
-//! dataflow we were told to reuse).  This module only adds: the explicit
+//! `TclType::Object { class_name }` per SSA version — the dataflow this
+//! module reuses).  It only adds: the explicit
 //! ⊤ taxonomy the scalar type lattice cannot express, the JOIN at merges,
 //! and the resolver verdict per call site.
 
@@ -341,8 +341,6 @@ fn ratio(num: usize, den: usize) -> f64 {
         / f64::from(u32::try_from(den).unwrap_or(u32::MAX))
 }
 
-// Builder
-
 /// Classify how a variable was assigned, for ⊤-reason attribution.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum AssignKind {
@@ -441,8 +439,8 @@ fn import_prefix(pattern: &str) -> String {
 
 /// Join a namespace prefix and a (possibly-relative) name into a fully
 /// qualified `::`-name — the canonical [`crate::naming`] join.  Notably an
-/// *absolute* `name` keeps its own namespace (the previous local join
-/// re-prefixed `::other::C` under the current namespace).
+/// *absolute* `name` keeps its own namespace instead of being re-prefixed
+/// under the current one (`::other::C` stays `::other::C`).
 fn qualify(prefix: &str, name: &str) -> String {
     crate::naming::qualify(prefix, name)
 }
@@ -450,9 +448,8 @@ fn qualify(prefix: &str, name: &str) -> String {
 /// Resolve a possibly-bare / namespace-relative class name to a qualified
 /// name keyed in `index`.  Returns `(qualified_name, in_index)`.
 ///
-/// **Sound-by-abstention** (fixing the earlier unique-tail heuristic that
-/// could mis-resolve across namespaces): a bare `Foo new` at `offset` is
-/// tried against, in Tcl's own resolution order,
+/// **Sound-by-abstention**: a bare `Foo new` at `offset` is tried against, in
+/// Tcl's own resolution order,
 /// 1. the exact name / `::name` (already qualified or global);
 /// 2. `<enclosing namespace>::Foo` — the `namespace eval` the call sits in;
 /// 3. `<imported namespace>::Foo` for each `namespace import`ed prefix;
@@ -611,8 +608,8 @@ fn classify_rhs<S: std::hash::BuildHasher + Clone>(
         }
         // Introspection heads whose result is a runtime class handle.
         // `self` is the `TclOO` introspection keyword — registry data
-        // (`Traits::TCLOO_INTROSPECTION`), queried rather than spelled
-        // (issue #1050). Resolved against the dialect-agnostic default
+        // (`Traits::TCLOO_INTROSPECTION`), queried rather than spelled.
+        // Resolved against the dialect-agnostic default
         // registry: this classifier is reached without a dialect in scope,
         // and `TclOO` introspection is core Tcl from 8.6 onwards.
         if tcl_registry::default_registry().method_dispatch_keyword(&head)
@@ -1119,7 +1116,7 @@ mod tests {
 
     #[test]
     fn classify_constructor_no_import_stays_unresolved() {
-        // The soundness fix (Codex P2): a bare `Circuit` with NO enclosing
+        // Soundness: a bare `Circuit` with NO enclosing
         // namespace and NO import must NOT be matched to `::SpiceGenTcl::Circuit`
         // just because the tail is unique — that would be a confident false
         // resolution across namespaces. Honest miss instead.

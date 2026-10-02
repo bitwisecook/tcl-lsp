@@ -16,7 +16,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# Rust port of the Tcl WASM runtime (Track 1 of the rust-runtime-port effort).
+# Rust port of the Tcl WASM runtime support library.
 #
 # Standalone crate, deliberately EXCLUDED from the root workspace
 # (`/Cargo.toml`'s `exclude` list), for two reasons:
@@ -30,9 +30,9 @@
 #      (which CI runs) means the Rust LSP/compiler workstream cannot regress
 #      because of runtime-port churn. This mirrors the `editors/zed` exclusion.
 #
-# Gate: `make runtime-rust-test` runs the native `cargo test` here. The leak
-# round-trip test is the T1.1 acceptance (zero residual under the alloc/free
-# counters).
+# `make runtime-rust-test` runs the native `cargo test` here, including the
+# leak round-trip test, which must show zero residual allocations under the
+# alloc/free counters.
 #
 # The empty `[workspace]` table below pins this crate as its OWN workspace
 # root rather than relying solely on the parent's `exclude` entry. Cargo's
@@ -72,18 +72,18 @@ tcl-syntax = { path = "../../rust/tcl-syntax" }
 # The ordered Tcl release enum (`TclVersion`) this runtime's release-dependent
 # semantics key off — the same type `tcl-vm` threads through
 # `set_runtime_version`, so both engines gate on one shared vocabulary instead
-# of each inventing its own version notion (issue #1328). Pure data with a
-# single `bitflags` dependency and no I/O, so it is wasm32-clean.
+# of each inventing its own version notion. Pure data with a single
+# `bitflags` dependency and no I/O, so it is wasm32-clean.
 tcl-dialect = { path = "../../rust/tcl-dialect" }
 # The registry owns the release-specific `expr` command and grammar surface;
 # both native engines query it rather than encoding command-name/version cases.
 tcl-registry = { path = "../../rust/tcl-registry" }
-# Dependency-free shared vocabulary — pulled in directly (previously only a
-# transitive dependency via `tcl-lexer`/`tcl-syntax`) for `RecursionLimit`/
-# `RecursionGuard` (issue #996's shared native-stack safety-net primitive; see
-# `rust/tcl-core-types/src/recursion.rs`). A dependency-free leaf crate, so
-# adding it directly does not add anything to this crate's own dependency
-# closure.
+# Dependency-free shared vocabulary — listed directly here, rather than
+# relying on it arriving transitively via `tcl-lexer`/`tcl-syntax`, for
+# `RecursionLimit`/`RecursionGuard` (the shared native-stack safety-net
+# primitive; see `rust/tcl-core-types/src/recursion.rs`). A dependency-free
+# leaf crate, so adding it directly does not add anything to this crate's
+# own dependency closure.
 tcl-core-types = { path = "../../rust/tcl-core-types" }
 # The shared portable command logic (string/… helpers over ValueOps). This
 # crate implements `ValueOps` for `*mut TclObj` (see src/value_ops.rs) and
@@ -97,11 +97,10 @@ tcl-runtime-api = { path = "../../rust/tcl-runtime-api" }
 # no syscalls), so it is an unconditional dependency on every target.
 tcl-platform = { path = "../../rust/tcl-platform" }
 # The pure-Rust Tcl 9 ARE engine — drives `regexp`/`regsub`/`lsearch -regexp`/
-# `switch -regexp`. Replaces the C Henry-Spencer engine formerly compiled in by
-# build.rs: it is safe Rust and wasm32-clean (no FFI), so regular expressions
-# now work on every target (they were stubbed out on wasm before). The
-# `cmd-core` feature provides the `RegexEngine` adapter the command layer uses;
-# the C-ABI shim in `src/regex_capi.rs` re-exports the same engine to C.
+# `switch -regexp`. Safe Rust and wasm32-clean (no FFI), so regular
+# expressions work on every target, including wasm32. The `cmd-core` feature
+# provides the `RegexEngine` adapter the command layer uses; the C-ABI shim
+# in `src/regex_capi.rs` re-exports the same engine to C.
 tcl-regex = { path = "../../rust/tcl-regex", features = ["cmd-core"] }
 # Pure-Rust DEFLATE for `zlib`: `flate2` on its `miniz_oxide` backend (no C
 # `libz`). Wasm32-clean — the `rust_backend` feature keeps the whole codec in
@@ -121,7 +120,7 @@ tcl-test-support = { path = "../../rust/tcl-test-support" }
 [lib]
 name = "tcl_runtime"
 # rlib for `cargo test`; cdylib/staticlib for the eventual whole-program link
-# against compiled user code + C extensions (Track 3).
+# against compiled user code + C extensions.
 crate-type = ["rlib", "cdylib", "staticlib"]
 
 [lints.rust]

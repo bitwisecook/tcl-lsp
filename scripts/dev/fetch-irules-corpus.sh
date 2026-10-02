@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Fetch a third-party iRules corpus into tmp/ for the false-positive audit
-# sweep (issue #1316; docs/design/compiler/fp-sweep.md).
+# sweep (docs/design/compiler/fp-sweep.md).
 #
 # The in-repo `samples/irules/` set is curated, small, and written to
 # demonstrate one diagnostic apiece, so it exercises almost none of the

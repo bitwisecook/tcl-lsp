@@ -1,4 +1,4 @@
-# Issue #977 — a plain library file with NO `package provide`.  Both callers
+# A plain library file with NO `package provide`.  Both callers
 # visible in this file pass "prod", so a single-file compilation unit seeds
 # `mode` as that literal and folds the condition — even though
 # issue977Main.tcl calls `issue977_helper dev`.

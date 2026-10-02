@@ -271,12 +271,10 @@ pub fn parse_command_substitution_with_spans_and_config(
             (word_text, tok_end)
         };
         let abs_span = Span::new(base + tok.span.start(), base + tok_end);
-        // segmentation-drift-ok: known #1786 debt — a private word grouper over
-        // the `[...]` interior, kept because it also recovers the two orphaned
-        // closers documented above, which `WordSpan` does not yet carry. Folding
-        // it onto `group_commands` is its own change, tracked with the other
-        // `value_shapes` sweeps in the tcl-lexer owner section of
-        // shared-utility-contracts-rust.md.
+        // segmentation-drift-ok: a private word grouper over the `[...]`
+        // interior, kept because it also recovers the two orphaned closers
+        // documented above, which `WordSpan` does not carry.  See the tcl-lexer
+        // owner section of shared-utility-contracts-rust.md.
         if matches!(prev_kind, TokenType::Sep | TokenType::Eol) || words.is_empty() {
             words.push((word_text, abs_span));
         } else {
@@ -296,7 +294,7 @@ pub fn parse_command_substitution_with_spans_and_config(
             // (`"[[lindex $x 0]"`), leaving the text disagreeing with its own
             // (correct) span. Slicing the gap keeps the two in lockstep by
             // construction: the word's text is always exactly the source
-            // covered by the word's span (#1846).
+            // covered by the word's span.
             let (last_text, last_span) =
                 words.last_mut().expect("words is non-empty in this branch");
             let joined_end = abs_span.end().max(last_span.end());
@@ -321,10 +319,9 @@ pub fn parse_command_substitution_with_spans_and_config(
 ///
 /// The widening itself — and the inner-end convention it compensates for —
 /// is [`tcl_lexer::word_span`]'s single authoritative answer; this only
-/// slices `inner` with it.  It used to carry its own copy of the arithmetic,
-/// discriminating on "does the extracted text already end with the closer?",
-/// which silently dropped the real closer of a word whose last *inner* byte
-/// is one (`{a\}}`).  `sm` must map `inner`, the same frame `tok` is in.
+/// slices `inner` with it.  A local copy of the arithmetic, discriminating on
+/// "does the extracted text already end with the closer?", silently drops the
+/// real closer of a word whose last *inner* byte is one (`{a\}}`).  `sm` must map `inner`, the same frame `tok` is in.
 ///
 /// The braced/bracketed type gate is kept: a quoted `"…"` word's closing
 /// quote is recovered by the caller's `orphaned_closer` step instead, which
@@ -396,7 +393,7 @@ mod tests {
 
     #[test]
     fn pure_var_rejects_concatenation_and_trailing_text() {
-        // Over-permissive cases the byte-set heuristic used to accept.
+        // Over-permissive cases a byte-set heuristic would accept.
         assert!(!is_pure_var_ref("$x$y"));
         assert!(!is_pure_var_ref("$x.foo"));
         assert!(!is_pure_var_ref("$x_$y"));
@@ -681,13 +678,12 @@ mod tests {
         );
     }
 
-    /// A quoted word that opens *directly* on a command substitution used
-    /// to come back with a doubled `[` and no closing `]`
-    /// (`"[[lindex $x 0]"`, #1846). The raw token spans overlap in this
-    /// shape — `parse_quoted`'s empty-content clamp extends the opening
-    /// `Esc` one byte over the `[` that stopped its scan, and the `Cmd`
-    /// token starts on that same `[` — so concatenating raw token text
-    /// emitted the shared byte twice.
+    /// A quoted word that opens *directly* on a command substitution must not
+    /// come back with a doubled `[` and no closing `]` (`"[[lindex $x 0]"`).
+    /// The raw token spans overlap in this shape — `parse_quoted`'s
+    /// empty-content clamp extends the opening `Esc` one byte over the `[`
+    /// that stopped its scan, and the `Cmd` token starts on that same `[` —
+    /// so concatenating raw token text emits the shared byte twice.
     #[test]
     fn spans_quoted_word_opening_on_command_sub_is_not_doubled() {
         let text = r#"[list "[lindex $x 0]"]"#;
@@ -705,9 +701,9 @@ mod tests {
         );
     }
 
-    /// The same clamp extends the opening `Esc` over a `$` introducer, so
-    /// a quoted word opening directly on a variable substitution is the
-    /// other half of the overlap family fixed with #1846.
+    /// The same clamp extends the opening `Esc` over a `$` introducer, so a
+    /// quoted word opening directly on a variable substitution is the other
+    /// half of the overlap family.
     #[test]
     fn spans_quoted_word_opening_on_var_sub_is_not_doubled() {
         let text = r#"[list "$x"]"#;
@@ -724,10 +720,10 @@ mod tests {
         );
     }
 
-    /// The #1846 table: the one broken shape plus the three neighbouring
-    /// shapes that were already right, each pinned on the invariant the
-    /// bug broke — a returned argument's text is exactly the source its
-    /// own span covers, so the two can never disagree again.
+    /// The overlap-family table: the shape that overlaps plus its three
+    /// neighbours, each pinned on the invariant at stake — a returned
+    /// argument's text is exactly the source its own span covers, so the two
+    /// cannot disagree.
     #[test]
     fn spans_argument_text_always_matches_its_own_span() {
         for text in [

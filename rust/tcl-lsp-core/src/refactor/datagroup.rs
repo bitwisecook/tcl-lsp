@@ -68,8 +68,11 @@ pub fn data_group_tcl(dg: &DataGroupDefinition) -> String {
 // Value-type inference
 
 /// `true` when `value` looks like an IPv4/IPv6 address or CIDR range.
+///
+/// Quote stripping belongs to the caller (see [`infer_value_type`]); this
+/// only tolerates the whitespace a quoted literal can still carry.
 fn is_ip_or_cidr(value: &str) -> bool {
-    let v = strip_quotes(value);
+    let v = value.trim();
     is_ip_address(v) || is_ip_network(v)
 }
 
@@ -96,19 +99,25 @@ fn is_ip_network(v: &str) -> bool {
 }
 
 fn is_integer(value: &str) -> bool {
-    let v = strip_quotes(value).trim();
+    let v = value.trim();
     !v.is_empty() && v.parse::<i64>().is_ok()
 }
 
 /// Infer the data-group value type from a list of keys/values.
+///
+/// `values` are the records as they will be written to the data group,
+/// which both call sites have already normalised with [`strip_quotes`] —
+/// stripping again here would peel a second pair off a value whose quotes
+/// *are* part of the record, and type the group as `ip`/`integer` when the
+/// record itself is the quoted string.
 fn infer_value_type(values: &[String]) -> &'static str {
     if values.is_empty() {
         return "string";
     }
-    if values.iter().all(|v| is_ip_or_cidr(strip_quotes(v))) {
+    if values.iter().all(|v| is_ip_or_cidr(v)) {
         return "ip";
     }
-    if values.iter().all(|v| is_integer(strip_quotes(v))) {
+    if values.iter().all(|v| is_integer(v)) {
         return "integer";
     }
     "string"
@@ -440,17 +449,30 @@ struct IfChain {
     else_body: Option<String>,
 }
 
+/// Index of the body belonging to the condition at `cond`, skipping stock
+/// Tcl's optional `then` keyword (`if {$x} then {body}`, and the same after
+/// every `elseif`).  `None` when the command runs out of words before the
+/// body — which is not valid Tcl anyway, so the transform declines.
+fn body_index_after(texts: &[String], cond: usize) -> Option<usize> {
+    let mut body = cond + 1;
+    if texts.get(body).is_some_and(|w| w == "then") {
+        body += 1;
+    }
+    (body < texts.len()).then_some(body)
+}
+
 /// Parse the if/elseif chain (OR-chain in a single condition, or an
 /// `elseif` ladder).
 fn parse_if_chain(texts: &[String]) -> Option<IfChain> {
     // OR-chain in a single condition.
     if texts.len() >= 3
+        && let Some(body) = body_index_after(texts, 1)
         && let Some((target_var, values)) = try_or_chain(&texts[1])
     {
         return Some(IfChain {
             target_var,
             values,
-            bodies: vec![texts[2].clone()],
+            bodies: vec![texts[body].clone()],
             else_body: None,
         });
     }
@@ -462,7 +484,7 @@ fn parse_if_chain(texts: &[String]) -> Option<IfChain> {
     let mut i = 1;
     while i < texts.len() {
         let word = &texts[i];
-        if word == "elseif" || word == "then" {
+        if word == "elseif" {
             i += 1;
             continue;
         }
@@ -472,12 +494,14 @@ fn parse_if_chain(texts: &[String]) -> Option<IfChain> {
             }
             break;
         }
-        if i + 1 >= texts.len() {
-            return None;
-        }
+        // `i` only ever lands on a condition, `elseif`, or `else`, never on
+        // the optional `then` — that keyword sits between a condition and
+        // its body, so it has to be skipped when the body offset is worked
+        // out, not at the top of the loop.
+        let body_at = body_index_after(texts, i)?;
         let (var, value, negated) = parse_eq(word)?;
-        let body = texts[i + 1].clone();
-        i += 2;
+        let body = texts[body_at].clone();
+        i = body_at + 1;
         if negated {
             return None;
         }
@@ -885,5 +909,79 @@ mod tests {
         let g = dg(&res);
         assert_eq!(g.value_type, "string");
         assert_eq!(g.records.len(), 3);
+    }
+
+    /// Stock Tcl accepts an optional `then` between a condition and its
+    /// body (`if {$x} then {…}`), including after each `elseif`.
+    #[test]
+    fn if_chain_then_keyword() {
+        let source = "if {$host eq \"a.com\"} then {\n    pool web_pool\n} elseif {$host eq \"b.com\"} then {\n    pool web_pool\n} elseif {$host eq \"c.com\"} then {\n    pool web_pool\n}";
+        let r = if_dg(source, "allowed_hosts").expect("result");
+        let g = dg(&r);
+        assert_eq!(g.value_type, "string");
+        assert_eq!(g.records.len(), 3);
+        assert!(g.records.contains(&("b.com".to_owned(), String::new())));
+        let applied = r.apply(source);
+        assert_eq!(
+            applied,
+            "if { [class match $host equals allowed_hosts] } {\n    pool web_pool\n}"
+        );
+    }
+
+    /// `then` on the leading arm only, with a trailing `else`.
+    #[test]
+    fn if_chain_then_keyword_with_else() {
+        let source = "if {$host eq \"a.com\"} then {\n    pool a_pool\n} elseif {$host eq \"b.com\"} {\n    pool a_pool\n} else {\n    pool default_pool\n}";
+        let r = if_dg(source, "hosts").expect("result");
+        let g = dg(&r);
+        assert_eq!(g.records.len(), 2);
+        let applied = r.apply(source);
+        assert!(applied.contains("pool a_pool"), "{applied:?}");
+        assert!(applied.contains("pool default_pool"), "{applied:?}");
+        assert!(!applied.contains("then"), "{applied:?}");
+    }
+
+    /// The OR-chain shortcut reads the body straight off the word after the
+    /// condition, so it has to skip `then` too — otherwise it rewrites the
+    /// command with `then` as the body and drops the real one.
+    #[test]
+    fn or_chain_then_keyword() {
+        let source = "if {$host eq \"a.com\" || $host eq \"b.com\" || $host eq \"c.com\"} then {\n    pool web_pool\n}";
+        let r = if_dg(source, "allowed").expect("result");
+        assert_eq!(dg(&r).records.len(), 3);
+        let applied = r.apply(source);
+        assert_eq!(
+            applied,
+            "if { [class match $host equals allowed] } {\n    pool web_pool\n}"
+        );
+    }
+
+    /// `infer_value_type` is handed values its callers have already run
+    /// through `strip_quotes`, so a value that still carries quotes is a
+    /// string literal, not a number.  (Before the fix a second strip here
+    /// peeled that pair off and typed the group `integer`, disagreeing with
+    /// the record actually written out.)
+    #[test]
+    fn infer_value_type_does_not_restrip() {
+        assert_eq!(
+            infer_value_type(&["80".to_owned(), "443".to_owned()]),
+            "integer"
+        );
+        assert_eq!(
+            infer_value_type(&["\"80\"".to_owned(), "\"443\"".to_owned()]),
+            "string"
+        );
+        assert_eq!(
+            infer_value_type(&["10.0.0.0/8".to_owned(), "192.168.0.0/16".to_owned()]),
+            "ip"
+        );
+        assert_eq!(
+            infer_value_type(&["\"10.0.0.0/8\"".to_owned(), "\"192.168.0.0/16\"".to_owned()]),
+            "string"
+        );
+        // Whitespace inside a quoted literal survives the caller's strip;
+        // the predicates still tolerate it.
+        assert_eq!(infer_value_type(&[" 80 ".to_owned()]), "integer");
+        assert_eq!(infer_value_type(&[" 10.0.0.0/8 ".to_owned()]), "ip");
     }
 }

@@ -25,6 +25,9 @@
 use tcl_bytecode::EnteredCommandSite;
 use tcl_registry::hooks::InlineCodegenHookId;
 
+use crate::ir::CommandTokens;
+use crate::registry_invocation::compiled_local_name_value;
+
 use super::emitter::bytecoded::applicable_codegen_binding;
 use super::helpers::{SubstPart, parse_subst_template, regexp_to_glob};
 use super::values::{is_qualified, parse_simple_var_ref, split_array_ref};
@@ -241,8 +244,8 @@ fn parse_bareword_part(text: &str, bytes: &[u8], n: usize, mut i: usize) -> (Str
         } else if bytes[i] == b'\\' {
             // A backslash escapes the next character, and an escaped blank is
             // *word content*, not a separator: `a\ b` is one word whose value
-            // is `a b`. Splitting on it handed `string length` two arguments,
-            // so `[string length a\ b]` raised `wrong # args` where both
+            // is `a b`. Splitting on it hands `string length` two arguments,
+            // so `[string length a\ b]` raises `wrong # args` where both
             // oracles answer 3.
             //
             // `\<newline>` is the one exception — that really is a word
@@ -265,7 +268,7 @@ fn parse_bareword_part(text: &str, bytes: &[u8], n: usize, mut i: usize) -> (Str
 /// whitespace (` `/`\t`) and a `\<newline>` line continuation (backslash, then
 /// `\n` or `\r\n`/`\r`, then any leading horizontal whitespace of the next
 /// line). A continuation is a word separator in Tcl — without skipping it the
-/// tokenizer mis-split a multi-line command's words (e.g. `string range $x \`
+/// tokeniser mis-split a multi-line command's words (e.g. `string range $x \`
 /// <newline> `$i $j`), dropping an argument and raising a spurious
 /// "wrong # args" (tcltest's `SubstArguments` → info / lrepeat / lseq, and
 /// every test file using the `{-body … -result …}` dict form).
@@ -444,6 +447,61 @@ pub fn parse_cmd_parts_expand(text: &str) -> Vec<(String, bool, bool)> {
         i = new_i;
     }
     parts
+}
+
+/// Evaluate an argument source word after proving it eligible for a direct
+/// local-name opcode. This preserves brace grouping and quoted-word decoding
+/// instead of passing a compatibility spelling to the bytecode emitter.
+pub(crate) fn source_direct_local_name_value(
+    tokens: Option<&CommandTokens>,
+    arg_index: usize,
+    escapes: tcl_dialect::EscapeSyntax,
+    word_rules: tcl_syntax::word_rules::WordValueRules,
+) -> Option<String> {
+    tokens
+        .and_then(|tokens| tokens.words().get(arg_index + 1))
+        .and_then(|word| compiled_local_name_value(word, escapes, word_rules))
+}
+
+/// Source availability and evaluated value for a nested local-name argument.
+enum NestedLocalName {
+    /// The caller did not retain a compatible structured source snapshot.
+    Unavailable,
+    /// An aligned source word is dynamic or requires backslash decoding.
+    Stack,
+    /// An aligned source word is direct and supplies this evaluated name.
+    Direct(String),
+}
+
+/// Evaluate a nested invocation's local-name argument when its canonical word
+/// snapshot still matches the compatibility parser's argv values. A missing or
+/// mismatched snapshot leaves the established value emitter unchanged; an
+/// aligned dynamic word selects the generic fallback, while an aligned direct
+/// word supplies its evaluated literal name.
+fn nested_local_name_value(
+    tokens: Option<&CommandTokens>,
+    parts: &[(String, bool)],
+    arg_index: usize,
+    escapes: tcl_dialect::EscapeSyntax,
+    word_rules: tcl_syntax::word_rules::WordValueRules,
+) -> NestedLocalName {
+    let Some(tokens) = tokens else {
+        return NestedLocalName::Unavailable;
+    };
+    if !tokens.words_align_with_argv_text()
+        || tokens.argv_texts.len() != parts.len()
+        || !tokens
+            .argv_texts
+            .iter()
+            .zip(parts)
+            .all(|(word, (text, _))| word == text)
+    {
+        return NestedLocalName::Unavailable;
+    }
+    match source_direct_local_name_value(Some(tokens), arg_index, escapes, word_rules) {
+        Some(name) => NestedLocalName::Direct(name),
+        None => NestedLocalName::Stack,
+    }
 }
 
 // CodegenCtx methods — emission helpers for command substitutions
@@ -719,17 +777,17 @@ impl CodegenCtx<'_> {
         } else if !braced && word.contains('\\') {
             // Decoded here, so the result is this word's value — the same arm,
             // and the same rule, as `emit_cmd_subst_arg`'s. Left substituting,
-            // the decoded `\{\}` was read back as a braced literal and stripped
-            // to nothing: `set w [dict get [dict create k \{\}] k]` measured 0
-            // where both oracles say 2.
+            // the decoded `\{\}` is read back as a braced literal and stripped
+            // to nothing: `set w [dict get [dict create k \{\}] k]` then
+            // measures 0 where both oracles say 2.
             let processed = tcl_lexer::backslash_subst_in(word, self.escapes);
             self.push_word_value(&processed);
         } else if braced {
             // A braced word is already de-braced here, so its content is the
             // finished value: push it verbatim or the VM's `subst_word` strips
             // a *second* brace layer — `proc p {} { set {{loc}} L ; return [set
-            // {{loc}}] }` read the local `loc` while the store had created
-            // `{loc}` (issue #1602; tclsh 8.6.14 / 9.0.4 return `L`).
+            // {{loc}}] }` would read the local `loc` while the store created
+            // `{loc}` (tclsh 8.6.14 / 9.0.4 return `L`).
             self.push_lit_verbatim(word);
         } else {
             // Not braced, and every substitution marker was routed above: this
@@ -737,6 +795,34 @@ impl CodegenCtx<'_> {
             // for the same reason the braced arm does — see `push_word_value`.
             self.push_word_value(word);
         }
+    }
+
+    /// Emit the ordered words of one `{*}` invocation.
+    ///
+    /// The command head and argument tail deliberately share this loop: Tcl's
+    /// expansion marker belongs to a *word position*, including position zero,
+    /// and every position must finish its substitutions before that value is
+    /// split as a list.  Callers supply words as `(text, braced, expanded)`;
+    /// [`Self::emit_cmd_word`] remains the single value-emission path for both
+    /// statement and command-substitution invocations.
+    pub(crate) fn emit_expanded_words<'w>(
+        &mut self,
+        words: impl IntoIterator<Item = (&'w str, bool, bool)>,
+        comment: &str,
+    ) {
+        self.emit_comment(Op::EXPAND_START, vec![], comment);
+        for (index, (word, braced, expanded)) in words.into_iter().enumerate() {
+            self.emit_cmd_word(word, braced);
+            if expanded {
+                self.emit(
+                    Op::EXPAND_STKTOP,
+                    vec![Operand::Imm(
+                        i32::try_from(index + 1).expect("word count fits in i32"),
+                    )],
+                );
+            }
+        }
+        self.emit_comment(Op::INVOKE_EXPANDED, vec![], comment);
     }
 
     /// Inline compile `[list {*}$a {*}$b]` as `load a; load b; listConcat`.
@@ -901,8 +987,7 @@ impl CodegenCtx<'_> {
             return;
         }
         // The `[list …]` / `[format …]` / `[dict create …]` folds and the two
-        // `list` inlinings — shared with `emit_value_interpolated`, which
-        // carried an identical copy of them (issues #1427 / #1585).
+        // `list` inlinings — one copy, shared with `emit_value_interpolated`.
         if self.try_emit_constant_fold(value) {
             return;
         }
@@ -995,9 +1080,9 @@ impl CodegenCtx<'_> {
     ///
     /// The spec-name equality check keeps qualified spellings
     /// (`[::expr …]`) on the generic-invoke path: `CommandRegistry::get`
-    /// resolves a leading `::` to the bare spec, but the historical
-    /// dispatch keyed on the raw head word and the emitted bytecode
-    /// must not change under the registry-driven dispatch.
+    /// resolves a leading `::` to the bare spec, but the dispatch keys on the
+    /// raw head word, and the emitted bytecode must not change under the
+    /// registry-driven dispatch.
     pub(crate) fn inline_cmd_subst_hook(
         &mut self,
         cmd: &str,
@@ -1005,6 +1090,26 @@ impl CodegenCtx<'_> {
     ) -> Option<InlineCodegenHookId> {
         self.inline_cmd_subst_resolution(cmd, args)
             .map(|(hook, _binding)| hook)
+    }
+
+    /// Read a registry hook without retaining a command-binding dependency.
+    ///
+    /// This only gates a later source-form decision. The caller that actually
+    /// emits a specialised opcode must enter through
+    /// [`Self::inline_cmd_subst_resolution`] and retain its binding there.
+    pub(crate) fn inline_cmd_subst_hook_candidate(
+        &self,
+        cmd: &str,
+        args: &[(String, bool)],
+    ) -> Option<InlineCodegenHookId> {
+        if self.plain_command_dispatch {
+            return None;
+        }
+        let arg_refs: Vec<&str> = args.iter().map(|(arg, _)| arg.as_str()).collect();
+        let resolved =
+            self.registry
+                .resolve_call(cmd, &arg_refs, self.registry.own_surface_query())?;
+        (resolved.spec.name == cmd).then_some(resolved.inline_codegen_hook?)
     }
 
     /// Resolve and retain the hook together with the exact entered command
@@ -1051,9 +1156,8 @@ impl CodegenCtx<'_> {
         // decision here: a later proc body may mutate this name only after the
         // current invocation has entered it. Retain the typed binding below;
         // the VM validates it at each actual execution boundary and recompiles
-        // stale future invocations through plain dispatch (issues #1585/#1648).
-        // The registry's own point — see
-        // `emitter::bytecoded::try_bytecoded` (issues #1462/#1463).
+        // stale future invocations through plain dispatch.
+        // The registry's own point — see `emitter::bytecoded::try_bytecoded`.
         let resolved = self
             .registry
             .resolve_call(cmd, args, self.registry.own_surface_query())?;
@@ -1063,6 +1167,42 @@ impl CodegenCtx<'_> {
         let hook = resolved.inline_codegen_hook?;
         let binding = self.command_binding_identity(cmd, resolved.spec.name);
         Some((hook, binding))
+    }
+
+    /// Preserve source-proven local-name semantics before value-position
+    /// specialisation. Returns whether it emitted the conservative fallback.
+    fn emit_dynamic_local_introspection(
+        &mut self,
+        tokens: Option<&CommandTokens>,
+        parts: &mut [(String, bool)],
+    ) -> bool {
+        let source_local_name =
+            nested_local_name_value(tokens, parts, 1, self.escapes, self.word_rules);
+        let source_hook = self.inline_cmd_subst_hook_candidate(&parts[0].0, &parts[1..]);
+        let source_is_local_introspection = match source_hook {
+            Some(InlineCodegenHookId::InfoExists) => parts.len() == 3,
+            Some(InlineCodegenHookId::Array) => parts.len() == 3 && parts[1].0 == "exists",
+            _ => false,
+        };
+        if !source_is_local_introspection {
+            return false;
+        }
+        match source_local_name {
+            NestedLocalName::Direct(name) => {
+                parts[2].0 = name;
+                false
+            }
+            // The specialised emitters place their final name value on the
+            // stack verbatim. Without an aligned source word that proves the
+            // value is already final, that would suppress a live `$` or
+            // command substitution (notably a Return value, whose
+            // compatibility path retains no CommandTokens).
+            NestedLocalName::Stack | NestedLocalName::Unavailable => {
+                self.used_inline_cmd_subst = false;
+                self.emit_generic_cmd_subst(&parts[0].0, &parts[1..]);
+                true
+            }
+        }
     }
 
     /// Resolve one fully-consuming inline specialisation whose source name
@@ -1100,17 +1240,14 @@ impl CodegenCtx<'_> {
         &mut self,
         cmd: &str,
         args: &[String],
+        tokens: Option<&CommandTokens>,
         used_generic_invoke: &mut bool,
     ) -> bool {
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
         let Some((hook, binding)) = self.inline_codegen_resolution(cmd, &arg_refs) else {
             return false;
         };
-        if hook != InlineCodegenHookId::String {
-            return false;
-        }
-
-        let inline_args: Vec<(String, bool)> = args
+        let mut inline_args: Vec<(String, bool)> = args
             .iter()
             .enumerate()
             .map(|(i, arg)| {
@@ -1120,15 +1257,40 @@ impl CodegenCtx<'_> {
                 )
             })
             .collect();
-        let previous_inline = self.used_inline_cmd_subst;
-        if !self.try_emit_inline_string_invoke_replace(
-            previous_inline,
-            cmd,
-            &binding,
-            &inline_args,
-            false,
-        ) {
-            return false;
+
+        let local_name = source_direct_local_name_value(tokens, 1, self.escapes, self.word_rules);
+
+        // These hooks are also valid for a complete command statement. The
+        // statement dispatch checks the source-word facts, then reuses the
+        // value emitter's local opcode sequence instead of recognising command
+        // names itself. The result is discarded just as a normal statement
+        // invoke would discard it.
+        match hook {
+            InlineCodegenHookId::InfoExists if inline_args.len() == 2 && local_name.is_some() => {
+                inline_args[1].0 = local_name.expect("guard proved a source local name");
+                self.emit_inline_info_exists(&inline_args);
+            }
+            InlineCodegenHookId::Array
+                if inline_args.len() == 2
+                    && inline_args[0].0 == "exists"
+                    && local_name.is_some() =>
+            {
+                inline_args[1].0 = local_name.expect("guard proved a source local name");
+                self.emit_inline_array(&inline_args);
+            }
+            InlineCodegenHookId::String => {
+                let previous_inline = self.used_inline_cmd_subst;
+                if !self.try_emit_inline_string_invoke_replace(
+                    previous_inline,
+                    cmd,
+                    &binding,
+                    &inline_args,
+                    false,
+                ) {
+                    return false;
+                }
+            }
+            _ => return false,
         }
         self.emit(Op::POP, vec![]);
         *used_generic_invoke = true;
@@ -1156,6 +1318,20 @@ impl CodegenCtx<'_> {
     /// `control_flow` emits inline) — falls back to the generic
     /// invoke.
     pub fn emit_inline_cmd_subst(&mut self, text: &str) {
+        self.emit_inline_cmd_subst_with_tokens(text, None);
+    }
+
+    /// Emit one command substitution using an aligned canonical word snapshot
+    /// when its enclosing value preserved one.
+    ///
+    /// The compatibility parser continues to own value emission.  The source
+    /// snapshot only decides whether `info exists` / `array exists` can claim a
+    /// local-name slot; it never reconstructs command arguments from text.
+    pub fn emit_inline_cmd_subst_with_tokens(
+        &mut self,
+        text: &str,
+        tokens: Option<&CommandTokens>,
+    ) {
         // Multi-command scripts (a `;`/newline separator outside quotes/braces)
         // fall back to runtime eval — checked *before* the `{*}` form below so a
         // body that has both (`[set y 1; list {*}$a]`) runs as two commands
@@ -1170,10 +1346,7 @@ impl CodegenCtx<'_> {
             self.emit(Op::EVAL_STK, vec![]);
             return;
         }
-        // A `{*}`-expanded command substitution in value position compiles to the
-        // `expandStart … expandStkTop N; invokeExpanded` form (tclsh's), leaving
-        // the result on the stack (no trailing `pop`, unlike the statement form).
-        if text.contains("{*}") {
+        if self.recognises_expand_syntax() && text.contains("{*}") {
             let parts = parse_cmd_parts_expand(text);
             if parts.iter().any(|(_, _, expand)| *expand) {
                 self.emit_expanded_cmd_subst(&parts);
@@ -1181,12 +1354,15 @@ impl CodegenCtx<'_> {
             }
         }
 
-        let parts = parse_cmd_parts(text);
+        let mut parts = parse_cmd_parts(text);
         if parts.is_empty() {
             self.push_lit("");
             return;
         }
 
+        if self.emit_dynamic_local_introspection(tokens, &mut parts) {
+            return;
+        }
         let cmd = &parts[0].0;
         let args = &parts[1..];
 
@@ -1200,9 +1376,8 @@ impl CodegenCtx<'_> {
                 let expr_body = &args[0].0;
                 // Re-parsed under the compile's own dialect, exactly as the
                 // lowering pass parses a statement-position `expr` — parsing
-                // it dialect-blind here left a dialect-only operator
-                // (`$x contains "a"`) unrecognised and pushed as a raw string
-                // (issue #1435).
+                // it dialect-blind here would leave a dialect-only operator
+                // (`$x contains "a"`) unrecognised and push it as a raw string.
                 let node = self.parse_compile_expr(expr_body);
                 self.emit_expr(&node);
             }
@@ -1268,30 +1443,15 @@ impl CodegenCtx<'_> {
     /// trailing `pop`.
     pub(super) fn emit_expanded_cmd_subst(&mut self, parts: &[(String, bool, bool)]) {
         self.used_inline_cmd_subst = true;
-        self.emit_comment(Op::EXPAND_START, vec![], "(expanded)");
-        let mut word_count: u32 = 0;
-        for (part, braced, expand) in parts {
-            if *braced {
-                // A braced expanded word splits its *list* elements without
-                // substitution, so push it verbatim.
-                self.push_lit_verbatim(part);
-            } else {
-                self.emit_cmd_subst_arg(part, false);
-            }
-            word_count += 1;
-            if *expand {
-                self.emit(
-                    Op::EXPAND_STKTOP,
-                    vec![Operand::Imm(
-                        i32::try_from(word_count).expect("word count fits in i32"),
-                    )],
-                );
-            }
-        }
-        self.emit_comment(Op::INVOKE_EXPANDED, vec![], "");
+        self.emit_expanded_words(
+            parts
+                .iter()
+                .map(|(word, braced, expanded)| (word.as_str(), *braced, *expanded)),
+            "(expanded)",
+        );
     }
 
-    // -- Private inline helpers for emit_inline_cmd_subst --
+    // Private inline helpers for emit_inline_cmd_subst.
 
     fn emit_inline_incr(&mut self, args: &[(String, bool)]) {
         let var_name = &args[0].0;
@@ -1384,7 +1544,7 @@ impl CodegenCtx<'_> {
             );
             self.emit(Op::NOP, vec![]);
         } else {
-            self.push_lit(var_name);
+            self.push_lit_exact(var_name);
             self.emit(Op::EXIST_STK, vec![]);
         }
     }
@@ -1648,11 +1808,11 @@ impl CodegenCtx<'_> {
         // Only two shapes can be specialised inline: `CLASS value` and
         // `CLASS -strict value`. Anything else carries an option this path does
         // not model — above all `-failindex var`, which has to *write a
-        // variable*. The dispatch that reaches here gates on arity alone, and
-        // this function used to take `sargs.last()` as the value and ignore
-        // everything before it, so `string is integer -failindex fi 1.5`
-        // computed the correct answer and silently never wrote `fi`
-        // (tclsh writes 1). A 2-word form whose second word is `-strict` is a
+        // variable*. The dispatch that reaches here gates on arity alone, so
+        // taking `sargs.last()` as the value and ignoring everything before it
+        // would make `string is integer -failindex fi 1.5` compute the correct
+        // answer and silently never write `fi` (tclsh writes 1). A 2-word form
+        // whose second word is `-strict` is a
         // missing-value arity error, which the generic path reports properly.
         let specialisable = match sargs.len() {
             2 => sargs[1].0 != "-strict",
@@ -1944,11 +2104,11 @@ mod tests {
     use super::*;
     use tcl_registry::CommandRegistry;
 
-    /// A value-position `[expr {…}]` is re-parsed here, and until issue #1435
-    /// it was re-parsed dialect-blind: an iRules word operator lexed as a
-    /// function name, the parse fell back to `ExprNode::Raw`, and codegen
-    /// pushed the source text for a second dialect-blind parse in the VM —
-    /// which returned the text itself rather than evaluating the operator.
+    /// A value-position `[expr {…}]` is re-parsed here, and must be re-parsed
+    /// under the compile dialect: dialect-blind, an iRules word operator lexes
+    /// as a function name, the parse falls back to `ExprNode::Raw`, and codegen
+    /// pushes the source text for a second dialect-blind parse in the VM —
+    /// which returns the text itself rather than evaluating the operator.
     #[test]
     fn inline_expr_subst_parses_under_the_compile_dialect() {
         let profile = tcl_dialect::DialectProfile::irules();
@@ -1960,6 +2120,42 @@ mod tests {
         ctx.emit_inline_cmd_subst("[expr {$x contains \"a\"}]");
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
         assert!(ops.contains(&Op::IRULE_CONTAINS), "{ops:?}");
+    }
+
+    /// Public codegen consumers may supply a profile-projected registry
+    /// without separately setting the optional module dialect. Nested source
+    /// must still follow that registry's grammar rather than ambient Tcl.
+    #[test]
+    fn inline_cmd_subst_expansion_uses_the_profiled_registry_grammar() {
+        let f5_registry = tcl_registry::model::ingress::static_context_for_profile(
+            tcl_dialect::DialectProfile::irules(),
+        )
+        .commands();
+        let mut f5 = CodegenCtx::new(true, &["head"], f5_registry);
+        assert!(f5.dialect.is_none());
+        f5.emit_inline_cmd_subst("[{*}$head ordinary]");
+        let f5_ops: Vec<Op> = f5
+            .instructions
+            .iter()
+            .map(|instruction| instruction.op)
+            .collect();
+        assert!(!f5_ops.contains(&Op::EXPAND_STKTOP), "{f5_ops:?}");
+        assert!(!f5_ops.contains(&Op::INVOKE_EXPANDED), "{f5_ops:?}");
+
+        let modern_profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile();
+        let modern_registry =
+            tcl_registry::model::ingress::static_context_for_profile(modern_profile).commands();
+        let mut modern = CodegenCtx::new(true, &["head"], modern_registry);
+        assert!(modern.dialect.is_none());
+        modern.emit_inline_cmd_subst("[{*}$head ordinary]");
+        let modern_ops: Vec<Op> = modern
+            .instructions
+            .iter()
+            .map(|instruction| instruction.op)
+            .collect();
+        assert!(modern_ops.contains(&Op::EXPAND_STKTOP), "{modern_ops:?}");
+        assert!(modern_ops.contains(&Op::INVOKE_EXPANDED), "{modern_ops:?}");
     }
 
     /// The same site's release axis: an operator the target release lacks is
@@ -1986,7 +2182,7 @@ mod tests {
         assert!(modern.literals.entries().iter().any(|l| l == "8"));
     }
 
-    // -- unroll_nested_set --
+    // unroll_nested_set.
 
     #[test]
     fn unroll_simple() {
@@ -1999,7 +2195,7 @@ mod tests {
         assert!(unroll_nested_set("hello").is_none());
     }
 
-    // -- is_pure_cmd_subst --
+    // is_pure_cmd_subst.
 
     #[test]
     fn pure_cmd_subst_simple() {
@@ -2018,7 +2214,7 @@ mod tests {
         assert!(!is_pure_cmd_subst("[llength $args]:[join $args ,]"));
     }
 
-    // -- has_command_separator --
+    // has_command_separator.
 
     #[test]
     fn separator_semicolon() {
@@ -2045,7 +2241,7 @@ mod tests {
         assert!(!has_command_separator("set x 1"));
     }
 
-    // -- parse_cmd_parts --
+    // parse_cmd_parts.
 
     #[test]
     fn parse_simple_cmd() {
@@ -2081,7 +2277,7 @@ mod tests {
         assert_eq!(parts[2], ("[expr {1+2}]".into(), false));
     }
 
-    // -- emit_cmd_subst_arg --
+    // emit_cmd_subst_arg.
 
     #[test]
     fn emit_arg_literal() {
@@ -2115,7 +2311,7 @@ mod tests {
         assert_eq!(ctx.instructions[0].op, Op::LOAD_SCALAR1);
     }
 
-    // -- emit_generic_cmd_subst --
+    // emit_generic_cmd_subst.
 
     #[test]
     fn emit_generic_simple() {
@@ -2126,7 +2322,7 @@ mod tests {
         assert_eq!(ops, vec![Op::PUSH1, Op::PUSH1, Op::INVOKE_STK1]);
     }
 
-    // -- emit_inline_cmd_subst --
+    // emit_inline_cmd_subst.
 
     #[test]
     fn inline_expr() {
@@ -2262,7 +2458,7 @@ mod tests {
         let mut ctx = CodegenCtx::new(true, &[], &registry);
         let mut used_generic_invoke = false;
 
-        assert!(ctx.try_inline_statement_codegen("text", &args, &mut used_generic_invoke));
+        assert!(ctx.try_inline_statement_codegen("text", &args, None, &mut used_generic_invoke));
 
         assert!(used_generic_invoke);
         assert!(
@@ -2303,7 +2499,7 @@ mod tests {
         assert!(ops.contains(&Op::EVAL_STK));
     }
 
-    // -- regression: label reconstruction in string equal/compare --
+    // Regression: label reconstruction in string equal/compare.
 
     /// `string equal` in non-proc context with a nested command
     /// substitution in one arg. The nested substitution allocates
@@ -2355,7 +2551,7 @@ mod tests {
         }
     }
 
-    // -- specialised value-emission paths --
+    // Specialised value-emission paths.
 
     #[test]
     fn try_list_expand_concat_matches_two_vars() {
@@ -2536,7 +2732,7 @@ mod tests {
         );
     }
 
-    // -- registry drift: inline codegen hook stamping --
+    // Registry drift: inline codegen hook stamping.
 
     /// The registry-stamped inline-hook set must equal the command set
     /// the retired hardcoded `match cmd.as_str()` dispatch (plus the

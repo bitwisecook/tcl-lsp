@@ -562,7 +562,7 @@ mod tests {
         assert_eq!(got, vec!["\".*abc\"".to_owned()]);
     }
 
-    /// Regression guard (issue #829 investigation): the retag must still fire
+    /// The retag must still fire
     /// when the enclosing proc sits alongside hundreds of unrelated ones in
     /// the same file, matching the `large_file_semantic_tokens_refresh_delivers_enriched_result`
     /// e2e fixture — proves the per-function CFG/SSA facts this depends on

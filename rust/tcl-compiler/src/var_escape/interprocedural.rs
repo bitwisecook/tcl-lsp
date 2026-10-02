@@ -35,7 +35,7 @@
 
 use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 
-use super::helpers::is_frameless_runtime_command;
+use super::helpers::is_frameless_runtime_command_in;
 use std::hash::BuildHasher;
 
 use crate::var_escape::types::{EscapeFlags, ProcEscapeSummary};
@@ -59,9 +59,28 @@ pub(crate) fn resolve_callee<S: BuildHasher>(
 /// folded in. The input *summaries* is the per-proc
 /// (intra-procedural) result; the output is keyed identically
 /// and is what codegen should consume.
+///
+/// Dialect-blind: the `pure_leaf` downgrade below classifies a callee with
+/// no summary against plain Tcl. Callers holding the unit's registry should
+/// use [`solve_interprocedural_escape_with_registry`] (#2179).
 #[must_use]
 pub fn solve_interprocedural_escape<S: BuildHasher>(
     summaries: &HashMap<String, ProcEscapeSummary, S>,
+) -> HashMap<String, ProcEscapeSummary> {
+    solve_interprocedural_escape_with_registry(summaries, super::helpers::default_registry())
+}
+
+/// Registry-aware form of [`solve_interprocedural_escape`].
+///
+/// The registry decides which summary-less callees are frameless, and so
+/// which callers keep `pure_leaf` — the inliner's predicate. `tcl8.6` marks
+/// `lassign`, `lrepeat`, `lreverse`, `namespace`, `puts` and `throw`
+/// frameless where `f5-irules` marks none of them, so the blind answer is
+/// the permissive one.
+#[must_use]
+pub fn solve_interprocedural_escape_with_registry<S: BuildHasher>(
+    summaries: &HashMap<String, ProcEscapeSummary, S>,
+    registry: &tcl_registry::CommandRegistry,
 ) -> HashMap<String, ProcEscapeSummary> {
     if summaries.is_empty() {
         return HashMap::new();
@@ -117,7 +136,7 @@ pub fn solve_interprocedural_escape<S: BuildHasher>(
         result.insert(qname.clone(), new_summary);
     }
 
-    downgrade_non_pure_leaf_callers(&mut result);
+    downgrade_non_pure_leaf_callers(&mut result, registry);
     result
 }
 
@@ -194,6 +213,7 @@ fn propagate_transitive_sources<S: BuildHasher>(
 /// the proc count).
 fn downgrade_non_pure_leaf_callers<S: BuildHasher>(
     result: &mut HashMap<String, ProcEscapeSummary, S>,
+    registry: &tcl_registry::CommandRegistry,
 ) {
     let mut changed = true;
     while changed {
@@ -208,7 +228,7 @@ fn downgrade_non_pure_leaf_callers<S: BuildHasher>(
                 result.get(callee).map_or_else(
                     || {
                         let bare = callee.strip_prefix("::").unwrap_or(callee);
-                        !is_frameless_runtime_command(bare)
+                        !is_frameless_runtime_command_in(bare, registry)
                     },
                     |c| !c.pure_leaf,
                 )

@@ -62,7 +62,7 @@ fn default_registry_role_indices(command: &str, args: &[String]) -> Vec<usize> {
     registry_role_indices(default_registry(), command, args)
 }
 
-/// Registry-backed compatibility helpers for declaration-index consumers.
+/// Return registry-declared `global` name positions, excluding substitutions.
 #[must_use]
 pub fn global_declaration_indices(args: &[String]) -> Vec<usize> {
     default_registry_role_indices("global", args)
@@ -249,8 +249,6 @@ mod tests {
         items.iter().map(|s| (*s).to_string()).collect()
     }
 
-    // -- global --
-
     #[test]
     fn global_decls_bare_names_only() {
         let args = v(&["foo", "bar", "$skip"]);
@@ -274,8 +272,6 @@ mod tests {
         );
     }
 
-    // -- variable --
-
     #[test]
     fn variable_decls_skip_values() {
         // `variable foo 42 bar 99 baz` → names at 0, 2, 4.
@@ -288,8 +284,6 @@ mod tests {
         let args = v(&["$x", "42", "bar", "99"]);
         assert_eq!(variable_declaration_indices(&args), vec![2]);
     }
-
-    // -- my variable --
 
     #[test]
     fn my_variable_decls_all_names_no_values() {
@@ -307,8 +301,6 @@ mod tests {
         assert!(my_variable_declaration_indices(&v(&["varname", "x"])).is_empty());
         assert!(my_variable_declaration_indices(&[]).is_empty());
     }
-
-    // -- upvar --
 
     #[test]
     fn upvar_without_level() {
@@ -389,8 +381,6 @@ mod tests {
         assert!(upvar_local_declaration_indices("upvar", &args).is_empty());
     }
 
-    // -- upvar alias flavour (observability consumers) --
-
     #[test]
     fn upvar_alias_keeps_local_with_dynamic_source_side() {
         // `upvar 0 $src local` — the declaration parser skips the pair
@@ -416,8 +406,6 @@ mod tests {
         let lv = v(&["#0", "caller", "local"]);
         assert_eq!(upvar_local_alias_indices("upvar", &lv), vec![2]);
     }
-
-    // -- registry-driven scope-alias recognition --
 
     fn registry() -> tcl_registry::CommandRegistry {
         tcl_registry::CommandRegistry::build_default()

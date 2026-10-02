@@ -20,11 +20,11 @@
 //!
 //! Runs the prototype dispatch resolver
 //! ([`tcl_compiler::analyser::class_lattice`]) over a corpus of Tcl files
-//! and reports the metrics that decide whether the object→class lattice is
-//! worth shipping:
+//! and reports the metrics that characterise how much the object→class lattice
+//! can resolve:
 //!
 //! * **⊤-rate** — the fraction of `$obj method` sites that collapse to ⊙
-//!   abstention (the make-or-break number), broken down by collapse reason.
+//!   abstention, broken down by collapse reason.
 //! * **Resolution split** — of the sites we *did* bind to a class, how many
 //!   also resolved the method (vs. named the class but not the method — the
 //!   W308 candidate set).
@@ -41,7 +41,7 @@
 //!
 //! With no arguments it scans a default corpus set (the vendored
 //! `experiments/corpus`, tcllib, and the Tcl 8.6/9.0 `oo` tests) when
-//! present.  Nothing here touches shipping diagnostics.
+//! present.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -222,7 +222,7 @@ fn print_stats(label: &str, s: &DispatchStats) {
     }
 }
 
-/// Cached products from Pass A plus the corpus-wide roll-up metrics.
+/// Cached per-file products from Pass A, plus the corpus-merged class index.
 struct PassA {
     analysed: Vec<(PathBuf, Analysed)>,
     merged_index: HashMap<String, ClassDef>,

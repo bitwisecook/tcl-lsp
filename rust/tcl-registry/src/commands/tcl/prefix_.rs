@@ -19,14 +19,13 @@
 //! `tcl::prefix` — prefix-matching helpers (added Tcl 8.6, TIP 265).
 //!
 //! Unlike its sibling ensemble `tcl::mathop` (fully registered in
-//! `mathop.rs`/`mathop_generated.rs`), this ensemble had no `CommandSpec` at
-//! all until this fix (issue #923 differential-audit finding idx 9, main
-//! audit wave): `rust/tcl-vm/src/cmd_prefix.rs` registers and fully
-//! implements it for the VM, but hover/completion/signature-help had
-//! nothing to show — a call like `tcl::prefix match -message switch
-//! $candidates $name` (the exact idiom `argparse.tcl` uses to resolve an
-//! abbreviated switch name) drew no false diagnostic (no `CommandSpec`
-//! means no arity/unknown-command check either), but also no
+//! `mathop.rs`/`mathop_generated.rs`), this ensemble's `CommandSpec` lives
+//! here rather than beside `rust/tcl-vm/src/cmd_prefix.rs`, which registers
+//! and fully implements it for the VM: without it, hover/completion/
+//! signature-help have nothing to show — a call like `tcl::prefix match
+//! -message switch $candidates $name` (the exact idiom `argparse.tcl` uses
+//! to resolve an abbreviated switch name) draws no false diagnostic (no
+//! `CommandSpec` means no arity/unknown-command check either), but also no
 //! documentation.
 
 use crate::prelude::*;

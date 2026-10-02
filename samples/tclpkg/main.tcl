@@ -6,7 +6,7 @@ package require http
 
 proc demo::serve {port} {
     puts "Listening on port $port..."
-    # (placeholder — real implementation would use the http package)
+    # This demo only prints; a real server would use the http package here.
 }
 
 demo::serve 8080

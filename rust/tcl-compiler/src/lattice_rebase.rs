@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Offset rebasing for a memoised [`FunctionUnit`] (slice 4 offset-invariance).
+//! Offset rebasing for a memoised [`FunctionUnit`].
 //!
 //! The per-procedure lattice cache keys on a procedure's **body source** (not
 //! its position), so a body that is unchanged but *shifted* (lines inserted
@@ -62,7 +62,7 @@ pub(crate) fn rebase_function_unit(fu: &mut FunctionUnit, delta: i64) {
     }
     // Inlined-body error sites carry absolute spans too; without shifting them
     // a cache-hit, offset-rebased unit keeps stale offsets for error-region
-    // mapping / explorer views — issue 149.
+    // mapping and explorer views.
     for site in &mut fu.cfg.inline_body_error_sites {
         shift(&mut site.span, delta);
     }
@@ -172,7 +172,15 @@ pub fn rebase_script(script: &mut Script, delta: i64) {
 
 fn rebase_terminator(term: &mut Terminator, delta: i64) {
     match term {
-        Terminator::Goto { span, .. } | Terminator::Return { span, .. } => shift_opt(span, delta),
+        Terminator::Goto { span, .. } => shift_opt(span, delta),
+        Terminator::Return {
+            span, value_word, ..
+        } => {
+            shift_opt(span, delta);
+            if let Some(word) = value_word {
+                rebase_word_expr(word, delta);
+            }
+        }
         Terminator::Branch {
             span,
             condition_base,
@@ -192,7 +200,15 @@ fn rebase_statement(stmt: &mut Statement, delta: i64) {
             shift(span, delta);
             shift_opt(value_span, delta);
         }
-        Statement::Incr { span, .. } | Statement::Return { span, .. } => shift(span, delta),
+        Statement::Incr { span, .. } => shift(span, delta),
+        Statement::Return {
+            span, value_word, ..
+        } => {
+            shift(span, delta);
+            if let Some(word) = value_word {
+                rebase_word_expr(word, delta);
+            }
+        }
         Statement::AssignExpr {
             span, expr_base, ..
         }
@@ -231,8 +247,8 @@ fn rebase_statement(stmt: &mut Statement, delta: i64) {
 }
 
 /// Rebase the span-bearing looping/catch statements (`For` / `While` /
-/// `Foreach` / `Catch`), extracted from [`rebase_statement`] to keep each
-/// function small.
+/// `Foreach` / `Catch`).  Split out of [`rebase_statement`] so each function
+/// stays small.
 fn rebase_loop_statement(stmt: &mut Statement, delta: i64) {
     match stmt {
         Statement::For {
@@ -303,8 +319,8 @@ fn rebase_loop_statement(stmt: &mut Statement, delta: i64) {
     }
 }
 
-/// Rebase the span-bearing branching statements (`If` / `Try` / `Switch`),
-/// extracted from [`rebase_statement`] to keep each function small.
+/// Rebase the span-bearing branching statements (`If` / `Try` / `Switch`).
+/// Split out of [`rebase_statement`] so each function stays small.
 fn rebase_branching_statement(stmt: &mut Statement, delta: i64) {
     match stmt {
         Statement::If {
@@ -381,8 +397,8 @@ mod tests {
     use tcl_registry::CommandRegistry;
 
     /// A cache-hit, offset-rebased unit must shift its inlined-`eval` body
-    /// spans along with every other absolute span, or error-region / explorer
-    /// consumers see stale offsets (issue 149).
+    /// spans along with every other absolute span, or error-region and
+    /// explorer consumers see stale offsets.
     #[test]
     fn rebase_shifts_inline_body_error_sites() {
         let reg = CommandRegistry::build_default();
@@ -463,6 +479,42 @@ mod tests {
             panic!("rebased second part should remain a variable substitution");
         };
         assert_eq!(source.span.start(), before_part.start() + 37);
+    }
+
+    #[test]
+    fn rebase_shifts_return_value_word_site() {
+        let registry = CommandRegistry::build_default();
+        let cu =
+            CompilationUnit::build_for("proc p {} { return [info exists pub] }", &registry, false);
+        let mut fu = cu.function("::p").expect("::p built").clone();
+        let return_word_span = fu
+            .cfg
+            .blocks
+            .values()
+            .find_map(|block| match &block.terminator {
+                Some(Terminator::Return {
+                    value_word: Some(word),
+                    ..
+                }) => Some(word.source().span),
+                _ => None,
+            })
+            .expect("return should retain its canonical value word");
+
+        rebase_function_unit(&mut fu, 23);
+        let rebased_word_span = fu
+            .cfg
+            .blocks
+            .values()
+            .find_map(|block| match &block.terminator {
+                Some(Terminator::Return {
+                    value_word: Some(word),
+                    ..
+                }) => Some(word.source().span),
+                _ => None,
+            })
+            .expect("rebased return should retain its canonical value word");
+        assert_eq!(rebased_word_span.start(), return_word_span.start() + 23);
+        assert_eq!(rebased_word_span.end(), return_word_span.end() + 23);
     }
 
     /// The load-bearing invariant behind the per-procedure lattice memo: a

@@ -23,7 +23,7 @@
 //! (see [`Vm::qualify_name`]/[`Vm::lookup_command`]). The introspection
 //! subcommands (`current`, `qualifiers`, `tail`, `parent`, `children`,
 //! `exists`) operate on canonical names; `export`/`import` are accepted as
-//! no-ops for now (the codegen already records export/import metadata).
+//! no-ops (the codegen already records export/import metadata).
 
 use tcl_dialect::model::SurfaceQuery;
 use tcl_runtime_api::completion_options::ControlOptionPolicy;
@@ -113,7 +113,7 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // through the one ingress seam (`crate::environment`) and every
     // availability question below is answered under that environment's
     // document authoring mask — one resolution, not a `by_name` here and a
-    // mask read at each use (ledger row B1).
+    // mask read at each use.
     let profile =
         crate::environment::profile_for_dialect(vm.runtime_version().dialect_profile_name());
     let dialect = Some(crate::environment::surface_point(profile));
@@ -219,8 +219,8 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             let name = words[name_index].clone();
             if kind == tcl_cmd_core::namespace::WhichKind::Variable {
                 // `Tcl_FindNamespaceVar` semantics via the shared core: the
-                // namespace variable tables only, never the call frame (the VM
-                // used to gate on `exists_var`, which walks proc locals).
+                // namespace variable tables only, never the call frame. Gating
+                // on `exists_var` instead would walk proc locals too.
                 ok(tcl_cmd_core::namespace::which_variable(vm, &name, profile))
             } else {
                 ok(tcl_cmd_core::namespace::which_command(vm, &name))
@@ -774,8 +774,8 @@ fn ensemble_option_value(
 
 /// `namespace qualifiers`/`tail`: run the first argument (lenient — defaults to
 /// empty) through a shared `tcl_cmd_core::namespace` text op, as a `Value`. The
-/// shared core handles `::`-runs the way C does (the VM's old `rsplit("::")`
-/// diverged for 3+ colons, e.g. `tail foo:::`).
+/// shared core handles `::`-runs the way C does (a plain `rsplit("::")`
+/// would diverge for 3+ colons, e.g. `tail foo:::`).
 fn ns_text_op(rest: &[Value], op: fn(&[u8]) -> &[u8]) -> Completion<Value> {
     let name = first(rest);
     ok(Value::string(
@@ -813,8 +813,7 @@ fn ns_inscope(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 /// (`namespace eval`'s plain space-join is right for *its* concat semantics;
 /// `inscope` is the one family member that list-quotes — the registry models
 /// the split as `SCRIPT_APPENDS_LIST_ARGS` refining `SCRIPT_CONCATENATES_ARGS`.
-/// Issue #1056: the VM used to space-join here too, so `{x y}` became two
-/// arguments.)
+/// Space-joining here too would turn `{x y}` into two arguments.)
 ///
 /// Both halves reuse the canonical implementations rather than re-deriving
 /// them: the list's string rep comes from `Value::list`'s

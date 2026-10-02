@@ -168,7 +168,7 @@ fn parse(spec: &str, len: usize, numbers: Numbers) -> Option<i64> {
 /// [`ParseFlags`](tcl_syntax::number::ParseFlags) for an index integer: reject a
 /// fractional part / exponent, but otherwise the full Tcl integer syntax of the
 /// release in play — so a hex index like `0x2` resolves the way real Tcl's
-/// `Tcl_GetIntForIndex` does (verified against the tclsh 8.6 / 9.0 oracle).
+/// `Tcl_GetIntForIndex` does.
 ///
 /// An index word is read by `Tcl_GetIntForIndex`, so it inherits every version
 /// difference in the numeral grammar. Pinned on tclsh 8.6.16 / 9.0.4 against a

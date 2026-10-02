@@ -165,7 +165,11 @@ fn evaluate_chain_pool(
         &mut incomplete,
     );
     if paths.is_empty() {
-        paths.push(incomplete.first().cloned().unwrap_or_else(|| vec![0]));
+        paths.push(
+            incomplete
+                .first()
+                .map_or_else(|| vec![0], |(path, _)| path.clone()),
+        );
     }
 
     let mut evaluated: Vec<CandidateEvaluation> = paths
@@ -201,20 +205,26 @@ fn evaluate_chain_pool(
             ),
         });
     }
-    if incomplete.iter().any(|path| path == &selected) {
+    if let Some((_, reason)) = incomplete.iter().find(|(path, _)| path == &selected) {
         let terminal = selected.last().and_then(|index| certificates.get(*index));
+        let (kind, describe): (_, fn(&Certificate) -> String) = match reason {
+            IncompleteReason::NoIssuer => (ChainFindingKind::IssuerNotFound, |cert| {
+                format!(
+                    "issuer `{}` for `{}` was not supplied",
+                    cert.issuer, cert.subject
+                )
+            }),
+            IncompleteReason::Loop => (ChainFindingKind::PathLoop, |cert| {
+                format!(
+                    "issuer `{}` for `{}` is already on this path: the issuer graph loops",
+                    cert.issuer, cert.subject
+                )
+            }),
+        };
         findings.push(ChainFinding {
-            kind: ChainFindingKind::IssuerNotFound,
+            kind,
             certificate: terminal.map(|cert| cert.fingerprint_sha256.clone()),
-            message: terminal.map_or_else(
-                || "issuer certificate is missing".to_owned(),
-                |cert| {
-                    format!(
-                        "issuer `{}` for `{}` was not supplied",
-                        cert.issuer, cert.subject
-                    )
-                },
-            ),
+            message: terminal.map_or_else(|| "issuer certificate is missing".to_owned(), describe),
         });
     }
     let trusted = trust
@@ -271,12 +281,28 @@ fn evaluate_chain_pool(
     }
 }
 
+/// Why a path stopped short of a trust anchor.
+///
+/// The two are a materially different thing for the user to go and fix, so
+/// they must not both surface as [`ChainFindingKind::IssuerNotFound`]: one
+/// says "supply the missing certificate", the other says "this pool cannot
+/// chain, whatever you add" (#2075).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum IncompleteReason {
+    /// No certificate in the pool has the required subject at all.
+    NoIssuer,
+    /// Every certificate that could issue this one is already on the path —
+    /// the issuer graph loops — or the defensive depth bound stopped the
+    /// walk before it could reach an anchor.
+    Loop,
+}
+
 fn walk_paths(
     certificates: &[Certificate],
     trust_store: &TrustStore,
     path: Vec<usize>,
     complete: &mut Vec<Vec<usize>>,
-    incomplete: &mut Vec<Vec<usize>>,
+    incomplete: &mut Vec<(Vec<usize>, IncompleteReason)>,
 ) {
     let Some(&current_index) = path.last() else {
         return;
@@ -287,18 +313,18 @@ fn walk_paths(
         return;
     }
     if path.len() >= MAX_PATH_CERTIFICATES {
-        incomplete.push(path);
+        incomplete.push((path, IncompleteReason::Loop));
         return;
     }
 
     let used: BTreeSet<usize> = path.iter().copied().collect();
+    let by_subject = |candidate: &Certificate| {
+        normalise_name(&candidate.subject) == normalise_name(&current.issuer)
+    };
     let mut candidates: Vec<usize> = certificates
         .iter()
         .enumerate()
-        .filter(|(index, candidate)| {
-            !used.contains(index)
-                && normalise_name(&candidate.subject) == normalise_name(&current.issuer)
-        })
+        .filter(|(index, candidate)| !used.contains(index) && by_subject(candidate))
         .map(|(index, _)| index)
         .collect();
     if let Some(authority_key_id) = &current.authority_key_id {
@@ -312,7 +338,19 @@ fn walk_paths(
         }
     }
     if candidates.is_empty() {
-        incomplete.push(path);
+        // An issuer *is* present, but only as a certificate this path already
+        // walked through: following it would revisit a node, which is the
+        // cycle the `used` filter exists to refuse.
+        let reason = if certificates
+            .iter()
+            .enumerate()
+            .any(|(index, candidate)| used.contains(&index) && by_subject(candidate))
+        {
+            IncompleteReason::Loop
+        } else {
+            IncompleteReason::NoIssuer
+        };
+        incomplete.push((path, reason));
         return;
     }
     for candidate in candidates {
@@ -618,6 +656,38 @@ mod tests {
     fn empty_chain_is_incomplete() {
         let evaluation = evaluate_chain(&[], &crate::trust::embedded_dataset().trust, None, 0);
         assert_eq!(evaluation.status, ChainStatus::Incomplete);
+    }
+
+    /// An issuer cycle is a `PathLoop`, not an `IssuerNotFound`: the walk
+    /// refuses to revisit a certificate already on the path, so it runs out
+    /// of candidates exactly as a genuinely absent issuer does, and the two
+    /// used to be indistinguishable to the reader (#2075). They point at
+    /// different fixes — supply a certificate, versus stop cross-signing in a
+    /// circle — so they are different findings.
+    #[test]
+    fn an_issuer_cycle_is_a_path_loop_not_a_missing_issuer() {
+        // leaf → a → b → a: `b`'s issuer `a` is already on the path.
+        let chain = [
+            synthetic("leaf", "a", "a"),
+            synthetic("a", "b", "b"),
+            synthetic("b", "a", "c"),
+        ];
+        let evaluation = evaluate_chain(
+            &chain,
+            &crate::trust::embedded_dataset().trust,
+            Some("example.test"),
+            1,
+        );
+        let kinds: Vec<_> = evaluation.findings.iter().map(|f| f.kind).collect();
+        assert!(
+            kinds.contains(&ChainFindingKind::PathLoop),
+            "a cycle must be reported as a loop: {kinds:?}"
+        );
+        assert!(
+            !kinds.contains(&ChainFindingKind::IssuerNotFound),
+            "and not as a missing certificate: {kinds:?}"
+        );
+        assert_eq!(evaluation.status, ChainStatus::Invalid);
     }
 
     #[test]

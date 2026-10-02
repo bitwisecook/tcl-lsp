@@ -46,7 +46,7 @@ proc fetch {url} {
 }
 ```
 
-The single-use `$timeout` variable is inlined to its value `30`, and the `set timeout 30` line is removed.
+The single-use `$timeout` variable is inlined to its value `30`, and the `set timeout 30` line is removed. The use is reached through the `[http::geturl …]` substitution; a reference inside a command substitution is resolved against that inner command's words.
 
 ## Operational context
 
@@ -56,6 +56,8 @@ The refactoring uses the semantic model to count references. It only fires when 
 
 - Variable used more than once (returns `None` — not offered).
 - Variable read via `[set var]` form (returns `None` — too complex to inline safely).
+- The use sits inside a braced word, such as an `expr {…}` body: `expr` substitutes it itself, so there is no variable token in the script to rewrite (returns `None`).
+- Inlining a brace-quoted value into an interpolated word would activate a `$`, `[` or `\` that was literal inside the braces (returns `None`).
 - Value expression has side effects that should only execute once.
 
 ## Samples

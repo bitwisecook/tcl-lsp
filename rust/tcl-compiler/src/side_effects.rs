@@ -921,7 +921,7 @@ fn classify_variable_assignment(
     // `env`, …) mutates the interpreter/runtime state the special-variable
     // registry records — not just the variable slot — so surface that extra
     // effect. It keeps effect analysis and dead-code elimination from treating
-    // `set auto_path …` as a removable plain assignment (issue #831). The
+    // `set auto_path …` as a removable plain assignment. The
     // registry lookup is dialect-aware, so it fires only where the variable
     // actually exists.
     if is_write {
@@ -1159,10 +1159,10 @@ mod tests {
 
     #[test]
     fn http_uri_family_reads_http_state_region() {
-        // Regression: `HTTP::uri` / `HTTP::path` / `HTTP::query` getters carry a
+        // `HTTP::uri` / `HTTP::path` / `HTTP::query` getters carry a
         // read-only `HttpUri` side effect, so they classify into the
-        // `HTTP_STATE` *read* region. Previously their specs had no
-        // `side_effects`, so callgraph/dataflow reported `NONE` instead of
+        // `HTTP_STATE` *read* region. Without `side_effects` on their specs,
+        // callgraph/dataflow reports `NONE` instead of
         // `HTTP_STATE`.
         let mut reg = tcl_registry::CommandRegistry::build_default();
         reg.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
@@ -1180,7 +1180,7 @@ mod tests {
         }
     }
 
-    // -- SideEffect / CommandSideEffects --
+    // SideEffect / CommandSideEffects.
 
     #[test]
     fn side_effect_new_defaults() {
@@ -1260,7 +1260,7 @@ mod tests {
         assert!(!w.contains(EffectRegion::HTTP_STATE));
     }
 
-    // -- scope + storage-type inference --
+    // Scope + storage-type inference.
 
     #[test]
     fn scope_proc_local_for_bare_names() {
@@ -1327,7 +1327,7 @@ mod tests {
         );
     }
 
-    // -- classify_side_effects --
+    // classify_side_effects.
 
     #[test]
     fn classify_pure_expr() {
@@ -1501,8 +1501,8 @@ mod tests {
 
     #[test]
     fn classify_puts_consults_structured_side_effects() {
-        // `puts` carries no purity/assign/proc-def trait, so it used to
-        // fall through to the conservative UNKNOWN write. It now resolves
+        // `puts` carries no purity/assign/proc-def trait, so a trait-only
+        // classifier falls through to the conservative UNKNOWN write. It resolves
         // via the spec's structured `side_effects` (a `FileIo` write) —
         // impure (`writes_any`) but region-free: `classify_side_effects`
         // for `puts` yields pure=False, regions=(NONE, NONE).

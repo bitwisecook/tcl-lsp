@@ -33,7 +33,7 @@ use crate::defs::{
     Chr, DUPINF, DUPMAX, Err, REG_ADVANCED, REG_ADVF, REG_EXPANDED, REG_EXTENDED, REG_ICASE,
     REG_NEWLINE, REG_NLANCH, REG_NLSTOP, REG_NOSUB, REG_QUOTE, REG_UBACKREF, REG_UBBS, REG_UBOUNDS,
     REG_UBRACES, REG_UBSALNUM, REG_ULOCALE, REG_ULOOKAHEAD, REG_UNONPOSIX, REG_UPBOTCH,
-    REG_UUNPORT, REG_UUNSPEC,
+    REG_UUNPORT, REG_UUNSPEC, REG_ZANCHOR,
 };
 
 /// Lexical token kinds, mirroring the C `nexttype` codes.
@@ -939,6 +939,7 @@ impl Parser<'_> {
                 self.setv(Tok::NWbdry, 0);
             }
             Some(b'Z') => self.setv(Tok::Send, 0),
+            Some(b'z') if self.cflags & REG_ZANCHOR != 0 => self.setv(Tok::Send, 0),
             Some(d @ b'1'..=b'9') => {
                 let save = self.now;
                 self.now -= 1;
@@ -1550,9 +1551,8 @@ impl Parser<'_> {
                     Some(mut k) => {
                         // Under -nocase, C Tcl's `cclass()` remaps CC_UPPER /
                         // CC_LOWER to CC_ALPHA — *letters*, not alnum. Folding to
-                        // `Alnum` wrongly matched digits, so
-                        // `regexp -nocase {[[:upper:]]} 5` matched here but not
-                        // in tclsh.
+                        // `Alnum` instead would wrongly match digits under
+                        // `-nocase`, diverging from tclsh.
                         if set.nocase && matches!(k, ClassKind::Lower | ClassKind::Upper) {
                             k = ClassKind::Alpha;
                         }
@@ -1679,7 +1679,7 @@ fn collating_element(chars: &[Chr]) -> Option<Chr> {
     }
     // Named collating elements — a faithful port of C Tcl's `cnames[]` table
     // (`generic/regc_locale.c`): the POSIX portable-character-set names plus the
-    // ASCII control-code mnemonics. Verified entry-by-entry against tclsh 9.0.3
+    // ASCII control-code mnemonics. Verified entry-by-entry against tclsh 9.0
     // (see `tests/collating_names_oracle.rs`). Names are case-sensitive, exactly
     // as C Tcl compares them.
     let name: String = chars.iter().filter_map(|&c| char::from_u32(c)).collect();

@@ -404,11 +404,11 @@ fn ctx_value(program: &HookProgram, call: &HookCall<'_>) -> Value {
     Value::dict(entries)
 }
 
-// The `dialect` ctx key now comes from `HookCall::dialect`, which the registry
-// fills from the ambient `DialectScope` the analyser enters. It used to be
-// derived from the call's `TclVersion` — which could only ever spell a
-// release, so an iRules document told a hook `tcl9.0` and no hook could
-// distinguish a dialect from a version.
+// The `dialect` ctx key comes from `HookCall::dialect`, which the registry
+// fills from the ambient `DialectScope` the analyser enters, rather than
+// being derived from the call's `TclVersion` — which can only ever spell a
+// release, so an iRules document would tell a hook `tcl9.0` and no hook
+// could distinguish a dialect from a version.
 
 impl<E: Engine> PackHookHost for HookHost<E> {
     fn invoke(&self, slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {

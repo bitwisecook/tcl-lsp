@@ -39,14 +39,13 @@ use tcl_syntax::value::canonical_dict_slots;
 use crate::error::TclError;
 
 /// Depth cap for [`Value::to_str`]'s descent into nested `IntRep::List`
-/// children — issue #996. A plain `for {set i 0} {$i<N} {incr i} {set v
+/// children. A plain `for {set i 0} {$i<N} {incr i} {set v
 /// [list $v]}` loop builds a value that nests one list inside another N
 /// times; forcing its string form (`string length $v`, `puts $v`, a
-/// comparison, …) used to recurse once per nesting level with no depth cap
+/// comparison, …) with no depth cap would recurse once per nesting level
 /// — no `{*}` tricks needed, `dict`'s printing shares this path (a dict is
-/// represented as a list here too). Empirically (a throwaway
-/// `zzz_probe_depth to_str <depth>` harness, deleted before this fix
-/// landed), unguarded input overflowed the native stack (SIGABRT) between
+/// represented as a list here too). Empirically, unguarded input overflows
+/// the native stack (SIGABRT) between
 /// depth 1200 and 1250 on a 2 MiB thread (`cargo test`'s per-test default).
 /// 256 leaves better than 4x margin under that measured crash floor while
 /// staying far past any realistic nested-list depth. Past the cap, a
@@ -170,7 +169,7 @@ impl Value {
     }
 
     /// [`Value::to_str`]'s recursive engine, with an explicit nesting-depth
-    /// parameter — issue #996 (see [`MAX_LIST_TO_STR_DEPTH`]). `depth` is
+    /// parameter (see [`MAX_LIST_TO_STR_DEPTH`]). `depth` is
     /// this value's nesting level within the *current* top-level `to_str()`
     /// call (0 at the root). Returns the string alongside whether rendering
     /// it anywhere in this subtree hit the depth cap — when it did, the
@@ -246,7 +245,7 @@ impl Value {
             IntRep::Str | IntRep::Double(_) | IntRep::List(_) | IntRep::Dict(_) => {}
         }
         let s = self.to_str();
-        match number::parse_whole(s.trim()) {
+        match number::parse_whole(&s) {
             Some(Number::Int(n)) => {
                 *self.0.intrep.borrow_mut() = IntRep::Int(n);
                 Ok(n)
@@ -272,7 +271,7 @@ impl Value {
             negative,
             radix,
             digits,
-        }) = number::parse_whole(s.trim())
+        }) = number::parse_whole(&s)
         {
             let base = radix as u32;
             let mut acc: u64 = 0;
@@ -306,7 +305,7 @@ impl Value {
             negative,
             radix,
             digits,
-        }) = number::parse_whole(s.trim())
+        }) = number::parse_whole(&s)
         {
             let base = radix as u32;
             let mut acc: u128 = 0;
@@ -331,7 +330,7 @@ impl Value {
             IntRep::Str | IntRep::List(_) | IntRep::Dict(_) => {}
         }
         let s = self.to_str();
-        match number::parse_whole(s.trim()) {
+        match number::parse_whole(&s) {
             Some(Number::Int(n)) => Ok(n as f64),
             Some(Number::Double(f)) => Ok(f),
             _ => Err(TclError::new(format!(
@@ -350,8 +349,7 @@ impl Value {
             IntRep::Str | IntRep::List(_) | IntRep::Dict(_) => {}
         }
         let s = self.to_str();
-        let t = s.trim();
-        if let Some(num) = number::parse_whole(t) {
+        if let Some(num) = number::parse_whole(&s) {
             return match num {
                 Number::Int(n) => Ok(n != 0),
                 Number::Double(f) => Ok(f != 0.0),
@@ -365,7 +363,7 @@ impl Value {
         // The canonical word acceptor (`ParseBoolean`, tclObj.c): any
         // unambiguous case-insensitive prefix of the six boolean words —
         // one home in `tcl_syntax::boolean`, oracle-table-pinned.
-        match tcl_syntax::boolean::parse_boolean_word(t) {
+        match tcl_syntax::boolean::parse_boolean_word(&s) {
             Some(b) => Ok(b),
             None => Err(TclError::new(format!(
                 "expected boolean value but got {}",
@@ -519,6 +517,18 @@ mod tests {
         assert!(Value::string("3").as_bool().unwrap());
     }
 
+    #[test]
+    fn boolean_numeric_whitespace_matches_tcl() {
+        assert!(Value::string("true").as_bool().unwrap());
+        for value in [" true", "true ", "\ttrue\r"] {
+            assert!(Value::string(value).as_bool().is_err(), "{value:?}");
+        }
+        assert!(Value::string("\t42\r").as_bool().unwrap());
+        for value in ["\u{2003}42", "42\u{2003}"] {
+            assert!(Value::string(value).as_bool().is_err(), "{value:?}");
+        }
+    }
+
     /// The boolean-context acceptor, oracle-pinned (tclsh 8.6/9.0): word
     /// prefixes resolve, any number compares against zero, `Inf` is truthy —
     /// and `NaN` is a domain error ("floating point value is Not a Number"),
@@ -540,26 +550,24 @@ mod tests {
         assert!(Value::string("o").as_bool().is_err(), "ambiguous prefix");
     }
 
-    /// Regression coverage for issue #996: `Value::to_str`'s descent into
-    /// `IntRep::List` children recurses once per nesting level, with no
-    /// depth cap before this fix — a plain `for {set i 0} {$i<N} {incr i}
-    /// {set v [list $v]}` loop builds the input, no `{*}` tricks needed.
-    /// Empirically (a throwaway `zzz_probe_depth to_str <depth>` harness,
-    /// deleted before this fix landed), unguarded input overflowed the
-    /// native stack (SIGABRT) between depth 1200 and 1250 on a 2 MiB thread
-    /// (`cargo test`'s per-test default). 2000 is comfortably past both
-    /// that crash range and `MAX_LIST_TO_STR_DEPTH` (256); the assertion is
-    /// that `to_str` returns at all, not what it returns.
+    /// `Value::to_str`'s descent into `IntRep::List` children recursing once
+    /// per nesting level with no depth cap — a plain `for {set i 0} {$i<N}
+    /// {incr i} {set v [list $v]}` loop builds the input, no `{*}` tricks
+    /// needed — empirically overflows the native stack (SIGABRT) between
+    /// depth 1200 and 1250 on a 2 MiB thread (`cargo test`'s per-test
+    /// default). 2000 is comfortably past both that crash range and
+    /// `MAX_LIST_TO_STR_DEPTH` (256); the assertion is that `to_str` returns
+    /// at all, not what it returns.
     ///
     /// Deliberately NOT 50,000+: constructing (and, at the end of this
     /// test, dropping) a `Value::list` chain nested that deep is its own,
     /// unrelated native-stack risk — `Value` has no custom `Drop` impl, so
-    /// the compiler-generated recursive drop glue walks the same chain
-    /// `to_str` used to (empirically, SIGABRT between depth 3500 and 4000
+    /// the compiler-generated recursive drop glue walks the same chain a
+    /// naive `to_str` would (empirically, SIGABRT between depth 3500 and 4000
     /// on a 2 MiB thread for construction+drop alone, independent of
     /// `to_str` or any other operation). That is a separate, genuinely
-    /// unbounded-depth concern in `Value`'s representation itself — out of
-    /// scope for this fix.
+    /// unbounded-depth concern in `Value`'s representation itself, and this
+    /// test does not cover it.
     #[test]
     fn deeply_nested_list_to_str_survives() {
         const DEPTH: usize = 2_000;

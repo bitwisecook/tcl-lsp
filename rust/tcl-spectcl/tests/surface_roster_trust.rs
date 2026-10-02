@@ -54,3 +54,34 @@ fn a_workspace_roster_cannot_narrow_a_compiled_family() {
     );
     assert_eq!(restored.rosters, 1);
 }
+
+/// #2139: the tier a pack was discovered from does not decide its trust
+/// class — the provenance it maps to does, and one predicate answers.
+///
+/// `EvalOptions::tier`'s doc comment used to call `Tier::Workspace` and
+/// `Tier::StudioOverride` "the untrusted provenance classes". It was wrong
+/// about the first: `PackEnvironmentTier::provenance` maps `Workspace` to
+/// `WorkspaceTrusted`, because nothing on the discovery path is told the
+/// editor's Workspace Trust state yet (redesign ledger item O9). This pins
+/// the chain the comment misdescribed.
+#[test]
+fn a_tier_decides_trust_only_through_its_provenance_issue_2139() {
+    use tcl_dialect::model::Provenance;
+    use tcl_spectcl::discovery::Tier;
+    use tcl_spectcl::loader::PackEnvironmentTier;
+
+    let class = |tier: Tier| PackEnvironmentTier::of(tier).provenance();
+
+    assert_eq!(class(Tier::Bundled), Provenance::BundledPack);
+    assert_eq!(class(Tier::User), Provenance::User);
+    assert_eq!(class(Tier::Workspace), Provenance::WorkspaceTrusted);
+    assert_eq!(class(Tier::StudioOverride), Provenance::StudioOverride);
+
+    assert!(
+        !class(Tier::Workspace).is_untrusted(),
+        "a discovered workspace pack is trusted until O9 lands"
+    );
+    assert!(class(Tier::StudioOverride).is_untrusted());
+    assert!(!class(Tier::Bundled).is_untrusted());
+    assert!(!class(Tier::User).is_untrusted());
+}

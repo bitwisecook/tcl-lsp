@@ -59,7 +59,7 @@ pub struct SignatureProc {
     /// — see that field.
     pub params: Vec<ParamDef>,
     /// The parameter-list word was **computed**, so the proc's formals are
-    /// unmodelled (issue #1107, the signature-scan twin of
+    /// unmodelled (the signature-scan twin of
     /// [`crate::analyser::ProcDef::params_computed`]).
     ///
     /// `proc p [makeargs] {…}` / `proc q $params {…}` build the formal list at
@@ -154,7 +154,7 @@ pub struct SignaturePackageRequire {
 /// source to say so: its C `Init` calls `Tcl_PkgRequire`, or it links Tk
 /// through `Tk_InitStubs`. Neither leaves anything for the `pkgIndex.tcl`
 /// scan to read, so the dependency is **declared** rather than discovered
-/// (issue #1813), and a declared entry is recorded here exactly like a
+/// and a declared entry is recorded here exactly like a
 /// written one — carrying the span of whatever made the package available,
 /// because that is the position from which it is available.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -171,7 +171,7 @@ pub enum PackageRequireOrigin {
 }
 
 /// A `package prefer latest` invocation — the one form of `package
-/// prefer` that changes anything (issue #1126 item 1).
+/// prefer` that changes anything.
 ///
 /// `package prefer` sets the interpreter-global rule `package
 /// require` uses to choose between the highest acceptable version
@@ -283,7 +283,7 @@ pub struct SignatureNamespaceImport {
     ///
     /// The distinction is not cosmetic: it decides what the import does to a
     /// command of the same name that the importing namespace *already* holds
-    /// (oracle tclsh 8.6.14 / 9.0.4, issue #1103).
+    /// (tclsh 8.6.14 / 9.0.4).
     ///
     /// - Without `-force`, the import **fails**: `namespace eval ::dst {proc
     ///   p {} {return LOCAL}}` then `namespace eval ::dst {namespace import
@@ -307,7 +307,7 @@ pub struct SignatureNamespaceImport {
 ///
 /// `namespace import` does not create a permanent name: `namespace forget`
 /// removes the alias again, and a later bare call is `invalid command name`
-/// (oracle tclsh 8.6.14 / 9.0.4, byte-identical — issue #1103):
+/// (tclsh 8.6.14 / 9.0.4, byte-identical):
 ///
 /// ```tcl
 /// namespace eval ::src { proc p {} {return P}; namespace export p }
@@ -327,7 +327,7 @@ pub struct SignatureNamespaceImport {
 /// # Two pattern shapes
 ///
 /// `Tcl_ForgetImport` (`tclNamesp.c`) branches on whether the pattern is
-/// qualified, and both forms are oracle-confirmed:
+/// qualified, and both forms are confirmed against tclsh:
 ///
 /// - **Qualified** (`namespace forget ::src::p`, `::src::*`) — every command
 ///   in `::src` matching the tail pattern has its *import* in the current
@@ -335,7 +335,7 @@ pub struct SignatureNamespaceImport {
 /// - **Simple** (`namespace forget p`, `*`) — every *imported* command of the
 ///   current namespace whose own name matches the pattern is removed,
 ///   whatever it was imported from. [`Self::source_ns`] is `None`.
-///   (Oracle: with `::dst::p` imported from `::src`, `namespace eval ::dst
+///   (With `::dst::p` imported from `::src`, `namespace eval ::dst
 ///   {namespace forget p}` leaves `info commands ::dst::*` empty and raises
 ///   no error.)
 ///
@@ -368,14 +368,14 @@ pub struct SignatureNamespaceForget {
 /// actually reach: real Tcl only imports names `NS` has exported
 /// (`Tcl_Export`, `tclNamesp.c`) — an unexported sibling command living in
 /// `NS` is not reachable through the import at all (tclsh9.0/8.6-verified:
-/// `invalid command name` calling it bare). Issue #923 idx 18.
+/// `invalid command name` calling it bare).
 ///
 /// # Why an event log, not a set
 ///
 /// A namespace's export list is *mutable state on a timeline*, and
 /// `namespace import` snapshots it at the instant the import runs — later
-/// changes never reach back (issue #1027). Both directions are observable
-/// (oracle, tclsh 8.6.14 / 9.0.4):
+/// changes never reach back. Both directions are observable on
+/// tclsh 8.6.14 / 9.0.4:
 ///
 /// - `namespace export -clear` **after** an import does not revoke the alias
 ///   the import already installed: with `::src` exporting `p`, `namespace
@@ -395,7 +395,7 @@ pub struct SignatureNamespaceForget {
 ///
 /// Note that an export pattern is a *name pattern*, not a reference to a
 /// command: `namespace export p` before `proc p` is written still exports
-/// `p` (oracle-verified), so nothing here is gated on the command existing.
+/// `p` (verified on tclsh), so nothing here is gated on the command existing.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SignatureNamespaceExport {
     /// Exporting namespace, with leading `::`.
@@ -418,7 +418,7 @@ pub struct SignatureNamespaceExport {
     /// A tombstone revokes every pattern this namespace recorded *before* it;
     /// the same call's own patterns are recorded after it and survive
     /// (`namespace export a b; namespace export -clear p` leaves exactly `p`
-    /// exported — oracle-verified).
+    /// exported — verified on tclsh).
     pub clears: bool,
 }
 
@@ -443,7 +443,7 @@ pub struct SignatureAutoPathEntry {
 }
 
 /// How a `namespace ensemble` subcommand got its name — the option that
-/// declared it (issue #1281).
+/// declared it.
 ///
 /// The two options bind the subcommand word to its target in opposite ways,
 /// and a consumer that **rewrites source text** has to tell them apart
@@ -530,7 +530,7 @@ pub struct SignatureCommandInvocation {
     /// count unknown, recorded as `None` so arity checking conservatively skips.
     /// Always `None` for a **command-prefix callback head** ([`Self::callback_arity`]
     /// `.is_some()`) — a callback isn't literally invoked with N arguments *at
-    /// this span*, so it must stay invisible to this legacy direct-call check;
+    /// this span*, so it must stay invisible to this direct-call check;
     /// [`Self::callback_baked_args`] is the field the callback-arity check reads.
     pub argc: Option<usize>,
     /// `Some(arity)` when this invocation is a **command-prefix callback head**
@@ -557,8 +557,8 @@ pub struct SignatureCommandInvocation {
     /// definitions has **no exact writable source span** (a synthesised /
     /// folded constant, a list element the harvester cannot span).  Rename
     /// must abstain for the whole symbol rather than emit an edit set that
-    /// leaves this site dispatching the old name (issue #945 fault 1: a
-    /// "successful" rename that produces broken Tcl).  `true` for every
+    /// leaves this site dispatching the old name — a "successful" rename that
+    /// produces broken Tcl.  `true` for every
     /// ordinary direct call (the span *is* the written name) and for
     /// indirect sites whose full contributor set is writable (their
     /// literal-anchored twin references carry the edits).
@@ -568,7 +568,7 @@ pub struct SignatureCommandInvocation {
     /// -command NAME`, an exact `info commands NAME`): the named command
     /// legitimately may not exist, so the W123 unresolved-command pass
     /// must skip this record — reference identity and existence assertion
-    /// are orthogonal (issue #945 fault 9).  Navigation and rename treat
+    /// are orthogonal.  Navigation and rename treat
     /// the record exactly like any other direct reference.
     pub existence_probe: bool,
     /// `true` for an `expr` math-function call (`sin($x)`, `max($a, $b)`,
@@ -586,7 +586,7 @@ pub struct SignatureCommandInvocation {
     /// `tcl::mathfunc` as if it were the calling namespace.
     pub is_mathfunc_call: bool,
     /// `Some(provenance)` when this record is the **subcommand word** of an
-    /// `<ensemble> <sub> …` dispatch (issue #923 idx 106 / idx 85), carrying
+    /// `<ensemble> <sub> …` dispatch, carrying
     /// the option that declared the mapping; `None` for every other
     /// invocation, including the `-map` target and the `-subcommands` entry
     /// inside the ensemble declaration itself (those spans *do* carry the
@@ -602,8 +602,8 @@ pub struct SignatureCommandInvocation {
     /// Navigation consumers (references, go-to-definition, call hierarchy)
     /// ignore it — a dispatch site is a genuine reference under either
     /// provenance. Rename reads it: see
-    /// [`EnsembleSubcommandProvenance`] for the oracle that says why a `-map`
-    /// dispatch word must survive a rename of its target unchanged.
+    /// [`EnsembleSubcommandProvenance`] for why a `-map` dispatch word must
+    /// survive a rename of its target unchanged.
     pub ensemble_dispatch: Option<EnsembleSubcommandProvenance>,
 }
 
@@ -630,7 +630,7 @@ pub struct SignatureScanResult {
     /// Every recorded `namespace import` (direct + conjectured).
     pub namespace_imports: Vec<SignatureNamespaceImport>,
     /// Every recorded `namespace forget` event — the removal half of the
-    /// import edge's lifecycle log (issue #1103).
+    /// import edge's lifecycle log.
     pub namespace_forgets: Vec<SignatureNamespaceForget>,
     /// Every `auto_path` mutation (one record per path element).
     pub auto_path_entries: Vec<SignatureAutoPathEntry>,

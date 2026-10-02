@@ -71,9 +71,9 @@ use crate::value::Value;
 /// The error is the owner's, not a flat `missing close-bracket`. A substituted
 /// `[…]` is a *script*, so C recurses into it at the bracket and reports what
 /// it meets inside: `subst {[set y ${a{b]}` is `missing close-brace for
-/// variable name` on tclsh 8.6.16 and 9.0.4 alike. This adapter used to
-/// discard the owner's message with `.ok()` and every caller substituted the
-/// outer one, which is the error the owner's own contract warns against.
+/// variable name` on tclsh 8.6.16 and 9.0.4 alike. Discarding the owner's
+/// message with `.ok()` and substituting the outer one at every call site is
+/// exactly the error the owner's own contract warns against.
 fn command_end(
     b: &[u8],
     start: usize,
@@ -142,7 +142,7 @@ pub fn subst_command(
                 // take every trailing one; the `\<newline>` continuation — LF,
                 // CR, or CRLF — absorbs the following spaces/tabs), so the
                 // decode always sees one whole escape and reads it the way the
-                // pinned release would (issue #1479).
+                // pinned release would.
                 let escapes = vm.escape_syntax();
                 let end = tcl_syntax::backslash::escape_end_in(s, i, escapes);
                 out.push_str(&tcl_syntax::backslash::decode_in(&s[i..end], escapes));
@@ -435,8 +435,8 @@ struct VarRef<'a> {
 ///
 /// Both release axes ride on the owner: the `${…}` close rule (8.x ends the
 /// name at the first literal `}`, 9.x counts nesting and skips `\X`, so
-/// `subst {${a{b}c}}` reads `a{b` on 8.6 and `a{b}c` on 9.0 — issue #1457)
-/// and the array-index source mask (issue #1732).
+/// `subst {${a{b}c}}` reads `a{b` on 8.6 and `a{b}c` on 9.0)
+/// and the array-index source mask.
 ///
 /// `Ok(None)` means "not a variable reference" — the `$` is literal text. An
 /// unterminated form is different: it is one of C's parse errors (`missing
@@ -492,12 +492,12 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
     }
     // Fast path: the whole word is one `${name}`.
     //
-    // The close rule is the release's, resolved through the one shared owner
-    // (issue #1568). This used to be `find('}')` — the 8.x first-close rule
-    // applied at *every* release — so a compiled word `${a{b}c}` read the
-    // variable `a{b` even when emulating 9.x. `subst`'s own engine was fixed
-    // for #1457 via `parse_var_ref_parts`; this is the compiled-word path,
-    // which had its own copy.
+    // The close rule is the release's, resolved through the one shared owner.
+    // A naive `find('}')` — the 8.x first-close rule applied at *every*
+    // release — would read a compiled word `${a{b}c}` as the variable `a{b`
+    // even when emulating 9.x. `subst`'s own engine resolves this through
+    // `parse_var_ref_parts`; this is the compiled-word path, with its own
+    // copy of the same rule.
     //
     // Do not go hunting for a test that pins the *style* here: there is none,
     // and that was measured, not assumed. Pinning this call to `FirstClose`
@@ -510,7 +510,8 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
     // rule is observable through (and which is pinned by
     // `compiled_interpolated_and_switch_paths_follow_the_emulated_release`).
     // It is written release-aware anyway so the two arms cannot drift apart —
-    // the drift between two such copies is the whole of #1568.
+    // that drift is exactly the risk two independent copies of the same rule
+    // carry.
     let braced_var = vm.braced_var_style();
     if n >= 3
         && b[0] == b'$'
@@ -527,7 +528,7 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
     // backslashes it produced — `set body "list e\\n} f\\$} "` is 15
     // characters on both oracles, and a second decode makes it 13.
     //
-    // This is also where issue #1646 is *not*. `set n [string length "x\$y"]`
+    // This is not the site of a related divergence. `set n [string length "x\$y"]`
     // answers 4 where both oracles say 3, but the divergence is upstream: the
     // compiler emits the literal `x\$y` for that word where the value is
     // `x$y`, and the identical `set body …` word above proves the VM's rule is
@@ -546,7 +547,7 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
     // `SubstFlags::compiled_word()` is the codegen's convention — a surviving
     // bare `$` is data, because every real variable reference was either
     // inlined to `loadStk` or normalised to `${name}` — and the release axes
-    // (the `${…}` close rule, #1568; the escape grammar, #1479) ride on the
+    // (the `${…}` close rule; the escape grammar) ride on the
     // `LexerConfig`. The scan replaces a hand-rolled loop that carried its own
     // second copy of the `${…}` close rule and its own bracket search.
     let config = vm.lexer_config();

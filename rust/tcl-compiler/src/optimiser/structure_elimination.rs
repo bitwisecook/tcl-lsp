@@ -32,15 +32,15 @@
 //!   fall-through chains) or the default / empty.
 //!
 //! All rewrites emit diagnostic code `O112`. Conditions are
-//! evaluated via [`eval_tcl_expr`] against an [`Env`] seeded with
-//! the per-function SCCP lattice projection: every variable whose
-//! lattice entries all agree on the same `Const` value becomes an
-//! [`EnvValue`] binding.
+//! evaluated via [`eval_tcl_expr_with_octal_and_dialect`] against
+//! an [`Env`] seeded with the per-function SCCP lattice
+//! projection: every variable whose lattice entries all agree on
+//! the same `Const` value becomes an [`EnvValue`] binding.
 //!
 //! The pass is driven from a [`CompilationUnit`] because
 //! per-function SCCP values come from the [`FunctionUnit`]
-//! bundle; the per-function loop is folded into the
-//! `run_function` entry point.
+//! bundle; the per-function loop lives in the [`run`] entry
+//! point.
 
 use std::collections::HashMap;
 use tcl_core_types::DiagCode;

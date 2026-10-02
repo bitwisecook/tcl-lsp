@@ -16,32 +16,32 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The one owner of **where a script stops parsing** — the *cut* (issue
-//! #1787).
+//! The one owner of **where a script stops parsing** — the *cut*.
 //!
 //! C Tcl parses a script one command at a time and evaluates each before
 //! parsing the next, so a malformed command does not erase what preceded
 //! it: `puts pre; puts "x${abc"` prints `pre` and *then* raises `missing
 //! close-brace for variable name`.  Two Rust consumers need to know where
-//! that boundary falls, and both used to work it out privately:
+//! that boundary falls:
 //!
 //! * `runtime/rust` walks the words of the command it is about to evaluate
 //!   (`parse::first_parse_error`) and defers the failure to the word that
 //!   carries it;
-//! * `tcl-compiler` filtered the [`Lexer`](crate::Lexer)'s **warning
-//!   stream** against a private list of eight message strings and took the
-//!   one with the lowest offset, so a VM front-end could turn a malformed
-//!   script into a catchable runtime error.
-//!
-//! The second answer was wrong in two measurable ways, because a warning
-//! stream is flat and C's parse is not.  For
-//! `list [sfx one] [list "oops]` the lexer warns `missing close-bracket`
-//! at the end of the script while C — which parses the bracket's own
-//! script during the outer command's parse — reports `missing "`.  For
-//! `puts $a([set q "x)` the lexer warns `missing )` at the `(` while C
-//! again reports `missing "` from inside the bracket.  And a warning
-//! stream cannot see [`WordSpan::welded_after_close`] at all, so
-//! `set y {a}b` was accepted as three words where C rejects it.
+//! * `tcl-compiler` needs the cut to turn a malformed script into a
+//!   catchable runtime error for a VM front-end, and gets it from this
+//!   module rather than filtering the [`Lexer`]'s **warning stream**
+//!   against a list of message strings and taking the one with the lowest
+//!   offset — a warning stream is flat and C's parse is not, so
+//!   that approach is wrong in two measurable ways.  For
+//!   `list [sfx one] [list "oops]` it would report `missing close-bracket`
+//!   at the end of the script, where C — which parses the bracket's own
+//!   script during the outer command's parse — reports `missing "`.  For
+//!   `puts $a([set q "x)` it would report `missing )` at the `(`, where C
+//!   again reports `missing "` from inside the bracket.  And a warning
+//!   stream cannot see
+//!   [`WordSpan::welded_after_close`](crate::WordSpan::welded_after_close)
+//!   at all, so `set y {a}b` would be accepted as three words where C
+//!   rejects it.
 //!
 //! # What the cut is
 //!
@@ -55,11 +55,10 @@
 //!
 //! Nothing here is a new scanner.  Each class of failure is delegated to
 //! the primitive that already owns its spelling:
-//! [`quoted_word_close`](crate::word_parts::quoted_word_close) for
-//! `missing "` and the close-quote position,
-//! [`word_closer_offset_at`](crate::word_closer_offset_at) for an
-//! unterminated brace, [`decompose_spanned`] for everything inside a word,
-//! and [`group_commands`] for `{*}` and the welded close-brace.  This
+//! [`quoted_word_close`] for `missing "` and the close-quote position,
+//! [`word_closer_offset_at`] for an unterminated brace,
+//! [`decompose_spanned`] for everything inside a word, and
+//! [`group_commands`] for `{*}` and the welded close-brace.  This
 //! module only decides the **order** they are asked in.
 //!
 //! # Not an evaluator's parse
@@ -110,6 +109,23 @@ pub struct ParseCut {
     /// last byte scanned and can equal the length of the scanned source.
     /// Slice with it only after bounds-checking.
     pub offset: u32,
+    /// Byte offset of C's `parsePtr->term` for this cut — the position the
+    /// `while executing` frame's quoted command text runs *through*,
+    /// inclusively.
+    ///
+    /// `TclCompileScript` logs a parse failure with
+    /// `Tcl_LogCommandInfo(interp, script, commandStart,
+    /// term + 1 - commandStart)`, so this is what a runtime needs to name the
+    /// offending command (#2172).
+    ///
+    /// It is **not** [`Self::offset`]. For an unterminated construct C's term
+    /// is the character that *opened* it, where `offset` is where the parse
+    /// ran out of input; and where an inner failure is reported at an outer
+    /// construct's position, `offset` takes that outer position while this
+    /// stays with the construct that actually failed. The two coincide for a
+    /// failure C reports in place, such as `extra characters after
+    /// close-brace`.
+    pub term: u32,
     /// C's exact message for the construct.
     pub message: &'static str,
 }
@@ -147,9 +163,10 @@ pub fn first_parse_cut_in(
     config: LexerConfig,
 ) -> Option<ParseCut> {
     commands.iter().enumerate().find_map(|(index, command)| {
-        command_cut(command, tokens, src, config).map(|(offset, message)| ParseCut {
+        command_cut(command, tokens, src, config).map(|(offset, term, message)| ParseCut {
             command: index,
             offset,
+            term,
             message,
         })
     })
@@ -197,7 +214,7 @@ enum Frame<'s> {
         /// nothing *inside* the word fails first.  This is how an
         /// unterminated quoted word yields C's answer: `puts "[foo"` is
         /// `missing close-bracket`, not `missing "`.
-        fallback: Option<(u32, &'static str)>,
+        fallback: Option<(u32, u32, &'static str)>,
     },
     /// A `$arr(index)`'s components, which carry no extents of their own, so
     /// everything found inside one reports at the reference's `$`.
@@ -215,12 +232,12 @@ enum Frame<'s> {
 /// body be pushed without the enclosing frame still holding it.
 enum WordJob<'s> {
     /// The word fails here, whatever its content holds.
-    Cut(u32, &'static str),
+    Cut(u32, u32, &'static str),
     /// Walk this content; if nothing in it fails, report `fallback`.
     Content {
         content: &'s [u8],
         base: u32,
-        fallback: Option<(u32, &'static str)>,
+        fallback: Option<(u32, u32, &'static str)>,
     },
     /// A braced word: C does not parse its content as anything.
     Literal,
@@ -232,7 +249,7 @@ fn command_cut(
     tokens: &[Token],
     src: &str,
     config: LexerConfig,
-) -> Option<(u32, &'static str)> {
+) -> Option<(u32, u32, &'static str)> {
     let jobs = word_jobs(&command.words, tokens, src, 0);
     let mut stack = vec![Frame::Words {
         jobs,
@@ -268,19 +285,22 @@ fn word_job<'s>(
     // `{a}{b}`, `{a}{*}$b` — is C's first complaint about the word, and the
     // grouping owner is the only thing that can see it.
     if word.welded_after_close {
-        return WordJob::Cut(at(weld_offset(word, tokens, src)), EXTRA_AFTER_CLOSE_BRACE);
+        // C reports this one in place, so the term is the offending byte.
+        let weld = at(weld_offset(word, tokens, src));
+        return WordJob::Cut(weld, weld, EXTRA_AFTER_CLOSE_BRACE);
     }
     let written = written_span(word, tokens, src);
     let (start, end) = (written.start() as usize, written.end() as usize);
-    let content =
-        |from: usize, to: usize, fallback: Option<(u32, &'static str)>| match src.get(from..to) {
-            Some(text) => WordJob::Content {
-                content: text.as_bytes(),
-                base: at(offset_of(from)),
-                fallback,
-            },
-            None => WordJob::Literal,
-        };
+    let content = |from: usize, to: usize, fallback: Option<(u32, u32, &'static str)>| match src
+        .get(from..to)
+    {
+        Some(text) => WordJob::Content {
+            content: text.as_bytes(),
+            base: at(offset_of(from)),
+            fallback,
+        },
+        None => WordJob::Literal,
+    };
     match word.kind {
         // A braced word is C's `TCL_TOKEN_SIMPLE_WORD`: its content is not
         // parsed as anything, so the only thing that can fail is the brace
@@ -298,7 +318,8 @@ fn word_job<'s>(
             if src.as_bytes().get(start) == Some(&b'{')
                 && word_closer_offset_at(src, word.span).is_none()
             {
-                WordJob::Cut(at(written.end()), MISSING_CLOSE_BRACE)
+                // Unterminated: C's term is the `{` that opened it.
+                WordJob::Cut(at(written.end()), at(written.start()), MISSING_CLOSE_BRACE)
             } else {
                 WordJob::Literal
             }
@@ -311,11 +332,20 @@ fn word_job<'s>(
             // right, has already failed inside the bracket:
             // `puts "[foo"` is `missing close-bracket` on 8.6.16 and 9.0.4.
             // Walk the content first and keep `missing "` as the fallback.
-            Err(message) => content(start + 1, end, Some((at(written.end()), message))),
+            // Unterminated: C's term is the `"` that opened it.
+            Err(message) => content(
+                start + 1,
+                end,
+                Some((at(written.end()), at(written.start()), message)),
+            ),
             // Anything written between the closing `"` and the end of the
             // word is C's `extra characters after close-quote`.
             Ok(close) if end > close + 1 => {
-                WordJob::Cut(at(offset_of(close + 1)), EXTRA_AFTER_CLOSE_QUOTE)
+                // Reported in place, so the term is the offending byte.
+                {
+                    let extra = at(offset_of(close + 1));
+                    WordJob::Cut(extra, extra, EXTRA_AFTER_CLOSE_QUOTE)
+                }
             }
             Ok(close) => content(start + 1, close, None),
         },
@@ -324,7 +354,7 @@ fn word_job<'s>(
 }
 
 /// Run the stack down to empty, or to the first cut.
-fn drain(stack: &mut Vec<Frame<'_>>, config: LexerConfig) -> Option<(u32, &'static str)> {
+fn drain(stack: &mut Vec<Frame<'_>>, config: LexerConfig) -> Option<(u32, u32, &'static str)> {
     while let Some(frame) = stack.last_mut() {
         match frame {
             Frame::Words {
@@ -340,8 +370,9 @@ fn drain(stack: &mut Vec<Frame<'_>>, config: LexerConfig) -> Option<(u32, &'stat
                 *next += 1;
                 match job {
                     WordJob::Literal => {}
-                    WordJob::Cut(offset, message) => {
-                        return Some((report_at.unwrap_or(*offset), message));
+                    // `report_at` re-points only the reported position.
+                    WordJob::Cut(offset, term, message) => {
+                        return Some((report_at.unwrap_or(*offset), *term, message));
                     }
                     WordJob::Content {
                         content,
@@ -353,8 +384,9 @@ fn drain(stack: &mut Vec<Frame<'_>>, config: LexerConfig) -> Option<(u32, &'stat
                             base: *base,
                             next: 0,
                             report_at,
-                            fallback: fallback
-                                .map(|(offset, message)| (report_at.unwrap_or(offset), message)),
+                            fallback: fallback.map(|(offset, term, message)| {
+                                (report_at.unwrap_or(offset), term, message)
+                            }),
                         };
                         stack.push(pushed);
                     }
@@ -377,10 +409,11 @@ fn drain(stack: &mut Vec<Frame<'_>>, config: LexerConfig) -> Option<(u32, &'stat
                     continue;
                 };
                 *next += 1;
-                let at = report_at.unwrap_or(base.saturating_add(offset_of(part.start)));
+                let here = base.saturating_add(offset_of(part.start));
+                let at = report_at.unwrap_or(here);
                 match &part.part {
                     WordPart::Text(_) => {}
-                    WordPart::ParseError(message) => return Some((at, message)),
+                    WordPart::ParseError(message) => return Some((at, here, message)),
                     WordPart::Variable(var) => {
                         if let Some(index) = var.index.clone() {
                             stack.push(Frame::Index {
@@ -397,31 +430,45 @@ fn drain(stack: &mut Vec<Frame<'_>>, config: LexerConfig) -> Option<(u32, &'stat
                     }
                 }
             }
-            Frame::Index { parts, at, next } => {
-                let at = *at;
-                let Some(part) = parts.get(*next) else {
-                    stack.pop();
-                    continue;
-                };
-                *next += 1;
-                match part {
-                    WordPart::Text(_) => {}
-                    WordPart::ParseError(message) => return Some((at, message)),
-                    WordPart::Variable(var) => {
-                        if let Some(index) = var.index.clone() {
-                            stack.push(Frame::Index {
-                                parts: index,
-                                at,
-                                next: 0,
-                            });
-                        }
-                    }
-                    WordPart::Command(body) => {
-                        let pushed = body_frame(body, at, Some(at), config);
-                        stack.extend(pushed);
-                    }
+            Frame::Index { .. } => {
+                if let Some(found) = index_step(stack, config) {
+                    return Some(found);
                 }
             }
+        }
+    }
+    None
+}
+
+/// One step of an [`Frame::Index`] frame: a `$arr(index)`'s components carry
+/// no extents of their own, so everything found inside one reports at the
+/// reference's `$` — term included, there being no nearer position that is
+/// certainly correct.
+fn index_step(stack: &mut Vec<Frame<'_>>, config: LexerConfig) -> Option<(u32, u32, &'static str)> {
+    let Some(Frame::Index { parts, at, next }) = stack.last_mut() else {
+        return None;
+    };
+    let at = *at;
+    let Some(part) = parts.get(*next) else {
+        stack.pop();
+        return None;
+    };
+    *next += 1;
+    match part {
+        WordPart::Text(_) => {}
+        WordPart::ParseError(message) => return Some((at, at, message)),
+        WordPart::Variable(var) => {
+            if let Some(index) = var.index.clone() {
+                stack.push(Frame::Index {
+                    parts: index,
+                    at,
+                    next: 0,
+                });
+            }
+        }
+        WordPart::Command(body) => {
+            let pushed = body_frame(body, at, Some(at), config);
+            stack.extend(pushed);
         }
     }
     None
@@ -716,7 +763,7 @@ mod tests {
     }
 
     /// The cut is dialect-aware: `{*}` is an ordinary word under 8.4, where
-    /// `{*}{a b}` is a welded close-brace rather than an expansion (#1462).
+    /// `{*}{a b}` is a welded close-brace rather than an expansion.
     #[test]
     fn cut_follows_the_configured_dialect() {
         let script = "puts pre; foo {*}{a b}";
@@ -725,6 +772,8 @@ mod tests {
             Some(ParseCut {
                 command: 1,
                 offset: 17,
+                // Reported in place, so the term is the same byte.
+                term: 17,
                 message: crate::word_parts::EXTRA_AFTER_CLOSE_BRACE,
             }),
         );

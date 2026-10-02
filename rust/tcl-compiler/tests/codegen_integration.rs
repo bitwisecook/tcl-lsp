@@ -42,6 +42,7 @@ fn toplevel_with(statements: Vec<Statement>) -> CfgFunction {
         blk.statements = statements;
         blk.terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -58,6 +59,7 @@ fn proc_with(name: &str, params: &[&str], statements: Vec<Statement>) -> CfgFunc
         blk.statements = statements;
         blk.terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -161,6 +163,7 @@ fn proc_return_param_loads_and_dones() {
     let entry = cfg.entry;
     cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
         value: Some("${x}".into()),
+        value_word: None,
         span: None,
         expr: None,
         braced: false,
@@ -231,6 +234,7 @@ fn if_else_diamond_emits_conditional_jump() {
     });
     cfg.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
         value: None,
+        value_word: None,
         span: None,
         expr: None,
         braced: false,
@@ -279,6 +283,7 @@ fn if_const_true_dead_branch_eliminated() {
     });
     cfg.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
         value: None,
+        value_word: None,
         span: None,
         expr: None,
         braced: false,
@@ -381,6 +386,7 @@ fn switch_dispatch_emits_jump_table() {
     });
     cfg.blocks.get_mut(&switch_end).unwrap().terminator = Some(Terminator::Return {
         value: None,
+        value_word: None,
         span: None,
         expr: None,
         braced: false,
@@ -398,9 +404,9 @@ fn switch_dispatch_emits_jump_table() {
 
 #[test]
 fn switch_glob_as_proc_tail_keeps_result_on_stack() {
-    // Regression: a glob/regexp `switch` as a proc's
-    // last command must leave the invoke result on TOS for the proc
-    // return — emitting a statement-level POP underflows the stack.
+    // A glob/regexp `switch` as a proc's last command must leave the
+    // invoke result on TOS for the proc return — emitting a statement-level
+    // POP underflows the stack.
     use tcl_compiler::cfg_builder::build_cfg_codegen;
     use tcl_compiler::lowering::lower_to_ir;
 
@@ -425,8 +431,8 @@ fn switch_glob_as_proc_tail_keeps_result_on_stack() {
 
 #[test]
 fn foreach_synthetic_ops_carry_no_source_span() {
-    // Regression: foreach_step / foreach_end are synthetic
-    // loop machinery with no Tcl source construct. The sticky statement span
+    // foreach_step / foreach_end are synthetic loop machinery with no Tcl
+    // source construct. The sticky statement span
     // must be cleared after the body so they serialise as null `range` in the
     // explorer asm view, rather than inheriting the last body statement's
     // span (which would render them as clickable ranges on that statement).
@@ -625,6 +631,7 @@ fn foreach_emits_native_opcodes() {
     });
     cfg.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
         value: None,
+        value_word: None,
         span: None,
         expr: None,
         braced: false,
@@ -749,6 +756,7 @@ fn complex_foreach_body_emits_step_at_end() {
 
     cfg.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
         value: None,
+        value_word: None,
         span: None,
         expr: None,
         braced: false,
@@ -839,6 +847,7 @@ fn while_in_proc_emits_start_cmd() {
     });
     cfg.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
         value: None,
+        value_word: None,
         span: None,
         expr: None,
         braced: false,
@@ -863,6 +872,7 @@ fn codegen_module_with_no_procs() {
         procedures: HashMap::new(),
     };
     let ir_mod = IrModule {
+        top_level_kind: tcl_compiler::ir::TopLevelKind::Script,
         plain_command_dispatch: false,
         source: String::new(),
         top_level_namespace: "::".to_owned(),

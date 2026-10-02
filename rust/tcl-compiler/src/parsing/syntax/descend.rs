@@ -175,8 +175,7 @@ pub struct CommandBody {
 /// call frame homed to the lambda's own namespace — never the caller's — so
 /// walking it needs an isolated scope, not just the right sub-span.  The
 /// owning consumer routes it through `apply`'s analyser hook instead; see
-/// `Analyser::dispatch_nested_segment` (issue-923 audit finding idx 0, and
-/// its PR #1068 review follow-up).
+/// `Analyser::dispatch_nested_segment`.
 ///
 /// `args` and `arg_tokens` are the command's arguments (excluding the
 /// command name), parallel and 0-indexed; `sm` maps the region the tokens
@@ -380,12 +379,11 @@ mod tests {
         )
     }
 
-    /// TN pin (issue-923 audit finding idx 0 + its PR #1068 review) — a
-    /// `LambdaLiteral` argument yields **no** `CommandBody` at all.
+    /// TN pin — a `LambdaLiteral` argument yields **no** `CommandBody` at all.
     ///
     /// Two things would be wrong with descending it here. Descending the whole
-    /// `{params body}` word reads the parameter list as a command head (the
-    /// audit's `Unknown command 'name opt args'` false positive). Descending
+    /// `{params body}` word reads the parameter list as a command head, an
+    /// `Unknown command 'name opt args'` false positive. Descending
     /// just the body *element* fixes the sub-span but still hands the caller
     /// an ordinary body, which every `descend_command` consumer walks in the
     /// **enclosing** scope — and a lambda body runs in a fresh frame homed to

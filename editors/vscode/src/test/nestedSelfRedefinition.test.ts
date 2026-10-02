@@ -20,8 +20,8 @@ import * as assert from "assert";
 import * as vscode from "vscode";
 import { getDocUri, activate, waitForDiagnostics } from "./helper";
 
-// A nested, cross-namespace proc self-redefinition (issue #923 audit idx 45),
-// end to end in the editor.  The fixture nestedSelfRedefinition.tcl:
+// A nested, cross-namespace proc self-redefinition, end to end in the
+// editor.  The fixture nestedSelfRedefinition.tcl:
 //
 //   15: namespace eval ticklecharts {}
 //   16: proc ticklecharts::activate {bool} {
