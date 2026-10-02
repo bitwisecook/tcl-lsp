@@ -99,10 +99,15 @@ fn def_index(fu: &FunctionUnit) -> HashMap<(Symbol, Version), DefSite<'_>> {
 /// The SSA use-version of `sym` at the narrowest statement covering
 /// `offset` (absolute) that actually reads it, or `None` when no
 /// covering statement uses the symbol.
-fn use_version_at(fu: &FunctionUnit, offset: u32, sym: Symbol) -> Option<Version> {
+fn use_version_at(
+    fu: &FunctionUnit,
+    offset: u32,
+    sym: Symbol,
+    config: tcl_lexer::LexerConfig,
+) -> Option<Version> {
     let mut best: Option<(u32, Version)> = None;
-    for block in fu.ssa.blocks.values() {
-        for stmt in &block.statements {
+    for (block_id, block) in &fu.ssa.blocks {
+        for (index, stmt) in block.statements.iter().enumerate() {
             let span = fu.abs_span(stmt.statement.span());
             if !(span.start() <= offset && offset <= span.end()) {
                 continue;
@@ -110,6 +115,8 @@ fn use_version_at(fu: &FunctionUnit, offset: u32, sym: Symbol) -> Option<Version
             let Some(&version) = stmt.uses.get(&sym) else {
                 continue;
             };
+            let version =
+                pre_invocation_operand_version(fu, *block_id, index, offset, sym, version, config);
             let width = span.end() - span.start();
             if best.is_none_or(|(bw, _)| width < bw) {
                 best = Some((width, version));
@@ -117,6 +124,51 @@ fn use_version_at(fu: &FunctionUnit, offset: u32, sym: Symbol) -> Option<Version
         }
     }
     best.map(|(_, version)| version)
+}
+
+/// A first substitution's head is read before that substitution can execute
+/// its handler. Undo only same-host clobbers for that exact operand; earlier
+/// invocations and earlier statements retain their invalidations.
+fn pre_invocation_operand_version(
+    fu: &FunctionUnit,
+    block_id: crate::cfg::BlockId,
+    index: usize,
+    offset: u32,
+    symbol: Symbol,
+    mut version: Version,
+    config: tcl_lexer::LexerConfig,
+) -> Version {
+    let block = &fu.ssa.blocks[&block_id];
+    let stmt = &block.statements[index].statement;
+    let tokens = match stmt {
+        Statement::AssignValue { tokens, .. } | Statement::Call { tokens, .. } => tokens.as_ref(),
+        _ => None,
+    };
+    let calls = crate::word_subst::lifted_calls(tokens, config);
+    let Some(first) = calls.first() else {
+        return version;
+    };
+    if pure_copy_source(&first.command) != Some(fu.ssa.var_name(symbol))
+        || fu.abs_span(first.span).start().saturating_add(1) != offset
+    {
+        return version;
+    }
+    let Some(markers) = fu.ssa.value_clobbers.get(&block_id) else {
+        return version;
+    };
+    for marker_index in (0..index).rev() {
+        if block.statements[marker_index].statement.span() != stmt.span() {
+            break;
+        }
+        if let Some(&(prior, fresh)) = markers
+            .get(&marker_index)
+            .and_then(|names| names.get(&symbol))
+            && fresh == version
+        {
+            version = prior;
+        }
+    }
+    version
 }
 
 /// The variable name a pure single-`$var` copy reads, when `value` is
@@ -210,7 +262,7 @@ pub fn const_contributors(
         return None;
     }
     let sym = fu.ssa.var_symbol(var_name)?;
-    let version = use_version_at(fu, use_offset, sym)?;
+    let version = use_version_at(fu, use_offset, sym, config)?;
     const_contributors_for_version(fu, var_name, version, config)
 }
 
@@ -282,7 +334,7 @@ pub fn known_const_contributors(
     let Some(sym) = fu.ssa.var_symbol(var_name) else {
         return Vec::new();
     };
-    let Some(version) = use_version_at(fu, use_offset, sym) else {
+    let Some(version) = use_version_at(fu, use_offset, sym, config) else {
         return Vec::new();
     };
     known_const_contributors_for_version(fu, var_name, version, config)
@@ -431,6 +483,31 @@ fn contributor_from_stmt(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn first_substitution_head_uses_pre_invocation_value_only() {
+        for (middle, expected) in [
+            ("set obj [$class new]", Some("Dog")),
+            ("set obj [missing_command][$class new]", None),
+        ] {
+            let source =
+                format!("oo::class create Dog {{}}\nset class Dog\n{middle}\nputs $class\n");
+            let registry = tcl_registry::default_registry();
+            let cu = crate::compilation_unit::CompilationUnit::build_for(&source, registry, false);
+            let fu = &cu.top_level;
+            let offset = u32::try_from(source.find("$class new").unwrap()).unwrap();
+            let got = const_contributors(fu, offset, "class", tcl_lexer::LexerConfig::default());
+            assert_eq!(
+                got.as_ref().map(|values| values[0].value.as_str()),
+                expected,
+                "{middle}"
+            );
+            let later = u32::try_from(source.rfind("$class").unwrap()).unwrap();
+            assert!(
+                const_contributors(fu, later, "class", tcl_lexer::LexerConfig::default()).is_none()
+            );
+        }
+    }
 
     #[test]
     fn pure_copy_source_accepts_plain_and_braced() {

@@ -833,6 +833,9 @@ fn prior_container_elements<S: std::hash::BuildHasher>(
     target: &str,
 ) -> Option<Elements> {
     if let Some(t) = lookup_var_type(target, ctx.uses, ctx.types, ctx.ssa) {
+        if t.kind() == crate::types::TypeKind::Overdefined {
+            return Some(Elements::Unknown);
+        }
         if let Some(e) = t.elements() {
             return Some(e.clone());
         }
@@ -1357,6 +1360,18 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
     };
 
     let mut types: HashMap<ValueKey, TypeLattice> = HashMap::new();
+    // A fresh scalar clobber has an arbitrary runtime type, not the empty
+    // inference lattice. A later collection update cannot treat it as a new
+    // homogeneous container.
+    for (block, markers) in &ssa.value_clobbers {
+        if sccp.executable_blocks.contains(block) {
+            for versions in markers.values() {
+                for (&symbol, &(_, fresh)) in versions {
+                    types.insert((symbol, fresh), TypeLattice::overdefined());
+                }
+            }
+        }
+    }
 
     let mut changed = true;
     while changed {

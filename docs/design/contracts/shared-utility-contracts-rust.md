@@ -1232,3 +1232,10 @@ fact. Binding consumers join skipped and executed states rather than
 interpreting lexical discovery as definite execution. Elimination reads the
 SSA binding lineage to keep executable stores observed through fresh scalar-
 analysis versions live; markers themselves remain without executable uses.
+
+Value provenance uses the canonical lifted-call inventory to recognise the
+first substitution’s variable head read before invocation. Only clobbers
+belonging to that same host are undone for that operand; earlier invocations
+and following statements retain invalidation. Type inference seeds fresh
+clobber versions as overdefined and keeps unknown collection contents unknown
+after a later update, rather than inferring a fresh homogeneous container.
