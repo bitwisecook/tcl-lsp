@@ -155,8 +155,19 @@ break / continue targets through `switch_jump` blocks.
 **`try` / `catch`** (`lower_try_dispatch` → `lower_try`) — the body,
 handlers, and `finally` clause are lowered into `try_body`,
 `try_handler`, `try_ok`, `try_finally`, `try_after_finally`, and `try_end`
-blocks.  A plain `catch` is emitted as an opaque `Statement::Call` with
-`defs` covering the body's writes plus the result and options variables.
+blocks.  A `catch` in a procedure whose script is straight-line statements
+and whose result and options words are plain local names is lowered into
+`catch_body`, `catch_step` and `catch_end` blocks (`lower_catch`): in analysis
+builds each statement ends a block that an exception edge leaves for the end
+block, and the end block's first statement defines the result and options
+variables and carries no words, which the code generator skips.  The analysis
+build keeps the `catch` as written beside it (`Function::catch_ends`: the
+block before the body, the block that ends the region, and the call), so the
+solver can evaluate it over the state before the body; the names the script's
+last command stores are recorded as observed, since that command's value is
+the result the `catch` stores.  Every other `catch` is emitted as an opaque
+`Statement::Call` with `defs` covering the body's writes plus the result and
+options variables.
 
 ### Exception edges
 

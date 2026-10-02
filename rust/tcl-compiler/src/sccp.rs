@@ -718,6 +718,7 @@ pub fn sccp_with_builtin_folds(
     // declaration for the resolved invocation, through one driver whose
     // context is this run's identity.
     let driver = LatticeDriver::new(trace, folds, policy, &escaping);
+    driver.catch_ends(cfg);
     // The existence rung runs beside the values, over the same executable
     // blocks and edges, when the caller asks for it.
     let existence = trace
@@ -2453,7 +2454,9 @@ fn sccp_process_statements(
         }
         // The statement is evaluated once, when a definition first needs
         // it: a call's ordered stores give each definition its own value.
-        let mut evaluated = pair_answer(&mut prepared, (ssa_block, index), values, (ssa, driver));
+        let mut evaluated = driver
+            .evaluate_catch_end(ssa_block, index, values, ssa)
+            .or_else(|| pair_answer(&mut prepared, (ssa_block, index), values, (ssa, driver)));
         // Where a throw leaves from, whether the statement raises is part of
         // what it does, so it is evaluated whatever its definitions need.
         if driver.is_throwing() && evaluated.is_none() {

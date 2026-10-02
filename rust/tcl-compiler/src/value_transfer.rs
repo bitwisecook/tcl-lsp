@@ -466,6 +466,16 @@ type Lattice<'a, S1, S2> = (
     &'a SsaFunction,
 );
 
+/// The `catch` of a flattened region, and where the state its script runs over
+/// is: the words the analysis build keeps beside the statement that ends the
+/// region ([`crate::cfg::CatchEnd`]).
+pub(crate) struct CatchEndRecord {
+    /// The block before the body.
+    pub(crate) entry: crate::cfg::BlockId,
+    /// The `catch` as a call, in the form it has when it is not flattened.
+    pub(crate) call: Statement,
+}
+
 /// The driver's per-run state: the registry the unit resolves against, the
 /// whole-module trust fact when the caller holds one, the fold policy, the
 /// analysis context every answer is memoised under, and the route
@@ -527,6 +537,9 @@ pub(crate) struct LatticeDriver<'a> {
     /// existence query about a registry special variable decides nothing:
     /// the host, not the script, binds it.
     existence_initial_global: bool,
+    /// The function's flattened `catch` regions, by the name of the block that
+    /// ends each ([`crate::cfg::Function::catch_ends`]).
+    catch_ends: RefCell<HashMap<String, CatchEndRecord>>,
 }
 
 /// The lattice value of one member-wise evaluation: the constant `pick`
@@ -1028,6 +1041,7 @@ impl<'a> LatticeDriver<'a> {
             existence_places: RefCell::new(HashMap::new()),
             existence_external: RefCell::new(Vec::new()),
             existence_initial_global: trace.existence.is_some_and(|entry| entry.initial_global),
+            catch_ends: RefCell::new(HashMap::new()),
         }
     }
 
@@ -1224,6 +1238,60 @@ impl<'a> LatticeDriver<'a> {
     /// externally mutable.
     pub(crate) fn existence_external(&self, external: Vec<bool>) {
         *self.existence_external.borrow_mut() = external;
+    }
+
+    /// Hand the driver the function's flattened `catch` regions.
+    pub(crate) fn catch_ends(&self, cfg: &crate::cfg::Function) {
+        *self.catch_ends.borrow_mut() = cfg
+            .catch_ends
+            .iter()
+            .filter_map(|end| {
+                let name = cfg.blocks.get(&end.end)?.name.clone();
+                let record = CatchEndRecord {
+                    entry: end.entry,
+                    call: end.call.clone(),
+                };
+                Some((name, record))
+            })
+            .collect();
+    }
+
+    /// The result and options variables of a flattened `catch`, which the
+    /// statement that ends its region defines. That statement stands where the
+    /// body's flow has joined and has no words, so the `catch` the analysis
+    /// build kept beside it is evaluated as the statement form is, over the
+    /// state before the body: the body's own statements are in the flow, so
+    /// what the script wrote is not applied again, and a script that reads
+    /// what it writes finds it as it was. `None` for every other statement.
+    pub(crate) fn evaluate_catch_end<S: std::hash::BuildHasher>(
+        &self,
+        block: &crate::ssa::SsaBlock,
+        index: usize,
+        values: &HashMap<ValueKey, LatticeValue, S>,
+        ssa: &SsaFunction,
+    ) -> Option<DefValues> {
+        if index != 0 {
+            return None;
+        }
+        let (entry, call) = {
+            let ends = self.catch_ends.borrow();
+            let end = ends.get(block.name.as_str())?;
+            (end.entry, end.call.clone())
+        };
+        let marker = block.statements.first()?;
+        let before = ssa.blocks.get(&entry)?.exit_versions.clone();
+        let shadow = SsaStatement {
+            statement: call,
+            uses: before.clone(),
+            defs: marker.defs.clone(),
+            may_defs: marker.may_defs.clone(),
+            quoted_uses: HashSet::new(),
+            name_only_uses: HashSet::new(),
+        };
+        self.explaining(Some(shadow.statement.span()));
+        let answer = self.evaluate_call(&shadow, values, ssa, &before);
+        self.explaining(None);
+        Some(answer)
     }
 
     /// Whether the place `name` is one the rung holds externally mutable: a

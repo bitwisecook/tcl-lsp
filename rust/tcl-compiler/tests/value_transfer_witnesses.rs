@@ -4758,6 +4758,221 @@ fn a_command_substitution_lands_its_writes_beside_its_result() {
     }
 }
 
+/// The scripts of a procedure's `catch` that are straight-line statements —
+/// which the flow graph lowers into blocks, ending at a statement that defines
+/// the result variable — with what the result variable holds after `catch
+/// {script} m` under tclsh 8.4 to 9.1.
+const FLATTENED_CATCH_RESULTS: &[(&str, &str)] = &[
+    ("set v 1", "1"),
+    ("expr {1/0}", "divide by zero"),
+    ("set y 5; set z $y", "5"),
+    ("string length abc", "3"),
+    ("set x 1; incr x", "2"),
+    ("set v [string length abc]; set w [expr {$v * 2}]", "6"),
+];
+
+/// The number of flattened `catch` regions of `proc`.
+fn flattened_catches(unit: &CompilationUnit, proc: &str) -> usize {
+    unit.procedures
+        .get(proc)
+        .expect("the procedure")
+        .cfg
+        .catch_ends
+        .len()
+}
+
+/// A `catch` the flow graph flattens into the procedure's blocks has no words
+/// where its region ends: the statement there only defines the result and
+/// options variables. The graph keeps the `catch` as written beside it, and
+/// the solver evaluates it as it does the statement the graph leaves whole,
+/// so the result variable holds what the script returned — the last
+/// command's result, or the message of the error it stopped at — under every
+/// dialect. The lattice holds it, the optimiser forwards it, and tclsh 8.4 to
+/// 9.1 print the same before and after.
+#[test]
+fn a_flattened_catch_gives_its_result_variable_what_its_script_returned() {
+    for &(script, expected) in FLATTENED_CATCH_RESULTS {
+        let source =
+            format!("proc p {{}} {{\n    catch {{{script}}} m\n    puts \"<$m>\"\n}}\np\n");
+        for dialect in DIALECTS {
+            let unit = unit_of(&source, dialect);
+            assert_eq!(flattened_catches(&unit, "::p"), 1, "{dialect}: {source}");
+            assert_eq!(
+                value_at(&unit, "::p", "m", 1).and_then(lattice_text),
+                Some(expected.to_owned()),
+                "{dialect}: {source}"
+            );
+            assert_eq!(
+                answers_for(&unit, "::p", "catch"),
+                ["evaluated"],
+                "{dialect}: {source}"
+            );
+            let (rewritten, _) = optimised(&source, dialect);
+            assert!(
+                rewritten.contains(&format!("puts \"<{expected}>\"")),
+                "{dialect}:\n{rewritten}"
+            );
+        }
+        prints_under_every_release(&source, &format!("<{expected}>\n"));
+    }
+}
+
+/// The script of a flattened `catch` runs over the state before its body, not
+/// the state where its region ends, where its own writes have already been
+/// made: over `x` = 1, `catch {incr x} m` leaves `m` 2 and `x` 2, where the
+/// state after the body would give 3. A script that reads what it writes
+/// finds it as it was, and a result variable the body also writes is stored
+/// last. tclsh 8.4 to 9.1 print what the analysis holds, before and after the
+/// optimiser.
+#[test]
+fn a_flattened_catch_runs_its_script_over_the_state_before_it() {
+    let int = |n: i64| Some(LatticeValue::Const(ConstValue::Int(n)));
+    let programs: [(&str, &str, i64); 4] = [
+        (
+            "proc p {} {\n    set x 1\n    catch {incr x} m\n    puts \"$m|$x\"\n}\np\n",
+            "2|2\n",
+            2,
+        ),
+        (
+            "proc p {} {\n    set x 1\n    catch {incr x; incr x} m\n    puts \"$m|$x\"\n}\np\n",
+            "3|3\n",
+            3,
+        ),
+        (
+            "proc p {} {\n    set x 1\n    catch {set x [expr {$x + 10}]; set x} m\n    \
+             puts \"$m|$x\"\n}\np\n",
+            "11|11\n",
+            11,
+        ),
+        (
+            "proc p {} {\n    catch {set m 5} m\n    puts $m\n}\np\n",
+            "5\n",
+            5,
+        ),
+    ];
+    for (source, printed, result) in programs {
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let unit = unit_of(source, dialect);
+            assert_eq!(flattened_catches(&unit, "::p"), 1, "{dialect}: {source}");
+            assert_eq!(
+                Some(last_value(source, dialect, "::p", "m")),
+                int(result),
+                "{dialect}: m in\n{source}"
+            );
+        }
+        prints_under_every_release(source, printed);
+    }
+}
+
+/// What a flattened `catch` cannot prove stays unknown, and the variables it
+/// defines stay bound: a script that raises from a word it substitutes, a
+/// parameter the procedure was called with, and a result variable a write
+/// trace watches. Each program prints under tclsh 8.4 to 9.1 what the
+/// original prints, before and after the optimiser.
+#[test]
+fn a_flattened_catch_the_solver_cannot_prove_stays_unknown() {
+    let programs = [
+        (
+            "proc p {} {\n    catch {puts $undefined} m\n    puts \"<$m>\"\n}\np\n",
+            "<can't read \"undefined\": no such variable>\n",
+            "8.4",
+        ),
+        (
+            "proc p {x} {\n    catch {incr x} m\n    return \"$m|$x\"\n}\nputs [p 5]\nputs [p abc]\n",
+            "6|6\nexpected integer but got \"abc\"|abc\n",
+            "8.4",
+        ),
+        (
+            "proc tr {args} {puts T}\nproc p {} {\n    trace add variable m write tr\n    \
+             catch {set v 1} m\n    puts $m\n}\np\n",
+            "T\n1\n",
+            "8.5",
+        ),
+    ];
+    for (source, printed, first) in programs {
+        let dialects: &[&str] = if first == "8.4" {
+            &DIALECTS
+        } else {
+            &["tcl8.6", "tcl9.0"]
+        };
+        for &dialect in dialects {
+            let unit = unit_of(source, dialect);
+            assert_eq!(
+                value_at(&unit, "::p", "m", 1),
+                Some(LatticeValue::Overdefined),
+                "{dialect}: {source}"
+            );
+        }
+        prints_under_releases_from(source, printed, first);
+    }
+}
+
+/// `catch` stores the value of its script's last command in the result
+/// variable, so a flattened body's last store is observed where the region
+/// ends: deleting it as a store nothing reads changes what the result variable
+/// holds. Each program prints under tclsh 8.4 to 9.1 what the original prints,
+/// before and after the optimiser, with the store still there — where the
+/// result is not one the lattice proves, a parameter, a global, a place a
+/// `catch` in a branch or an `upvar` alias names — and so does the program
+/// that stores to the same name earlier, which the pass leaves alone.
+#[test]
+fn a_store_the_flattened_catch_returns_is_not_dead() {
+    // The statement stays whatever a word of it is folded to, so each program
+    // names the store by what leads it.
+    let programs = [
+        (
+            "proc p {c} {\n    catch {set v $c} m\n    puts \"<$m>\"\n}\np 7\n",
+            "<7>\n",
+            "set v ",
+            "8.4",
+        ),
+        (
+            "proc p {c} {\n    catch {set v $c; set w $v} m\n    puts \"<$m>\"\n}\np 7\n",
+            "<7>\n",
+            "set w ",
+            "8.4",
+        ),
+        (
+            "proc p {c} {\n    catch {set v [string length $c]} m o\n    puts \"<$m>\"\n}\np 7\n",
+            "<1>\n",
+            "set v ",
+            "8.5",
+        ),
+        (
+            "set g 0\nproc p {c} {\n    global g\n    catch {set v $c} g\n}\np 7\nputs $g\n",
+            "7\n",
+            "set v ",
+            "8.4",
+        ),
+        (
+            "proc p {c} {\n    if {$c} {catch {set v 1} m} else {set m other}\n    return $m\n}\n\
+             puts \"[p 1] [p 0]\"\n",
+            "1 other\n",
+            "set v ",
+            "8.4",
+        ),
+        (
+            "set g 0\nproc p {} {\n    upvar 1 g m\n    catch {set v 1} m\n}\np\nputs $g\n",
+            "1\n",
+            "set v ",
+            "8.4",
+        ),
+    ];
+    for (source, printed, store, first) in programs {
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            assert!(
+                !removes_store(source, dialect, store),
+                "{dialect}: {store} is the result:\n{source}"
+            );
+            assert!(
+                optimised(source, dialect).0.contains(store),
+                "{dialect}: {store} stays:\n{source}"
+            );
+        }
+        prints_under_releases_from(source, printed, first);
+    }
+}
+
 /// A call to a command the module cannot see reads its words before its head
 /// runs and may read or write any global afterwards: `foo` here is defined at
 /// run time, reads `g` and sets `g` and `m`, and tclsh 8.4 to 9.1 print what each

@@ -943,9 +943,38 @@ fn a_flattened_catch_body_ends_a_block_at_each_statement() {
         (func.entry, id(&end[0]), id(&body[0]))
     );
 
+    // The statement that ends the region has no words, so the analysis build
+    // keeps the `catch` as written beside it: the block before the body, the
+    // block that ends the region, and the call with its words and the variable
+    // it defines.
+    assert_eq!(func.catch_ends.len(), 1);
+    let kept = &func.catch_ends[0];
+    assert_eq!((kept.entry, kept.end), (func.entry, id(&end[0])));
+    let Statement::Call {
+        command,
+        args,
+        defs,
+        tokens,
+        ..
+    } = &kept.call
+    else {
+        panic!("a call: {:?}", kept.call);
+    };
+    assert_eq!(command, "catch");
+    assert_eq!(args.len(), 2, "{args:?}");
+    assert_eq!(defs, &["m".to_owned()]);
+    assert!(tokens.is_some());
+    let marker = &func.block_by_name(&end[0]).expect("end").statements[0];
+    assert!(
+        matches!(marker, Statement::Call { command, args, defs, .. }
+            if command == "catch" && args.is_empty() && defs == &["m".to_owned()]),
+        "{marker:?}"
+    );
+
     // Codegen: one body block, as before.
     let codegen = build_cfg_codegen(&lower_to_ir(source, registry()), false);
     let plain = proc(&codegen, "::p");
+    assert!(plain.catch_ends.is_empty());
     let in_body: Vec<String> = blocks_named(plain, "catch_body")
         .into_iter()
         .chain(blocks_named(plain, "catch_step"))
@@ -960,6 +989,20 @@ fn a_flattened_catch_body_ends_a_block_at_each_statement() {
         3
     );
     assert!(plain.region_entries.is_empty());
+}
+
+/// A `catch` the flow graph does not flatten — a body that stops at an `error`,
+/// a nested `catch`, a script at the top level — is the one opaque call, whose
+/// words are its own: no region ends, and no words are kept beside one.
+#[test]
+fn an_opaque_catch_keeps_no_words_beside_a_marker() {
+    let source = "proc p {} {\n catch {error boom} m\n return $m\n}\n\
+                  proc q {} {\n catch {catch {set x 1}} m\n return $m\n}\n\
+                  catch {set x 1} m\n";
+    let module = cfg(source);
+    assert!(proc(&module, "::p").catch_ends.is_empty());
+    assert!(proc(&module, "::q").catch_ends.is_empty());
+    assert!(top(&module).catch_ends.is_empty());
 }
 
 /// A `try` whose body can fall through is thrown to from the block before it,

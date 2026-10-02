@@ -1204,8 +1204,6 @@ impl CfgBuilder<'_> {
             span,
             body,
             body_span,
-            result_var,
-            options_var,
             ..
         } = stmt
         else {
@@ -1288,8 +1286,40 @@ impl CfgBuilder<'_> {
             ));
         }
 
-        // The result and options variables are defined however the body ended,
-        // so they belong at the merge rather than on one path.
+        self.end_flattened_catch(stmt, (block_name, &end_block));
+
+        end_block
+    }
+
+    /// The statement that ends a flattened `catch` region: it defines the
+    /// result and options variables however the body ended, so they belong at
+    /// the merge rather than on one path, and the script's last command's
+    /// stores are observed there, since `catch` stores that command's value in
+    /// the result variable — a store nothing else reads is not a dead one, and
+    /// deleting it changes what the result variable holds.
+    ///
+    /// The statement has no words, so the code generator skips it; the
+    /// analysis build keeps the `catch` as written beside it, for the solver to
+    /// evaluate over the state before the body.
+    fn end_flattened_catch(&mut self, stmt: &Statement, (block_name, end_block): (&str, &str)) {
+        let Statement::Catch {
+            span,
+            body,
+            result_var,
+            options_var,
+            raw_args,
+            tokens,
+            ..
+        } = stmt
+        else {
+            unreachable!("end_flattened_catch called with non-Catch");
+        };
+        if result_var.is_some()
+            && let Some(last) = body.statements.last()
+        {
+            self.alias_observed_vars
+                .extend(crate::ssa::defs_of_with_registry(last, Some(self.registry)));
+        }
         let mut defs = Vec::new();
         if let Some(rv) = result_var {
             defs.push(rv.clone());
@@ -1297,22 +1327,39 @@ impl CfgBuilder<'_> {
         if let Some(ov) = options_var {
             defs.push(ov.clone());
         }
-        if !defs.is_empty() {
-            self.block_mut(&end_block).statements.push(Statement::Call {
-                span: *span,
-                command: "catch".into(),
-                canonical_command: None,
-                args: vec![],
-                defs,
-                reads: vec![],
-                reads_own_defs: false,
-                safe_on_uninit: false,
-                tokens: None,
-                foreach_groups: None,
-            });
+        if defs.is_empty() {
+            return;
         }
-
-        end_block
+        if self.faithful_exceptions {
+            self.catch_ends.push((
+                block_name.to_owned(),
+                end_block.to_owned(),
+                Statement::Call {
+                    span: *span,
+                    command: "catch".into(),
+                    canonical_command: None,
+                    args: raw_args.clone(),
+                    defs: defs.clone(),
+                    reads: vec![],
+                    reads_own_defs: false,
+                    safe_on_uninit: false,
+                    tokens: tokens.clone(),
+                    foreach_groups: None,
+                },
+            ));
+        }
+        self.block_mut(end_block).statements.push(Statement::Call {
+            span: *span,
+            command: "catch".into(),
+            canonical_command: None,
+            args: vec![],
+            defs,
+            reads: vec![],
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: None,
+            foreach_groups: None,
+        });
     }
 }
 

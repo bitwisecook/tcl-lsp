@@ -149,10 +149,14 @@ body. The lowerer marks it `SwitchArm.fallthrough = true` with a `None` body.
 ### `catch` / `try`
 
 **IR**: `Statement::Catch` / `Statement::Try` with `Vec<TryHandler>`.
-**CFG**: `catch` is always emitted opaquely by `emit_opaque_catch` — a
-`Statement::Call` whose `defs` are the result and options variables, with what
-the body writes stated as may-definitions of a marker ahead of the call (the
-body stops at its first error).  `try` is lowered by `cfg_lower::lower_try`
+**CFG**: a `catch` in a procedure whose script is straight-line statements is
+lowered into blocks by `cfg_lower::lower_catch`, ending at a statement that
+defines the result and options variables (the analysis build keeps the `catch`
+as written beside it, in `Function::catch_ends`); every other `catch` is
+emitted opaquely by `emit_opaque_catch` — a `Statement::Call` whose `defs` are
+the result and options variables, with what the body writes stated as
+may-definitions of a marker ahead of the call (the body stops at its first
+error).  `try` is lowered by `cfg_lower::lower_try`
 into `try_body`, `try_handler`, `try_ok`, `try_finally`, `try_after_finally`,
 and `try_end` blocks, except when loop inlining is off for the body (the
 top level under `defer_top_level`), where `lower_try_dispatch` defers it to
