@@ -2285,3 +2285,46 @@ fn conditional_expression_binding_replay_keeps_skipped_paths() {
             .any(|branch| branch.value)
     );
 }
+
+#[test]
+fn global_script_and_registry_barriers_both_widen_seeded_parameter() {
+    for middle in [
+        "set y [setter $::script][missing_command]",
+        "list [setter $::script] [missing_command]",
+        "if {[setter $::script] + [missing_command]} {puts ignored}",
+        "foreach item [setter $::script][missing_command] {puts ignored}",
+        "switch -- [setter $::script][missing_command] {default {puts ignored}}",
+    ] {
+        let source = format!(
+            "proc setter {{body}} {{uplevel #0 $body}}; proc p {{x}} {{{middle}; if {{$x == 5}} {{return stale}} else {{return changed}}}}"
+        );
+        let result = seeded_parameter_result(&source);
+        assert!(
+            !result
+                .constant_branches
+                .iter()
+                .any(|branch| branch.condition.contains('x')),
+            "{middle}"
+        );
+        let cu = CompilationUnit::build_for(&source, &reg(), false);
+        let fu = cu.function("::p").unwrap();
+        for marker in [
+            tcl_compiler::ir::SyntheticMarker::GlobalFrameScript,
+            tcl_compiler::ir::SyntheticMarker::RegistryBarrier,
+        ] {
+            assert!(
+                fu.cfg
+                    .blocks
+                    .values()
+                    .flat_map(|block| &block.statements)
+                    .any(|stmt| matches!(stmt, tcl_compiler::ir::Statement::Barrier { tokens: Some(tokens), .. } if tokens.synthetic == Some(marker))),
+                "{middle}: {marker:?}"
+            );
+        }
+    }
+    let safe = seeded_parameter_result(
+        "proc setter {body} {uplevel #0 {set ::g 1}}; proc p {x} {set y [setter unused]literal; if {$x == 5} {return kept} else {return changed}}",
+    );
+    assert_eq!(safe.constant_branches.len(), 1);
+    assert!(safe.constant_branches[0].value);
+}

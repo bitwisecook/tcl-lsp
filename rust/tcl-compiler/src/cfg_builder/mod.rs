@@ -795,7 +795,7 @@ impl<'a> CfgBuilder<'a> {
         //    summary may contain both precise caller-side defs and an opaque
         //    remainder, and dropping the known defs loses useful facts such
         //    as `uplevel 1 [list set $parameter value]`.
-        let direct_opaque_barrier = self.opaque_call_barrier(&stmt);
+        let direct_opaque_barriers = self.opaque_call_barriers(&stmt);
 
         // 3. Embedded-substitution extras: walk text for
         //    `[upvar_proc arg]` / `[global_write_proc arg]` substitutions.
@@ -812,10 +812,9 @@ impl<'a> CfgBuilder<'a> {
             && !embedded_opaque_global
             && !embedded_registry_barrier
         {
-            return match direct_opaque_barrier {
-                Some(barrier) => vec![stmt, barrier],
-                None => vec![stmt],
-            };
+            let mut out = vec![stmt];
+            out.extend(direct_opaque_barriers);
+            return out;
         }
 
         // 2b. An embedded call to a proc that runs an unreadable script at
@@ -825,8 +824,9 @@ impl<'a> CfgBuilder<'a> {
         //     program-order position the synthetic `<upvar-invalidate>`
         //     uses, so the host statement's own reads already see the
         //     widened state.
-        let opaque_barrier = if embedded_opaque_global {
-            Some(Statement::Barrier {
+        let mut embedded_barriers = Vec::new();
+        if embedded_opaque_global {
+            embedded_barriers.push(Statement::Barrier {
                 span: stmt.span(),
                 reason: "embedded call runs an unreadable script at the global frame".to_owned(),
                 command: "<global-frame-script>".to_owned(),
@@ -835,15 +835,14 @@ impl<'a> CfgBuilder<'a> {
                 tokens: Some(crate::ir::CommandTokens::marker(
                     crate::ir::SyntheticMarker::GlobalFrameScript,
                 )),
-            })
-        } else if embedded_registry_barrier {
-            Some(Self::registry_barrier_statement(
+            });
+        }
+        if embedded_registry_barrier {
+            embedded_barriers.push(Self::registry_barrier_statement(
                 &stmt,
                 "embedded call reaches a registry-declared evaluation barrier",
-            ))
-        } else {
-            None
-        };
+            ));
+        }
 
         // 3. Merge into the host statement when it's a Call.
         if let Statement::Call { defs, reads, .. } = &mut stmt {
@@ -865,14 +864,9 @@ impl<'a> CfgBuilder<'a> {
                     reads.push(r);
                 }
             }
-            let mut out = Vec::new();
-            if let Some(barrier) = opaque_barrier {
-                out.push(barrier);
-            }
+            let mut out = embedded_barriers;
             out.push(stmt);
-            if let Some(barrier) = direct_opaque_barrier {
-                out.push(barrier);
-            }
+            out.extend(direct_opaque_barriers);
             return out;
         }
 
@@ -880,10 +874,7 @@ impl<'a> CfgBuilder<'a> {
         //    emit a synthetic `<upvar-invalidate>` Call before the
         //    host so the affected vars are invalidated in
         //    program order.
-        let mut out = Vec::new();
-        if let Some(barrier) = opaque_barrier {
-            out.push(barrier);
-        }
+        let mut out = embedded_barriers;
         if !embedded_extras.is_empty() || !embedded_reads.is_empty() {
             out.push(Statement::Call {
                 span: stmt.span(),
@@ -901,10 +892,24 @@ impl<'a> CfgBuilder<'a> {
             });
         }
         out.push(stmt);
-        if let Some(barrier) = direct_opaque_barrier {
-            out.push(barrier);
-        }
+        out.extend(direct_opaque_barriers);
         out
+    }
+
+    fn opaque_call_barriers(&self, stmt: &Statement) -> Vec<Statement> {
+        let mut barriers: Vec<_> = self.opaque_call_barrier(stmt).into_iter().collect();
+        if self.direct_registry_barrier(stmt)
+            && barriers.iter().all(|barrier| {
+                !matches!(barrier, Statement::Barrier { tokens: Some(tokens), .. }
+                    if tokens.synthetic == Some(crate::ir::SyntheticMarker::RegistryBarrier))
+            })
+        {
+            barriers.push(Self::registry_barrier_statement(
+                stmt,
+                "direct call also reaches a registry-declared evaluation barrier",
+            ));
+        }
+        barriers
     }
 
     /// The opaque widening barrier for a direct call whose callee's
@@ -1316,7 +1321,8 @@ impl<'a> CfgBuilder<'a> {
                     crate::ir::SyntheticMarker::GlobalFrameScript,
                 )),
             });
-        } else if registry_barrier {
+        }
+        if registry_barrier {
             self.block_mut(block)
                 .statements
                 .push(Self::registry_barrier_statement_at(
@@ -1734,26 +1740,26 @@ impl<'a> CfgBuilder<'a> {
             read_before_write: extra_reads,
             opaque_global: opaque,
         } = self.embedded_subst_extras(stmt);
-        let registry_barrier = !opaque && self.embedded_registry_barrier(stmt);
-        if opaque || registry_barrier {
-            let barrier = if registry_barrier {
-                Self::registry_barrier_statement(
+        let registry_barrier = self.embedded_registry_barrier(stmt);
+        if opaque {
+            self.block_mut(current).statements.push(Statement::Barrier {
+                span: stmt.span(),
+                reason: opaque_reason.to_owned(),
+                command: "<global-frame-script>".to_owned(),
+                canonical_command: None,
+                args: Vec::new(),
+                tokens: Some(crate::ir::CommandTokens::marker(
+                    crate::ir::SyntheticMarker::GlobalFrameScript,
+                )),
+            });
+        }
+        if registry_barrier {
+            self.block_mut(current)
+                .statements
+                .push(Self::registry_barrier_statement(
                     stmt,
                     "embedded call reaches a registry-declared evaluation barrier",
-                )
-            } else {
-                Statement::Barrier {
-                    span: stmt.span(),
-                    reason: opaque_reason.to_owned(),
-                    command: "<global-frame-script>".to_owned(),
-                    canonical_command: None,
-                    args: Vec::new(),
-                    tokens: Some(crate::ir::CommandTokens::marker(
-                        crate::ir::SyntheticMarker::GlobalFrameScript,
-                    )),
-                }
-            };
-            self.block_mut(current).statements.push(barrier);
+                ));
         }
         if !extras.is_empty() || !extra_reads.is_empty() {
             self.block_mut(current).statements.push(Statement::Call {
@@ -1925,6 +1931,19 @@ impl<'a> CfgBuilder<'a> {
         else {
             unreachable!();
         };
+
+        if self.embedded_subst_extras(stmt).opaque_global {
+            self.block_mut(current).statements.push(Statement::Barrier {
+                span: *span,
+                reason: "foreach list runs an unreadable script at the global frame".to_owned(),
+                command: "<global-frame-script>".to_owned(),
+                canonical_command: None,
+                args: Vec::new(),
+                tokens: Some(crate::ir::CommandTokens::marker(
+                    crate::ir::SyntheticMarker::GlobalFrameScript,
+                )),
+            });
+        }
 
         // Foreach/lmap list words are evaluated before the header binds any
         // iteration variables. A substitution there can reach the registry

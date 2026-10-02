@@ -302,3 +302,8 @@ Conditional expression substitutions retain both executed and skipped binding
 states. The shared expression AST owner identifies short-circuit and ternary
 paths; replay joins the incoming state after each possibly executed command,
 so a skipped alias replacement cannot erase an earlier evaluation target.
+
+Global-frame script and registry-handler boundaries are independent effects.
+When one statement reaches both, CFG construction retains both typed markers
+in ordinary substitutions, conditions, control inputs and direct calls; the
+global boundary cannot replace the registry value clobber for seeded parameters.
