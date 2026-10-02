@@ -567,9 +567,9 @@ encoded per export and gated, the `GOT.mem` / `GOT.func` list wired for
 the address-of-runtime-symbol pattern, and the functions the test extension
 calls beyond what the leg declares, without which it compiles against both legs
 at once and is not linked with the runtime. The engine
-interface's narrowing of `TCL_BREAK` / `TCL_CONTINUE` to errors and
-`TCL_RETURN` to `TCL_OK` is corrected before a hosted extension can
-exercise the conservative default this page states for it.
+interface carries the completion code a host command answers (`HostOutcome`),
+so a hosted extension exercises the conservative default this page states for
+it.
 
 **Decided with the build.** Step 1 of § *Build order* states the one
 contract in [../runtime/c-extension-shim.md](../runtime/c-extension-shim.md)
@@ -2458,11 +2458,9 @@ flowchart LR
   (`DeclaredCommand::extension`), and the facts the other stub flags state
   narrow it axis by axis, a stated effect replacing the effect axes and none
   of the others ([../contracts/dialect-stubs.md](../contracts/dialect-stubs.md)
-  § *Extension commands*). The engine interface narrows `TCL_BREAK` and
-  `TCL_RETURN` to `TCL_OK`; that narrowing is corrected — the interface
-  carries the completion code the host command returned — before a hosted
-  extension can exercise the default, and the correction is part of the
-  fourth ruling's WASM-leg order.
+  § *Extension commands*). The engine interface carries the completion
+  code the host command returned (`HostOutcome`, `CompletionCode`), so a hosted
+  extension exercises the default.
 - **Describe from three sources**, each with its own provenance, none of them
   narrowing the default: a mechanical scan of C source
   (`rust/tcl-spec-studio/src/infer/c_scan.rs`; `tcl spec import --c-source`),

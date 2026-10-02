@@ -171,12 +171,14 @@ is `LoadError::InitFailed` carrying the result the init left.
 On invocation the engine hands `ShimCommand` the call's words as `Value`s.
 It builds `objv` (the command name first), resets the result and error
 code, calls the C procedure under `catch_unwind`, and maps the return code:
-`TCL_OK` (and `TCL_RETURN`) to the result's `Value`, `TCL_ERROR` to
-`EngineError::Script { message, code }` with the result text and the error
-code the C code set, `TCL_BREAK` / `TCL_CONTINUE` to the "invoked outside of
-a loop" errors Tcl reports at a non-loop level — the interface carries
-results and errors, not loop completion codes, and adding them would be a
-Tcl-shaped wart on a value interface.
+`TCL_OK`, `TCL_RETURN`, `TCL_BREAK` and `TCL_CONTINUE` to the `HostOutcome` they
+are, the result's `Value` and a `CompletionCode`, which the engine carries as
+the code Tcl does (the calling procedure returns, the enclosing loop ends or
+goes on, and where there is no loop the engine reports what Tcl reports,
+`invoked "break" outside of a loop`); `TCL_ERROR` to `EngineError::Script {
+message, code }` with the result text and the error code the C code set; and
+any other value to a code of the command's own (`CompletionCode::Other`), which
+reaches the `catch` that reports it.
 
 Command-table changes made *during* an invocation — a factory command
 calling `Tcl_CreateObjCommand`, or `Tcl_DeleteCommand` on a sibling — are
@@ -196,25 +198,38 @@ interpreter does.
 
 ### What the interface gives the shim
 
-Three engine-neutral pieces, and nothing else — no interp pointer, no result
-slot, no completion codes:
+Engine-neutral pieces, and nothing that is an interp pointer or a result slot:
 
 - **`Engine::remove_command(name) -> Result<bool, EngineError>`** — the
   other half of `define_command`. The default implementation declines with
   `Unsupported`, so an engine that cannot unregister says so rather than
   leaving a command callable; the tclvm engine implements it with
   `Vm::remove_command`.
-- **`CommandRegistrar` and `HostCommand::invoke_with_registrar`** — the
-  registration half of the engine, opened to a host command for the
-  duration of its invocation (exactly `define_command` and
-  `remove_command`, nothing that reaches the interpreter). Defaulted, so an
-  ordinary host command is unaffected; the tclvm engine implements it over
-  the `&mut Vm` its native-command seam hands over. This is what buys
-  factories: a command that creates commands, which C extensions do
-  routinely.
+- **`HostOutcome` and `CompletionCode`** — what a host command answers: its
+  value, and `Ok`, `Return`, `Break`, `Continue` or `Other(n)`, the codes a C
+  command's `TCL_OK`, `TCL_RETURN`, `TCL_BREAK`, `TCL_CONTINUE` and any other
+  integer are. An error is the `Err` of the call. The tclvm engine answers each
+  as the VM's own code, so a `Break` ends the loop the command is in.
+- **`CommandRegistrar` and `HostCommand::invoke_with_registrar`** — the door of
+  the engine, opened to a host command for the duration of its invocation:
+  `define_command` and `remove_command`, which buy factories (a command that
+  creates commands, which C extensions do routinely); `provide_package`, which
+  does what `package provide` does, so a later `package require` is satisfied,
+  and `library_loaded`, which `info loaded` lists; `variable`, `set_variable`
+  and `unset_variable`, which do what `set` and `unset` do in the frame that
+  called the command, an array element spelt `a(k)`, traces and Tcl's own errors
+  included; and `eval_in_invocation`, which runs a script in that frame and
+  answers the `HostOutcome` it completed with. Defaulted on `HostCommand`, so an
+  ordinary host command is unaffected, and each door but the first two declines
+  with `Unsupported` in an engine that has none; each has an `Engine` twin for a
+  host that drives the engine itself, outside any invocation, where the frame is
+  the global one. The tclvm engine implements the door over the `&mut Vm` its
+  native-command seam hands over, and the twins over its own VM.
 - **Verbatim host-command errors.** The tclvm engine passes a host command's
   `Script { message, code }` through with the `-errorcode` in the completion
-  options, so a `catch` in Tcl sees exactly what the C code set.
+  options, so a `catch` in Tcl sees exactly what the C code set, and reports a
+  failed unit's `-errorcode` as the `code` of the error. A budget the host
+  command's own evaluation outran stays the budget the invocation reports.
 
 ## The host's `load`
 

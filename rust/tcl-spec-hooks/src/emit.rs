@@ -32,7 +32,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use tcl_engine_api::{EngineError, HostCommand, Value};
+use tcl_engine_api::{EngineError, HostCommand, HostOutcome, Value};
 use tcl_registry::arg_role::{AppendedArity, ArgRole};
 use tcl_registry::clause_shape::ClauseShapeError;
 use tcl_registry::hover::ScriptTiming;
@@ -336,7 +336,15 @@ fn timing_by_name(name: &str) -> Result<ScriptTiming, EngineError> {
 }
 
 impl HostCommand for Verb {
-    fn invoke(&self, arguments: &[Value]) -> Result<Value, EngineError> {
+    fn invoke(&self, arguments: &[Value]) -> Result<HostOutcome, EngineError> {
+        self.answer(arguments).map(HostOutcome::ok)
+    }
+}
+
+impl Verb {
+    /// What the verb answers: the value a reader verb reads, or the empty one an
+    /// emitter verb leaves after it has pushed its emission.
+    fn answer(&self, arguments: &[Value]) -> Result<Value, EngineError> {
         // Reader verbs answer from the invocation view and emit nothing —
         // they are how a `constraints` body reads the call it is judging.
         match self.name {

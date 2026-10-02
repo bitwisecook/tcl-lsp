@@ -47,7 +47,7 @@ use std::collections::BTreeSet;
 use std::rc::Rc;
 
 use tcl_cmd_core::prefix::OptionTable;
-use tcl_engine_api::{CommandRegistrar, EngineError, HostCommand, Value};
+use tcl_engine_api::{CommandRegistrar, EngineError, HostCommand, HostOutcome, Value};
 
 use crate::obj::Obj;
 use crate::state::{InitProc, InterpState};
@@ -138,7 +138,7 @@ impl StaticExtensions {
 impl HostCommand for StaticExtensions {
     /// A load publishes the commands the entry point registers, which only the
     /// engine's registration door can do, so it is refused without one.
-    fn invoke(&self, _arguments: &[Value]) -> Result<Value, EngineError> {
+    fn invoke(&self, _arguments: &[Value]) -> Result<HostOutcome, EngineError> {
         Err(EngineError::Unsupported(
             "loading without the engine's registration door",
         ))
@@ -148,7 +148,7 @@ impl HostCommand for StaticExtensions {
         &self,
         registrar: &mut dyn CommandRegistrar,
         arguments: &[Value],
-    ) -> Result<Value, EngineError> {
+    ) -> Result<HostOutcome, EngineError> {
         let words: Vec<String> = arguments
             .iter()
             .map(|argument| Obj::from_value(argument).text())
@@ -173,13 +173,13 @@ impl HostCommand for StaticExtensions {
             });
         };
         if self.loaded.borrow().contains(name) {
-            return Ok(Value::Empty);
+            return Ok(Value::Empty.into());
         }
         // SAFETY: the table was vouched for when it was built.
         match unsafe { run_init(&self.state, registrar, init) } {
             Ok(_) => {
                 self.loaded.borrow_mut().insert(name);
-                Ok(Value::Empty)
+                Ok(Value::Empty.into())
             }
             Err(error) => Err(self.error(error)),
         }
@@ -436,7 +436,9 @@ mod tests {
         words: &[&str],
     ) -> Result<Value, EngineError> {
         let arguments: Vec<Value> = words.iter().copied().map(Value::string).collect();
-        extensions.invoke_with_registrar(door, &arguments)
+        extensions
+            .invoke_with_registrar(door, &arguments)
+            .map(|outcome| outcome.value)
     }
 
     fn refused(extensions: &StaticExtensions, words: &[&str]) -> (String, Option<String>) {

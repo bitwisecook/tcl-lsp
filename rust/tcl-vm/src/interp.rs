@@ -856,6 +856,10 @@ struct PackageState {
     /// selected loader's required name/version as a circular-dependency guard;
     /// the stack matters because loaders may require other packages.
     package_loading: Vec<(String, String)>,
+    /// Libraries loaded into this interpreter, `(file name, prefix)` in the
+    /// order they were loaded (`info loaded`). The file name is empty for one
+    /// linked into the program.
+    loaded_libraries: Vec<(String, String)>,
 }
 
 /// A compiled function and the manifest of the module it came from.
@@ -8282,6 +8286,21 @@ impl Vm {
         ) {
             self.package_state.package_loading.pop();
         }
+    }
+
+    /// Record that the library `prefix` is loaded into this interpreter, from
+    /// `file_name`. A prefix is listed once, under the file it was first loaded
+    /// from.
+    pub(crate) fn note_library_loaded(&mut self, file_name: &str, prefix: &str) {
+        let libraries = &mut self.package_state.loaded_libraries;
+        if !libraries.iter().any(|(_, loaded)| loaded == prefix) {
+            libraries.push((file_name.to_owned(), prefix.to_owned()));
+        }
+    }
+
+    /// The libraries loaded into this interpreter, `(file name, prefix)`.
+    pub(crate) fn loaded_libraries(&self) -> &[(String, String)] {
+        &self.package_state.loaded_libraries
     }
 
     pub(crate) fn forget_package_completely(&mut self, name: &str) {
