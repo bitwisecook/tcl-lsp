@@ -269,16 +269,31 @@ fn test_profile(
     dir: &Path,
     target: &TestTarget,
 ) -> anyhow::Result<tcl_sandbox::Profile> {
-    let tclsh = match &args.tclsh {
-        Some(path) => path.clone(),
+    let script = crate::commands::spec_test::render_script(&target.package, &target.probes);
+    shell_profile("spec-test", args.tclsh.as_deref(), dir, script)
+}
+
+/// A sandboxed `tclsh` reading `script` from its standard input: no network,
+/// the environment a Tcl shell needs to find its library and its packages,
+/// and read access to the project and the directories `TCLLIBPATH` names.
+///
+/// The shell is `tclsh` when one is named, else the one `TCL_VENV` holds,
+/// else the newest on `PATH`.
+fn shell_profile(
+    name: &str,
+    tclsh: Option<&Path>,
+    dir: &Path,
+    script: String,
+) -> anyhow::Result<tcl_sandbox::Profile> {
+    let tclsh = match tclsh {
+        Some(path) => path.to_path_buf(),
         None => match std::env::var_os("TCL_VENV") {
             Some(venv) => PathBuf::from(venv).join("bin").join("tclsh"),
             None => tcl_pkg::venv::find_tclsh()
                 .ok_or_else(|| anyhow!("tclsh not found on PATH; name one with --tclsh"))?,
         },
     };
-    let script = crate::commands::spec_test::render_script(&target.package, &target.probes);
-    let mut profile = tcl_sandbox::Profile::new("spec-test", &tclsh, dir)
+    let mut profile = tcl_sandbox::Profile::new(name, &tclsh, dir)
         .arg("-")
         .network(false)
         .stdin_bytes(script.into_bytes());
@@ -631,6 +646,9 @@ fn in_memory_pack(path: &Path, source: &str) -> tcl_spectcl::PackSet {
 
 /// `tcl spec import` — derive version ranges from several releases.
 pub fn run_import(args: &SpecImportArgs) -> anyhow::Result<u8> {
+    if !args.c_source.is_empty() || args.probe.is_some() {
+        return run_extension_import(args);
+    }
     // `--partial-history` is the default, and is accepted so a script can say
     // what it means rather than relying on the default staying put. The safe
     // default is the modest claim: snapshots are only ever *some* releases
@@ -687,6 +705,161 @@ pub fn run_import(args: &SpecImportArgs) -> anyhow::Result<u8> {
     }
     summarise(&import, fetched);
     Ok(0)
+}
+
+/// `tcl spec import --c-source DIR` and `--probe PACKAGE` — describe a C
+/// extension's commands from the sources that can state them.
+///
+/// Nothing in a C source or a loaded package says what a command does, so every
+/// command is a row at the conservative default for a command native code
+/// registers; what a source does state (the arity a usage message gives, the
+/// subcommands an option table names, the package a `Tcl_PkgProvide` provides)
+/// is proposed beside it. Each row carries its provenance: `c-scan` for a
+/// mechanical scan of the source, `probe` for the commands a real shell saw a
+/// `package require` add, or both. The probe runs the package, so it is held to
+/// the package manager's policy as `tcl spec test` is.
+fn run_extension_import(args: &SpecImportArgs) -> anyhow::Result<u8> {
+    use tcl_cli_support::spec_import::{C_EXTENSIONS, collect_c_sources, render_extension_import};
+    use tcl_spec_studio::infer::{ExtensionImport, import_c_sources};
+
+    let mut origins = Vec::new();
+    let mut import = ExtensionImport::default();
+    if !args.c_source.is_empty() {
+        let mut files = Vec::new();
+        for dir in &args.c_source {
+            if !dir.is_dir() {
+                bail!("--c-source: {} is not a directory", dir.display());
+            }
+            let mut found = collect_c_sources(dir);
+            if found.is_empty() {
+                bail!(
+                    "--c-source: no C sources ({}) found under {}",
+                    C_EXTENSIONS.join(" "),
+                    dir.display()
+                );
+            }
+            origins.push(format!(
+                "c-scan: {} C file(s) under {}",
+                found.len(),
+                dir.display()
+            ));
+            if args.c_source.len() > 1 {
+                for file in &mut found {
+                    file.name = format!("{}/{}", dir.display(), file.name);
+                }
+            }
+            files.extend(found);
+        }
+        import = import_c_sources(&files);
+    }
+    if let Some(package) = &args.probe {
+        let Some(report) = probe_package(args, package)? else {
+            return Ok(1);
+        };
+        origins.push(format!(
+            "probe: `package require {package}` in a real shell added {} command(s)",
+            report.commands.len()
+        ));
+        import.merge_probe(&report);
+    }
+
+    let pack = render_extension_import(&import, args.package.as_deref(), &origins);
+    let target = OutputTarget::from_arg(args.out.as_deref());
+    if args.json {
+        write_text_output(&target, &format!("{:#}\n", import.to_json()))?;
+    } else {
+        write_text_output(&target, &pack.pack)?;
+    }
+    summarise_extension(&import, &pack.package);
+    Ok(0)
+}
+
+/// Require `package` in a sandboxed shell and report the commands it added.
+/// `None` when the policy has not opted the package in, which is said.
+fn probe_package(
+    args: &SpecImportArgs,
+    package: &str,
+) -> anyhow::Result<Option<tcl_spec_studio::infer::ProbeReport>> {
+    use crate::commands::spec_probe::{
+        is_package_name, is_plain_name, parse_output, render_script,
+    };
+
+    if !is_package_name(package) {
+        bail!("--probe: `{package}` is not a package name");
+    }
+    let dir = operator_project()?;
+    let loaded = tcl_pkg::policy::load(Some(&dir));
+    if !loaded.config.build_script_allowed(package) {
+        eprintln!("error: running the package '{package}' is not permitted by policy");
+        eprintln!(
+            "  hint: set [build] allow-build-scripts = true and run 'tcl pkg trust {package}'"
+        );
+        return Ok(None);
+    }
+    let profile = shell_profile(
+        "spec-probe",
+        args.tclsh.as_deref(),
+        &dir,
+        render_script(package),
+    )?;
+    let outcome = tcl_pkg::exec::execute(&profile, &loaded.config.sandbox_policy())
+        .map_err(|error| anyhow!("{error}"))?;
+    if outcome.timed_out {
+        bail!("the shell did not finish probing '{package}' in time");
+    }
+    let parsed = parse_output(&String::from_utf8_lossy(&outcome.stdout));
+    if let Some(error) = &parsed.error {
+        bail!("the shell could not require '{package}': {error}");
+    }
+    if !parsed.finished() {
+        bail!(
+            "the shell stopped before it had listed what '{package}' added (status {}): {}",
+            exit_status(&outcome),
+            String::from_utf8_lossy(&outcome.stderr).trim()
+        );
+    }
+    let (commands, rejected): (Vec<String>, Vec<String>) = parsed
+        .commands
+        .into_iter()
+        .partition(|name| is_plain_name(name));
+    for name in rejected {
+        eprint_status(
+            warn_style(),
+            format!("the probe skipped a command whose name is not plain text: {name:?}"),
+        );
+    }
+    Ok(Some(tcl_spec_studio::infer::ProbeReport {
+        package: package.to_owned(),
+        version: parsed.version,
+        commands,
+    }))
+}
+
+/// One line saying what an extension import described, on standard error.
+fn summarise_extension(import: &tcl_spec_studio::infer::ExtensionImport, package: &str) {
+    use tcl_spec_studio::infer::ExtensionSource;
+    let count = |source: ExtensionSource| {
+        import
+            .commands
+            .iter()
+            .filter(|row| row.sources.contains(&source))
+            .count()
+    };
+    eprint_status(
+        warn_style(),
+        format!(
+            "{package}: {} command(s) described ({} from the C source, {} from the probe); \
+             {} computed registration(s), {} call(s) the scan cannot read",
+            import.commands.len(),
+            count(ExtensionSource::CScan),
+            count(ExtensionSource::Probe),
+            import.dynamic.len(),
+            import.blind.len()
+        ),
+    );
+    for warning in &import.warnings {
+        eprint_status(warn_style(), warning.clone());
+    }
 }
 
 /// Read every `--snapshot VERSION=PATH` into a labelled snapshot.

@@ -772,6 +772,36 @@ pub struct SpecImportArgs {
     #[arg(long = "list-tags", requires = "github")]
     pub list_tags: bool,
 
+    /// Describe a C extension from its source instead of a Tcl package's
+    /// releases: scan every `.c`, `.h`, `.cc`, `.cpp`, `.cxx` and `.hpp` file
+    /// under DIR (repeatable) for the commands it registers and the package
+    /// it provides. Each command is a row at the conservative default for a
+    /// command native code registers, carrying the provenance `c-scan` and
+    /// the evidence for whatever the source states of it.
+    #[arg(
+        long = "c-source",
+        value_name = "DIR",
+        conflicts_with_all = ["snapshot", "github"]
+    )]
+    pub c_source: Vec<PathBuf>,
+
+    /// Describe an extension by requiring PACKAGE in a real shell and listing
+    /// the commands it adds. The package runs, so it is held to the package
+    /// manager's policy (`[build] allow-build-scripts` and `tcl pkg trust`),
+    /// as `tcl spec test` is. Rows carry the provenance `probe`; with
+    /// `--c-source`, a command both found carries both.
+    #[arg(
+        long = "probe",
+        value_name = "PACKAGE",
+        conflicts_with_all = ["snapshot", "github"]
+    )]
+    pub probe: Option<String>,
+
+    /// The `tclsh` `--probe` requires the package in. Default: the one
+    /// `TCL_VENV` names, else the newest on `PATH`.
+    #[arg(long, value_name = "PATH", requires = "probe")]
+    pub tclsh: Option<PathBuf>,
+
     /// Dialect profile every snapshot is analysed as.
     #[arg(long, default_value = "tcl8.6", value_name = "DIALECT")]
     pub dialect: String,

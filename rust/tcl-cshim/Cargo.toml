@@ -40,6 +40,11 @@ name = "tcl_cshim"
 
 [dependencies]
 tcl-engine-api = { path = "../tcl-engine-api" }
+# What a loaded extension declares to the analyser: `Loaded::declared_surface`
+# states each registered command at the registry's conservative default for a
+# command native code registers.
+tcl-registry = { path = "../tcl-registry" }
+tcl-dialect = { path = "../tcl-dialect" }
 # The shared owners the shim must not re-implement: list quoting/splitting,
 # number parsing and double formatting (`tcl-syntax`), and option-table
 # prefix resolution with its C-shaped messages (`tcl-cmd-core`).

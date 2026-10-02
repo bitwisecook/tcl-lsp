@@ -37,7 +37,7 @@
 use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
-use tcl_spec_studio::infer::SourceFile;
+use tcl_spec_studio::infer::{ExtensionImport, SourceFile};
 use tcl_spec_studio::render_spectcl::render_pack_reporting;
 use tcl_spec_studio::versions::{
     VERSION_GATE_NOTE, VersionedImportOptions, VersionedSnapshot, import_package_versions,
@@ -51,6 +51,9 @@ use tcl_spec_studio::versions::{
 /// package's test suite frequently defines the helper procs the package's own
 /// files call.
 pub const TCL_EXTENSIONS: &[&str] = &[".tcl", ".tm", ".test", ".itcl", ".itk"];
+
+/// The file extensions an extension's C sources are read from.
+pub const C_EXTENSIONS: &[&str] = &[".c", ".h", ".cc", ".cpp", ".cxx", ".hpp"];
 
 /// What one `--snapshot` path is, decided by its extension alone.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -302,6 +305,17 @@ pub fn load_snapshot(version: &str, path: &Path) -> Result<VersionedSnapshot, Sp
 /// one stray binary in a release tarball is not a reason to derive no ranges.
 #[must_use]
 pub fn collect_sources(root: &Path) -> Vec<SourceFile> {
+    collect_with(root, TCL_EXTENSIONS)
+}
+
+/// Every [`C_EXTENSIONS`] file under `root`, by the same rules as
+/// [`collect_sources`].
+#[must_use]
+pub fn collect_c_sources(root: &Path) -> Vec<SourceFile> {
+    collect_with(root, C_EXTENSIONS)
+}
+
+fn collect_with(root: &Path, extensions: &[&str]) -> Vec<SourceFile> {
     let mut files = Vec::new();
     let mut stack = vec![root.to_path_buf()];
     while let Some(dir) = stack.pop() {
@@ -319,7 +333,7 @@ pub fn collect_sources(root: &Path) -> Vec<SourceFile> {
                 continue;
             }
             let lower = name.to_lowercase();
-            if !TCL_EXTENSIONS.iter().any(|ext| lower.ends_with(ext)) {
+            if !extensions.iter().any(|ext| lower.ends_with(ext)) {
                 continue;
             }
             let Ok(text) = std::fs::read_to_string(&path) else {
@@ -476,6 +490,104 @@ fn header_comments(
     out
 }
 
+/// A rendered pack for an extension, and what the render could not carry.
+#[derive(Debug, Clone)]
+pub struct ExtensionPack {
+    /// The pack name used in the `speclib` declaration.
+    pub package: String,
+    /// Fields the render could not carry, as `key: reason`.
+    pub losses: Vec<String>,
+    /// The `.tclspec` source, evidence header included.
+    pub pack: String,
+}
+
+/// Render the commands of an extension as a draft pack, each at the
+/// conservative default for a command native code registers, with every
+/// proposal's evidence and every row's provenance in the header.
+///
+/// `origins` says where the rows came from, one line each (a directory scanned,
+/// a package probed), so a reader can tell what was read from what was
+/// observed.
+#[must_use]
+pub fn render_extension_import(
+    import: &ExtensionImport,
+    package: Option<&str>,
+    origins: &[String],
+) -> ExtensionPack {
+    let package = package
+        .map(ToOwned::to_owned)
+        .or_else(|| import.package.clone())
+        .unwrap_or_else(|| "imported".to_owned());
+    let drafts: Vec<_> = import
+        .commands
+        .iter()
+        .map(|row| row.draft.clone())
+        .collect();
+    let (body, losses) = render_pack_reporting(&drafts, &package);
+    let losses: Vec<String> = losses
+        .into_iter()
+        .map(|loss| format!("{}: {}", loss.key, loss.reason))
+        .collect();
+
+    let mut header = String::new();
+    header.push_str(&comment(&format!(
+        "Derived by `tcl spec import` for the extension `{package}`."
+    )));
+    for origin in origins {
+        header.push_str(&comment(origin));
+    }
+    header.push_str(&comment(
+        "Every command starts at the conservative default for a command native code \
+         registers: unknown arity, a dynamic barrier, unknown reads and writes, a taint \
+         sink and source, hidden in a safe interpreter, never pure. What a source states is \
+         proposed beside it, with where it came from; narrow a command by hand once you \
+         know what it does.",
+    ));
+    let rows: Vec<String> = import
+        .commands
+        .iter()
+        .flat_map(|row| {
+            let sources: Vec<&str> = row.sources.iter().map(|s| s.as_str()).collect();
+            std::iter::once(format!("{} [{}]", row.name, sources.join(", ")))
+                .chain(row.notes.iter().map(|note| format!("    {note}")))
+        })
+        .collect();
+    section(
+        &mut header,
+        "Commands, each with its provenance and evidence",
+        &rows,
+    );
+    let dynamic: Vec<String> = import
+        .dynamic
+        .iter()
+        .map(|row| {
+            format!(
+                "[c-scan] {}:{}: {} registers a command whose name is computed ({}); \
+                 declare it by hand",
+                row.file, row.line, row.api, row.expression
+            )
+        })
+        .collect();
+    section(
+        &mut header,
+        "Registrations whose names are computed",
+        &dynamic,
+    );
+    section(
+        &mut header,
+        "Calls the scan cannot read (the commands behind them are not in this pack)",
+        &import.blind,
+    );
+    section(&mut header, "Warnings", &import.warnings);
+    section(&mut header, "Fields this render could not carry", &losses);
+    header.push_str("# ---\n");
+    ExtensionPack {
+        package,
+        losses,
+        pack: format!("{header}{body}"),
+    }
+}
+
 /// One `# Heading (n):` block followed by one `#   - item` line each, or
 /// nothing at all when there are no items.
 fn section(out: &mut String, heading: &str, items: &[String]) {
@@ -613,5 +725,86 @@ mod tests {
             .map(|f| f.name)
             .collect();
         assert_eq!(names, ["a.tm", "b.tcl", "sub/c.test"]);
+    }
+    #[test]
+    fn c_sources_are_the_files_with_a_c_extension_and_no_other() {
+        let dir = ScratchDir::new("collect-c-test").expect("scratch dir");
+        for name in [
+            "a.c", "b.h", "c.cc", "d.cpp", "e.cxx", "f.hpp", "UPPER.C", "g.tcl", "h.md",
+        ] {
+            std::fs::write(dir.path().join(name), "int x;\n").expect("write");
+        }
+        let names: Vec<String> = collect_c_sources(dir.path())
+            .into_iter()
+            .map(|f| f.name)
+            .collect();
+        assert_eq!(
+            names,
+            ["UPPER.C", "a.c", "b.h", "c.cc", "d.cpp", "e.cxx", "f.hpp"]
+        );
+    }
+
+    fn described(text: &str) -> ExtensionImport {
+        tcl_spec_studio::infer::import_c_sources(&[SourceFile {
+            name: "x.c".to_owned(),
+            text: text.to_owned(),
+        }])
+    }
+
+    #[test]
+    fn the_extension_pack_names_what_the_scan_could_not_read() {
+        let import = described(
+            "int Init(Tcl_Interp *i) {\n  Tcl_PkgProvide(i, \"ext\", \"1.0\");\n  \
+             Tcl_CreateObjCommand(i, \"fixed\", P, 0, 0);\n  \
+             Tcl_CreateObjCommand(i, names[k], P, 0, 0);\n  \
+             Tcl_NewMethod(i, c, n, 1, &t, 0);\n  return 0;\n}\n",
+        );
+        let pack =
+            render_extension_import(&import, None, &["c-scan: 1 C file(s) under src".to_owned()]);
+        assert_eq!(pack.package, "ext");
+        assert!(pack.pack.contains("speclib ext"), "{}", pack.pack);
+        assert!(
+            pack.pack.contains("# c-scan: 1 C file(s) under src"),
+            "{}",
+            pack.pack
+        );
+        assert!(
+            pack.pack.contains("fixed (c-scan)"),
+            "provenance: {}",
+            pack.pack
+        );
+        assert!(
+            pack.pack
+                .contains("Registrations whose names are computed (1)"),
+            "{}",
+            pack.pack
+        );
+        assert!(pack.pack.contains("names(k)"), "{}", pack.pack);
+        assert!(
+            pack.pack.contains("Calls the scan cannot read"),
+            "{}",
+            pack.pack
+        );
+        assert!(pack.pack.contains("Tcl_NewMethod"), "{}", pack.pack);
+    }
+
+    #[test]
+    fn an_explicit_package_name_wins_over_the_one_the_source_provides() {
+        let import = described(
+            "int Init(Tcl_Interp *i) { Tcl_PkgProvide(i, \"ext\", \"1.0\"); \
+             Tcl_CreateObjCommand(i, \"c\", P, 0, 0); return 0; }",
+        );
+        assert_eq!(
+            render_extension_import(&import, Some("renamed"), &[]).package,
+            "renamed"
+        );
+        assert_eq!(render_extension_import(&import, None, &[]).package, "ext");
+        let bare = described(
+            "int Init(Tcl_Interp *i) { Tcl_CreateObjCommand(i, \"c\", P, 0, 0); return 0; }",
+        );
+        assert_eq!(
+            render_extension_import(&bare, None, &[]).package,
+            "imported"
+        );
     }
 }

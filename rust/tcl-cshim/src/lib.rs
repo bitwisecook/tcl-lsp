@@ -57,7 +57,9 @@ use std::ffi::c_int;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::rc::Rc;
 
+use tcl_dialect::model::Provenance;
 use tcl_engine_api::{CommandRegistrar, CompileUnit, Engine, EngineError, HostCommand, Value};
+use tcl_registry::model::DeclaredCommand;
 
 pub use obj::{Obj, ObjRef, TclError};
 pub use state::{CommandChange, InitProc, InterpState};
@@ -69,6 +71,26 @@ pub struct Loaded {
     pub commands: Vec<String>,
     /// The packages it provided, `(name, version)` in provision order.
     pub packages: Vec<(String, String)>,
+}
+
+impl Loaded {
+    /// The commands the entry point registered, as the analyser would have them
+    /// declared: each at the conservative default for a command native code
+    /// registers (`tcl_registry::extension_default`), because nothing the shim
+    /// is given says what a C command does to state.
+    ///
+    /// This is the third source an extension is described from, beside a scan of
+    /// its C source and a probe of a shell that requires it: the one for a host
+    /// that loads the extension in-process and so knows exactly which commands
+    /// it registered. The provenance is [`Provenance::User`], the host's own
+    /// configuration, since [`Interp::load_static`] is the host's act.
+    #[must_use]
+    pub fn declared_surface(&self) -> Vec<DeclaredCommand> {
+        self.commands
+            .iter()
+            .map(|name| DeclaredCommand::extension(name.clone(), Vec::new(), Provenance::User))
+            .collect()
+    }
 }
 
 /// Why [`Interp::load_static`] failed.
@@ -380,9 +402,10 @@ mod tests {
     use std::ffi::{c_int, c_void};
     use std::rc::Rc;
 
+    use tcl_dialect::model::Provenance;
     use tcl_engine_api::{Budget, Engine, EngineError, HostCommand, Value};
 
-    use super::{CommandChange, Interp, InterpState, LoadError, Obj, ffi};
+    use super::{CommandChange, Interp, InterpState, LoadError, Loaded, Obj, ffi};
 
     /// `echo ?arg …?` — answers with its arguments as a list.
     unsafe extern "C" fn echo(
@@ -595,6 +618,41 @@ mod tests {
             matches!(command(&interp, "echo").invoke(&[]), Ok(Value::List(_))),
             "the interpreter is still usable"
         );
+    }
+
+    #[test]
+    fn a_loaded_report_declares_every_command_at_the_default_fact() {
+        use tcl_registry::CommandSpec;
+
+        let mut interp = Interp::new(RecordingEngine::default());
+        // SAFETY: `init` is written against the shim's own exports.
+        let loaded = unsafe { interp.load_static(init) }.expect("loads");
+        let declared = loaded.declared_surface();
+        let names: Vec<&str> = declared.iter().map(|c| c.name.as_str()).collect();
+        assert_eq!(names, ["boom", "echo", "twice"]);
+        let default = CommandSpec::extension_default("");
+        for command in &declared {
+            assert_eq!(command.traits, default.traits, "{}", command.name);
+            assert_eq!(
+                command.side_effects, default.side_effects,
+                "{}",
+                command.name
+            );
+            assert_eq!(command.provenance(), Provenance::User);
+            assert!(command.arguments.is_empty(), "no argument is known");
+        }
+    }
+
+    #[test]
+    fn a_load_that_registered_nothing_declares_nothing() {
+        let mut interp = Interp::new(RecordingEngine::default());
+        // SAFETY: as above.
+        assert!(unsafe { interp.load_static(failing_init) }.is_err());
+        let empty = Loaded {
+            commands: Vec::new(),
+            packages: Vec::new(),
+        };
+        assert!(empty.declared_surface().is_empty());
     }
 
     #[test]

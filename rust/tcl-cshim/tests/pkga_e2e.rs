@@ -86,6 +86,52 @@ fn catching(interp: &mut Interp<TclVmEngine>, script: &str) -> (i64, String, Str
     )
 }
 
+/// The loaded report bridges to the analyser's vocabulary: every command the
+/// real extension registered is declared, at the conservative default for a
+/// command native code registers and at no narrower fact, and the name of each
+/// is the one the shell would answer to.
+#[test]
+fn the_loaded_report_bridges_to_the_default_fact() {
+    use tcl_registry::{CommandSpec, Traits};
+
+    let mut interp = Interp::new(TclVmEngine::new());
+    // SAFETY: `Pkga_Init` is the test extension built against the shim header.
+    let loaded = unsafe { interp.load_static(pkga_init) }.expect("pkga loads");
+    let declared = loaded.declared_surface();
+    let names: Vec<&str> = declared.iter().map(|c| c.name.as_str()).collect();
+    assert_eq!(
+        names,
+        loaded
+            .commands
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>()
+    );
+    assert!(!declared.is_empty(), "pkga registers commands");
+    let default = CommandSpec::extension_default("pkga_calc");
+    for command in &declared {
+        assert_eq!(command.traits, default.traits, "{}", command.name);
+        assert_eq!(
+            command.side_effects, default.side_effects,
+            "{}",
+            command.name
+        );
+        // What every consumer asks of the declared command: a taint sink, hidden
+        // in a safe interpreter, never pure.
+        assert!(
+            command.traits.contains(Traits::TAINT_SINK),
+            "{}",
+            command.name
+        );
+        assert!(
+            command.traits.contains(Traits::SAFE_INTERP_HIDDEN),
+            "{}",
+            command.name
+        );
+        assert!(!command.traits.contains(Traits::PURE), "{}", command.name);
+    }
+}
+
 #[test]
 fn smoke_pkga_round_trips_through_the_vm() {
     let mut interp = loaded();

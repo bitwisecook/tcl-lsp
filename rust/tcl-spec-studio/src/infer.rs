@@ -62,6 +62,17 @@ use tcl_registry::side_effects::{SideEffect, SideEffectTarget};
 use crate::catalogue;
 use crate::draft::{self, Draft};
 
+mod c_scan;
+mod extension;
+
+pub use c_scan::{
+    CBlindSpot, CDeclaredCommand, CEvidence, CName, CPackage, CScan, CUsage, scan_c_source,
+};
+pub use extension::{
+    DynamicRegistration, ExtensionCommand, ExtensionImport, ExtensionSource, ProbeReport,
+    import_c_sources,
+};
+
 /// One file of an imported package.
 #[derive(Debug, Clone)]
 pub struct SourceFile {
