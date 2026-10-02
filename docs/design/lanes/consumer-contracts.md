@@ -2725,16 +2725,17 @@ checkpoints*: CC10.1 to CC10.6, one checkpoint each, in that order.
   cfg and the symbol or changes those readers with them.
 - **For CC10.5 (the doors).** `HostCommand::invoke_with_registrar` is what `load`
   runs under and the loader refuses without it; a widened door keeps that entry.
-  The gap D10.15 states is the engine's package database: a `provide_package`
-  beside `define_command` on the door, or `eval_in_invocation` running `package
-  provide`, lets `StaticExtensions` give the engine the packages `Loaded` already
-  reports, and `info loaded` could then list a library by its prefix.
+  The gap D10.15 records is the engine's package database, and CC10.5's plan row
+  now carries it: a `provide_package` beside `define_command` on the door, which
+  `StaticExtensions` calls with the packages `run_init` already returns in
+  `Loaded`, so the engine learns what the entry point provided and `info loaded`
+  can list a library by its prefix.
 - **For CC10.6 (the WASM leg).** `StaticExtensions` is native only: under WASM
   the extension is compiled into a side module and no entry point is called from
   Rust, so nothing here carries over, and a runtime that implements `Engine`
   takes `define_command("load", …)` as any engine does if a host wants the same
   `load` over native code.
-- **Reported, not fixed.** The package gap and `info loaded` (D10.15); a prefix
+- **Reported, not fixed.** The package gap and `info loaded` (D10.15, now CC10.5's); a prefix
   guess that follows Tcl 9.0's rule, `lib` and then `tcl9`, whatever release the
   engine is pinned to (8.5 and 8.6 strip `lib` alone, so `libtcl9x.so` guesses
   differently there); a child interpreter is refused, and the VM's
@@ -4555,10 +4556,31 @@ Files: `rust/tcl-engine-api/src/lib.rs` (`HostCommand::invoke` returns
 (the `TCL_BREAK` / `TCL_CONTINUE` / `TCL_RETURN` narrowing goes;
 `Tcl_ObjSetVar2`, `Tcl_GetVar2Ex`, `Tcl_EvalObjEx` exported through the
 doors), `rust/tcl-spec-hooks/src/host.rs` (unchanged: a hook body's
-completion is still an abstention). Tests: `rust/tcl-cshim/src/lib.rs`
+completion is still an abstention). **The package door**, taken from CC10.3
+(D10.15 deferred it, as a plan row and not an option): the registration door
+gains a package, `CommandRegistrar::provide_package(&mut self, name, version) -> Result<(), EngineError>`
+and its `Engine` twin, each declining with `Unsupported` by default;
+`rust/tcl-vm/src/embed.rs` gains the embedder method that does what
+`package provide` does (the version validated, a conflicting one refused with
+the same error); `rust/tcl-engine-tclvm/src/lib.rs` implements both;
+`rust/tcl-cshim/src/load.rs` hands the door the packages `run_init` reports, so
+the extension's `Tcl_PkgProvide` reaches the engine's package database as it
+does in Tcl and `package require pkga` through an unchanged
+`package ifneeded … {load …}` succeeds once the entry point has run; `info
+loaded` lists a bridged library by its prefix. Tests: `rust/tcl-cshim/src/lib.rs`
 unit rows — `a_c_command_returning_break_is_a_break_completion`;
-`pkga_e2e.rs` gains a `Tcl_EvalObjEx` row; `rust/tcl-engine-tclvm`'s
-tests gain the variable door. Model: opus. Size: M. After: CC10.4.
+`pkga_e2e.rs` gains a `Tcl_EvalObjEx` row and the package row,
+`a_package_whose_ifneeded_script_is_a_plain_load_is_required_twice` (an unchanged
+`package ifneeded pkga 1.0 [list load [file join /opt/pkga libpkga[info sharedlibextension]] Pkga]`:
+the first `package require pkga` runs the load and answers `1.0`; `pkga_forget`
+deletes `pkga_count`; the second `package require` is satisfied from the package
+database without running the entry point again, which `pkga_count` staying
+deleted shows; negative: an `ifneeded` script whose `load` the table refuses
+leaves `package require` an error carrying `couldn't load file`);
+`rust/tcl-engine-tclvm`'s tests gain the variable door and the package door (a
+host command provides a package and a later `package require` is satisfied;
+a conflicting version is the error `package provide` gives). Model: opus. Size:
+M. After: CC10.4.
 
 **CC10.6 — the WASM runtime implements `Engine`; WASM-hosted evaluation.**
 Files: `runtime/rust/src/engine.rs` (new: `impl Engine for Interp` under a
@@ -7747,18 +7769,23 @@ everything else in this lane is independent of both.
   run in CI selects `--all-features`, so the feature's tests run there; the
   workspace `check` and `clippy` gates build without it, so this item's gates
   also run both for `-p tcl-vm-cli --features static-extensions`.
-- **D10.15** The bridge does not provide the packages an entry point provides, and
-  this is the item's one known gap. `Tcl_PkgProvide` lands in the shim's state
-  (`Loaded::packages`, `Interp::provided_packages`); the engine's package
-  database is the engine's, and the registration door registers commands and
-  nothing else. Run against the real binary: `package ifneeded pkga 1.0
-  {load {} Pkga}` followed by `package require pkga` loads the commands and
-  fails with `attempt to provide package pkga 1.0 failed: no version of package
-  pkga provided`; `package ifneeded pkga 1.0 {load {} Pkga; package provide
-  pkga 1.0}` works, and `info loaded` still answers nothing. A `provide_package`
-  on the door, or the in-invocation evaluation CC10.5 adds, is what closes it;
-  neither is in this item, since either widens the engine interface beyond the
-  plan's.
+- **D10.15** The bridge does not yet provide the packages an entry point
+  provides, and CC10.5 takes it: this records why CC10.3 deferred it and is not a
+  ruling. `Tcl_PkgProvide` lands in the shim's state (`Loaded::packages`,
+  `Interp::provided_packages`); the engine's package database is the engine's, and
+  the registration door registers commands and nothing else. Run against the real
+  binary: `package ifneeded pkga 1.0 {load {} Pkga}` followed by `package require
+  pkga` loads the commands and fails with `attempt to provide package pkga 1.0
+  failed: no version of package pkga provided`; `package ifneeded pkga 1.0 {load
+  {} Pkga; package provide pkga 1.0}` works, and `info loaded` still answers
+  nothing. Tcl's own behaviour is the right one: once the entry point has run,
+  `package require pkga` through an unchanged `ifneeded {load …}` must succeed, so
+  the provide has to reach the engine's package database through the door and not
+  only the shim's state. Closing it widens the engine interface (a package on the
+  door, a VM embedder method that does what `package provide` does), which is the
+  interface CC10.5 widens, so CC10.5's plan row carries the door and the test that
+  pins it: a package whose `ifneeded` script is a plain `load`, required twice, the
+  second time satisfied from the database.
 
 ### Open questions for the owner
 
