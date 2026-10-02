@@ -128,6 +128,21 @@ pub extern "C" fn Tcl_NewBooleanObj(value: c_int) -> *mut TclObj {
 
 // refcount management
 
+/// `TclFreeObj` — free an object whose count the header's `Tcl_DecrRefCount`
+/// macro has lowered to zero or below (the macro frees through this when the
+/// count was one or less, a fresh object included). `Tcl_IncrRefCount`,
+/// `Tcl_DecrRefCount` and `Tcl_IsShared` are macros over `refCount` in the
+/// header, so an extension reaches the allocator's free path only here.
+///
+/// # Safety
+/// `obj` must be null or a live `TclObj` that no reference holds; it is dangling
+/// afterwards.
+#[no_mangle]
+pub unsafe extern "C" fn TclFreeObj(obj: *mut TclObj) {
+    // SAFETY: forwarded per contract.
+    unsafe { obj::free_obj(obj) }
+}
+
 /// `Tcl_IncrRefCount`. Null-safe.
 ///
 /// # Safety

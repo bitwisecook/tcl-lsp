@@ -81,7 +81,7 @@ impl StaticExtensions {
     /// # Safety
     ///
     /// Every entry point in `table` must be a package entry point written
-    /// against `include/tclshim.h`: the shim contains Rust panics, not C
+    /// against `runtime/rust/include/tcl.h`: the shim contains Rust panics, not C
     /// undefined behaviour. Building the table is the act of trusting native
     /// code, as calling [`crate::Interp::load_static`] is.
     #[must_use]

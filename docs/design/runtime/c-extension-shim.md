@@ -2,13 +2,13 @@
 
 The Tcl extension interface (`tcl-engine-api`) has exactly two consumers: the
 Rust hook host, and a shim that lets a **C Tcl extension** run behind the same
-surface. This document is that shim: crate `rust/tcl-cshim`, its C header
-`include/tclshim.h`, and the rules that keep it a shim rather than a second
-interface. It is part of the spec-pack DSL design
+surface. This document is that shim: crate `rust/tcl-cshim`, the native leg of
+the C header `runtime/rust/include/tcl.h`, and the rules that keep it a shim
+rather than a second interface. It is part of the spec-pack DSL design
 ([spec-packs.md](../registry/spec-packs.md) § "Covering the hooks").
 
 ```text
-  C extension            compiled against include/tclshim.h
+  C extension            compiled against runtime/rust/include/tcl.h
  ------------------------ rust/tcl-cshim ------------------------
   ffi.rs      the exported Tcl_* symbols, each panic-guarded
   obj.rs      Tcl_Obj: refcounted, dual-rep, typed across the boundary
@@ -90,7 +90,8 @@ a pack facility.
 
 `Tcl_Obj` is `obj::Obj`: a reference count, an optional string
 representation, and an internal representation, exactly as C Tcl's dual-rep
-object. The rule that decides what crosses the interface is one flag:
+object, behind the layout the header declares (see the header conventions
+below). The rule that decides what crosses the interface is one flag:
 
 | the object was | rep | string | crosses as |
 |---|---|---|---|
@@ -117,10 +118,12 @@ pointer, so a `Vec<ObjRef>` *is* the `Tcl_Obj **`), valid under the same
 rule.
 
 **Reference counts map onto Rust ownership.** `ObjRef` is one unit of the
-count: cloning it is `Tcl_IncrRefCount`, dropping it is `Tcl_DecrRefCount`,
-and the object is freed when the count reaches zero — including from zero,
-as C Tcl does, because a freshly created object has count zero and belongs
-to whoever first takes a reference. `Tcl_SetObjResult` and
+count, in the `refCount` field C's macros read and write: cloning it is what
+`Tcl_IncrRefCount` does, dropping it is `Tcl_DecrRefCount`, and the object is
+freed when the count reaches zero — including from zero, as C Tcl does, because
+a freshly created object has count zero and belongs to whoever first takes a
+reference. C's own `Tcl_DecrRefCount` is the header's macro: it lowers the same
+field and calls the exported `TclFreeObj` when the count was one or less. `Tcl_SetObjResult` and
 `Tcl_ListObjAppendElement` take their own reference; `Tcl_DuplicateObj`
 returns a fresh, unshared, zero-count copy. Arguments arrive at a C
 procedure with a count of one held by the shim for the duration of the
@@ -276,21 +279,16 @@ table as a host command.
 
 ## The implemented subset
 
-**One header, two hosts.** The authored, API-compatible `tcl.h` of
-[c-extension-abi.md](c-extension-abi.md) is *the* C hosting contract, and
-this shim is its native host beside the WASM one, so one extension source
-compiles for both legs. The shim's exports are a documented subset of that
-header: a declaration it does not implement is absent from the header
-rather than opaque, which keeps the header honest by rule, and `Tcl_Obj`
-carries the ABI's declared layout (§ 4.2) rather than an opaque handle of
-the shim's own. The `TCL_SHIM_TCL_MAJOR=8` size switch belongs to the
-authored header, which needs it for the same reason.
-
-The shim today declares its own header, `include/tclshim.h`, with an opaque
-`Tcl_Obj`, and the tree contains no authored `tcl.h`; step 10 of
-[../compiler/registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
-§ *Build order* retargets the shim onto the authored header with its CI
-gate.
+**One header, two hosts.** The authored, API-compatible `tcl.h`
+(`runtime/rust/include/tcl.h`) of [c-extension-abi.md](c-extension-abi.md) is
+*the* C hosting contract, and this shim is its native host beside the WASM one,
+so one extension source compiles for both legs. The header declares for each
+host the functions it implements and nothing else: the shim's exports are the
+`TCL_HOST_NATIVE` leg (`build.rs` compiles the test extension with it named), a
+declaration the shim does not implement is absent from that leg rather than
+opaque or present and failing, which keeps the header honest by rule, and
+`Tcl_Obj` carries the ABI's declared layout (§ 4.2) rather than an opaque handle
+of the shim's own. The `Tcl_Size` switch, `TCL_MAJOR_VERSION=8`, is the header's.
 
 The subset is the argument-handling core the spec-author skill's evidence
 patterns name, plus what Tcl's own `dltest/pkga.c` and `pkgb.c` need to
@@ -299,12 +297,12 @@ compile:
 | group | functions |
 |---|---|
 | registration | `Tcl_CreateObjCommand`, `Tcl_DeleteCommand`, `Tcl_PkgProvide` / `Tcl_PkgProvideEx`, `Tcl_InitStubs` (a no-op macro yielding `TCL_PATCH_LEVEL`) |
-| objects | `Tcl_NewStringObj`, `Tcl_NewIntObj` / `Tcl_NewLongObj` / `Tcl_NewWideIntObj`, `Tcl_NewBooleanObj`, `Tcl_NewDoubleObj`, `Tcl_NewListObj`, `Tcl_IncrRefCount` / `Tcl_DecrRefCount` / `Tcl_IsShared` / `Tcl_DuplicateObj` |
+| objects | `Tcl_NewStringObj`, `Tcl_NewIntObj` / `Tcl_NewLongObj` / `Tcl_NewWideIntObj`, `Tcl_NewBooleanObj`, `Tcl_NewDoubleObj`, `Tcl_NewListObj`, `Tcl_DuplicateObj`, `TclFreeObj`; `Tcl_IncrRefCount` / `Tcl_DecrRefCount` / `Tcl_IsShared` are the header's macros over `refCount` |
 | reading | `Tcl_GetString`, `Tcl_GetStringFromObj`, `Tcl_GetIntFromObj` / `Tcl_GetLongFromObj` / `Tcl_GetWideIntFromObj`, `Tcl_GetBooleanFromObj`, `Tcl_GetDoubleFromObj`, `Tcl_GetIndexFromObj` / `Tcl_GetIndexFromObjStruct` |
 | lists | `Tcl_ListObjAppendElement`, `Tcl_ListObjGetElements`, `Tcl_ListObjLength` |
 | result | `Tcl_SetObjResult`, `Tcl_GetObjResult`, `Tcl_ResetResult`, `Tcl_SetResult`, `Tcl_AppendResult`, `Tcl_WrongNumArgs`, `Tcl_SetErrorCode`, `Tcl_SetObjErrorCode` |
 | UTF-8 | `Tcl_NumUtfChars`, `Tcl_UtfNcmp` |
-| definitions | `Tcl_Interp`, `Tcl_Obj` (both opaque), `Tcl_Command`, `Tcl_ObjCmdProc`, `Tcl_CmdDeleteProc`, `Tcl_FreeProc`, `ClientData`, `Tcl_WideInt`, `Tcl_Size` / `TCL_SIZE_MAX` / `TCL_INDEX_NONE`, the `TCL_OK` … `TCL_CONTINUE` codes, `TCL_STATIC` / `TCL_VOLATILE` / `TCL_DYNAMIC`, `TCL_EXACT` / `TCL_NULL_OK` / `TCL_INDEX_TEMP_TABLE` |
+| definitions | `Tcl_Interp` (opaque), `Tcl_Obj` (the declared layout), `Tcl_Command`, `Tcl_ObjCmdProc`, `Tcl_CmdDeleteProc`, `Tcl_FreeProc`, `ClientData`, `Tcl_WideInt`, `Tcl_Size` / `TCL_SIZE_MAX` / `TCL_INDEX_NONE`, the `TCL_OK` … `TCL_CONTINUE` codes, `TCL_STATIC` / `TCL_VOLATILE` / `TCL_DYNAMIC`, `TCL_EXACT` / `TCL_NULL_OK` / `TCL_INDEX_TEMP_TABLE` |
 
 Three header conventions carry the C-side mangling:
 
@@ -315,24 +313,31 @@ Three header conventions carry the C-side mangling:
   ordinary `Tcl_SetObjErrorCode`). `Tcl_SetResult` resolves the freeing
   convention there too: the string is always copied, `TCL_DYNAMIC` is freed
   with the C allocator, any other procedure is called.
-- **`Tcl_Size` follows the source's Tcl major.** The exports use the Tcl 9
-  ABI (`ptrdiff_t`). `TCL_SHIM_TCL_MAJOR=8` gives an 8.x source `int` for
-  `Tcl_Size` and inline wrappers for the three functions that write a size
-  through a pointer — the same device Tcl 9's header uses for its own
-  compatibility mode.
-- **`Tcl_Obj` carries the declared layout.** The type an extension sees is
-  the ABI's § 4.2 layout rather than an opaque handle, so an extension that
-  reaches into `objPtr->bytes` or `objPtr->refCount` compiles unchanged;
-  `rust/tcl-cshim/src/obj.rs` is the shim's side of it. `tclshim.h` today
-  declares `Tcl_Obj` opaque, so that extension is the one source change the
-  shim's own header demands, and the compiler reports it.
+- **`Tcl_Size` follows the source's Tcl major.** The exports and the `Tcl_Obj`
+  fields use the Tcl 9 ABI (`ptrdiff_t`, spelt `TclHost_Size`).
+  `TCL_MAJOR_VERSION=8` gives an 8.x source `int` for `Tcl_Size` and inline
+  wrappers for the three functions that write a size through a pointer — the
+  same device Tcl 9's header uses for its own compatibility mode.
+- **`Tcl_Obj` carries the declared layout.** The type an extension sees is the
+  ABI's § 4.2 layout rather than an opaque handle, so an extension that reaches
+  into `objPtr->bytes` or `objPtr->refCount` compiles unchanged, and the
+  reference-count macros are the header's own: `Tcl_IncrRefCount` is
+  `++refCount`, and `Tcl_DecrRefCount` calls `TclFreeObj` when the count was one
+  or less, so one release of a fresh object frees it, as in Tcl.
+  `rust/tcl-cshim/src/obj.rs` is the shim's side of it. `Obj` is `#[repr(C)]`
+  with the five declared fields first, the union's room unused, and its own
+  state after them, which C never sees. `bytes` and `length` follow the string
+  rep the shim owns, so they are null and zero while an object has no text
+  (`Tcl_GetString` makes one) and a change to the value withdraws them, and
+  `typePtr` is always null. `tests/c/layout.c` compiles against the header and
+  reports the layout it declares, and `obj.rs`'s tests hold `Obj` to those
+  offsets and run the macros against it.
 
 An extension that needs string building (`Tcl_AppendToObj`,
 `Tcl_ObjPrintf`, `Tcl_NewByteArrayObj`), the dict API, variables
 (`Tcl_SetVar2Ex`, `Tcl_ObjSetVar2`) or evaluation (`Tcl_EvalObjEx`) is
 outside the implemented subset: the engine interface has no variable door
-and no in-invocation eval door, and those two doors are what the shim's
-side of the retargeting needs. A declaration outside the subset is absent
+and no in-invocation eval door. A declaration outside the subset is absent
 from the shim's leg of the header rather than present and unimplemented.
 
 ## Testing
@@ -341,10 +346,10 @@ from the shim's leg of the header rather than present and unimplemented.
 `dltest/pkga.c` — `pkga_eq` and `pkga_quote` verbatim in behaviour — plus
 `pkga_calc`, which dispatches with `Tcl_GetIndexFromObj` over subcommands
 that exercise every value function, and a clientData-carrying counter with
-a delete procedure. `build.rs` compiles it with the `cc` crate against the
-shim header on non-Windows targets and sets the `cshim_c_tests` cfg;
-`tests/pkga_e2e.rs` loads it into a tclvm-backed `Interp` and drives it
-from Tcl.
+a delete procedure. `build.rs` compiles it, and `layout.c` beside it, with the
+`cc` crate against the header's native leg on non-Windows targets and sets the
+`cshim_c_tests` cfg; `tests/pkga_e2e.rs` loads it into a tclvm-backed `Interp`
+and drives it from Tcl.
 
 Every expected string in that test was captured by compiling the **same
 `pkga.c` against Tcl 9.0.4's own `tcl.h`**, loading it into `tclsh9.0`, and
@@ -378,11 +383,12 @@ existing `.so`/`.dll`.
 
 ## Files
 
-- `rust/tcl-cshim/include/tclshim.h` — the header.
+- `runtime/rust/include/tcl.h` — the header; the shim is its `TCL_HOST_NATIVE`
+  leg.
 - `rust/tcl-cshim/src/{ffi,obj,state,lib,load}.rs` — the shim; `load.rs` is
   the host's `load`.
-- `rust/tcl-cshim/tests/c/pkga.c`, `tests/pkga_e2e.rs`, `tests/factory.rs`,
-  `tests/sandbox_isolation.rs` — the tests.
+- `rust/tcl-cshim/tests/c/pkga.c`, `tests/c/layout.c`, `tests/pkga_e2e.rs`,
+  `tests/factory.rs`, `tests/sandbox_isolation.rs` — the tests.
 - `rust/tcl-engine-api/src/lib.rs` — `Engine::remove_command`.
 - `rust/tcl-engine-tclvm/src/lib.rs` — the error mapping, `remove_command`
   and `register_host_command`.

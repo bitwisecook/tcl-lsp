@@ -1751,11 +1751,11 @@ The crate `rust/tcl-cshim`: an adapter that hosts a command written against
 the C Tcl API (`Tcl_CreateObjCommand`, `objv`, `Tcl_SetObjResult`) behind the
 engine-neutral Tcl extension interface (`tcl-engine-api`), so it runs on
 whichever engine the host picked. It is the native host of the authored,
-API-compatible `tcl.h` that is the C hosting contract, beside the WASM
-host, so one extension source compiles for both; the shim today compiles
-extensions against its own header, `tclshim.h`. Its `Tcl_Obj` values cross
-the interface as typed values, not text. Shimmed extensions are *trusted
-native code*: loaded only by host configuration, never by a spec pack.
+API-compatible `tcl.h` (`runtime/rust/include/tcl.h`) that is the C hosting
+contract, beside the WASM host, so one extension source compiles for both. Its
+`Tcl_Obj` values keep the layout that header declares, and cross the interface
+as typed values, not text. Shimmed extensions are *trusted native code*: loaded
+only by host configuration, never by a spec pack.
 
 See also: [The C Tcl extension shim](design/runtime/c-extension-shim.md),
 [C Tcl extension → WASM ABI § 7](design/runtime/c-extension-abi.md#7-header-scope).

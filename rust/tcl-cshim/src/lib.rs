@@ -26,7 +26,7 @@
 //! sits underneath:
 //!
 //! ```text
-//!   C extension  (compiled against include/tclshim.h)
+//!   C extension  (compiled against runtime/rust/include/tcl.h)
 //!  ---------------- this crate ----------------
 //!   ffi.rs   the exported Tcl_* symbols, panic-guarded
 //!   obj.rs   Tcl_Obj: refcounted, dual-rep, typed across the boundary
@@ -356,7 +356,7 @@ impl<E: Engine> Interp<E> {
     /// # Safety
     ///
     /// `init` must be a package entry point written against
-    /// `include/tclshim.h`: the shim contains Rust panics, not C undefined
+    /// `runtime/rust/include/tcl.h`: the shim contains Rust panics, not C undefined
     /// behaviour. Calling this is the act of trusting native code.
     pub unsafe fn load_static(&mut self, init: InitProc) -> Result<Loaded, LoadError> {
         // SAFETY: the caller vouches for `init`.

@@ -55,26 +55,27 @@ honour the documented rc=0 convention exactly, because extension source is
 written to it. We tag every C-API constructor `fresh_zero` to make the
 distinction impossible to miss.
 
-#### Open: single-decref of a fresh obj, and the macro / `TclFreeObj` path
+#### The reference-count macros and `TclFreeObj`
 
-Two related unresolved questions, both of which an extension can hit:
+The header (`runtime/rust/include/tcl.h`) defines `Tcl_IncrRefCount`,
+`Tcl_DecrRefCount` and `Tcl_IsShared` as macros over the `refCount` field, as
+Tcl's own header does, so an extension compiled against it calls no exported
+function for them:
 
-1. **`Tcl_DecrRefCount` on an rc-0 `fresh_zero` obj.** The shipped `tcl.h` macro
-   is `if ((objPtr)->refCount-- <= 1) TclFreeObj(objPtr);`, so a *single* decref
-   of a fresh (rc 0) object **frees it** — and the idiom
-   `o = Tcl_NewObj(); …; Tcl_DecrRefCount(o);` appears in real extension code.
-   The current Rust `Tcl_DecrRefCount` treats decref-at-rc-0 as a counted
-   double-free (the leak-guard) and refuses to free. Decide whether to (a) match
-   the macro (free at rc≤1, dropping the guard for this path) or (b) require the
-   `fresh_zero` "incr-before-decr" discipline and confirm it against the
-   unmodified extension source we intend to run.
-2. **`Tcl_DecrRefCount`/`Tcl_IncrRefCount` are macros**, so a C extension
-   compiled against `tcl.h` never calls our exported functions — it inlines the
-   refcount test and calls `TclFreeObj` directly. `TclFreeObj` is **not** in the
-   current export surface; settle how extension-side decrefs reach this
-   allocator's free path — export `TclFreeObj`, or ship the refcount ops as
-   real functions. Until it is settled, an extension's decrefs do not reach
-   this allocator at all.
+- `Tcl_IncrRefCount(o)` is `++o->refCount`.
+- `Tcl_DecrRefCount(o)` is `if (o->refCount-- <= 1) TclFreeObj(o);`. A *single*
+  decref of a fresh (rc 0) object therefore frees it, and
+  `o = Tcl_NewObj(); …; Tcl_DecrRefCount(o);` is as valid as it is in Tcl.
+- `TclFreeObj` is where an extension's decref reaches the host's allocator. The
+  runtime and the shim both export it; it frees an object whatever count the
+  macro left, so the runtime's `TclObj` and the shim's `Obj` both keep the
+  header's `Tcl_Obj` layout (`refCount`, `bytes`, `length`, `typePtr`, then the
+  internal representation) for the macros and for `objPtr->bytes`.
+
+The exported `Tcl_IncrRefCount` and `Tcl_DecrRefCount` functions are for a host
+that calls through the symbol, not for compiled extension code. The function
+`Tcl_DecrRefCount` keeps a leak guard the macro has no place for: at rc 0 it
+counts a double free and refuses to free again.
 
 ---
 
@@ -85,7 +86,7 @@ Two related unresolved questions, both of which an extension can hit:
 | Category | Meaning |
 |---|---|
 | `borrowed` | Caller keeps its reference; the function must not release it. It may retain temporarily for the call's duration but must release before returning. |
-| `consumed` | Caller transfers a reference to the function (the function will store or release it). The only consumer in the shipped surface is `Tcl_DecrRefCount`. |
+| `consumed` | Caller transfers a reference to the function (the function will store or release it). The only consumers in the shipped surface are `Tcl_DecrRefCount` and `TclFreeObj`. |
 | `borrowed→stored` | Borrowed for refcount purposes, but the function **retains its own reference** into a structure that outlives the call (interp result, list element, …). The caller's reference is unaffected; combined with `fresh_zero` this is how a freshly created object becomes owned solely by the structure. |
 | `n/a` | The function takes no `Tcl_Obj` handle (string/scalar/struct/opaque only). |
 
@@ -160,8 +161,9 @@ no per-call error channel, hence `no-error` for constructors.
 
 | Function | Obj args | Return | Errors | Notes |
 |---|---|---|---|---|
-| `Tcl_IncrRefCount` | `objPtr` `borrowed` | `void` | `no-error` | +1. Internal analogue: `tcl_obj_retain`. |
-| `Tcl_DecrRefCount` | `objPtr` `consumed` | `void` | `no-error` | −1; frees at 0. Internal analogue: `tcl_obj_release`. **Null-safe** per Tcl macro. |
+| `Tcl_IncrRefCount` | `objPtr` `borrowed` | `void` | `no-error` | +1. A macro over `refCount` in the header; this row is the exported function. Internal analogue: `tcl_obj_retain`. |
+| `Tcl_DecrRefCount` | `objPtr` `consumed` | `void` | `no-error` | −1; frees at 0. A macro in the header that frees through `TclFreeObj` at a count of one or less; this row is the exported function, which counts a decrement at rc 0 as a double free. Internal analogue: `tcl_obj_release`. **Null-safe** per Tcl macro. |
+| `TclFreeObj` | `objPtr` `consumed` | `void` | `no-error` | Frees an object whose count the header's `Tcl_DecrRefCount` macro has lowered to zero or below — a fresh object's single decrement included: the type's free proc, the string rep, the header. **Null-safe.** |
 
 ### Object accessors (arg `borrowed`; may shimmer)
 
