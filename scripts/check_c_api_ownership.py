@@ -76,6 +76,11 @@ CONTRACT_DOC = REPO_ROOT / "docs/design/runtime/c-api-ownership-contract.md"
 #: scaffolding, not part of what an extension compiles against.
 API_PREFIXES = ("Tcl_", "mp_")
 
+#: Real C API functions whose names carry neither prefix, because `tcl.h`
+#: spells them so: the reference-count macros an extension compiles in call
+#: `TclFreeObj`, so the runtime must export it and give it a row.
+API_UNPREFIXED = frozenset({"TclFreeObj"})
+
 #: `capi.rs` exports matching these are known-internal and never expected to
 #: carry a contract row. Listed explicitly (rather than just "doesn't start
 #: with API_PREFIXES") so a genuinely new non-`Tcl_`/`mp_` export still shows
@@ -131,6 +136,19 @@ def find_capi_exports(capi_rs: Path) -> list[str]:
             if m:
                 exports.append(m.group(1))
     return exports
+
+
+def classify_exports(exports: list[str]) -> tuple[list[str], list[str], list[str]]:
+    """Split `capi.rs`'s exports into `(real C API, unclassified, known-internal)`.
+
+    The real API is the prefixed names plus `API_UNPREFIXED`; an export that is
+    neither that nor in `KNOWN_INTERNAL_EXPORTS` is unclassified, so a human has
+    to say which it is.
+    """
+    api = [n for n in exports if n.startswith(API_PREFIXES) or n in API_UNPREFIXED]
+    internal = [n for n in exports if n in KNOWN_INTERNAL_EXPORTS]
+    unclassified = [n for n in exports if n not in api and n not in internal]
+    return api, unclassified, internal
 
 
 def find_doc_rows(contract_doc: Path) -> list[str]:
@@ -315,6 +333,17 @@ def _self_test_does_not_attach_no_mangle_across_real_code(tmp_dir: Path) -> None
     assert find_capi_exports(p) == [], find_capi_exports(p)
 
 
+def _self_test_classifies_a_prefixless_real_api_name_as_api(tmp_dir: Path) -> None:
+    """`TclFreeObj` is real API with no `Tcl_` prefix: it needs a contract row,
+    where an unknown name is left for a human to classify."""
+    api, unclassified, internal = classify_exports(
+        ["Tcl_NewObj", "TclFreeObj", "tcl_test_finalize", "Mystery"]
+    )
+    assert api == ["Tcl_NewObj", "TclFreeObj"], api
+    assert unclassified == ["Mystery"], unclassified
+    assert internal == ["tcl_test_finalize"], internal
+
+
 def _self_test_doc_rows_handle_a_combined_heading_cell(tmp_dir: Path) -> None:
     p = _write(
         tmp_dir,
@@ -411,6 +440,7 @@ _SELF_TESTS = (
     _self_test_finds_an_export_behind_an_intervening_attribute,
     _self_test_finds_an_export_behind_several_intervening_attributes,
     _self_test_does_not_attach_no_mangle_across_real_code,
+    _self_test_classifies_a_prefixless_real_api_name_as_api,
     _self_test_doc_rows_handle_a_combined_heading_cell,
     _self_test_doc_rows_ignore_tables_before_subsystems,
     _self_test_tcl_source_stays_unconfigured_when_trees_are_present,
@@ -478,13 +508,7 @@ def main() -> int:
     doc_rows = find_doc_rows(CONTRACT_DOC)
     doc_names = set(doc_rows)
 
-    api_exports = [n for n in exports if n.startswith(API_PREFIXES)]
-    unclassified = [
-        n
-        for n in exports
-        if not n.startswith(API_PREFIXES) and n not in KNOWN_INTERNAL_EXPORTS
-    ]
-    excluded = [n for n in exports if n in KNOWN_INTERNAL_EXPORTS]
+    api_exports, unclassified, excluded = classify_exports(exports)
 
     ok = True
 
@@ -492,7 +516,7 @@ def main() -> int:
         print(
             f"{len(exports)} #[no_mangle] export(s) in {CAPI_RS.relative_to(REPO_ROOT)}:"
         )
-        print(f"  {len(api_exports)} real C-API export(s) (Tcl_*/mp_*)")
+        print(f"  {len(api_exports)} real C-API export(s) (Tcl_*/mp_*, TclFreeObj)")
         print(
             f"  {len(excluded)} known-internal export(s) excluded: {sorted(excluded)}"
         )

@@ -16,26 +16,32 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Compiles the C test extension (`tests/c/pkga.c`) against the shim header.
+//! Compiles the C test code (`tests/c/`) against the authored header,
+//! `runtime/rust/include/tcl.h`, for the native host (`TCL_HOST_NATIVE`): the
+//! test extension `pkga.c` and `layout.c`, which reports the layout the header
+//! declares so the Rust side can hold its own to it.
 //!
-//! The object is bundled into the crate's rlib; the linker pulls it into a
-//! binary only when something references `Pkga_Init`, which only the crate's
-//! own integration tests do — so ordinary consumers carry nothing. Windows is
-//! skipped: the tests that need the extension are gated on the
-//! `cshim_c_tests` cfg this script sets, and the Rust-defined extension tests
-//! cover that platform.
+//! The objects are bundled into the crate's rlib; the linker pulls them into a
+//! binary only when something references `Pkga_Init` or the layout probes,
+//! which only the crate's own tests and `StaticExtensions::bundled` do — so
+//! ordinary consumers carry nothing. Windows is skipped: the tests that need
+//! the C code are gated on the `cshim_c_tests` cfg this script sets, and the
+//! Rust-defined extension tests cover that platform.
 
 fn main() {
     println!("cargo:rustc-check-cfg=cfg(cshim_c_tests)");
     println!("cargo:rerun-if-changed=tests/c/pkga.c");
-    println!("cargo:rerun-if-changed=include/tclshim.h");
+    println!("cargo:rerun-if-changed=tests/c/layout.c");
+    println!("cargo:rerun-if-changed=../../runtime/rust/include/tcl.h");
     let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
     if target_os == "windows" {
         return;
     }
     cc::Build::new()
         .file("tests/c/pkga.c")
-        .include("include")
+        .file("tests/c/layout.c")
+        .include("../../runtime/rust/include")
+        .define("TCL_HOST_NATIVE", None)
         .flag_if_supported("-std=c99")
         .warnings(true)
         .compile("tclshim_pkga");

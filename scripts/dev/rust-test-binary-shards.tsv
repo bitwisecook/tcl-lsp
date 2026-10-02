@@ -41,6 +41,7 @@
 2	tcl-compiler::value_transfer_witnesses	test	tcl-compiler	value_transfer_witnesses
 2	tcl-compiler::var_escape_cfg	test	tcl-compiler	var_escape_cfg
 2	tcl-engine-tclvm	lib	tcl-engine-tclvm	tcl_engine_tclvm
+2	tcl-engine-tclvm::doors	test	tcl-engine-tclvm	doors
 2	tcl-irules::resolve_args	test	tcl-irules	resolve_args
 2	tcl-lexer::differential_boundaries	test	tcl-lexer	differential_boundaries
 2	tcl-lexer::f5_lexical_conformance	test	tcl-lexer	f5_lexical_conformance
@@ -296,6 +297,7 @@
 5	tcl-compiler::wasm_codegen	test	tcl-compiler	wasm_codegen
 5	tcl-compiler::wasm_execute	test	tcl-compiler	wasm_execute
 5	tcl-compiler::wasm_real_link	test	tcl-compiler	wasm_real_link
+5	tcl-cshim::completion	test	tcl-cshim	completion
 5	tcl-cshim::factory	test	tcl-cshim	factory
 5	tcl-cshim::sandbox_isolation	test	tcl-cshim	sandbox_isolation
 5	tcl-dialect::model_version_set	test	tcl-dialect	model_version_set

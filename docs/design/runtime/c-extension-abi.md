@@ -6,11 +6,14 @@ compiled to WebAssembly and linked against the runtime and the compiled user
 code, with no per-extension shim.
 
 > **Implementation state.** This is a *design contract*, and the surface it
-> describes is not shipped: the repository contains no authored `tcl.h` /
-> `tclOO.h` / `tclTomMath.h`, and `runtime/rust/src/capi.rs` exports only a
-> small subset of the C-API. Derive the shape from this document — nothing in
-> the tree implements it. The per-function ownership and
-> error-path categories live in
+> describes is only partly shipped. The authored `tcl.h` is
+> `runtime/rust/include/tcl.h`: it declares the subset each of its two hosts
+> implements (§ 7), and there is no authored `tclOO.h` or `tclTomMath.h`.
+> `runtime/rust/src/capi.rs` exports the runtime's half of that subset — object
+> construction and reading, `TclFreeObj`, the interpreter result and command
+> registration — and the rest of the C API is not exported. Derive anything
+> else from this document. The per-function ownership and error-path
+> categories live in
 > [`c-api-ownership-contract.md`](c-api-ownership-contract.md).
 
 Companion docs: [`memory-management.md`](memory-management.md),
@@ -103,8 +106,9 @@ Tcl 9.0:
 - `tclTomMath.h` — the `mp_*` bignum API.
 
 These are the *only* shim. They are written once, by the runtime author, not
-per extension. None of the three exists yet: `runtime/rust/include/` holds one
-header, `tcl_regex_capi.h`, the C surface of the pure-Rust ARE engine's shim
+per extension. Only `tcl.h` exists (`runtime/rust/include/tcl.h`, § 7);
+`tclOO.h` and `tclTomMath.h` do not. `runtime/rust/include/` also holds
+`tcl_regex_capi.h`, the C surface of the pure-Rust ARE engine's shim
 ([`rust-regex-port.md`](rust-regex-port.md)), which is not part of this ABI.
 
 ### 4.2 `Tcl_Obj` layout
@@ -125,10 +129,16 @@ pub struct TclObj {
 }
 ```
 
-On `wasm32` that is `{ i32, ptr, i32, ptr, 8 bytes }`, 8-aligned. `internalRep`
-is C's 8-byte `Tcl_ObjInternalRep` union; the Rust side keeps it as a raw `u64`
-and reinterprets it for the `wide` / `double` variants, since core-API
-extensions never touch the others. `TclObjType` is the same shape as C's
+On `wasm32` that is `{ i32, ptr, i32, ptr, 8 bytes }`, 24 bytes, 8-aligned, and
+`obj.rs` asserts those offsets when it compiles. `internalRep` is C's 8-byte
+`Tcl_ObjInternalRep` union; the Rust side keeps it as a raw `u64` and
+reinterprets it for the `wide` / `double` variants, since core-API extensions
+never touch the others. `tcl.h` declares the same struct (its fields are the
+hosts' `ptrdiff_t`-sized `TclHost_Size` whatever `Tcl_Size` is) and defines
+`Tcl_IncrRefCount`, `Tcl_DecrRefCount` and `Tcl_IsShared` as Tcl's own macros
+over `refCount`, so a decrement that frees reaches the runtime through the
+exported `TclFreeObj` and an extension's decrement of a fresh object (count 0)
+frees it, as in Tcl. `TclObjType` is the same shape as C's
 registered type descriptor, with the four `free`/`dup`/`updateString`/
 `setFromAny` procs typed to match `tcl.h`, so an extension's own `Tcl_ObjType`
 slots in unchanged.
@@ -152,11 +162,11 @@ for a worked example and user-facing limits.
 
 ### 4.3 Calls: direct imports
 
-Each Tcl C API function is a runtime export with the C ABI (`#[no_mangle]
-extern "C"` in Rust). The extension imports it from the runtime's module
-namespace. No stubs table is consulted. `Tcl_InitStubs` is a nominal success
-check (returns the runtime's Tcl-API version string), since there is no table
-to negotiate.
+Each Tcl C API function — the header's macros apart — is a runtime export with
+the C ABI (`#[no_mangle] extern "C"` in Rust). The extension imports it from the runtime's module
+namespace. No stubs table is consulted. `Tcl_InitStubs` is a macro in the
+header that yields the Tcl-API version string the host presents, since there is
+no table to negotiate.
 
 ### 4.4 Allocation
 
@@ -244,8 +254,9 @@ are language-agnostic; they are independent of the runtime's implementation lang
 
 - **Compile with clang + a WASI sysroot (wasi-sdk)** — the project standard
   (what `runtime/rust/build.rs` uses for the libtommath tower). The authored
-  `tcl.h` `#include`s `<stdio.h>`/`<string.h>` like the real header, and
-  libc-using extensions compile against the wasi-sdk sysroot. `malloc`/`free`
+  `tcl.h` includes only `<stdarg.h>`, `<stddef.h>` and `<stdlib.h>`; an
+  extension includes the rest of libc it uses, and compiles against the
+  wasi-sdk sysroot. `malloc`/`free`
   used internally by an extension resolve to wasi-libc; for memory that crosses
   the boundary, the extension must use `Tcl_Alloc` (which is the runtime's
   allocator) — this is already the Tcl convention.
@@ -270,20 +281,51 @@ direct-ABI model there is no live stub table, so:
 
 ## 7. Header scope
 
-**One header, two hosts.** The authored `tcl.h` is *the* C hosting
-contract, and it has two hosts: the WASM leg this document specifies, and
-the native leg `rust/tcl-cshim` provides — `Interp<E: Engine>`, the engine
-interface's second consumer, trusted host code loaded only through
-`Interp::load_static`
-([c-extension-shim.md](c-extension-shim.md)). One extension source
-compiles for both, each host implements the subset it can, and a
-declaration a host does not implement is absent from that host's leg
-rather than present and failing. `rust/tcl-cshim/tests/pkga_e2e.rs`'s
-expectations, captured against Tcl 9.0.4's own `tcl.h`, are the shared
-conformance vectors. The shim today compiles extensions against its own
-`include/tclshim.h`; step 10 of
-[../compiler/registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
-§ *Build order* retargets it onto the authored header.
+**One header, two hosts.** The authored `tcl.h`
+(`runtime/rust/include/tcl.h`) is *the* C hosting contract, and it has two
+hosts: the WASM leg this document specifies, and the native leg
+`rust/tcl-cshim` provides — `Interp<E: Engine>`, the engine interface's second
+consumer, trusted host code loaded only through `Interp::load_static` or a
+host's `load` ([c-extension-shim.md](c-extension-shim.md)). One extension
+source compiles for both. Each host implements the subset it can, and the
+header declares for each host the functions it implements and nothing else:
+`TCL_HOST_WASM` the runtime's, `TCL_HOST_NATIVE` the shim's, so a call the
+compiling host does not implement is a compile error and never a call that
+fails at run time. The host is the compilation target (wasm32 is the WASM leg,
+anything else the native one) unless the build names one with
+`-DTCL_HOST_NATIVE` or `-DTCL_HOST_WASM`; naming both declares both, which
+checks a source against the header and names no host, since none implements the
+union. `rust/tcl-cshim/tests/pkga_e2e.rs`'s expectations, captured against
+Tcl 9.0.4's own `tcl.h`, are the shared conformance vectors.
+
+Both legs declare command registration (`Tcl_CreateObjCommand`,
+`Tcl_DeleteCommand`), `Tcl_NewStringObj` / `Tcl_NewWideIntObj` /
+`Tcl_NewBooleanObj` / `Tcl_NewDoubleObj`, `Tcl_GetString`,
+`Tcl_GetStringFromObj`, `Tcl_SetObjResult`, `Tcl_GetObjResult` and
+`TclFreeObj`, with the `Tcl_Obj` layout of § 4.2 and the reference-count macros
+over it. The WASM leg adds `Tcl_NewObj`; the native leg adds the scalar and list
+accessors, the error state, `Tcl_AppendResult` and its siblings, the package
+call and the two UTF-8 helpers the shim implements. A source built with
+`-DTCL_MAJOR_VERSION=8` sees `Tcl_Size` as `int`, as an 8.x source does, with
+inline wrappers for the functions that write a size through a pointer.
+
+`make check-c-extension-wasm` (`scripts/check_c_extension_wasm.py`, part of
+`xtask-check`) holds the header to its two hosts. Offline, it reads each leg's
+declarations out of the header and checks them against what the host exports, in
+both directions: the `#[no_mangle]` functions of `runtime/rust/src/capi.rs`
+against the WASM leg, and the `export_name` functions of
+`rust/tcl-cshim/src/ffi.rs` against the native leg; a header macro such as
+`Tcl_DecrRefCount` stands for an export without being declared. With wasi-sdk's
+`clang` it compiles for `wasm32-wasip1`: `tests/c/layout.c`, whose static
+assertions are the 24-byte `Tcl_Obj` layout; the shim's test extension
+`tests/c/pkga.c` against both legs at once and as an 8.x source; and the leg a
+compile with no host named gets, on a wasm32 target and on one that is not. Two
+of those compiles are negatives and must be refused: `pkga.c` against the WASM
+leg alone, which calls functions only the shim implements, and each default
+leg's call to a function only the other declares. Without wasi-sdk the compiles
+are skipped, unless `TCL_REQUIRE_WASM_LINK` is set, as it is in the CI job that
+installs the toolchain. `pkga.c` is not linked with the runtime: the WASM leg
+declares what the runtime exports, which is less than `pkga.c` calls.
 
 Source of truth for "what the API surface must cover": the 25-extension survey.
 **~85–90% of real extensions are public-`tcl.h`-only.**

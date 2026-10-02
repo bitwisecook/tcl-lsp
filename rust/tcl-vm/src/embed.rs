@@ -30,6 +30,13 @@
 //! - **Register a stateful command.** [`Vm::register_native_command`] takes an
 //!   `Rc<dyn NativeCommand>`, so an embedder's command can carry state (the
 //!   emitter verbs of a `SpecTcl` hook family collect what the body emitted).
+//! - **Say what a host command provides.** [`Vm::package_provide`] does what
+//!   `package provide` does, and [`Vm::library_loaded`] records a library `info
+//!   loaded` lists, for a host command that loads native code.
+//! - **Reach the variables.** [`Vm::read_variable`], [`Vm::write_variable`] and
+//!   [`Vm::unset_variable`] do what `set` and `unset` do in the current frame,
+//!   element names and traces included; [`Vm::get_var`], [`Vm::set_var`] and
+//!   [`Vm::unset_var`] are the scalar-only forms beneath them.
 //! - **Restrict the command table.** [`Vm::retain_commands`] reduces a fresh VM
 //!   to a closed whitelist, which is how a sandbox is built out of a normal
 //!   interpreter rather than a second one.
@@ -250,6 +257,59 @@ impl Vm {
     /// redefinition does.
     pub fn register_native_command(&mut self, name: &str, command: Rc<dyn NativeCommand>) {
         self.register_written_command(name, Command::Native(command));
+    }
+
+    /// Provide a package from the host, as `package provide name version` does.
+    ///
+    /// The version is validated for the release the VM emulates, a package
+    /// already provided at a different version is refused with the error `package
+    /// provide` gives (`conflicting versions provided for package "p": 1.0, then
+    /// 2.0`, `TCL PACKAGE VERSIONCONFLICT`), and the same version again is a
+    /// no-op. A later `package require` is satisfied from what was provided here.
+    pub fn package_provide(&mut self, name: &str, version: &str) -> Result<(), TclError> {
+        let completion =
+            crate::cmd_package::pkg_provide(self, &[Value::string(name), Value::string(version)]);
+        if completion.code.is_ok() {
+            return Ok(());
+        }
+        let mut error = TclError::new(completion.result.to_str().to_string());
+        error.error_code = crate::command::opt_get(&completion.options, "-errorcode")
+            .map(|code| code.to_str().to_string());
+        Err(error)
+    }
+
+    /// Record that the library `prefix` has been loaded into the interpreter,
+    /// from `file_name` (empty for one linked into the program), so `info loaded`
+    /// lists it. A prefix is listed once, under the file it was first loaded from.
+    pub fn library_loaded(&mut self, file_name: &str, prefix: &str) {
+        self.note_library_loaded(file_name, prefix);
+    }
+
+    /// Read the variable `name` as `set name` does in the current frame: a
+    /// scalar, or an array element spelt `a(k)`, with its read traces fired. A
+    /// variable that is not there is the error `set` raises
+    /// (`can't read "x": no such variable`).
+    pub fn read_variable(&mut self, name: &str) -> Result<Value, Completion<Value>> {
+        match self.read_var_traced(name)? {
+            Some(value) => Ok(value),
+            None => Err(crate::interp::err(self.read_miss_msg(name))),
+        }
+    }
+
+    /// Set the variable `name` as `set name value` does in the current frame: a
+    /// scalar, or an array element spelt `a(k)`, with its write traces fired. A
+    /// store `set` refuses (an array, a constant, a confined store) is the error
+    /// `set` raises.
+    pub fn write_variable(&mut self, name: &str, value: Value) -> Result<(), Completion<Value>> {
+        self.store_var_result(name, value).map(|_| ())
+    }
+
+    /// Unset the variable `name` as `unset name` does in the current frame: a
+    /// scalar, an array element spelt `a(k)` or a whole array, with its unset
+    /// traces fired. One that is not there is the error `unset` raises
+    /// (`can't unset "x": no such variable`).
+    pub fn unset_variable(&mut self, name: &str) -> Result<(), Completion<Value>> {
+        self.unset_one(name, true)
     }
 
     /// Every command name currently registered, sorted.

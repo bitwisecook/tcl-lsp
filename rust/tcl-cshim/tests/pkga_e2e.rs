@@ -17,8 +17,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The real C extension (`tests/c/pkga.c`, compiled by `build.rs` against
-//! `include/tclshim.h`) loaded into a `tcl-vm`-backed shim interpreter and
-//! driven from Tcl.
+//! `runtime/rust/include/tcl.h`) loaded into a `tcl-vm`-backed shim interpreter
+//! and driven from Tcl.
 //!
 //! Every expected string below was captured by building the same `pkga.c`
 //! against Tcl 9.0.4's own `tcl.h`, loading it into `tclsh9.0`, and

@@ -31,7 +31,8 @@
 //! | [`Engine::compile`] | [`Vm::define_procedure`] — one compile, then bytecode |
 //! | [`Engine::invoke`] | [`Vm::invoke_command`] — the public call path |
 //! | [`Engine::define_command`] | [`Vm::register_native_command`] — stateful host commands |
-//! | [`CommandRegistrar`] during an invocation | the `&mut Vm` the native-command seam hands over |
+//! | [`CommandRegistrar`] during an invocation | the `&mut Vm` the native-command seam hands over: [`Vm::register_native_command`], [`Vm::remove_command`], [`Vm::package_provide`], [`Vm::library_loaded`], [`Vm::get_var`], [`Vm::set_var`], [`Vm::unset_var`] and [`Vm::eval_source`], all in the calling frame |
+//! | a [`HostCommand`]'s [`CompletionCode`] | the [`Code`] of the [`Completion`] the native command answers |
 //! | [`Engine::restrict_commands`] | [`Vm::retain_commands`] — a closed whitelist |
 //! | [`Budget::commands`] | [`Vm::set_command_limit`] — enforced, not merely stored |
 //! | [`Budget::wall_clock`] | [`Vm::set_wall_clock_budget`] |
@@ -61,7 +62,8 @@ use std::rc::Rc;
 
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_engine_api::{
-    Budget, BudgetKind, CommandRegistrar, CompileUnit, Engine, EngineError, HostCommand, Value,
+    Budget, BudgetKind, CommandRegistrar, CompileUnit, CompletionCode, Engine, EngineError,
+    HostCommand, HostOutcome, Value,
 };
 use tcl_registry::CommandRegistry;
 use tcl_vm::{Code, Completion, NativeCommand, Vm};
@@ -113,6 +115,128 @@ impl CommandRegistrar for VmRegistrar<'_> {
     fn remove_command(&mut self, name: &str) -> Result<bool, EngineError> {
         Ok(remove_host_command(self.vm, &self.host_commands, name))
     }
+
+    fn provide_package(&mut self, name: &str, version: &str) -> Result<(), EngineError> {
+        provide_package(self.vm, name, version)
+    }
+
+    fn library_loaded(&mut self, file_name: &str, prefix: &str) -> Result<(), EngineError> {
+        self.vm.library_loaded(file_name, prefix);
+        Ok(())
+    }
+
+    fn variable(&mut self, name: &str) -> Result<Value, EngineError> {
+        read_variable(self.vm, name)
+    }
+
+    fn set_variable(&mut self, name: &str, value: Value) -> Result<(), EngineError> {
+        set_variable(self.vm, name, &value)
+    }
+
+    fn unset_variable(&mut self, name: &str) -> Result<(), EngineError> {
+        unset_variable(self.vm, name)
+    }
+
+    fn eval_in_invocation(&mut self, script: &str) -> Result<HostOutcome, EngineError> {
+        evaluate(self.vm, script)
+    }
+}
+
+fn provide_package(vm: &mut Vm, name: &str, version: &str) -> Result<(), EngineError> {
+    vm.package_provide(name, version)
+        .map_err(|error| EngineError::Script {
+            message: error.message,
+            code: error.error_code,
+        })
+}
+
+fn read_variable(vm: &mut Vm, name: &str) -> Result<Value, EngineError> {
+    vm.read_variable(name)
+        .map(|value| from_vm_value(&value))
+        .map_err(|completion| script_error(&completion))
+}
+
+fn set_variable(vm: &mut Vm, name: &str, value: &Value) -> Result<(), EngineError> {
+    vm.write_variable(name, to_vm_value(value))
+        .map_err(|completion| script_error(&completion))
+}
+
+fn unset_variable(vm: &mut Vm, name: &str) -> Result<(), EngineError> {
+    vm.unset_variable(name)
+        .map_err(|completion| script_error(&completion))
+}
+
+/// Evaluate `script` in the VM's current frame and report how it completed: a
+/// normal completion, `return`, `break` and `continue` as the code they are, and
+/// an error as the error, a budget one as the budget it outran.
+fn evaluate(vm: &mut Vm, script: &str) -> Result<HostOutcome, EngineError> {
+    let completion = match vm.eval_source(script) {
+        Ok(completion) => completion,
+        Err(error) => {
+            return Err(EngineError::Script {
+                message: error.message,
+                code: error.error_code,
+            });
+        }
+    };
+    let code = match completion.code {
+        Code::Ok => CompletionCode::Ok,
+        Code::Return => CompletionCode::Return,
+        Code::Break => CompletionCode::Break,
+        Code::Continue => CompletionCode::Continue,
+        Code::Error => return Err(script_error(&completion)),
+        Code::Other(other) => CompletionCode::Other(other),
+    };
+    Ok(HostOutcome::completing(
+        code,
+        from_vm_value(&completion.result),
+    ))
+}
+
+/// The error a failed completion is, with the `-errorcode` its options carry and
+/// a budget the VM reported as the budget it outran.
+fn script_error(completion: &Completion<tcl_vm::Value>) -> EngineError {
+    let message = completion.result.to_str().to_string();
+    if let Some(kind) = budget_kind(&message) {
+        return EngineError::BudgetExceeded(kind);
+    }
+    let code = error_code_of(&completion.options);
+    EngineError::Script { message, code }
+}
+
+/// The `-errorcode` in a completion's options dict, as list text.
+fn error_code_of(options: &tcl_vm::Value) -> Option<String> {
+    let items = options.as_list().ok()?;
+    items
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .find(|pair| &*pair[0].to_str() == "-errorcode")
+        .map(|pair| pair[1].to_str().to_string())
+}
+
+/// Which budget a VM error message says the body outran, if it says one.
+fn budget_kind(message: &str) -> Option<BudgetKind> {
+    match message {
+        "command count limit exceeded" => Some(BudgetKind::Commands),
+        "time limit exceeded" => Some(BudgetKind::WallClock),
+        "value size limit exceeded" => Some(BudgetKind::ValueSize),
+        _ => None,
+    }
+}
+
+/// The message the VM reports when a body outruns `kind` of budget.
+fn budget_message(kind: BudgetKind) -> &'static str {
+    match kind {
+        BudgetKind::Commands => "command count limit exceeded",
+        BudgetKind::WallClock => "time limit exceeded",
+        BudgetKind::ValueSize => "value size limit exceeded",
+    }
+}
+
+/// The VM's code for a host command's [`CompletionCode`].
+fn to_vm_code(code: CompletionCode) -> Code {
+    Code::from_int(code.as_int())
 }
 
 fn define_host_command(
@@ -166,9 +290,9 @@ impl NativeCommand for HostCommandShim {
             .command
             .invoke_with_registrar(&mut registrar, &arguments)
         {
-            Ok(result) => Completion::new(
-                Code::Ok,
-                to_vm_value(&result),
+            Ok(outcome) => Completion::new(
+                to_vm_code(outcome.code),
+                to_vm_value(&outcome.value),
                 tcl_vm::Value::string(String::new()),
             ),
             // A script error crosses as the Tcl error it is: the message
@@ -187,6 +311,13 @@ impl NativeCommand for HostCommandShim {
                 });
                 Completion::new(Code::Error, tcl_vm::Value::string(message), options)
             }
+            // A budget the host command's own evaluation outran stays the VM's
+            // message, so the invocation that called it reports the budget.
+            Err(EngineError::BudgetExceeded(kind)) => Completion::new(
+                Code::Error,
+                tcl_vm::Value::string(budget_message(kind)),
+                tcl_vm::Value::string(String::new()),
+            ),
             Err(error) => Completion::new(
                 Code::Error,
                 tcl_vm::Value::string(error.to_string()),
@@ -329,15 +460,11 @@ impl TclVmEngine {
             return Ok(from_vm_value(&completion.result));
         }
         let message = completion.result.to_str().to_string();
-        match message.as_str() {
-            "command count limit exceeded" => {
-                Err(EngineError::BudgetExceeded(BudgetKind::Commands))
-            }
-            "time limit exceeded" => Err(EngineError::BudgetExceeded(BudgetKind::WallClock)),
-            "value size limit exceeded" => Err(EngineError::BudgetExceeded(BudgetKind::ValueSize)),
-            _ => Err(EngineError::Script {
+        match budget_kind(&message) {
+            Some(kind) => Err(EngineError::BudgetExceeded(kind)),
+            None => Err(EngineError::Script {
                 message,
-                code: None,
+                code: error_code_of(&completion.options),
             }),
         }
     }
@@ -367,6 +494,35 @@ impl Engine for TclVmEngine {
 
     fn remove_command(&mut self, name: &str) -> Result<bool, EngineError> {
         Ok(remove_host_command(&mut self.vm, &self.host_commands, name))
+    }
+
+    fn provide_package(&mut self, name: &str, version: &str) -> Result<(), EngineError> {
+        provide_package(&mut self.vm, name, version)
+    }
+
+    fn library_loaded(&mut self, file_name: &str, prefix: &str) -> Result<(), EngineError> {
+        self.vm.library_loaded(file_name, prefix);
+        Ok(())
+    }
+
+    fn variable(&mut self, name: &str) -> Result<Value, EngineError> {
+        let _grammar = self.claim_grammar();
+        read_variable(&mut self.vm, name)
+    }
+
+    fn set_variable(&mut self, name: &str, value: Value) -> Result<(), EngineError> {
+        let _grammar = self.claim_grammar();
+        set_variable(&mut self.vm, name, &value)
+    }
+
+    fn unset_variable(&mut self, name: &str) -> Result<(), EngineError> {
+        let _grammar = self.claim_grammar();
+        unset_variable(&mut self.vm, name)
+    }
+
+    fn eval_in_invocation(&mut self, script: &str) -> Result<HostOutcome, EngineError> {
+        let _grammar = self.claim_grammar();
+        evaluate(&mut self.vm, script)
     }
 
     /// Keep only the `allowed` commands, the host's and the compiled units'.
@@ -496,7 +652,8 @@ mod tests {
 
     use super::{Engine, TclVmEngine, register_host_command};
     use tcl_engine_api::{
-        Budget, BudgetKind, CommandRegistrar, CompileUnit, EngineError, HostCommand, Value,
+        Budget, BudgetKind, CommandRegistrar, CompileUnit, EngineError, HostCommand, HostOutcome,
+        Value,
     };
 
     struct Collector {
@@ -504,14 +661,14 @@ mod tests {
     }
 
     impl HostCommand for Collector {
-        fn invoke(&self, arguments: &[Value]) -> Result<Value, EngineError> {
+        fn invoke(&self, arguments: &[Value]) -> Result<HostOutcome, EngineError> {
             self.emitted.borrow_mut().push(
                 arguments
                     .iter()
                     .map(|argument| argument.as_str().unwrap_or_default().to_owned())
                     .collect(),
             );
-            Ok(Value::Empty)
+            Ok(Value::Empty.into())
         }
     }
 
@@ -605,7 +762,7 @@ mod tests {
     struct Factory(std::rc::Rc<Collector>);
 
     impl HostCommand for Factory {
-        fn invoke(&self, _arguments: &[Value]) -> Result<Value, EngineError> {
+        fn invoke(&self, _arguments: &[Value]) -> Result<HostOutcome, EngineError> {
             Err(EngineError::Unsupported("a factory needs the door"))
         }
 
@@ -613,9 +770,9 @@ mod tests {
             &self,
             registrar: &mut dyn CommandRegistrar,
             _arguments: &[Value],
-        ) -> Result<Value, EngineError> {
+        ) -> Result<HostOutcome, EngineError> {
             registrar.define_command("made", self.0.clone())?;
-            Ok(Value::string("built"))
+            Ok(Value::string("built").into())
         }
     }
 

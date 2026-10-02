@@ -16,7 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The exported C entry points: every function `include/tclshim.h` declares.
+//! The exported C entry points: every function `runtime/rust/include/tcl.h`
+//! declares for the native host (`TCL_HOST_NATIVE`).
 //!
 //! Each is a thin, panic-safe adapter from the C calling convention onto
 //! [`Obj`] and [`InterpState`]. The Rust names are ordinary snake case; the
@@ -285,42 +286,21 @@ pub unsafe extern "C" fn tcl_new_list_obj(word_count: isize, words: *const *mut 
     })
 }
 
-/// `Tcl_IncrRefCount`.
+/// `TclFreeObj`: free an object whose count the header's `Tcl_DecrRefCount`
+/// macro has lowered to zero. `Tcl_IncrRefCount`, `Tcl_DecrRefCount` and
+/// `Tcl_IsShared` are macros over the `refCount` field, as in Tcl's own header,
+/// and export nothing.
 ///
 /// # Safety
 ///
-/// `raw` must be a live object.
-#[unsafe(export_name = "Tcl_IncrRefCount")]
-pub unsafe extern "C" fn tcl_incr_ref_count(raw: *mut Obj) {
+/// `raw` must be a live object that no reference holds, and must not be used
+/// afterwards.
+#[unsafe(export_name = "TclFreeObj")]
+pub unsafe extern "C" fn tcl_free_obj(raw: *mut Obj) {
     guarded((), || {
         // SAFETY: as documented on the function.
-        unsafe { Obj::incr_ref_count(raw) };
+        unsafe { Obj::free(raw) };
     });
-}
-
-/// `Tcl_DecrRefCount`: releases a reference and frees the object at zero.
-///
-/// # Safety
-///
-/// `raw` must be a live object, and must not be used afterwards if this was
-/// its last reference.
-#[unsafe(export_name = "Tcl_DecrRefCount")]
-pub unsafe extern "C" fn tcl_decr_ref_count(raw: *mut Obj) {
-    guarded((), || {
-        // SAFETY: as documented on the function.
-        unsafe { Obj::decr_ref_count(raw) };
-    });
-}
-
-/// `Tcl_IsShared`.
-///
-/// # Safety
-///
-/// `raw` must be a live object.
-#[unsafe(export_name = "Tcl_IsShared")]
-pub unsafe extern "C" fn tcl_is_shared(raw: *mut Obj) -> c_int {
-    // SAFETY: as documented on the function.
-    guarded(0, || c_int::from(unsafe { obj(raw) }.is_shared()))
 }
 
 /// `Tcl_DuplicateObj`: a fresh copy with a reference count of zero.

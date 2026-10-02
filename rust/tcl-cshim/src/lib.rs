@@ -26,7 +26,7 @@
 //! sits underneath:
 //!
 //! ```text
-//!   C extension  (compiled against include/tclshim.h)
+//!   C extension  (compiled against runtime/rust/include/tcl.h)
 //!  ---------------- this crate ----------------
 //!   ffi.rs   the exported Tcl_* symbols, panic-guarded
 //!   obj.rs   Tcl_Obj: refcounted, dual-rep, typed across the boundary
@@ -59,7 +59,10 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::rc::Rc;
 
 use tcl_dialect::model::Provenance;
-use tcl_engine_api::{CommandRegistrar, CompileUnit, Engine, EngineError, HostCommand, Value};
+use tcl_engine_api::{
+    CommandRegistrar, CompileUnit, CompletionCode, Engine, EngineError, HostCommand, HostOutcome,
+    Value,
+};
 use tcl_registry::model::DeclaredCommand;
 
 pub use load::StaticExtensions;
@@ -184,13 +187,13 @@ impl HostCommand for ShimCommand {
         &self,
         registrar: &mut dyn CommandRegistrar,
         arguments: &[Value],
-    ) -> Result<Value, EngineError> {
+    ) -> Result<HostOutcome, EngineError> {
         let answer = self.invoke(arguments);
         Self::publish(&self.state, registrar)?;
         answer
     }
 
-    fn invoke(&self, arguments: &[Value]) -> Result<Value, EngineError> {
+    fn invoke(&self, arguments: &[Value]) -> Result<HostOutcome, EngineError> {
         let Some(entry) = self.state.command(&self.name) else {
             return Err(self.lookup_error());
         };
@@ -227,26 +230,15 @@ impl HostCommand for ShimCommand {
         drop(objv);
 
         let result = self.state.result();
-        match code {
-            ffi::TCL_OK | ffi::TCL_RETURN => Ok(result.get().to_value()),
-            ffi::TCL_ERROR => Err(EngineError::Script {
+        // Every code but `TCL_ERROR` crosses as the code it is, and the engine
+        // does with each what Tcl does: the calling procedure returns, the
+        // enclosing loop ends or goes on, a code of the command's own reaches
+        // the `catch` that reports it.
+        match CompletionCode::from_int(code) {
+            Some(code) => Ok(HostOutcome::completing(code, result.get().to_value())),
+            None => Err(EngineError::Script {
                 message: result.get().text(),
                 code: self.state.error_code_text(),
-            }),
-            // The interface carries results and errors, not Tcl's loop
-            // completion codes; a C command answering with one is reported as
-            // Tcl itself reports it at a non-loop level.
-            ffi::TCL_BREAK => Err(EngineError::Script {
-                message: "invoked \"break\" outside of a loop".to_owned(),
-                code: None,
-            }),
-            ffi::TCL_CONTINUE => Err(EngineError::Script {
-                message: "invoked \"continue\" outside of a loop".to_owned(),
-                code: None,
-            }),
-            other => Err(EngineError::Script {
-                message: format!("command returned bad code: {other}"),
-                code: None,
             }),
         }
     }
@@ -356,7 +348,7 @@ impl<E: Engine> Interp<E> {
     /// # Safety
     ///
     /// `init` must be a package entry point written against
-    /// `include/tclshim.h`: the shim contains Rust panics, not C undefined
+    /// `runtime/rust/include/tcl.h`: the shim contains Rust panics, not C undefined
     /// behaviour. Calling this is the act of trusting native code.
     pub unsafe fn load_static(&mut self, init: InitProc) -> Result<Loaded, LoadError> {
         // SAFETY: the caller vouches for `init`.
@@ -442,7 +434,9 @@ mod tests {
     use std::rc::Rc;
 
     use tcl_dialect::model::Provenance;
-    use tcl_engine_api::{Budget, Engine, EngineError, HostCommand, Value};
+    use tcl_engine_api::{
+        Budget, CompletionCode, Engine, EngineError, HostCommand, HostOutcome, Value,
+    };
 
     use super::{
         CommandChange, EngineDoor, InitProc, Interp, InterpState, LoadError, Loaded, Obj,
@@ -490,6 +484,28 @@ mod tests {
         ffi::TCL_OK
     }
 
+    /// `completes code` — answers "done" and returns the integer `code`, as a C
+    /// command returns the completion code it means.
+    unsafe extern "C" fn completes(
+        _client_data: *mut c_void,
+        interp: *mut InterpState,
+        word_count: c_int,
+        words: *const *mut Obj,
+    ) -> c_int {
+        // SAFETY: as in `echo`.
+        unsafe {
+            let mut code: c_int = 0;
+            if word_count != 2
+                || ffi::tcl_get_int_from_obj(interp, *words.add(1), &raw mut code) != ffi::TCL_OK
+            {
+                ffi::tcl_wrong_num_args(interp, 1, words, c"code".as_ptr());
+                return ffi::TCL_ERROR;
+            }
+            ffi::tcl_set_obj_result(interp, ffi::tcl_new_string_obj(c"done".as_ptr(), 4));
+            code
+        }
+    }
+
     unsafe extern "C" fn panicking(
         _client_data: *mut c_void,
         _interp: *mut InterpState,
@@ -516,6 +532,13 @@ mod tests {
                 interp,
                 c"boom".as_ptr(),
                 panicking,
+                std::ptr::null_mut(),
+                None,
+            );
+            ffi::tcl_create_obj_command(
+                interp,
+                c"completes".as_ptr(),
+                completes,
                 std::ptr::null_mut(),
                 None,
             );
@@ -588,7 +611,7 @@ mod tests {
         let mut interp = Interp::new(RecordingEngine::default());
         // SAFETY: `init` is written against the shim's own exports.
         let loaded = unsafe { interp.load_static(init) }.expect("loads");
-        assert_eq!(loaded.commands, ["boom", "echo", "twice"]);
+        assert_eq!(loaded.commands, ["boom", "completes", "echo", "twice"]);
         assert_eq!(loaded.packages, [("demo".to_owned(), "1.0".to_owned())]);
         interp
     }
@@ -610,7 +633,7 @@ mod tests {
         let answer = echo
             .invoke(&[Value::string("a b"), Value::Int(3)])
             .expect("ok");
-        let items = answer.as_list().expect("a typed list, not text");
+        let items = answer.value.as_list().expect("a typed list, not text");
         assert_eq!(items[0].as_str(), Some("a b"));
         assert!(
             matches!(items[1], Value::Int(3)),
@@ -618,14 +641,48 @@ mod tests {
         );
 
         let twice = command(&interp, "twice");
-        assert!(matches!(
-            twice.invoke(&[Value::Int(21)]),
-            Ok(Value::Int(42))
-        ));
-        assert!(matches!(
-            twice.invoke(&[Value::string("0x10")]),
-            Ok(Value::Int(32))
-        ));
+        let doubled = twice.invoke(&[Value::Int(21)]).expect("ok");
+        assert!(matches!(doubled.value, Value::Int(42)));
+        assert_eq!(doubled.code, CompletionCode::Ok);
+        let parsed = twice.invoke(&[Value::string("0x10")]).expect("ok");
+        assert!(matches!(parsed.value, Value::Int(32)));
+    }
+
+    #[test]
+    fn a_c_command_returning_break_is_a_break_completion() {
+        let interp = loaded();
+        let completes = command(&interp, "completes");
+        for (code, expected) in [
+            (0, CompletionCode::Ok),
+            (ffi::TCL_RETURN, CompletionCode::Return),
+            (ffi::TCL_BREAK, CompletionCode::Break),
+            (ffi::TCL_CONTINUE, CompletionCode::Continue),
+        ] {
+            let outcome = completes
+                .invoke(&[Value::Int(i64::from(code))])
+                .expect("ok");
+            assert_eq!(outcome.code, expected, "TCL code {code}");
+            assert_eq!(
+                outcome.value.as_str(),
+                Some("done"),
+                "the result is carried with the code"
+            );
+        }
+        assert_eq!(
+            completes
+                .invoke(&[Value::Int(i64::from(ffi::TCL_ERROR))])
+                .expect_err("an error"),
+            EngineError::Script {
+                message: "done".to_owned(),
+                code: None,
+            },
+            "an error is an error, its message the result"
+        );
+        let own = completes
+            .invoke(&[Value::Int(9)])
+            .expect("a code of its own");
+        assert_eq!(own.code, CompletionCode::Other(9));
+        assert_eq!(own.value.as_str(), Some("done"));
     }
 
     #[test]
@@ -657,7 +714,13 @@ mod tests {
         let error = boom.invoke(&[]).expect_err("crashes");
         assert!(matches!(&error, EngineError::Crashed(text) if text.contains("NULL Tcl_Obj")));
         assert!(
-            matches!(command(&interp, "echo").invoke(&[]), Ok(Value::List(_))),
+            matches!(
+                command(&interp, "echo").invoke(&[]),
+                Ok(HostOutcome {
+                    value: Value::List(_),
+                    ..
+                })
+            ),
             "the interpreter is still usable"
         );
     }
@@ -671,7 +734,7 @@ mod tests {
         let loaded = unsafe { interp.load_static(init) }.expect("loads");
         let declared = loaded.declared_surface();
         let names: Vec<&str> = declared.iter().map(|c| c.name.as_str()).collect();
-        assert_eq!(names, ["boom", "echo", "twice"]);
+        assert_eq!(names, ["boom", "completes", "echo", "twice"]);
         let default = CommandSpec::extension_default("");
         for command in &declared {
             assert_eq!(command.traits, default.traits, "{}", command.name);
@@ -714,12 +777,12 @@ mod tests {
             &[Value::string(""), Value::string("Demo")],
         )
         .expect("loads");
-        assert_eq!(interp.commands(), ["boom", "echo", "twice"]);
+        assert_eq!(interp.commands(), ["boom", "completes", "echo", "twice"]);
         assert_eq!(
             interp.provided_packages(),
             [("demo".to_owned(), "1.0".to_owned())]
         );
-        for name in ["boom", "echo", "twice"] {
+        for name in ["boom", "completes", "echo", "twice"] {
             command(&interp, name);
         }
     }

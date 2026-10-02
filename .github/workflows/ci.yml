@@ -1823,6 +1823,10 @@ jobs:
   # script degrades *silently* to a bignum-less runtime without it, and the
   # link then fails with a missing-output diff that reads like a codegen
   # regression rather than a missing dependency.
+  #
+  # The authored C header's wasm32 compiles (`make check-c-extension-wasm`) run
+  # here too, because this is the only job with wasi-sdk; `rust-check` runs the
+  # half of that gate that needs no compiler.
   wasm-real-link:
     # Deliberately hosted -- see `rust-tests-heavy`.
     needs: [channel]
@@ -1884,6 +1888,15 @@ jobs:
           set -euo pipefail
           .claude/skills/fetch-tcl-source/fetch_tcl_source.sh 9.0
           test -f tmp/tcl9.0.4/libtommath/tommath.h
+
+      # `runtime/rust/include/tcl.h` held to both of its hosts: the wasm32
+      # compiles need wasi-sdk, so with the toolchain required a missing
+      # compiler is a failure here and not the skip `rust-check` makes of it.
+      - name: make check-c-extension-wasm (toolchain required)
+        if: needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
+        env:
+          TCL_REQUIRE_WASM_LINK: '1'
+        run: make check-c-extension-wasm
 
       # Same skip/downgrade contract as rust-tests — see the channel job header.
       # No `--no-run` downgrade: the point of this job is that the link really

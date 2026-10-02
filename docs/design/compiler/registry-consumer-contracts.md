@@ -497,18 +497,18 @@ catalogue fields.
 ### Ruling — one C header, two hosts
 
 **Ruling.** The authored, API-compatible `tcl.h` of
-[../runtime/c-extension-abi.md](../runtime/c-extension-abi.md) is *the* C
-hosting contract, and `rust/tcl-cshim` stays as its native host: the shim
-keeps its role — `Interp<E: Engine>`, the engine interface's second
-consumer, trusted host code loaded only through `Interp::load_static` —
-and is retargeted from `include/tclshim.h` onto the authored header, so
-one extension source compiles for both legs. `tclshim.h`'s opaque
-`Tcl_Obj` is withdrawn in favour of the ABI's declared layout (§ 4.2), and
-the shim's 34 exported symbols become a documented subset of the authored
-header with every unimplemented declaration absent rather than opaque. The
-standing rules are unchanged by this: extensions are recompiled, never
-binary-loaded; no pack word loads native code; a shimmed command is not a
-`-native` hook.
+[../runtime/c-extension-abi.md](../runtime/c-extension-abi.md)
+(`runtime/rust/include/tcl.h`) is *the* C hosting contract, and
+`rust/tcl-cshim` stays as its native host: the shim keeps its role —
+`Interp<E: Engine>`, the engine interface's second consumer, trusted host
+code loaded only through `Interp::load_static` or a host's `load` — and
+compiles against the authored header, so one extension source compiles for
+both legs. The shim has no header of its own: `Tcl_Obj` has the ABI's
+declared layout (§ 4.2) and is never opaque, and the shim's 32 exported
+symbols are the subset of the authored header its native leg declares, with
+every unimplemented declaration absent. The standing rules are unchanged by
+this: extensions are recompiled, never binary-loaded; no pack word loads
+native code; a shimmed command is not a `-native` hook.
 
 **Rationale, from the two documents and the exports.** Coverage decides
 it. The shim's header is honest by rule and therefore small — an extension
@@ -517,7 +517,7 @@ not compile against it — while the ABI is held to a measured corpus of
 nine `dltest` extensions from the Tcl 9.0.4 source tree plus two synthetic
 probes, and its one relocation surprise is bounded: four GOT entries for
 the stubs-introspecting `pkgooa` member, and zero for every other one. The
-exports agree: `runtime/rust/src/capi.rs` has 17 `#[no_mangle] extern "C"`
+exports agree: `runtime/rust/src/capi.rs` has 20 `#[no_mangle] extern "C"`
 functions in the ABI's § 4.3 direct-import style, sized on Tcl 9's
 `ptrdiff_t` through `TclSize`, with its own module note recording that the
 obj-lifecycle and result/eval-core slice is exported and the remainder of
@@ -532,17 +532,17 @@ closing note endorses: "the durable artefact is this ABI plus the headers,
 which is reusable whichever language the runtime is written in."
 
 **Consequences.** [../runtime/c-extension-shim.md](../runtime/c-extension-shim.md)
-§ *The implemented subset* becomes a subset table against the authored
-header, and its § *Out of scope* list becomes the header's own scope list;
-[../runtime/c-extension-abi.md](../runtime/c-extension-abi.md) § 7 gains
-the native leg beside the WASM one. The shim's `Tcl_Size` switch
-(`TCL_SHIM_TCL_MAJOR=8`) moves onto the authored header, which already
-needs it. Code predicates: `rust/tcl-cshim/src/obj.rs` publishes the
-`Tcl_Obj` layout instead of keeping it opaque; the engine interface gains
-the variable door and the in-invocation eval door the shim document names
-as missing, which are what `Tcl_ObjSetVar2` and `Tcl_EvalObjEx` need;
+§ *The implemented subset* is a subset table against the authored
+header, and its § *Out of scope* list is the header's own scope list;
+[../runtime/c-extension-abi.md](../runtime/c-extension-abi.md) § 7 has
+the native leg beside the WASM one. The shim's `Tcl_Size` switch is the
+authored header's (`TCL_MAJOR_VERSION=8`). Code predicates:
+`rust/tcl-cshim/src/obj.rs` publishes the `Tcl_Obj` layout instead of
+keeping it opaque; the engine interface's variable door and in-invocation
+eval door, which the shim document names as missing, are what
+`Tcl_ObjSetVar2` and `Tcl_EvalObjEx` need;
 `rust/tcl-cshim/tests/pkga_e2e.rs`'s byte-for-byte expectations, captured
-against Tcl 9.0.4's own `tcl.h`, become the shared conformance vectors for
+against Tcl 9.0.4's own `tcl.h`, are the shared conformance vectors for
 both legs.
 
 **The WASM leg's registration seam** is built: `Tcl_CreateObjCommand` and
@@ -552,20 +552,30 @@ procedure (a shared-table function index under `wasm32`), so `tcl_invoke_argv`,
 which routes a prebuilt argv through `Interp::dispatch`, reaches an extension's
 command like any other the table holds — § 12 of the ABI, run by
 `a_compiled_script_calls_an_extension_registered_command` against the real
-runtime. What the leg does not have: the ownership categories of
+runtime. `TclFreeObj` is exported beside them, which is where the header's
+`Tcl_DecrRefCount` macro frees, and `obj.rs` asserts the `Tcl_Obj` layout the
+header declares when it compiles. `make check-c-extension-wasm`
+(`scripts/check_c_extension_wasm.py`, in `xtask-check`, and required in the CI
+job that has wasi-sdk) holds the header to both legs: every function the WASM
+leg declares is a runtime export and every C-API export is declared or a header
+macro, the same for the shim and the native leg, and `layout.c` and the test
+extension compile for `wasm32-wasip1`, the test extension against both legs at
+once and refused by the WASM leg alone. What the leg does not have: the ownership
+categories of
 [../runtime/c-api-ownership-contract.md](../runtime/c-api-ownership-contract.md)
 encoded per export and gated, the `GOT.mem` / `GOT.func` list wired for
-the address-of-runtime-symbol pattern, and the syntax-only `wasm32-wasi`
-check turned into a CI gate that compiles the test extension. The engine
-interface's narrowing of `TCL_BREAK` / `TCL_CONTINUE` to errors and
-`TCL_RETURN` to `TCL_OK` is corrected before a hosted extension can
-exercise the conservative default this page states for it.
+the address-of-runtime-symbol pattern, and the functions the test extension
+calls beyond what the leg declares, without which it compiles against both legs
+at once and is not linked with the runtime. The engine
+interface carries the completion code a host command answers (`HostOutcome`),
+so a hosted extension exercises the conservative default this page states for
+it.
 
 **Decided with the build.** Step 1 of § *Build order* states the one
 contract in [../runtime/c-extension-shim.md](../runtime/c-extension-shim.md)
 § *The implemented subset* and
-[../runtime/c-extension-abi.md](../runtime/c-extension-abi.md) § 7, and
-step 10 retargets the shim onto the authored header in the order above.
+[../runtime/c-extension-abi.md](../runtime/c-extension-abi.md) § 7, and the
+shim compiles against the authored header.
 
 ## The analyser: the description contract
 
@@ -2448,11 +2458,9 @@ flowchart LR
   (`DeclaredCommand::extension`), and the facts the other stub flags state
   narrow it axis by axis, a stated effect replacing the effect axes and none
   of the others ([../contracts/dialect-stubs.md](../contracts/dialect-stubs.md)
-  § *Extension commands*). The engine interface narrows `TCL_BREAK` and
-  `TCL_RETURN` to `TCL_OK`; that narrowing is corrected — the interface
-  carries the completion code the host command returned — before a hosted
-  extension can exercise the default, and the correction is part of the
-  fourth ruling's WASM-leg order.
+  § *Extension commands*). The engine interface carries the completion
+  code the host command returned (`HostOutcome`, `CompletionCode`), so a hosted
+  extension exercises the default.
 - **Describe from three sources**, each with its own provenance, none of them
   narrowing the default: a mechanical scan of C source
   (`rust/tcl-spec-studio/src/infer/c_scan.rs`; `tcl spec import --c-source`),
@@ -2567,7 +2575,7 @@ and come before any runtime guard work.
 - `rust/tcl-compiler/src/site_claims.rs`, `rust/tcl-registry/src/pack_origin.rs`, `codegen_stamp.rs` — the claims codegen records, the pack origin they are built from, and the one "same stamp, same site" predicate
 - `rust/tcl-compiler/src/codegen/emitter/mod.rs`, `codegen/wasm/backend.rs`, `ir.rs`, `rust/tcl-bytecode/src/lib.rs` — where each emitter states the manifest, the `tcl.manifest` section's encoding, and `ModuleAsm::manifest` with `FunctionAsm::rungs`
 - `rust/tcl-vm/src/interp.rs`, `exec.rs`, `command.rs`, `cmd_string.rs`, `environment.rs` — `command_binding_matches`, `procedure_binding_matches`, `guarded_commands`, `attach_identities`, `backing_report`, `bump_cmd_epoch`, registration, the pin
-- `runtime/rust/src/interp.rs`, `codegen_abi.rs`, `builtins.rs`, `embedded_stdlib.rs`, `capi.rs` — the WASM runtime's guard table, `attach_identities`, `backing_report`, `execute_intrinsic`, `invalidate_command_environment`, the commands the embedded Tcl library defines, and the C surface
+- `runtime/rust/src/interp.rs`, `codegen_abi.rs`, `builtins.rs`, `embedded_stdlib.rs`, `capi.rs`, `obj.rs` — the WASM runtime's guard table, `attach_identities`, `backing_report`, `execute_intrinsic`, `invalidate_command_environment`, the commands the embedded Tcl library defines, the C surface, and the `Tcl_Obj` layout it asserts
 - `rust/tcl-spectcl/src/loader.rs`, `loader/eval.rs`, `loader/environment_block.rs`, `discovery.rs`, `install.rs`, `stamps.rs` — what a pack may write, tier to provenance, discovery and the dependency tier it reads beside a manifest, the floor's application, and the two gates a stamp or a declaration must pass
 - `rust/tcl-registry/src/runtime_backing.rs`, `rust/tcl-spectcl/src/backing.rs` — `RuntimeBacking` and `BodySource`, and `BackingSyntax`, the one spelling of the `runtime_backing` statement for the loader and the Spec Studio
 - `rust/tcl-spec-hooks/src/sandbox.rs`, `pack_eval.rs`, `host.rs` — the hook whitelist, the pack evaluator, and the hook host with its per-pack engines, budgets, and context keys
@@ -2578,7 +2586,8 @@ and come before any runtime guard work.
 - `rust/tcl-cli/src/commands/spec.rs`, `spec_test.rs` — `tcl spec test` and the probe it sends to the shell
 - `rust/tcl-spec-studio/src/render_spectcl.rs`, `render_rs.rs`, `coverage.rs`, `schema.rs`, `draft.rs`, `help.rs` — `GAPS`, `GapKind`, the `.rs` contribution export, and the four studio surfaces
 - `rust/tcl-vm/src/compiled.rs` — `CompiledUnit`, `CompilerProvenance`, and the generations and manifest a unit carries
-- `rust/tcl-engine-api/src/lib.rs`, `rust/tcl-engine-tclvm/src/lib.rs`, `rust/tcl-cshim/src/lib.rs`, `rust/tcl-cshim/src/load.rs`, `rust/tcl-cshim/src/ffi.rs`, `rust/tcl-cshim/src/obj.rs`, `rust/tcl-cshim/include/tclshim.h`, `rust/tcl-vm-cli/src/main.rs` — the engine interface, its one implementation and `register_host_command`, `Interp::load_static` and its `Loaded` report, `StaticExtensions` (the host's `load`), the 34 exported symbols, the header, and `tclvm --static-extensions`
+- `rust/tcl-engine-api/src/lib.rs`, `rust/tcl-engine-tclvm/src/lib.rs`, `rust/tcl-cshim/src/lib.rs`, `rust/tcl-cshim/src/load.rs`, `rust/tcl-cshim/src/ffi.rs`, `rust/tcl-cshim/src/obj.rs`, `runtime/rust/include/tcl.h`, `rust/tcl-cshim/tests/c/layout.c`, `rust/tcl-vm-cli/src/main.rs` — the engine interface, its one implementation and `register_host_command`, `Interp::load_static` and its `Loaded` report, `StaticExtensions` (the host's `load`), the 32 exported symbols, the authored header, the layout it declares and the probe that reports it, and `tclvm --static-extensions`
+- `scripts/check_c_extension_wasm.py`, `scripts/check_c_api_ownership.py`, `Makefile` (`check-c-extension-wasm`, `check-c-api-ownership`) — the header's legs held to the runtime's and the shim's exports and to the wasm32 compiles, and the runtime's exports held to their ownership rows
 - `rust/tcl-dialect/src/version.rs`, `profile.rs`, `rust/tcl-registry/src/model/ingress.rs`, `assembly.rs`, `runtime_context.rs`, `rust/tcl-compiler/src/compile_service.rs`, `rust/tcl-lsp-db/src/lib.rs` — the release, the pin and the `RuntimeContext` it resolves, the overlay ingress and its `OverlayMiss`, the compile service's overlay door, and the salsa registry queries
 - `rust/tcl-pkg-model/src/manifest.rs`, `lockfile.rs`, `tier.rs`, `rust/tcl-pkg/src/docker.rs` — the package manager's data model and the derivation of a package's dependency tier, which the pack loader reads too, and the container generator
 - `rust/xtask/src/command_backing.rs`, `gen_irule_test_data.rs`, `docs/generated/wasm-command-backing.md` — the backing gate and its one waiver list, the registry-generated iRules mocks, and the rendered report

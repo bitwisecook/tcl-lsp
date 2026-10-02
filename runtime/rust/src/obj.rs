@@ -128,6 +128,23 @@ pub struct TclObj {
     pub internal_rep: u64,
 }
 
+// The header's `Tcl_Obj` (`include/tcl.h`): the fields in this order at
+// consecutive word offsets, then the internal representation, which makes the
+// object 24 bytes on wasm32. An extension compiled against the header reads and
+// writes `refCount` and reads `bytes` and `length` at these offsets, so the build
+// fails if the struct stops matching them.
+const _: () = {
+    use core::mem::{offset_of, size_of};
+    const WORD: usize = size_of::<usize>();
+    assert!(offset_of!(TclObj, ref_count) == 0);
+    assert!(offset_of!(TclObj, bytes) == WORD);
+    assert!(offset_of!(TclObj, length) == 2 * WORD);
+    assert!(offset_of!(TclObj, type_ptr) == 3 * WORD);
+    assert!(offset_of!(TclObj, internal_rep) == 4 * WORD);
+    #[cfg(target_pointer_width = "32")]
+    assert!(size_of::<TclObj>() == 24);
+};
+
 impl TclObj {
     #[inline]
     fn wide(&self) -> TclWideInt {
@@ -153,7 +170,7 @@ fn obj_layout() -> Layout {
 fn obj_alloc() -> *mut TclObj {
     // SAFETY: `obj_layout()` is non-zero-sized and well-formed; we initialise
     // every field before returning, and the pointer is freed exactly once by
-    // `obj_free`.
+    // `free_obj`.
     unsafe {
         let p = alloc(obj_layout()) as *mut TclObj;
         if p.is_null() {
@@ -170,12 +187,14 @@ fn obj_alloc() -> *mut TclObj {
     }
 }
 
-/// Free a `TclObj` and its owned string buffer (if any). `TclFreeObj`.
+/// Free a `TclObj` and its owned string buffer (if any). `TclFreeObj`: what
+/// the header's `Tcl_DecrRefCount` macro calls once it has lowered the count of
+/// the last reference, whatever count that left.
 ///
 /// # Safety
 /// `obj` must be a live header previously returned by `obj_alloc` and not yet
 /// freed; no other reference may use it after this returns.
-unsafe fn obj_free(obj: *mut TclObj) {
+pub unsafe fn free_obj(obj: *mut TclObj) {
     if obj.is_null() {
         return;
     }
@@ -637,7 +656,7 @@ pub unsafe fn decr_ref_count(obj: *mut TclObj) {
         }
         (*obj).ref_count -= 1;
         if (*obj).ref_count <= 0 {
-            obj_free(obj);
+            free_obj(obj);
         }
     }
 }

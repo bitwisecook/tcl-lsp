@@ -38,7 +38,7 @@
 //! object has count zero and is owned by whoever first takes a reference.
 
 use std::cell::{Cell, RefCell};
-use std::ffi::c_char;
+use std::ffi::{c_char, c_void};
 use std::ptr::NonNull;
 
 use tcl_engine_api::Value;
@@ -111,8 +111,28 @@ enum Rep {
 }
 
 /// A Tcl value: `Tcl_Obj` on the C side of the header.
+///
+/// The first five fields are the layout `runtime/rust/include/tcl.h` declares
+/// for `Tcl_Obj` (`refCount`, `bytes`, `length`, `typePtr`, `internalRep`), at
+/// the offsets the header's reference-count macros and an extension's reads of
+/// `objPtr->bytes` use; the shim's own state follows that prefix, which C never
+/// sees. Those fields are cells because C writes `refCount` directly and the
+/// shim keeps `bytes` and `length` in step with the string rep it owns.
+#[repr(C)]
 pub struct Obj {
-    refcount: Cell<usize>,
+    /// `refCount`: one unit per holder. `Tcl_IncrRefCount` and `Tcl_DecrRefCount`
+    /// are macros over this field.
+    refcount: Cell<isize>,
+    /// `bytes`: the first byte of the string rep, which is NUL-terminated at
+    /// `length`, or null while there is none.
+    bytes: Cell<*mut c_char>,
+    /// `length`: the bytes of the string rep, the terminator excluded.
+    length: Cell<isize>,
+    /// `typePtr`: always null. The shim keeps its internal representation to
+    /// itself, so C sees an object with no type.
+    type_ptr: Cell<*const c_void>,
+    /// `internalRep`: room for the union's two pointers, unused.
+    internal_rep: Cell<[usize; 2]>,
     /// The string rep as NUL-terminated bytes, once generated.
     string: RefCell<Option<Box<[u8]>>>,
     rep: RefCell<Rep>,
@@ -159,12 +179,32 @@ pub(crate) fn decode_bytes(bytes: &[u8]) -> String {
 
 impl Obj {
     fn with_rep(rep: Rep, string: Option<Box<[u8]>>, canonical: bool) -> Self {
-        Self {
+        let obj = Self {
             refcount: Cell::new(0),
-            string: RefCell::new(string),
+            bytes: Cell::new(std::ptr::null_mut()),
+            length: Cell::new(0),
+            type_ptr: Cell::new(std::ptr::null()),
+            internal_rep: Cell::new([0; 2]),
+            string: RefCell::new(None),
             rep: RefCell::new(rep),
             canonical: Cell::new(canonical),
+        };
+        obj.set_string(string);
+        obj
+    }
+
+    /// Replace the string rep, keeping the `bytes` and `length` fields C reads
+    /// in step with it: null and zero while there is none.
+    fn set_string(&self, string: Option<Box<[u8]>>) {
+        if let Some(bytes) = &string {
+            self.bytes.set(bytes.as_ptr().cast_mut().cast::<c_char>());
+            self.length
+                .set(isize::try_from(bytes.len() - 1).unwrap_or(isize::MAX));
+        } else {
+            self.bytes.set(std::ptr::null_mut());
+            self.length.set(0);
         }
+        *self.string.borrow_mut() = string;
     }
 
     /// A string value from raw bytes (no NUL terminator in `bytes`).
@@ -203,7 +243,7 @@ impl Obj {
     /// The reference count, as `Tcl_IsShared` reads it.
     #[must_use]
     pub fn refcount(&self) -> usize {
-        self.refcount.get()
+        usize::try_from(self.refcount.get()).unwrap_or(0)
     }
 
     /// Whether more than one reference holds this object.
@@ -231,7 +271,7 @@ impl Obj {
     fn with_string<T>(&self, with: impl FnOnce(&[u8]) -> T) -> T {
         if self.string.borrow().is_none() {
             let rendered = self.render();
-            *self.string.borrow_mut() = Some(rendered);
+            self.set_string(Some(rendered));
             self.canonical.set(true);
         }
         let string = self.string.borrow();
@@ -252,7 +292,7 @@ impl Obj {
 
     /// Forget the string rep after a mutation of the internal rep.
     fn invalidate_string(&self) {
-        *self.string.borrow_mut() = None;
+        self.set_string(None);
         self.canonical.set(true);
     }
 
@@ -524,19 +564,9 @@ impl Obj {
         Box::into_raw(Box::new(self))
     }
 
-    /// `Tcl_IncrRefCount`.
-    ///
-    /// # Safety
-    ///
-    /// `raw` must point to a live object allocated by [`Obj::into_raw`].
-    pub unsafe fn incr_ref_count(raw: *mut Self) {
-        // SAFETY: the caller guarantees the object is live.
-        let obj = unsafe { &*raw };
-        obj.refcount.set(obj.refcount.get() + 1);
-    }
-
-    /// `Tcl_DecrRefCount`: release one reference and free the object when
-    /// none remain (a count of zero going down frees too, as in C Tcl).
+    /// Release one reference and free the object when none remain, as the
+    /// header's `Tcl_DecrRefCount` macro does: a count of zero going down frees
+    /// too.
     ///
     /// # Safety
     ///
@@ -544,20 +574,224 @@ impl Obj {
     /// dangling afterwards if this released the last reference.
     pub unsafe fn decr_ref_count(raw: *mut Self) {
         // SAFETY: the caller guarantees the object is live.
-        let remaining = unsafe { &*raw }.refcount.get().saturating_sub(1);
+        let remaining = unsafe { &*raw }.refcount.get() - 1;
         // SAFETY: as above.
         unsafe { &*raw }.refcount.set(remaining);
-        if remaining == 0 {
+        if remaining <= 0 {
             // SAFETY: no reference remains; the allocation came from `into_raw`.
-            drop(unsafe { Box::from_raw(raw) });
+            unsafe { Self::free(raw) };
         }
+    }
+
+    /// `TclFreeObj`: free an object whose count has fallen to zero. The header's
+    /// `Tcl_DecrRefCount` macro lowers the count itself and calls this when the
+    /// count was one.
+    ///
+    /// # Safety
+    ///
+    /// `raw` must point to a live object allocated by [`Obj::into_raw`] that no
+    /// reference holds; it is dangling afterwards.
+    pub unsafe fn free(raw: *mut Self) {
+        // SAFETY: the caller guarantees the allocation came from `into_raw` and is
+        // no longer referenced.
+        drop(unsafe { Box::from_raw(raw) });
+    }
+}
+
+/// Counts the objects destroyed on this thread, for the tests that need to see
+/// an object freed.
+#[cfg(test)]
+impl Drop for Obj {
+    fn drop(&mut self) {
+        tests::DESTROYED.with(|destroyed| destroyed.set(destroyed.get() + 1));
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::cell::Cell;
+
     use super::{Obj, ObjRef};
     use tcl_engine_api::Value;
+
+    thread_local! {
+        /// How many objects have been destroyed on this thread.
+        pub(super) static DESTROYED: Cell<usize> = const { Cell::new(0) };
+    }
+
+    // Over `void *`: an `extern` block naming `Obj`, whose private state is not
+    // C's, would trip the FFI-safety lint.
+    #[cfg(cshim_c_tests)]
+    unsafe extern "C" {
+        static tclshim_test_layout: [usize; 7];
+        fn tclshim_test_bytes_of(obj: *mut std::ffi::c_void) -> *const std::ffi::c_char;
+        fn tclshim_test_length_of(obj: *mut std::ffi::c_void) -> isize;
+        fn tclshim_test_ref_count_of(obj: *mut std::ffi::c_void) -> isize;
+        fn tclshim_test_shared_of(obj: *mut std::ffi::c_void) -> std::ffi::c_int;
+        fn tclshim_test_incr_of(obj: *mut std::ffi::c_void);
+        fn tclshim_test_decr_of(obj: *mut std::ffi::c_void);
+    }
+
+    #[cfg(cshim_c_tests)]
+    fn c_obj(obj: *mut Obj) -> *mut std::ffi::c_void {
+        obj.cast()
+    }
+
+    /// The prefix the header declares is the prefix `Obj` has: `Tcl_Obj`'s fields
+    /// at their declared offsets, then room for the union, and only then the
+    /// shim's own state.
+    #[cfg(cshim_c_tests)]
+    #[test]
+    fn the_declared_prefix_is_the_layout_the_header_declares() {
+        use std::mem::offset_of;
+        // SAFETY: a constant array the C compiler emitted.
+        let [
+            size,
+            ref_count,
+            bytes,
+            length,
+            type_ptr,
+            internal_rep,
+            union_size,
+        ] = unsafe { tclshim_test_layout };
+        assert_eq!(offset_of!(Obj, refcount), ref_count);
+        assert_eq!(offset_of!(Obj, bytes), bytes);
+        assert_eq!(offset_of!(Obj, length), length);
+        assert_eq!(offset_of!(Obj, type_ptr), type_ptr);
+        assert_eq!(offset_of!(Obj, internal_rep), internal_rep);
+        assert_eq!(
+            size_of::<std::cell::Cell<[usize; 2]>>(),
+            union_size,
+            "room for the union"
+        );
+        assert_eq!(
+            offset_of!(Obj, string),
+            size,
+            "the shim's own state starts where the declared struct ends"
+        );
+    }
+
+    /// C reads `bytes` and `length` straight from the object: they follow the
+    /// string rep, and are null and zero while there is none.
+    #[cfg(cshim_c_tests)]
+    #[test]
+    fn the_fields_c_reads_follow_the_string_rep() {
+        let raw = Obj::from_text("héllo").into_raw();
+        // SAFETY: `raw` is a live object; the functions only read it.
+        unsafe {
+            assert_eq!(
+                tclshim_test_length_of(c_obj(raw)),
+                6,
+                "bytes, not characters"
+            );
+            let bytes =
+                std::slice::from_raw_parts(tclshim_test_bytes_of(c_obj(raw)).cast::<u8>(), 7);
+            assert_eq!(bytes, "héllo\0".as_bytes());
+            Obj::free(raw);
+        }
+
+        let number = Obj::int(42).into_raw();
+        // SAFETY: as above.
+        unsafe {
+            assert!(
+                tclshim_test_bytes_of(c_obj(number)).is_null(),
+                "an int has no text yet"
+            );
+            assert_eq!(tclshim_test_length_of(c_obj(number)), 0);
+            let (pointer, length) = (&*number).c_string();
+            assert_eq!(tclshim_test_bytes_of(c_obj(number)), pointer);
+            assert_eq!(
+                tclshim_test_length_of(c_obj(number)),
+                isize::try_from(length).expect("small")
+            );
+            assert_eq!(length, 2);
+            Obj::free(number);
+        }
+
+        let list = Obj::list(vec![ObjRef::new(Obj::int(1)), ObjRef::new(Obj::int(22))]).into_raw();
+        // SAFETY: as above; the element is a fresh object.
+        unsafe {
+            (&*list).with_string(|_| ());
+            assert!(!tclshim_test_bytes_of(c_obj(list)).is_null());
+            assert_eq!(tclshim_test_length_of(c_obj(list)), 4, "`1 22`");
+            (&*list)
+                .append_element(ObjRef::new(Obj::int(1)))
+                .expect("a list takes an element");
+            assert!(
+                tclshim_test_bytes_of(c_obj(list)).is_null(),
+                "changing the value withdrew the text C could read"
+            );
+            assert_eq!(tclshim_test_length_of(c_obj(list)), 0);
+            Obj::free(list);
+        }
+    }
+
+    /// The header's `Tcl_IncrRefCount`, `Tcl_DecrRefCount` and `Tcl_IsShared` are
+    /// macros over `refCount`: they move the count the Rust side reads, and the
+    /// last release frees through `TclFreeObj`.
+    #[cfg(cshim_c_tests)]
+    #[test]
+    fn the_header_macros_move_the_count_rust_reads_and_the_last_release_frees() {
+        let raw = Obj::int(1).into_raw();
+        // SAFETY: `raw` is live until the last release below; `adopt` takes the
+        // first reference.
+        unsafe {
+            let first = ObjRef::adopt(raw);
+            assert_eq!(tclshim_test_ref_count_of(c_obj(raw)), 1);
+            assert_eq!(tclshim_test_shared_of(c_obj(raw)), 0);
+            tclshim_test_incr_of(c_obj(raw));
+            assert_eq!(first.get().refcount(), 2);
+            assert_eq!(tclshim_test_shared_of(c_obj(raw)), 1);
+            tclshim_test_decr_of(c_obj(raw));
+            assert_eq!(first.get().refcount(), 1);
+            assert_eq!(tclshim_test_shared_of(c_obj(raw)), 0);
+
+            let freed = DESTROYED.with(Cell::get);
+            std::mem::forget(first);
+            tclshim_test_decr_of(c_obj(raw));
+            assert_eq!(
+                DESTROYED.with(Cell::get),
+                freed + 1,
+                "the macro called TclFreeObj"
+            );
+        }
+    }
+
+    /// Tcl's macro frees at a count of one or less, so one release of an object
+    /// nobody has taken a reference to frees it.
+    #[cfg(cshim_c_tests)]
+    #[test]
+    fn a_single_release_of_a_fresh_object_through_the_macro_frees_it() {
+        let raw = Obj::int(1).into_raw();
+        let before = DESTROYED.with(Cell::get);
+        // SAFETY: `raw` is live, and this call frees it.
+        unsafe { tclshim_test_decr_of(c_obj(raw)) };
+        assert_eq!(DESTROYED.with(Cell::get), before + 1);
+    }
+
+    #[test]
+    fn a_rust_release_of_a_fresh_object_frees_it_as_in_c_tcl() {
+        let raw = Obj::int(1).into_raw();
+        let before = DESTROYED.with(Cell::get);
+        // SAFETY: `raw` is live, and this call frees it.
+        unsafe { Obj::decr_ref_count(raw) };
+        assert_eq!(DESTROYED.with(Cell::get), before + 1);
+    }
+
+    #[test]
+    fn a_rust_reference_and_a_c_macro_free_once_between_them() {
+        let freed = DESTROYED.with(Cell::get);
+        let first = ObjRef::new(Obj::int(1));
+        let second = first.clone();
+        drop(first);
+        assert_eq!(
+            DESTROYED.with(Cell::get),
+            freed,
+            "one reference is still held"
+        );
+        drop(second);
+        assert_eq!(DESTROYED.with(Cell::get), freed + 1);
+    }
 
     #[test]
     fn an_int_crosses_typed_and_renders_lazily() {

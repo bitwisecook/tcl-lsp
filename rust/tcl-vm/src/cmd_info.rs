@@ -219,17 +219,38 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             }
             _ => err("wrong # args: should be \"info functions ?pattern?\""),
         },
-        // `info loaded ?interp? ?prefix?` — no binary extensions are loaded, so
-        // the result is empty for the current interp; a named interp must exist.
+        // `info loaded ?interp? ?prefix?` — the libraries a host has loaded into
+        // this interpreter (`Vm::library_loaded`): a list of `{file prefix}`, the
+        // file empty for one linked into the program, or, with a prefix, the file
+        // that prefix was loaded from (empty when it is not loaded). No other
+        // interpreter is reachable, so a named one must not be asked for.
         "loaded" => {
-            let interp = match rest {
-                [] => None,
-                [i] | [i, _] => Some(i.to_str()),
+            let (interp, prefix) = match rest {
+                [] => (None, None),
+                [i] => (Some(i.to_str()), None),
+                [i, prefix] => (Some(i.to_str()), Some(prefix.to_str())),
                 _ => return err("wrong # args: should be \"info loaded ?interp? ?prefix?\""),
             };
-            match interp {
-                Some(i) if !i.is_empty() => err(format!("could not find interpreter \"{i}\"")),
-                _ => ok(Value::empty()),
+            if let Some(i) = interp.filter(|i| !i.is_empty()) {
+                return err(format!("could not find interpreter \"{i}\""));
+            }
+            let libraries = vm.loaded_libraries();
+            match prefix {
+                Some(prefix) => ok(libraries
+                    .iter()
+                    .find(|(_, loaded)| **loaded == *prefix)
+                    .map_or_else(Value::empty, |(file, _)| Value::string(file.as_str()))),
+                None => ok(Value::list(
+                    libraries
+                        .iter()
+                        .map(|(file, prefix)| {
+                            Value::list(vec![
+                                Value::string(file.as_str()),
+                                Value::string(prefix.as_str()),
+                            ])
+                        })
+                        .collect(),
+                )),
             }
         }
         // `info cmdtype commandName` — native / proc / alias (interp/object kinds
