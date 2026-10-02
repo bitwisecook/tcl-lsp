@@ -2267,7 +2267,7 @@ fn conditional_expression_binding_replay_keeps_skipped_paths() {
                     .sccp
                     .constant_branches
                     .iter()
-                    .any(|branch| branch.value && branch.condition.contains("x")),
+                    .any(|branch| branch.value && branch.condition.contains('x')),
                 "{middle}"
             );
         }
