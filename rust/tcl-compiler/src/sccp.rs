@@ -447,8 +447,6 @@ pub fn sccp_with_builtin_folds(
         executable_blocks.insert(cfg.entry);
     }
     let order = cfg_order(cfg);
-    let barrier_live =
-        crate::slot_allocation::registry_barrier_live_names(cfg, ssa, trace.registry);
 
     // Optimistic fixpoint over the RPO sweep, followed by a finalising pass
     // that forces both arms for any executable branch still stuck on an UNKNOWN
@@ -494,7 +492,7 @@ pub fn sccp_with_builtin_folds(
                         policy,
                         has_dynamic_variable_trace: trace.has_dynamic_variable_trace,
                         folds,
-                        barrier_live: barrier_live.get(bn),
+                        clobbers: ssa.value_clobbers.get(bn),
                     },
                 );
 
@@ -704,7 +702,8 @@ struct StatementInputs<'a> {
     policy: FoldPolicy,
     has_dynamic_variable_trace: bool,
     folds: Option<BuiltinFoldInputs<'a>>,
-    barrier_live: Option<&'a HashMap<usize, HashSet<Symbol>>>,
+    clobbers:
+        Option<&'a HashMap<usize, HashMap<Symbol, (crate::ssa::Version, crate::ssa::Version)>>>,
 }
 
 /// Evaluate each statement's defs for one block, widening across barriers.
@@ -720,28 +719,40 @@ fn sccp_process_statements(
         policy,
         has_dynamic_variable_trace,
         folds,
-        barrier_live,
+        clobbers,
     } = inputs;
     let mut changed = false;
-    let mut live_versions: HashMap<_, _> = ssa
-        .var_names()
-        .iter()
-        .filter_map(|name| ssa.var_symbol(name).map(|symbol| (symbol, 0)))
-        .collect();
-    live_versions.extend(&ssa_block.entry_versions);
     for (index, stmt_ssa) in ssa_block.statements.iter().enumerate() {
         // Statement defs become live after its inputs and barrier effect.
         let registry_barrier = stmt_ssa.statement.synthetic_marker()
             == Some(crate::ir::SyntheticMarker::RegistryBarrier);
+        if registry_barrier {
+            for (&var, &(prior, fresh)) in clobbers
+                .and_then(|markers| markers.get(&index))
+                .into_iter()
+                .flatten()
+            {
+                let value = if folds.is_some_and(|f| f.proven_pure_parameters)
+                    && matches!(values.get(&(var, 0)), Some(LatticeValue::Const(_)))
+                {
+                    values
+                        .get(&(var, prior))
+                        .cloned()
+                        .unwrap_or(LatticeValue::Unknown)
+                } else {
+                    LatticeValue::Overdefined
+                };
+                changed |= set_value(values, (var, fresh), &value);
+            }
+            continue;
+        }
         if matches!(
             stmt_ssa.statement,
             Statement::Barrier { .. } | Statement::UpFrame { .. }
         ) {
-            // Barriers widen all currently-tracked values — EXCEPT
-            // version-0 (parameter) seeds, except at registry-handler
-            // markers: an invoked handler may mutate a seeded parameter
-            // through upvar without an explicit source def. Ordinary
-            // barrier parameter seeds hold the caller's
+            // Executable barriers widen tracked values except version-0
+            // parameter seeds. Registry boundaries use fresh versions above,
+            // preserving every earlier proof. Ordinary barrier seeds hold the caller's
             // literal and are immutable across the barrier (a barrier
             // that mutates the var produces a fresh version), so a
             // callee `dict with $param` still sees the interproc
@@ -755,29 +766,9 @@ fn sccp_process_statements(
             // against tclsh 8.6/9.0: `set n 5; uplevel #0 {set n 99};
             // puts [expr {$n + 1}]` prints `100`; before this widening,
             // the optimiser proposed folding to the stale `6`.
-            // The handler can clobber reaching versions, never assignments
-            // which execute later. Global widening would poison those future
-            // defs on the next fixed-point iteration.
-            let keys: Vec<ValueKey> = if registry_barrier {
-                live_versions
-                    .iter()
-                    .filter(|(var, _)| {
-                        barrier_live
-                            .and_then(|b| b.get(&index))
-                            .is_none_or(|live| live.contains(var))
-                    })
-                    .map(|(&var, &ver)| (var, ver))
-                    .collect()
-            } else {
-                values.keys().copied().collect()
-            };
+            let keys: Vec<ValueKey> = values.keys().copied().collect();
             for k in keys {
-                if k.1 == 0
-                    && (!registry_barrier || folds.is_some_and(|f| f.proven_pure_parameters))
-                {
-                    continue;
-                }
-                if set_value(values, k, &LatticeValue::Overdefined) {
+                if k.1 != 0 && set_value(values, k, &LatticeValue::Overdefined) {
                     changed = true;
                 }
             }
@@ -793,10 +784,8 @@ fn sccp_process_statements(
                     changed = true;
                 }
             }
-            live_versions.extend(&stmt_ssa.defs);
             continue;
         }
-        live_versions.extend(&stmt_ssa.defs);
         // An element write's base def carries no scalar value of its own —
         // `set arr(k) 5` / `set arr($i) 5` refresh `arr` for whole-array
         // readers but must never let `$arr` fold to the element's value.
@@ -2665,7 +2654,7 @@ mod tests {
                 policy: FoldPolicy::default(),
                 has_dynamic_variable_trace: false,
                 folds: None,
-                barrier_live: None,
+                clobbers: None,
             }
         ));
         assert_eq!(

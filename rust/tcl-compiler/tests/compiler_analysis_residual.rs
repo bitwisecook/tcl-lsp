@@ -2021,13 +2021,38 @@ fn registry_handler_widens_array_element_read_by_terminator() {
         let cu = CompilationUnit::build_for(&source, &registry, false);
         let fu = cu.function("::p").expect("procedure");
         let symbol = fu.ssa.var_symbol("a(k)").expect("element");
-        assert!(
-            fu.sccp.values.iter().all(|((var, _), value)| {
-                *var != symbol || !matches!(value, tcl_compiler::analyses::LatticeValue::Const(_))
-            }),
-            "handler may mutate a(k) before {tail}: {:?}",
-            fu.sccp.values
-        );
+        let transitions: Vec<_> = fu
+            .ssa
+            .value_clobbers
+            .values()
+            .flat_map(|markers| markers.values())
+            .filter_map(|versions| versions.get(&symbol))
+            .collect();
+        assert!(!transitions.is_empty(), "a(k) needs a fresh value boundary");
+        for &&(prior, fresh) in &transitions {
+            assert_eq!(
+                fu.sccp.values.get(&(symbol, prior)),
+                Some(&tcl_compiler::analyses::LatticeValue::Const(
+                    tcl_compiler::analyses::ConstValue::Int(5)
+                ))
+            );
+            assert_eq!(
+                fu.sccp.values.get(&(symbol, fresh)),
+                Some(&tcl_compiler::analyses::LatticeValue::Overdefined)
+            );
+        }
+        for (id, block) in &fu.cfg.blocks {
+            if matches!(&block.terminator,
+                Some(tcl_compiler::cfg::Terminator::Return {value: Some(value), ..})
+                    if value == "$a(k)")
+            {
+                let version = fu.ssa.blocks[id].exit_versions[&symbol];
+                assert_eq!(
+                    fu.sccp.values.get(&(symbol, version)),
+                    Some(&tcl_compiler::analyses::LatticeValue::Overdefined)
+                );
+            }
+        }
         assert!(fu.sccp.constant_branches.is_empty());
     }
     let control =
@@ -2044,4 +2069,84 @@ fn registry_handler_widens_array_element_read_by_terminator() {
         }),
         "the safe control must retain element precision"
     );
+}
+
+#[test]
+fn brace_expression_handler_barrier_blocks_following_scalar_fold() {
+    for expression in [
+        "if {[expr {[missing_command]}]} {}",
+        "set ignored [expr {[missing_command]}]",
+    ] {
+        let source = format!(
+            "proc p {{}} {{set x 5; {expression}; if {{$x == 5}} {{return stale}} else {{return changed}}}}"
+        );
+        let cu = CompilationUnit::build_for(&source, &reg(), false);
+        assert!(
+            cu.function("::p")
+                .unwrap()
+                .sccp
+                .constant_branches
+                .is_empty()
+        );
+    }
+    let safe = CompilationUnit::build_for(
+        "proc p {} {set x 5; if {[expr {[string length safe]}]} {}; if {$x == 5} {return kept} else {return changed}}",
+        &reg(),
+        false,
+    );
+    assert!(
+        safe.function("::p")
+            .unwrap()
+            .sccp
+            .constant_branches
+            .iter()
+            .any(|branch| branch.condition == "$x == 5")
+    );
+}
+
+#[test]
+fn registry_value_clobber_preserves_branch_before_and_widens_branch_after() {
+    let source =
+        "set x 5; if {$x == 5} {set y before}; missing_command; if {$x == 5} {set y after}";
+    let cu = CompilationUnit::build_for(source, &reg(), false);
+    let branches = &cu.top_level.sccp.constant_branches;
+    assert_eq!(
+        branches.len(),
+        1,
+        "only the pre-handler condition may fold: {branches:?}"
+    );
+    assert!(branches[0].value);
+    assert!(
+        branches[0].span.unwrap().end()
+            < u32::try_from(source.find("missing_command").unwrap()).unwrap()
+    );
+    let x = cu.top_level.ssa.var_symbol("x").unwrap();
+    for versions in cu
+        .top_level
+        .ssa
+        .value_clobbers
+        .values()
+        .flat_map(|markers| markers.values())
+    {
+        let &(prior, fresh) = versions.get(&x).unwrap();
+        assert_eq!(
+            cu.top_level.sccp.values.get(&(x, prior)),
+            Some(&tcl_compiler::analyses::LatticeValue::Const(
+                tcl_compiler::analyses::ConstValue::Int(5)
+            ))
+        );
+        assert_eq!(
+            cu.top_level.sccp.values.get(&(x, fresh)),
+            Some(&tcl_compiler::analyses::LatticeValue::Overdefined)
+        );
+    }
+}
+
+#[test]
+fn registry_value_clobber_preserves_seeded_parameter_before_handler() {
+    let result = seeded_parameter_result(
+        "proc p {x} {if {$x == 5} {set before yes}; missing_command; if {$x == 5} {return stale} else {return changed}}",
+    );
+    assert_eq!(result.constant_branches.len(), 1);
+    assert!(result.constant_branches[0].value);
 }

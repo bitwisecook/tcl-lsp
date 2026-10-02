@@ -599,7 +599,10 @@ impl<'a> CfgBuilder<'a> {
             .and_then(|timeline| timeline.before_substitutions(stmt.span()))
             .cloned()
             .unwrap_or_else(|| self.command_bindings.clone());
-        self.command_words_registry_barrier_with_bindings(&embedded.commands, bindings)
+        self.command_words_registry_barrier_with_bindings(
+            &embedded.all_commands().cloned().collect::<Vec<_>>(),
+            bindings,
+        )
     }
 
     fn command_words_registry_barrier_with_bindings(
@@ -1268,8 +1271,10 @@ impl<'a> CfgBuilder<'a> {
             defs,
             reads,
             opaque_global,
-            registry_barrier: self
-                .command_words_registry_barrier_with_bindings(&embedded.commands, bindings),
+            registry_barrier: self.command_words_registry_barrier_with_bindings(
+                &embedded.all_commands().cloned().collect::<Vec<_>>(),
+                bindings,
+            ),
         }
     }
 

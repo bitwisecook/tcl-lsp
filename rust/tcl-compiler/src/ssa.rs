@@ -206,6 +206,9 @@ pub struct SsaFunction {
     pub entry: BlockId,
     /// SSA blocks keyed by block id.
     pub blocks: HashMap<BlockId, SsaBlock>,
+    /// Fresh scalar versions at registry boundaries. These are value effects,
+    /// separate from executable writes and statement use/def evidence.
+    pub value_clobbers: ValueClobbers,
     /// Immediate dominator: block → parent (None for entry).
     pub idom: HashMap<BlockId, Option<BlockId>>,
     /// Dominance frontier: block → frontier blocks.
@@ -223,6 +226,11 @@ pub struct SsaFunction {
     /// Reverse interner index: variable name → its [`Symbol`].
     var_to_symbol: FxHashMap<String, Symbol>,
 }
+
+/// Analysis value transitions: prior and fresh versions at each marker.
+pub type ValueClobbers = HashMap<BlockId, HashMap<usize, HashMap<Symbol, (Version, Version)>>>;
+
+type RegistryClobberNames = HashMap<BlockId, HashMap<usize, Vec<String>>>;
 
 /// Per-[`SsaFunction`] variable-name interner.
 ///
@@ -261,6 +269,7 @@ impl SsaFunction {
             name: name.into(),
             entry,
             blocks: HashMap::new(),
+            value_clobbers: HashMap::new(),
             idom: HashMap::new(),
             dominance_frontier: HashMap::new(),
             dominator_tree: HashMap::new(),
@@ -1096,6 +1105,7 @@ pub(crate) fn compute_phi_vars(
         registry,
         elems,
         tcl_lexer::LexerConfig::for_profile(registry.profile()),
+        &HashMap::new(),
     )
 }
 
@@ -1106,10 +1116,16 @@ fn compute_phi_vars_with_config(
     registry: &CommandRegistry,
     elems: &ArrayElems,
     config: tcl_lexer::LexerConfig,
+    clobbers: &RegistryClobberNames,
 ) -> HashMap<BlockId, HashSet<String>> {
     let reachable = func.reachable_blocks();
-    let (nonlocal_names, all_defsites) =
+    let (nonlocal_names, mut all_defsites) =
         nonlocal_names_and_defsites(func, &reachable, registry, elems, config);
+    for (block, markers) in clobbers {
+        for name in markers.values().flatten() {
+            all_defsites.entry(name.clone()).or_default().insert(*block);
+        }
+    }
 
     // Semi-pruned SSA (Briggs et al. 1998): place phis only for *non-local*
     // (upward-exposed-use) names. A phi for a purely-local name has no reader,
@@ -2853,6 +2869,7 @@ struct RenameWalk {
     scanner: VarReferenceScanner,
     interner: VarInterner,
     out: RenameOutputs,
+    value_clobbers: ValueClobbers,
 }
 
 impl RenameWalk {
@@ -2879,6 +2896,7 @@ impl RenameWalk {
             ),
             interner: VarInterner::default(),
             out,
+            value_clobbers: HashMap::new(),
         }
     }
 
@@ -3006,6 +3024,7 @@ impl RenameWalk {
         phi_vars: &HashMap<BlockId, HashSet<String>>,
         registry: &CommandRegistry,
         elems: &ArrayElems,
+        clobbers: &RegistryClobberNames,
     ) {
         let bn = frame.block;
 
@@ -3039,9 +3058,22 @@ impl RenameWalk {
         // Process statements.
         if let Some(block) = func.blocks.get(&bn) {
             let stmts: Vec<Statement> = block.statements.clone();
-            for stmt in &stmts {
+            for (index, stmt) in stmts.iter().enumerate() {
                 let info = self.rename_statement(stmt, frame, registry, elems);
                 self.out.stmt_infos.get_mut(&bn).unwrap().push(info);
+                if let Some(names) = clobbers.get(&bn).and_then(|markers| markers.get(&index)) {
+                    let mut versions = HashMap::new();
+                    for name in names {
+                        let prior = self.top(name);
+                        let fresh = self.push_new(name);
+                        frame.pushed_vars.push(name.clone());
+                        versions.insert(self.interner.intern(name), (prior, fresh));
+                    }
+                    self.value_clobbers
+                        .entry(bn)
+                        .or_default()
+                        .insert(index, versions);
+                }
             }
         }
 
@@ -3100,6 +3132,53 @@ pub fn build_ssa_with_config(
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
 ) -> SsaFunction {
+    let initial = build_ssa_inner(func, registry, config, &HashMap::new());
+    let live = crate::slot_allocation::registry_barrier_live_names(func, &initial, registry);
+    let clobbers: RegistryClobberNames = live
+        .into_iter()
+        .filter_map(|(block, markers)| {
+            let markers: HashMap<_, _> = markers
+                .into_iter()
+                .filter_map(|(index, symbols)| {
+                    let statements = &initial.blocks[&block].statements;
+                    let preceding_defs = index
+                        .checked_sub(1)
+                        .and_then(|prior| statements.get(prior))
+                        .filter(|prior| {
+                            prior.statement.is_executable_invocation()
+                                && prior.statement.span() == statements[index].statement.span()
+                        })
+                        .map(|prior| &prior.defs);
+                    // The invocation's own outputs already have fresh versions.
+                    // Keep their binding evidence; clobber only values carried
+                    // through the invocation without an explicit definition.
+                    let mut names: Vec<_> = symbols
+                        .into_iter()
+                        .filter(|symbol| {
+                            preceding_defs.is_none_or(|defs| !defs.contains_key(symbol))
+                        })
+                        .map(|symbol| initial.var_name(symbol).to_owned())
+                        .collect();
+                    names.sort();
+                    (!names.is_empty()).then_some((index, names))
+                })
+                .collect();
+            (!markers.is_empty()).then_some((block, markers))
+        })
+        .collect();
+    if clobbers.is_empty() {
+        initial
+    } else {
+        build_ssa_inner(func, registry, config, &clobbers)
+    }
+}
+
+fn build_ssa_inner(
+    func: &cfg::Function,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    clobbers: &RegistryClobberNames,
+) -> SsaFunction {
     // Complexity guard: skip the O(blocks·vars) phi placement + rename walk
     // for a pathologically large (usually generated) body. Returns a trivial
     // SSA; the compilation-unit builder likewise produces a trivial analysis
@@ -3125,7 +3204,7 @@ pub fn build_ssa_with_config(
     let tree = build_dom_tree(&idom);
     let config = config.nested().normalized();
     let elems = collect_array_elems(func, registry, config);
-    let phi_vars = compute_phi_vars_with_config(func, &df, registry, &elems, config);
+    let phi_vars = compute_phi_vars_with_config(func, &df, registry, &elems, config, clobbers);
 
     // 2. Set up rename state: the transient version stacks / counters, the
     // use-scanner, name interner, and per-block outputs (keyed by variable
@@ -3148,7 +3227,7 @@ pub fn build_ssa_with_config(
     while let Some(frame) = stack.last_mut() {
         match frame.phase {
             RenamePhase::Enter => {
-                walk.enter_block(frame, func, &phi_vars, registry, &elems);
+                walk.enter_block(frame, func, &phi_vars, registry, &elems, clobbers);
                 frame.phase = RenamePhase::ProcessChildren;
             }
 
@@ -3192,6 +3271,7 @@ pub fn build_ssa_with_config(
         name: func.name.clone(),
         entry: func.entry,
         blocks: ssa_blocks,
+        value_clobbers: walk.value_clobbers,
         idom,
         dominance_frontier: df
             .into_iter()
@@ -3349,6 +3429,7 @@ mod tests {
             name: "::test".into(),
             entry: BlockId(0),
             blocks: HashMap::new(),
+            value_clobbers: HashMap::new(),
             idom: HashMap::new(),
             dominance_frontier: HashMap::new(),
             dominator_tree: HashMap::new(),

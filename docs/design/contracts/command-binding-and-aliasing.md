@@ -275,3 +275,13 @@ source assignments.
   as-built dispatch, redirect lists, and the rename sidecar.
 - [command-alias-resolution.md](command-alias-resolution.md) — LSP/analyser
   `interp alias` tracking (the static, editor-facing slice).
+
+Registry value boundaries allocate fresh SSA versions for values live after
+an invocation. The versions live in `SsaFunction::value_clobbers`, separately
+from executable statement writes, caller edges and frame evidence. SCCP marks
+the fresh versions overdefined and preserves the reaching versions for uses
+before the boundary. Explicit outputs of the invocation already have fresh
+versions and keep their binding evidence. Preliminary SSA supplies name-level
+liveness; the final rename walk places clobber joins through ordinary phis.
+Brace-quoted expression substitutions use the canonical owner's complete
+command view for the same registry projection as ordinary substitutions.
