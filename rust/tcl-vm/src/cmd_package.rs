@@ -407,7 +407,7 @@ fn pkg_require(vm: &mut Vm, rest: &[Value], discover: bool) -> Completion<Value>
                 append_loader_error_frame(vm, &completion.result.to_str(), None);
                 return completion;
             }
-            code => return bad_return_code(vm, code, None),
+            _ => return bad_return_code(vm, &completion, None),
         }
     }
 
@@ -539,13 +539,30 @@ fn eval_package_script(vm: &mut Vm, script: &str) -> Completion<Value> {
     vm.eval_at_level(0, script)
 }
 
-fn bad_return_code(vm: &mut Vm, code: Code, loader: Option<(&str, &str)>) -> Completion<Value> {
+fn bad_return_code(
+    vm: &mut Vm,
+    completion: &Completion<Value>,
+    loader: Option<(&str, &str)>,
+) -> Completion<Value> {
+    // A non-error completion starts a new BADRESULT error episode. Only an
+    // explicit trace carried by a pending error return belongs to that error;
+    // runtime frames logged while unwinding break/continue/custom codes do not.
+    let carried = (completion.code == Code::Return
+        && crate::command::opt_get(&completion.options, "-code")
+            .is_some_and(|value| value.as_int().is_ok_and(|code| code == 1)))
+    .then(|| crate::command::opt_get(&completion.options, "-errorinfo"))
+    .flatten()
+    .filter(|info| !info.to_str().is_empty());
+    vm.take_error_info();
+    if let Some(info) = carried {
+        vm.seed_error_info(info.to_str().to_string());
+    }
     let message = match loader {
         Some((name, version)) => format!(
             "attempt to provide package {name} {version} failed: bad return code: {}",
-            code.as_int()
+            completion.code.as_int()
         ),
-        None => format!("bad return code: {}", code.as_int()),
+        None => format!("bad return code: {}", completion.code.as_int()),
     };
     append_loader_error_frame(vm, &message, loader);
     err_with_code(message, "TCL PACKAGE BADRESULT")
@@ -574,9 +591,9 @@ fn evaluate_loader(vm: &mut Vm, name: &str, loader: &SelectedLoader) -> Completi
             );
             return completion;
         }
-        code => {
+        _ => {
             vm.forget_package(name);
-            return bad_return_code(vm, code, Some((name, &loader.version)));
+            return bad_return_code(vm, &completion, Some((name, &loader.version)));
         }
     }
     match vm.package_version(name).map(str::to_owned) {

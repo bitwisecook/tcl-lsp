@@ -1896,6 +1896,45 @@ puts [list $message [dict get $options -errorinfo] [dict get $options -errorcode
     );
 }
 
+#[test]
+fn package_badresult_resets_non_error_traces_and_preserves_carried_error_info() {
+    out_eq(
+        r#"set previous [package unknown]
+foreach {kind script carried} {
+    break {break} {}
+    continue {continue} {}
+    return {return} {}
+    custom {return -level 0 -code 10} {}
+    pendingError {return -code error boom} {}
+    nonErrorInfo {return -errorinfo EXPLICIT boom} {}
+    errorInfo {return -code error -errorinfo EXPLICIT boom} EXPLICIT
+} {
+    package forget foo bar
+    package ifneeded foo 1 $script
+    catch {package require foo 1} message options
+    set prefix [expr {$carried eq "" ? $message : $carried}]
+    set expected [format "%s\n    (\"package ifneeded foo 1\" script)\n    invoked from within\n\"package require foo 1\"" $prefix]
+    puts [list ifneeded $kind [expr {[dict get $options -errorinfo] eq $expected}]]
+    package unknown "$script ;#"
+    catch {package require bar 1} message options
+    set prefix [expr {$carried eq "" ? $message : $carried}]
+    set expected [format "%s\n    (\"package unknown\" script)\n    invoked from within\n\"package require bar 1\"" $prefix]
+    puts [list unknown $kind [expr {[dict get $options -errorinfo] eq $expected}]]
+}
+package unknown $previous
+"#,
+        concat!(
+            "ifneeded break 1\nunknown break 1\n",
+            "ifneeded continue 1\nunknown continue 1\n",
+            "ifneeded return 1\nunknown return 1\n",
+            "ifneeded custom 1\nunknown custom 1\n",
+            "ifneeded pendingError 1\nunknown pendingError 1\n",
+            "ifneeded nonErrorInfo 1\nunknown nonErrorInfo 1\n",
+            "ifneeded errorInfo 1\nunknown errorInfo 1\n",
+        ),
+    );
+}
+
 /// `package forget` removes the active package record, including a loader's
 /// circular marker. A loader can therefore replace its record and require the
 /// replacement before the outer loader returns.
