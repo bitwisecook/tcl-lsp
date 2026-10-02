@@ -36,7 +36,7 @@
 //! and releasing argv can never free a still-referenced result. Immediate free
 //! + retain-into-result is the whole discipline.
 
-use core::ffi::c_char;
+use core::ffi::{c_char, c_int, c_void};
 use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
@@ -508,10 +508,9 @@ impl CoroContext {
     }
 }
 
-/// A registered command. `External { table_index, client_data }` — extension
-/// commands registered through `Tcl_CreateObjCommand` — is the one variant the
-/// C-extension ABI still wants; see `docs/design/runtime/c-extension-abi.md`
-/// §13.
+/// A registered command. [`Command::ObjCmd`] holds an extension's
+/// `Tcl_ObjCmdProc` (on `wasm32`, an index into the shared function table); see
+/// `docs/design/runtime/c-extension-abi.md` §4.5.
 ///
 /// `Clone` but not `Copy`: the dispatch lookup clones the small handle out of the
 /// command table (a fn-pointer copy for `Builtin`; the target name + frozen
@@ -544,10 +543,71 @@ pub(crate) enum CommandVisibilityOp {
     Expose,
 }
 
+/// `Tcl_ObjCmdProc`: the C procedure an extension registers for a command
+/// (`tcl.h`). Called with the `clientData` it registered, the interpreter, and
+/// the call's words; answers a completion code and leaves the result in the
+/// interpreter. On `wasm32` a function pointer is an index into the shared
+/// `__indirect_function_table`, so an extension module that grew that table and
+/// stored its procedure there registers a procedure this type calls
+/// (`c-extension-abi.md` §4.5).
+pub type TclObjCmdProc =
+    unsafe extern "C" fn(*mut c_void, *mut Interp, c_int, *const *mut TclObj) -> c_int;
+
+/// `Tcl_CmdDeleteProc`: run with the `clientData` when the command is deleted.
+pub type TclCmdDeleteProc = unsafe extern "C" fn(*mut c_void);
+
+/// An extension's command: the procedure, its `clientData` and its delete
+/// procedure, registered through `Tcl_CreateObjCommand`.
+///
+/// The delete procedure runs when the last handle to the command goes: at the
+/// deletion, a replacement or a `rename` to the empty name when the command is
+/// idle, and once the call that is running it returns when it is not — which
+/// keeps the `clientData` live for as long as the command's own procedure
+/// executes, where C Tcl runs the procedure at the deletion itself. The table,
+/// a displaced binding and an interpreter's teardown are all just drops of the
+/// handle.
+pub struct ObjCommand {
+    proc_: TclObjCmdProc,
+    client_data: *mut c_void,
+    delete_proc: Option<TclCmdDeleteProc>,
+}
+
+impl ObjCommand {
+    /// A command over `proc_`; `delete_proc` is called with `client_data` once,
+    /// when the command's last handle drops.
+    #[must_use]
+    pub fn new(
+        proc_: TclObjCmdProc,
+        client_data: *mut c_void,
+        delete_proc: Option<TclCmdDeleteProc>,
+    ) -> Self {
+        Self {
+            proc_,
+            client_data,
+            delete_proc,
+        }
+    }
+}
+
+impl Drop for ObjCommand {
+    fn drop(&mut self) {
+        if let Some(delete_proc) = self.delete_proc {
+            // SAFETY: the extension registered this procedure for this client
+            // data; the handle is dropped once, so it is called once.
+            unsafe { delete_proc(self.client_data) };
+        }
+    }
+}
+
 #[derive(Clone)]
 pub enum Command {
     /// A native Rust handler.
     Builtin(BuiltinFn),
+    /// An extension's command, registered through `Tcl_CreateObjCommand`: a
+    /// C procedure called with the call's words as `objv`. Behind an `Rc` so
+    /// the dispatch-time clone is a count, and so the delete procedure runs
+    /// exactly once however the binding goes (see [`ObjCommand`]).
+    ObjCmd(Rc<ObjCommand>),
     /// An `interp alias`: dispatch re-resolves `target` **by name, anchored at
     /// the global namespace, on every call** (so it lazily observes the target's
     /// *deletion* but does NOT follow its *rename* — the stored name simply stops
@@ -652,6 +712,7 @@ impl Command {
     pub(crate) fn is_same_binding(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Builtin(a), Self::Builtin(b)) => std::ptr::fn_addr_eq(*a, *b),
+            (Self::ObjCmd(a), Self::ObjCmd(b)) => Rc::ptr_eq(a, b),
             (Self::Proc(a), Self::Proc(b)) => Rc::ptr_eq(a, b),
             (Self::Ensemble(a), Self::Ensemble(b)) => Rc::ptr_eq(a, b),
             (Self::Imported { identity: a, .. }, Self::Imported { identity: b, .. }) => {
@@ -7971,6 +8032,7 @@ impl Interp {
     fn invoke(&mut self, cmd: Command, argv: &[*mut TclObj]) -> Code {
         match cmd {
             Command::Builtin(f) => f(self, argv),
+            Command::ObjCmd(command) => self.invoke_obj_cmd(&command, argv),
             Command::Alias { target, prefix, .. } => self.dispatch_alias(&target, &prefix, argv),
             Command::Imported {
                 source,
@@ -7999,6 +8061,38 @@ impl Interp {
                 self.dispatch_parent_alias(&target, &prefix, argv)
             }
         }
+    }
+
+    /// Call an extension's `Tcl_ObjCmdProc` with `argv` as its `objv`, and
+    /// take the completion code it answers. The result is whatever the
+    /// procedure left in the interpreter through `Tcl_SetObjResult`, which
+    /// dispatch emptied before the call.
+    fn invoke_obj_cmd(&mut self, command: &ObjCommand, argv: &[*mut TclObj]) -> Code {
+        let Ok(objc) = c_int::try_from(argv.len()) else {
+            self.set_result_bytes(b"too many arguments for a C command");
+            return Code::Error;
+        };
+        // SAFETY: the extension registered this procedure and client data
+        // together; `self` stays borrowed for the call, so the pointer is live
+        // for as long as the procedure may use it, and `argv` holds `objc` live
+        // objects.
+        let code = unsafe {
+            (command.proc_)(
+                command.client_data,
+                std::ptr::from_mut(self),
+                objc,
+                argv.as_ptr(),
+            )
+        };
+        Code::from_int(code)
+    }
+
+    /// `Tcl_CreateObjCommand`: bind `name` (qualified or relative to the current
+    /// namespace) to `command`, replacing and so deleting any command of that
+    /// name. Answers the new binding's generation.
+    pub(crate) fn create_obj_command(&mut self, name: &[u8], command: ObjCommand) -> Option<u64> {
+        self.ns_register(name, Command::ObjCmd(Rc::new(command)));
+        self.resolve_cmd_token(name)
     }
 
     /// Register `cmd` under the (possibly qualified) name `name` — for the OO
@@ -8085,6 +8179,7 @@ impl Interp {
                     _ => b"native",
                 }
             }
+            Command::ObjCmd(_) => b"native",
             Command::Proc(_) => b"proc",
             Command::Alias { .. } | Command::ParentAlias { .. } => b"alias",
             Command::Imported { .. } => b"import",

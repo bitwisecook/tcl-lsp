@@ -545,13 +545,15 @@ as missing, which are what `Tcl_ObjSetVar2` and `Tcl_EvalObjEx` need;
 against Tcl 9.0.4's own `tcl.h`, become the shared conformance vectors for
 both legs.
 
-**What the WASM leg needs first**, in order: `Tcl_CreateObjCommand`
-exported from `runtime/rust/src/capi.rs`, and a `Command` variant in
-`runtime/rust/src/interp.rs` holding a shared-table function index — the
-two halves § 12 of the ABI names as the unproven seam, since
-`tcl_invoke_argv` already routes a prebuilt argv through `Interp::dispatch`
-and so already reaches any command the table holds. Then the ownership
-categories of [../runtime/c-api-ownership-contract.md](../runtime/c-api-ownership-contract.md)
+**The WASM leg's registration seam** is built: `Tcl_CreateObjCommand` and
+`Tcl_DeleteCommand` are exported from `runtime/rust/src/capi.rs`, and a
+`Command::ObjCmd` in `runtime/rust/src/interp.rs` holds the extension's
+procedure (a shared-table function index under `wasm32`), so `tcl_invoke_argv`,
+which routes a prebuilt argv through `Interp::dispatch`, reaches an extension's
+command like any other the table holds — § 12 of the ABI, run by
+`a_compiled_script_calls_an_extension_registered_command` against the real
+runtime. What the leg does not have: the ownership categories of
+[../runtime/c-api-ownership-contract.md](../runtime/c-api-ownership-contract.md)
 encoded per export and gated, the `GOT.mem` / `GOT.func` list wired for
 the address-of-runtime-symbol pattern, and the syntax-only `wasm32-wasi`
 check turned into a CI gate that compiles the test extension. The engine
