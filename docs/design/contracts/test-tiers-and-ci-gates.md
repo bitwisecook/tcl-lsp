@@ -114,7 +114,10 @@ until the map assigns it.
    and `web-frontends`; the required `pr-gate` status is an `always()` aggregate
    that explicitly requires all four results. `scripts/dev/test-pr-gate-path.sh`
    rejects missing needs, job-level skips, weakened tag gates, and serialising
-   the worker behind a prerequisite. `check-all` (lint +
+   the worker behind a prerequisite. Alongside the workspace default-feature
+   pass, it checks and executes the focused x509-only contract test for
+   `tcl-bigip-query`: report WASM uses that socket-free graph, and the default
+   `probes` build cannot expose feature-gating errors there. `check-all` (lint +
    typecheck across TypeScript, Rust, Python) is the surface to run alone
    after touching TypeScript or Python. Failures are fixed, not skipped;
    tooling-missing skips are deliberate (`SKIP_CHECK_RUST=1`, …). Commit

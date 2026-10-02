@@ -419,7 +419,7 @@ fn spki_to_pem(spki_der: &[u8]) -> String {
 // x509_eq / x509_from_config — deterministic projections
 
 /// Structural equality of two parsed x509 dicts.
-#[cfg(feature = "probes")]
+#[cfg(any(feature = "x509", feature = "probes"))]
 pub(crate) fn x509_eq(left: &Value, right: &Value) -> bool {
     let (Value::Object(l), Value::Object(r)) = (as_dict(left), as_dict(right)) else {
         return crate::value::py_eq(left, right, 0);
@@ -434,7 +434,7 @@ pub(crate) fn x509_eq(left: &Value, right: &Value) -> bool {
         && dict_str(&l, "serial").eq_ignore_ascii_case(&dict_str(&r, "serial"))
 }
 
-#[cfg(feature = "probes")]
+#[cfg(any(feature = "x509", feature = "probes"))]
 fn as_dict(v: &Value) -> Value {
     match v {
         Value::ObjectRef(o) => Value::Object(o.fields.clone()),
@@ -442,7 +442,7 @@ fn as_dict(v: &Value) -> Value {
     }
 }
 
-#[cfg(feature = "probes")]
+#[cfg(any(feature = "x509", feature = "probes"))]
 fn dict_str(map: &IndexMap<String, Value>, key: &str) -> String {
     match map.get(key) {
         Some(Value::Str(s)) => s.clone(),
@@ -453,7 +453,7 @@ fn dict_str(map: &IndexMap<String, Value>, key: &str) -> String {
 
 /// Map BIG-IP `key-type` tokens to the `key_alg` strings the x509 parse
 /// uses.
-#[cfg(feature = "probes")]
+#[cfg(any(feature = "x509", feature = "probes"))]
 fn key_type_to_key_alg(key_type: &str) -> Option<&'static str> {
     Some(match key_type {
         "rsa-public" | "rsa-private" => "RSAPublicKey",
@@ -467,7 +467,7 @@ fn key_type_to_key_alg(key_type: &str) -> Option<&'static str> {
 
 /// Project a BIG-IP config-object cert into the `x509_parse` shape. `cert`
 /// is an `ObjectRef` (or dict) carrying the BIG-IP cert metadata fields.
-#[cfg(feature = "probes")]
+#[cfg(any(feature = "x509", feature = "probes"))]
 pub(crate) fn x509_from_config(cert: &Value) -> Result<Value, QueryError> {
     if matches!(cert, Value::Null) {
         return Err(QueryError::builtin("x509_from_config: cannot project None"));
@@ -559,7 +559,7 @@ pub(crate) fn x509_from_config(cert: &Value) -> Result<Value, QueryError> {
 
 /// Read a config field — accept attribute / dict-key / `ObjectRef`
 /// field form, with both `_`-and-`-` spellings, stripping surrounding quotes.
-#[cfg(feature = "probes")]
+#[cfg(any(feature = "x509", feature = "probes"))]
 fn field_get(cert: &Value, name: &str) -> String {
     let tmsh_name = name.replace('_', "-");
     let lookup = |fields: &IndexMap<String, Value>| -> String {
@@ -585,7 +585,7 @@ fn field_get(cert: &Value, name: &str) -> String {
     }
 }
 
-#[cfg(feature = "probes")]
+#[cfg(any(feature = "x509", feature = "probes"))]
 fn scalar_str(v: &Value) -> String {
     match v {
         Value::Str(s) => s.clone(),
@@ -599,7 +599,7 @@ fn scalar_str(v: &Value) -> String {
 }
 
 /// Parse a TMSH `expiration-string` → ISO-8601 UTC.
-#[cfg(feature = "probes")]
+#[cfg(any(feature = "x509", feature = "probes"))]
 fn parse_x509_date(text: &str) -> Option<String> {
     use chrono::{NaiveDateTime, TimeZone as _, Utc};
     if text.is_empty() {
@@ -638,7 +638,7 @@ fn parse_x509_date(text: &str) -> Option<String> {
 /// byte-identically to `x509_parse`. A single cert returns the dict; multiple
 /// return a list in file order. PKCS#12 (`.pfx` / `.p12`) is unsupported and
 /// returns a clear `BuiltinError` (PKCS#12 decoding is not supported).
-#[cfg(feature = "probes")]
+#[cfg(any(feature = "x509", feature = "probes"))]
 pub(crate) fn cert_load(path: &str, _password: Option<&str>) -> Result<Value, QueryError> {
     let expanded = expanduser(path);
     let raw = match std::fs::read(&expanded) {
@@ -700,7 +700,7 @@ pub(crate) fn cert_load(path: &str, _password: Option<&str>) -> Result<Value, Qu
 }
 
 /// Tilde expansion of a leading `~` / `~/` in the path.
-#[cfg(feature = "probes")]
+#[cfg(any(feature = "x509", feature = "probes"))]
 fn expanduser(path: &str) -> String {
     if (path == "~" || path.starts_with("~/"))
         && let Some(home) = std::env::var_os("HOME")
@@ -717,7 +717,7 @@ fn expanduser(path: &str) -> String {
 
 /// Split into one PEM string per `CERTIFICATE` block, in file order
 /// (key / other block types skipped).
-#[cfg(feature = "probes")]
+#[cfg(any(feature = "x509", feature = "probes"))]
 fn split_pem_blocks(text: &str) -> Vec<String> {
     let mut blocks: Vec<String> = Vec::new();
     let mut in_cert = false;
@@ -1045,9 +1045,11 @@ mod tls;
 
 // Registry wiring
 
+#[cfg(any(feature = "x509", feature = "probes"))]
+use crate::builtins::{BuiltinSpec, as_str, ctx, plain};
 #[cfg(feature = "probes")]
-use crate::builtins::{BuiltinSpec, as_int, as_str, ctx, plain, with_note};
-#[cfg(feature = "probes")]
+use crate::builtins::{as_int, with_note};
+#[cfg(any(feature = "x509", feature = "probes"))]
 use crate::eval::EvalContext;
 
 /// Optional positional-string arg with a default, matching the
@@ -1185,22 +1187,22 @@ fn bi_url_post(a: &[Value], c: &mut EvalContext) -> Result<Value, QueryError> {
 
 // --- ungated pure x509 surface (plain; not probe-gated) ---
 
-#[cfg(feature = "probes")]
+#[cfg(any(feature = "x509", feature = "probes"))]
 fn bi_x509_parse(args: &[Value]) -> Result<Value, QueryError> {
     x509_parse(&as_str(&args[0], "x509_parse", 1)?)
 }
 
-#[cfg(feature = "probes")]
+#[cfg(any(feature = "x509", feature = "probes"))]
 fn bi_x509_from_config(args: &[Value]) -> Result<Value, QueryError> {
     x509_from_config(&args[0])
 }
 
-#[cfg(feature = "probes")]
+#[cfg(any(feature = "x509", feature = "probes"))]
 fn bi_x509_eq(args: &[Value]) -> Result<Value, QueryError> {
     Ok(Value::Bool(x509_eq(&args[0], &args[1])))
 }
 
-#[cfg(feature = "probes")]
+#[cfg(any(feature = "x509", feature = "probes"))]
 fn bi_cert_load(args: &[Value]) -> Result<Value, QueryError> {
     let path = as_str(&args[0], "cert_load", 1)?;
     let password = match args.get(1) {
@@ -1210,7 +1212,7 @@ fn bi_cert_load(args: &[Value]) -> Result<Value, QueryError> {
     cert_load(&path, password.as_deref())
 }
 
-#[cfg(feature = "probes")]
+#[cfg(any(feature = "x509", feature = "probes"))]
 fn bi_ucs_cert(args: &[Value], ctx: &mut EvalContext) -> Result<Value, QueryError> {
     let Value::ObjectRef(obj) = &args[0] else {
         return Err(QueryError::builtin(
@@ -1271,8 +1273,28 @@ fn bi_ucs_cert(args: &[Value], ctx: &mut EvalContext) -> Result<Value, QueryErro
 const URL_NOT_LIVE: &str = "not implemented: returns the result shape with an `error` field, \
                             makes no request";
 
-/// Probe builtin registrations — folded into the global registry by
-/// [`crate::builtins`].
+/// Pure x509 builtin registrations — folded into the global registry by
+/// [`crate::builtins`] whenever the x509 surface is enabled.
+#[cfg(any(feature = "x509", feature = "probes"))]
+pub(crate) fn x509_registrations() -> Vec<(&'static str, BuiltinSpec)> {
+    vec![
+        ctx("ucs_cert", "net", 1, Some(1), bi_ucs_cert),
+        plain("x509_parse", "net", 1, Some(1), false, bi_x509_parse),
+        plain(
+            "x509_from_config",
+            "net",
+            1,
+            Some(1),
+            false,
+            bi_x509_from_config,
+        ),
+        plain("x509_eq", "net", 2, Some(2), false, bi_x509_eq),
+        plain("cert_load", "value", 1, Some(2), false, bi_cert_load),
+    ]
+}
+
+/// Network-probe builtin registrations — folded into the global registry by
+/// [`crate::builtins`] whenever the `probes` feature is enabled.
 #[cfg(feature = "probes")]
 pub(crate) fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
     vec![
@@ -1302,18 +1324,5 @@ pub(crate) fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
             ctx("url_post", "net", 1, Some(3), bi_url_post),
             URL_NOT_LIVE,
         ),
-        ctx("ucs_cert", "net", 1, Some(1), bi_ucs_cert),
-        // Pure x509 surface — ungated (plain, deterministic here).
-        plain("x509_parse", "net", 1, Some(1), false, bi_x509_parse),
-        plain(
-            "x509_from_config",
-            "net",
-            1,
-            Some(1),
-            false,
-            bi_x509_from_config,
-        ),
-        plain("x509_eq", "net", 2, Some(2), false, bi_x509_eq),
-        plain("cert_load", "value", 1, Some(2), false, bi_cert_load),
     ]
 }

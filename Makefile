@@ -1448,6 +1448,9 @@ _check-rust-pr:
 	cd $(ROOT); \
 	cargo fmt --all --check; \
 	cargo clippy --workspace --all-targets -- $(CLIPPY_LINT_FLAGS); \
+	echo "==> Checking tcl-bigip-query's offline x509 feature set (clippy + test)"; \
+	cargo clippy -p tcl-bigip-query --no-default-features --features x509 --all-targets -- $(CLIPPY_LINT_FLAGS); \
+	cargo test -p tcl-bigip-query --no-default-features --features x509 --test x509_only; \
 	if [ -f "$(RUNTIME_RUST_DIR)/Cargo.toml" ]; then \
 		echo "==> Checking runtime/rust (fmt + clippy)"; \
 		$(MAKE) --no-print-directory -C $(ROOT) runtime-rust-lint; \
