@@ -19,27 +19,32 @@
 //! The completions a command raises
 //! (`docs/design/compiler/value-transfers.md` § *`catch`, `try`, and
 //! completion*): `error`'s `TCL_ERROR`, the codes of `return`, `break` and
-//! `continue`, and the protocols by which a body's completion becomes its
-//! command's.
+//! `continue`, the protocols by which a body's completion becomes its
+//! command's, and the handler chain of `try`, whose facts every consumer of
+//! the handler list reads from [`HandlerChain`].
 
 use tcl_dialect::TclVersion;
 use tcl_dialect::model::SpecSurface;
+use tcl_syntax::number::Numbers;
 
 use crate::arg_role::ArgRole;
-use crate::completion::{CompletionCode, CompletionCodeDomain};
+use crate::clause_grammar::{ClauseGrammarSpec, ClausePlan, ClauseRowId};
+use crate::completion::{CompletionCode, CompletionCodeDomain, completion_code_selector};
 use crate::frame_effect::FrameLevel;
+use crate::invocation_words::InvocationWordKind;
 use crate::types::TclType;
 
 use super::CommandSemantics;
 use super::answers::{
-    BindingKind, BodyPlan, CompletionOutcome, CompletionPath, CompletionProtocol,
-    DependencyEvidence, EvalAnswer, ExactValue, ExactValueOrUnavailable, Existence,
-    ExistenceOutcome, ExistenceTransfer, FactBounds, InvocationOutcome, PlanAnswer, Reconcile,
-    RouteIdentity, SegmentFacts, StoreOutcome, TransferAnswer, TypeFacts,
+    Binder, BinderName, BindingKind, BodyPlan, CompletionOutcome, CompletionPath,
+    CompletionProtocol, DependencyEvidence, EvalAnswer, ExactValue, ExactValueOrUnavailable,
+    Existence, ExistenceOutcome, ExistenceTransfer, FactBounds, HandlerMatch, HandlerPlan,
+    InvocationOutcome, PlanAnswer, Reconcile, RouteIdentity, SegmentFacts, StoreOutcome,
+    TransferAnswer, TypeFacts,
 };
 use super::const_ops::TargetSemantics;
 use super::context::Budget;
-use super::decline::DeclineReason;
+use super::decline::{DeclineReason, NoRouteReason};
 use super::destructure::unavailable;
 use super::inputs::{
     AnalysisInputs, DomainFact, EvaluationState, FactDomain, FactView, NestedPolicy, OperandId,
@@ -580,5 +585,341 @@ impl CommandSemantics for CatchSemantics {
                 outcomes,
             }],
         })
+    }
+}
+
+/// One handler of a `try`, as [`HandlerChain`] reads it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HandlerLink<'a> {
+    /// How the handler's pattern word selects it.
+    pub matches: HandlerMatch,
+    /// The pattern word's value: the spelling of a completion code for a
+    /// selection by code, unread for a selection by `-errorcode` prefix.
+    pub selector: &'a str,
+    /// Whether the handler's script is the fall-through marker, which runs
+    /// the script of the next handler that has one.
+    pub falls_through: bool,
+}
+
+/// A handler with its selector decoded.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ChainEntry {
+    matches: HandlerMatch,
+    code: Option<CompletionCode>,
+    falls_through: bool,
+}
+
+/// The handlers of one `try`, in order, read the way `try` runs them: the
+/// first handler whose selector matches the body's completion runs, a `-`
+/// handler still selects its own code and runs the script of the next handler
+/// that has one, and a `trap` selects only an error whose `-errorcode` starts
+/// with its pattern. Every fact a consumer needs of the list — which handler
+/// takes a completion, which can never run, which scripts a match may reach,
+/// whether a handler selects a code — is answered here, so that the control
+/// flow graph, the solvers and the optimiser read one answer
+/// (`docs/design/compiler/value-transfers.md` § *`catch`, `try`, and
+/// completion*).
+///
+/// Measured under 8.6, 9.0 and 9.1:
+///
+/// ```tcl
+/// try {error boom} on error {} {A} on error {} {B}              ;# A
+/// try {error boom} on error {} - on ok {} {X}                   ;# X
+/// try {error boom} on error {} - on error {} {B} on ok {} {C}   ;# B
+/// try {error boom} on error {} {E} trap {} {} {T}               ;# E
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HandlerChain {
+    entries: Vec<ChainEntry>,
+}
+
+impl HandlerChain {
+    /// The chain of `links`, each selector decoded under `numbers`: `on 010`
+    /// selects code 8 up to 8.6 and code 10 from 9.0.
+    pub fn new<'a>(links: impl IntoIterator<Item = HandlerLink<'a>>, numbers: Numbers) -> Self {
+        Self {
+            entries: links
+                .into_iter()
+                .map(|link| ChainEntry {
+                    matches: link.matches,
+                    code: Self::selected(link.matches, link.selector, numbers),
+                    falls_through: link.falls_through,
+                })
+                .collect(),
+        }
+    }
+
+    /// The completion code a handler selects: `TCL_ERROR` for a selection by
+    /// `-errorcode` prefix, whatever its pattern, and for a selection by code
+    /// the one `numbers` reads the selector as — `None` for a selector that
+    /// names no code, which the registry cannot decide.
+    #[must_use]
+    pub fn selected(
+        matches: HandlerMatch,
+        selector: &str,
+        numbers: Numbers,
+    ) -> Option<CompletionCode> {
+        match matches {
+            HandlerMatch::ErrorCodePrefix => Some(CompletionCode::Error),
+            HandlerMatch::CompletionCode => completion_code_selector(selector, numbers),
+        }
+    }
+
+    /// The number of handlers.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    /// Whether there are no handlers.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    /// The completion code handler `index` selects ([`Self::selected`]).
+    #[must_use]
+    pub fn code(&self, index: usize) -> Option<CompletionCode> {
+        self.entries[index].code
+    }
+
+    /// The handler whose script handler `index` runs: itself, or for a `-`
+    /// handler the next one with a script of its own. A chain that ends on a
+    /// `-`, which `try` rejects, gives the handler itself.
+    #[must_use]
+    pub fn owner(&self, index: usize) -> usize {
+        self.entries[index..]
+            .iter()
+            .position(|entry| !entry.falls_through)
+            .map_or(index, |offset| index + offset)
+    }
+
+    /// The first handler of the group that runs `owner`'s script: the `-`
+    /// handlers just before it.
+    fn group_start(&self, owner: usize) -> usize {
+        self.entries[..owner]
+            .iter()
+            .rposition(|entry| !entry.falls_through)
+            .map_or(0, |earlier| earlier + 1)
+    }
+
+    /// Whether handler `index` can never run because a handler before its
+    /// group always takes its completions first: only an unconditional
+    /// handler pre-empts — an `on` with the same code, a `-` one included,
+    /// since it still selects its code and only delegates its script — and a
+    /// `trap` never does, its pattern may not match. A selector that names no
+    /// code pre-empts nothing and is pre-empted by nothing. Handlers of one
+    /// group run one script, so none of them pre-empts another.
+    #[must_use]
+    pub fn preempted(&self, index: usize) -> bool {
+        let Some(code) = self.code(index) else {
+            return false;
+        };
+        let start = self.group_start(self.owner(index));
+        self.entries[..start].iter().any(|earlier| {
+            earlier.matches == HandlerMatch::CompletionCode && earlier.code == Some(code)
+        })
+    }
+
+    /// The handlers whose match runs handler `index`'s own script: the
+    /// handler with the `-` handlers that hand it their match, less any an
+    /// earlier handler pre-empts ([`Self::preempted`]). Empty for a `-`
+    /// handler, whose script is its owner's, and for a group of which every
+    /// member is pre-empted.
+    #[must_use]
+    pub fn live_group(&self, index: usize) -> Vec<usize> {
+        if self.entries[index].falls_through {
+            return Vec::new();
+        }
+        (self.group_start(index)..=index)
+            .filter(|member| !self.preempted(*member))
+            .collect()
+    }
+
+    /// Whether handler `index` certainly does not select a completion with
+    /// `code`: its selector names another. A selector that names no code
+    /// might select it.
+    #[must_use]
+    pub fn misses(&self, index: usize, code: CompletionCode) -> bool {
+        self.code(index).is_some_and(|selected| selected != code)
+    }
+
+    /// Whether handler `index` takes every completion with `code`: it selects
+    /// by code and names it. A `trap` takes none, its pattern may not match.
+    #[must_use]
+    pub fn takes(&self, index: usize, code: CompletionCode) -> bool {
+        let entry = &self.entries[index];
+        entry.matches == HandlerMatch::CompletionCode && entry.code == Some(code)
+    }
+
+    /// The handler that certainly runs for a completion with `code`: the
+    /// first whose selector is not known to name another code, when it takes
+    /// the code whole. `None` when no handler selects it, and when the first
+    /// that might is a `trap` or has a selector the registry cannot decide —
+    /// either may or may not run it.
+    #[must_use]
+    pub fn first_taking(&self, code: CompletionCode) -> Option<usize> {
+        let first = self
+            .entries
+            .iter()
+            .position(|entry| entry.code.is_none_or(|selected| selected == code))?;
+        self.takes(first, code).then_some(first)
+    }
+}
+
+/// `try body ?handler…? ?finally script?`: the protected body, the handlers in
+/// the order they are tried, and the `finally` script that runs on every path.
+///
+/// The structure is read from the command's clause grammar: the plan is a body
+/// run in the frame the command is written in, whose completion
+/// ([`CompletionProtocol::Handlers`]) runs the first handler that selects it,
+/// each [`HandlerPlan`] carrying how its pattern selects (`on` by code, `trap`
+/// by `-errorcode` prefix), the pattern's operand, the names its variable list
+/// binds and its script — `None` for a `-` handler, which runs the next
+/// script. The binders are the first two elements of the list, the result
+/// variable then the options variable (a third is ignored, as `try` ignores
+/// it); an empty element binds nothing and is kept as an empty name, so that
+/// the position says which is which. What a plan cannot place declines: a
+/// keyword or `-` that is computed, a variable list the analysis does not know
+/// exactly, a word that expands into several, and a shape `try` rejects (a
+/// last handler whose script is `-`, a `finally` that is not last). The
+/// handlers' own facts are [`HandlerChain`]'s.
+///
+/// There is no evaluation route: the command's value is its body's or a
+/// handler's, and nothing here runs them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TrySemantics {
+    /// The command's clause grammar, which says where each clause stands.
+    pub grammar: &'static ClauseGrammarSpec,
+}
+
+impl TrySemantics {
+    /// The binders a handler's variable-list word names: its first two
+    /// elements, in order.
+    fn binders(input: &dyn AnalysisInputs, list: OperandId) -> Result<Vec<Binder>, DeclineReason> {
+        let text = match input.operand(list, FactDomain::ExactValue) {
+            FactView::Exact(value, _) => {
+                String::from_utf8(value.bytes).map_err(|_| DeclineReason::NotText)?
+            }
+            FactView::Top(reason) => return Err(reason),
+            FactView::Pending | FactView::Finite(..) | FactView::Domain(_) => {
+                return Err(DeclineReason::NotExact);
+            }
+        };
+        // A malformed list is the command's error.
+        let names =
+            tcl_syntax::list::split_list(&text).map_err(|_| DeclineReason::WrongRepresentation)?;
+        Ok(names
+            .iter()
+            .take(2)
+            .map(|name| Binder {
+                name: BinderName::Declared((*name).to_string()),
+                kind: BindingKind::Scalar,
+            })
+            .collect())
+    }
+
+    /// The plan of the handler clause `at` of `plan`.
+    fn handler(
+        input: &dyn AnalysisInputs,
+        plan: &ClausePlan,
+        at: usize,
+    ) -> Result<HandlerPlan, DeclineReason> {
+        let clause = &plan.clauses[at];
+        let (pattern, matches) = clause.handler().ok_or(DeclineReason::Unsupported)?;
+        let list = clause
+            .operand(ArgRole::LoopVarList)
+            .ok_or(DeclineReason::Unsupported)?;
+        let body = if plan.falls_through(at) {
+            None
+        } else {
+            Some(OperandId(
+                clause
+                    .operand(ArgRole::Body)
+                    .ok_or(DeclineReason::Unsupported)?,
+            ))
+        };
+        Ok(HandlerPlan {
+            matches,
+            pattern: OperandId(pattern),
+            binders: Self::binders(input, OperandId(list))?,
+            body,
+        })
+    }
+}
+
+impl CommandSemantics for TrySemantics {
+    fn identity(&self) -> &'static str {
+        "body:try"
+    }
+
+    fn route(&self) -> EvalRoute {
+        EvalRoute::None {
+            reason: NoRouteReason::Unauthored,
+        }
+    }
+
+    fn structure(&self, input: &dyn AnalysisInputs) -> PlanAnswer {
+        let view = input.invocation();
+        let first = view.argument_offset;
+        let words = view.operands.get(first..).unwrap_or_default();
+        // A word that expands, or a region with no words, leaves the count of
+        // clauses unknown.
+        if words.iter().any(|word| {
+            matches!(
+                word.kind,
+                InvocationWordKind::Expanded | InvocationWordKind::Opaque
+            )
+        }) {
+            return PlanAnswer::Declined(DeclineReason::Unsupported);
+        }
+        let texts: Vec<&str> = words.iter().map(|word| word.text).collect();
+        let computed: Vec<bool> = words
+            .iter()
+            .map(|word| word.kind != InvocationWordKind::Literal)
+            .collect();
+        // Tcl decides a computed keyword, or a computed `-`, by its value.
+        let Ok(plan) = self
+            .grammar
+            .walk_words_or_abstain(&texts, &computed, &[], None)
+        else {
+            return PlanAnswer::Declined(DeclineReason::NotExact);
+        };
+        if plan.defect.is_some() {
+            return PlanAnswer::Declined(DeclineReason::WrongRepresentation);
+        }
+        let plan = plan.offset_by(first);
+        let mut body = None;
+        let mut handlers = Vec::new();
+        let mut finally = None;
+        for (at, clause) in plan.clauses.iter().enumerate() {
+            match clause.row {
+                ClauseRowId::Head => body = clause.operand(ArgRole::Body).map(OperandId),
+                ClauseRowId::Tail => finally = clause.operand(ArgRole::Body).map(OperandId),
+                ClauseRowId::Row(_) => match Self::handler(input, &plan, at) {
+                    Ok(handler) => handlers.push(handler),
+                    Err(reason) => return PlanAnswer::Declined(reason),
+                },
+            }
+        }
+        let Some(body) = body else {
+            return PlanAnswer::Declined(DeclineReason::WrongRepresentation);
+        };
+        // `try` rejects a chain whose last handler runs the script after it.
+        if handlers
+            .last()
+            .is_some_and(|handler| handler.body.is_none())
+        {
+            return PlanAnswer::Declined(DeclineReason::WrongRepresentation);
+        }
+        PlanAnswer::Body {
+            binders: Vec::new(),
+            body: BodyPlan {
+                body,
+                frame: FrameLevel::Relative(0),
+            },
+            reconcile: Reconcile::None,
+            completion: CompletionProtocol::Handlers { handlers, finally },
+        }
     }
 }

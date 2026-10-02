@@ -91,6 +91,10 @@ pub const GRAMMAR: ClauseGrammarSpec = ClauseGrammarSpec {
     surface: None,
 };
 
+/// The handler protocol of a call to `try`, read from [`GRAMMAR`].
+static SEMANTICS: crate::value_transfer::completion::TrySemantics =
+    crate::value_transfer::completion::TrySemantics { grammar: &GRAMMAR };
+
 /// The word immediately after `body` (index 1), when present, is always
 /// the head of the first handler clause or a bare `finally` — every
 /// later clause-head position shifts with how many 4-word `on`/`trap`
@@ -197,6 +201,7 @@ pub fn spec() -> CommandSpec {
         arg_values: &[(1, FIRST_CLAUSE_KEYWORD_VALUES)],
         closed_value_args: &[1],
         side_effects: SIDE_EFFECTS,
+        semantics: SemanticsDeclaration::Declared(&SEMANTICS),
         ..CommandSpec::DEFAULT
     }
 }

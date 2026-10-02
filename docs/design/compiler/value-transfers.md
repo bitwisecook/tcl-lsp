@@ -2128,6 +2128,41 @@ struct HandlerPlan {
 completion code (`on`) or by `-errorcode` prefix (`trap`), stated once
 for the grammar and read here per handler.
 
+**The handler chain.** A `try`'s handler list is read once, by the
+registry's `HandlerChain` (`value_transfer/completion.rs`), and every consumer
+asks it rather than reading the list again. What it answers, each measured
+under 8.6, 9.0 and 9.1:
+
+- *The code a handler selects.* A `trap` selects `TCL_ERROR`, whatever its
+  pattern; an `on` selects the code its selector names under the target's
+  numerals — `on 010` is code 8 up to 8.6 and code 10 from 9.0, `on 0` is `ok`,
+  `on 0x10` is 16 — and a selector the registry cannot decode selects an
+  unknown code.
+- *The first match runs.* An earlier unconditional handler pre-empts a later
+  one with the same code (`try {error boom} on error {} {A} on 1 {} {B}` runs
+  `A`), a `-` handler included, since it selects its code and only delegates
+  its script; a `trap` pre-empts nothing, its `-errorcode` prefix may not
+  match (`try {error boom} trap {X} {} {T} on error {} {E}` runs `E`).
+- *A `-` handler runs the next script.* The handlers whose matches reach a
+  script are its owner and the `-` handlers before it, less any a handler
+  before that group pre-empts; a `-` handler has no script of its own, so
+  nothing is wired to it, and `try {error boom} on error {} - on ok {} {X}`
+  runs `X`.
+- *What a code does to the list.* A handler certainly misses a code when its
+  selector names another; it takes a code whole when it is an `on` that names
+  it; and the handler that certainly runs for a code is the first whose selector
+  is not known to name another, when it takes the code — a `trap` or a selector
+  that cannot be decoded first leaves it open.
+
+The plan (`TrySemantics`) is read from the command's clause grammar and states
+the structure: the protected body, and for each handler how its pattern selects
+(`HandlerMatch`), the pattern's operand, the names its variable list binds — its
+first two elements, the result and then the options variable — and its script,
+none for a `-` handler; and the `finally` script. A call it cannot place
+declines: a computed keyword or `-`, a computed variable list, a word that
+expands, and the shapes `try` itself rejects (a last handler whose script is
+`-`, a `finally` that is not last).
+
 **Write order across the error edge — the prefix rule.** An outcome's
 `ordered_stores` are in execution order, and `Error { written, .. }` says
 how many of them ran; the targets after that index are preserved. Under
