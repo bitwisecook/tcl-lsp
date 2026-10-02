@@ -1,4 +1,4 @@
-# Lane: consumer contracts — steps 1–7 landed; the plan for steps 2–10
+# Lane: consumer contracts — steps 1–9 landed; the plan for steps 2–10
 
 ## Goal
 
@@ -929,8 +929,9 @@ against the landed tree with evidence:
   target meanwhile. Once the compile service carries the overlay
   generation, `site_claims`'s stamp can read it there rather than from
   `CommandRegistry::overlay_generation` (D4.16).
-- **For steps 7 and 8.** `SiteClaim` gains `ShippedImplementation`, with
-  `IdentityKind` (D4.15), and `ReferenceBody`; `site_claims_hold` compares
+- **For steps 7 and 8.** `SiteClaim` gains `ReferenceBody` in step 8
+  (`ShippedImplementation`, with `IdentityKind` (D4.15), is built by no step:
+  D8.9); `site_claims_hold` compares
   `claim.facts()` for every variant, so a new variant needs only its
   `facts()` arm. The manifest's `packs` is the deduplicated union of a
   unit's claims' facts. A lockfile integrity hash that is to equal
@@ -1619,6 +1620,7 @@ exit) last.
 | CC7.2 the backing query in both runtimes; the gate asks it | landed | `wip(consumer-contracts): step 7 — the backing query replaces the scan` | **The vocabulary.** `rust/tcl-runtime-api/src/backing.rs` (new): `RegisteredBacking` (`Builtin`, `Object`, `Stdlib { file }`, `Unsupported`, `NeedsNumericTower`, `Absent`, with `label` and `executes`) and `BackingReport` (`from_entries`, `of`: a name is looked up without its leading `::`, and a name never mentioned is `Absent`) (D7.14). **The runtime.** `runtime/rust/src/interp.rs`: `Interp::backing_report(&self) -> Vec<(String, RegisteredBacking)>` walks every namespace's command table and classifies each command by what it is (a handler is `Builtin`; a handler registered only to refuse is `Unsupported`; an engine-installed `TclOO` root is `Object`; a proc, alias, ensemble or user object is no backing), adds the commands the object system binds in every object's namespace once a root exists (`cmd_oo.rs`'s `OBJECT_NAMESPACE_COMMANDS`, which `oo_register_my` now reads too: `my`, `myclass`), adds the commands the embedded library defines under the `wasm_stdlib` feature (`embedded_stdlib.rs`'s `DEFINED_COMMANDS`, 11 names and their files, verified by `the_library_defines_the_commands_it_reports`, which sources the vendored library natively, asks the auto-load index for `parray` and holds each entry to the file whose text defines it) and, in a build without libtommath, adds the commands a build with it registers as `NeedsNumericTower` (`builtins.rs`'s `tower_command_names`: `expr`, `if`, `while`, `for`, `lseq` and the derived `::tcl::mathop::*` and `::tcl::mathfunc::*`, 90 names; `mathop_names` and `mathfunc_names` moved out of their gated modules so the list can be derived without the tower) (D7.16). `register_unsupported` records the five refusal stubs of `cmd_misc.rs` (`exec`, `socket`, `load`, `fileevent`, `fcopy`) by generation. **The sweep.** `Interp::attach_identities` (runtime) and `Vm::attach_identities` walk the specs of `environment::store_for_profile(pinned profile)` and attest each spec's intrinsic identities to the builtin registered at its name, only while the command bound there is still that builtin (the runtime compares the generation's recorded registry name with the resolved name, the VM the command's `builtin_identity_for_key`); one writer per runtime, `attest` (`bind_attested_builtin` and `register_attested` call it), which unions into what a generation already holds. It takes no registry argument, so a generation an overlay installed is unreachable by construction, and it runs once, at the end of registration, not again at the pin (D7.15). `register_spec_builtin` goes from both runtimes: `string` is an ordinary registration in both, and the VM's 15 `::tcl::dict::*` members register through `register_spelled`, which keeps the registry's rooted spelling as the builtin's registry identity, as `register_spec_builtin` did; the VM's `environment::universal_store` had no reader left and goes. The sweep attests 15 commands and 30 identities in each runtime (the runtime attested `string` alone before); `Vm::new` costs 1.7 ms more in a debug build, of 11.5. **The gate.** `rust/xtask/Cargo.toml` depends on `tcl-runtime` (by path, with `wasm_stdlib`), `tcl-vm` and `tcl-runtime-api`; `command_backing.rs` is rewritten: the source scan, `HANDLER_EXTRA`, `STDLIB`, `NOT_REQUIRED` and the four predicates (`is_expr_operator`, `is_mathop_command`, `is_mathfunc_command`, `is_tcl_dict_qualified`, `is_oo_helpers_qualified`) are deleted, and `KNOWN_UNBACKED` is the one list, its two families now prefix entries (`tcl::dict::` and `oo::Helpers::`, matched on canonical names and stale when nothing under them is left unbacked). `stand` holds one declaration to the WASM runtime's answer: a shipped builtin is backed by `Builtin`, `Object` or `NeedsNumericTower`, and otherwise known gap when a waiver covers it and drift when not; a library body is backed by `Stdlib` from the same file; `None` is backed by `Absent` or `Unsupported` and drift when the runtime registers it. The VM is asked too and printed in the `vm` column, informational (D7.17). `docs/generated/wasm-command-backing.md` is regenerated: the same 389 rows, now `command | backing | wasm | vm | note`, with a tally by declaration and answer (shipped-builtin 323: 275 builtin, 6 object, 42 known gap; `tcl-body` 11, all `stdlib`; `none` 55: 50 absent, 5 unsupported), and it reads identically from a build with the tower and one without (`--check` passes in both; the `rust-check` job has no libtommath). **What the gate found.** `tcl::mathfunc`, the namespace head, was declared `shipped-builtin` (CC7.1 copied the old report's row, which a predicate gave the native-handler status) and no runtime registers a command of that name; it declares `None`, as its twin `tcl::mathop` already did (D7.18). **Tests.** `backing.rs` (2): `a_name_is_one_command_whichever_spelling_asks`, `only_a_registered_handler_executes_the_command`. `runtime/rust/src/interp.rs` (5): `identities_come_from_the_pinned_generation_never_an_overlay` (an overlay generation installed under the interpreter's own profile holds a spec declaring `StringLength` and the interpreter a builtin of that name: the sweep attests nothing for it and still attests `string`; control: a sweep over the overlay's store would), `the_sweep_attests_only_the_builtin_it_registered` (a procedure over `string`, `puts` renamed into it, and the original restored), `every_registered_builtin_with_an_intrinsic_is_attested_for_all_of_them`, `the_backing_report_says_what_the_handler_table_holds` and, with the tower, `the_tower_commands_a_build_without_it_names_are_registered_with_it` (without it, `a_build_without_the_tower_reports_the_commands_it_lacks_as_needing_it`); `embedded_stdlib.rs` (1): `the_library_defines_the_commands_it_reports`. `rust/tcl-vm/src/interp.rs` (5, in `family_b_tests`): the same four and `a_spelled_builtin_names_a_spec_the_registry_has`. `rust/xtask/src/command_backing.rs` (8 new): the plan's `a_declared_builtin_the_runtime_lacks_is_drift_unless_waived` and `a_declared_none_the_runtime_registers_is_drift`, `a_declared_library_body_must_be_reported_from_that_file`, `a_waiver_that_no_longer_applies_is_stale`, `a_build_without_the_tower_renders_its_handlers_as_handlers`, `the_waivers_are_sorted_and_canonical`, `every_core_command_declares_what_the_wasm_runtime_bears_out` and the kept `committed_wasm_command_backing_matches_generated` (now over the query). `registry_sweep.rs`: `every_core_command_declares_a_backing` goes, since the report it read is a rendering of the declarations (a tautology, D7.5), and its two surviving invariants are `a_spec_outside_the_core_set_declares_no_backing` and `a_shipped_builtin_is_attested_by_the_commands_own_name`. **Mutation checks** (18, each reverted, each failing the tests named beforehand and only those, bar the one that fails ten). Runtime: the sweep reading an overlay generation (`identities_come_from_the_pinned_generation_never_an_overlay`), the sweep attesting whatever generation the name resolves to (`the_sweep_attests_only_the_builtin_it_registered`), no sweep at the end of registration (ten tests: `every_registered_builtin_with_an_intrinsic_is_attested_for_all_of_them`, `the_sweep_attests_only_the_builtin_it_registered` and eight of the existing guard tests, which read `string`'s attestation), the refusal stubs not recorded and procedures counted as handlers (`the_backing_report_says_what_the_handler_table_holds`, each), a bogus name on the tower list (`the_tower_commands_a_build_without_it_names_are_registered_with_it`), a wrong file in `DEFINED_COMMANDS` (`the_library_defines_the_commands_it_reports`). VM: the same overlay, any-binding, procedure and spelling mutations, each failing its own test in `family_b_tests`. xtask: a declared `None` registered not counted as drift, every shipped builtin waived, a distinct label for `NeedsNumericTower` (fails its test and `committed_wasm_command_backing_matches_generated`, which a build without the tower would otherwise hide), a prefix waiver never stale, and the `vm` column dropped from the rendering (`committed_wasm_command_backing_matches_generated`). Registry: a non-core spec declaring a backing and a shipped identity that is not the command's name. Moved: `docs/generated/wasm-command-backing.md` (the columns and the `tcl::mathfunc` row); `every_core_command_declares_a_backing` deleted; `rust-tests-package-paths.txt` and `lsp-e2e-package-paths.txt` gain `rust/tcl-pkg-model`, a crate CC6.2 added without registering, which `check-rust-tests-paths` and `check-lsp-e2e-paths` found failing on the parent commit, and the first gains `runtime/rust`, which the gate now links, so `test-rust-tests-paths.sh` expects a path under it to be relevant where it expected it unrelated. Build time, the plan's checklist: linking `tcl-runtime` adds 15 s to a cold `xtask` build without libtommath and 23 s with it (`tcl-vm` was already in its graph), under the minute that would move the query behind a build step, so it stays in the gate. Gates: `cargo test -p tcl-runtime-api` (33, was 31) and `-p tcl-registry` (1286 with every binary; lib 955, `registry_sweep` 41, was 40), `-p tcl-vm` (lib 107, was 102; 50 binaries, 1484) under `LANG=C.UTF-8`, `runtime/rust` (lib 715, was 709; 12 integration binaries, 160; 875 in all; and in the tower-less configuration, libtommath absent, lib 618 and 745 in all), `-p xtask` (241, was 237), `-p tcl-compiler --test wasm_real_link` (13) and `--test wasm_tiers` (7) with `TCL_REQUIRE_WASM_LINK=1` against the changed runtime, `--test wasm_codegen` (45) and `--test codegen_integration` (17), `-p tcl-engine-tclvm -p tcl-debugger -p tcl-spec-hooks -p tcl-irule-test -p tcl-spectcl -p tcl-spec-studio -p tcl-mcp -p tcl-vm-cli` (902 in 49 binaries, 1 ignored) and `-p tcl-cli -p tcl-explorer` (237); `cargo check --workspace --all-targets`; `cargo clippy --workspace --all-targets -- -D warnings`, the runtime's own `cargo clippy --all-targets -- -D warnings` in both configurations, `cargo fmt --all` and the runtime's `cargo fmt` clean, no new `#[allow]`; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389, with and without the tower), `gen-irule-test-data --check`, `callback-inventory --check`, `audit-option-dialects --check` (114), `retired-api-gate` and `owner-resolution` (45) OK, `kcs-index-links` green, `dialect-drift` at its 8 sites, and the path gates `check-rust-tests-paths`, `check-lsp-e2e-paths`, `check-runtime-rust-paths`, `check-release-dependency-graph`, `check-rust-tests-runner` and `check-smoke-targets`. Docs: `AGENTS.md` § *WASM command parity* and its *Command registry* bullet, the design page (the status box, the rung-4 cell, the ruling's rationale, the registry-today bullet for the WASM runtime, the *Consequences for the runtimes* bullet, the anchors), `command-registry.md`, `docs/GLOSSARY.md` (*Runtime backing* and *Guard identity*), and the `filename` spec's doc comment. Deviations: the three variants beyond the plan's four (D7.14); no registry argument and no second sweep at the pin (D7.15); the stdlib answer is a verified table, not a scan (D7.16); `KNOWN_UNBACKED`'s families are prefix entries, the VM is informational and the per-row prose of `NOT_REQUIRED` is gone (D7.17); `tcl::mathfunc` declares `None` (D7.18); the two path manifests. D7.14–D7.18 |
 | CC7.4 the artefact manifest and the runtime context | landed | `wip(consumer-contracts): step 7 — the artefact manifest and the runtime context` | **The vocabulary.** `rust/tcl-runtime-api/src/manifest.rs` (new): `ArtefactIdentityManifest` (the page's eight fields, `abi_version` a `u32`, `intrinsic_table_hash` 32 bytes), `RuntimeContext { environment, release, build, packages, overlay_generation }` with `identity(packs, intrinsic_table_hash)`, the one function by which an artefact and a runtime state themselves (the pack facts sorted and without repeats; this build's ABI version and embedded-library revision filled in), `Rung` and `RungSet`, `ManifestField` with `rests_on` — the table of what rests on what (D7.23) — `disagreements`, `refused_rungs` and `describe` (D7.24), `to_bytes` and `from_bytes` (a field list in declaration order, each field a little-endian `u32` length and its bytes) and `from_wasm` (reads the `tcl.manifest` custom section), `ManifestDecodeError`, `WASM_SECTION` and `EMBEDDED_STDLIB_REVISION`. The vocabulary sits in the lowest crate the compiler, both runtimes and the link harness share (D7.19). `codegen_abi.rs`: `CodegenAbiImportId::ALL`, `CODEGEN_ABI_VERSION` — an FNV-1a fingerprint, evaluated at compile time, over every import's module, name and types in table order and the wasm32 layout constants (D7.20) — and the import `RuntimeIdentity` (`tcl_runtime_identity(out, capacity)`). **The registry.** `tcl-registry`: `intrinsic_table_hash()` — SHA-256 over each member's stable identity, its family (a tag, the domain bits and `fires_traces`) and its guarded-semantics keys, in table order, once per process (D7.21); `model/runtime_context.rs` (new) — `runtime_context_of`, `runtime_context_for_profile` (memoised per profile name and environment-registry generation, so a trusted `-extend` moves the next statement), `PinnedContext` (the context, the interned profile, the `Arc<ContextRegistry>` it resolved and holds — the process cache retires overlays past 64, D6.15 — and the identity it states, restated with the pack facts), `PinError` (an environment nothing answers to, a release or a build that is not the environment's point, `OverlayMiss`) and `pin`, which resolves through `resolve_known_environment` and the fallible `context_registry`, so an overlay nothing installed is an error and never the plain generation (D7.19, D7.26); `ResolvedContext::package_floors`. **The compile side.** `tcl-bytecode`: `ModuleAsm::manifest` (an `Arc`, `None` for assembly no compiler produced), `ModuleAsm::claimed_packs` (every function's claims' stamps, sorted and once) and `FunctionAsm::rungs` (rung 0 always, each claim's own rung, 3 from `procedure_bindings`, 4 from `command_bindings`). The bytecode emitter states the context of the profile the module carries, the claimed packs and this build's table (D7.25); the WASM backend states the unit's dialect's context and no packs, and `WasmModule::to_bytes` writes it as the last custom section (D7.29). **The VM.** `CompiledUnit::manifest` (an `Arc`; a unit made from a module carries it, a plain-dispatch child and a scanner activation carry none) and `Frame::manifest`; `InterpState::pin: PinnedContext` replaces `dialect_profile`, so there is one copy of the profile to keep in step; `Vm::pin_context`, `runtime_context` and `held_identity`; `set_dialect_profile` is the profile form of the same pin, both through `install_pin`, which advances the compilation-deopt epoch whenever the context changes; `set_pack_facts` restates the identity; a child interpreter inherits the pin (D7.26). `validate_module_profile` keeps the profile-pointer check and then refuses the whole module on a field every rung rests on, naming the field and both values, and `function_command_bindings_match(asm, manifest)` gains `manifest_admits`, the per-rung conjunct, beside the bindings and the claims (D7.23, D7.24). **The WASM runtime.** `Interp::pin_context`, `runtime_context` and `held_identity` over `InterpState::pin`; `create_child` passes the pin on; the `tcl_runtime_identity` export states the current interp's pin and this build's tables, with no pack facts. **The gates.** `environment::gate_profile`, one in each runtime, is the profile a `namespace` or `trace` subcommand table is read under: the profile the runtime exposes commands under, and the plain profile of the release it emulates when that is the permissive fallback; it replaces `surface_point_for_dialect` and the two `dialect_profile_name()` reads (D7.27). **The link.** `tests/common/wasm_link.rs`: `runtime_identity` (the runtime's own `tcl_runtime_identity`, run under wasmtime once per process), `check_manifest` and `LinkRefusal`; every module `wasm_real_link.rs` and `wasm_tiers.rs` link goes through it (D7.28). `cargo xtask runtime-stdlib` holds `EMBEDDED_STDLIB_REVISION` equal to the vendored library's manifest and prints the value it expects. **Tests** (51 new, in 18 files). `manifest.rs` (12): `a_manifest_round_trips_through_its_bytes` (every build code; no packs), `the_fields_are_length_prefixed_in_declaration_order` (the bytes spelt out), `bytes_that_are_not_exactly_a_manifest_do_not_decode` (every truncation, a ninth field, an unknown build code), `a_field_longer_than_its_type_does_not_decode`, `the_packs_are_sorted_and_without_repeats`, `each_field_that_disagrees_is_named_and_none_other` (eight edits, each naming its one field), `a_runtime_may_hold_more_packs_than_the_artefact_rests_on`, `a_field_refuses_the_rungs_that_rest_on_it_and_no_others`, `a_field_is_described_as_a_message_spells_it`, `a_rung_set_holds_what_was_put_in_it`, `a_module_hands_back_the_manifest_in_its_custom_section` (with and without another custom section before it, and a non-module) and `the_embedded_revision_is_a_patchlevel_a_commit_and_a_digest`; `codegen_abi.rs` (4): `the_runtime_identity_import_takes_a_buffer_and_answers_a_length`, `every_import_is_in_the_abi_table` (reads the enum's declaration out of the file and holds `ALL` equal to it), `the_abi_version_moves_with_the_table` (an import dropped, reordered, renamed, re-moduled, re-typed in a parameter and in a result, a layout word, the data window and the table import each move it) and `every_layout_constant_is_in_the_abi_fingerprint` (reads the `WASM32_` and `NATIVE_PROC_STATUS_` constants out of the file and holds each in `LAYOUT`). `tcl-registry` (9): `intrinsic.rs`'s `the_table_hash_is_the_digest_of_every_members_row` and `the_table_hash_moves_with_each_thing_it_covers` (a member gone, the order, an identity, a family, whether it fires traces, a key, a release variant); `runtime_context.rs`'s `a_profiles_context_is_its_environments_own_point` and `a_profiles_context_pins_back_to_that_profile` (every profile in the catalogue, `plain_tcl` and `tk` included), `a_context_the_ingress_disagrees_with_is_not_pinned`, `an_overlay_nothing_installed_is_an_error_and_not_the_plain_generation`, `an_installed_overlay_is_pinned_and_held` (the held generation is the installed `Arc`), `a_pin_states_its_context_and_the_facts_it_holds_as_an_artefact_would` and `the_package_floors_a_context_carries_are_the_hosts_statement`. `tcl-bytecode` (2): `a_functions_rungs_are_read_off_what_it_records` and `a_modules_claimed_packs_are_every_functions_stamps_sorted_and_once` (the top-level body claims a stamp nothing else does, which B3 below made necessary). `tcl-compiler` (5): `ir.rs`'s `a_manifest_is_the_last_section_and_no_manifest_is_no_section`, `compile_service.rs`'s `a_module_states_the_world_it_was_compiled_for` (four profiles through all five entries of the service), `site_claims.rs`'s `a_manifests_packs_are_the_claims_stamps_each_once`, `wasm_codegen.rs`'s `an_emitted_module_carries_its_identity_manifest` and, against the real runtime, `wasm_real_link.rs`'s `a_module_with_a_foreign_intrinsic_table_is_refused` (the plan's; the honest module links and runs `set x 42`, a foreign table, another ABI and a module that states nothing are each refused, before anything is composed). `tcl-vm`: `command_mutation_deopt_e2e.rs` (6) — the plan's `a_manifest_disagreeing_on_packs_refuses_only_rung_one_sites` (a service whose modules list a pack the VM does not hold: the pack-fact unit is recompiled plain, the generic unit carrying the same manifest is not, and holding both packs admits both) and `a_rung_zero_unit_is_admitted_under_a_changed_pack_set`, beside `a_manifest_for_another_world_refuses_the_whole_module` (each of the four fields, the error text exact), `a_manifest_for_another_intrinsic_table_refuses_only_shipped_backing_sites`, `a_pin_to_other_package_floors_refuses_the_units_that_rest_on_packs` and `a_running_function_is_checked_against_its_manifest_when_the_pin_changes` (a native `repin` command pins other floors part-way through a function resting on a pack: it is recompiled plain from its next command, and the same function pinned to the context it holds is not touched); `cross_version_command_surface_e2e.rs` (4) — `the_trace_gate_reads_the_pinned_profile_not_the_release_name`, `the_profile_form_of_a_pin_is_the_context_the_profile_names` (every profile), `a_vm_states_the_identity_a_module_compiled_for_its_pin_states` and `a_context_the_ingress_refuses_leaves_the_pin_unchanged`; `interp.rs` (1, in `family_b_tests`) — `a_child_states_the_context_its_parent_is_pinned_to`. `runtime/rust` (6): `interp.rs`'s `a_child_states_the_context_its_parent_is_pinned_to`, `the_profile_form_of_a_pin_is_the_context_the_profile_names`, `an_interp_states_the_identity_of_the_world_it_is_pinned_to` and `a_context_the_ingress_refuses_leaves_the_pin_unchanged`, `codegen_abi.rs`'s `the_runtime_states_its_identity_to_a_host` (no interp, a short buffer left unwritten, the decoded statement equal to the interp's) and `cmd_trace.rs`'s `the_trace_gate_reads_the_pinned_profile_not_the_release_name`. `tcl-spectcl`'s `environment_registration.rs` (1): `a_profiles_runtime_context_follows_an_environment_extension`. `xtask` (1): `runtime_stdlib.rs`'s `the_revision_moves_with_every_embedded_file_and_no_other`. Moved: `run_script.rs`'s `ModuleAsm` literal gains `manifest: None`; `surface_point_for_dialect` and `run_function_rc` go (the second had one caller, which builds its unit and runs it); nothing else changes, and no test was deleted or re-baselined. **Mutation checks** (74 runs, each reverted: 71 fail the tests named below and only those, `cargo xtask runtime-stdlib` fails on one, and two do not fail, B3 and V12). *The vocabulary* (`manifest.rs`): `rests_on` widened for the packs and floors (R1) or for the intrinsic table and the library (R13) fails `a_field_refuses_the_rungs_that_rest_on_it_and_no_others`; the packs compared as an equal list (R2) fails `a_runtime_may_hold_more_packs_than_the_artefact_rests_on`; `identity` neither sorting nor deduplicating the packs (R3) fails `the_packs_are_sorted_and_without_repeats`; the release never noted as disagreeing (R8) fails that test and `each_field_that_disagrees_is_named_and_none_other`; a byte tolerated after the packs (R4) or after the ABI version (R10) fails `a_field_longer_than_its_type_does_not_decode`; the environment and the release swapped in the encoding (R9) fails `the_fields_are_length_prefixed_in_declaration_order`; `from_wasm` taking any named custom section (R5) fails `a_module_hands_back_the_manifest_in_its_custom_section`; a four-bit `RungSet::ALL` (R11) fails `a_rung_set_holds_what_was_put_in_it`; `describe` empty for the build (R14) or without a pack's hash (R15) fails `a_field_is_described_as_a_message_spells_it`; the revision constant a digit short (R12) fails `the_embedded_revision_is_a_patchlevel_a_commit_and_a_digest`, and `cargo xtask runtime-stdlib` then exits 1 naming both values (X3). `codegen_abi.rs`: the fingerprint not folding results (R6), the whole layout (R6b), the table import's name (R6d) or the data window's end (R6e) fails `the_abi_version_moves_with_the_table`; a layout constant dropped from `LAYOUT` (R6c) fails `every_layout_constant_is_in_the_abi_fingerprint`; `RuntimeIdentity` missing from `ALL` (R7) fails `every_import_is_in_the_abi_table`. `xtask`: the revision's digest over every file and not the embedded ones (X1), or over the listing order and not the sorted paths (X2), fails `the_revision_moves_with_every_embedded_file_and_no_other`. `tcl-registry`: the table hash without the family (G1), the guarded-semantics keys (G1b), `fires_traces` (G1c) or the stable identity (G1d) fails `the_table_hash_moves_with_each_thing_it_covers` (G1c is the mutation the interrupted run left in `intrinsic.rs`; it was found against its backup, restored, and run); `pin` not checking the release (G2) or the build (G2b), or taking an environment nothing answers to for the lenient `tcl` (G2c), fails `a_context_the_ingress_disagrees_with_is_not_pinned`; a missing overlay falling back to the plain generation (G3) fails `an_overlay_nothing_installed_is_an_error_and_not_the_plain_generation`; `restate` ignoring the packs (G4) fails `a_pin_states_its_context_and_the_facts_it_holds_as_an_artefact_would`; the context's release always empty (G5) or its build always unknown (G5b) fails the gate test and `a_profiles_context_is_its_environments_own_point`; no generation held (G6) fails `an_installed_overlay_is_pinned_and_held`; the pin storing the resolved context and not the one given (G7) fails `the_package_floors_a_context_carries_are_the_hosts_statement`; the pin's profile always plain (G11) fails `a_profiles_context_pins_back_to_that_profile` and `an_installed_overlay_is_pinned_and_held`; the memo keyed without the environment-registry generation (G8) and the package floors cleared (G9) each fail `a_profiles_runtime_context_follows_an_environment_extension`. `tcl-bytecode`: command bindings read as rung 3 (B1), procedure bindings as rung 1 (B1b) and a pack-fact claim as rung 2 (B4) fail `a_functions_rungs_are_read_off_what_it_records`; `claimed_packs` without its deduplication (B2) fails `a_modules_claimed_packs_are_every_functions_stamps_sorted_and_once`; and without the top-level body (B3) **survived** that test as drafted, whose body claimed a stamp the top level claimed too: the body now claims one nothing else does, and B3 fails it. `tcl-compiler`: the compile stating no packs (C1) fails `a_manifests_packs_are_the_claims_stamps_each_once`; the bytecode emitter stating the plain profile's context whatever the profile (C2) fails `a_module_states_the_world_it_was_compiled_for`, and stating none (C4) fails that and the claims test; the WASM backend stating none (C3), or the context of the plain profile (C5), fails `an_emitted_module_carries_its_identity_manifest`; the section written first (I1) fails `a_manifest_is_the_last_section_and_no_manifest_is_no_section`, and never written (I2) fails that and the emitted-module test. `tcl-vm`: the manifest conjunct always true (V1) fails the four tests that state a disagreement (`a_manifest_disagreeing_on_packs_refuses_only_rung_one_sites`, `a_manifest_for_another_intrinsic_table_refuses_only_shipped_backing_sites`, `a_pin_to_other_package_floors_refuses_the_units_that_rest_on_packs` and `a_running_function_is_checked_against_its_manifest_when_the_pin_changes`), and any disagreement refusing every function (V2) fails the first three; `validate_module_profile` returning after the profile check (V3) fails `a_manifest_for_another_world_refuses_the_whole_module`; a script unit (a function handle's, an `eval`'s) dropping its manifest (V4) fails the floors test and the running-function test; `set_pack_facts` not restating the identity (V5) fails those two and `a_vm_states_the_identity_a_module_compiled_for_its_pin_states`; a pin that does not advance the compilation-deopt epoch (V6) fails only `a_running_function_is_checked_against_its_manifest_when_the_pin_changes`, which was added for it, because a function handle re-checks its bindings at every invocation and the epoch is what a running frame waits for; a child that does not inherit the pin (V7) fails `a_child_states_the_context_its_parent_is_pinned_to`; the `trace` gate reading only the release (V8a) or only the profile (V8b) fails `the_trace_gate_reads_the_pinned_profile_not_the_release_name`; `install_pin` not restating (V9) fails the identity test; and a refused context installing the plain profile (V10) fails `a_context_the_ingress_refuses_leaves_the_pin_unchanged`. The `namespace` gate: reading the dialect profile outright (V11) fails ten `tcl-irule-test` tests, whose harness keeps an 8.4 command surface under the iRules dialect, which has no `namespace`; reading the release name again (V12) **fails nothing**, because no profile in the catalogue has a `namespace` table that differs from its release's where the command exists (D7.27), so the two reads agree and the choice is held by V11 alone. `runtime/rust`: the export not writing its bytes (T1) fails `the_runtime_states_its_identity_to_a_host`, as does the export flipping a bit of the table hash (W2r); the `trace` gate reading only the release (T2a) or only the profile (T2b) fails `the_trace_gate_reads_the_pinned_profile_not_the_release_name`; a child not inheriting the pin (T3) fails `a_child_states_the_context_its_parent_is_pinned_to`; the pin kept only when the profile changes (T4) and a refused context installing the plain profile (T5) fail `a_context_the_ingress_refuses_leaves_the_pin_unchanged`. The link: the harness comparing only the ABI (W1) or only the table (W1b), the runtime stating a flipped table hash (W2), and a module with no manifest passing (W3) each fail `a_module_with_a_foreign_intrinsic_table_is_refused`, the last two against the rebuilt real runtime. Gates: `cargo test -p tcl-runtime-api` (lib 49, was 33), `-p tcl-bytecode` (lib 35, was 33), `-p tcl-registry` (1295 with every binary, was 1286; lib 964, was 955; `registry_sweep` 41), `-p xtask` (242, was 241), `-p tcl-compiler` (9834 in 68 binaries, 6 ignored; lib 6554, was 6551; `codegen_integration` 17; `wasm_codegen` 46, was 45; `wasm_real_link` 14, was 13, and `wasm_tiers` 7, both against the real runtime with `TCL_REQUIRE_WASM_LINK=1`), `-p tcl-vm` (1495 in 50 binaries, was 1484; lib 108, was 107; `command_mutation_deopt_e2e` 82, was 76; `cross_version_command_surface_e2e` 38, was 34) under `LANG=C.UTF-8`, `runtime/rust` (lib 721, was 715; 881 in all in 14 binaries; without the numeric tower lib 624 and 751 in all, run with no `tmp` symlink, through which the build script finds libtommath), `-p tcl-engine-tclvm -p tcl-debugger -p tcl-spec-hooks -p tcl-irule-test -p tcl-spectcl -p tcl-spec-studio -p tcl-mcp -p tcl-vm-cli` (903 in 49 binaries, 1 ignored; `environment_registration` 5, was 4) and `-p tcl-cli -p tcl-explorer -p tcl-lsp-core -p tcl-lsp-db` (3951 in 58 binaries, 5 ignored); `cargo check --workspace --all-targets` and the runtime's `cargo check --tests`; `cargo clippy --workspace --all-targets -- -D warnings`, the runtime's own `cargo clippy --all-targets -- -D warnings` in both configurations, `cargo fmt --all` and the runtime's `cargo fmt` clean, no new `#[allow]`; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389, with and without the tower), `gen-irule-test-data --check`, `callback-inventory --check`, `audit-option-dialects --check` (114), `retired-api-gate` and `owner-resolution` (45) OK, `kcs-index-links` green, `runtime-stdlib` (14 embedded files, the revision held), `number-drift`, `segmentation-drift` and `resolution-drift` OK, `dialect-drift` at its 8 sites, and `verify-nextest-binary-shards.py --partition-count 5 --metadata-only` (330 targets; no test binary was added). Docs: the design page (the status box, § *Consequences for the runtimes* — the pin bullet, and the manifest bullet with its block now the struct as built and the paragraph after it on what each field refuses — § *The admission checks, per rung*, § *Codegen and the registry today*'s admission bullet, and the file-path and test anchors), `vm-compiled-artifact-provenance.md` (the unit's `manifest` field, the manifest's check with its per-field table, the pin's row in the invalidation table, and the witnesses), `refcount-contract.md` (the `tcl_runtime_identity` row), `docs/GLOSSARY.md` (§ *Artefact identity manifest and runtime context*, and § *Compiled artefact*), `runtime/rust/vendor/tcl_library/README.md` (the revision the gate holds) and the `Makefile`'s help line for `xtask-runtime-stdlib`. No KCS note: nothing a user runs changes. Deviations: the vocabulary's crate, and the context's two halves (D7.19); the ABI version a fingerprint and not a count (D7.20); the table hash covers the family (D7.21); the library revision carries a digest of the embedded files (D7.22); the four world fields refuse the whole module where the plan says never a global refusal (D7.23); what disagreement is (D7.24); the compile states its profile's context (D7.25); the pin, its profile form and the child (D7.26); the gates' profile (D7.27); the link reads the runtime's own statement (D7.28); the section's file (D7.29). D7.19–D7.29 |
 | CC7.5 the fuzz exit | landed | `wip(consumer-contracts): step 7 — the fuzz exit` | `tcl-fuzz run --subject tclvm --reference runtime-rust` over the CC7.4 commit (`1d70173c`), one release at a time, findings in a scratch directory outside the tree (D7.30). Both engines and the fuzzer were built from that commit with the tree clean, `tclvm` and `tcl-fuzz` in a debug build and `runtime/rust`'s `run_script` in a release build with `TCL_TOMMATH_DIR`, and hard-linked out of the build tree so that a rebuild could not change them mid-run; a smoke script (`expr`, `if`, a rename) ran on both first. **The known seeds first.** `tcl-fuzz replay 5210167` and `replay 5211533` (`--subject runtime-rust --reference tclvm --tcl-version 9.0`, as they were recorded) still diverge, `StdoutMismatch`, and their output is byte-for-byte what the binaries CC5.2's campaign used gave (`tclvm` prints `\101` and `\{\}`, `runtime-rust` `A` and `{}`): the `return` defect, issue #2291, untouched. **The campaign** (13,400 scripts in 66 minutes 35 seconds of wall clock, `--tcl-version` pinning both engines): release 9.0, seeds 7210000 for 3200 scripts and 7220000 for 1400, 4599 matched and 1 finding, 1371 s; release 8.6, seeds 7310000 for 2900 and 7320000 for 1500, 4388 matched and 12 findings (6 stdout, 6 status), 1248 s; release 8.4, seeds 7410000 for 2900 and 7420000 for 1500, 4389 matched and 11 findings (1 stdout, 10 status), 1376 s; no script skipped, no timeout, and `--compare-error-text` off. **What it found, and whose it is.** Each of the 24 findings was run against the C Tcl of its own release (`tclsh` 8.4.20, 8.6.18 and 9.0.4) and replayed on the binaries CC5.2's campaign used, which predate steps 6 and 7: every one reproduces identically there, so CC7.4 moved none and caused none. Three are the recorded shape, a `return` whose value word holds a backslash escape (`tclvm` wrong, `runtime-rust` and C agree; seeds 7310355, 7312857 and 7320271, all at 8.6), and are excluded as the known defect. The other 21 are older and unreported, and are listed with their reproductions in *CC7.5 — what the next items read*: `runtime-rust`'s `upvar` into a `namespace eval` frame (15: one at 9.0, nine at 8.6, five at 8.4), `tclvm` accepting `string reverse` under an 8.4 pin (5), and a second trigger of the `return` defect, a braced value word holding `[` (1, seed 7412652); two of them also carry a deviation both engines share, `incr` of an unset variable under 8.4. So the exit is "no regression" and not "no finding" (D7.30). No source file changes; the tree was clean before and after the run. |
+| Review fixes | landed | `wip(consumer-contracts): step 7 — review fixes` | The step 7 review's verdict was "land with fixes": four items, one commit, committed between CC8.4 and CC8.1. **S1** The design page's sentence that a WASM module carries no identity (§ *Codegen and the registry today*) is replaced by what the module carries — the `tcl.manifest` custom section, written last by `WasmModule::to_bytes` and read by `ArtefactIdentityManifest::from_wasm`: ABI version, environment, release and build, package floors, intrinsic-table hash and embedded-library revision — why its pack list is empty (a WASM site records no claim), and what the link harness refuses (an ABI version or an intrinsic table that disagrees with `tcl_runtime_identity`, or no manifest). **S2** A host-registered guarded builtin at a registry name satisfied a rung-4 binding by its key, so a unit specialised for the shipped command ran its compiled fast path past the host's handler (`vm.register_guarded_builtin("llength", host, …)` made `llength $l` print `3` where a native command or a procedure at the name printed `HOST`). `Vm::register_guarded_builtin` now records the token's generation in `InterpState::host_builtins`, and `command_binding_matches` refuses a `Command::Builtin` whose token is in it: the surface gate still reads the registry name (a host `lassign` is still hidden under an 8.4 pin, which a host-namespaced identity or a `Command::Native` would have broken), the guard attestation still follows the token, and a shipped token renamed away and back is admitted again. Test: `command_mutation_deopt_e2e.rs`'s `a_host_registered_builtin_at_a_registry_name_is_not_the_shipped_command` (the shipped command as compiled, then a native command, a procedure and a guarded host builtin each answering `HOST`, and the shipped token restored by `rename`). Mutation checks, each reverted and each failing it: `command_binding_matches` not asking `is_host_builtin`, and `register_guarded_builtin` not recording the generation. **N1** CC4.4's pointer, D4.5, D4.15 and the two step 7 hand-off notes say what is true: `ReferenceBody` is CC8.1's, and `ShippedImplementation` and `IdentityKind` are built by no item and owed by no step (D8.9, a plan error and not a missing safety piece; rung 4 has no producer until step 10's host-native leg, and the comparison of a claimed backing with `backing_report` would repeat the live binding check with an older fact). **N2** D7.27 names `array` as the odd one out of the subcommand gates: `cmd_array.rs` reads the command surface profile's name where six gates read the release name and `namespace` and `trace` read `gate_profile`. Gates: `cargo test -p tcl-vm --no-fail-fast` with the oracle trees linked and `LANG=C.UTF-8` (lib 108; `command_mutation_deopt_e2e` 83, was 82; 1497 in all, none failing); `cargo check --workspace --all-targets`, clippy (`--workspace --all-targets -- -D warnings`) and `cargo fmt --all` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147) and `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows) unchanged; `kcs-index-links` green. D8.9 |
 
 **Step 7 is landed.** All five items above (CC7.1 to CC7.5) are `landed`; the
 review checklist below is run against this tree and its evidence recorded there.
@@ -1768,10 +1770,12 @@ against the landed tree with evidence:
   the `spec` directive adds must equal `PackFactStamp::content_hash` (D4.16); the
   manifest's `packages` are the environment's own floors and no lockfile's, and
   nothing compares them with one. `ShippedImplementation` and `IdentityKind`
-  (D4.15) are built by no item: CC4.4's pointer names CC7.1 and CC8.2, and
-  neither does, so rung 4's claim variant and its comparison of the runtime's
-  loaded report with the claimed backing are still to place; the manifest
-  conjunct is the only one a shipped builtin's specialisation is admitted by.
+  (D4.15) are built by no item: CC4.4's pointer named CC7.1 and CC8.2, and
+  neither builds them, so rung 4's claim variant and its comparison of the
+  runtime's loaded report with the claimed backing were left to place. The step
+  7 review judged the pointer a plan error and not a missing safety piece, and
+  D8.9 records that neither is owed: the manifest conjunct and the binding check
+  are what a shipped builtin's specialisation is admitted by.
 - **For step 9 (versioned stamps, evaluation points).** The manifest's `release`
   is the environment's point as the ingress states it (`tmm` for `f5-irules`,
   `8.6` for `tcl8.6`): a name, not an evaluation point, and no evaluator chooses
@@ -1909,9 +1913,9 @@ against the landed tree with evidence:
   `return \101` defect (issue #2291) is the campaign's own exclusion, not this
   item's.
 - **For step 8 (reference bodies, `tcl spec test`, the manifest `spec`
-  directive).** `SiteClaim` gains `ReferenceBody` and `ShippedImplementation`,
-  and the `match` in `FunctionAsm::rungs` is exhaustive, so each new variant
-  must say which rung it is; today an inlined procedure body
+  directive).** `SiteClaim` gains `ReferenceBody` (not `ShippedImplementation`:
+  D8.9), and the `match` in `FunctionAsm::rungs` is exhaustive, so each new
+  variant must say which rung it is; today an inlined procedure body
   (`procedure_bindings`) reads as rung 3 and a command binding as rung 4,
   neither with a claim. `ModuleAsm::claimed_packs` reads `claim.facts()`, so a
   new variant's pack reaches the manifest with its `facts()` arm and nothing
@@ -1923,9 +1927,10 @@ against the landed tree with evidence:
   directive adds must equal `PackFactStamp::content_hash` (D4.16); the
   manifest's `packages` are the environment's own floors and no lockfile's, and
   nothing compares them with one. Rung 4's own comparison, the runtime's loaded
-  report against the claimed backing, is not built: the report is
-  `Vm::backing_report` and `Interp::backing_report` (CC7.2), and the manifest
-  conjunct is the only one a shipped builtin's specialisation is admitted by.
+  report against the claimed backing, is not built and not owed (D8.9): the
+  report is `Vm::backing_report` and `Interp::backing_report` (CC7.2), and the
+  manifest conjunct is the only one a shipped builtin's specialisation is
+  admitted by.
 - **For an ABI or a vendored-library change.** A new import goes into
   `CodegenAbiImportId::ALL` (`every_import_is_in_the_abi_table` fails until it
   does) and moves `CODEGEN_ABI_VERSION` by itself; a new transport constant
@@ -2064,6 +2069,623 @@ against the landed tree with evidence:
   `EMBEDDED_STDLIB_REVISION` equal to the vendored library's manifest.
 - CC7.5: none. The campaign changed no file; the findings it made are in its row
   and in *CC7.5 — what the next items read*.
+
+## Step 8 — progress
+
+Item order follows § *Plan for steps 2–10* › *Step 8* § *Ordering and
+checkpoints*: CC8.4 first, independent of the runtimes; then CC8.1, CC8.3, and
+CC8.2 last, after slice 4 of the value-transfers lane, which has landed. The
+step 7 review's fixes were committed between CC8.4 and CC8.1. The review of the
+rework and of step 9 found four wrong values in the inliner, a hole in the policy
+`tcl spec test` takes and an unvalidated version; they are the `Review fixes`
+rows, and D8.42 onwards.
+
+| Item | State | Checkpoint | Notes |
+|---|---|---|---|
+| CC8.4 the manifest `spec` directive, the lockfile hash, the container generator | landed | `wip(consumer-contracts): step 8 — the manifest spec directive` | **The directive.** `rust/tcl-pkg-model/src/manifest.rs` (the manifest moved out of `rust/tcl-pkg/src/` with D6.6): `SpecDirective { packs: Vec<String>, requested_tier: DependencyTier }` and `ManifestAst::spec: Option<SpecDirective>`, read from `spec { packs {FILE …} ?tier NAME? }` by `parse_spec` — one braced word read as key and value words through the list parser, never evaluated, a second `spec` an error, and `tier` defaulting to `direct` (D8.4). Each pack is a relative `.tclspec` path inside the package (no absolute or drive-qualified path, no `..`, no empty component, no repeat), so the join with the package directory cannot leave it. `DIRECTIVES` gains `spec` and `tcl-registry`'s `TCLPKG_MANIFEST_ENV` the matching `manifest_directive`; `manifest_env_drift.rs` stays as it was and holds the two equal. **The clamp.** `tier::clamp_requested(requested, resolved)` — the later of the two tiers, the workspace's own package taking no request — sits beside `dependency_tier` in `tcl-pkg-model`, not in `tcl-pkg`'s `resolver.rs` (D8.3). **The lockfile.** `LockedPackage::spec_integrity: Option<String>` (`xxh3-` and sixteen hex digits per pack, comma-joined in the manifest's order; written for a package that ships packs and for no other, so every other entry keeps its bytes), with `format_spec_integrity` and `parse_spec_integrity`. The hash is `loader::pack_file_hash` — the xxh3 of the file's bytes, folded with each `include` fragment, which is the value every command of that file carries into a `PackFactStamp` — and `tcl_spectcl::package_specs` (new) holds `pack_paths` and `spec_integrity` over it (D8.6). `tcl pkg install` records the value from the fetched package's content-addressed tree (`package_spec_integrity`, `rust/tcl-cli/src/commands/pkg.rs`) and `locked_to_json` shows it. **Discovery.** `discovery.rs`'s `collect_beside_manifests`: a manifest with a directive has exactly the packs it names, read even from a directory the scan skips, and a pack it names that is not there is still discovered, so the load reports `cannot read pack file` on it; a manifest without one keeps the scan, which no longer descends into a directory whose own manifest has a directive; a directive that does not read leaves the scan, as a manifest that does not read always did. `TierReader::tier_of_package` clamps the request against the graph's tier (D8.5). **The container generator.** `DockerfileSpec::native_extensions: Vec<String>` (`rust/tcl-pkg/src/docker.rs`, no registry type: D8.2) renders a comment and one `RUN printf … \| tclsh` that loads each with `package require` after the packages install and before `CMD`, so the build stops naming a missing extension; a name that is not spelt as a Tcl package name is an error. `tcl docker create` (`commands/docker.rs`) reads the project's workspace-tier packs, collects the `required_package` of every command whose `runtime_backing` is `host-native`, warns on standard error for one that names none, and shows the list in its report and its `--json`; `run_create` was split (`key_values`, `report_created`) to stay under the line limit (D8.7). Tests: `tcl-pkg-model`'s `manifest.rs` — `the_spec_directive_is_data_only` (a substitution is text, and a word that would have started `exec` is refused with nothing run), `a_spec_directive_names_packs_and_a_tier` (defaults, each tier, a name with a space) and `a_spec_directive_that_does_not_read_is_refused` (sixteen rows and a second directive); `tier.rs`'s `a_manifest_cannot_claim_a_nearer_tier` (nine positions and the root); `lockfile.rs`'s `spec_integrity_round_trips_and_is_written_only_for_a_package_that_ships_packs` and `the_hashes_a_value_records_read_back_and_nothing_else_does`; `tcl-spectcl`'s `discovery.rs` — `a_manifest_that_names_its_packs_loads_those_and_no_others` (with the same tree under no directive as its control), `a_listed_pack_that_is_missing_is_reported_by_the_load`, `a_directive_that_does_not_read_leaves_the_scan_in_place`, `a_dependencys_directive_decides_its_packs_whatever_the_manifest_above_scans` and `a_dependency_may_ask_for_a_further_tier_and_never_a_nearer_one` (a direct dependency asking for development, a transitive one asking for direct, the root asking for development); `tcl-spectcl/tests/package_specs.rs` (new binary, 4) — `the_lockfile_hash_and_the_artefact_stamp_are_one_value` (two packs, one that includes a fragment; the lockfile's entries equal `PackSet::fact_stamps`' content hashes in the manifest's order, and editing the fragment moves the including pack's value in both places and the other's in neither), `the_hashes_follow_the_order_the_manifest_names_the_packs`, `a_pack_that_cannot_be_read_is_named` and `discovery_finds_the_packs_the_hash_covers`; `tcl-pkg`'s `docker.rs` — `native_extensions_are_checked_once_everything_is_installed` (three families), `a_project_with_no_native_extensions_gains_no_check` and `an_extension_that_is_not_spelt_as_a_package_name_is_refused`; `tcl-cli`'s `pkg_verbs.rs` — `a_changed_pack_changes_the_lockfile` (through `tcl pkg install` with a local path source: the entry equals `format_spec_integrity` of `pack_file_hash`, an unchanged pack keeps it through a second install, a changed pack in the same release moves it, and a package that names no packs writes no field) and `docker_create_lists_a_host_native_commands_extension` (the Dockerfile line, the standard-error warning, the `--json` field, and nothing once the declaration goes). Mutation checks, each reverted and each failing the test that names it: the `..` component allowed in a pack path (`a_spec_directive_that_does_not_read_is_refused`), the `.tclspec` suffix rule off (`the_spec_directive_is_data_only`), the clamp answering the request (`a_manifest_cannot_claim_a_nearer_tier`, and `a_dependency_may_ask_for_a_further_tier_and_never_a_nearer_one` through discovery), the root taking its request (`a_manifest_cannot_claim_a_nearer_tier`), the directive ignored by discovery (`a_manifest_that_names_its_packs_loads_those_and_no_others`), the scan not stopping at a directory with its own directive (`a_dependencys_directive_decides_its_packs_whatever_the_manifest_above_scans`), a missing listed pack skipped (`a_listed_pack_that_is_missing_is_reported_by_the_load`), `pack_file_hash` ignoring fragments (`the_lockfile_hash_and_the_artefact_stamp_are_one_value`), the lockfile not writing the field (`spec_integrity_round_trips_…`), the Dockerfile block dropped (`native_extensions_are_checked_once_everything_is_installed`), `tcl pkg install` recording nothing (`a_changed_pack_changes_the_lockfile`) and the generator reading the commands that are not host-native (`docker_create_lists_a_host_native_commands_extension`). New binary: `tcl-spectcl::package_specs` in `scripts/dev/rust-test-binary-shards.tsv` (shard 3; the verifier proves 331 targets, was 330). Gates: `cargo test -p tcl-pkg-model` (lib 45, was 39), `-p tcl-pkg` (lib 56, was 53; `manifest_env_drift` 2), `-p tcl-spectcl` (lib 217, was 212; `package_specs` 4, new; `codegen_stamps` 8, `workspace_packs` 15, `golden_packs` 3 and every other binary), `-p tcl-cli` (lib 27, `cli` 50, `pkg_verbs` 15, was 13, `spec_verbs` 18, `compile_verbs` 11, `value_transfers_cli` 11, `explorer_gui` 3), `-p tcl-registry --lib` (965) and `-p tcl-compiler --lib manifest_` (5, the manifest environment's diagnostics); `cargo check --workspace --all-targets`; clippy (`--workspace --all-targets -- -D warnings`; two lints answered in the code, `chunks_exact` by `as_chunks` and `too_many_lines` by the split of `run_create`) and `cargo fmt --all` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389), `owner-resolution` (45), `retired-api-gate`, `runtime-stdlib`, `kcs-index-links` green, `dialect-drift` at its 8 sites. Docs: the design page's status box, its package row, the `SpecDirective` block and the lockfile paragraph; `spec-packs.md` (the `spec` bullet); `docs/design/tclpkg/architecture.md` (rules 2, 5a and 9 and the anchors) and `docs/design/contracts/tclpkg-contracts.md` (rules 2, 5 and 14); `docs/GLOSSARY.md` § *Dependency tier and codegen capability*; `kcs-feature-tcl-pkg.md`, `kcs-feature-tcl-docker.md` and `kcs-howto-containerise-a-tcl-project.md`. Deviations: the clamp's home (D8.3), the grammar and its default (D8.4), the load order and the missing pack (D8.5), the hash's text and what writes it (D8.6), the generator checks and does not install (D8.7), and the binding of a pack file to the lockfile's hash is not built (D8.8). D8.3–D8.8 |
+| CC8.1 reference bodies as code (rung 3) | landed | `wip(consumer-contracts): step 8 — reference bodies as code` | **The claim.** `tcl-runtime-api`'s `site_claim.rs`: `SiteClaim::ReferenceBody { procedure: ProcedureBindingIdentity, backing: BackingKind, facts: PackFactStamp }` with its `facts()` arm, and `BackingKind`, the four kinds of `RuntimeBacking` without a payload (`RuntimeBacking::kind`, `tcl-registry`; D8.13). `FunctionAsm::rungs` says rung 3 for it; `ManifestField::EmbeddedStdlibRevision::rests_on` is now rungs 3 and 4 (D8.17). **The text.** `CommandRegistry::reference_body(spec)` answers the `PackText` the spec carries or the `PackageSource` text the loader read; `reference_bodies()` lists the pack-installed specs that are still the live answer for their name and have text; `insert_reference_text` is a side table beside `pack_origins`, carried by `project_for_profile`. `tcl-spectcl`'s `package_sources.rs` (new): `provision` reads each `PackageSource` file at load through the store that read the pack, beneath the nearest `tclpkg.tcl` above it, the path relative and without `..`, puts the text on `PackCommand::reference_text` (a field the loader's one construction and `stamps.rs`'s helper take) and folds a digest of what it read into `PackSet::key` only when it read something; a file that cannot be read, a path that leaves the package and a pack no package ships are each a warning on the command's row, and a load with no store (`load_sources` gained the store as a parameter; `load_in_memory` and the embedded set pass none) reads nothing and says nothing; the installer inserts the text (D8.16). **The gate.** The capability matrix's `reference_body` row is consulted at load: `Declaration::ReferenceBody` in `stamps.rs`, a `tcl-body` backing from a tier that may declare a backing and not a reference body, which is a direct dependency's, is dropped with a warning that says "a reference body" and "only the workspace's own package may" (D8.15). **The compiler.** `inlining/reference.rs` (new): `import` lowers each candidate definition on its own, shifts its spans with `lattice_rebase::rebase_script` past the end of `Module::source` and appends the text there, adds the procedure to the module's table under the rooted name the definition creates and records a `ReferenceImport` (`ReferenceBodies { appendix_start, imports }` on the IR `Module`, `Module::own_source`); `inline_reference_bodies` imports, inlines through the module-procedure inliner's own policy (`inline_procedures` with `Inlining::Only`), and drops the imports again; `inline_module` is unchanged and unwired (D8.10, D8.11, D8.12). Codegen (`emitter/mod.rs`) slices spans from the combined text, states `ModuleAsm::source` as the module's own, and `claim_reference_bodies` records the claim beside each procedure binding that names an import (D8.13); `BytecodeCompileService`'s `compile_target_with` and `compile_procedure_target_with` call it. **The VM.** `site_claims_hold` gains `claim_is_coherent`: a reference-body claim states a `TclBody` backing and names a procedure binding the function carries (D8.14). `source` (`command.rs`) reads through `vm.host().filesystem()` and decodes the file as the encoding `-encoding` names, with `tcl_cmd_core::channel::decode_text` (D8.18). Tests: `tcl-runtime-api`'s `manifest.rs` — `a_field_refuses_the_rungs_that_rest_on_it_and_no_others` (the embedded library's row is now rungs 3 and 4); `tcl-bytecode`'s `a_functions_rungs_are_read_off_what_it_records` (a reference-body claim reads as rung 3); `tcl-registry`'s `runtime_backing.rs` — `a_backings_kind_names_its_door_and_nothing_more` — and `registry.rs` — `a_registry_offers_the_live_pack_installed_bodies_it_holds_text_for` (an embedder's spec, a pack's whose name a later spec shadowed, a backing of another kind and a `PackageSource` nobody read are not offered; a `PackText` and a `PackageSource` text read at load are, and survive a projection); `tcl-compiler`'s `site_claims.rs` — `a_reference_body_is_inlined_and_claims_the_pack_s_facts` (the binding, the claim, the instructions carrying the definition's text, the artefact's source without the appendix, the manifest's pack), `a_global_level_call_stays_a_call_and_a_procedure_body_compile_inlines` (with the plain compile as its control), `only_the_definition_a_pack_declared_for_the_command_is_inlined` (an embedder's spec, a shadowed one, a name the module defines itself and five texts that are not the definition of the command) and `a_host_native_backing_supplies_no_body`; `tcl-cmd-core`'s `channel.rs` — `a_files_bytes_decode_under_the_encoding_it_is_read_as`; `tcl-vm`'s `tests/capability.rs` — `source_reads_through_the_hosts_filesystem`, `source_honours_its_encoding_option` (the options in either order, the usage error, `unknown encoding`) and `source_defaults_to_the_system_encoding_before_tcl_nine`; `tcl-spectcl`'s `stamps.rs` — `only_the_workspaces_own_package_may_supply_a_reference_body` (and a row in `the_remedy_names_the_tiers_the_matrix_permits`) — and `tests/codegen_stamps.rs` (14, was 8) — the plan's three, `a_tcl_body_backed_command_is_inlined_and_admitted`, `a_host_native_backing_never_defines_a_proc` (the same body under `host-native`, and units with a forged shipped-builtin, host-native and `none` backing and a forged procedure, each refused though the live procedure's text matches) and `a_pack_text_body_that_diverges_turns_the_site_plain`, with `a_package_source_body_is_read_at_load_through_the_store`, `a_package_source_that_cannot_be_read_is_said_and_not_inlined` and `a_direct_dependencys_reference_body_is_dropped_at_load`; and `tests/workspace_packs.rs`'s `a_pack_text_backing_is_reported_at_load`, whose package source now has a manifest and a file (an unreadable one is a warning, and the test has that row). Mutation checks, each reverted and each failing the test that names it: the claim read as rung 1 (`a_functions_rungs_are_read_off_what_it_records`); the embedded library not resting rung 3 (the manifest test); the backing kind of a Tcl body read as host-native (`a_backings_kind_names_its_door_and_nothing_more`); `reference_bodies` without the pack origin, without the liveness check, and a resolved package source not served (`a_registry_offers_the_live_pack_installed_bodies_it_holds_text_for`; the compiler's own tests catch only the liveness one, because its importer asks for the pack's facts as well, which is why the registry has a test of its own); the global level rewritten (`a_global_level_call_stays_a_call_…`); a module-defined name imported anyway and a definition with other statements accepted (`only_the_definition_…`); spans not shifted past the module, the artefact's source taking the appendix, no claim recorded, and the script compile and the procedure-body compile not wired (`a_reference_body_is_inlined_…` and `a_global_level_call_stays_a_call_…`); a plain-dispatch compile that inlines (`a_global_level_call_stays_a_call_…`); the claim's backing, its binding and the coherence check not required (`a_host_native_backing_never_defines_a_proc`) and the live body not compared (`a_pack_text_body_that_diverges_turns_the_site_plain`); `source` reading the operating system's files, ignoring `-encoding`, taking extra words after the file, reading an unknown encoding as UTF-8, refusing `-nopkg`, and the Tcl 9 and earlier defaults exchanged (the three `source_…` tests); Latin-1 decoded as UTF-8 (`a_files_bytes_decode_…`); the matrix row not consulted, and a Tcl body not a reference body (`only_the_workspaces_own_package_may_supply_a_reference_body`); the provisioned text out of the key, out of the digest, the path not confined, the manifest taken as the pack's own directory and the installer dropping the text (`a_package_source_…` and `a_host_native_…`); and the key folded when nothing was read (`the_set_key_tracks_content_and_never_collides_with_empty`). The checks ran through a driver that restores each file with its old modification time, which cargo reads as unchanged, so a later run reused the mutated build; it now touches the file after restoring it, and the runs whose result a stale mutation could have changed (C3 to C5, the `source` and package-source ones added after them) were repeated clean. Gates: `cargo test`, under `LANG=C.UTF-8` with `TCL_REQUIRE_WASM_LINK=1`, `TCL_TOMMATH_DIR` and the `tmp` oracle tree linked — `-p tcl-runtime-api` (lib 49), `-p tcl-bytecode` (lib 35), `-p tcl-cmd-core` (lib 134, was 133; 135 with its doc test), `-p tcl-registry` (21 binaries, 1299 tests; lib 967, was 965), `-p tcl-compiler` (68 binaries, 9922 tests, run in batches of twelve binaries so that the test executables fit the disk; lib 6628, was 6624; the 14 cases of `wasm_real_link` run for real against the changed runtime), `-p tcl-vm` (50 binaries, 1500 tests; lib 108; `capability` 6, was 3), `-p tcl-spectcl` (385 tests; lib 218, was 217; `codegen_stamps` 14, was 8; `workspace_packs` 15; `package_specs` 4; `pack_source_e2e` 4; `golden_packs` 3), `-p tcl-lsp-db` (138), and the dependents `-p tcl-cli` (135: lib 27, `cli` 50, `pkg_verbs` 15, `spec_verbs` 18, `compile_verbs` 11, `value_transfers_cli` 11, `explorer_gui` 3), `-p tcl-spec-hooks` (48), `-p tcl-spec-studio` (295), `-p tcl-engine-tclvm` (16), `-p tcl-mcp` (114) and `-p tcl-lsp-core` (3578); `runtime/rust`, its own workspace, built with `TCL_TOMMATH_DIR` under `LANG=C.UTF-8`: `cargo test --locked --lib` (721) and `--tests` (13 binaries, 881 tests), and without the numeric tower lib 624 and 751 in all, none of them changed in count by this item; `cargo check --workspace --all-targets`; clippy (`--workspace --all-targets -- -D warnings`, no new `#[allow]`; two lints answered in the code, `chunks_exact` by `as_chunks` and `too_many_lines` by the split of `load_sources` into `admit_commands` and `say_pack_text_backings`) and `cargo fmt --all` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389), `owner-resolution` (45), `retired-api-gate`, `runtime-stdlib`, `kcs-index-links` green, `dialect-drift` at its 8 sites. Deviations: the inliner's wiring and its scope (D8.10, D8.11), the claim's backing type (D8.13), the conjunct's home and what "activation defines the proc" means (D8.14), the gate's one `Drops` field (D8.15), `PackageSource` resolution (D8.16), the embedded library's bodies not inlined (D8.17), the `source` details (D8.18). D8.10–D8.18 |
+| CC8.3 `tcl spec test` | landed | `wip(consumer-contracts): step 8 — tcl spec test` | **The verb.** `SpecCommand::Test(SpecTestArgs { pack, tclsh, package })` (`rust/tcl-cli/src/cli.rs`) and `run_test` (`commands/spec.rs`, split into `test_target`, `test_profile` and `report_test`): the pack loads as the workspace's own and only to learn what it declares; the package is `--package` or the one every command's `required_package` names; the policy is the project's that holds the pack (`project_of`) and `build_script_allowed(package)` is asked before anything runs — refused, it says the package "is not permitted by policy", gives the `tcl pkg trust` hint, runs nothing and exits 1 (D8.19); the shell is `--tclsh`, else `TCL_VENV`'s, else the newest `tclsh` on `PATH`, run by `tcl_pkg::exec::execute` with the probe on its standard input. **The probe.** `commands/spec_test.rs` (new): `probes_of(&PackSet)` reads each command's `arity`, `PURE`, `return_type`, `hover.examples` and the text of a Tcl-body backing (`PackText`, or the `reference_text` the load read); `render_script` writes the Tcl prelude (`PRELUDE`) and one call per question; the shell prints `SPEC-TEST` lines and `parse_report` reads them as `Divergence { kind, command, detail }` (D8.20). The questions are presence (`info commands`, then `auto_load`), arity (one under the minimum and one over the maximum refused as `wrong # args`, the minimum and, with no `step`, the maximum accepted), each example and the declared type of its answer, a reference body against the command on the same examples in a child interpreter, and purity by a mark before the first question and a write trace on the second run (D8.21, D8.22); the report is one row per divergence, `COMMAND: KIND: detail`, then `PACK: N command(s) tested against 'PKG', M divergence(s)`, and the status is 1 for any divergence or a package that cannot be required (D8.23). The probe was run against tclsh 8.4, 8.5, 8.6, 9.0 and 9.1 as it was written; three things the older shells taught it are in the prelude: no `in` operator (8.4), a write trace on the `env` array fires on `array exists` in 8.4 and 8.5 (so the globals are read outside the trace window), and a name is looked up from the global namespace and not the probe's. Tests: `tcl-cli`'s `tests/spec_verbs.rs` (30, was 18; each skips with a message where no `tclsh` is on `PATH`) — the plan's `spec_test_reports_an_arity_divergence` (over the fixture package, a pack narrower than `demo::flex` and wider than `demo::fixed` is three rows and the summary line, and a pack that describes the package truthfully is none and exit 0), `spec_test_reports_a_command_the_package_does_not_define` (one row and no other question), `spec_test_reads_the_policy_of_the_project_that_holds_the_pack` (a pack in a `specs` directory below the manifest), `spec_test_reports_what_the_examples_the_purity_and_the_reference_body_disagree_on` (a type the answer is not, a raising example, a `pure` command that writes a global and one that creates it on its first call, a reference body that answers 63 where the command answers 42, a truthful command with no row, and a package that printed without a newline), `spec_test_runs_only_a_package_the_policy_opts_in`, `spec_test_says_when_the_package_cannot_be_required`, `spec_test_says_when_there_is_nothing_to_test` (an empty pack, and a file that is not there), `spec_test_says_when_the_shell_stops_before_it_reports`, `spec_test_uses_the_shell_of_the_active_venv_when_none_is_named` (a wrapper that records its use), `spec_test_takes_the_package_from_the_flag` (over the `required_package` the commands declare), `spec_test_stops_a_package_that_does_not_finish_in_time` (a one-second `[sandbox] max-timeout-secs`) and `spec_test_compares_a_reference_body_the_pack_takes_from_a_package_file`; and the module's four unit tests (lib 31, was 27) — `a_report_is_the_probes_own_lines_and_nothing_the_package_printed`, `the_script_asks_each_command_only_what_the_pack_declares`, `what_the_pack_declares_reaches_the_probe` and `the_package_is_the_one_every_command_that_names_one_agrees_on`. Mutation checks, each reverted and each failing the test that names it: the call under the minimum and the call over the maximum not made, and the counts inside the window not asked (`spec_test_reports_an_arity_divergence`); any error counted as a refusal, an `Int` that is any word, a raising example not said, the answer's type not checked, the `Int` type not asked, the reference body not compared, no write trace set, the globals a first call created not compared, and the shell's own `errorInfo` and `errorCode` counted as the package's (`spec_test_reports_what_the_examples_the_purity_and_the_reference_body_disagree_on`; the comparison and the reference-body ones also by `spec_test_compares_a_reference_body_the_pack_takes_from_a_package_file`); a command the package lacks probed anyway and not reported (`spec_test_reports_a_command_the_package_does_not_define`); a report line that may follow the package's own text (the facts test, whose package prints without a newline); the policy not asked (`spec_test_runs_only_a_package_the_policy_opts_in`); a divergence that exits 0 (every test that expects 1); the project taken as the pack's own directory (`spec_test_reads_the_policy_of_the_project_that_holds_the_pack`); the package not required before the questions (`spec_test_says_when_the_package_cannot_be_required`); a pack with nothing to test asked for a package, and a missing file read as an empty pack (`spec_test_says_when_there_is_nothing_to_test`); a shell that stops before it reports taken as a pass (`spec_test_says_when_the_shell_stops_before_it_reports`); the `--package` flag ignored (`spec_test_takes_the_package_from_the_flag`); a timed-out shell not said (`spec_test_stops_a_package_that_does_not_finish_in_time`); the active venv not asked for a shell (`spec_test_uses_the_shell_of_the_active_venv_when_none_is_named`); `TCLLIBPATH` not passed to the shell (the tests that need the package found); a package-source body not offered as the reference (`spec_test_compares_a_reference_body_the_pack_takes_from_a_package_file`); and, in the unit tests, commands that name different packages taken to agree, a report line accepted from the middle of a line, a tab in a detail not unescaped, a pure command not marked before its first question and no arity probed. Gates: `cargo test -p tcl-cli` under `LANG=C.UTF-8` (151 tests in 9 binaries: lib 31, was 27; `spec_verbs` 30, was 18; `cli` 50, `pkg_verbs` 15, `compile_verbs` 11, `value_transfers_cli` 11, `explorer_gui` 3), the only crate whose code changed (it gains a direct dependency on `tcl-syntax`, one line of `Cargo.lock`); the probe, run against tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0 over one package, gives the same rows on all five; `cargo check --workspace --all-targets`, clippy (`--workspace --all-targets -- -D warnings`, no new `#[allow]`) and `cargo fmt --all` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389), `owner-resolution` (45), `retired-api-gate`, `runtime-stdlib`, `kcs-index-links` green, `dialect-drift` at its 8 sites.  Docs: `docs/kcs/features/kcs-feature-tcl-verb-cli.md` (the verb), `kcs-howto-write-a-tclspec-pack.md`, and the design page's status box. Deviations: the entry through `exec::execute` and the policy's project (D8.19), the purity mark (D8.22), the presence question (D8.21), and a new `tcl-syntax` dependency of `tcl-cli` for `list_element`. D8.19–D8.23 **Reworked** by the step 8 review (Rework 3): the policy is the operator's, a shell that did not say `done` has not finished, purity is held over every namespace, and the rows above that name `project_of`, a shell that stops "before it reports" and a pure command's "globals" are what the first form did (D8.39–D8.41); renamed: `spec_test_reads_the_policy_of_the_project_that_holds_the_pack` is `spec_test_reads_the_policy_of_the_project_it_is_run_in`, and `spec_test_says_when_the_shell_stops_before_it_reports` is `spec_test_says_when_the_shell_stops_before_it_has_asked_every_command`. |
+| CC8.2 reference bodies as declared implementations and as a derivation source | landed | `wip(consumer-contracts): step 8 — reference bodies as declared implementations` | **The scan.** `rust/tcl-registry/src/value_transfer/reference_body.rs` (new): `derive(command, definition)` reads a `proc` text as one definition of the command, with all-required parameters, and a body of commands on `SANDBOX_WORDS` — the hook host's whitelist, held equal to it by a test in `tcl-spectcl` (D8.25) — followed through `if`, `while`, `for`, `foreach`, `switch`, `expr` and every command substitution; it refuses a command off the list (`Inexpressible::Command`, with the reach it names), a computed command name or script argument, a `dict`, `lsort`, `lsearch` or `regsub` that runs a callback, a `return` that is not the last statement, a variable that is not a plain local (a namespace-qualified name, or one the body computes), an expression function off `MATH_FUNCTIONS` (`rand` and `srand` among them) and the reserved name its own rewrite sets. What it admits becomes `fold [ SCRIPT ]`, a final `return V` standing as `set __spec_result V`, and a `DeclaredSemantics` leaked once per command and body — identity `COMMAND.reference`, one exact operand input per parameter, `depends {tcl_profile implementation_identity}`, `Needs::NONE`, normal completion — that `is_derived` tells from one a pack wrote (D8.27). A `// dialect-drift-ok` note at `Lexed::new` says why the scan lexes under the default grammar: the text is the library's own Tcl, which the hook host evaluates as plain Tcl, and not a document's, so the gate stays at its 8 sites. **The sandbox.** `tcl-engine-tclvm`'s `restrict_commands` keeps the subcommands of a whitelisted ensemble (`is_subcommand_of_allowed`), which the derivation's parity test found it needed (D8.30). **The loader.** `rust/tcl-spectcl/src/loader/reference.rs` (new): `derive_implementations` runs on a pack's merged commands after the capability gate and the package-source provisioning (`pack::load_sources`), so it sees the bodies in force; a command whose author stated its evaluation (a `semantics` row, an `evaluate` statement or `semantics none`) is left as written, one with subcommands or forms is not derived, and one whose declared arity is not exactly its body's parameters, or has arity windows, is declined (D8.26); otherwise the spec is cloned with the declaration and an `evaluate` `HookDecl` is pushed, which the host plan binds to a slot as it binds a written one (D8.24). A body the scan refuses is one Information notice on the command's row saying why, and a text that is not one `proc` says nothing (D8.26). **The studio.** `rust/tcl-spec-studio/src/infer.rs`: `infer_from_body(params, body, dialect) -> InferredFacts { pure, side_effects, return_type, callback_slots }` through `tcl_compiler`'s interprocedural summary and the analyser's parameter traits, and `import_package` builds one unit per file and carries the facts onto each draft as proposals with their evidence lines (D8.28); `draft.rs` does not count a derived implementation as a field a draft loses. `ai/claude/skills/spec-author/SKILL.md`: the questions only the author can answer are taint, history and a proposal the body cannot settle; the skill runs `tcl spec test` and says how a Tcl-body backing is declared. Tests: `tcl-registry`'s `value_transfer/reference_body.rs` (10, new) — `a_pure_value_body_becomes_a_fold_of_its_value`, `control_flow_and_substitutions_are_followed`, `a_command_the_scan_does_not_list_derives_nothing` (thirteen commands refused for the reach each names, and six reached through a substitution, a condition or a nested body), `what_the_scan_cannot_read_to_the_end_derives_nothing`, `every_command_the_registry_knows_is_refused_unless_the_whitelist_lists_it` (every command of the shipped registry the list does not name, refused as a command off the list, and every word on it not), `a_body_that_reaches_outside_its_own_frame_through_a_name_derives_nothing`, `a_body_nested_past_the_limit_derives_nothing`, `only_one_proc_with_plain_parameters_defines_the_command`, `a_derived_implementation_is_told_from_one_a_pack_wrote` and `the_declaration_names_one_input_per_parameter_and_the_text_it_runs`; `tests/value_transfers.rs` (46, was 45) — the plan's `a_reference_body_is_a_declared_implementation_when_the_sandbox_can_express_it` (the route, the capability, the hook body, and the negatives: `upvar` derives nothing and says why, another arity derives nothing, `semantics none` stands); `tcl-spectcl`'s `loader/reference.rs` (8, new; lib 226, was 218) — `a_body_the_sandbox_runs_is_the_commands_declared_implementation`, `a_body_the_sandbox_cannot_run_is_said_on_the_commands_row_and_derives_nothing`, `a_text_that_is_not_one_proc_is_no_body_and_draws_no_notice_of_this_kind`, `what_the_author_states_about_evaluation_is_left_as_written`, `the_declared_arity_must_be_the_bodys_parameters`, `a_command_with_subcommands_is_not_derived`, `a_derivation_is_one_clone_per_spec_and_declaration` and `the_scans_whitelist_is_the_hosts` (the registry's, the hook host's and the loader's lists equal); `tests/pack_source_e2e.rs` (6, was 4) — `a_reference_body_answers_through_the_host_as_the_procedure_does` (twelve shapes: the VM runs the procedure and the analyser proves the same constant through the real host, with an unknown argument and a body that reaches for the frame proving none) and `a_derived_body_runs_under_the_release_the_call_is_analysed_under` (`string cat` answers from 8.6 and not under 8.4 and 8.5, and `$x + 010` is 8 under 8.6 and 10 under 9.0); `tests/codegen_stamps.rs` (15, was 14) — `a_package_source_body_is_a_declared_implementation_too` (the file the load read derives, one it could not read and a direct dependency's body derive nothing); `tcl-spec-studio`'s `infer.rs` (`a_bodys_effects_answer_and_callbacks_are_read_from_the_summary`, `an_import_carries_the_bodys_facts_as_proposals` and `a_proposal_leaves_a_field_the_draft_already_states`) and `draft.rs` (`a_derived_implementation_is_not_lost_in_a_draft`), lib 203, was 199; `tcl-engine-tclvm`'s `a_whitelisted_ensembles_subcommands_run_wherever_they_are_called` (lib 17, was 16). Mutation checks, each reverted and each failing the test that names it, the scan's through `reference_body.rs`'s own tests: a command off the list admitted, a `return` that is not the last statement admitted, the reserved name not reserved, a qualified variable substitution, a variable name the body computes or qualifies, and the variables `set`, `lassign`, `foreach`, `scan`, `regsub`, `dict set`, `binary scan`, `switch -matchvar` and `regexp -start` name not checked, any expression function admitted, a `dict` subcommand that runs a body, a `-command` callback, a parameter with a default, a trailing `args`, a proc for another command, a text with other commands, a body in quotes, a four-word command that is not `proc`, the depth limit not applied, a quote not opening a string in an expression, a brace group read for functions, the `then` word and a `-` fall-through arm not read, a `foreach` body and an `expr` argument not read, a final `return` not rewritten, a `return` anywhere taken as the last, the body out of the implementation's identity, an implementation built again for each derivation, no inputs, no dependence on the profile, and a derived implementation not told from a written one (37); the loader's through `loader/reference.rs`'s tests: a stated `semantics` row, `semantics none` or `evaluate` derived over, a command with subcommands or forms, another arity or arity windows derived, a text that is not a proc said, the notice a warning, the declaration not put on the spec, the hook without its declared inputs and the clone made again (9), and the load not deriving, by `a_package_source_body_is_a_declared_implementation_too`, the parity test and the registry's integration test; the host not pinning the release (`a_derived_body_runs_under_the_release_the_call_is_analysed_under`); the studio's, through `infer.rs`'s and `draft.rs`'s tests: purity, the answer's type, the callbacks, state written through the summary's regions and through its `writes_global` flag, state it could not name, a parameter invoked as a command not a callback, a draft's own side effects or `return_type` replaced, and a derived implementation lost in a draft (10); and the engine's, an ensemble the whitelist does not name keeping its subcommands and an allowed one losing them (`a_whitelisted_ensembles_subcommands_run_wherever_they_are_called`). The scan's checks after the tenth, the loader's, the studio's and the engine's ran as mutation switches compiled into the file once and read from the environment, the rest as ordinary rebuilt mutations, which is how a survivor was found without waiting a rebuild for each of sixty: the loader's stated-evaluation check had a second half that nothing could reach, since an `evaluate` statement at the command's scope always declares semantics, and `infer_from_body`'s `pure` had three conjuncts the summary's own `pure` already implies; both are gone, and the test that let `semantics none` be derived over now asserts what each statement leaves. Gates: `cargo test`, under `LANG=C.UTF-8` with `TCL_REQUIRE_WASM_LINK=1`, `TCL_TOMMATH_DIR` and the `tmp` oracle tree linked — `-p tcl-registry` (21 binaries, 1310 tests; lib 977, was 967; `value_transfers` 46, was 45), `-p tcl-spectcl` (396; lib 226, was 218; `codegen_stamps` 15, was 14; `pack_source_e2e` 6, was 4; `golden_packs` 3; `spec_corpus` 5), `-p tcl-spec-studio` (299; lib 203, was 199), `-p tcl-engine-tclvm` (17, was 16), and the dependents `-p tcl-spec-hooks` (48), `-p tcl-cshim` (25), `-p tcl-cli` (151), `-p tcl-mcp` (114), `-p tcl-compiler` (68 binaries, 9922 tests, in batches, unchanged), `-p tcl-lsp-core` (3578), `-p tcl-lsp-db` (138), `-p tcl-vm` (50 binaries, 1500), `-p tcl-pkg` (58) and `-p tcl-pkg-model` (45); `runtime/rust`, its own workspace, `cargo test --locked --lib` (721) and `--tests` (13 binaries, 881) with the numeric tower, and lib 624 and 751 in all without it, unchanged; `cargo check --workspace --all-targets`, clippy (`--workspace --all-targets -- -D warnings`, no new `#[allow]`; one lint answered in the code, `similar_names`, by a rename) and `cargo fmt --all` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged: no bundled pack declares a `tcl-body`, so the derivation adds no route to the inventory, D8.29), `pack-goldens --check` (25), `command-backing --check` (389), `owner-resolution` (45), `retired-api-gate`, `runtime-stdlib`, `kcs-index-links`, `callback-inventory --check`, `audit-option-dialects --check` (114 probed options), `number-drift` and `segmentation-drift` green, `dialect-drift` at its 8 sites. Through the built CLI, a workspace pack whose command is backed by `proc vendor::double {x} {expr {$x * 2}}` has `tcl opt` rewrite the `return $known` that follows `set known [vendor::double 21]` to `return 42`, and without the backing it leaves it.  Docs: the design page (rung 3 and the status box), `spec-packs.md`, the KCS how-to and the glossary. Deviations: the derivation is the loader's pass and the scan the registry's, in `reference_body.rs` and not `declaration.rs` (D8.24); the scan is a whitelist with more rules than the plan's list of words (D8.25); the arity and form guards (D8.26); `infer_from_body` takes the parameter list and the dialect (D8.28); the sandbox change in the value-transfers lane's engine (D8.30). D8.24–D8.30 **Reworked** by the step 8 review: the derivation is now the author's to ask for with `-evaluate` (Rework 2, D8.36–D8.38), so the text above that says every body the scan reads is derived, and that an unexpressible body draws an Information notice, is what the first form did. |
+| Rework 1 the inliner (the review's CC8.1: B1–B4, N3) | landed | `wip(consumer-contracts): step 8 — rework: the inliner` | **Reproduced and fixed through the compile service.** Each defect was shown first through `BytecodeCompileService::for_profile_with_overlay` and a `Vm` holding the pack's facts (`codegen_stamps.rs`'s idiom), against the same pack's definitions run as procedures: B1, `proc vabs {x} {if {$x < 0} {return [expr {-$x}]}; return $x}` into `caller -5` answered the text `$__inline_1__RESULT`; B2, `proc vdouble {x} {return [expr {$x * 2}]}` in `eval {vdouble $n}` answered the empty string; B3, `proc vlen {s} {string length $s}` into an `app::caller` with an `app::string` answered `shadowed`; B4, `vgreet` read the caller's `name` and `vpick` raised the mangled slot's name. **The splice** (`rust/tcl-compiler/src/inlining/`): `mod.rs` rewrites every script for the value the call has — `Tail::{Returned, Dropped, Captured}` and `Site::first` — so a trailing `return` stays one only where the value is the procedure's, a `Block` (a static `eval`), an `if` branch and a `switch` arm take the statement's own tail, the wrapped early return's value is the word `${slot}` that the emitter substitutes (B1, B2, D8.31); `frame.rs` (new) is the gate on what a body reads (B4, D8.32); `heads.rs` (new) spells each call head of a body from the global namespace where the caller's namespace is neither the global one nor the definition's, and declines a body that substitutes a command there (B3, D8.33); `rename.rs` leaves a braced `Call` word and a braced `return` value as written (D8.34); an `uplevel` body is not rewritten (N3, D8.35). **Beyond the review's list**, found by running the matrix below against bodies the review did not name and fixed in the same splice: a parameter read inside a command an expression substitutes, a quoted operand and a frozen loop's command condition answered `can't read "x"` (the rename never reached them); `string length {$x}` and `return {$x}` answered the length of the slot's name and the slot's name; a command a word substitutes (`return [join $l ,]`) resolved in the caller's namespace as B3 did for a call; and `set a 5; noop` lost the value the script ended with. **Tests.** `tcl-compiler`'s `inlining/tests.rs` (35 → 54), IR shape, 19 new: `v3_wrapped_return_hands_out_its_result_as_a_variable_reference`, `v3_terminal_block_keeps_trailing_return`, `v3_block_before_more_commands_wraps_return`, `a_call_whose_value_a_catch_holds_is_not_given_a_wrap`, `a_call_whose_value_a_try_holds_is_not_given_a_wrap`, `an_uplevel_body_is_left_as_written`, `an_empty_body_call_vanishes_only_where_nothing_stands_before_it`, `a_body_spliced_into_another_namespace_spells_every_command_from_the_global_one`, `a_body_spliced_into_its_own_or_the_global_namespace_keeps_its_spelling`, `a_command_already_absolute_is_not_qualified_twice`, `a_body_that_reads_a_name_it_never_binds_stays_a_call`, `a_body_that_reads_a_name_only_some_paths_bind_stays_a_call`, `a_catch_result_variable_is_bound_after_the_catch`, `a_body_whose_every_path_binds_a_name_before_it_is_read_is_spliced`, `a_body_that_only_increments_a_name_it_never_bound_stays_a_call`, `a_braced_word_in_a_body_is_not_renamed`, `a_body_that_reads_through_an_operand_kept_as_text_stays_a_call`, `a_braced_reference_in_a_substituted_command_stays_a_call` and `a_body_that_substitutes_a_command_stays_a_call_in_another_namespace`; `tcl-spectcl`'s `tests/codegen_stamps.rs` (15 → 24), each run through the VM against the definitions as procedures: `a_body_with_a_return_before_its_end_answers_through_the_splice` (B1, `vabs`, at a terminal call and an `if` arm), `an_inlined_body_inside_a_static_eval_keeps_its_value` (B2), `an_inlined_body_resolves_the_commands_it_calls_as_its_definition_did` (B3, with the shadow made before and after the compile), `a_body_that_substitutes_a_command_is_not_given_the_callers_namespace_to_resolve_it_in`, `an_inlined_body_reads_only_what_its_definition_binds` (B4), `a_braced_word_in_an_inlined_body_stays_literal`, `a_body_that_reads_through_an_operand_kept_as_text_stays_a_call`, `a_function_claims_a_splice_only_where_it_emits_it` (N3: three bodies at eight sites that `catch`, `try` or `uplevel` hold, a binding and a claim iff the function does not call the command) and `every_shape_of_inlined_body_answers_as_its_definition_does_at_every_site` (twelve bodies — a trailing `return`, a `return` before the end with and without a trailing one, the last command's value, a local, `incr`, the empty body, two parameters, a braced word, a substituted command — at nineteen sites, each for a negative, a zero and a positive argument, with no expected answer written down: the splice is held to the definition, and to at least six splices a shape). Moved: `bare_call_does_not_resolve_through_an_ancestor_namespace` (`inlining/tests.rs`, the spliced `puts` of another namespace is `::puts`), `empty_body_call_is_dropped` (`tests/inlining.rs`, neither `noop` is the script's last command now), and `rewrite_recurses_into_upframe_body` (`tests/inlining_interproc_residual.rs`, now `rewrite_leaves_an_upframe_body_as_written`). **Mutation checks**, each switched on through an environment variable compiled into the files for the run and removed with the switches, each killed by the tests named, and each reproduced after the change had its last form: wrapped value read as `$slot` (`v3_wrapped_return_…`, and the two B1 rows through the VM), a `Block`'s tail dropped (`v3_terminal_block_keeps_trailing_return`, the B2 row), the `catch`/`try` rule off (`a_call_whose_value_a_catch_holds_…`, `a_call_whose_value_a_try_holds_…`), `try` and `catch` tails dropped on their own (each of those two), an `uplevel` body rewritten again (`an_uplevel_body_is_left_as_written`), an empty body vanishing anywhere (`an_empty_body_call_vanishes_only_…`, the matrix), no spelling from the global namespace, always spelled, spelled for a global caller, an absolute head spelled again (`a_body_spliced_into_another_namespace_…`, `…_keeps_its_spelling`, `a_command_already_absolute_…`, the B3 row), no frame gate, paths joined by union, a `foreach` body's names counted after it, parameters not counted, a `return`'s value unread, a returning path joining, `incr` not reading, an `if` or `switch` with no last arm not keeping the path past it, a `catch`'s result variable not bound (`a_body_that_reads_a_name_…`, `a_body_whose_every_path_…`, `a_catch_result_variable_…`, `a_body_that_only_increments_…`, the B4 row and the matrix), the operand gate off, the braced-substitution gate off, a braced `Call` word and a braced `return` value renamed, and the cross-namespace decline off (`a_body_that_reads_through_an_operand_…`, `a_braced_reference_in_a_substituted_command_…`, `a_braced_word_in_a_body_is_not_renamed`, `a_body_that_substitutes_a_command_stays_a_call_…`, and their rows through the VM). One survivor of the first pass, `incr` not reading, had no test that reached it because a read of the same name followed it; `a_body_that_only_increments_…` is that test. Twenty-five mutants, all killed. **Gates.** `cargo test`, under `LANG=C.UTF-8` with `TCL_REQUIRE_WASM_LINK=1`, `TCL_TOMMATH_DIR` and the `tmp` oracle tree linked — `-p tcl-compiler` (68 binaries, 9941 tests with the doc tests, in batches of twelve binaries; lib 6647, was 6628; `inlining` 72, `inlining_interproc_residual` 57, `inlining_rename` 26, `compiler_analysis_residual` 76; the 14 cases of `wasm_real_link` run for real), `-p tcl-spectcl` (405 tests in 22 binaries; lib 226; `codegen_stamps` 24, was 15; `pack_source_e2e` 6), `-p tcl-vm` (50 binaries, 1500; lib 108; `command_mutation_deopt_e2e` 83, which runs `inline_module` over a module's own procedures); `runtime/rust` depends on none of the crates this group changed; `cargo check --workspace --all-targets`; clippy (`--workspace --all-targets -- -D warnings`, no new `#[allow]`; three lints answered in the code, `too_many_lines` by splitting the frame walk into `statement`, `command`, `looping` and `guarded`, `match_same_arms` by folding the `uplevel` arm into the wildcard and `option_option` by a path accumulator) and `cargo fmt --all` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389), `owner-resolution` (45), `retired-api-gate`, `runtime-stdlib` and `kcs-index-links` green, `dialect-drift` at its 8 sites. Deviations: what the review asked for in B3 (D8.33), the extra defects (D8.32, D8.34), N3 at the IR and not at the VM (D8.35), and three tests of the unwired `inline_module` moved (D8.31, D8.33, D8.35). D8.31–D8.35 |
+| Rework 2 derived implementations (the review's CC8.2: B5, N2) | landed | `wip(consumer-contracts): step 8 — rework: derived implementations are the author's to ask for` | **What was wrong.** B5: the loader derived a declared implementation from every body the scan could read, whoever wrote it and whether or not its author had checked what the engine under the hook host answers against a real shell. That engine emulates an older release imperfectly (#2333: `string is integer`'s width, `tcl_precision` under 8.4, `incr` of an unset local, `lreplace` and `lindex` bounds and index forms, `1.0/0`, `int(1e20)` and `1<<64` under 8.4, `format %c`), so a body that meets one of the differences folded a value the release's own shell does not give, silently, at analysis time. N2: the scan compared the exact words `for`, `map`, `with`, `update`, `filter` and `-command`, so `dict fo {k v} $d {…}`, `dict wi`, `dict m` and `lsort -comm cmp $l` ran past it as no callback. **The opt-in.** `RuntimeBacking::TclBody { source, evaluate }` (`rust/tcl-registry/src/runtime_backing.rs`; `pack_text`, `package_source`, `evaluated` and `evaluates` are `const fn`), written `tcl-body {-pack-text {TEXT} -evaluate}` or `tcl-body {-package-source PATH -evaluate}`. `BackingSyntax` (`rust/tcl-spectcl/src/backing.rs`) reads the flag before the pair or after it and spells it after; the loader's two paths, the studio's draft, `render_spectcl`, `render_rs` and the help text already read the backing through it, so no surface gained a statement and no coverage gate a row (D8.36). `loader/reference.rs` derives only where `evaluates()` holds; the scan stays the precondition (D8.37); an asserted body that derives nothing draws one Warning on the command's row ("`-evaluate` asks for the reference body to be run as an implementation at analysis time, and it is not: …"), for a text that is not one `proc` and for a command that states its own `semantics` or `evaluate` as it does for a body the scan refuses, and a body nobody asked for draws nothing (D8.26). **Prefix matching** (`reference_body.rs`, D8.38): `dict_runs_a_script` resolves the word through `dict`'s own subcommand table and `takes_a_callback` reads the leading switches through `leading_switch_names`, so a callback is found under every spelling the command accepts and a `-command` after the switches stays data. **The release test against the shells.** `a_derived_body_runs_under_the_release_the_call_is_analysed_under` (`pack_source_e2e.rs`) runs six rows through `proved_under` for each release whose `tclsh` is on `PATH` and compares the answer with that shell's own, and an abstention with its error: `string cat`, `010`, `1_000`, `format %x -1` and the length of `"\U1F600$x"` at all five releases, and `int(1e20)` at 9.0 and 9.1 (D8.37); the five shells were on `PATH` and every row compared. The rows that did not agree are #2333's, and are not in it. **Tests.** `tcl-registry`: `runtime_backing.rs` `only_a_tcl_body_carries_the_assertion_that_it_may_be_evaluated`; `reference_body.rs` `a_callback_is_found_under_any_abbreviation_the_command_accepts` (16 callbacks refused, 10 plain commands admitted); `tests/value_transfers.rs` `a_body_nobody_asserted_is_not_derived_from_however_plain_it_is` (an unasserted body derives nothing and says nothing, at two bodies) and `a_reference_body_is_a_declared_implementation_when_the_sandbox_can_express_it`, reworked for the flag. `tcl-spectcl`: `backing.rs` `the_evaluate_flag_stands_before_the_source_or_after_it` (the flag before, after, a text that is the flag's own spelling, and five spellings that do not read) and the two round trips, extended; `loader/reference.rs` `a_body_nobody_asked_to_have_evaluated_derives_nothing_and_says_nothing`, and four reworked — `a_body_the_sandbox_cannot_run_is_a_warning_on_the_commands_row_and_derives_nothing`, `an_asserted_text_that_is_not_one_proc_says_so`, `what_the_author_states_about_evaluation_is_left_as_written_and_the_assertion_is_a_contradiction` and the helpers they share; `tests/eval_loader.rs` `runtime_backing_reads_each_shape_through_both_paths` (two rows for the flag); `tests/codegen_stamps.rs` `a_package_source_body_is_a_declared_implementation_too` (the same file without the flag derives nothing); `tests/pack_source_e2e.rs` the release test above. `tcl-spec-studio`: `render_rs.rs` `a_tcl_body_backing_is_rendered_with_its_authors_assertion`; `draft.rs` `a_derived_implementation_is_not_lost_in_a_draft` (the body and the flag are on the row); `tests/spectcl_roundtrip.rs` `runtime_backing_survives_the_round_trip` (two evaluated rows). Renamed: the three loader tests above. **Mutation checks**, each switched on through an environment variable compiled into the files for the run and removed by restoring them, the two `const fn`s by an edit of their own: derive without the flag (`a_body_nobody_asked_…`, `a_body_nobody_asserted_…`, `a_package_source_body_is_…`); the parse ignoring the flag, `into_backing` dropping it, the spelling dropping it, `from_backing` dropping it (the backing round trips, `the_evaluate_flag_stands_…`, seven loader tests, the draft test, `runtime_backing_survives_the_round_trip`; the two that lose the flag in both directions are seen by the draft test and the round trips of `backing.rs`, and not by the studio round trip, which loses it on both sides); the contradiction warning absent (`what_the_author_states_…`); the warnings Information (`a_body_the_sandbox_cannot_run_…` and four more loader tests); `dict` matched exactly, a first-letter prefix for `dict`, `-command` matched exactly, any word read as a switch (`a_callback_is_found_under_any_abbreviation_…`, each for the case it was meant to fail on); the hook host not pinning the release (`a_derived_body_runs_under_the_release_the_call_is_analysed_under`); `evaluated` a no-op and `evaluates` ignoring the flag (`only_a_tcl_body_carries_…`); the renderer dropping `.evaluated()` (`a_tcl_body_backing_is_rendered_…`). Fifteen mutants, all killed. **Gates.** `cargo test`, under `LANG=C.UTF-8` with `TCL_REQUIRE_WASM_LINK=1`, `TCL_TOMMATH_DIR` and the `tmp` oracle tree linked, in batches of twelve binaries: `-p tcl-registry` (1313 tests with the doc test; lib 979; `value_transfers` 47, was 46), `-p tcl-spectcl` (407 tests in 22 binaries, was 405; lib 228, was 226; `codegen_stamps` 24, `eval_loader` 27, `pack_source_e2e` 6), `-p tcl-spec-studio` (300, was 299; lib 204), `-p tcl-spec-hooks` (48), `-p tcl-engine-tclvm` (17), `-p tcl-pkg` (58), `-p xtask` (242), `-p tcl-compiler --lib` (6647), and `runtime/rust`, which depends on `tcl-registry` (881 tests in 14 binaries); `cargo check --workspace --all-targets`; clippy (`--workspace --all-targets -- -D warnings`, no new `#[allow]`; three lints answered in the code: `match_same_arms` on the flag's two positions by one or-pattern, `option_option` on the shell's answer by a three-state enum, `too_many_lines` by moving the unasserted negative into a test of its own) and `cargo fmt --all` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389), `owner-resolution` (45), `retired-api-gate`, `runtime-stdlib` and `kcs-index-links` green, `dialect-drift` at its 8 sites. Deviations: the flag is on the backing and not a statement beside it (D8.36); the Information notices became Warnings and an asserted text that is not a `proc` now says so (D8.26); two rows of the review's list (`int(1e20)` under 8.4 to 8.6, `format %c`) are #2333's and not in the release test; the help text of the studio's `runtime_backing` field and the generated field reference say `-evaluate`. D8.24–D8.29 reworked, D8.36–D8.38 |
+| Rework 3 `tcl spec test` (the review's CC8.3: S1–S3, N1, N4, N5) | landed | `wip(consumer-contracts): step 8 — rework: tcl spec test says when it is done, takes the operator's policy and sees every namespace` | **What was wrong.** S1: a shell that exited 0 with no divergence was a pass whenever it exited, so a package that called `exit 0` when it was required, or in the body of a command's second example, ended the shell part way and the summary still counted every declared command as tested. S2: the policy was the project that holds the pack (`project_of`), so a dependency vendored into the project, with a manifest and a `tclpkg.toml` of its own, could opt itself in. S3: purity was checked over `info globals`, so a command that fills a namespace variable (`variable cache; set cache($x) …`) passed as pure. **S1.** The probe ends each command's questions with `::__spec_test::asked NAME` and the script with `::__spec_test::finish`, which prints `SPEC-TEST<TAB>done<TAB>-<TAB>N`; `parse_report` returns `Report { divergences, asked, done }`; `report_test` has finished only when `done` is the number of commands it was to ask and as many were asked (none, for a package the shell could not require: `Report::package_missing`), and otherwise exits 1 saying how many were asked, which were not and the status the shell stopped with; the summary counts the commands asked (D8.40, D8.23). **S2.** `operator_project()` is `tcl pkg`'s `find_project_root` (now `pub(crate)`) from the working directory, else the working directory (D8.39, D8.19). **S3.** The probe walks `namespace children` from `::` and takes `info vars ${ns}::*` of each, with the traces set on qualified names and the qualified name bound into the trace's prefix (D8.41, D8.22). **N1.** The exit status for a shell that outlives the policy's timeout is 2, as every verb's error is, and the KCS note and the exit-code contract say so. **N5.** `source -encoding` accepts the four names `encoding system` does (`utf-8`, `iso8859-1`, `ascii`, `unicode`) and refuses any other as Tcl's `unknown encoding`; the design page's status box and its note on the VM's `source`, and `cmd_source`'s documentation, say so. **N4.** The design page's rung-3 prose now reads "refuses a claim whose backing is not `TclBody`; otherwise the check would admit a model of a C command". **Found on the way.** The first run of the facts test over the namespace walk failed on every pure command with `::tcl::history`: a `tclsh` that reads its script from standard input (`tclsh -`) records every statement it reads in that array, so the probe's own statements change it between the mark and the last question. The shell's `::tcl` is not walked (D8.41); a package that writes into it is not seen. **Tests.** `tcl-cli`'s `tests/spec_verbs.rs` (30 → 32; each skips with a message where no `tclsh` is on `PATH`, and each ran against tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0 by putting that shell first on `PATH`, with the same result): `spec_test_ignores_the_policy_of_the_tree_the_pack_was_found_in` (S2: the dependency vendored under the project is refused on its own policy, and runs once the project's opts it in), `spec_test_does_not_pass_a_package_that_exits_the_shell_with_status_0` (S1: at require time, and in the second command's body, with the first command's row kept and the commands not asked named), and, reworked, `spec_test_reads_the_policy_of_the_project_it_is_run_in` (was `…_the_project_that_holds_the_pack`), `spec_test_says_when_the_shell_stops_before_it_has_asked_every_command` (was `…_before_it_reports`), `spec_test_reports_what_the_examples_the_purity_and_the_reference_body_disagree_on` (S3: `demo::cached` fills `variable cache`, `demo::counted` counts in `variable count`, and the rows name `::demo::cache` and `::demo::count`; 8 commands, 7 divergences) and `spec_test_says_when_the_package_cannot_be_required` (none asked); the lib's `a_shell_is_finished_when_it_says_done_for_every_command_it_was_to_ask` (`spec.rs`: a done line absent, one that counts another number, one with a command never asked, a clean exit, and a non-zero exit after it) and `a_report_without_its_done_line_is_one_the_shell_did_not_finish` and the extended `a_report_is_the_probes_own_lines_and_nothing_the_package_printed` (`spec_test.rs`). Lib 33, was 31. **Mutation checks**, each switched on through an environment variable compiled into the two files for the run (the probe's Tcl by a replacement in `render_script`) and removed by restoring them: the policy asked of the pack's own tree and not the operator's project (`spec_test_ignores_the_policy_of_the_tree_the_pack_was_found_in`); the `done` line not required (`a_shell_is_finished_when_it_says_done_for_every_command_it_was_to_ask`, the only test that can tell a shell that asked every command and then stopped); a shell that exited 0 taken as finished (that test and `spec_test_does_not_pass_a_package_that_exits_the_shell_with_status_0`); the summary counting the commands the pack declares in place of the commands asked, and a missing package still expected to be asked of (`spec_test_says_when_the_package_cannot_be_required`, each); the namespace walk off, the trace's prefix not binding the qualified name, and a global shown by its qualified name (`spec_test_reports_what_the_examples_the_purity_and_the_reference_body_disagree_on`, each). The skip of `::tcl` was found by that test failing without it. Eight mutants, all killed. **Gates.** `cargo test -p tcl-cli --no-fail-fast` under `LANG=C.UTF-8` with `TCL_REQUIRE_WASM_LINK=1` (155 tests in 9 binaries, was 151: lib 33, was 31; `spec_verbs` 32, was 30; `cli` 50, `pkg_verbs` 15, `compile_verbs` 11, `value_transfers_cli` 11, `explorer_gui` 3), `-p tcl-vm --test capability` (the file that tests `source`'s `unknown encoding`; the group changed only `cmd_source`'s documentation); `cargo check --workspace --all-targets`, clippy (`--workspace --all-targets -- -D warnings`, no new `#[allow]`) and `cargo fmt --all` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged: `Report::package_missing` compares with a constant, as D8.40 says), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389), `owner-resolution` (45), `retired-api-gate`, `runtime-stdlib` and `kcs-index-links` green, `dialect-drift` at its 8 sites. Deviations: the shell's `::tcl` is not walked (D8.41); the done line is the verb's proof of completion, and a count that `finish` prints rather than a sentinel alone (D8.40); N1 and N5 and the design page's prose are documentation. D8.39–D8.41; D8.19, D8.20, D8.22 and D8.23 reworked |
+| Review fixes 1 the inliner (the review of the rework and step 9: B1–B4, N2) | landed | `wip(consumer-contracts): step 8 review fixes — the inliner's four wrong values` | **What was wrong.** The review of `7e6d2c91..ef740eb8` found four inliner defects the VM admits with no plain recompile, so four wrong values, each reproduced first through `BytecodeCompileService::for_profile_with_overlay` and a `Vm` holding the pack's facts (`codegen_stamps.rs`'s idiom) against the same definitions run as procedures. B1: `lmap i {1 2 3} {vdouble $i}` answered the empty string where the procedure answered `2 4 6` (`vconst`, `vabs`, `vsign`, `vsetlit` and `vbr` likewise), because `rewrite_single_body_stmt` rewrote every loop body as `Dropped` and an `lmap` reads each iteration's value. B2: `set r {a\tb}` and `return {a\tb}` answered a tab and `set r {[string length $x]}` the length, or `can't read "x"`, because the wrap stored a braced value with an `AssignValue`. B3: `proc vendor::vlen {s} {string length $s}` answered `3` spliced where a `vendor::string` the package made when it ran answered `shadowed` as a procedure, for a global caller and an `app::caller`, the shadow made before or after the compile. B4: `proc vsety {x} {set y $x; return [set y]}` answered the caller's `y` (`43` for `1`), `vincr` `44` or `1` for `2`, `vfmt` `42` or `can't read "x"` for `1` and `vexpr` `43` or `can't read "x"` for `2`. N2: the slots' names are not reserved. **The fixes** (`rust/tcl-compiler/src/`): `inlining/mod.rs` rewrites an `lmap` body as `Captured` and keeps its call unless what comes out is one straight-line block (`Script::is_straight_line`, now `ir.rs`'s, which lowering reads too) (B1, D8.42); the wrap stores a braced word with an `AssignConst`, by `Stored` (B2, D8.43); `splice_call_site` splices a definition in a namespace of its own into another namespace only where `heads::names_a_command` finds no command named by a word the IR keeps (B3, D8.44); `inlining/frame.rs` reads each command a word or an expression substitutes and keeps the call unless each works on its values alone and names no variable (B4, D8.45); N2 is a sentence among D8.32's assumptions. **Beyond the review's list**, found by running the matrix with the shapes and sites below: a callee that is a branch spliced into an `lmap` answered `""` (D8.42); a callee whose last command is an `if` with no `return`, spliced into an `if` or `switch` arm, answered `""` because the code generator loses the value of an `if` that ends an arm, whoever wrote it, and `rewrite_arm` keeps the call there (D8.46); and the VM's own compile of `return {[…]}` evaluates the brackets where Tcl 8.6 and 9.0 answer the text, which is out of this step (D8.43; reported). **The matrix.** `every_shape_of_inlined_body_answers_as_its_definition_does_at_every_site` is twenty-one shapes at twenty-three sites for a negative, a zero and a positive argument (it was twelve at nineteen): new shapes `vif` (a branch with no `return`), `vloop` (a loop the caller's loop would nest), `vsetbs`, `vretbs` and `vsetbr` (a braced word with a backslash, and with brackets), `vsetcmd`, `vincrcmd`, `vfmtcmd` and `vexprcmd` (a variable a substituted command names), and new sites `lmap body`, `lmap body after a set`, `dict map body` and a caller that holds `x`, `y` and `r`. Against the unfixed splice it disagreed 303 times in its first run; it agrees now, still at no fewer than six splices a shape. **Tests.** `tcl-compiler`, `inlining/tests.rs` (54 → 62), eight new, IR shape: `a_call_whose_value_an_lmap_gathers_is_not_given_a_wrap_or_a_branch`, `a_loop_that_reads_no_value_is_still_given_a_wrap`, `a_braced_value_is_stored_as_a_literal_by_the_wrap`, `a_branch_is_not_made_the_value_of_an_arm`, `a_body_whose_substituted_command_names_a_variable_stays_a_call`, `a_body_whose_substituted_commands_work_on_their_values_is_spliced`, `a_body_in_a_namespace_that_names_a_command_stays_a_call_in_any_other` and `a_body_in_a_namespace_that_names_no_command_is_spliced_anywhere`; and three in `inlining/frame.rs`, unit tests of the gate (`a_command_that_works_on_its_values_is_not_beyond_them`, `a_command_that_takes_a_name_runs_a_script_or_is_unknown_is_beyond_them` and `a_substitution_nested_past_the_walk_depth_is_beyond_them`); `tcl-spectcl`'s `tests/codegen_stamps.rs` (24 → 29), each through the VM against the definitions as procedures, or against Tcl's own answers where the VM has none: `an_inlined_body_in_an_lmap_body_gives_the_list_each_iterations_value` (B1: six rows, a `dict map` among them), `a_braced_literal_stays_literal_through_the_wrap` (B2, with `return {[…]}` held to Tcl's answer), `a_definition_in_a_namespace_resolves_its_commands_as_it_did` (B3: a global caller and an `app::caller`, the shadow made before and after the compile, the definition's own namespace, and a `vendor::expr` shadowing what lowering consumed), `a_variable_a_substituted_command_names_is_the_definitions_own` (B4, a caller that holds `x` and `y`) and `a_call_whose_body_is_a_branch_is_not_given_the_value_of_an_arm`; and the matrix above, whose harness `Spliced` gained `in_namespace` for a pack whose definitions are in a namespace. **Mutation checks**, each a textual edit run against the IR tests (`-p tcl-compiler --lib inlining::`) and, for the findings the VM answers, the VM-level ones, and restored with a touch: an `lmap` body as `Dropped` again, the straight-line check off and a straight-line rule that admits an `if` (`a_call_whose_value_an_lmap_gathers_…`, and `an_inlined_body_in_an_lmap_body_…` through the VM for the first two); an `AssignConst` tail stored as a word and a braced `return` stored as a word (`a_braced_value_is_stored_as_a_literal_by_the_wrap`, and `a_braced_literal_stays_literal_through_the_wrap` through the VM); the namespaced-definition decline off, the call heads not counted, a global definition not rooted and the foreign test read as the old one (`a_body_in_a_namespace_that_names_a_command_stays_a_call_in_any_other` for the first, second and fourth, three tests of D8.33 for the third, and `a_definition_in_a_namespace_resolves_its_commands_as_it_did` through the VM for the first); the word gate off, the expression gate off, the name roles ignored and the nested words ignored (`a_body_whose_substituted_command_names_a_variable_stays_a_call`, and `a_variable_a_substituted_command_names_is_the_definitions_own` through the VM for the first two); three mutants of `works_on_values` survived the first pass (every registry command accepted, an unknown command accepted, the `PURE` clause dropped), because the escape summary had already declined every body they would have let through but one, `[namespace current]`: that one, in the IR test, killed the first, and the unit tests of `frame.rs`, added then, the other two and the depth guard's mutant; and the arm guard off, applied where nothing reads the value and not told what the arm ended with before (`a_branch_is_not_made_the_value_of_an_arm`, and `a_call_whose_body_is_a_branch_is_not_given_the_value_of_an_arm` through the VM for the first). Twenty mutants, all killed in the end. **Gates.** `cargo test`, under `LANG=C.UTF-8` with `TCL_REQUIRE_WASM_LINK=1`, `TCL_TOMMATH_DIR` and the `tmp` oracle tree linked, in batches of twelve binaries: `-p tcl-compiler` (68 binaries, 9955 tests with the doc tests, was 9944; lib 6660), `-p tcl-spectcl` (420 tests in 23 binaries; lib 236; `codegen_stamps` 29) and `-p tcl-vm` (50 binaries, 1500; `command_mutation_deopt_e2e` 83, which runs `inline_module` over a module's own procedures); `runtime/rust` depends on none of the crates this group changed; `cargo check --workspace --all-targets`; clippy (`--workspace --all-targets -- -D warnings`, no new `#[allow]`; two `too_many_lines` answered in the code, by `rewrite_foreach_stmt` and `call_substitutes`) and `cargo fmt --all` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389), `owner-resolution` (45), `retired-api-gate`, `runtime-stdlib`, `kcs-index-links`, `callback-inventory --check` and `gen-irule-test-data --check` green, `dialect-drift` at its 8 sites, and the nextest shard proof at 331 targets. Moved, all of the unwired `inline_module`: `implicit_trailing_return_with_early_return_captured` (`tests/inlining.rs`, the capture is an `AssignConst`), `procedure_caller_can_still_inline_across_namespaces` (the namespaced body names `::puts`), `a_body_spliced_into_its_own_or_the_global_namespace_keeps_its_spelling` (now `a_body_spliced_where_names_are_looked_up_as_its_definition_did_keeps_its_spelling`) and `active_inlined_namespaced_boundary_replays_in_its_defining_namespace` (`tcl-vm`'s `command_mutation_deopt_e2e.rs`, whose callees name `::llength` and `::puts`, as a body does that means to be spliced outside its namespace). Deviations: B3 declines and does not record a binding per head (D8.44), the guard in an arm and the straight-line rule for an `lmap` are the matrix's finds (D8.42, D8.46), and one limit of the VM is worked around and not fixed (D8.43, D8.46). D8.42–D8.46 |
+| Review fixes 2 `tcl spec test` takes the outermost project's policy (the review's S1) | landed | `wip(consumer-contracts): step 8 review fixes — the policy is the outermost project's` | **What was wrong.** D8.39 took the project `tcl pkg` works in, which is the nearest `tclpkg.tcl` at or above the working directory (`operator_project` → `find_project_root`), and said a dependency vendored into the project cannot opt itself in. With `project/tclpkg.tcl` and `project/lib/dep-1.0/{tclpkg.tcl, tclpkg.toml, specs/demo.tclspec}`, the dependency's `tclpkg.toml` trusting `demo`: from `project` the verb refused (exit 1, "not permitted by policy"), from `project/lib/dep-1.0` the dependency's manifest was the nearest, its `tclpkg.toml` was the policy and the package ran (exit 0). **The fix.** `rust/tcl-cli/src/commands/pkg.rs` walks every directory at or above the working directory once (`project_roots`) and gives `find_project_root` the nearest, which is `tcl pkg`'s own and private again, and `find_outermost_project_root` the outermost; `operator_project` in `spec.rs` takes the outermost (D8.47). The design page and the verb's KCS note say what the policy follows, and that a project nested in another takes the outer one's. **Test.** `spec_verbs.rs` (33), `spec_test_from_inside_a_vendored_dependency_takes_the_projects_policy`: the layout of `spec_test_ignores_the_policy_of_the_tree_the_pack_was_found_in`, run from the dependency's own directory, refused until the project's policy opts in and then run to `2 command(s) tested against 'demo', 0 divergence(s)`; the harness `Described` gained `dependency` and `run_in`. **Mutation check**, a textual edit run against `-p tcl-cli --test spec_verbs`: the outermost root read as the nearest (`project_roots().pop()` → the first), killed by that test and by no other, which run from the project. **Gates.** `cargo test -p tcl-cli` under `LANG=C.UTF-8` with `TCL_REQUIRE_WASM_LINK=1`, `TCL_TOMMATH_DIR` and the `tmp` oracle tree linked (8 binaries, 161 tests; `spec_verbs` 33, was 32; lib 34); `cargo check --workspace --all-targets`; clippy under Rust 1.99.0 (`--workspace --all-targets -- -D warnings -A clippy::assert_is_empty`, no new `#[allow]`) and `cargo fmt --all` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389), `owner-resolution` (45), `retired-api-gate`, `runtime-stdlib`, `kcs-index-links`, `callback-inventory --check` and `gen-irule-test-data --check` green, `dialect-drift` at its 8 sites, and the nextest shard proof at 331 targets. Deviations: the review's second option (refuse when nested) was not taken (D8.47). D8.47 |
+| Review fixes 3 `ambient_package`'s version is validated (the review's N1) | landed | `wip(consumer-contracts): step 8 review fixes — an ambient version is a version` | **What was wrong.** `ambient_package_row` (`rust/tcl-spectcl/src/loader.rs`) took any non-empty second word. Since CC9.3 the row is a floor, so `ambient_package Tk junk` made a floor of `junk`, which no windowed row admits and which `compare_versions` orders leniently against the profile's pin. **The fix.** The row's version goes through `tcl_dialect::validate_version`; one that is not a package version drops the row with a notice that names it, as a row with no version is dropped, and the rows beside it stand (D8.48). The design page for the vocabulary (`spec-dsl-examples/README.md`) says so. **Test.** `an_ambient_package_row_whose_version_is_not_a_version_is_dropped` (`loader.rs`, `tcl-spectcl` lib 237, was 236): `junk` and `4.0.x` dropped each with its notice, `1.21` and `2.8a1` kept in order. **Mutation checks**, textual edits run against the lib's `ambient_package` tests: the validation off, and the predicate weakened to a leading digit, which `4.0.x` passes: each killed by that test. **Gates.** `cargo test -p tcl-spectcl` under `LANG=C.UTF-8` with `TCL_REQUIRE_WASM_LINK=1`, `TCL_TOMMATH_DIR` and the `tmp` oracle tree linked (23 binaries, 421 tests, lib 237, was 236; all pass but `loader::tests::value_transfer_tables_cover_their_catalogues`, which the merge of the main branch brought in: the value-transfers lane's slice 10 added five native evaluator ids to the registry that `catalogue.rs` does not list, `catalogue.rs` is the main branch's own, and this group neither touches nor fixes it); `cargo check --workspace --all-targets`; clippy under Rust 1.99.0 (`--workspace --all-targets -- -D warnings -A clippy::assert_is_empty`, no new `#[allow]`) and `cargo fmt --all` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389), `owner-resolution` (45), `retired-api-gate`, `runtime-stdlib`, `kcs-index-links`, `callback-inventory --check` and `gen-irule-test-data --check` green, `dialect-drift` at its 8 sites, and the nextest shard proof at 331 targets. Deviations: the environment block's own `ambient` row is left on the model's `Version::parse` (D8.48). D8.48 |
+
+**Step 8 is landed.** All four items above (CC8.1 to CC8.4) are `landed`; the
+review checklist below is run against this tree and its evidence recorded there.
+The plan's exit evidence holds: `rust/tcl-spectcl/tests/codegen_stamps.rs` has its
+rung-3 rows green (the plan's three — `a_tcl_body_backed_command_is_inlined_and_admitted`,
+`a_host_native_backing_never_defines_a_proc` and
+`a_pack_text_body_that_diverges_turns_the_site_plain` — and four more over a
+package source, a dependency's body and a derived implementation, 15 tests in the
+file); `cargo test -p tcl-cli` has the `spec test` rows (`spec_verbs` 30, lib 31,
+151 in all); `cargo test -p tcl-pkg` (58) and `-p tcl-pkg-model` (45) have the
+directive and lockfile rows, the manifest being the model crate's since D6.6;
+`cargo test -p tcl-registry --test value_transfers` has CC8.2's row (46) and
+`cargo xtask value-transfers --check` is unchanged (22 / 19 / 83 across 34, 6607
+rows); and `cargo xtask pack-goldens --check` is green (25 shipped packs). Two
+things the plan did not ask for are in the step, each recorded as a decision and
+not folded in: the hook host's sandbox keeps the subcommands of a whitelisted
+ensemble (D8.30), which the derivation's parity test found it needed and which
+changes every pack's hook bodies, and the studio's import proposes facts from a
+procedure's summary (D8.28).
+
+The step 8 review's findings were reworked after the landing commit, in three
+groups with one commit each (Rework 1 to 3 in the table above), and the counts this
+paragraph quotes moved with them: `codegen_stamps.rs` has 24 tests, `cargo test -p
+tcl-cli` has 155 (`spec_verbs` 32, lib 33), `-p tcl-registry --test value_transfers`
+has 47 and `-p tcl-spectcl` has 407. D8.19 to D8.29 were reworded where a rework
+changed what they say, and D8.31 to D8.41 record what the reworks decided.
+
+The landing commit also changes the following. It appends `"step 8"` to
+`registry_axes.rs`'s `LANDED` — D2.13's "a lane landing a step or slice bumps it".
+No waiver in the tree says `until step 8`, so none expires and none needs
+resolving; the gate's own fixtures that used `until step 8` as a not-yet-landed
+expiry (five spellings in three tests, and the one assertion that reads the parsed
+expiry) move to `until step 9`, as step 7's landing moved `until step 7` to
+`until step 8` (`cargo test -p xtask registry_axes`, 9; the crate's 242 pass), and
+`docs/generated/registry-axes.md` regenerates unchanged. It rewrites the two design
+indexes' entries for the page and adds the files and tests this step built to the
+page's anchors, under the repository owner's standing rule for every page outside
+`docs/design/lanes/`: current state only, with no step, item or decision numbers;
+the page's status box says what CC8.1 to CC8.4 built, and is read again against
+the tree and left as it is. Other passages that carry the step narrative are
+untouched, for the owner's sweep. It updates the title above and
+`docs/design/lanes/README.md`'s bullet. Gates for the landing: `cargo check
+--workspace --all-targets`, `cargo clippy --workspace --all-targets -- -D warnings`
+and `cargo fmt --all -- --check` are clean, with no new `#[allow]`;
+`registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged),
+`value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged),
+`pack-goldens --check` (25), `command-backing --check` (389), `retired-api-gate`,
+`owner-resolution` (45), `kcs-index-links`, `callback-inventory --check`,
+`audit-option-dialects --check` (114 probed options), `number-drift` and
+`segmentation-drift` are green, `dialect-drift` is at its 8 sites, and
+`verify-nextest-binary-shards.py --partition-count 5 --metadata-only` proves 331
+targets (no item after CC8.4 added a test binary). The plan drafts no landing
+message for step 8, so this commit's follows step 7's. Step 9 is next, on its own
+items.
+
+### Step 8 — review checklist, verified
+
+The plan's § *Review checklist* (§ *Plan for steps 2–10* › *Step 8*), run
+against the landed tree with evidence:
+
+- **Rung 3's extra conjunct: no proc is ever defined for a `HostNative` or `None`
+  backing (the negative witness).** No path in the VM defines a procedure from a
+  claim (D8.14), so the witness is that the claim is refused:
+  `a_host_native_backing_never_defines_a_proc` compiles the same body under a
+  `host-native` backing, which is neither inlined (`a_host_native_backing_supplies_no_body`
+  at the compiler) nor attested, and runs units whose claims are forged — a
+  shipped-builtin, a host-native and a `none` backing, and a procedure the
+  function does not hold — through a service that stands in for a compiler that
+  made them, with the live procedure's text matching exactly in each; every one is
+  refused and recompiled plain. The mutations that dropped the backing, the
+  binding or the coherence check (V1 to V3) each fail it.
+- **A `PackText` body is reported at load and turns its sites plain on the first
+  mismatch.** `a_pack_text_backing_is_reported_at_load` (one Information notice,
+  on the command's row, and only for a `-pack-text`) and
+  `a_pack_text_body_that_diverges_turns_the_site_plain` (the live library one
+  expression away from the pack's, the call answers the library's and the plain
+  recompile is counted); the mutation that stopped comparing the live body (V4)
+  fails the second.
+- **`tcl spec test` never runs at editor load; it is a CLI verb under the package
+  manager's opt-in policy.** `commands::spec_test` and `run_test` are reached from
+  `SpecCommand::Test` and from nothing else (`git grep spec_test` finds the CLI's
+  own module, its tests and the documents), the server, the MCP crate and the
+  Studio have no path to it, and the verb asks `build_script_allowed` before it
+  starts a shell (`spec_test_runs_only_a_package_the_policy_opts_in`; the mutation
+  that skipped the ask, T13, fails it).
+- **The lockfile hash and the artefact stamp are one value.** Held by CC8.4's
+  `the_lockfile_hash_and_the_artefact_stamp_are_one_value`, and unchanged by this
+  step: a `ReferenceBody` claim's `facts()` stamp is the pack's `PackFactStamp`,
+  whose content hash is `loader::pack_file_hash`, and what a package-source read
+  adds moves `PackSet::key` — the overlay generation — and not the content hash
+  (D8.16).
+- **Risk: the sandbox-expressibility scan admitting a body that reads world state
+  through a command the scan does not know (a whitelist of commands, never a
+  blacklist — assert it).** The scan admits a command only if `SANDBOX_WORDS` names
+  it, the list is the hook host's (`the_scans_whitelist_is_the_hosts`, in
+  `tcl-spectcl`, against the host's list and the loader's), and
+  `every_command_the_registry_knows_is_refused_unless_the_whitelist_lists_it` runs
+  every command of the shipped registry that the list does not name through the
+  scan and holds each refused as a command off the list; the doors other than a
+  command word are closed and tested (D8.25), and the mutations that let a
+  command off the list through, a qualified or a computed variable name, an
+  expression function off the list or a callback each fail a test of the scan
+  (CC8.2's row).
+
+### Step 8 — what the next steps read
+
+- **For step 9 (the codegen axis versioned; evaluation points through the
+  evidence gate).** A reference-body claim carries no windowed fact: it stamps
+  the pack (`PackFactStamp`, whose content hash is the lockfile's entry for the
+  pack) and names a procedure binding and a `BackingKind`, so step 9's
+  `StampWindow` rows, which version a codegen hook's admission, do not apply to
+  rung 3; the claim's own conditions are the stamp the VM holds, the Tcl-body
+  kind and a binding the function carries (`claim_is_coherent`), and the text
+  comparison stays `procedure_binding_matches`. The derived implementations are
+  `EvalRoute::Implementation` routes that depend on the call's Tcl profile and
+  their own identity, ask no target axis and run pinned to the release the call
+  is analysed under, so an evaluation point the evidence gate resolves for a
+  vendor environment reaches them as it reaches a written one; the derivation
+  declines a command with arity windows (D8.26), and step 9's versioned arity
+  can lift that by selecting the window for the target. `tcl spec test` reads the
+  unwindowed arity of a command and one shell, so a window is probed by naming
+  the shell of its release.
+- **For step 10 (the extension legs).** `BackingKind::HostNative` is a claim kind
+  nothing constructs, as D8.9 said of `ShippedImplementation`: a host-native
+  site needs a code generator that specialises on it, which is the
+  `Command::ObjCmd` leg's. The VM's `source` now reads through the host's
+  filesystem seam and honours `-encoding` (D8.18), which is the model for the host
+  opt-in `load`: a host with no filesystem reads nothing and says what Tcl says.
+  `tcl spec test` runs a C extension's commands as it runs a procedure's, because
+  it asks the shell and not the source, so it is the check of an extension's pack
+  once the shell can `package require` it; `tcl docker create` (CC8.4) lists the
+  extensions a pack's `host-native` commands need.
+- **The load order a new pack consumer assumes.** `pack::load_sources` merges a
+  pack, applies the capability gate (`admit_commands`: stamps, then
+  declarations), reads the package files (`package_sources::provision`, only when
+  the load had a store), derives the declared implementations
+  (`loader::derive_implementations`) and then says what is dormant; a consumer
+  that adds a drop or a derivation belongs between the gate and the dormant
+  notices, and a derivation reads what the gate left.
+- **Reported, not fixed.** `runtime/rust`'s `source` (`cmd_fs.rs:63`) parses
+  `-encoding NAME` and ignores it (D8.18). `tcl_sandbox::detect_confinement`
+  returns the portable baseline on every host, so `fs_read` and the request for no
+  network are not enforced and `tcl spec test` is as safe as `tcl pkg build` and
+  no safer (`rust/tcl-sandbox/src/lib.rs`). A reference body is read once, at
+  load; the editor reloads a pack when the pack changes and not when a library
+  file does (CC8.1).
+- **For whoever runs a mutation campaign here.** Restoring a mutated file with
+  `shutil.copy2` or `cp -p` brings back its old modification time, which cargo
+  reads as unchanged since the mutated build, so the next run reuses the mutated
+  artefact; touch the file after restoring it, or the next baseline fails for the
+  wrong reason (CC8.1's row records the repeat).
+
+### CC8.4 — what the next items read
+
+- **For CC8.1 (reference bodies as code).** A pack a package ships names its files
+  in `ManifestAst::spec`, and `tcl_spectcl::package_specs::pack_paths(dir,
+  directive)` gives their paths under the package directory; a
+  `BodySource::PackageSource` path is relative to that same directory, so the
+  directory that holds the manifest beside the pack is the one to resolve it
+  against. `loader::pack_file_hash(path, source)` is the value a pack's
+  `PackFactStamp::content_hash` carries, and a `ReferenceBody` claim's `facts()`
+  stamp is the lockfile's entry for that pack by construction. A pack's tier
+  reaches the load as `PackCommand::dependency_tier`, already clamped by the
+  directive's request, so the capability matrix's `reference_body` field reads
+  the clamped tier.
+- **For CC8.3 (`tcl spec test`).** `tcl pkg install` leaves a package at
+  `lib/NAME-VERSION/` with its manifest; the packs `spec test` loads for a
+  package are `pack_paths` of that manifest's directive, and a package with no
+  directive has the scan of every pack beside it.
+- **For CC8.2.** Nothing: the directive reaches no registry type.
+- **For step 9.** The clamp is applied at discovery only
+  (`TierReader::tier_of_package`); a consumer that places a pack by another route
+  (the Studio, `spectcl_check`) sees no lockfile and reads no tier (the step 6
+  residue stands).
+- **Reported, not fixed.** The load does not compare a pack with the lockfile's
+  `spec_integrity`, nor do `tcl pkg verify` and `tcl pkg sync` (D8.8): D6.8's
+  residual — a dependency naming itself a package the lockfile does list takes
+  that package's tier — stays open. `tcl pkg install --offline` (and so
+  `--frozen`) never fetches, so it writes `spec_integrity` for no package; it
+  also writes an empty `integrity` for every package, which predates this item:
+  `tcl pkg add dep 1.0.0 --source ./dep && tcl pkg install && tcl pkg install
+  --offline` leaves `"integrity": ""` in `tclpkg.lock`
+  (`rust/tcl-cli/src/commands/pkg.rs`, the entry built before the `if !offline`
+  block).
+
+### CC8.1 — what the next items read
+
+- **For CC8.3 (`tcl spec test`).** A reference body's text is a full `proc NAME
+  params body` definition: on the spec for `-pack-text`
+  (`BodySource::PackText { text }`), and for `-package-source` on
+  `PackCommand::reference_text`, which is set only when the load had a store to
+  read it through (`pack::load` and the discovered tiers have one;
+  `load_in_memory` and the embedded set have none). The registry's answer is
+  `CommandRegistry::reference_body(spec)`. The verb compares that text with the
+  command in a real shell and needs none of the compiler's machinery.
+- **For CC8.2 (the declared implementation).** The derivation reads the same
+  text and so runs where the text is in hand: on the merged commands, after
+  `stamps::admit_declarations` has taken a body the package may not declare and
+  after `package_sources::provision` has read the files (`pack::load_sources`).
+  A reference body from a direct dependency is gone by then
+  (`Declaration::ReferenceBody`), so a derivation needs no gate of its own. The
+  body is a procedure the module around it never sees (D8.12): the importer
+  lowers it alone, so a scan of the text is a scan of what the compiler inlines.
+- **For step 9.** `SiteClaim::ReferenceBody` carries `facts`, the pack stamp, so
+  step 9's versioned windows and the evidence gate read a reference-body claim's
+  stamp as they read any pack claim's (`SiteClaim::facts`, `ModuleAsm::claimed_packs`);
+  nothing is keyed on the claim's backing beyond `BackingKind`, a payload-free
+  kind that the VM requires to be `TclBody`. `claim_is_coherent` is the place a
+  further condition on a claim that is about the artefact alone belongs;
+  `procedure_binding_matches` stays the comparison with the live procedure.
+- **Reported, not fixed.** `runtime/rust`'s `source` (`cmd_fs.rs`) parses
+  `-encoding NAME` and ignores it, reading the bytes as they are, where the VM's
+  `source` decodes (D8.18); no differential script tells them apart, and
+  `decode_text` in `tcl-cmd-core` is there for it to use. A reference body is
+  read once, at load: a change to a `-package-source` file moves the pack set's
+  key only when the set is loaded again, which a workspace does when a pack file
+  changes and not when a library file does, so an editor's registry can rest on a
+  body a later save has replaced until the next reload; the VM is unaffected,
+  because a stale body fails `procedure_binding_matches` against the live
+  procedure and the site turns plain.
+
+### CC8.3 — what the next items read
+
+- **For CC8.2.** The verb asks nothing of the registry beyond what the loader
+  hands every consumer: `probes_of` reads a `PackSet`'s commands (`arity`,
+  `traits`, `return_type`, `hover.examples`, `required_package`, the `PackText`
+  or `reference_text` of a Tcl-body backing). A reference body the derivation
+  refuses is still compared with the command by the verb, so a body's fidelity to
+  the library is checked whether or not the sandbox can run it.
+- **For whoever wants the verb to take a package.** The verb takes one pack file,
+  as the plan's `SpecTestArgs { pack, tclsh, package }` says. CC8.4's hand-off
+  suggested it load the packs a package's `spec` directive names; those are
+  `tcl_spectcl::package_specs::pack_paths`, and a caller that has them can run
+  the verb once for each. The policy's project is found from the pack's path
+  (`project_of`) because the verb has no package argument that names a directory.
+- **For step 9.** `tcl spec test` is the check a pack author runs in CI, and its
+  exit status is the contract: 0 only when every probed fact held and the package
+  could be required. A versioned fact (step 9's windows) is probed against the one
+  shell the operator names; the verb reads the command's unwindowed arity and says
+  nothing of a window, so a window needs the shell of its release (`--tclsh`) and a
+  probe that selects the row.
+- **Reported, not fixed.** `tcl_sandbox::detect_confinement` returns the portable
+  baseline on every host, so `Profile::fs_read` and the request for no network are
+  recorded and not enforced (`rust/tcl-sandbox/src/lib.rs`): a package the verb
+  runs has the operator's file system and network, with the environment scrubbed
+  and a timeout. The verb is as safe as `tcl pkg build` and no safer.
+
+### CC8.2 — what the next steps read
+
+- **For step 9.** A derived implementation, where the author asked for one
+  (`-evaluate`, D8.36), is an `EvalRoute::Implementation`
+  that depends on the call's Tcl profile and its own identity (`TclProfile`,
+  `ImplementationIdentity`), asks no target axis (`Needs::NONE`) and models normal
+  completion only, so the evidence gate that feeds a vendor environment's
+  evaluation point answers for it as it does for a declared one: the body runs
+  pinned to the release the call is analysed under. The derivation reads the
+  command's unwindowed `arity` and refuses a command that has arity windows
+  (D8.26); step 9's versioned arity can select the window for the target and lift
+  that.
+- **For step 10.** Nothing: the derivation names no host command and no
+  extension.
+- **For whoever writes a hook body.** A whitelisted ensemble's subcommands run
+  wherever the call is (D8.30); the whitelist is still the 29 words, and a
+  command off it is `invalid command name` at run time and a refusal in the scan.
+- **Reported, not fixed.** `infer_from_body` reads the compiler's interprocedural
+  summary, and two of its limits show. The summary records a read of a global
+  through `[set ::seen]` as an effect and a read through `$::seen` as none, so a
+  body that only reads a global that way is proposed `PURE` — which says
+  side-effect free, not deterministic — with no `side_effects` row
+  (`rust/tcl-compiler/src/interprocedural.rs`). And it treats a call to a command it
+  cannot read as impure, so a body that calls another proc of its own package is
+  impure when that proc is in a file the import has not read together
+  (`import_package` builds one unit per file): a multi-file package gets fewer
+  proposals than it deserves.
+
+### Behavioural deltas accepted in step 8
+
+- CC8.4: a `tclpkg.tcl` may carry a `spec` directive. A manifest that has one has
+  exactly the packs it names beside it (a draft next to it is no longer a pack),
+  and one that has none keeps the scan of every `.tclspec` under its directory,
+  except under a directory whose own manifest has a directive. A manifest whose
+  directive does not read is read as having none.
+- CC8.4: a dependency may ask for a tier further from the root than its position
+  gives it; its packs install at that tier. A request for a nearer one changes
+  nothing.
+- CC8.4: a `tclpkg.lock` gains a `spec_integrity` field for each package whose
+  manifest has a `spec` directive, and no other entry changes.
+- CC8.4: `tcl docker create` lists the Tcl package behind each command the
+  project's packs declare `host-native`, ends the Dockerfile with a
+  `package require` check for each, and warns on standard error for one that
+  names no providing package.
+- CC8.1: a command a pack backs with a Tcl body (`-pack-text`, or
+  `-package-source` text from the workspace's own package) has its definition
+  inlined into the procedures that call it when it is a pure leaf of at most five
+  statements, and the artefact carries a `ReferenceBody` claim. The VM runs that
+  function only where the live procedure has exactly the pack's text and it holds
+  the pack's facts, and otherwise compiles the call plain. A call at a script's
+  global level stays a call.
+- CC8.1: a `tcl-body` backing in a direct dependency's pack is dropped at load
+  with a warning that says it is a reference body and that only the workspace's
+  own package may declare one; the command keeps every other fact.
+- CC8.1: a `-package-source` file that cannot be read, that leaves the package or
+  that no package ships is a warning on the command's row, and the pack set's key
+  moves with the files it read.
+- CC8.1: the VM's `source` reads through the host's filesystem and honours
+  `-encoding`: UTF-8 from Tcl 9 and the system encoding before, a file that is
+  not valid UTF-8 now sources, and the message for one that cannot be read
+  carries Tcl's reason (`no such file or directory`).
+- CC8.3: `tcl spec test PACK` is a new verb under `tcl spec`. It requires the
+  Tcl package a pack describes in a real shell, which runs the package's own
+  code, and so only for a package the project's policy has opted in
+  (`[build] allow-build-scripts` and `tcl pkg trust PACKAGE`); it prints one
+  row per divergence between what the pack declares and what the package does,
+  and exits 1 for any, or for a package the shell cannot require. Nothing the
+  editor, the language server or the MCP server runs executes a package.
+- CC8.2, reworked: a command a pack backs with a Tcl body, whose author adds
+  `-evaluate` beside it and that the sandbox can express — one `proc` with
+  required parameters, only commands on the hook host's whitelist, no frame,
+  channel, process or world access, `return` only as the last statement — has a
+  declared implementation derived from it when its `arity` is exactly the body's
+  parameters, and the analyser folds a call whose arguments it knows to the body's
+  answer, run in an engine pinned to the release the call is analysed under. A
+  body whose author did not say so derives nothing and draws no notice (the first
+  form derived from every such body, and drew an information notice on each one
+  the sandbox could not express). When `-evaluate` asks and nothing is derived — a
+  body the sandbox cannot express, a text that is not one `proc`, a command with
+  subcommands, forms or arity windows, one whose arity is another, one whose
+  author stated its `semantics` or `evaluate` — one warning on the command's row
+  says why, and a command that stated its evaluation keeps it.
+- Rework 1: a call whose body reads a name the body does not bind (a local of the
+  caller's), reads through an operand the splice keeps as text, or substitutes a
+  command into a caller in another namespace than the definition's is not inlined
+  and stays a call; where a body is spliced, its commands are
+  spelled from the global namespace when the caller's namespace is neither the
+  global one nor the definition's, a braced word is left as written, an `uplevel`
+  body is not rewritten, and the value the call has — a `return` before the end of
+  the body, a static `eval`, a `catch`ed call — is the definition's, where each was
+  a wrong answer or an error.
+- Rework 3: `tcl spec test` no longer passes a package that ends the shell with
+  status 0 before it has asked every command, and says which it did not ask; its
+  summary counts the commands asked; the policy that opts a package in is the
+  project `tcl pkg` works in from the working directory, so a dependency vendored
+  into the project cannot opt itself in; and a command declared `pure` is held to
+  the variables of every namespace, the shell's own `::tcl` excepted, so a
+  namespace memo or counter is reported.
+- Rework 3: `source -encoding` takes the four names `encoding system` knows
+  (`utf-8`, `iso8859-1`, `ascii` and `unicode`) and refuses any other as Tcl's
+  `unknown encoding`; this is the VM's behaviour as before, now said in the design
+  page and in `cmd_source`'s documentation.
+- CC8.2: a hook body that calls a subcommand of a whitelisted ensemble (`string`,
+  `dict`, `binary`) inside a nested substitution or a statement now answers where
+  it abstained with `invalid command name "::tcl::string::…"`; this is every
+  pack's hook bodies, not only derived ones.
+- CC8.2: the studio's import (`infer::import_package`, so `tcl spec import` and
+  the MCP `spec_import` tool) proposes `PURE`, `side_effects` rows and a
+  `return_type` for each procedure from the compiler's summary of its body, each
+  with a line of evidence, and never over a field the draft already states; a
+  draft no longer counts a derived implementation among the fields it loses.
+- Review fixes 1: a call is no longer inlined where the splice answered what the
+  call did not — a body that hands a command a variable's name through a
+  substitution (`[set y]`, `[incr y]`) or substitutes a command that is not known to
+  work on its values, a body in a namespace of its own, into a caller outside it,
+  that names a command by an unqualified word or substitutes one, a body with a
+  `return` or a branch in the body of an `lmap`, and a body that is an `if` or a
+  `switch` as the last command of an arm that is read — and a braced word the
+  wrap stores (`set r {a\tb}`, `return {a\tb}`, `{[…]}`) is the characters it is
+  and not what they would substitute to. The call is made as it was before the
+  pack; each splice that goes was a wrong answer.
+- Review fixes 2: `tcl spec test` run from inside a dependency vendored into the
+  project takes the project's policy and no longer the dependency's own, so a
+  package its own `tclpkg.toml` trusts is refused there until the project's policy
+  opts it in; the policy is the outermost `tclpkg.tcl` at or above the working
+  directory, and a project nested in another takes the outer project's.
+- Review fixes 3: an `ambient_package` row whose version is not a package version
+  (`ambient_package Tk junk`) is dropped with a notice, as a row with no version
+  is, where it made a floor that ordered against the profile's pin as it happened
+  to.
+
+## Step 9 — progress
+
+Item order follows § *Plan for steps 2–10* › *Step 9* § *Ordering and
+checkpoints*: CC9.2 first, then CC9.3, then CC9.1.
+
+| Item | State | Checkpoint | Notes |
+|---|---|---|---|
+| CC9.2 the evidence gate | landed | `wip(consumer-contracts): step 9 — evaluation points through the evidence gate` | **The gate.** `rust/tcl-dialect/src/profile.rs`: `EvaluationEvidence { ReferenceToolchain, MeasuredFork { note }, Unmeasured }` and `DialectProfile::evaluation_evidence`, written out on every catalogue entry — the five Tcl releases `ReferenceToolchain`, iRules, iApps and tmsh `MeasuredFork` with a note citing `docs/design/f5/bigip-irule-parser-measurements.md` §4 and §4a, and the other eleven, the permissive fallback, `tk` and a profile projected from a point `Unmeasured`. `evaluation_point()` is `runtime_base` where the evidence is not `Unmeasured`; `is_tcl_release()` says the evidence is a pinned reference toolchain. `TclVersion::from_profile` is `profile.evaluation_point()` where it matched five names (D9.2), `from_dialect` resolves a name through the catalogue to it, and `const_fold_version` is the same call. **What it changes.** The versioned folds (`const_fold_versioned`: `string is`, `string range`, `format`, `regsub`, and the `tcl-version` a pack's versioned hook is given) now answer under 8.4 for `f5-irules`, `f5-iapps` and `f5-tmsh` where they answered the invariant subset (D9.3); a profile nothing measured (`expect`, the EDA shells, `bpf`, the SpecTcl hosts) is unchanged. `TargetSemantics::of` still reads `runtime_version`, so the value-transfer routes are as they were (D9.4). Two readers of the old answer moved with it: `tcl registry-dump --all-dialects` and `tcl-fuzz`'s release spelling ask `is_tcl_release()` (D9.5). **The iRules rows** (`rust/tcl-registry/tests/differential_fold.rs`): `versioned_folds_under_irules_match_tclsh84` runs the broad fold matrix, the `format` matrix and seven release-dependent rows through `registry_fold_under` at iRules' point against the real `tclsh8.4`, and holds the dependent rows to answering where, with no release, they decline; `an_unmeasured_vendor_base_leaves_a_versioned_fold_to_the_invariant_subset` is its negative (`expect` models an 8.6 base and `string is integer 4294967296` does not fold); `format_witnesses_match_every_release_on_path` takes the iRules profile against `tclsh8.4` beside the five releases. **A defect the rows found** (D9.6): the `format` fold under 8.4 answered `%.0d` of 0 as `0` where `tclsh8.4` prints nothing, so plain `tcl8.4` documents folded it wrong already and the three F5 profiles now would have; `apply_precision` (`format_.rs`) answers the empty digits through 8.4 and declines with no release, and the matrix has the six rows. The harness's reference treated an error as an empty answer on 8.x (a `tclsh` reading its script from standard input exits 0 after an error); `tcl_value` catches the call. **Tests.** `tcl-dialect`: `profile.rs` `a_measured_vendor_profile_has_an_evaluation_point` and `an_unmeasured_profile_has_none` (the plan's two: the three forks answer 8.4 from a note that names the measurement, an alias resolves to the same point, and every unmeasured profile that models a base answers none), `an_evaluation_point_is_the_runtime_base_and_a_release_claims_a_pinned_toolchain` (new: the point is the base and nothing else, a Tcl release has a pinned patchlevel, no vendor surface and its own name, and there are exactly five), `const_fold_version_is_the_evaluation_point_and_the_release_the_name_parses_to` (was `…_stays_bit_identical_to_from_dialect`), `version.rs` `from_dialect_maps_every_versioned_tcl` (iRules, and `expect` as the negative); `tcl-registry`: the two differential tests above and `format_.rs` `a_zero_precision_of_zero_is_empty_through_8_4_and_a_zero_after`; `tcl-spec-hooks`: `const_fold_e2e.rs` `a_versioned_pack_fold_is_told_the_profiles_evaluation_point` (a pack's versioned hook through the optimiser: `8.6`, `9.0`, `8.4` for the three forks, and none for `expect`, an EDA shell and the fallback); `tcl-compiler`: `analyser.rs` `a_vendor_profile_folds_a_version_sensitive_constant_only_where_its_release_was_measured` (was `…_abstains_from_…`, whose guard said what this item changes: `format %d 010` is 8 under iRules and unresolved under `expect`, D9.7); `tcl-cli`: `registry.rs` `all_dialects_is_the_tcl_releases_and_not_a_measured_fork`; `tcl-fuzz`'s release spelling refuses `f5-irules`. **Mutation checks**, each switched on through an environment variable compiled into the files for the run and removed by restoring them: the gate ignoring the evidence (`an_unmeasured_profile_has_none`, `from_dialect_maps_every_versioned_tcl`, the unmeasured differential test and the pack-hook test), a measured fork answering none (`a_measured_vendor_profile_has_an_evaluation_point`, `from_dialect_maps_…`, `versioned_folds_under_irules_match_tclsh84`, the pack-hook test), `from_profile` read off the profile's name again (`a_measured_vendor_profile_…`, `const_fold_version_is_the_evaluation_point_…`, `from_dialect_maps_…`), `is_tcl_release` true for any measured profile (`a_measured_vendor_profile_…`, `an_evaluation_point_is_the_runtime_base_…`, `all_dialects_is_the_tcl_releases_…`), the 8.4 zero-precision rule off, applied to every release and answered with no release (`a_zero_precision_of_zero_…`, with `versioned_folds_under_irules_match_tclsh84` for the first and `format_folds_match_tcl9` and `format_folds_integer_flag_width_precision` for the second). Seven mutants, all killed. **Gates.** `cargo test`, under `LANG=C.UTF-8` with `TCL_REQUIRE_WASM_LINK=1`, `TCL_TOMMATH_DIR` and the `tmp` oracle tree linked, in batches of twelve binaries: `-p tcl-dialect` (169 tests with the doc test; lib 156, was 153), `-p tcl-registry` (1316, was 1313; `differential_fold` 16, was 14), `-p tcl-spec-hooks` (49, was 48), `-p tcl-compiler` (68 binaries, 9941, unchanged), `-p tcl-irule-test` (29), `-p tcl-irules` (80), `-p tcl-lsp-core` (3578), `-p tcl-cli` (156, was 155) and `-p tcl-fuzz` (106); `cargo check --workspace --all-targets`; clippy (`--workspace --all-targets -- -D warnings`, no new `#[allow]`; two lints answered in the code, `redundant_closure` and a dead helper removed) and `cargo fmt --all` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389), `owner-resolution` (45), `retired-api-gate`, `runtime-stdlib`, `kcs-index-links` and `gen-irule-test-data --check` green, `dialect-drift` at its 8 sites. Deviations: three forks are measured, not two (D9.3); the const-ops call the plan names is no longer a caller of `from_profile` (D9.4); the fuzz parser, the dump predicate and a fold defect are beyond the plan's list (D9.5, D9.6). D9.2–D9.7 |
+| CC9.3 package version windows | landed | `wip(consumer-contracts): step 9 — package version windows` | **The model.** `rust/tcl-dialect/src/model/authored_surface.rs`: `PackageFloor { name, version }` (`named`, `at`) and `SurfaceQuery::packages: &[PackageFloor]`, with `package`, `carries` and `same_point`. `SpecSurface::admits` asks a package row about the floor its query carries for that package — `introduced <= floor < retired`, a lifecycle asked about a target release — so a row introduced after the floor is not admitted, a package carried with no stated floor admits every window, and a package the query does not carry admits no row (D9.8); `surfaces_overlap` compares two rows of one package by their windows. `DialectProfile::surface_packages` is `&[PackageFloor]`, each named with no floor. **The feed** (D9.9, D9.10). `CommandRegistry::package_floor` is the one place a profile's library pin and a pack's `ambient_package` rows meet (`package_floor_for_spec` asks it); `own_packages` holds the floors of the packages the registry's point carries, refreshed by `set_profile` and `insert_ambient_package`; `own_surface_query()` lends them, so it borrows the registry. The sites that spelled the registry's own point as `profile.surface_query()` ask `own_surface_query()` now (`spec_for_this_registry`, `instance_methods` and `instance_method`, `project_for_profile`, the format-string, pattern and case-list lookups, `command_binding_transitions`, the realm's `available_spec`), and `spec_visible` recognises its profile's own point by `same_point`, because a query that carries a floor is no longer `==` the profile's. `AuthoringScope` carries a pack's ambient floor for the packages the context's point carries, recomputed when a pack's row is recorded. A floor refines a package already in the point and never puts one there. **What it changes.** Nothing shipped: no shipped spec has a windowed package row and no catalogue profile names a floor for a package its point carries, so every shipped answer is the permissive one it was. A pack's `ambient_package` row now moves a windowed row the way a lifecycle moves a command (D9.9); what the pack's own `available {package NAME RANGE}` still drops is D9.11. **Tests.** `tcl-dialect`, `authored_surface.rs` (eight, new): `a_package_row_is_asked_about_the_floor_its_query_carries`, `a_package_the_query_carries_without_a_floor_admits_every_window`, `a_package_the_query_does_not_carry_admits_no_row_whatever_its_windows`, `a_row_with_no_window_admits_a_carried_package_at_any_floor`, `a_package_floor_does_not_move_a_core_row`, `the_floor_a_row_is_asked_about_is_the_one_named_for_its_package`, `a_query_is_the_same_point_whatever_floors_it_carries` and `two_rows_for_one_package_meet_where_their_windows_do`; `tcl-registry`, `library_axis.rs` `a_package_row_introduced_after_the_floor_is_not_admitted` (the plan's: a row introduced in 8.6, one retired there and one with no window, under a floor of none, 8.4, 8.5, 8.6 and 9.0, the floor arriving before and after the projection and a name declared plain and then from 8.6) and `a_declared_floor_does_not_put_a_package_into_the_point` (its negative: a plain Tcl point carries no Tk however a pack declares it), `registry.rs` `a_floor_on_the_own_query_leaves_it_the_profiles_own_point` and `a_command_is_known_here_only_where_the_floored_point_admits_it` (the registry's own `has_command_in_this_dialect`, with the floor arriving after the projection; the one-oracle gate keeps that call inside the registry), `model/context.rs` `a_pack_declared_floor_is_the_floor_of_a_carried_package_only`; the profile, registry and front-end tests that built a query with `with_packages(&["…"])` build it with `PackageFloor::named` (D9.12). **Mutation checks**, each switched on through an environment variable compiled into the files for the run and removed by restoring them: `admits` ignoring the floor (`a_package_row_is_asked_about_…`, `the_floor_a_row_is_asked_about_…`, `a_pack_declared_floor_…`, `a_package_row_introduced_after_the_floor_is_not_admitted`), a carried package with no floor admitting nothing (`a_package_the_query_carries_without_a_floor_…`, `a_pack_declared_floor_…`, the plan's test), `same_point` as `==` (`a_query_is_the_same_point_…`, `a_floor_on_the_own_query_…`) and as the core alone (`a_query_is_the_same_point_…`), `windows_meet` always true and `precedes` inclusive (`two_rows_for_one_package_meet_…`), `own_surface_query` lending the profile's floor-less query (`a_floor_on_the_own_query_…`, the plan's test), `insert_ambient_package` and `set_profile` not refreshing the floors (the plan's test, and for the first `a_floor_on_the_own_query_…` and `a_command_is_known_here_…`), `package_floor` ignoring the pack's claim (`a_floor_on_the_own_query_…`, the plan's test), `project_for_profile` selecting under the floor-less query (the plan's test, through the name declared twice), `spec_visible` comparing with `!=` (`a_floor_on_the_own_query_…`), `spec_for_this_registry` asking the floor-less query (`a_command_is_known_here_…`), the context scope not recomputed when a pack's row is recorded and carrying no floor (`a_pack_declared_floor_…`). Fifteen mutants, all killed. **Gates.** `cargo test`, under `LANG=C.UTF-8` with `TCL_REQUIRE_WASM_LINK=1`, `TCL_TOMMATH_DIR` and the `tmp` oracle tree linked, in batches of twelve binaries: `-p tcl-dialect` (177 with the doc test; lib 164, was 156), `-p tcl-registry` (1321, was 1316), `-p tcl-spec-hooks` (49), `-p tcl-compiler` (68 binaries, 9941), `-p tcl-lsp-core` (3578), `-p bpf-tcl-ir` (50), `-p tcl-cli-support` (19), `-p tcl-lsp-server` (2242), `-p tcl-spectcl` (407), `-p tcl-cli` (156) and `-p tcl-mcp` (114), the last nine unchanged; `cargo check --workspace --all-targets`; clippy (`--workspace --all-targets -- -D warnings`, no new `#[allow]`; one lint answered in the code, `missing_fields_in_debug`) and `cargo fmt --all` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389), `owner-resolution` (45), `retired-api-gate` (which turned back an integration test's call to `has_command_in_this_dialect`, so the assertion lives in a registry unit test), `runtime-stdlib`, `kcs-index-links` and `gen-irule-test-data --check` green, `dialect-drift` at its 8 sites. Deviations: the floor is keyed by the name a row spells, so no shipped query carries one (D9.9); the pack's `available` range and the assembled registry's lowering still read a package's whole axis (D9.11); the eleven own-point sites and `spec_visible` are beyond the plan's file list (D9.10). D9.8–D9.12 |
+| CC9.1 versioned stamps | landed | `wip(consumer-contracts): step 9 — versioned codegen stamps` | **The model.** `rust/tcl-registry/src/stamp_window.rs` (new): `StampWindow<T> { lifecycle, value }`, the twin of `ArityWindow` — `Lifecycle::overlaps` is now the one overlap rule and `ArityWindow::overlaps` delegates to it — and `StampSelection<T> { Inherit, Stamp, Decline }`. `CommandSpec` gains `codegen_hook_windows`, `inline_codegen_hook_windows`, `semantic_operation_windows` and `native_lowering_windows` beside the plain fields, `SubCommand` the first three, and a form none (D9.1). **Selection** (D9.13). `StampSelection::of(plain, windows, query)`: with no windows it is the plain field and nothing else, whatever the query, so no shipped spec moves; with windows the point must be a Tcl release — the first window covering it wins and the plain stamp stands where none does — or the whole Tcl ladder, where the stamp must be the same at every release; another family, no core and no query decline. A level that declines does not inherit: `resolve_call` composes form, subcommand and command with `StampSelection::or`, so a subcommand's decline is not answered by its command's hook. **Where it is read** (D9.14). `resolve_call` (both hooks), `resolve_invocation` and `resolve_structured_invocation` (`InvocationSemantics::operation`, including the intrinsic a windowed codegen or inline hook names — `level_operation` is the one function the three levels and `descriptor_operation` share), `CommandSpec::native_lowering_at` (the two readers in `native_lowering/lower.rs`), and the surface-blind questions `intrinsic_ids` and `command_names_for_semantic_operation`, which count every window's stamp so a trust proof quantifies over every release. The value-transfer derivation reads the plain `native_lowering` only. **The rule and the floor** (D9.15). `codegen_stamps()` lists a level's plain stamp and every window's, once each, so the tier gate, the capability gate and the `alias_of` target test hold a windowed stamp exactly as a plain one and a refusal drops it from the windows (`stamps.rs`); the security floor gives a command that ships a stamp, plain or windowed, the shipped windows over an override's, and `every_security_bearing_field_is_in_the_floor` gained the four names. **The loader** (D9.16). `codegen_hook -native ID`, `inline_codegen_hook -native ID` and `semantic_operation SPELLING` take `-introduced V ?-deprecated V? ?-retired V?` at command and subcommand scope (vocabulary 2.2, noticed per site under an older declaration): a flagged row is one window, an unflagged row the plain stamp; overlapping windows keep the first and notice the later, an impossibly ordered window is dropped and not widened to every release, a form's stamp that asks for a window is dropped with a notice, and an unknown flag on a stamp statement is a notice. **The studio** (D9.17). The four keys in the schema, the draft, the coverage witnesses and tables, the help text, the clusters and the worked examples; the `.tclspec` render writes a window as the row it was read from, and `native_lowering_windows` is unrecoverable in the draft and excluded from the render as `native_lowering` is; `docs/references/command-spec/fields.md` regenerated. **The goldens.** `CommandSpec`'s `Debug` rendering, which each shipped pack's golden snapshot digests command by command, gains the four window fields and `SubCommand`'s three, so `cargo xtask pack-goldens` re-recorded the 25 snapshots: the `spec` digest of each of their 1516 commands moved and no other line of any snapshot did (compared line by line with the parent's: the `hooks` and `grammar` digests, the line numbers and the notices are as they were). **Tests.** `tcl-registry`: `stamp_window.rs` (ten, new: selection at a release, the plain stamp's fallback, the whole ladder divided and agreeing, a point that is not a Tcl release, a decline against a silent level, the first covering window, candidates, overlap), `lifecycle.rs` `lifecycles_overlap_unless_one_ends_before_the_other_begins`, `registry.rs` `a_stamp_window_is_selected_at_the_primary_release_and_declines_where_it_is_not_settled`, `the_plain_stamp_stands_where_no_window_covers_and_a_window_wins_where_one_does`, `a_subcommand_inherits_where_its_windows_are_silent_and_does_not_where_they_decline`, `a_semantic_operation_window_decides_the_operation_a_resolved_invocation_has`, `a_subcommand_operation_inherits_where_silent_and_is_plain_where_it_declines`, `the_operation_a_windowed_hook_names_is_selected_and_declined_like_the_hook`, `a_native_lowering_window_is_read_at_the_point_and_declines_across_its_edge` and `a_windowed_operation_is_counted_by_the_questions_that_ask_no_release`, `codegen_stamp.rs` `a_windowed_stamp_is_carried_and_listed_once` and `a_windowed_stamp_records_the_target_s_identity_where_it_is_the_target_s_own`, `security_floor.rs` `the_floor_takes_the_shipped_stamp_windows_and_leaves_an_override_none_of_its_own`, `registry_sweep.rs` `stamp_windows_never_overlap` (the plan's: every shipped command and subcommand through the gate, and the gate's own malformed shapes); `tcl-compiler`: `codegen.rs` `a_stamp_declared_from_9_0_declines_under_a_profile_spanning_8_6` (the plan's: pinned at 9.0 `lassign` specialises, pinned at 8.6 and across the ladder it is a plain invoke, and the unversioned `lassign` under the same permissive profile still specialises); `tcl-spectcl`: `loader.rs` (six: windows beside the plain stamp at both scopes, overlapping windows, an impossible window, a form's stamp, an unknown flag, the 2.2 notice) and `stamps.rs` `a_windowed_stamp_is_refused_and_dropped_as_the_plain_one_is`, `a_windowed_subcommand_stamp_is_dropped_at_its_own_site_only`; `tcl-spec-studio`: `spectcl_roundtrip.rs` `stamp_windows_survive_the_round_trip` and `native_lowering_windows_are_unrecoverable_and_not_rendered`, `store.rs` `a_windowed_stamp_is_kept_in_the_document_and_dropped_from_the_installed_world`. **Mutation checks**, each switched on through an environment variable compiled into the files for the run and removed by restoring them: selection taking the first window whatever the release, the whole ladder never declining, another family not declining, a decline inheriting (in `StampSelection::or`, and separately in the semantic, inline and codegen arms of `level_operation`), no plain fallback, a release-less `select` guessing the first window, candidates and `stamps()` without the windows, a window-less level declining with no query, the command's hook and inline hook ignoring windows in `resolve_call`, a subcommand's decline falling to the command's hook, a subcommand's windows ignored, the floor never taking shipped windows and taking them only beside a windowed stamp, the loader dropping a flagged row, widening an impossible one, keeping an overlapping one, reading a form's gated stamp as plain, and saying nothing of an unknown flag or the 2.2 vocabulary, the stamp rule clearing the plain field whatever stamp was refused and not clearing windows, the draft seeding no windows, the render writing no window rows and no `-retired`; and the sweep's overlap and ordering assertions, each deleted by hand (`stamp_windows_never_overlap`'s own cases). Thirty-one mutants, all killed. **Gates.** `cargo test`, under `LANG=C.UTF-8` with `TCL_REQUIRE_WASM_LINK=1`, `TCL_TOMMATH_DIR` and the `tmp` oracle tree linked, in batches of twelve binaries: `-p tcl-registry` (1344, was 1321), `-p tcl-spectcl` (415, was 407), `-p tcl-spec-studio` (303, was 300), `-p tcl-spec-hooks` (49), `-p tcl-compiler` (68 binaries, 9942, was 9941), `-p tcl-lsp-core` (3578), `-p tcl-vm` (1500) and `-p tcl-cli` (156), the last four unchanged; `cargo check --workspace --all-targets`; clippy (`--workspace --all-targets -- -D warnings`, no new `#[allow]`; lints answered in the code: `needless_pass_by_value`, `single_match_else`, `too_many_lines`, `type_complexity` and `items_after_statements`) and `cargo fmt --all` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25, re-recorded as above), `command-backing --check` (389), `owner-resolution` (45), `retired-api-gate`, `runtime-stdlib`, `kcs-index-links` and `gen-irule-test-data --check` green, `dialect-drift` at its 8 sites. Deviations: a form takes no window and a stamp window is not checked for containment in its owner's lifecycle, which is on another axis (D9.16); a declared target range has no reader and the value-transfer derivation reads the plain native lowering only (D9.14); the rule compares a stamp's identity, not its window, with its target's (D9.15). D9.1, D9.13–D9.18 |
+
+**Step 9 is landed.** All three items above (CC9.1 to CC9.3) are `landed`; the
+review checklist below is run against this tree and its evidence recorded
+there. The plan's exit evidence holds: `cargo test -p tcl-registry` (1344, in 21 binaries) has
+the window sweep, `registry_sweep.rs`'s `stamp_windows_never_overlap`, beside the
+ten rows of `stamp_window.rs`; `cargo test -p tcl-compiler --test codegen --test
+dialect_threading` (166 and 13) has the straddle row,
+`a_stamp_declared_from_9_0_declines_under_a_profile_spanning_8_6`; and the
+value-transfers lane's `kcs-qa-why-does-a-constant-fold-depend-on-the-dialect.md`
+states the iRules witnesses (`string is integer 4294967296` is 0 under
+`f5-irules`, as `tclsh8.4` prints, and does not fold under `expect`, whose 8.6
+base nobody measured), which `differential_fold.rs` runs against the real
+`tclsh8.4` (16 tests in the file). Three things the plan did not ask for are in the
+step, each recorded as a decision and not folded in: a third measured fork, tmsh
+(D9.3); a fix to the `format` fold's `%.0d` of 0 under 8.4, which the iRules rows
+found and which `tcl8.4` documents had folded wrong already (D9.6); and the
+eleven sites that spelled the registry's own point, which a floor on the query
+would have left disagreeing with their lookups (D9.10). Three things the plan
+names are not built, each recorded: the declared target range that disagrees with
+the primary has no reader, because no host that compiles takes one (D9.14); a
+pack's own `available {package NAME RANGE}` still validates and drops its range
+(D9.11); and the value-transfer routes' base-release rule is not behind the gate
+(D9.4).
+
+The landing commit also changes the following. It appends `"step 9"` to
+`registry_axes.rs`'s `LANDED` — D2.13's "a lane landing a step or slice bumps it".
+No waiver in the tree says `until step 9` (every `registry-axis-ok` expiry in the
+tree is `never`), so none expires and none needs resolving; the gate's own fixtures
+that used `until step 9` as a not-yet-landed expiry (five spellings in three tests,
+and the one assertion that reads the parsed expiry) move to `until step 10`, as
+step 8's landing moved `until step 8` to `until step 9` (`cargo test -p xtask
+registry_axes`, 9; the crate's 242 pass), and `docs/generated/registry-axes.md`
+regenerates unchanged. It adds the step's built vocabulary to the design page's
+status box and rewrites the two design indexes' entries for the page, under the
+repository owner's standing rule for every page outside `docs/design/lanes/`:
+current state only, with no step, item or decision numbers. The page's body
+already states each item's rule in the present tense, so no other passage is
+touched, and the passages that carry the step narrative are left for the owner's
+sweep. It updates the title above and `docs/design/lanes/README.md`'s bullet.
+Gates for the landing: `cargo check
+--workspace --all-targets`, `cargo clippy --workspace --all-targets -- -D warnings`
+and `cargo fmt --all -- --check` are clean, with no new `#[allow]`;
+`registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged),
+`value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged),
+`pack-goldens --check` (25), `command-backing --check` (389), `retired-api-gate`,
+`owner-resolution` (45), `kcs-index-links`, `callback-inventory --check`,
+`audit-option-dialects --check` (114 probed options), `number-drift`,
+`segmentation-drift`, `gen-irule-test-data --check` and `runtime-stdlib` are green,
+`dialect-drift` is at its 8 sites, and `verify-nextest-binary-shards.py
+--partition-count 5 --metadata-only` proves 331 targets (no item of the step added
+a test binary). The plan drafts no landing message for step 9, so
+this commit's follows step 8's. Step 10 is next, on its own items.
+
+### Step 9 — review checklist, verified
+
+The plan's § *Review checklist* (§ *Plan for steps 2–10* › *Step 9*), run
+against the landed tree with evidence:
+
+- **"Per measured row, never by name": no `match profile.name` decides a
+  release.** `TclVersion::from_profile`, `from_dialect` and
+  `DialectProfile::const_fold_version` are one call,
+  `DialectProfile::evaluation_point`, which reads the profile's
+  `evaluation_evidence`, a field written out on every catalogue entry (D9.2);
+  `from_profile` was a match over five profile names and no comparison of a
+  profile's name decides a release in `version.rs` or in `profile.rs` before its
+  tests, where the one left is the catalogue's own `find`.
+  `a_measured_vendor_profile_has_an_evaluation_point` holds each measured fork to
+  a note that names the measurement, `an_unmeasured_profile_has_none` holds every
+  profile that models a base and has no evidence to none, and
+  `an_evaluation_point_is_the_runtime_base_and_a_release_claims_a_pinned_toolchain`
+  holds a Tcl release to its pinned patchlevel and the count to five. The
+  mutation that read `from_profile` off the profile's name again fails
+  `a_measured_vendor_profile_has_an_evaluation_point`,
+  `const_fold_version_is_the_evaluation_point_and_the_release_the_name_parses_to`
+  and `from_dialect_maps_every_versioned_tcl` (CC9.2's row).
+- **A straddle is a decline to plain dispatch, never a silent choice of one
+  row.** `StampSelection` has three answers, and a level that declines does not
+  inherit (D9.13): a windowed stamp is chosen at a release and over the whole
+  ladder only where every release agrees, and any other query — another family, no
+  core, no query — declines. The witnesses are
+  `a_stamp_declared_from_9_0_declines_under_a_profile_spanning_8_6` (the plan's,
+  at the compiler: pinned at 9.0 `lassign` specialises, pinned at 8.6 and across
+  the ladder it is a plain invoke, and the unversioned `lassign` under the same
+  permissive profile still specialises), `a_whole_ladder_that_a_window_divides_declines`,
+  `a_point_that_is_not_a_tcl_release_declines_a_windowed_level` and
+  `a_declined_level_does_not_inherit_and_a_silent_one_does` in
+  `stamp_window.rs`, and the registry's
+  `a_subcommand_inherits_where_its_windows_are_silent_and_does_not_where_they_decline`.
+  The mutants that took the first window whatever the release, never declined
+  over the whole ladder, did not decline off the Tcl family or let a decline
+  inherit were each killed (CC9.1's row).
+- **Risk: the iRules fold delta reaching `tcl-irule-test` fixtures
+  (`gen-irule-test-data --check`).** The generated iRule-test data is in step with
+  the registry, so no fixture moved, and `tcl-irule-test` (29) and `tcl-irules`
+  (80) pass: the three forks' versioned folds answer under 8.4 where the
+  fixtures' expectations were never made under a different release.
+- **Risk: `SurfaceQuery` is `Copy`-shaped and widely constructed.** It is still
+  `Copy` (`packages` is a borrowed slice of `PackageFloor`s, which are `Copy`), the
+  constructors (`core`, `any_release`, `with_packages`) keep their shapes, and the
+  fan-out was mechanical and compiled in the item's one commit: the eight readers
+  that asked `packages.contains(&"…")` ask `carries("…")`, the test call sites that
+  passed names pass `PackageFloor::named` (D9.12), and the eleven sites that
+  spelled the registry's own point ask `own_surface_query()` (D9.10). The query's
+  `==` stopped meaning "the profile's own point" once a registry's query carried
+  floors its profile's did not, so that comparison is `same_point`, held by
+  `a_query_is_the_same_point_whatever_floors_it_carries`.
+
+### Step 9 — what the next steps read
+
+- **For step 10 (the extension legs).** An extension's command carries no stamp
+  and no window. `CommandSpec::DEFAULT` holds the four window slices empty, and
+  `StampSelection::of` answers a level with no windows its plain field at every
+  point (D9.13), so the default fact CC10.1 builds from it, with `HostNative` for
+  its backing, is dispatched plain at every release, which is what that backing
+  says. A pack cannot give an extension command a stamp or a window either: the
+  stamp rule drops a codegen-axis stamp unless it is a bundled pack's `alias_of`
+  target's own, windowed or not (D9.15), and an `alias_of` names a shipped builtin.
+  The evidence gate is the versioned folds' alone (D9.4): the value-transfer
+  routes, a declared implementation's among them, still read
+  `DialectProfile::runtime_version`, so an evaluation route for an extension
+  (CC10.6) is asked under that rule and not under a measured point. A package row
+  is asked about the floor its query carries for that package, and a package the
+  query carries with no stated floor admits every window (D9.8); a floor reaches a
+  query only from a pack's `ambient_package NAME VERSION` row, because a profile's
+  library pins are keyed by the library's name and not the name a surface row
+  spells (D9.9).
+- **For whoever extends the versioned axes.** The derivation of a declared
+  implementation from a reference body still declines a command with arity windows
+  (D8.26); step 9 versioned the codegen axis, and arity's windows were already
+  there, so nothing here lifts it. A stamp window is read by `resolve_call`,
+  `resolve_invocation`, `resolve_structured_invocation` and `native_lowering_at`;
+  a new reader of a stamp that asks the plain field alone is the bug the sweep
+  `every_security_bearing_field_is_in_the_floor` and `stamp_windows_never_overlap`
+  were written against, and `intrinsic_ids` and `command_names_for_semantic_operation`
+  count every window's stamp on purpose (D9.14).
+- **Reported, not fixed.** Whether the value-transfer routes' unmeasured bases
+  (`expect`, the EDA shells, `bpf`, the SpecTcl hosts) should reach the evidence
+  gate is the owner's to say (D9.4); a pack's `available {package NAME RANGE}` is
+  validated and dropped, and `declarations_for_spec` lowers a package row to the
+  package's whole axis (D9.11); the hook host's engine emulates an older release
+  imperfectly (#2333), which is why a derived implementation is the author's to
+  ask for and not a consequence of the gate.
+- **For whoever runs a mutation campaign here.** The note under step 8 holds:
+  restore a mutated file and touch it, or the next run reuses the mutant. CC9.1's
+  thirty-one mutants, CC9.2's seven and CC9.3's fifteen were each switched on by an
+  environment variable compiled into the files for the run and removed by restoring
+  them.
+
+### Behavioural deltas accepted in step 9
+
+- CC9.2: under `f5-irules`, `f5-iapps` and `f5-tmsh`, a versioned fold (`string
+  is`, `string range`, `format`, `regsub`, and the `tcl-version` a pack's
+  versioned hook is given) answers as Tcl 8.4, where it answered the subset every
+  release agrees on: `string is integer 4294967296` is 0 and `format %d 010` is 8.
+  A profile nothing measured (`expect`, the EDA shells, `bpf`, the SpecTcl hosts)
+  is unchanged and still declines where releases differ.
+- CC9.2: `format` under Tcl 8.4 folds `%.0d`, `%.0x`, `%.0o` and `%.0u` of 0 to
+  the empty digits, where it folded `0`, as `tclsh8.4` prints; with no release it
+  declines. A plain `tcl8.4` document had folded it wrong.
+- CC9.2: the language server's package view takes an iRules, iApps or tmsh
+  document's target release as 8.4, where it was none; `tcl registry-dump
+  --all-dialects` and `tcl-fuzz`'s release spelling take only the five Tcl
+  releases, as they did.
+- CC9.3: a package row windowed on the package's own axis is admitted only where
+  the package's floor lies in a window, a floor coming from a pack's
+  `ambient_package NAME VERSION` row; a package with no stated floor admits every
+  window. Nothing shipped changes: no shipped spec has a windowed package row.
+- CC9.1: a pack may write `-introduced`, `-deprecated` and `-retired` on
+  `codegen_hook -native`, `inline_codegen_hook -native` and `semantic_operation`
+  (vocabulary 2.2); the stamp is selected at the release the call is resolved at
+  and the call is dispatched plain where the point does not settle one. Overlapping
+  windows keep the first and notice the later, an impossibly ordered one is dropped,
+  and an unknown flag on a stamp statement is now a notice where trailing words
+  were ignored. No shipped spec has a window, so no shipped answer moves; the 25
+  pack goldens' `spec` digests were re-recorded for the four new `Debug` fields.
+
+## Step 10 — progress
+
+Item order follows § *Plan for steps 2–10* › *Step 10* § *Ordering and
+checkpoints*: CC10.1 to CC10.6, one checkpoint each, in that order.
+
+| Item | State | Checkpoint | Notes |
+|---|---|---|---|
+| CC10.1 the extension default | landed | `wip(consumer-contracts): step 10 — the extension default` | **The default.** `rust/tcl-registry/src/extension_default.rs` (new) states the conservative fact for a command a native extension registers once, as the axes it is at the top of: `EVALUATION` (`EVALUATES_CODE`, `CREATES_BARRIER`, `CREATES_DYNAMIC_BARRIER`), `TRACES` (`ESTABLISHES_VARIABLE_TRACE`), `TAINT` (`TAINT_SINK`, `TAINT_SOURCE`), `SAFETY` (`UNSAFE`, `SAFE_INTERP_HIDDEN`), `EFFECT_AXES` (the first two), `TRAITS` (all eight, each verified by name in `traits.rs`) and `SIDE_EFFECTS` (one unknown read and write). `CommandSpec::extension_default(name)` (`spec.rs`, a `const fn` over `CommandSpec::DEFAULT`) is unknown arity, those traits and that effect, `completion: Some(CompletionDescriptor::CONSERVATIVE)`, `RuntimeBacking::HostNative`, and no stamp, window, hook, `command_table_effect`, `state_transitions` or `world_effects` (D10.2). **The declared form.** `DeclaredCommand::extension(name, arguments, provenance)` (`model/declaration.rs`) seeds its traits and side effects from the spec's default, and `DeclaredCommand::narrowed_by(traits, side_effects)` narrows it axis by axis: a statement of effects (`PURE`, or a side effect of its own) replaces the effect axes by what it states, every other axis stays unless stated, and the traits stated are added (D10.4). **The stub** (D10.3). `-extension` is `StubFlags::EXTENSION` (bit 6) and a word of `parse_stub_flags`; `StubCommandDef::to_declared_command` builds a flagged declaration from `DeclaredCommand::extension` narrowed by `declared_traits()` and `declared_side_effects()` and an unflagged one as it always has. A call to such a command is a dynamic barrier to `classify_side_effects_in` and to the minifier's rename barriers, is hidden in a safe interpreter (W129) and is never pure; `-pure` and `-mutator` replace the effect axes, a stated `-barrier` survives them, and taint and safety stay. What a declared command carries is traits and side effects, which is what the surface answers; the taint analysis reads the catalogue alone, so a stub's taint axis does not reach it (D10.5). **Tests.** `tcl-registry`: `registry_sweep.rs` `the_extension_default_is_at_the_top_of_every_axis` (the plan's: the eight traits by name and nothing else, never pure, unknown arity and effect, any completion code, host-native, no stamp, window or hook, the resolved invocation `UnknownInvocation` with a world barrier at every argument count and no hook at 8.6, 9.0 and across the ladder, and the negative: a stated purity replaces the effect axes and leaves taint and safety), `model/declaration.rs` six (`an_extension_declaration_is_the_registry_default_and_a_plain_one_is_empty`, `a_stated_purity_replaces_the_effect_axes_and_leaves_the_others`, `a_stated_effect_replaces_the_unknown_one_and_the_barrier`, `a_stated_barrier_survives_a_stated_effect`, `a_statement_that_is_not_about_effects_narrows_nothing`, `narrowing_a_plain_declaration_by_nothing_changes_nothing`); `tcl-compiler`: `utils.rs` `parse_command_stub_extension_flag` and `side_effects.rs` `an_extension_declaration_is_a_barrier_until_it_states_its_effects`; `tcl-lsp-core`: `stub_arg_roles.rs` four end to end, each beside the same stub without `-extension` (`an_extension_stub_fences_its_scope_from_renaming`, `an_extension_stub_is_hidden_in_a_safe_interpreter`, `a_stated_purity_narrows_an_extension_stub_and_leaves_its_safety`, `a_stated_mutation_narrows_an_extension_stub_and_a_stated_barrier_survives_it`). **Mutation checks**, each a textual edit run against the item's tests and restored with a touch: the default without `TAINT_SOURCE`, with a `None` backing and with no stated effect (`the_extension_default_is_at_the_top_of_every_axis`, and for the last `a_statement_that_is_not_about_effects_narrows_nothing`), `DeclaredCommand::extension` seeding no effect (two declaration tests), `narrowed_by` removing nothing (`a_stated_purity_replaces_…`, `a_stated_effect_replaces_…`, `a_stated_barrier_survives_…`), clearing every trait (`a_stated_purity_replaces_…` and `a_stated_effect_replaces_…`), dropping the traits stated (three declaration tests), ignoring a stated effect and ignoring a stated purity (one and two), the stub ignoring `-extension`, the flag not parsed and the flags narrowing nothing (`an_extension_declaration_is_a_barrier_until_it_states_its_effects`, with `parse_command_stub_extension_flag` for the second), and, end to end against `stub_arg_roles.rs`, the stub ignoring `-extension` (three of the four tests), `narrowed_by` removing nothing (two), clearing every trait (`a_stated_purity_narrows_…`) and dropping the traits stated (two). Sixteen mutants, all killed. **Gates.** `cargo test`, under `LANG=C.UTF-8` with `TCL_REQUIRE_WASM_LINK=1`, `TCL_TOMMATH_DIR` and the `tmp` oracle tree linked, in batches of twelve binaries: `-p tcl-registry` (1351, was 1344; lib 1011, was 1005), `-p tcl-compiler` (68 binaries, 9944, was 9942) and `-p tcl-lsp-core` (35 binaries, 3582, was 3578); `cargo check --workspace --all-targets`; clippy (`--workspace --all-targets -- -D warnings`, no new `#[allow]`) and `cargo fmt --all` clean; `registry-axes --check` (7831 / 16 / 36 / 893 across 147, unchanged), `value-transfers --check` (22 / 19 / 83 across 34, 6607 rows, unchanged), `pack-goldens --check` (25), `command-backing --check` (389), `owner-resolution` (45), `retired-api-gate`, `runtime-stdlib`, `kcs-index-links`, `callback-inventory --check` and `gen-irule-test-data --check` green, `dialect-drift` at its 8 sites. Docs: `dialect-stubs.md` (the `-extension` row and § *Extension commands*), the two KCS notes that list the flags, `README.md`, and the design page's status box, § *C Tcl extensions* and anchors. Deviations: the command-table axis is not stated, `Some(Unknown)` having no variant and the undeclared invocation being the wider wildcard (D10.2); the marker is a flag (D10.3); the studio's stub renderer does not yet write `-extension` for a host-native draft. D10.2–D10.5 |
+
+### CC10.1 — what the next items read
+
+- **For CC10.2 (describe an extension from three sources).** An extension row is
+  `draft::from_command_spec(&CommandSpec::extension_default(""))` with its name set,
+  and the bridge's row is `DeclaredCommand::extension(name, args, provenance)`; both
+  read the one default in `extension_default.rs`, so a source that states nothing
+  leaves a command at the top of every axis. A source proposes beside the default
+  (arity, subcommands, the package) and never narrows it: narrowing is
+  `DeclaredCommand::narrowed_by` for a stub, and the author's statement in a pack.
+- **For CC10.3 to CC10.6.** A command at the default is `RuntimeBacking::HostNative`
+  with no stamp, no window and no hook, so no code generator specialises it at any
+  release and no rung-3 check is emitted for it (D9.13 and D9.15 say why a pack
+  cannot add one). Its completion is `CompletionDescriptor::CONSERVATIVE`, which
+  retains a normal successor: CC10.5 makes the engine interface carry the code a
+  host command returned before a hosted extension can exercise the default. An
+  evaluation route for an extension (CC10.6) is a declared one, never read off the
+  default, whose `EVALUATES_CODE` says nothing about a bounded evaluator.
+- **Reported, not fixed.** The studio's stub renderer (`render_stub.rs`) reads a
+  draft's traits as flags and has no `-extension`; the taint analysis reads the
+  catalogue alone (D10.5); `CommandTableEffect` has no `Unknown`, and the default
+  does not need one (D10.2).
 
 ## Plan for steps 2–10
 
@@ -3197,8 +3819,10 @@ Model: opus. Size: M. After: CC4.2.
 **CC4.4 — `SiteClaim` and `PackFactStamp`.**
 Files: `rust/tcl-runtime-api/src/site_claim.rs` (new: `SiteClaim`,
 `PackFactStamp` with `content_hash: u64` (D4.3), `IdentityKind`;
-`RuntimeBacking` and `BodySource` are step 7's — the `ReferenceBody` and
-`ShippedImplementation` variants are added by CC7.1 and CC8.2, so this
+`RuntimeBacking` and `BodySource` are step 7's — the plan said the
+`ReferenceBody` and `ShippedImplementation` variants are added by CC7.1 and
+CC8.2, which was an error: `ReferenceBody` is CC8.1's, and
+`ShippedImplementation` and `IdentityKind` are built by no item (D8.9); so this
 item lands `Generic`, `PackFacts`, `BuiltinAlias`), `rust/tcl-bytecode/src/lib.rs`
 (`FunctionAsm::site_claims: Vec<SiteClaim>`), `rust/tcl-registry/src/registry.rs`
 (`CommandRegistry::pack_origin(&self, spec: &CommandSpec) -> Option<&PackOrigin>`
@@ -4950,9 +5574,9 @@ everything else in this lane is independent of both.
   interns (the page's `[u8; 32]` would be a second hashing rule, which the
   page forbids for the lockfile's sake). **D4.4** A spec's pack origin is
   a registry side table, not a `CommandSpec` field (no studio surface, no
-  `GAPS` row). **D4.5** `SiteClaim`, `PackFactStamp`, `IdentityKind` and
-  the manifest live in `tcl-runtime-api`; `FunctionAsm` carries
-  `site_claims`.
+  `GAPS` row). **D4.5** `SiteClaim`, `PackFactStamp` and the manifest live
+  in `tcl-runtime-api`, and `IdentityKind` would (it is not built, D8.9);
+  `FunctionAsm` carries `site_claims`.
 - **D4.6** The plan's "the four surfaces" (`render_spectcl.rs`,
   `schema.rs`, `help.rs`, `draft.rs`, over `coverage.rs`'s completeness
   gate) is what a new `CommandSpec` field must reach to be authorable and
@@ -5057,8 +5681,9 @@ everything else in this lane is independent of both.
   and a variant nothing constructs is dead code (CONTRIBUTING.md, *Dead
   code*). No `IdentityKind` yet: D4.5 places it in `tcl-runtime-api`, but
   its one reader is rung 4's `ShippedImplementation`, so it lands with that
-  variant in step 7. The page's code block now marks rungs 1 and 2 built,
-  rungs 3 and 4 proposed, and drops the rung-0 variant.
+  variant. The plan said step 7; no step builds either, and D8.9 says why.
+  The page's code block now marks rungs 1 and 2 built, rungs 3 and 4
+  proposed, and drops the rung-0 variant.
 - **D4.16** The stamp's fields and where each comes from.
   `overlay_generation` is the compiling registry's own
   (`CommandRegistry::overlay_generation`: the pack set's key the install
@@ -5916,8 +6541,13 @@ everything else in this lane is independent of both.
   (the three legacy forms and no `add`, as the TMM's Tcl has) and, were it read
   outright, for the fallback. The other subcommand gates (`binary`, `dict`,
   `encoding`, `file`, `info` and `string` in the VM, and those and `chan` in
-  `runtime/rust`) still take the release name; the same change would serve them,
-  and the plan names two.
+  `runtime/rust`) still take the release name, `runtime_version().dialect_profile_name()`;
+  the same change would serve them, and the plan names two. The VM's `array` is
+  the odd one out: `cmd_array.rs` reads the command surface profile's name
+  (`vm.command_surface_profile().name`), so the VM asks one question three ways
+  — the release name (six gates), the command surface profile's name (`array`)
+  and `gate_profile` (`namespace` and `trace`) — and the remaining gates are
+  filed as an issue, not changed here.
 - **D7.28** The WASM link. The runtime exports `tcl_runtime_identity`, the
   manifest-shaped statement of the current interp's pin and of this build's
   tables, and the harness runs it under wasmtime (once per process) rather than
@@ -5953,11 +6583,977 @@ everything else in this lane is independent of both.
   finding"; they are in the row and in *CC7.5 — what the next items read*.
 - **D8.1** `Engine::set_release` is slice 4's. **D8.2** `docker.rs` stays
   registry-free; `tcl docker create` computes native extensions.
-- **D9.1** Versioned stamps are `StampWindow<T>` slices mirroring
-  `ArityWindow`. **D9.2** `DialectProfile::evaluation_point` is the
-  evidence gate; `TclVersion::from_profile` delegates.
+- **D8.3** The tier clamp is `tier::clamp_requested` in `tcl-pkg-model`'s
+  `tier.rs`, not in `tcl-pkg`'s `resolver.rs`. Discovery, in `tcl-spectcl`,
+  applies the clamp, and D6.6 fixed that `tcl-spectcl` reads the model crate
+  and never `tcl-pkg`; the MVS resolver chooses versions and has never held a
+  tier, which `tier::dependency_tier` already derives from the lockfile. The
+  clamp is the later of the requested and the resolved tier (a tier sorts
+  nearer the root the earlier it is), so a package may ask for less than its
+  position licenses and never more. The workspace's own package takes no
+  request, and a pack with no resolved tier (no lockfile) is not narrowed by
+  one: the directive says what the packs ask for "when this package is a
+  dependency", and without a graph nothing says it is.
+- **D8.4** The directive's grammar. `spec` takes one braced word read as key
+  and value words: `packs` (a list of `.tclspec` files, at least one) and
+  `tier` (`root`, `direct`, `transitive` or `development`). Omitted `tier` is
+  `direct`, the nearest a dependency can be, so the default changes nothing
+  once clamped. The plan's example `spec { packs {a.tclspec} tier direct }` is
+  the spelling. A pack is a file, never a directory: the lockfile records one
+  hash per file, and `tclLsp.specPacks` is the door for a directory. Unknown
+  or repeated keys, an odd number of words, a second `spec`, and a pack that
+  is empty, absolute, drive-qualified, has a `..` or empty component, repeats,
+  or does not end in `.tclspec` are errors in the manifest.
+- **D8.5** What discovery does with the directive. A manifest with a
+  directive has exactly the packs it names, read even from a directory the
+  scan skips; a manifest without one keeps the scan, except under a directory
+  whose own manifest has a directive, which decides its own packs, so a
+  dependency's draft cannot be loaded by the manifest above it; a manifest or
+  a directive that does not read leaves the scan, which is what an unreadable
+  manifest always did and which a directive can only narrow. A pack the
+  directive names that is not there is still discovered, so that the load's
+  `cannot read pack file` notice says so on the file rather than a misspelt
+  name loading nothing in silence. Packs load in sorted path order, as every
+  scan's do (`PackFile`'s order is the merge order): the order the manifest
+  names them is the order of the lockfile's `spec_integrity` entries and
+  nothing else, where the design page's comment said "in load order".
+- **D8.6** The lockfile hash. `loader::pack_file_hash` is the one function,
+  the value every command of the file carries as `PackCommand::content_hash`
+  (D4.16: the file's xxh3 folded with each fragment an `include` row brought
+  in), and `spec_integrity` is its text, `xxh3-` and sixteen lower-case hex
+  digits per pack, comma-joined in the manifest's order. The plan's "xxh3 of
+  each pack as hex, joined" is that; the `xxh3-` label says which hash it is,
+  as `sha256-` does for `integrity`. The hashing lives in `tcl-spectcl`
+  because the fold needs the loader (a fragment is found by evaluating the
+  pack), and `tcl-pkg-model` holds the text's format. A pack that declares no
+  command carries no hash on any command, so its entry is the bytes of the
+  file alone. `tcl pkg install` writes the field from the fetched package's
+  tree in the content-addressed store, only where it fetched: `--frozen` and
+  `--offline` never touch the tree and write none. The plan puts the unit
+  rows in `tcl-pkg`; the hash and its equality with the stamp are tested in
+  `tcl-spectcl` (`package_specs.rs`), and the install in `tcl-cli`
+  (`a_changed_pack_changes_the_lockfile`), where the loader and the installer
+  both are.
+- **D8.7** The generator checks and does not install. Which distribution
+  package, or which source build, provides an extension is not something
+  `rust/tcl-pkg/src/docker.rs` can know and not something a pack states
+  (`HostNative` carries no extension name), so `DockerfileSpec::native_extensions`
+  renders what can be stated truthfully: after everything the image installs,
+  one `RUN printf … | tclsh` loads each name with `package require` and exits
+  1 naming the one that is missing, with a comment that the author installs
+  each above it (`--extra-package`). The name of an extension is the
+  command's `required_package` — the pack's `provides` default reaches it —
+  read from the loaded workspace-tier packs of the current directory (the
+  user and bundled tiers never reach a project's image); a host-native command
+  that names no package is a warning on standard error and no line. The check
+  is verified against a real `tclsh` (exit 1 for an absent package, 0 for a
+  present one). A name must be spelt as a Tcl package name, so neither the
+  shell word nor the Tcl list needs quoting.
+- **D8.8** The load does not bind a pack file to the lockfile's hash. D6.8's
+  residual (a dependency that names itself a package the lockfile does list
+  takes that package's tier) is not closed by this item: `PackFile` carries
+  no expected hash, discovery never reads pack bytes, and a demotion or a
+  notice at load for a pack that does not match is a loader change the plan
+  does not list. The lockfile records the hash and `tcl pkg install` computes
+  it; a comparison at discovery or load, demoting a pack whose hash is not in
+  its package's recorded set to transitive, is the work that would close it,
+  and it needs a notice that names the cause, since the capability gate's
+  own warning would blame the tier.
+- **D8.9** `ShippedImplementation` and `IdentityKind` are not built, and no
+  later step owes them. CC4.4's pointer, D4.5 and D4.15 said CC7.1 and CC8.2
+  would add them; CC7.1 builds the spec's backing field and CC8.2 a derivation,
+  and neither has a site to claim. The step 7 review judged it a plan error and
+  not a missing safety piece, and the reason is D4.15's own: a claim variant
+  nothing constructs is dead code. Rung 4 has no producer. The specialisations
+  that rest on a shipped builtin are command bindings, which
+  `command_binding_matches` admits against the command bound now (a procedure, a
+  native command or an embedder's guarded builtin at the name is refused, the
+  last since the step 7 review fixes) and which the manifest conjunct holds to
+  the intrinsic table and the embedded library; a `HostNative` site is attested
+  by a guard identity that exists already, and no code generator emits one
+  before step 10's `Command::ObjCmd` leg; and no bundler ships an implementation
+  with a package. The comparison of a claimed backing with `backing_report` that
+  CC7.2 made possible would repeat the live binding check with an older fact —
+  the table of what was registered, where the binding check resolves the command
+  that is bound at the call — so it buys no admission the VM does not already
+  make. The claim variant and `IdentityKind` wait for their first producer, a
+  code generator that specialises a site on a host-native or shipped
+  implementation the binding check cannot see, which is step 10's, and the
+  design page says rung 4's claim is not built.
+- **D8.10** Reference bodies are inlined by `inline_reference_bodies`, a second
+  entry beside `inline_module`, and the bytecode compile service calls it. The
+  inliner was exposed and unwired, "owned by the codegen consumer", and the
+  plan's test (`a_tcl_body_backed_command_is_inlined_and_admitted`, in
+  `codegen_stamps.rs`, which compiles through the service) needs it wired.
+  `inline_module` keeps its meaning — the procedures a module defines, for the
+  WASM codegen, which records no claim and so must never see a pack's body —
+  and the new entry imports the definitions packs give commands and inlines
+  calls to those and to no procedure the module defines, so no existing script
+  compiles differently: a registry with no pack body returns the module
+  unchanged before any analysis runs, and a plain-dispatch compile returns it
+  too. `compile_target_with` and `compile_procedure_target_with` call it, so
+  every bytecode compile path that specialises is covered. `inline_uplevel.rs`,
+  which the plan lists, is the analysis side's transform of passthrough
+  `uplevel` wrappers (`unit_scope`, `compilation_unit`); it never runs in a
+  compile that reaches codegen and records no procedure binding for a procedure
+  the module defines either, so it is not extended.
+- **D8.11** A body is inlined where the caller has a local variable table: in
+  the body of a procedure the module defines (compiled ahead of time) and in a
+  procedure-body compile, never at a script's global level. The v3 splice
+  renames each parameter and local to `__inline_<n>__<name>` in the caller's
+  frame; at a script's global level that frame is Tcl frame zero's, the names
+  would be global variables, and the module-procedure inliner already declined
+  there when the callee belongs to another namespace because the runtime cannot
+  replay a command copied into frame zero. A call at the global level stays a
+  call (`a_global_level_call_stays_a_call_and_a_procedure_body_compile_inlines`).
+  The policy is the module-procedure inliner's own: a pure leaf of at most
+  `SMALL_BODY_THRESHOLD` statements, at a statement-position call.
+- **D8.12** The text of a definition is foreign to the module that inlines it.
+  The importer lowers it on its own — as the text a runtime would evaluate to
+  create the procedure, so nothing the module around it says can change what it
+  means — shifts every span in the lowered body by `lattice_rebase::rebase_script`
+  past the end of `Module::source`, and appends the text there
+  (`ReferenceBodies { appendix_start, imports }`, `Module::own_source`). Codegen
+  slices spans from the combined text, as it always did, and `ModuleAsm::source`
+  is the module's own: a plain recompile reads it, and the definition must
+  never be part of what runs. A text is a full `proc NAME params body`
+  definition (the loader's own examples are), and it is imported only when it is
+  exactly one `proc` that defines the command it backs, the body is a literal
+  the lowering kept the text of, and no span would pass what an offset holds;
+  anything else is passed over and the call stays a call. A name the module
+  defines is never imported. The candidates are the pack-installed specs the
+  registry holds text for that are its live answer for their name, so a spec a
+  later insertion shadowed, and an embedder's own, are not. The inlined
+  commands carry the lines of the appended text, past the module's last line,
+  where an inlined module procedure carries its own; `(procedure "p" line N)`
+  frames of an inlined body were never kept.
+- **D8.13** The claim is `SiteClaim::ReferenceBody { procedure, backing:
+  BackingKind, facts }`, and `BackingKind` is the four kinds of
+  `RuntimeBacking` without the payload. The design page proposed
+  `backing: RuntimeBacking`, which carries `'static` text and lives in
+  `tcl-registry`, above the crates an artefact and the VM share; the claim needs
+  the kind, because the definition it rests on is in the procedure binding
+  beside it. Codegen derives the claim: `claim_reference_bodies` pairs each
+  procedure binding of a function that names an import (creation name,
+  parameters and body) with the pack facts the import carries, so the inliner
+  records a binding exactly as it does for a module procedure and a binding for
+  a procedure the module defines has no claim. `FunctionAsm::rungs` says rung 3
+  for the claim and, as before, for every procedure binding.
+- **D8.14** The VM's conjunct is in the claims check and not in
+  `procedure_binding_matches`, which sees a binding and not a claim. A
+  reference-body claim is coherent when its backing is `TclBody` and its
+  procedure is one the function's procedure bindings hold — a claim of a body
+  nothing holds the live command to is the artefact contradicting itself — and
+  its stamp is held as for any claim (`site_claims_hold`,
+  `claim_is_coherent`). The plan's "activation defines the proc only then" is
+  read as admission. No path in the VM defines a procedure from a claim, and
+  none could be added soundly: the definition on the artefact's say-so would let
+  a pack author decide what runs. The live procedure is whatever the library
+  defined, and the conjunct keeps a claim about a `HostNative` or `None`
+  command from being satisfied by a procedure of the same text. The plan's
+  negative test is read the same way: the same body under `host-native` is not
+  inlined at compile and the unit that claims it anyway is refused, though the
+  live procedure's text matches exactly (`a_host_native_backing_never_defines_a_proc`,
+  with the forged backings and the forged procedure as rows).
+- **D8.15** The capability matrix's `reference_body` row is consulted at load,
+  which the CC6.2 hand-off asked for. A `tcl-body` backing from a tier that may
+  declare a backing is a reference body (`Declaration::ReferenceBody`), and the
+  row is `Forbidden` for a direct dependency: the load drops the backing from
+  its pack with a warning that says "a reference body" and "only the workspace's
+  own package may", and the command keeps every other fact. A tier that may
+  declare no backing refuses the same declaration as a `runtime_backing`, as it
+  did, and a pack no package ships is not narrowed. The hand-off said "one more
+  `Drops` field"; the backing is cleared whichever gate refuses it, so there is
+  one field and two declarations. The matrix's own text says what the row
+  governs now.
+- **D8.16** A `PackageSource` body is read at load and nowhere else.
+  `tcl_spectcl::package_sources::provision` reads each file through the
+  `SourceStore` the pack was read through, beneath the nearest directory above
+  the pack that holds a `tclpkg.tcl` (no field is added to `PackFile`: 31
+  literals, and a manifest's directory is a fact about the filesystem), the path
+  relative and inside the package. This is the value-transfers lane's pinned
+  provisioning path (value-evaluation.md, "a file the pack names, inside the
+  pack's own discovery tier"). The text rides on `PackCommand::reference_text`,
+  the installer puts it in the registry (`insert_reference_text`, beside
+  `pack_origins`, carried by `project_for_profile`), and the compiler asks the
+  registry (`reference_body`): it reads no file. What was read is folded into
+  `PackSet::key` and only when something was read, so a registry built before a
+  library file changed is not the one built after and the stamps' overlay
+  generation carries the library's identity; it is not folded into a pack's
+  content hash, which stays the lockfile's value (D4.16, D8.6). A path that
+  cannot be read, that leaves the package, or that has no package above its
+  pack is a warning on the command's row and the command keeps its declaration;
+  a load with no store (`load_in_memory`, the embedded bundled set) reads
+  nothing and says nothing.
+- **D8.17** Only a pack's commands are inlined. A `TclBody` command the
+  shipped registry declares has its text in the Tcl library the WASM runtime
+  embeds, which the compiler does not have, and a claim carries pack facts that
+  a shipped spec has none of. `ManifestField::EmbeddedStdlibRevision::rests_on`
+  is widened to rungs 3 and 4 regardless, as the step 7 hand-off asked, so a body
+  resolved from the library, when a host provisions one, is held to the library's
+  revision. A rung is a function's and not a site's, so a disagreeing library
+  refuses every function with a procedure binding, the module's own inlined
+  procedures included: sound, and it costs a recompile only when an artefact from
+  another build, whose library differs, is run. `Packs` and `Packages` keep
+  rungs 1 and 2: a reference-body claim's stamp is checked by `site_claims_hold`
+  whether or not the manifest says so (D7.24), and an exact comparison of a
+  procedure's text rests on no package floor.
+- **D8.18** The VM's `source` reads through `vm.host().filesystem()` and
+  decodes the file as the encoding the option names — `utf-8`, `iso8859-1`,
+  `ascii` or `unicode`, the names `encoding system` accepts, anything else Tcl's
+  `unknown encoding "…"` — with UTF-8 the default from Tcl 9 and the system
+  encoding before (`tcl_cmd_core::channel::decode_text` is the decoding, shared
+  so the other runtime can take it). A host with no filesystem reads nothing,
+  as `runtime/rust`'s host does, and the error carries the POSIX reason Tcl
+  prints (`no such file or directory`) where it carried the Rust one. A file
+  that is not valid UTF-8 now sources, its bad bytes read as U+FFFD, where it
+  was `couldn't read file`. `-nopkg` and `-encoding` may be given in either
+  order. `runtime/rust`'s `source` already reads through its host and still
+  ignores `-encoding`: it is not this item's, and the three-way differential has
+  no script that tells the two apart.
+- **D8.19** `tcl spec test` runs the package through the package manager's
+  chokepoint and under its opt-in. Requiring a package runs its Tcl, which
+  `tcl-pkg`'s policy keeps for the operator: `PolicyConfig::build_script_allowed`
+  is `[build] allow-build-scripts` and the package named in `[build] trusted`
+  (`tcl pkg trust`), and the verb asks it before anything runs. Refused, it says
+  "running the package 'P' is not permitted by policy" with the `tcl pkg trust`
+  hint, runs nothing and exits 1. The policy is the operator's: the project `tcl pkg`
+  works in, found from the working directory (`operator_project`: the nearest
+  directory at or above it with a `tclpkg.tcl`, else the working directory itself),
+  beside the user and system layers, and never a tree the pack was found in (D8.39);
+  the run goes through
+  `tcl_pkg::exec::execute` with a `Profile` — the probe on standard input, an
+  environment of `PATH`, `HOME`, `TCL_LIBRARY`, `TCLLIBPATH`, `TMPDIR`, `LANG` and
+  `LC_ALL`, a request for no network that the host's confinement enforces where it
+  can (today the portable baseline only scrubs the environment and pins the
+  directory), the audit log and the timeout. The plan said "under `tcl-pkg`'s
+  policy (`policy.rs`, opt-in)"; choosing `execute` over a bare `Command` is what
+  makes the run audited and bounded. The pack loads as the workspace tier's own,
+  because its author named it on the command line, and only to learn what it
+  declares; the verb never runs at editor load. Reworked: the first form took the
+  project that holds the pack (`project_of`).
+- **D8.20** The probe is one generated Tcl script on the shell's standard input
+  (`tclsh -`), written for 8.4 to 9.1 — no `{*}`, no `in`, no `dict` and no
+  `lassign`, `trace add variable` being the oldest command it needs — and run
+  against tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0 while it was written and
+  again for the item's gates, with the same rows from all five. Each divergence is a
+  `SPEC-TEST<TAB>kind<TAB>command<TAB>detail` line, backslash, tab, newline and
+  carriage return escaped and a newline written before it, so a package that
+  printed without one cannot swallow the line; the verb reads those lines and
+  ignores every other. A command's questions end with an `asked` line and the
+  script ends with `SPEC-TEST<TAB>done<TAB>-<TAB>N`, the count of the commands
+  asked, which a shell that stopped earlier cannot print (D8.40). The prelude is
+  Tcl text in `commands/spec_test.rs`
+  (`PRELUDE`) and the per-command calls are rendered from the pack
+  (`render_script`), so the questions are data in the script and not code in the
+  verb.
+- **D8.21** What is asked of each command, and what is not. Presence: the package
+  must define it (`info commands`, then `auto_load`), and one that it does not is
+  a `missing` row and nothing else asked. Arity: the declared minimum less one
+  and the maximum plus one must be refused as `wrong # args` (the match is the
+  message's prefix, so a command that raises something else is not "refused"),
+  and the minimum, and the maximum when no `step` is declared, must not; the calls
+  that must succeed pass the placeholder word `x`, so the verb runs a command with
+  junk arguments, which is what the opt-in is for and what the KCS page says.
+  Each `example` row runs and an error is a row; `return_type` is checked for the
+  six types a shell can decide (`Int`, `Double`, `Boolean`, `Numeric`, `List`
+  and `Dict`) and not for the rest. A Tcl-body reference body is run in a child
+  interpreter that has required the package and then evaluated the pack's text, on
+  each example, and must answer — code and result — as the command does. Not
+  asked: subcommands, forms, options, arity windows by release, `also_exact`,
+  `side_effects`, taint and hover prose.
+- **D8.22** `pure` is checked two ways, because a trace alone cannot see a variable
+  the first call creates. A mark is taken before the command's first question and
+  every variable the examples then created or changed is a row, and the examples
+  run a second time with a write-and-unset trace on every variable that exists,
+  each hit a row naming the example. The variables are those of every namespace,
+  not the globals alone (D8.41). Two globals are exempt from both, `errorInfo` and
+  `errorCode`, which the shell writes whenever a call raises and the arity
+  questions make every command raise, and so is the probe's own namespace; no
+  other is, because none of the shell's others changes under a call — the autoload
+  index is read when the shell starts, on 8.4 to 9.1, which a probe of a call to an
+  undefined command, an autoloaded `parray`, a failed `package require` and a
+  raised error showed. The plan's wording was the second run with traced globals
+  only; the mark is added because a memoising command writes once, and a second
+  run would call it pure.
+- **D8.23** The verb's status and summary: 1 for any divergence, for a package the
+  shell cannot require (a `load` row, and nothing more is asked) and for a shell
+  that stopped before it had asked every command, whatever status it stopped with;
+  0 otherwise; 2, as for every verb's error, when the pack is not a file, no
+  `tclsh` can be found or the shell does not finish in the time the policy allows
+  (a `bail!`, the run's timeout being the policy's). The last line is `PACK: N
+  command(s) tested against 'PKG', M divergence(s)`, where N is the commands the
+  shell asked and not the commands the pack declares; a shell that stopped says `N
+  of M`, and standard error names the commands it never asked and the status it
+  stopped with. A shell that exits non-zero after its `done` line is a warning and
+  not a failure. The package is `--package`, else the one every command's
+  `required_package` names; a pack whose commands disagree is an error that says
+  to name it. Reworked: the first form took a shell that exited 0 with no row as a
+  pass, however early it exited, and counted the commands the pack declares.
+- **D8.24** The derivation is the loader's pass over the merged commands
+  (`loader/reference.rs`) and the scan the registry's
+  (`value_transfer/reference_body.rs`), not a function in `declaration.rs`. The
+  plan put a `TclBody`-backed command's derived `Declared` semantics in
+  `declaration.rs`; that file derives a specialisation from descriptors the spec
+  carries (`resolve_semantics`), which are registry-native `CommandSemantics`,
+  and an implementation route needs a host slot, which only a pack's hook plan
+  allocates (`hooks::plan_for`). The body's text, for a `-package-source`
+  backing, is also not on the spec until `package_sources::provision` has read
+  it. So the pass runs where both are in hand — after `admit_declarations` (a
+  body the package may not declare is gone, and the derivation needs no gate of
+  its own) and after provisioning — and only on a command whose backing carries
+  its author's `-evaluate` (D8.36): it leaves a `Declared` implementation on a
+  cloned spec and pushes the `evaluate` `HookDecl` an `evaluate -implementation`
+  statement would, and everything downstream (`plan_for`, `specialise`, the host,
+  the driver, the dormant-hook notice for an untrusted workspace) treats it as it
+  treats a written one. The registry keeps the scan and the declaration because
+  they are the registry's call and have no loader in them; the clone is memoised
+  by the spec's and the declaration's addresses, as the capability gate's are.
+  Reworked: the first form derived from every body the scan could read, whoever
+  wrote it and whether or not its author had asked.
+- **D8.25** The scan is a whitelist, and the plan's list of words is not the
+  whole of it. A command is admitted only when `SANDBOX_WORDS` names it, a list
+  equal to the hook host's `SANDBOX_COMMANDS` and to the loader's record of it
+  (`the_scans_whitelist_is_the_hosts`), and `every_command_the_registry_knows_is_refused_unless_the_whitelist_lists_it`
+  holds the "whitelist, never a blacklist" rule over the shipped registry: each
+  command it knows that the list does not name is refused whatever it does.
+  `Reach` says why for the message and decides nothing. The plan's "no `upvar`,
+  `uplevel`, `global`, `variable`, channel or `exec` word" is the refusals the
+  list already makes; what it did not say is that a body reads world state by
+  other doors, and each is closed: a namespace-qualified variable or one the
+  body computes (`$::tcl_platform(os)` is the analysis host's, not the target's),
+  an expression function off `MATH_FUNCTIONS` (`rand`, `srand`, a
+  `tcl::mathfunc::` command nobody here has read), a callback a command runs
+  (`lsort -command`, `dict for`, `dict map`, under every abbreviation the command
+  accepts: D8.38), a script argument or command name the body computes, and a
+  `return` that is not the last statement, because
+  `fold [ SCRIPT ]` runs the body as a command substitution in which a `return`
+  would end the hook body and answer nothing. The names the body binds are its
+  own, and the name its rewrite sets (`__spec_result`) is reserved. The scan is
+  the precondition for a derivation and never the licence for one (D8.37).
+- **D8.26** What a derivation will not claim. A command whose author stated its
+  evaluation keeps it: a `semantics` row, an `evaluate` statement or `semantics
+  none` each leave the command as written, and `-evaluate` beside any of them is
+  a contradiction that one Warning on the row says. A command with subcommands or
+  forms is not derived, because an operand index of a declaration counts from the
+  resolved form's first argument and a body written for the whole command indexes
+  from the command's. A command whose declared arity is not exactly the body's
+  parameter count, or that has arity windows, is declined: the declaration would
+  answer a call the arity admits without the body being given its arguments. Each
+  decline of a body whose author asked is one Warning on the command's row —
+  "`-evaluate` asks for the reference body to be run as an implementation at
+  analysis time, and it is not: …" — and a text that is not one `proc` defining
+  the command says so too, which it did not while the derivation was unasked and
+  a text that was no body was no business of the loader's. A body whose author
+  did not assert it draws nothing at all, so a `-package-source` library full of
+  procedures the sandbox cannot run is silent until an author adds `-evaluate`
+  to a command of it, and is then told which it refuses. Reworked: the notices
+  were Information, drawn once per command of such a library.
+- **D8.27** The declaration is as a written one would be, with the content a
+  derivation has: identity `COMMAND.reference` with the content hash of the
+  parameters and the body, one `DeclaredInput::Operand { index, Exact }` for each
+  parameter (so an argument the analysis does not know declines `NotExact` before
+  any body runs), `depends {tcl_profile implementation_identity}` so the answer
+  is keyed by the release the body runs under, `Needs::NONE`, normal completion
+  only, and the host's own budget. `is_derived` recognises one by its identity
+  and content hash, which survive the host plan's binding of a slot, so the
+  studio's draft of a command does not count it as a field it loses: the body it
+  came from, and the `-evaluate` that asked for it, are on the `runtime_backing`
+  row the draft carries, and the next load derives it again.
+- **D8.28** `infer_from_body` takes the parameter list and the dialect as well as
+  the body: `infer_from_body(params, body, dialect)`. A body means nothing
+  without its parameters — a name the list binds is local and any other is not —
+  and the summary is of a procedure, so the function synthesises one. `pure` is
+  the summary's own, which already says no barrier, no unknown call and no
+  global write;
+  `side_effects` are rows for the global and namespace state the body reads or
+  writes and for state the analysis could not name; `return_type` is the type
+  lattice of the procedure's returns when it is one known type; and
+  `callback_slots` are the parameters the analyser sees invoked as commands.
+  `import_package` builds one compilation unit per file with its interprocedural
+  summaries and reads each procedure's facts from it, and `draft_for_proc` carries
+  them onto the draft as proposals — `PURE` in `traits`, rows in `side_effects`,
+  `return_type`, and a note for the callbacks (which the roles already hold) —
+  each with a line of evidence, and never over a field the draft already states.
+  It proposes nothing about `-evaluate`: the assertion is the author's (D8.36),
+  and the import's evidence is a summary of the body, which is not a comparison
+  with a shell.
+- **D8.29** The `value-transfers --check` gate is unchanged and the pinned route
+  set does not grow: no bundled `.tclspec` declares a `tcl-body` backing, let
+  alone says `-evaluate`, so the derivation adds no route to any registry the
+  sweep reads. The plan expected the inventory to gain the route; it gains it
+  where a workspace pack declares one and asks, which the gate's sweep over the
+  shipped packs does not read. The flag is a field of `RuntimeBacking::TclBody`
+  and no route type, so no pin moved with it.
+- **D8.30** The hook host's sandbox keeps the subcommands of a whitelisted
+  ensemble. `Engine::restrict_commands` (`rust/tcl-engine-tclvm/src/lib.rs`)
+  retained the names it was given, the host's and the units', and the math
+  functions, and nothing else; the compiler lowers `string trim` to a direct call
+  of `::tcl::string::trim` where the call is nested in another substitution or
+  statement, and that name was swept out, so a body that called any `string` or
+  `dict` subcommand that way — a hook a pack wrote as much as one derived from a
+  reference body — raised `invalid command name "::tcl::string::trim"` and the
+  host abstained (`fold [string cat $a - $a]` answered and `set r [string cat $a -
+  $a]` did not). Naming `string`, `dict` or `binary` in the whitelist now names
+  `tcl::string::*` and its siblings too, as naming `expr` names its math
+  functions; an ensemble the whitelist does not name keeps none. This is the
+  value-transfers lane's engine and not the item's file list, and it is a
+  behavioural change for every pack's hook bodies, so it is recorded here and not
+  folded into the item silently. The derivation's parity test
+  (`a_reference_body_answers_through_the_host_as_the_procedure_does`) found it:
+  without the change a body with a `set` of a `string` result did not fold.
+- **D8.31** What replaces a call is the value the call had. `rewrite_script` carries
+  a `Tail` for each script it rewrites and a `Site` for each call: `Returned`
+  where the value is the procedure's, so a `return` in the call's place ends the
+  procedure as the callee's did; `Dropped` where nothing reads it — a command that
+  is not the last of its script, a loop body; `Captured` where a `catch` or a
+  `try` holds it. A static `eval`'s `Block`, an `if` branch and a `switch` arm take
+  the statement's own tail (B2: the `Block` was rewritten as `Dropped`, so the
+  trailing `return` was wrapped and the value was the wrap loop's, empty). The
+  wrapped early return hands out its result as `${slot}`, the spelling the
+  lowering gives a whole-word variable reference and the emitter substitutes;
+  `$slot` is text to it (B1: the procedure answered `$__inline_1__RESULT`). Where
+  a `catch` or a `try` holds the value, a body with a `return` stays a call,
+  because a bare `return` would end the procedure at the `catch` and the wrap's
+  loop would store the empty string; a body with none is spliced flat. An empty
+  body's call vanishes only where nothing stands before it in its script or the
+  value is dropped: `set a 5; noop` is the empty string and `set a 5` is not,
+  which is the value a script that is evaluated answers. This changed one test of
+  the unwired `inline_module`: `empty_body_call_is_dropped` ends its script with a
+  command of its own.
+- **D8.32** A body runs in a frame of its own, so a name it reads is a parameter
+  or a local it bound first, and the splice is only that when the rename reaches
+  every read. `inlining/frame.rs` walks the body's IR and declines one that may
+  read a name some path to the read has not bound — an `if` or `switch` with no
+  last arm, a `foreach` or `while` body, a `catch` body and a `try` handler bind
+  nothing the code after them may count on; a path that returns joins nothing;
+  `incr` reads its name; a name a namespace qualifies is not the frame's (B4). It
+  also declines a body that reads through an operand the tree keeps as text — a
+  command an expression substitutes, a quoted operand, an unparsed remainder, a
+  frozen loop's command condition — and one that holds a braced `$name` inside a
+  command a word substitutes (`[string length {$x}]` against `[expr {$x}]`, which
+  the rename cannot tell apart), because the rename rewrites a variable the tree
+  names and a word's substitutions and nothing else. Those last two kinds are the
+  matrix's finds, not the review's: the spliced body read the caller's variable of
+  the same spelling and raised `can't read "x"`. The slots' names
+  (`__inline_N__name`) are not reserved: a caller that binds one of them to a
+  variable of its own — `set x 1; upvar 0 x __inline_1__x; vdouble $n; return $x`
+  answers 7 spliced and 1 as a procedure — is read as the slot, which the review's
+  N2 found. The shape is contrived enough to be an assumption of the splice and not
+  a gate: nothing but a caller written against the inliner's own counter can name
+  a slot.
+- **D8.33** The commands a body names are the ones its own namespace resolved. A
+  body spliced into a caller whose namespace is neither the global one nor the
+  definition's has each call head spelled from the global namespace, where the
+  definition's own lookup ends (`inlining/heads.rs`): the statement-position
+  `string length $s` the VM emits as a generic invoke with no binding resolved in
+  `app` otherwise (B3). A command a word substitutes is text to the IR, so a body
+  that substitutes one — in a word, an expression or a loop's condition, other than
+  the `expr` a statement consumed — stays a call in that namespace instead; a
+  statement lowering consumed (`set`, `incr`, `expr`, an `if`) carries a binding
+  recorded in the definition's own namespace, which the VM holds to the live
+  command. The review offered "require resolution from the caller's namespace to
+  agree, or emit rooted names": agreement cannot be proved for a `proc app::string`
+  made after the compile, so the heads are rooted, and the substitution the
+  spelling cannot reach is the part that agrees by refusal. This changed one test of
+  the unwired `inline_module`: `bare_call_does_not_resolve_through_an_ancestor_namespace`
+  expects the spliced `puts` of another namespace as `::puts`.
+- **D8.34** The rename leaves a braced word as it was. A `Call` word the statement's
+  tokens say was braced, and a braced `return` value, were rewritten as though they
+  substituted, so `string length {$x}` answered the length of the slot's name and
+  `return {$x}` answered the slot's name, with a global caller and no shadow
+  anywhere. `foreach`, `switch` and `incr` already carried their braced flags; these
+  two did not.
+- **D8.35** An `uplevel` body is not rewritten (N3). The review's description holds
+  at the IR: `rewrite_script` put the splice's `ProcedureBindingIdentity` on the
+  nested script of an `uplevel` body, which the bytecode emitter does not lower.
+  Through the compile service no function recorded it, even with the rewrite put
+  back (the mutant that does so fails only the IR test): the CFG builder collects a
+  nested script's requirements only where it lowers the script, and emits what it
+  lowers. So the VM has no failing row for `uplevel`, and none for `catch` or `try`,
+  whose bodies are lowered when they are emitted and left alone when they are not;
+  `a_function_claims_a_splice_only_where_it_emits_it` states the property the review
+  wants — a binding and a claim iff the function does not call the command — over
+  three bodies at eight sites, as a guard. The fix is the IR's: an `uplevel` body
+  takes no splice, which is also right for a reason the review did not give — it
+  runs in another frame, and the splice's slots would be written to that frame. This
+  moved one test of the unwired `inline_module`: `rewrite_recurses_into_upframe_body`
+  is `rewrite_leaves_an_upframe_body_as_written`.
+- **D8.36** The derivation is the author's to ask for, and the ask is a flag on
+  the backing (the review's B5). `RuntimeBacking::TclBody { source, evaluate }` is
+  written `tcl-body {-pack-text {TEXT} -evaluate}` or `tcl-body {-package-source
+  PATH -evaluate}`. `BackingSyntax` reads the flag before the pair or after it and
+  tells it by where it stands (the pair is two words, so a text that is the flag's
+  own spelling is a text when it stands where one does), and spells it after.
+  The review's other reading, an `evaluate -implementation` written beside the
+  body, is the route that already exists and means writing the body twice; a flag
+  keeps one copy of the text, and rides `BackingSyntax`, which the loader's two
+  paths, the studio's draft, `render_spectcl`, `render_rs` and the help text read
+  the backing through, so no surface gained a statement and no coverage gate a
+  row. It is no part of `BackingKind`, the `PackFactStamp` or any claim: a claim
+  states what a command is backed by and the flag states what the analyser may
+  run, and an edited flag is an edited pack, whose content hash turns every site
+  that rests on it plain already. `RuntimeBacking::pack_text`, `package_source`
+  and `evaluated` are `const fn`, so a shipped spec's literal is one call;
+  `evaluated` on a backing that is not a Tcl body is the identity.
+- **D8.37** The scan stays the precondition and never the licence, and the flag is
+  the author's word about the engine. The hook host's engine emulates an older
+  release imperfectly, and a body that meets the difference folds a value the
+  release's own shell does not give; the measured differences are filed (#2333:
+  `string is integer`'s width, `tcl_precision` under 8.4, `incr` of an unset
+  local, `lreplace` and `lindex` bounds and index forms, `1.0/0`, `int(1e20)` and
+  `1<<64` under 8.4, `format %c`). Nothing is derived from a body whose author did
+  not say so, as a `const_fold` hook exists only where one was written, and an
+  asserted body the scan refuses derives nothing and draws a Warning that names
+  why (D8.26). The release test holds the rows that do hold to the real shell of
+  each release and not to a written expectation:
+  `a_derived_body_runs_under_the_release_the_call_is_analysed_under` runs `string
+  cat`, a leading zero, a digit separator, `format %x -1`, the length of an astral
+  character and `int(1e20)` (from 9.0, where the engine and the shell agree)
+  through `proved_under` for each release whose `tclsh` is on `PATH` and compares
+  the answer with the shell's own, an abstention with the shell's error, and a row
+  that no release answered fails as vacuous; a release with no shell skips its rows
+  and says so. Each row was found by running the engine against the five shells
+  first, and what did not agree is the filed list above and not in the test.
+- **D8.38** The scan finds a callback under every spelling the command accepts
+  (the review's N2), through the commands' own tables and not a second list of
+  abbreviations. `dict_runs_a_script` resolves the subcommand word through
+  `dict`'s table (`CommandSpec::resolve_subcommand_word` over the default
+  registry, every subcommand of every release a candidate) and refuses the five
+  that run a script — `for`, `map`, `with`, `update`, `filter` — when the word
+  resolves to one uniquely or is ambiguous among names one of which is: `dict fo`
+  is `for` and `dict wi` is `with`, and `dict m`, which a release may take for
+  `map` and another for neither, is held to the stricter answer because no release
+  is read to settle it. `takes_a_callback` reads the leading switches of `lsort`,
+  `lsearch` and `regsub` through the option table
+  (`CommandSpec::leading_switch_names`), so `-comm` and `-c` are `-command` where
+  the command accepts them, a switch's value is not a switch, and a `-command`
+  after the switches is data. The exact spelling the first scan compared is a
+  special case of both, so nothing it refused is let through.
+- **D8.39** The policy that decides whether a package runs is the operator's, and the
+  pack's tree has no say (the review's S2). `run_test` read the project that holds
+  the pack (`project_of`), so a dependency vendored into the project, which has a
+  manifest and a `tclpkg.toml` of its own, could carry `[build] trusted = ["it"]`
+  and let itself run: the one thing the opt-in exists to stop. `operator_project`
+  is `tcl pkg`'s own `find_project_root` — the nearest directory at or above the
+  working directory with a `tclpkg.tcl`, made `pub(crate)` for the verb — else the
+  working directory. `spec_test_ignores_the_policy_of_the_tree_the_pack_was_found_in`
+  lays the dependency out under the project (`vendor/demo/specs/demo.tclspec`, its
+  own manifest and policy) and holds the verb to refusing it until the project's
+  own policy opts it in; the other policy tests run the verb from the project or
+  from a directory below it, as an operator does. D8.47 takes the outermost project
+  where this took the nearest.
+- **D8.40** The probe says when it is done, and a shell that did not say it has not
+  finished (the review's S1). A shell that exited 0 with no divergence was a pass
+  whenever it exited: a package that calls `exit 0` when it is required, or in the
+  body of a command's second example, ended the shell with some questions asked and
+  the summary counted every declared command as tested. Now each command's
+  questions end in `::__spec_test::asked NAME`, which counts and says `asked`, and
+  the script ends in `::__spec_test::finish`, which says `done` with the count.
+  `parse_report` returns `Report { divergences, asked, done }`; the verb has
+  finished when `done` equals the number of commands it was to ask and as many were
+  asked, which is the pack's, or none when the shell could not require the package
+  (`Report::package_missing`, a `load` row, after which the probe finishes and exits
+  at once). Anything less is status 1 with the commands not asked named on standard
+  error, and the summary counts what was asked, `N of M` when short. A non-zero exit
+  after `done` is a warning. `package_missing` compares the row's kind with a
+  constant and not the word, which `registry-axes` would otherwise count as a new
+  match on a registry word (`load`).
+- **D8.41** Purity is checked over every variable of every namespace (the review's
+  S3). The mark and the traces covered `info globals`, so a command that fills a
+  namespace variable — `variable cache; set cache($x) …`, the commonest memo — was
+  invisible and passed as pure. The probe walks `namespace children` from `::`,
+  skipping its own namespace and the shell's (`::tcl`, where a shell that reads its
+  script from standard input keeps the history of every statement it reads, which
+  the first run of the facts test showed changing under every command), and takes
+  `info vars ${ns}::*` of each; the snapshot
+  and the traces work on the qualified names, and a trace is set with the qualified
+  name bound into its prefix (`::__spec_test::wrote ::demo::cache`), because the
+  callback is handed the name the writer used — `cache` for a `variable cache` link
+  — and not the variable's. A global is shown by its bare name, as before, and any
+  other by its qualified one (`::demo::cache`); `errorInfo`, `errorCode` and the
+  probe's own are exempt as they were. A package that writes into `::tcl` is not
+  seen, which is the price of not counting the shell's bookkeeping as the package's. The cost is one trace per variable per
+  example, which a namespace of thousands of variables would feel; `pure` is
+  declared of few commands. `demo::cached` and `demo::counted` in the facts test are
+  the namespace memo and the namespace counter the old probe passed.
+- **D8.42** An `lmap` reads the value of its body, and the collector reads a body of
+  one block (the review's B1). `rewrite_single_body_stmt` rewrote every loop body as
+  `Dropped`, but an `lmap` gathers each iteration's value: a body with a `return`
+  was wrapped in the `while {1}` with no value stored after it, so each iteration
+  contributed the empty string (`lmap i {1 2 3} {vdouble $i}` answered `""` where
+  the procedure answered `2 4 6`, and likewise `vconst`, `vabs`, `vsign`, `vsetlit`
+  and `vbr`; `set r [lmap …]` is a substitution, not a site). An `lmap` body is
+  rewritten as `Captured`: a body with a `return` stays a call, one without is
+  spliced flat so its last command's value is the iteration's, and an empty body's
+  call vanishes only where nothing stands before it. The matrix found the second
+  half: the collector the code generator gives an `lmap` strips the body's trailing
+  `POP` and appends one `LMAP_COLLECT` on the single fall-through tail, so it
+  gathers only from a straight-line body, which is the rule lowering already
+  applies when it keeps an `lmap` with a branching body on the runtime builtin. A
+  callee that is a branch (`vif`: `if {$x < 0} {set r neg} else {set r pos}`)
+  spliced flat into an `lmap` answered `""`, as did a wrap made in an earlier
+  statement of the body. The rule is `Script::is_straight_line` (`ir.rs`), which
+  lowering and the inliner read, and an `lmap` the splice would give anything else
+  keeps its call. `dict map` is lowered as a `Foreach` with `is_lmap` and takes
+  both rules; the matrix has it at a site.
+- **D8.43** The wrap stores a braced word as the literal it is (the review's B2).
+  `substitute_irreturn` stored an early `return`'s value, and
+  `wrap_with_irreturn_loop` the implicit value of a body that falls off its end,
+  with an `AssignValue`, whose text the emitter substitutes, where the definition
+  had a braced word: `set r {a\tb}` and `return {a\tb}` answered a tab, and `set r
+  {[string length $x]}` the length, or `can't read "x"`. D8.34 fixed the rename for
+  a braced word and the wrap undid it; the matrix's `vbrace` and `vlit` carry only
+  `$x`, which a token-less `AssignValue` happens not to substitute.
+  `Stored::{Literal, Substituted}` records which the statement was: an
+  `AssignConst` tail and a braced `return` are stored with an `AssignConst`,
+  everything else as before. What the matrix cannot hold is `return {[…]}`: the VM's
+  own compile of it evaluates the brackets, where Tcl 8.6 and 9.0 answer the text,
+  so a splice compared with the definition run as a procedure would be held to a
+  wrong answer, and `a_braced_literal_stays_literal_through_the_wrap` states Tcl's
+  answers instead. This changed one test of the unwired `inline_module`:
+  `implicit_trailing_return_with_early_return_captured` expects the capture as an
+  `AssignConst`.
+- **D8.44** A definition in a namespace of its own is spliced only where names are
+  looked up as it looked them up (the review's B3; D8.33 stands for a definition in
+  the global namespace). D8.33 rooted each call head "from the global namespace,
+  where the definition's own lookup ends", and that holds only for a definition in
+  `::`. A definition in `::vendor` looks `string` up in `::vendor` first; the
+  package that defines it can define `vendor::string` too (tcllib's
+  `::struct::list` and `::struct::set` are this shape), and the command is made
+  when the package runs, so no compile can see it, before or after. `::string`
+  skips it and `string` is the caller's own lookup, a global caller's included, so
+  `proc vendor::vlen {s} {string length $s}` answered `3` spliced and `shadowed` as
+  a procedure for a global caller and for an `app::caller`, whichever side of the
+  compile the shadow was made. `splice_call_site` now asks whether the caller's
+  namespace is the definition's. If it is, nothing is spelled. If the definition is
+  in `::` and the caller is elsewhere, the heads are rooted as D8.33 has it. If the
+  definition is in another namespace and the caller is not in it, the call stays
+  unless `heads::names_a_command` finds nothing in the body: no call head that is
+  not absolute and no command a word or an expression substitutes. What is left is
+  the statements lowering consumed (`set`, `incr`, `expr`, an `if`, `return`), each
+  carrying a binding in the definition's own namespace which the VM holds to the
+  live command (`a_definition_in_a_namespace_resolves_its_commands_as_it_did` shows
+  a `vendor::expr` made later answering for a `vendor::vinc`). The review offered
+  recording a `CommandBindingSite` per head instead and was not followed: the
+  binding names a registry identity, and `command_binding_matches` accepts a
+  builtin, an object command or an alias of one and never a procedure, so a head
+  that is a sibling procedure of the package (the other half of `::struct::list`)
+  could not be held, and the splice would still stand on a name the compile cannot
+  resolve. A namespaced body that calls a builtin is not inlined into a caller
+  outside its namespace; that is a missed optimisation and not a wrong answer. This
+  moved two tests of the unwired `inline_module`:
+  `procedure_caller_can_still_inline_across_namespaces` (the namespaced body names
+  `::puts`) and `a_body_spliced_into_its_own_or_the_global_namespace_keeps_its_spelling`,
+  which asserted the old spelling for a global caller of a body in `::app`
+  (now `a_body_spliced_where_names_are_looked_up_as_its_definition_did_keeps_its_spelling`,
+  with `a_body_in_a_namespace_that_names_a_command_stays_a_call_in_any_other` for
+  the global caller).
+- **D8.45** A command a word or an expression substitutes is held to what the rename
+  reaches (the review's B4). D8.32 said a body reads only what its frame binds
+  "through operands the rename reaches", and the rename reaches a `$name` wherever
+  it stands. A variable handed to a command by name carries no `$`:
+  `[set y]`, `[incr y]`, `[format %s [set x]]` and `expr {[set x] + 1}` passed the
+  frame walk, because the registry's `VarRead` role names `y` and `y` was bound,
+  and the rename left the spelling, which addressed the caller's variable of that
+  name (`1` against `43`, `2` against `1` or `44`, `1` against `can't read "x"`).
+  `inlining/frame.rs` reads each command a word or an expression's text substitutes,
+  in the substitution and in every word of it that substitutes in turn (a braced
+  word too, because `expr` evaluates its braces), and keeps the call unless every
+  one is a command the registry knows works on its values alone — splice-safe
+  (`CommandRegistry::is_splice_safe`) or `PURE` — and names no variable by role: a
+  `string` that writes a variable under `-failindex bad` is not one. A procedure is
+  not, because an `upvar 1` in it reaches the frame it was called from, and neither
+  is `namespace current`. Most of what the gate declines the escape summary had
+  already declined (a procedure, `eval`, `catch`, `if`, `dict`, `file`, `clock`), so
+  the gate's own decisions are the commands that name a variable and the
+  namespace-dependent ones, and the unit tests in `frame.rs` pin the rest of its
+  rule directly.
+- **D8.46** A branch is not made the value of an arm (found by the matrix, with a
+  limit of the code generator's). The code generator answers the empty string for
+  the value of an `if` that ends an arm the procedure answers — `proc p {n} {if {$n}
+  {if {$n < 0} {set r neg} else {set r pos}} else {return zero}}` answers `""` for
+  `p 7` where Tcl answers `pos`, whoever wrote the nested `if` — and a callee whose
+  last command is an `if` or a `switch` with no `return` (`vif`), spliced flat into
+  an arm, gave it exactly that. `rewrite_arm` keeps the call in an arm of an `if` or
+  a `switch` where somebody reads the value, when the rewrite would make the arm end
+  in a branch where it ended in a command; an arm that was a branch before the
+  splice is left to its own rewrite. The code generator is not this step's, and the
+  guard comes out when it answers the value.
+- **D8.47** The operator's project is the outermost one at or above the working
+  directory (the review's S1). D8.39 took `tcl pkg`'s own project, the nearest
+  `tclpkg.tcl`, so the operator who stood inside a vendored dependency
+  (`project/lib/dep-1.0`, with a `tclpkg.tcl` of its own and a `tclpkg.toml` that
+  trusts the package) had made the dependency's manifest the nearest and its
+  `tclpkg.toml` the policy: from `project` the verb refused (exit 1, "not permitted
+  by policy") and from the dependency it ran (exit 0). A `cd` was an opt-in, which
+  is the one thing the policy being the operator's is for. `find_outermost_project_root`
+  (`pkg.rs`) walks every directory at or above the working directory and takes the
+  outermost with a `tclpkg.tcl`; a vendored dependency always sits under the
+  project's own manifest, so the policy is the project's from anywhere inside it.
+  `find_project_root` is the nearest again, private to `tcl pkg`, and `tcl pkg`'s own
+  verbs keep it. The review offered refusing when the nearest manifest's directory
+  lies below another's, and that was not taken: a refusal would stop an operator who
+  stands in a project that is nested in another from running the verb at all, where
+  the outermost gives the answer the vendored case needs and needs no second rule.
+  The cost is the nested project's own: it takes the outer project's policy, which
+  is not the file `tcl pkg trust` writes from inside it, and the KCS note says so.
+  `spec_test_from_inside_a_vendored_dependency_takes_the_projects_policy` runs the
+  verb from `project/vendor/demo`, whose own policy trusts the package: refused until
+  the project's own policy opts it in.
+- **D8.48** An `ambient_package` version is validated, and a row that has none is
+  dropped (the review's N1). Now that the row is a floor (D9.9), `ambient_package
+  Tk junk` made a floor of `junk`: `version_in_any_window` admits no windowed row
+  for it and `compare_versions` orders it leniently against the profile's pin, so
+  the answer depended on where the word happened to sort. `ambient_package_row`
+  asks `tcl_dialect::validate_version`, Tcl's package version grammar, and drops
+  the row with a notice that names the word (``names `junk`, which is not a package
+  version; dropped``), as a row with no version is; the rows beside it stand, and
+  `2.8a1` stays valid.
+  The environment block's `ambient PACKAGE VERSION` already checks its word with
+  `Version::parse`, which is the model's plain version and not the package
+  grammar; it is left as it is. `an_ambient_package_row_whose_version_is_not_a_version_is_dropped`
+  holds the loader to it with `junk` and `4.0.x` beside two good rows.
+- **D9.1** Versioned stamps are `StampWindow<T>` slices mirroring `ArityWindow`:
+  `StampWindow<T> { lifecycle, value }`, each a `&'static [StampWindow<T>]` beside its
+  plain field — `codegen_hook_windows`, `inline_codegen_hook_windows`,
+  `semantic_operation_windows` and `native_lowering_windows` on a command, the first
+  three on a subcommand, which is all the stamps a subcommand has. A form keeps its
+  stamps plain: it is already a shape the call's arguments pick out, and a form's stamp
+  that asks for a window is dropped with a notice and never read as an ungated one.
+  The overlap rule is `Lifecycle::overlaps`, moved out of `ArityWindow::overlaps`
+  (which delegates), so the two window lists cannot disagree about what overlaps.
+- **D9.2** The evidence gate is data on the profile, never a function of its name.
+  `EvaluationEvidence { ReferenceToolchain, MeasuredFork { note }, Unmeasured }` is
+  a field of `DialectProfile`, written out on every catalogue entry, and
+  `evaluation_point()` is `runtime_base` where the evidence is not `Unmeasured`.
+  The plan reads "`runtime_base` when the profile's row in
+  `data/reference-toolchains.tsv` or the profile's own measured-fork note marks it
+  measured" as two sources, and they are two variants: the manifest pins one
+  interpreter for each Tcl release, so the five profiles that are those releases
+  claim it (`is_tcl_release`; a test holds each to a pinned patchlevel, to no
+  vendor surface and to being named for its release), and a fork claims a note that
+  cites the measurement. `TclVersion::from_profile` is `profile.evaluation_point()`
+  where it matched five names, `from_dialect` resolves a name through the catalogue
+  to it, and `const_fold_version` is the same call.
+- **D9.3** Three forks are measured, and not two. The plan's expected deltas name
+  iRules and iApps; the measurement document's §4 table and §4a measure tmsh the
+  same way — patchlevel 8.4.6, every 8.4 / 8.5 discriminator probed behaving as
+  8.4, one parser across the three contexts — so the gate marks it, and a versioned
+  fold under `f5-tmsh` answers as 8.4 too. The profiles that stay out model a base
+  with no measurement behind it, or none: the EDA shells, `expect`, `bpf`,
+  `spectcl`, `sslictcl`, `f5-bigip`, `tk` and the fallback.
+- **D9.4** `TargetSemantics::of` is not behind the gate. B-CC8 recorded that since
+  the value-transfers lane's ruling 8 (D72) the routes read
+  `DialectProfile::runtime_version`, so a gate that holds an unmeasured base back
+  would have to reach `TargetSemantics::of`. It does not: that would change what
+  `expect`, the EDA shells, `bpf` and the SpecTcl hosts answer on every route, a
+  delta the plan does not list, in the value-transfers lane's file. The plan's
+  "`const_ops.rs:325`, unchanged call, new answer" no longer holds either, since
+  that file does not call `from_profile`. The gate is the versioned folds' alone;
+  the design page's "release for versioned evaluation" row says so and names what
+  is left, and whether the routes' unmeasured bases should reach it is the owner's
+  to say.
+- **D9.5** What `from_profile` answers moved other readers, and each is a decision.
+  `tcl registry-dump --all-dialects` took `const_fold_version().is_some()` for
+  "this is a plain Tcl release", which would now snapshot the three forks: it asks
+  `is_tcl_release()`, with a unit test. `tcl-fuzz`'s release spelling went through
+  `from_dialect`, which would now accept `f5-irules` as 8.4: it asks
+  `is_tcl_release()` too, and its test says a fork is not a release a campaign can
+  name. The language server's package view takes `from_dialect(Some(dialect.name))`
+  as its target release: for an iRules, iApps or tmsh document it is 8.4 where it
+  was none, the release those documents run on, and is accepted.
+- **D9.6** The iRules rows found a defect the gate made reachable. The registry's
+  `format` fold, run under 8.4, answered `%.0d` of 0 as `0` where `tclsh8.4` prints
+  nothing — 8.5 changed it, for `%.0x`, `%.0o` and `%.0u` too, and the flags and the
+  width act on what is left — so a plain `tcl8.4` document had folded it wrong all
+  along and the three F5 profiles would now have too. The fold answers the empty
+  digits through 8.4 and declines with no release, as it must where the releases
+  differ. The same run showed that `tcl_value`, the harness's reference, took an
+  error for an empty answer on 8.x: a `tclsh` that reads its script from standard
+  input carries on after an error and exits 0, so it now catches the call and exits
+  1. Neither is the item's file list; both are what an 8.4 row against the real shell
+  is for.
+- **D9.7** The compiler's guard
+  `a_vendor_profile_abstains_from_version_sensitive_const_substitution` said an
+  iRules fold projection "is deliberately unknown until versioned folds are
+  verified for that shell". That is what this item changes, so the test states the
+  new rule: a measured fork folds `format %d 010` as 8 and an unmeasured base
+  leaves it.
+- **D9.8** A floor is a lower bound on the package's own axis, asked the way a
+  lifecycle is asked about a target release. The plan's `PackageFloor { name,
+  version: Option<&str> }` and "`surface_admits` consults a package row's
+  `Lifecycle` against the floor" are as built, with one difference of name: a
+  package row carries `SpecWindow`s, not a `Lifecycle`, and the same half-open
+  reading — `introduced <= floor < retired`, through `version_in_any_window` —
+  answers both. The floor is a promise of *at least* that release, so a row whose
+  window the floor lies in is admitted even though the package may run a later
+  release the row is retired from; an unstated floor admits, as an unstated target
+  does everywhere else (`covers(None)` already said so for a core row); a package the
+  query does not carry admits no row, as before. `same_point` is the comparison "is
+  this the profile's own point", which `==` stopped answering once a registry's query
+  carries floors its profile's does not.
+- **D9.9** Where a floor comes from. A profile names the packages its point carries
+  and no release of them (`PackageFloor::named`): its library pins are keyed by the
+  library's name (`f5-iapps-cmds`, `Expect`), which is not the name a surface row
+  spells (`iapps`, `expect`), and the one pin whose name a row does spell, `Tk`,
+  tracks a base the `tk` profile does not have. So no shipped query carries a floor,
+  and one reaches a query from a pack's `ambient_package NAME VERSION` row, keyed by
+  the name the rows use: for the registry through `CommandRegistry::package_floor`
+  (the stronger of the profile's pin and the pack's declaration, which is the rule
+  `package_floor_for_spec` already had and now shares), and for the resolved context
+  through `pack_ambient_floor`. The context's placement floors are owned `Version`s,
+  and a query lends `&str`, so a context cannot hold them without a leak; they stay
+  with `placement_floor`. What would bridge a surface name to a placement's library
+  name is the vocabulary gap the profile model's pin table already shows, and is not
+  this item's.
+- **D9.10** Whatever is "this registry's own point" asks `own_surface_query()`.
+  Eleven sites spelled it `profile.surface_query()`, which answers the floor-less
+  point while `own_surface_query()` answers the floored one, so a lookup, a
+  projection and a resolver would have disagreed about the same row. They are
+  `spec_for_this_registry`, the two instance-method defaults, `project_for_profile`
+  (which now indexes under the floors, so the physical view is the one the query
+  selects), the format-string, pattern and case-list lookups,
+  `command_binding_transitions` and the realm's `available_spec`; `spec_visible`
+  keeps its operator-command exclusion for the profile's own point by `same_point`.
+  `own_surface_query()` borrows the registry (`SurfaceQuery<'_>`), which one
+  signature in `tcl-compiler` (`LatticeDriver::resolve`) had to say (`'a: 'w`).
+- **D9.11** What is not here. A pack's `available {package NAME RANGE}` still
+  validates the range and drops it, and `declarations_for_spec` still lowers a package
+  row to the package's whole axis, so the assembled `ContextRegistry` admits a
+  windowed row wherever its package is active. The data model can hold the window and
+  its query reads it; the loader building the row, and the lowering intersecting it
+  with the package axis against the axis's primary, are each a change of their own,
+  and the second reads a placement floor the first does not feed (D9.9). The design
+  pages' gap row and D17-P say so.
+- **D9.12** `with_packages` takes `&[PackageFloor]`; the test call sites that passed
+  names pass `PackageFloor::named`, rather than keeping a name-slice overload, so
+  there is one constructor and a test that wants a floor writes `PackageFloor::at`.
+  The eight readers that asked `packages.contains(&"…")` ask `carries("…")`.
+- **D9.13** Selection has three answers, not two. Arity falls back to the plain
+  `arity` when it cannot choose a window, which only gates less; a stamp that cannot be
+  chosen must not be guessed, because a specialisation applied at a release that does
+  not have it emits wrong code. `StampSelection` says `Inherit` (the level states
+  nothing at the point, so the level above answers), `Stamp` (this level's), or
+  `Decline` (the level states windows the point does not settle, and the call is
+  dispatched plain whatever a level above says). A point settles a windowed stamp when
+  it is a Tcl release or the whole Tcl ladder: a windowed stamp is a fact about a
+  release of Tcl, so a query on another family, with no core, or with no query at all
+  declines; at a release the first covering window wins and the plain stamp stands where
+  none does; over the whole ladder — what a query with no pinned release asks about,
+  the plan's "profile spanning 8.6" — the stamp must be the same at every release, so a
+  window opening at 9.0 divides it and declines while a window covering it all does not.
+  A level with no windows answers its plain field and nothing else, whatever the query,
+  which is why no shipped spec moves.
+- **D9.14** Where the selection is read. `resolve_call` selects the codegen and inline
+  hooks at the query it is given and composes form, subcommand and command with
+  `StampSelection::or`; `resolve_invocation` and `resolve_structured_invocation` select
+  the semantic operation, including the intrinsic a windowed codegen or inline hook
+  names, through `level_operation`, which `descriptor_operation` now wraps; the compiler's
+  two readers of `native_lowering()` ask `native_lowering_at` at the registry's own point.
+  The surface-blind questions — `intrinsic_ids`, which a runtime attaches
+  implementations by, and `command_names_for_semantic_operation`, which a whole-module
+  trust proof quantifies over — count every window's stamp, because they must hold at
+  whichever release a module is compiled for. Two things stay on the plain field: the
+  value-transfer derivation (`derive` in `value_transfer/declaration.rs`), which is the
+  value-transfers lane's file and whose entry point `resolve_semantics` carries no
+  query, so a windowed native lowering derives no specialisation, the safe direction;
+  and the plan's "a declared target range disagrees with the primary", which has no
+  reader because no host that compiles takes a declared range (the shared
+  compilation-unit row of the design page). The design page says both.
+- **D9.15** A window must not be a way round the stamp rule or the floor.
+  `codegen_stamps()` is the one list both read, and it now holds a level's plain stamp
+  and every window's value, deduplicated per site, so the tier gate, the capability
+  gate and the `alias_of` target test apply to a windowed stamp unchanged and a refusal
+  drops it from the windows; the clearing is by the refused value, so refusing a window's
+  stamp leaves a different plain stamp alone, which the old unconditional clear would
+  not have. The target test compares a stamp's identity with the target's, not the window
+  it sits in: stamps are admitted only from the compiled catalogue and a bundled pack,
+  which are reviewed, so a window wider than its target's is a review matter and not a
+  loader one, and the page says so. The security floor takes the shipped windows over
+  an override's wherever the shipped command carries the stamp at all, plain or in a
+  window, because a window selected at one release is a swap at that release; where the
+  shipped command carries none the override's stand, as its plain fields do. The drift test
+  `every_security_bearing_field_is_in_the_floor` needed the four names added to its scan,
+  since two of them carry none of the words it looks for.
+- **D9.16** The loader's spelling. `codegen_hook -native ID -introduced V ?-deprecated V?
+  ?-retired V?` and the same flags on `inline_codegen_hook` and `semantic_operation`, at
+  command and subcommand scope: a flagged row is a window and an unflagged one the plain
+  stamp, so a body can write both and several windows. They are vocabulary 2.2 — the
+  newest the loader knows, from the value-transfers lane — and are noticed per site under
+  an older declaration; the DSL README's changelog and tables say so (its "current
+  vocabulary" line, which still said 2.1, is corrected). An impossibly ordered window is
+  dropped and not widened: an arity window degrades to the plain arity, which only gates
+  less, but a stamp applied at a release its author never meant it for specialises there.
+  Overlapping windows keep the first and notice the later, as arity's do. A form's stamp
+  with a window is dropped with a notice, not read as ungated, and an unknown flag on a
+  stamp statement is now a notice where trailing words were ignored, because a mistyped
+  `-introduced` would otherwise leave the row ungated and wide. There is no containment
+  check against the owner's lifecycle, as arity windows have: a stamp window is on the Tcl
+  core's axis and a package-owned command's lifecycle is on its package's, so the check
+  would compare releases of two different things. `native_lowering` has no pack spelling,
+  so its windows have none.
+- **D9.17** The studio's four layers carry the windows as they carry `arity_windows`: a
+  `RustExpr` schema key each, seeded as `[{value, lifecycle}]` in the draft (a hook's
+  value is its catalogue variant, an operation's its `{kind, detail}`), rendered as the
+  rows the loader reads, with help, a cluster and a worked example each, and the
+  coverage witnesses' exhaustive patterns and tables updated, which is what forced it.
+  `native_lowering_windows` is what `native_lowering` is: unrecoverable in the draft and
+  excluded from the render. The windows are not emitted into the rendered `.rs`, as
+  `arity_windows` are not (a `RustExpr` takes a string).
+- **D9.18** The scratch dump (`rust/tcl-registry/examples/dump_specs.rs`) says
+  `has_codegen` for a command that carries a hook only in a window, and the doc
+  comments that described these fields as the plain ones were rewritten where they were
+  edited anyway; the splice of `intrinsic_ids`'s and `native_lowering`'s doc comments in
+  `spec.rs`, which put half of one into the other, is repaired.
 - **D10.1** The authored header is `runtime/rust/include/tcl.h` (the ABI
   § 4.1 places it with the runtime); the shim includes it by path.
+- **D10.2** The default leaves the command-table, transition and world-effect
+  axes undeclared. The plan reads `command_table_effect: Some(Unknown)`.
+  `CommandTableEffect` has no `Unknown` (its words are `DefinesProcedure`,
+  `RenamesCommands` and `CreatesAliases`), and a command with no state-transition
+  descriptor already resolves to `StateTransitionKnowledge::UnknownInvocation`,
+  the wildcard every consumer reads as a possible change to every identity
+  domain; the registry's own fixture says the explicit empty descriptor, not
+  missing metadata, is what proves a command closed. A closed statement of an
+  unknown rebinding (`CommandBindingTransition::Unknown`, with the binding
+  domains widened) would be narrower than that wildcard: a call with no argument
+  has no subject to widen on, and the interpreter, variable-trace and object
+  domains are not among the three a binding move widens. So
+  `CommandSpec::extension_default` declares none of `command_table_effect`,
+  `state_transitions` and `world_effects`, and the sweep test asserts the resolved
+  invocation is `UnknownInvocation` with a world barrier. `completion` is stated
+  (`CompletionDescriptor::CONSERVATIVE`, which is also what omitting it resolves
+  to), so the default says it once.
+- **D10.3** A stub says it is an extension's by a flag, `-extension`. The plan's
+  "a stub for a name a `load`-provided package declares starts from the default:
+  the `provides` directive / extra-commands path" names no mechanism:
+  `# tcl-lsp: package NAME provides PKG` is an edge between packages (what a
+  loader pulls in behind the analyser's back), and `extra_commands` is a list of
+  names with nowhere to state a fact. A flag is what a stub line can carry, it is a
+  workspace-authored fact like the other six (the third ruling), and it leaves a
+  stub without it exactly as it was. The studio's stub renderer does not write it
+  yet: it reads a draft's traits as flags, so a host-native draft renders as
+  `-barrier -mutator -unsafe`, the same conservative reading on the axes those
+  flags cover.
+- **D10.4** "Narrowed axis by axis": a statement of effects — `PURE`, or a side
+  effect of its own, which is what `-pure` and `-mutator` state — replaces the
+  effect axes (code evaluation, traces, and the unknown read and write) by what it
+  states; every other axis stays unless the declaration states it; and the traits it
+  states are added whether or not they narrow anything. Reason:
+  `classify_declared` reads a code-evaluation trait before purity, so a pure
+  command that stayed an evaluator would be a stub whose `-pure` does nothing, and
+  a command that is pure, or that only rewrites its target, evaluates no code. The
+  plan's negative ("narrowing `-pure` clears only purity") holds for the axes that
+  are not effects: taint and safety stay, which the end-to-end test shows through
+  W129. A stated `-barrier` survives a stated effect.
+- **D10.5** A declared command carries traits and side effects, the two facts
+  `DocumentCommandSurface` answers. The default's completion and transition axes are
+  the registry spec's, and a name the document declares and the catalogue does not
+  know already reads conservatively on both, so nothing is lost for a stub. The
+  taint analysis reads the catalogue alone (as the optimiser's elimination gate,
+  GVN, SSA's barrier walk and memory SSA still do; `dialect-stubs.md` says so), so
+  an `-extension` stub is not yet a taint source or sink to it.
 
 ### Open questions for the owner
 

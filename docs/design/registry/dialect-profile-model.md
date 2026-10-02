@@ -54,8 +54,9 @@ BIG-IP version `dict` / `lassign` (8.5), `lmap` / `throw` / `yieldto` (8.6),
 `zipfs` (9.0) are absent.
 
 `signature_base` and `runtime_base` stay structurally distinct (§7.1) even
-where both read `V8_4`: `DialectProfile::const_fold_version` and
-`expr_grammar_base` are different projections.
+where both read `V8_4`: `DialectProfile::evaluation_point` and
+`expr_grammar_base` are different projections. The 8.4 is measured (§2.1), so a
+versioned fold under iRules answers as Tcl 8.4 does.
 
 ### 1.2 The crate-layering constraint
 
@@ -111,6 +112,23 @@ operator-head filter and the version guard a bare point cannot express.
 For every ordinary Tcl version these are equal; they are never collapsed
 into one scalar (§7.1).
 
+A third fact says whether a fold may use the runtime base at all.
+`runtime_base` names the release a profile's runtime was *modelled* on, and
+nothing in it says the model was compared with the real thing. `evaluation_evidence`
+does: `DialectProfile::evaluation_point()` answers `runtime_base` where it is
+`ReferenceToolchain` (the profile is a Tcl release, and
+`rust/tcl-dialect/data/reference-toolchains.tsv` pins an interpreter for it that
+the differential suites run) or `MeasuredFork` (a vendor fork measured on the real
+environment, with a note naming the record: iRules, iApps and tmsh, each reporting
+patchlevel 8.4.6 and failing every 8.5 discriminator probed,
+`docs/design/f5/bigip-irule-parser-measurements.md` §4 and §4a), and `None` where
+it is `Unmeasured` (the EDA shells, `expect`, `bpf`, the SpecTcl hosts, the
+permissive fallback and `tk`). The versioned folds (`const_fold_versioned`, and
+the `tcl-version` key a pack's hook is given) read it through
+`TclVersion::from_profile`, so a fold under an unmeasured base keeps to the answer
+every modelled release gives. The gate is decided per measured row and never by a
+profile's name. The value-transfer routes read `runtime_version` instead
+(`TargetSemantics::of`), which is `runtime_base` for every profile that has one.
 ### 2.2 Rust types — availability axis
 
 Both axes are flat fields of one `DialectProfile` struct
@@ -147,8 +165,10 @@ pub struct DialectProfile {
     /// the plain Tcl-version profiles, the EDA shells, and the fallback.
     pub vendor_surface: Option<SpecProvider>,
     /// The packages this profile's own point carries — its vendor package,
-    /// or `Tk` for the `tk` ingress profile. Empty for plain Tcl.
-    pub surface_packages: &'static [&'static str],
+    /// or `Tk` for the `tk` ingress profile — each named with no floor: a
+    /// registry that knows a release of one states it on its own query.
+    /// Empty for plain Tcl.
+    pub surface_packages: &'static [PackageFloor<'static>],
     /// The command surfaces `load_surface` applies, in order. Empty only
     /// for the fallback profile.
     pub base_layers: &'static [SurfaceLayer],
@@ -169,6 +189,20 @@ surface) and `surface_packages`:
 ```rust
 pub fn surface_query(&self) -> SurfaceQuery<'static>;
 ```
+
+A query's packages are `PackageFloor { name, version }` rows: the package, and
+the lowest release of it the context guarantees, if one is stated. A spec's
+package row can carry windows on the package's own axis, and it is admitted
+when the floor lies in one — `introduced <= floor < retired`, the way a
+lifecycle is asked about a target release. A package carried with no floor
+admits every window, because a floor nobody stated cannot rule a row out; a
+package the query does not carry admits no row. A registry's own query takes
+each floor from the `ambient_package` rows its packs declared and from the
+profile's library pin, the stronger of the two; a resolved context's query
+takes the packs' rows alone. The floor refines a package already in the point
+and never adds one, and two queries are the same point
+(`SurfaceQuery::same_point`) when they carry the same core and the same
+packages, whatever floors those carry.
 
 There is **no `disabled_commands` field.** iRules availability is explicit
 per spec instead — §9.
@@ -207,6 +241,7 @@ The remaining fields of the same struct:
     pub tcloo: bool,                        // explicit; invariant-tested vs the point (§11.2)
     pub has_fixed_ensembles: bool,          // {f5-irules, f5-iapps, f5-bigip} only
     pub vm_runtime_version: TclVersion,     // = runtime_base; V9_0 when inert
+    pub evaluation_evidence: EvaluationEvidence, // ReferenceToolchain | MeasuredFork | Unmeasured
 
     // ---- AXIS C: versioned libraries (§7.1) ----
     pub libraries: &'static [LibraryPin],
@@ -279,8 +314,8 @@ There is **no `mathfunc_ceiling` field.** The mathfunc tier is derived per
 call by `tcl_expr_eval::math_func_ceiling_for_dialect` in `tcl-compiler`,
 keyed on the dialect name (§5.4).
 
-`is_irules`, `is_fallback` and `const_fold_version` are methods, not
-fields.
+`is_irules`, `is_fallback`, `evaluation_point`, `is_tcl_release` and
+`const_fold_version` are methods, not fields.
 
 Every field is written out literally in the catalogue rather than computed
 at construction — a `static` array cannot run derivation code — so the
@@ -603,7 +638,8 @@ the table.
 | `p.leading_zero_is_octal` | the octal rule, three-valued (§11.1). `CommandRegistry::octal_fold_policy` answers from it when the registry carries a profile |
 | `p.expr_grammar_base` | TIP 201 (`in` / `ni`, 8.5+) and TIP 461 (`lt` / `le` / `gt` / `ge`, 9.0+) gating |
 | `p.runtime_base` | the evaluation-semantics version |
-| `p.const_fold_version()` | the version const-folding evaluates at |
+| `p.evaluation_point()` / `p.const_fold_version()` | the release a compile-time fold evaluates under: `runtime_base` where `evaluation_evidence` says it was measured, `None` otherwise (§2.1) |
+| `p.is_tcl_release()` | whether the profile is a Tcl release itself, with an interpreter pinned for it in `data/reference-toolchains.tsv` |
 | `p.grammar` | the lexing grammar — the point's, for a profile projected from one (§2.5) |
 | `p.has_fixed_ensembles` / `p.is_irules()` / `p.operators_as_commands` / `p.tcloo` | the predicates that replace open-coded dialect-name matches and the minifier's prefix-shortening gate |
 | `p.effective_tcl_version(package_floor)` | the version the argument-DSL validators consult (§6) |
@@ -753,6 +789,11 @@ profile values must satisfy, enforced by the invariant tests in
   (TIP 114/472).
 - `expr_grammar_base = runtime_base`. `None` means the validators return
   only the dialect-invariant subset.
+- `evaluation_point` is `runtime_base` where `evaluation_evidence` is
+  `ReferenceToolchain` or `MeasuredFork`, and `None` where it is `Unmeasured`;
+  `ReferenceToolchain` belongs to exactly the five profiles that are Tcl releases,
+  one for each row of `data/reference-toolchains.tsv`, and an evaluation point is
+  never any release but the runtime base.
 - `vm_runtime_version = runtime_base`, falling back to `V9_0` for a profile
   with no runtime base.
 - `tcloo` is **explicit per profile**, invariant-tested against the point

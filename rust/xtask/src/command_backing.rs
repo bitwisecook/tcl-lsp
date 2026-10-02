@@ -255,9 +255,11 @@ fn declared_label(declared: RuntimeBacking) -> String {
         RuntimeBacking::ShippedBuiltin { .. } => "shipped-builtin".to_owned(),
         RuntimeBacking::TclBody {
             source: BodySource::PackageSource { relative_path },
+            ..
         } => format!("tcl-body {relative_path}"),
         RuntimeBacking::TclBody {
             source: BodySource::PackText { .. },
+            ..
         } => "tcl-body (pack text)".to_owned(),
         RuntimeBacking::HostNative => "host-native".to_owned(),
         RuntimeBacking::None => "none".to_owned(),
@@ -291,6 +293,7 @@ fn stand(command: &CoreCommand, wasm: RegisteredBacking) -> Standing {
         }
         RuntimeBacking::TclBody {
             source: BodySource::PackageSource { relative_path },
+            ..
         } => match wasm {
             RegisteredBacking::Stdlib { file } if file == relative_path => Standing::Backed,
             _ => disagree("the embedded library must define it from that file"),
@@ -591,7 +594,7 @@ mod tests {
     };
     use crate::util::repo_root;
     use std::collections::{BTreeMap, BTreeSet};
-    use tcl_registry::{BodySource, RuntimeBacking};
+    use tcl_registry::RuntimeBacking;
     use tcl_runtime_api::{BackingReport, RegisteredBacking};
 
     fn command(name: &'static str, declared: RuntimeBacking) -> CoreCommand {
@@ -712,11 +715,7 @@ mod tests {
     fn a_declared_library_body_must_be_reported_from_that_file() {
         let body = command(
             "no_such_core_command",
-            RuntimeBacking::TclBody {
-                source: BodySource::PackageSource {
-                    relative_path: "init.tcl",
-                },
-            },
+            RuntimeBacking::package_source("init.tcl"),
         );
         assert_eq!(
             stand(&body, RegisteredBacking::Stdlib { file: "init.tcl" }),

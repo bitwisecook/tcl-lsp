@@ -5156,6 +5156,162 @@ fn case_selection_runs_tcl_case_obj_cmd() {
     );
 }
 
+/// A pack's `vendor::double`, backed by a Tcl body of `body`'s text that its
+/// author asserts may be evaluated, for a workspace the load trusts.
+fn reference_pack(command_rows: &str, body: &str) -> tcl_spectcl::pack::PackSet {
+    asserting_pack(command_rows, body, " -evaluate")
+}
+
+/// The same, with `flag` after the body: the author's assertion, or nothing.
+fn asserting_pack(command_rows: &str, body: &str, flag: &str) -> tcl_spectcl::pack::PackSet {
+    let source = format!(
+        "speclib vendor 2.0 {{\n    command vendor::double {{\n        arity 1\n        \
+         {command_rows}\n        runtime_backing tcl-body {{-pack-text {{{body}}}{flag}}}\n    }}\n}}\n"
+    );
+    tcl_spectcl::pack::load_in_memory(vec![(
+        tcl_spectcl::discovery::PackFile {
+            tier: tcl_spectcl::discovery::Tier::Workspace,
+            path: std::path::PathBuf::from("vendor.tclspec"),
+            origin: tcl_spectcl::discovery::Origin::Setting,
+            dependency_tier: None,
+        },
+        source,
+    )])
+}
+
+/// A command a pack backs with a Tcl body its author asserts may be evaluated
+/// (`-evaluate`) is, when the sandbox can express the body, a declared
+/// implementation the driver runs as it runs any other: the route is the
+/// implementation route, its capability reads one exact operand for each of the
+/// body's parameters, and the pack's hook list holds the body the host will run.
+/// The same command with a body that reaches for the frame (`upvar`) derives
+/// nothing and says why; so does one whose declared arity is not the body's
+/// parameters, and one whose author stated its evaluation.
+#[test]
+fn a_reference_body_is_a_declared_implementation_when_the_sandbox_can_express_it() {
+    use tcl_registry::pack_hooks::HookFamily;
+
+    let derived = reference_pack("", "proc vendor::double {x} {expr {$x * 2}}");
+    assert!(
+        !derived
+            .notices
+            .iter()
+            .any(|notice| notice.message.contains("`-evaluate` asks")),
+        "{:?}",
+        derived.notices
+    );
+    let command = &derived.packs[0].commands[0];
+    let SemanticsDeclaration::Declared(declared) = command.spec.semantics else {
+        panic!(
+            "the body derives a declaration: {:?}",
+            command.spec.semantics
+        );
+    };
+    let EvalRoute::Implementation(capability) = declared.route() else {
+        panic!("the implementation route: {:?}", declared.route());
+    };
+    assert_eq!(capability.identity.id, "vendor::double.reference");
+    assert_eq!(
+        capability.inputs,
+        &[DeclaredInput::Operand {
+            index: 0,
+            exactness: Exactness::Exact
+        }]
+    );
+    assert_eq!(capability.host, HostKind::BoundedTcl);
+    assert_eq!(capability.completion, CompletionSupport::NormalOnly);
+    let [hook] = &command.hooks[..] else {
+        panic!("one hook body: {:?}", command.hooks);
+    };
+    assert_eq!(hook.family, HookFamily::Evaluate);
+    let tcl_spectcl::loader::HookSource::Body { params, body, .. } = &hook.source else {
+        panic!("a Tcl body: {:?}", hook.source);
+    };
+    assert_eq!(params, &["x".to_owned()]);
+    assert_eq!(body, "fold [\nexpr {$x * 2}\n]");
+
+    // The negative: a body that reaches for the caller's frame derives nothing,
+    // the command keeps the declaration it had, and the load says which command
+    // the sandbox would not take.
+    let upvar = reference_pack("", "proc vendor::double {x} {upvar 1 $x y; expr {$y * 2}}");
+    let command = &upvar.packs[0].commands[0];
+    assert!(
+        matches!(command.spec.semantics, SemanticsDeclaration::Inherited),
+        "{:?}",
+        command.spec.semantics
+    );
+    assert!(command.hooks.is_empty(), "{:?}", command.hooks);
+    assert!(
+        upvar
+            .notices
+            .iter()
+            .any(|notice| notice.message.contains("`upvar`")
+                && notice.context == "command vendor::double"),
+        "{:?}",
+        upvar.notices
+    );
+
+    // A body for another arity than the command declares would answer a call the
+    // declaration admits without being given its arguments.
+    let source = "speclib vendor 2.0 {\n    command vendor::double {\n        arity 1..2\n        \
+                  runtime_backing tcl-body {-pack-text {proc vendor::double {x} {expr {$x * 2}}} -evaluate}\n    }\n}\n";
+    let wide = tcl_spectcl::pack::load_in_memory(vec![(
+        tcl_spectcl::discovery::PackFile {
+            tier: tcl_spectcl::discovery::Tier::Workspace,
+            path: std::path::PathBuf::from("vendor.tclspec"),
+            origin: tcl_spectcl::discovery::Origin::Setting,
+            dependency_tier: None,
+        },
+        source.to_owned(),
+    )]);
+    assert!(wide.packs[0].commands[0].hooks.is_empty());
+    assert!(
+        wide.notices
+            .iter()
+            .any(|notice| notice.message.contains("another arity")),
+        "{:?}",
+        wide.notices
+    );
+
+    // What the author states, stands: `semantics none` abstains for the command,
+    // and no body is derived under it.
+    let declined = reference_pack("semantics none", "proc vendor::double {x} {expr {$x * 2}}");
+    let command = &declined.packs[0].commands[0];
+    assert!(matches!(
+        command.spec.semantics,
+        SemanticsDeclaration::Declined
+    ));
+    assert!(command.hooks.is_empty(), "{:?}", command.hooks);
+}
+
+/// The negative the derivation turns on: a body its author did not assert is not
+/// run, however plainly the sandbox could, and nothing is said of it.
+#[test]
+fn a_body_nobody_asserted_is_not_derived_from_however_plain_it_is() {
+    use tcl_registry::value_transfer::SemanticsDeclaration;
+
+    for body in [
+        "proc vendor::double {x} {expr {$x * 2}}",
+        "proc vendor::double {x} {upvar 1 $x y; expr {$y * 2}}",
+    ] {
+        let silent = asserting_pack("", body, "");
+        let command = &silent.packs[0].commands[0];
+        assert!(
+            matches!(command.spec.semantics, SemanticsDeclaration::Inherited),
+            "{body}: {:?}",
+            command.spec.semantics
+        );
+        assert!(command.hooks.is_empty(), "{body}: {:?}", command.hooks);
+        assert!(
+            !silent
+                .notices
+                .iter()
+                .any(|notice| notice.message.contains("`-evaluate` asks")),
+            "{body}: {:?}",
+            silent.notices
+        );
+    }
+}
 /// The existence fact of a place the rung proves bound as `kind`.
 fn bound_as(kind: tcl_registry::value_transfer::BindingKind) -> FactView {
     FactView::Domain(tcl_registry::value_transfer::DomainFact::Existence(

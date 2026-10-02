@@ -133,7 +133,12 @@ const EMBEDDED_PACKS: &[(&str, &str)] = &[
 /// but every notice still needs *a* path to report against.
 #[must_use]
 pub fn load_embedded() -> PackSet {
-    crate::pack::load_sources(embedded_sources(), Vec::new(), WorkspaceTrust::Trusted)
+    crate::pack::load_sources(
+        embedded_sources(),
+        Vec::new(),
+        WorkspaceTrust::Trusted,
+        None,
+    )
 }
 
 /// [`EMBEDDED_PACKS`] as loader sources.
@@ -250,7 +255,7 @@ pub fn load_discovered_in(
                 .filter(|(file, _)| !file.path.file_name().is_some_and(|n| mounted.contains(n))),
         );
     }
-    crate::pack::load_sources(sources, notices, trust)
+    crate::pack::load_sources(sources, notices, trust, Some(store))
 }
 
 /// [`packs`]'s resolution, factored out so a test can drive it with an

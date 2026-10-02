@@ -216,6 +216,35 @@ pub(crate) fn arity_windows(windows: &[tcl_registry::arity::ArityWindow]) -> Val
     )
 }
 
+/// One list of [`tcl_registry::stamp_window::StampWindow`]s as a draft value —
+/// the stamps a command or subcommand carries over spans of the Tcl releases,
+/// each as the value the plain stamp's own draft key holds.
+pub(crate) fn stamp_windows<T: Copy>(
+    windows: &[tcl_registry::stamp_window::StampWindow<T>],
+    value: impl Fn(T) -> Value,
+) -> Value {
+    Value::Array(
+        windows
+            .iter()
+            .map(|window| {
+                json!({
+                    "value": value(window.value),
+                    "lifecycle": {
+                        "introduced": opt_str(window.lifecycle.introduced),
+                        "deprecated": opt_str(window.lifecycle.deprecated),
+                        "retired": opt_str(window.lifecycle.retired),
+                    },
+                })
+            })
+            .collect::<Vec<_>>(),
+    )
+}
+
+/// A hook id as the draft holds it: its catalogue variant's name.
+fn hook_name<T: std::fmt::Debug + Copy + 'static>(hook: T) -> Value {
+    json!(catalogue::variant_name(&hook))
+}
+
 fn appended_arity(value: AppendedArity) -> Value {
     match value {
         AppendedArity::Exactly(n) => json!({ "kind": "Exactly", "n": n }),
@@ -1420,7 +1449,8 @@ fn semantic_type_word(semantic: SemanticType) -> String {
 /// option row.
 /// Those two shapes stay `lost`, exactly as a shipped, compiled-in
 /// specialisation — nameable by [`tcl_registry::value_transfer::CommandSemantics::identity`],
-/// never reconstructable — already was.
+/// never reconstructable — already was. An implementation derived from the
+/// command's reference body is neither: the body is on the `runtime_backing` row.
 fn semantics_value(declaration: SemanticsDeclaration, lost: &mut Unrecovered) -> Value {
     let declared = match declaration {
         SemanticsDeclaration::Inherited => return Value::Null,
@@ -1437,6 +1467,15 @@ fn semantics_value(declaration: SemanticsDeclaration, lost: &mut Unrecovered) ->
         DeclaredEvaluation::Implementation(_)
             | DeclaredEvaluation::Route(EvalRoute::Implementation(_))
     );
+    // An implementation the registry derived from the command's reference body
+    // is not the draft's to carry: the `runtime_backing` row holds the body it
+    // came from, and the next load derives it again.
+    if has_body
+        && declared.option_declines.is_empty()
+        && tcl_registry::value_transfer::reference_body::is_derived(declared)
+    {
+        return Value::Null;
+    }
     if has_body || !declared.option_declines.is_empty() {
         lost.note("semantics");
         return Value::Null;
@@ -1511,6 +1550,12 @@ fn subcommand_hooks(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
         semantic_operation(sub.semantic_operation),
     );
     d.insert(
+        "semantic_operation_windows".into(),
+        stamp_windows(sub.semantic_operation_windows, |operation| {
+            semantic_operation(Some(operation))
+        }),
+    );
+    d.insert(
         "completion".into(),
         lost.expr("completion", sub.completion.is_some()),
     );
@@ -1528,6 +1573,14 @@ fn subcommand_hooks(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
         "inline_codegen_hook".into(),
         sub.inline_codegen_hook
             .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
+    );
+    d.insert(
+        "codegen_hook_windows".into(),
+        stamp_windows(sub.codegen_hook_windows, hook_name),
+    );
+    d.insert(
+        "inline_codegen_hook_windows".into(),
+        stamp_windows(sub.inline_codegen_hook_windows, hook_name),
     );
     d.insert("semantics".into(), semantics_value(sub.semantics, lost));
     d.insert(
@@ -1858,6 +1911,13 @@ fn command_identity(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         "native_lowering".into(),
         lost.expr("native_lowering", spec.native_lowering.is_some()),
     );
+    d.insert(
+        "native_lowering_windows".into(),
+        lost.expr(
+            "native_lowering_windows",
+            !spec.native_lowering_windows.is_empty(),
+        ),
+    );
     d.insert("semantics".into(), semantics_value(spec.semantics, lost));
     d.insert(
         "clause_shape_check".into(),
@@ -1984,6 +2044,12 @@ fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         semantic_operation(spec.semantic_operation),
     );
     d.insert(
+        "semantic_operation_windows".into(),
+        stamp_windows(spec.semantic_operation_windows, |operation| {
+            semantic_operation(Some(operation))
+        }),
+    );
+    d.insert(
         "completion".into(),
         lost.expr("completion", spec.completion.is_some()),
     );
@@ -2001,6 +2067,14 @@ fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         "inline_codegen_hook".into(),
         spec.inline_codegen_hook
             .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
+    );
+    d.insert(
+        "codegen_hook_windows".into(),
+        stamp_windows(spec.codegen_hook_windows, hook_name),
+    );
+    d.insert(
+        "inline_codegen_hook_windows".into(),
+        stamp_windows(spec.inline_codegen_hook_windows, hook_name),
     );
     d.insert(
         "analyser_hook".into(),
@@ -2480,6 +2554,42 @@ mod tests {
         });
         assert_eq!(draft["semantics"], Value::Null);
         assert_eq!(draft[UNRENDERABLE_KEY], json!(["semantics"]));
+    }
+
+    /// An implementation the registry derived from a command's reference body is
+    /// not a field the draft loses: the body and the author's `-evaluate` that
+    /// asked for it are on the `runtime_backing` row, which the draft carries, and
+    /// the next load derives it again. The test above is the control: one a pack
+    /// wrote stays lost.
+    #[test]
+    fn a_derived_implementation_is_not_lost_in_a_draft() {
+        use tcl_registry::value_transfer::SemanticsDeclaration;
+
+        let source = "speclib vendor 2.0 {\n    command vendor::double {\n        arity 1\n        \
+                      runtime_backing tcl-body {-pack-text {proc vendor::double {x} {expr {$x * 2}}} -evaluate}\n    }\n}\n";
+        let set = tcl_spectcl::pack::load_in_memory(vec![(
+            tcl_spectcl::PackFile {
+                tier: tcl_spectcl::Tier::Workspace,
+                path: std::path::PathBuf::from("vendor.tclspec"),
+                origin: tcl_spectcl::discovery::Origin::Setting,
+                dependency_tier: None,
+            },
+            source.to_owned(),
+        )]);
+        let spec = set.packs[0].commands[0].spec;
+        assert!(
+            matches!(spec.semantics, SemanticsDeclaration::Declared(_)),
+            "the load derives an implementation: {:?}",
+            spec.semantics
+        );
+        let draft = from_command_spec(spec);
+        assert_eq!(draft["semantics"], Value::Null);
+        assert_eq!(draft[UNRENDERABLE_KEY], json!([]), "{draft:?}");
+        let backing = draft["runtime_backing"].to_string();
+        assert!(
+            backing.contains("proc vendor::double") && backing.contains("-evaluate"),
+            "the body and the assertion are on the row the draft carries: {backing}"
+        );
     }
 
     #[test]

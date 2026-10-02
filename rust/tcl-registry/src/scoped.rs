@@ -466,6 +466,12 @@ const TCLPKG_MANIFEST_COMMANDS: &[ScopedCommand] = &[
         "declarative build script (never auto-run)",
         "build <script.tcl> ?-network?",
     ),
+    manifest_directive(
+        "spec",
+        Arity::exact(1),
+        "the .tclspec packs the package ships and the tier it asks for them at (data only)",
+        "spec {packs {<file.tclspec> ...} ?tier root|direct|transitive|development?}",
+    ),
 ];
 
 /// The whole-file environment of a `tclpkg.tcl` package manifest.

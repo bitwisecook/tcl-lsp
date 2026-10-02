@@ -100,9 +100,19 @@ passes, and ownership matrices.
   `runtime_backing` to the WASM runtime's answer), the intrinsic table split
   by family, and the artefact manifest with the runtime's context pin (a
   compiled module states the world it was compiled for, and the VM refuses,
-  per rung, the sites that rest on a field that disagrees), **built**; the
-  rest — rungs 3 and 4 of a pack claim reaching emitted code, and the
-  dialect, package, and C-extension follow-ons — **not built**.
+  per rung, the sites that rest on a field that disagrees), **built**; rung 3
+  of a pack claim (a Tcl-body reference body inlined into the procedures that
+  call it, claimed on the binding that holds the live command to that text,
+  and, where its author asks, derived into the command's declared
+  implementation where the sandbox can run it), `tcl spec test`, and the
+  manifest's `spec` directive with its tier clamp and the lockfile's
+  `spec_integrity`, **built**; the codegen axis versioned (a stamp's ordered
+  windows, selected at the release a call is resolved at and declined to plain
+  dispatch where the point does not settle one), a vendor environment's
+  evaluation point read through an evidence gate, and the package floors a
+  surface query carries, **built**; the rest — rung 4's shipped implementation
+  and the identity kind codegen chooses from the backing, and the C-extension
+  follow-ons — **not built**.
 - [value-transfers-review.md](compiler/value-transfers-review.md) — review
   of the value-transfer and consumer-contract proposals: registry-owned
   specialisation, shared expression/regexp evaluation, correctness findings,

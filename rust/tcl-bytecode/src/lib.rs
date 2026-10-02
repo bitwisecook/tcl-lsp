@@ -1515,9 +1515,9 @@ impl FunctionAsm {
     ///
     /// Generic dispatch, rung 0, is always among them: every function's words
     /// were decoded under the release it was compiled for. A pack-fact claim
-    /// is rung 1, a builtin-alias claim rung 2, an inlined procedure body
-    /// rung 3, and a specialisation resting on a shipped implementation's
-    /// identity — every command binding — rung 4.
+    /// is rung 1, a builtin-alias claim rung 2, a reference-body claim or an
+    /// inlined procedure body rung 3, and a specialisation resting on a
+    /// shipped implementation's identity — every command binding — rung 4.
     #[must_use]
     pub fn rungs(&self) -> tcl_runtime_api::RungSet {
         use tcl_runtime_api::{Rung, SiteClaim};
@@ -1527,6 +1527,7 @@ impl FunctionAsm {
             rungs = rungs.with(match claim {
                 SiteClaim::PackFacts(_) => Rung::PackFacts,
                 SiteClaim::BuiltinAlias { .. } => Rung::BuiltinAlias,
+                SiteClaim::ReferenceBody { .. } => Rung::ReferenceBody,
             });
         }
         if !self.procedure_bindings.is_empty() {
@@ -2399,7 +2400,7 @@ mod tests {
     #[test]
     fn a_functions_rungs_are_read_off_what_it_records() {
         use tcl_runtime_api::{
-            CommandBindingIdentity, ProcedureBindingIdentity, Rung, RungSet, SiteClaim,
+            BackingKind, CommandBindingIdentity, ProcedureBindingIdentity, Rung, RungSet, SiteClaim,
         };
 
         let generic = RungSet::of(Rung::Generic);
@@ -2428,6 +2429,20 @@ mod tests {
                 "return OLD",
             ));
         assert_eq!(inlined.rungs(), generic.with(Rung::ReferenceBody));
+
+        // A reference-body claim is rung 3 whatever else the function records.
+        let mut referenced = FunctionAsm::default();
+        referenced.site_claims.push(SiteClaim::ReferenceBody {
+            procedure: ProcedureBindingIdentity::new(
+                "vendor::double",
+                "::vendor::double",
+                "x",
+                "x",
+            ),
+            backing: BackingKind::TclBody,
+            facts: pack_stamp("vendor", 1),
+        });
+        assert_eq!(referenced.rungs(), generic.with(Rung::ReferenceBody));
 
         let mut specialised = FunctionAsm::default();
         specialised

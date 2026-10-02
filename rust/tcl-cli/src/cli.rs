@@ -630,6 +630,40 @@ pub enum SpecCommand {
     /// total and contraction is never attempted — a program is not recovered
     /// from its expansion.
     Export(SpecExportArgs),
+
+    /// Hold a pack's declared facts to the Tcl package they describe.
+    ///
+    /// The package is required in a real shell — under the package manager's
+    /// opt-in policy, because that runs the package's own code — and every
+    /// command the pack declares is asked what the pack says of it: that the
+    /// package defines it, its arity against the shell's `wrong # args`, each
+    /// `example` row against the answer and the declared `return_type`, a
+    /// Tcl-body reference body against the command on the same inputs, and a
+    /// `pure` command against a write trace on every variable of every
+    /// namespace and the variables it created. One row is printed per
+    /// divergence, and the exit status is 1 if there is any, or if the shell
+    /// stopped before it had asked every command. The policy that opts the
+    /// package in is the operator's project's, found from the working
+    /// directory. Nothing here runs at editor load.
+    Test(SpecTestArgs),
+}
+
+/// Flags of `tcl spec test`.
+#[derive(Debug, Args)]
+pub struct SpecTestArgs {
+    /// The `.tclspec` file to test.
+    #[arg(value_name = "PACK")]
+    pub pack: PathBuf,
+
+    /// The Tcl shell that runs the package: the `tclsh` of `TCL_VENV`, or the
+    /// newest on `PATH`, when absent. Reach the package with `TCLLIBPATH`.
+    #[arg(long, value_name = "PATH")]
+    pub tclsh: Option<PathBuf>,
+
+    /// The Tcl package to `package require` first. Absent, it is the package
+    /// every command of the pack names with `required_package`.
+    #[arg(long, value_name = "NAME")]
+    pub package: Option<String>,
 }
 
 /// Flags of `tcl spec export`.

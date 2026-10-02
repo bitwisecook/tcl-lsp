@@ -1650,7 +1650,10 @@ impl<'a> LatticeDriver<'a> {
         &self,
         head: &'w str,
         words: &'w [InvocationWord<'w>],
-    ) -> Option<ResolvedInvocation<'a, 'w>> {
+    ) -> Option<ResolvedInvocation<'a, 'w>>
+    where
+        'a: 'w,
+    {
         self.registry
             .resolve_structured_invocation(
                 InvocationWords::structured(InvocationWord::Literal(head), words),

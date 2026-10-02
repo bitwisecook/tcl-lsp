@@ -22,15 +22,16 @@
 //!
 //! A pack may claim; only the runtime may attest. A site whose emitted code
 //! depends on a pack — a constant a pack's `const_fold` computed at compile
-//! time (rung 1), or a builtin's specialisation reached through a pack
-//! command's `alias_of` (rung 2) — records a [`SiteClaim`] carrying the
-//! [`PackFactStamp`] of the pack facts behind it, so a changed pack
-//! invalidates the artefact rather than silently changing its meaning. The
-//! VM admits a unit only when every claim's stamp is one it holds for the
-//! pack set it runs under. Rung 0, generic dispatch, records nothing: there
-//! is nothing a generic dispatch can get wrong.
+//! time (rung 1), a builtin's specialisation reached through a pack
+//! command's `alias_of` (rung 2), or a body the pack's `runtime_backing`
+//! says defines a command, inlined at its call (rung 3) — records a
+//! [`SiteClaim`] carrying the [`PackFactStamp`] of the pack facts behind it,
+//! so a changed pack invalidates the artefact rather than silently changing
+//! its meaning. The VM admits a unit only when every claim's stamp is one it
+//! holds for the pack set it runs under. Rung 0, generic dispatch, records
+//! nothing: there is nothing a generic dispatch can get wrong.
 
-use crate::CommandBindingIdentity;
+use crate::{CommandBindingIdentity, ProcedureBindingIdentity};
 
 /// Which pack facts a specialised site rests on.
 ///
@@ -73,6 +74,40 @@ pub enum SiteClaim {
         /// The pack facts that made the target admissible.
         facts: PackFactStamp,
     },
+    /// Rung 3: the body of a command a pack declares as `TclBody`-backed,
+    /// inlined at this site, and the kind of backing that makes a procedure
+    /// the right thing to compare against at all. The procedure binding is
+    /// also one of the unit's procedure bindings, checked as any other is;
+    /// what the claim adds is the backing, which the VM requires to be
+    /// [`BackingKind::TclBody`], and the pack facts behind the declaration.
+    ReferenceBody {
+        /// The site's binding: the invocation as written, the creation name,
+        /// parameters and body text of the definition copied into the unit.
+        procedure: ProcedureBindingIdentity,
+        /// The kind of backing the command was declared with when the body
+        /// was inlined.
+        backing: BackingKind,
+        /// The pack facts that declared the backing.
+        facts: PackFactStamp,
+    },
+}
+
+/// How a described command's behaviour reaches the runtime, without the
+/// payload of where — `tcl_registry::RuntimeBacking`'s variants by name. A
+/// claim states the kind and the VM holds the rung to it: an exact body
+/// match is a true statement about a procedure and says nothing about
+/// whether the command *is* that procedure.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum BackingKind {
+    /// A shipped builtin, attested by its registry identity.
+    ShippedBuiltin,
+    /// A Tcl body — the only kind a procedure is a faithful stand-in for.
+    TclBody,
+    /// A command the host registered natively, attested by a guard identity
+    /// and never by a procedure definition.
+    HostNative,
+    /// Nothing executes the command in the target runtime.
+    None,
 }
 
 impl SiteClaim {
@@ -81,7 +116,9 @@ impl SiteClaim {
     #[must_use]
     pub fn facts(&self) -> &PackFactStamp {
         match self {
-            Self::PackFacts(facts) | Self::BuiltinAlias { facts, .. } => facts,
+            Self::PackFacts(facts)
+            | Self::BuiltinAlias { facts, .. }
+            | Self::ReferenceBody { facts, .. } => facts,
         }
     }
 }

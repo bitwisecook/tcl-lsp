@@ -1712,6 +1712,28 @@ pub(crate) fn content_hash(source: &str) -> u64 {
     xxhash_rust::xxh3::xxh3_64(source.as_bytes())
 }
 
+/// The content hash the commands of the pack file at `path` carry
+/// ([`tcl_runtime_api::PackFactStamp::content_hash`]), for the file's
+/// `source`: the xxh3 of its bytes, folded with each fragment an `include`
+/// row brought in. The one function the lockfile's pack hash and a compiled
+/// unit's claims are both built from, so the two cannot be hashed by
+/// different rules.
+///
+/// A file whose pack declares no command carries no hash of its own; its
+/// fragments are then not read, and the value is the file's bytes alone.
+#[must_use]
+pub fn pack_file_hash(path: &std::path::Path, source: &str) -> u64 {
+    let root = content_hash(source);
+    if !super::uses_include(source) {
+        return root;
+    }
+    let include = Rc::new(super::IncludeContext::for_file(path));
+    evaluate_pack_in(source, &EvalOptions::default(), Some(include))
+        .commands
+        .first()
+        .map_or(root, |command| command.content_hash)
+}
+
 /// The content hash a pack's commands carry: the root file's own when it
 /// included nothing, otherwise one xxh3 over the root's hash and each
 /// included fragment's in inclusion order, so an edit to an included file

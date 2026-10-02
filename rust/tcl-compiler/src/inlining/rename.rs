@@ -236,9 +236,21 @@ fn rewrite_call_like(stmt: &Statement, rename: &HashMap<String, String>) -> Stat
             span: *span,
             command: command.clone(),
             canonical_command: canonical_command.clone(),
+            // A braced word substitutes nothing, so a `$v` inside it is literal
+            // text and survives unrewritten.
             args: args
                 .iter()
-                .map(|a| rewrite_value_string(a, rename))
+                .enumerate()
+                .map(|(index, arg)| {
+                    let literal = tokens
+                        .as_ref()
+                        .is_some_and(|tokens| tokens.arg_is_braced_literal(index));
+                    if literal {
+                        arg.clone()
+                    } else {
+                        rewrite_value_string(arg, rename)
+                    }
+                })
                 .collect(),
             defs: defs.iter().map(|d| rename_var_name(d, rename)).collect(),
             reads: reads.iter().map(|r| rename_var_name(r, rename)).collect(),
@@ -256,7 +268,13 @@ fn rewrite_call_like(stmt: &Statement, rename: &HashMap<String, String>) -> Stat
             ..
         } => Statement::Return {
             span: *span,
-            value: value.as_ref().map(|v| rewrite_value_string(v, rename)),
+            value: value.as_ref().map(|v| {
+                if *braced {
+                    v.clone()
+                } else {
+                    rewrite_value_string(v, rename)
+                }
+            }),
             value_word: None,
             expr: expr.as_ref().map(|e| rewrite_expr(e, rename)),
             command_binding: command_binding.clone(),

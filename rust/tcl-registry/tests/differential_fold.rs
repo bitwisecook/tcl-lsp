@@ -90,8 +90,12 @@ fn find_tclsh9() -> Option<String> {
 
 /// The value `tclsh` computes for `[cmd]`, or `None` if tclsh raises (in
 /// which case the fold must also decline — we never fold an error to a value).
+///
+/// A `tclsh` that reads its script from standard input carries on after an
+/// error and exits 0, so the call is caught and the exit made to say it.
 fn tcl_value(tclsh: &str, cmd: &str) -> Option<String> {
-    match run_tcl(tclsh, &format!("puts -nonewline [{cmd}]"))? {
+    let script = format!("if {{[catch {{set __v [{cmd}]}}]}} {{exit 1}}\nputs -nonewline $__v");
+    match run_tcl(tclsh, &script)? {
         (true, out) => Some(out),
         (false, _) => None,
     }
@@ -145,22 +149,23 @@ fn tcl_quoted_word(text: &str) -> String {
 }
 
 /// Resolve a command through the registry exactly as the optimiser does and
-/// run its fold via `run_const_fold`, returning the **raw** folded value (the
-/// same string `tcl_value` compares against — no propagation-word quoting).
-/// The dialect is `tcl9.0`, so version-aware folds are validated against the
-/// `tclsh9.0` reference.
-fn registry_fold(
+/// run its fold via `run_const_fold` under the release the caller names,
+/// returning the **raw** folded value (the same string `tcl_value` compares
+/// against — no propagation-word quoting). `None` stands for a profile with no
+/// evaluation point, which keeps a version-aware fold to what every release
+/// gives; the `tcl9.0` matrices pass `Some(V9_0)`, so version-aware folds resolve
+/// against the 9.0 reference.
+fn registry_fold_under(
     reg: &CommandRegistry,
     head: &str,
     sub: Option<&str>,
     args: &[&str],
+    version: Option<tcl_dialect::TclVersion>,
 ) -> Option<String> {
     let spec = reg.get(head)?;
     match sub {
-        None => spec.run_const_fold(args, Some(tcl_dialect::TclVersion::V9_0)),
-        Some(s) => spec
-            .subcommand(s)?
-            .run_const_fold(args, Some(tcl_dialect::TclVersion::V9_0)),
+        None => spec.run_const_fold(args, version),
+        Some(s) => spec.subcommand(s)?.run_const_fold(args, version),
     }
 }
 
@@ -168,22 +173,33 @@ fn registry_fold(
 /// by `tcl_command`, so the two sides can never drift.
 type Case = (&'static str, Option<&'static str>, &'static [&'static str]);
 
-/// Drive a matrix through `tcl_value` and `registry_fold`, asserting equality
+/// Drive a matrix through `tcl_value` and `registry_fold_under`, asserting equality
 /// whenever the fold fires. Returns the number of cases that actually folded
 /// (so the caller can assert the harness exercised *something*).
 fn check_matrix(tclsh: &str, reg: &CommandRegistry, cases: &[Case]) -> usize {
+    check_matrix_under(tclsh, reg, cases, Some(tcl_dialect::TclVersion::V9_0))
+}
+
+/// The same under the release the caller names, against the `tclsh` of that
+/// release.
+fn check_matrix_under(
+    tclsh: &str,
+    reg: &CommandRegistry,
+    cases: &[Case],
+    version: Option<tcl_dialect::TclVersion>,
+) -> usize {
     let mut folded = 0usize;
     for &(head, sub, args) in cases {
         let cmd = tcl_command(head, sub, args);
         let Some(want) = tcl_value(tclsh, &cmd) else {
             continue; // tclsh raised — the fold is allowed (and expected) to bail
         };
-        let Some(got) = registry_fold(reg, head, sub, args) else {
+        let Some(got) = registry_fold_under(reg, head, sub, args, version) else {
             continue; // a miss is never wrong
         };
         assert_eq!(
             got, want,
-            "[{cmd}] folded to {got:?} but tclsh9 gives {want:?}"
+            "[{cmd}] folded to {got:?} under {version:?} but {tclsh} gives {want:?}"
         );
         folded += 1;
     }
@@ -416,7 +432,13 @@ const FORMATS: &[Case] = &[
     ("format", None, &["%.3d", "-4"]),
     ("format", None, &["%5.3d", "42"]),
     ("format", None, &["%05.3d", "42"]),
-    ("format", None, &["%.0d", "0"]),
+    ("format", None, &["%.0d", "0"]), // 8.4: no digit; 8.5 on: `0`
+    ("format", None, &["%.0x", "0"]),
+    ("format", None, &["%.0o", "0"]),
+    ("format", None, &["%.0u", "0"]),
+    ("format", None, &["%5.0d", "0"]),
+    ("format", None, &["%+.0d", "0"]),
+    ("format", None, &["%-3.0d|", "0"]),
     ("format", None, &["%d", "2147483647"]),
     ("format", None, &["%d", "-2147483648"]),
     ("format", None, &["%x", "255"]),
@@ -499,11 +521,100 @@ fn format_folds_match_tcl9() {
     check_matrix(&tclsh, &reg, FORMATS);
 }
 
+/// The version-aware folds under iRules, which embeds an 8.4 fork whose release
+/// was measured (`DialectProfile::evaluation_point`), against the real
+/// `tclsh8.4`: where both answer they agree, and the rows that depend on the
+/// release answer under the point where, with no release, they decline.
+#[test]
+fn versioned_folds_under_irules_match_tclsh84() {
+    const DEPENDENT: &[Case] = &[
+        ("string", Some("is"), &["integer", "4294967296"]),
+        ("string", Some("is"), &["integer", "4294967295"]),
+        ("string", Some("is"), &["integer", "-4294967296"]),
+        ("string", Some("is"), &["wideinteger", "4294967296"]),
+        ("string", Some("is"), &["entier", "5"]),
+        ("format", None, &["%d", "010"]),
+        ("format", None, &["%x", "-1"]),
+    ];
+    let Some(tclsh) = find_tclsh("8.4") else {
+        eprintln!("skipping versioned_folds_under_irules_match_tclsh84: no tclsh8.4 on PATH");
+        return;
+    };
+    let reg = CommandRegistry::build_default();
+    let point = tcl_dialect::DialectProfile::irules().evaluation_point();
+    assert_eq!(point, Some(tcl_dialect::TclVersion::V8_4));
+
+    let folded = check_matrix_under(&tclsh, &reg, FOLDABLE, point)
+        + check_matrix_under(&tclsh, &reg, FORMATS, point)
+        + check_matrix_under(&tclsh, &reg, DEPENDENT, point);
+    assert!(
+        folded > 0,
+        "no row folded: the harness is not wired to the registry"
+    );
+
+    let mut moved = 0usize;
+    for &(head, sub, args) in DEPENDENT {
+        let under_point = registry_fold_under(&reg, head, sub, args, point);
+        let invariant = registry_fold_under(&reg, head, sub, args, None);
+        if under_point.is_some() && invariant.is_none() {
+            moved += 1;
+        }
+        assert!(
+            invariant.is_none() || invariant == under_point,
+            "[{}] the invariant answer {invariant:?} is not the 8.4 one {under_point:?}",
+            tcl_command(head, sub, args)
+        );
+    }
+    assert!(
+        moved >= 3,
+        "the point answers where no release does for only {moved} of the dependent rows"
+    );
+}
+
+/// A vendor profile whose base nothing measured has no evaluation point, and a
+/// version-aware fold under it declines where the releases differ: `expect`
+/// models an 8.6 base, and `string is integer 4294967296` is 0 on 8.x and 1 on
+/// 9.x.
+#[test]
+fn an_unmeasured_vendor_base_leaves_a_versioned_fold_to_the_invariant_subset() {
+    let reg = CommandRegistry::build_default();
+    let expect = tcl_dialect::DialectProfile::find("expect").expect("catalogue profile");
+    assert_eq!(expect.runtime_base, Some(tcl_dialect::TclVersion::V8_6));
+    assert_eq!(expect.evaluation_point(), None);
+    for args in [&["integer", "4294967296"], &["integer", "-4294967296"]] {
+        assert_eq!(
+            registry_fold_under(
+                &reg,
+                "string",
+                Some("is"),
+                args,
+                expect.const_fold_version()
+            ),
+            None,
+            "{args:?}: no point, no fold where 8.x and 9.x differ"
+        );
+    }
+    assert_eq!(
+        registry_fold_under(
+            &reg,
+            "string",
+            Some("is"),
+            &["integer", "4294967295"],
+            expect.const_fold_version()
+        )
+        .as_deref(),
+        Some("1"),
+        "every release agrees on the largest 32-bit integer"
+    );
+}
+
 /// `format` on its registry-owned route, per release found on `PATH`,
 /// against the real `tclsh`: every case of the format matrix and the
 /// release-gated conversions (`%b` from 8.6; `%p`, `%llu` and the `0d` /
 /// `0o` prefixes from 9.0). When `tclsh` raises the route must decline, and
-/// when the route answers it must print what `tclsh` prints.
+/// when the route answers it must print what `tclsh` prints. The iRules
+/// profile is held to `tclsh8.4` as well: it is a fork of that release, and the
+/// route answers under it as 8.4 does.
 #[test]
 fn format_witnesses_match_every_release_on_path() {
     use tcl_registry::value_transfer::{
@@ -517,12 +628,15 @@ fn format_witnesses_match_every_release_on_path() {
         ("format", None, &["%#d", "5"]),
     ];
     let mut releases = 0usize;
-    for version in tcl_dialect::TclVersion::ALL {
+    let profiles = tcl_dialect::TclVersion::ALL
+        .map(|version| (version, version.dialect_profile_name()))
+        .into_iter()
+        .chain([(tcl_dialect::TclVersion::V8_4, "f5-irules")]);
+    for (version, dialect) in profiles {
         let Some(tclsh) = find_tclsh(version.version_string()) else {
             continue;
         };
         releases += 1;
-        let dialect = version.dialect_profile_name();
         let reg = tcl_registry::model::ingress::static_context_for(dialect).commands();
         let profile = tcl_dialect::DialectProfile::find(dialect);
         let semantics = resolve_semantics(reg.get("format").expect("format"), None, None);
@@ -542,7 +656,7 @@ fn format_witnesses_match_every_release_on_path() {
                 assert_eq!(
                     Some(route),
                     oracle,
-                    "tclsh{} {args:?}",
+                    "tclsh{} ({dialect}) {args:?}",
                     version.version_string()
                 );
                 answered += 1;
@@ -550,7 +664,7 @@ fn format_witnesses_match_every_release_on_path() {
         }
         assert!(
             answered * 2 > FORMATS.len(),
-            "tclsh{}: the route answered only {answered} cases",
+            "tclsh{} ({dialect}): the route answered only {answered} cases",
             version.version_string()
         );
     }

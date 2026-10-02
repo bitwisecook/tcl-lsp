@@ -75,8 +75,47 @@ not warn you that it kept them.
 
 A pack a package ships, beside that package's own `tclpkg.tcl`, also loses
 its `alias_of` and `runtime_backing` rows unless the package is your own or
-one your manifest requires directly
+one your manifest requires directly, and a Tcl body (`tcl-body`) unless the
+package is your own
 ([why](kcs-qa-why-was-a-declaration-dropped-from-my-dependencys-pack.md)).
+
+### Saying a Tcl proc defines the command
+
+`runtime_backing tcl-body {-pack-text {proc NAME args body}}` says the command
+is that `proc`, and the compiler inlines the body into any procedure that
+calls it, while the runtime still holds the call to exactly that text: a
+library that differs from the pack runs as it always did, only slower. The
+text must be one `proc` that defines the command and nothing else. The compiler
+splices a body only where the call it replaces would have answered the same: a
+body that reads a variable it never sets, hands a command a variable's name
+(`[set y]`) or runs a script in a substitution is called as it always was, and so
+is one defined in a namespace of its own, in a caller outside that namespace,
+when it names a command without a leading `::` or substitutes one.
+`tcl-body {-package-source PATH}` names a file of your package instead,
+relative to the directory of its `tclpkg.tcl`; it is read when the pack
+loads, so a library edit reaches the compiler at the next load without any
+change to the pack, and a path that cannot be read draws a warning on the
+command's line. A call at the top level of a script is not inlined.
+
+When the body is plain value-position Tcl — commands a hook body may call (`set`,
+`expr`, `if`, `string`, `dict` and the like), no `upvar`, `uplevel`, `global`,
+`variable`, channel or `exec`, no namespace-qualified variable, `return` only as
+the last statement, and parameters with no defaults — you can also have the
+analyser evaluate a call whose arguments it knows by running the body. Say so
+with `-evaluate` beside the source: `tcl-body {-pack-text {proc NAME args body}
+-evaluate}` or `tcl-body {-package-source PATH -evaluate}`. Give the command an
+`arity` that is exactly its parameters and leave `semantics` and `evaluate` off
+it. Nothing is run unless you say so, because the engine that runs the body
+emulates an older release imperfectly (`string is integer`'s width before 9.0,
+`tcl_precision`, `format %c`, the index and bound forms of `lindex` and
+`lreplace`, floating-point division by zero), and only you know whether your
+body meets one of those. `-evaluate` is your word that the body answers what a
+real shell does under every release your package is used with, so compare what
+`tcl opt --dialect tclX.Y` folds a call to with what that release's own `tclsh`
+prints before you add it. A body the analyser cannot run draws a warning on the
+command's line that names the reason (a command off the list, a text that is not
+one `proc`), and so does `-evaluate` beside a command that states its own
+`semantics` or `evaluate`; the call is compiled as it was.
 
 ### Validating a pack
 
@@ -88,7 +127,9 @@ declared and whether it is cheap to call repeatedly; any name collision
 with a shipped command; and any codegen row the pack's tier may not keep
 ([why a codegen hook is refused](kcs-qa-why-was-my-pack-codegen-hook-refused.md)).
 Fix every notice — a dropped word is otherwise silent. The MCP tool is the only validator; `tcl spec` itself has
-`import`, `upgrade`, and `export`.
+`import`, `upgrade`, `export`, and `test`, which runs the package in a real shell
+and reports each declared fact — arity, examples, return type, purity, a Tcl
+reference body — that the package does not bear out.
 
 ### The server loads your pack automatically
 

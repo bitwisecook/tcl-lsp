@@ -19,9 +19,11 @@ Those two rows tell the compiler which built-in command a pack command is,
 and how that command runs. A wrong claim about either is a wrong program. So
 tcl-lsp trusts them by how close the package sits to your project:
 
-- **Your own package** may say both.
-- **A direct dependency** may say both. That is a package your `tclpkg.tcl`
-  lists with `require`.
+- **Your own package** may say both, and may back a command with a Tcl body
+  (`runtime_backing tcl-body …`), which the compiler copies into the code of
+  every procedure that calls the command.
+- **A direct dependency** may say both, but not a Tcl body. That is a package
+  your `tclpkg.tcl` lists with `require`.
 - **A dependency of a dependency** may say neither. So may a package you list
   only with `dev-require`.
 
@@ -38,6 +40,14 @@ command's line:
 `alias_of lassign` refused for `dep::unpack`: a transitive dependency's pack
 may not declare `alias_of`; only the workspace's own package and its direct
 dependencies may
+```
+
+A Tcl body from a direct dependency draws its own wording:
+
+```text
+`runtime_backing tcl-body {-pack-text …}` refused for `dep::double`: a direct
+dependency's pack may not declare a reference body; only the workspace's own
+package may
 ```
 
 Only that row goes. The command keeps its arity, argument roles, hover text,

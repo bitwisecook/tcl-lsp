@@ -346,6 +346,10 @@ pub struct DockerfileSpec {
     pub labels: BTreeMap<String, String>,
     pub env: BTreeMap<String, String>,
     pub cli_version: Option<String>,
+    /// The Tcl packages the project's specs declare host-native: commands the
+    /// host registers natively, which exist only where the extension that
+    /// provides them is installed. The Dockerfile checks that each loads.
+    pub native_extensions: Vec<String>,
 }
 
 impl Default for DockerfileSpec {
@@ -362,8 +366,42 @@ impl Default for DockerfileSpec {
             labels: BTreeMap::new(),
             env: BTreeMap::new(),
             cli_version: None,
+            native_extensions: Vec::new(),
         }
     }
+}
+
+/// Whether `name` is spelt as a Tcl package name is: nothing a shell or a Tcl
+/// list would need quoted around.
+fn is_extension_name(name: &str) -> bool {
+    !name.is_empty()
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | ':' | '.' | '+' | '-'))
+}
+
+/// The block that stops the build when an extension a project's specs declare
+/// host-native does not load.
+///
+/// Which distro package, or which source build, provides an extension is not
+/// something this module knows, so it states what it can check: after
+/// everything the image installs, each extension is loaded with `package
+/// require`, and the build fails naming the one that is not there.
+fn native_extension_check(extensions: &[String]) -> Result<Vec<String>, TclPkgError> {
+    if let Some(bad) = extensions.iter().find(|name| !is_extension_name(name)) {
+        return Err(docker_error(format!("not a Tcl package name: {bad:?}")));
+    }
+    let names = extensions.join(" ");
+    Ok(vec![
+        "# Native Tcl extensions the project's specs declare host-native. Install each".to_string(),
+        "# above this line, for example with --extra-package; the build stops here if one"
+            .to_string(),
+        "# does not load.".to_string(),
+        format!(
+            "RUN printf '%s\\n' 'foreach e {{{names}}} {{if {{[catch {{package require $e}} m]}} \
+             {{puts stderr \"native extension $e: $m\"; exit 1}}}}' | tclsh"
+        ),
+    ])
 }
 
 /// Generate a complete Dockerfile from a [`DockerfileSpec`].
@@ -451,6 +489,11 @@ pub fn generate_dockerfile(spec: &DockerfileSpec) -> Result<String, TclPkgError>
             lines.push("# Install Tcl packages from lockfile".to_string());
         }
         lines.push("RUN if [ -f tclpkg.lock ]; then tcl pkg install --frozen; fi".to_string());
+        lines.push(String::new());
+    }
+
+    if !spec.native_extensions.is_empty() {
+        lines.extend(native_extension_check(&spec.native_extensions)?);
         lines.push(String::new());
     }
 
@@ -754,6 +797,64 @@ mod tests {
             "generated Dockerfile still mentions Python:\n{out}"
         );
         assert!(!out.contains(".pyz"));
+    }
+
+    /// The extensions a project's specs declare host-native are checked after
+    /// the packages install and before the command runs, on every family.
+    #[test]
+    fn native_extensions_are_checked_once_everything_is_installed() {
+        for image in ["debian:bookworm-slim", "alpine:3.19", "fedora:39"] {
+            let spec = DockerfileSpec {
+                base_image: image.to_string(),
+                install_packages: image != "alpine:3.19",
+                native_extensions: vec!["Tclx".to_string(), "tdom".to_string()],
+                ..Default::default()
+            };
+            let out = generate_dockerfile(&spec).unwrap();
+            let check = out
+                .lines()
+                .find(|line| line.starts_with("RUN printf"))
+                .unwrap_or_else(|| panic!("{image}: no check in\n{out}"));
+            assert!(
+                check.contains("foreach e {Tclx tdom} {if {[catch {package require $e} m]}"),
+                "{check}"
+            );
+            assert!(check.ends_with("| tclsh"), "{check}");
+            assert!(
+                out.contains("# Native Tcl extensions the project's specs declare host-native")
+            );
+            let at = out.find("RUN printf").unwrap();
+            if spec.install_packages {
+                assert!(at > out.find("tcl pkg install --frozen").unwrap());
+            }
+            assert!(at < out.find("CMD [").unwrap());
+        }
+    }
+
+    #[test]
+    fn a_project_with_no_native_extensions_gains_no_check() {
+        let out = generate_dockerfile(&DockerfileSpec::default()).unwrap();
+        assert!(!out.contains("native extension"), "{out}");
+        assert!(!out.contains("RUN printf"), "{out}");
+    }
+
+    /// The check is a shell line and a Tcl list: a name that would need quoting
+    /// in either is refused, never rendered.
+    #[test]
+    fn an_extension_that_is_not_spelt_as_a_package_name_is_refused() {
+        for bad in ["", "td om", "tdom'; rm -rf /", "a}b", "x\"y", "$e", "a;b"] {
+            let spec = DockerfileSpec {
+                native_extensions: vec![bad.to_string()],
+                ..Default::default()
+            };
+            let err = generate_dockerfile(&spec).expect_err(bad);
+            assert!(err.to_string().contains("not a Tcl package name"), "{err}");
+        }
+        let spec = DockerfileSpec {
+            native_extensions: vec!["Tcl::ext-2.1+x_y".to_string()],
+            ..Default::default()
+        };
+        assert!(generate_dockerfile(&spec).is_ok());
     }
 
     #[test]

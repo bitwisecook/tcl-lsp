@@ -79,6 +79,8 @@ pub mod hooks;
 pub mod install;
 pub mod loader;
 pub mod pack;
+pub mod package_sources;
+pub mod package_specs;
 pub mod registration;
 pub mod stamps;
 pub mod surface_roster_conversion;

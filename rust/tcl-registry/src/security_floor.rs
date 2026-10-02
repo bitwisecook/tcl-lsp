@@ -33,10 +33,15 @@
 //! what emitted code and the analyser's dispatch do with it: the two codegen
 //! hooks, the six catalogue fields `lowering_hook`, `analyser_hook`,
 //! `semantic_operation`, `state_transitions`, `native_lowering` and `bpf_op`,
-//! and the `runtime_backing` fact that says how the command's behaviour
-//! reaches the runtime. An override that swapped any of them would change
-//! which shipped implementation a compiled site rests on without the site
-//! knowing, so each takes the shipped value. This is a contract about the
+//! the `runtime_backing` fact that says how the command's behaviour reaches the
+//! runtime, and the per-release windows beside the four stamps
+//! (`codegen_hook_windows`, `inline_codegen_hook_windows`,
+//! `semantic_operation_windows`, `native_lowering_windows`). An override that
+//! swapped any of them would change which shipped implementation a compiled
+//! site rests on without the site knowing, so each takes the shipped value; a
+//! stamp the shipped command carries in any form — beside its windows or in
+//! them — leaves the override no window of its own, because a window selected
+//! at one release is a swap at that release. This is a contract about the
 //! closed catalogues, not a trust gate on analysis facts: an override still
 //! changes arity, roles and hover.
 //!
@@ -48,6 +53,7 @@
 //! The floor only prevents a fact from going away.
 
 use crate::spec::CommandSpec;
+use crate::stamp_window::StampWindow;
 use crate::traits::{Trait, TraitCategory, Traits};
 
 /// The security facts of one shipped command, as a floor an override cannot
@@ -137,6 +143,26 @@ impl SecurityFloor {
         take_shipped(&mut spec.taint_sink_gate, shipped.taint_sink_gate);
         take_shipped(&mut spec.codegen_hook, shipped.codegen_hook);
         take_shipped(&mut spec.inline_codegen_hook, shipped.inline_codegen_hook);
+        take_shipped_windows(
+            &mut spec.codegen_hook_windows,
+            shipped.codegen_hook.is_some(),
+            shipped.codegen_hook_windows,
+        );
+        take_shipped_windows(
+            &mut spec.inline_codegen_hook_windows,
+            shipped.inline_codegen_hook.is_some(),
+            shipped.inline_codegen_hook_windows,
+        );
+        take_shipped_windows(
+            &mut spec.semantic_operation_windows,
+            shipped.semantic_operation.is_some(),
+            shipped.semantic_operation_windows,
+        );
+        take_shipped_windows(
+            &mut spec.native_lowering_windows,
+            shipped.native_lowering.is_some(),
+            shipped.native_lowering_windows,
+        );
         // The rest of the codegen and dispatch axis. Command-level values
         // only, like the two hooks above: the same fields inside a
         // `SubCommand` or a form are not restored here.
@@ -159,6 +185,19 @@ impl SecurityFloor {
 /// The shipped value wins wherever the shipped command has one.
 fn take_shipped<T>(target: &mut Option<T>, shipped: Option<T>) {
     if shipped.is_some() {
+        *target = shipped;
+    }
+}
+
+/// The shipped windows win wherever the shipped command carries the stamp at
+/// all — unversioned or in a window — and then an override has no window of its
+/// own: its windows would select a different stamp at some release.
+fn take_shipped_windows<T>(
+    target: &mut &'static [StampWindow<T>],
+    shipped_has_stamp: bool,
+    shipped: &'static [StampWindow<T>],
+) {
+    if shipped_has_stamp || !shipped.is_empty() {
         *target = shipped;
     }
 }
@@ -218,12 +257,16 @@ pub const MERGED_FIELDS: &[&str] = &[
     "credential_options",
     "callback_taint_inputs",
     "codegen_hook",
+    "codegen_hook_windows",
     "inline_codegen_hook",
+    "inline_codegen_hook_windows",
     "lowering_hook",
     "analyser_hook",
     "semantic_operation",
+    "semantic_operation_windows",
     "state_transitions",
     "native_lowering",
+    "native_lowering_windows",
     "bpf_op",
     "runtime_backing",
 ];
@@ -276,8 +319,10 @@ mod tests {
                     "lowering_hook"
                         | "analyser_hook"
                         | "semantic_operation"
+                        | "semantic_operation_windows"
                         | "state_transitions"
                         | "native_lowering"
+                        | "native_lowering_windows"
                         | "bpf_op"
                         | "runtime_backing"
                 );
@@ -368,6 +413,61 @@ mod tests {
             ),
             "the shipped op, not a copy of another"
         );
+    }
+
+    /// An override gets no window of its own where the shipped command carries
+    /// the stamp at all: a window is a swap at the releases it covers.
+    #[test]
+    fn the_floor_takes_the_shipped_stamp_windows_and_leaves_an_override_none_of_its_own() {
+        use crate::hooks::CodegenHookId;
+        use crate::lifecycle::Lifecycle;
+
+        const FROM_9: &[StampWindow<CodegenHookId>] = &[StampWindow {
+            lifecycle: Lifecycle::introduced_in("9.0"),
+            value: CodegenHookId::Lassign,
+        }];
+        const FROM_8_4: &[StampWindow<CodegenHookId>] = &[StampWindow {
+            lifecycle: Lifecycle::introduced_in("8.4"),
+            value: CodegenHookId::Llength,
+        }];
+
+        // The shipped command carries an unversioned hook and no window.
+        let unversioned = CommandSpec {
+            name: "probe",
+            codegen_hook: Some(CodegenHookId::Lassign),
+            ..CommandSpec::DEFAULT
+        };
+        let mut swapped = CommandSpec {
+            name: "probe",
+            codegen_hook_windows: FROM_8_4,
+            ..CommandSpec::DEFAULT
+        };
+        SecurityFloor::of(Box::leak(Box::new(unversioned))).apply(&mut swapped);
+        assert!(swapped.codegen_hook_windows.is_empty());
+        assert_eq!(swapped.codegen_hook, Some(CodegenHookId::Lassign));
+
+        // The shipped command carries the hook in a window only.
+        let windowed = CommandSpec {
+            name: "probe",
+            codegen_hook_windows: FROM_9,
+            ..CommandSpec::DEFAULT
+        };
+        let mut swapped = CommandSpec {
+            name: "probe",
+            codegen_hook_windows: FROM_8_4,
+            ..CommandSpec::DEFAULT
+        };
+        SecurityFloor::of(Box::leak(Box::new(windowed))).apply(&mut swapped);
+        assert_eq!(swapped.codegen_hook_windows, FROM_9);
+
+        // Nothing shipped, nothing to keep: the declared windows stand.
+        let mut declared = CommandSpec {
+            name: "probe",
+            codegen_hook_windows: FROM_8_4,
+            ..CommandSpec::DEFAULT
+        };
+        SecurityFloor::of(&BARE).apply(&mut declared);
+        assert_eq!(declared.codegen_hook_windows, FROM_8_4);
     }
 
     #[test]

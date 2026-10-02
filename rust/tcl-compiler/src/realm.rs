@@ -822,9 +822,9 @@ fn valid_irules_procedure_declaration(
 /// unavailable Tcl command (notably iRules' disabled `interp`, `rename`, and
 /// `namespace`) must produce no fact.
 fn available_spec(registry: &CommandRegistry, name: &str) -> Option<&'static CommandSpec> {
-    registry.profile().map_or_else(
+    registry.own_surface_query().map_or_else(
         || registry.get(name),
-        |profile| registry.get_for_surface(name, Some(profile.surface_query())),
+        |query| registry.get_for_surface(name, Some(query)),
     )
 }
 
@@ -1554,11 +1554,10 @@ mod tests {
     #[test]
     fn unavailable_irules_mutators_do_not_change_event_identity() {
         let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
-        let profile = registry.profile().expect("dialect registry has a profile");
         for command in ["interp", "rename", "namespace"] {
             assert!(
                 registry
-                    .get_for_surface(command, Some(profile.surface_query()))
+                    .get_for_surface(command, registry.own_surface_query())
                     .is_none(),
                 "F5 K36322151 disables {command} in iRules"
             );

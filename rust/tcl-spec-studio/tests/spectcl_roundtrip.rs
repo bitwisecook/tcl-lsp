@@ -415,6 +415,144 @@ fn arity_windows_survive_the_round_trip() {
     assert_eq!(trip.reloaded["arity"]["max"], serde_json::json!(1));
 }
 
+/// Codegen-axis stamp windows survive render → load → re-seed.
+///
+/// No shipped spec declares any, so the whole-surface trip cannot cover them
+/// and a renderer that dropped the rows would still pass. This drives one
+/// command and one subcommand that carry the three a pack can author, each
+/// beside its plain stamp, and the fourth — the native lowering windows — as
+/// the field a pack cannot author.
+#[test]
+fn stamp_windows_survive_the_round_trip() {
+    use tcl_registry::hooks::{CodegenHookId, InlineCodegenHookId};
+    use tcl_registry::intrinsic::IntrinsicId;
+    use tcl_registry::lifecycle::Lifecycle;
+    use tcl_registry::semantic_operation::SemanticOperationId;
+    use tcl_registry::stamp_window::StampWindow;
+
+    const CODEGEN: &[StampWindow<CodegenHookId>] = &[StampWindow {
+        lifecycle: Lifecycle::introduced_in("9.0"),
+        value: CodegenHookId::Llength,
+    }];
+    const INLINE: &[StampWindow<InlineCodegenHookId>] = &[StampWindow {
+        lifecycle: Lifecycle::UNSPECIFIED.retired_from("9.0"),
+        value: InlineCodegenHookId::Expr,
+    }];
+    const OPERATION: &[StampWindow<SemanticOperationId>] = &[StampWindow {
+        lifecycle: Lifecycle::introduced_in("9.0").deprecated_from("9.1"),
+        value: SemanticOperationId::Intrinsic(IntrinsicId::StringLength),
+    }];
+    const SUB_CODEGEN: &[StampWindow<CodegenHookId>] = &[StampWindow {
+        lifecycle: Lifecycle::introduced_in("9.0"),
+        value: CodegenHookId::Dict,
+    }];
+
+    let spec = tcl_registry::CommandSpec {
+        name: "probe::stamped",
+        codegen_hook: Some(CodegenHookId::Lassign),
+        codegen_hook_windows: CODEGEN,
+        inline_codegen_hook_windows: INLINE,
+        semantic_operation_windows: OPERATION,
+        subcommands: Box::leak(Box::new([tcl_registry::SubCommand {
+            name: "get",
+            codegen_hook_windows: SUB_CODEGEN,
+            ..tcl_registry::SubCommand::DEFAULT
+        }])),
+        ..tcl_registry::CommandSpec::DEFAULT
+    };
+    let draft = Value::Object(draft::from_command_spec(&spec));
+    let trip = round_trip(&draft);
+
+    let rows = [
+        "codegen_hook -native Lassign\n",
+        "codegen_hook -native Llength -introduced 9.0\n",
+        "inline_codegen_hook -native Expr -retired 9.0\n",
+        "semantic_operation {Intrinsic StringLength} -introduced 9.0 -deprecated 9.1\n",
+        "subcommand get { codegen_hook -native Dict -introduced 9.0 }",
+    ];
+    for row in rows {
+        assert!(
+            trip.text.contains(row),
+            "the row `{}` is rendered:\n{}",
+            row.trim_end(),
+            trip.text
+        );
+    }
+    // The plain stamp is one row, and the windows are rows of their own.
+    assert_eq!(trip.text.matches("codegen_hook -native Lassign").count(), 1);
+    assert!(trip.notices.is_empty(), "{:?}\n{}", trip.notices, trip.text);
+
+    let windows = |value: &Value, key: &str| -> Vec<Value> {
+        value[key]
+            .as_array()
+            .unwrap_or_else(|| panic!("the reloaded draft carries {key}"))
+            .clone()
+    };
+    let codegen = windows(&trip.reloaded, "codegen_hook_windows");
+    assert_eq!(codegen.len(), 1, "{codegen:?}\n{}", trip.text);
+    assert_eq!(codegen[0]["value"], serde_json::json!("Llength"));
+    assert_eq!(
+        codegen[0]["lifecycle"]["introduced"],
+        serde_json::json!("9.0")
+    );
+    assert_eq!(codegen[0]["lifecycle"]["retired"], Value::Null);
+    assert_eq!(trip.reloaded["codegen_hook"], serde_json::json!("Lassign"));
+
+    let inline = windows(&trip.reloaded, "inline_codegen_hook_windows");
+    assert_eq!(inline[0]["value"], serde_json::json!("Expr"));
+    assert_eq!(inline[0]["lifecycle"]["retired"], serde_json::json!("9.0"));
+    assert_eq!(trip.reloaded["inline_codegen_hook"], Value::Null);
+
+    let operation = windows(&trip.reloaded, "semantic_operation_windows");
+    assert_eq!(
+        operation[0]["value"]["kind"],
+        serde_json::json!("intrinsic")
+    );
+    assert_eq!(
+        operation[0]["lifecycle"]["deprecated"],
+        serde_json::json!("9.1")
+    );
+
+    let sub = &trip.reloaded["subcommands"][0];
+    let sub_codegen = windows(sub, "codegen_hook_windows");
+    assert_eq!(sub_codegen[0]["value"], serde_json::json!("Dict"));
+    assert_eq!(
+        sub_codegen[0]["lifecycle"]["introduced"],
+        serde_json::json!("9.0")
+    );
+}
+
+/// A native lowering window is the compiler's own fact and no pack spelling
+/// carries it: the draft says it could not recover it, and the render leaves it
+/// out rather than inventing a row.
+#[test]
+fn native_lowering_windows_are_unrecoverable_and_not_rendered() {
+    use tcl_registry::lifecycle::Lifecycle;
+    use tcl_registry::native_lowering::NativeLowering;
+    use tcl_registry::stamp_window::StampWindow;
+
+    const WINDOWS: &[StampWindow<NativeLowering>] = &[StampWindow {
+        lifecycle: Lifecycle::introduced_in("9.0"),
+        value: NativeLowering::Generic,
+    }];
+    let spec = tcl_registry::CommandSpec {
+        name: "probe::native",
+        native_lowering_windows: WINDOWS,
+        ..tcl_registry::CommandSpec::DEFAULT
+    };
+    let draft = Value::Object(draft::from_command_spec(&spec));
+    assert!(
+        draft[draft::UNRENDERABLE_KEY]
+            .as_array()
+            .expect("the draft lists what it could not recover")
+            .iter()
+            .any(|key| key.as_str() == Some("native_lowering_windows")),
+        "{draft}"
+    );
+    let trip = round_trip(&draft);
+    assert!(!trip.text.contains("native_lowering"), "{}", trip.text);
+}
+
 /// `alias_of` survives render → load → re-seed.
 ///
 /// No shipped spec declares it — it names the builtin a *pack* command is —
@@ -447,21 +585,19 @@ fn alias_of_survives_the_round_trip() {
 /// command, but no shipped spec declares the other three.
 #[test]
 fn runtime_backing_survives_the_round_trip() {
-    use tcl_registry::{BodySource, RuntimeBacking};
+    use tcl_registry::RuntimeBacking;
 
     for backing in [
         RuntimeBacking::shipped("lassign"),
         RuntimeBacking::package_source("init.tcl"),
         RuntimeBacking::HostNative,
-        RuntimeBacking::TclBody {
-            source: BodySource::PackText {
-                text: "proc p {a} {\n    return [list $a {b}]\n}",
-            },
-        },
+        RuntimeBacking::pack_text("proc p {a} {\n    return [list $a {b}]\n}"),
         // Unbalanced braces are backslash-quoted, not braced.
-        RuntimeBacking::TclBody {
-            source: BodySource::PackText { text: "puts \"{\"" },
-        },
+        RuntimeBacking::pack_text("puts \"{\""),
+        // The author's assertion that the body may be evaluated is part of the
+        // statement, whichever source the body has.
+        RuntimeBacking::pack_text("proc p {a} {return $a}").evaluated(),
+        RuntimeBacking::package_source("init.tcl").evaluated(),
     ] {
         let spec = tcl_registry::CommandSpec {
             name: "vendor::unpack",

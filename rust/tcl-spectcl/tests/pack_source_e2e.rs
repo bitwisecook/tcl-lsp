@@ -33,6 +33,9 @@
 use std::path::PathBuf;
 use std::rc::Rc;
 
+use tcl_compiler::analyses::{ConstValue, LatticeValue};
+use tcl_compiler::compilation_unit::CompilationUnit;
+use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::optimiser::manager::optimise_raw;
 use tcl_registry::CommandRegistry;
 use tcl_registry::hover::ScriptTiming;
@@ -238,4 +241,323 @@ fn a_pack_timing_hook_controls_a_live_command_prefix_position() {
         Some(ScriptTiming::Deferred),
     );
     pack_hooks::clear_host();
+}
+
+/// The pack that backs `vendor::f` with `definition` as a reference body.
+fn reference_source(definition: &str, arity: usize) -> String {
+    format!(
+        "\nspeclib vendor 2.0 {{\n    command vendor::f {{\n        arity {arity}\n        \
+         runtime_backing tcl-body {{-pack-text {{{definition}}} -evaluate}}\n    }}\n}}\n"
+    )
+}
+
+/// What the analyser proves `known` to be in a procedure that sets it to
+/// `call`, with the host the load's plan binds running the reference body of
+/// `vendor::f` for `definition`: the constant's text, or `None` when it proves
+/// none.
+fn proved(definition: &str, arity: usize, call: &str) -> Option<String> {
+    proved_under("tcl9.0", definition, arity, call)
+}
+
+/// The same, with the call analysed under `dialect`.
+fn proved_under(dialect: &str, definition: &str, arity: usize, call: &str) -> Option<String> {
+    let packs = pack_set_from("reference-body", &reference_source(definition, arity));
+    let plan = hooks::plan_for(&packs);
+    let host = Rc::new(tclvm_host());
+    for programs in plan.packs() {
+        let installed = host.install_pack_hooks(programs.clone());
+        assert!(
+            installed.iter().all(|entry| entry.declined.is_none()),
+            "the derived body installs: {installed:?}"
+        );
+    }
+    pack_hooks::install_host(host);
+    let registry = tcl_spectcl::install::registry_for_dialect_with_packs(dialect, &packs);
+    let source = format!("proc ::p {{}} {{\n    set known [{call}]\n    return $known\n}}\n");
+    let unit = CompilationUnit::build_for_dialect(&source, &registry, false, dialect);
+    pack_hooks::clear_host();
+    let function = unit.procedures.get("::p")?;
+    let symbol = function.ssa.var_symbol("known")?;
+    match function.sccp.values.get(&(symbol, 1)) {
+        Some(LatticeValue::Const(value)) => Some(match value {
+            ConstValue::Int(number) => number.to_string(),
+            ConstValue::Float(number) => number.to_string(),
+            ConstValue::Bool(flag) => u8::from(*flag).to_string(),
+            ConstValue::String(text) => text.clone(),
+        }),
+        _ => None,
+    }
+}
+
+/// What the VM answers when `definition` is the procedure and `call` is run.
+fn executed(definition: &str, call: &str) -> String {
+    let mut vm = tcl_vm::Vm::new();
+    vm.set_compiler(Box::new(BytecodeCompileService::default()));
+    vm.eval_source("namespace eval vendor {}")
+        .expect("the namespace the definition lives in");
+    let defined = vm.eval_source(definition).expect("the definition compiles");
+    assert_eq!(
+        defined.code,
+        tcl_vm::Code::Ok,
+        "{}",
+        defined.result.to_str()
+    );
+    let completion = vm.eval_source(call).expect("the call compiles");
+    assert_eq!(
+        completion.code,
+        tcl_vm::Code::Ok,
+        "{}",
+        completion.result.to_str()
+    );
+    completion.result.to_str().to_string()
+}
+
+/// A reference body the sandbox can express is run on the real host as the
+/// declared implementation of its command, from the `.tclspec` source to a
+/// constant the analyser proves — and it answers what the procedure itself does
+/// when the VM runs it, for the shapes a body takes: an expression, a final
+/// `return` of a variable and of a substitution, branches, loops, `switch`, a
+/// dict, and the empty `return`. The negatives: an argument the analysis does
+/// not know proves nothing, and a body that reaches for the frame is never run.
+#[test]
+fn a_reference_body_answers_through_the_host_as_the_procedure_does() {
+    let cases: [(&str, usize, &str); 12] = [
+        ("proc vendor::f {x} {expr {$x * 2}}", 1, "vendor::f 21"),
+        (
+            "proc vendor::f {a b} {\n    set s [string cat $a - $b]\n    return $s\n}",
+            2,
+            "vendor::f x y",
+        ),
+        (
+            "proc vendor::f {x} {\n    if {$x > 10} {\n        set r big\n    } else {\n        set r small\n    }\n    return $r\n}",
+            1,
+            "vendor::f 3",
+        ),
+        (
+            "proc vendor::f {x} {\n    if {$x > 10} {\n        set r big\n    } else {\n        set r small\n    }\n    return $r\n}",
+            1,
+            "vendor::f 30",
+        ),
+        (
+            "proc vendor::f {l} {\n    set n 0\n    foreach i $l {incr n $i}\n    return $n\n}",
+            1,
+            "vendor::f {1 2 3}",
+        ),
+        ("proc vendor::f {x} {return}", 1, "vendor::f anything"),
+        (
+            "proc vendor::f {s} {string toupper [string trim $s]}",
+            1,
+            "vendor::f {  ab }",
+        ),
+        (
+            "proc vendor::f {x} {\n    set y [expr {$x + 1}]\n    return [expr {$y * $y}]\n}",
+            1,
+            "vendor::f 2",
+        ),
+        (
+            "proc vendor::f {d} {dict get $d k}",
+            1,
+            "vendor::f {j u k v}",
+        ),
+        (
+            "proc vendor::f {n} {\n    set a 0\n    set b 1\n    while {$n > 0} {\n        lassign [list $b [expr {$a + $b}]] a b\n        incr n -1\n    }\n    return $a\n}",
+            1,
+            "vendor::f 10",
+        ),
+        (
+            "proc vendor::f {x} {\n    switch -- $x {\n        a {set r 1}\n        b {set r 2}\n        default {set r 0}\n    }\n    return $r\n}",
+            1,
+            "vendor::f b",
+        ),
+        (
+            "proc vendor::f {x} {\n    set out {}\n    for {set i 0} {$i < 3} {incr i} {lappend out [expr {$i * $x}]}\n    return $out\n}",
+            1,
+            "vendor::f 4",
+        ),
+    ];
+    for (definition, arity, call) in cases {
+        let ran = executed(definition, call);
+        assert_eq!(
+            proved(definition, arity, call).as_deref(),
+            Some(ran.as_str()),
+            "{definition}\n{call}"
+        );
+    }
+    assert_eq!(
+        proved(
+            "proc vendor::f {x} {expr {$x * 2}}",
+            1,
+            "vendor::f $::unknown"
+        ),
+        None,
+        "an argument the analysis does not know is not folded"
+    );
+    assert_eq!(
+        proved(
+            "proc vendor::f {x} {upvar 1 $x y; expr {$y * 2}}",
+            1,
+            "vendor::f 21"
+        ),
+        None,
+        "a body that reaches for the frame is not run"
+    );
+}
+
+/// What `release`'s own `tclsh` did when `definition` was the procedure and
+/// `call` was run.
+#[derive(Debug, PartialEq, Eq)]
+enum Shell {
+    /// No shell of that release on `PATH`, which skips the row.
+    Absent,
+    /// The shell raised.
+    Raised,
+    /// The shell answered the value.
+    Answered(String),
+}
+
+impl Shell {
+    /// The answer, or `None` for a shell that raised.
+    fn answer(self) -> Option<String> {
+        match self {
+            Self::Answered(value) => Some(value),
+            Self::Absent | Self::Raised => None,
+        }
+    }
+}
+
+/// Run `call` after `definition` in `release`'s own `tclsh`.
+fn real_shell(release: &str, definition: &str, call: &str) -> Shell {
+    use std::io::Write as _;
+
+    let run = || -> Option<Shell> {
+        let shell = format!("tclsh{release}");
+        let mut child = std::process::Command::new(&shell)
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .ok()?;
+        let script = format!(
+            "puts -nonewline \"[info patchlevel]|\"\nnamespace eval vendor {{}}\n{definition}\n\
+             if {{[catch {{{call}}} answer]}} {{puts -nonewline ERR}} else {{puts -nonewline OK:$answer}}\n"
+        );
+        child.stdin.take()?.write_all(script.as_bytes()).ok()?;
+        let output = String::from_utf8(child.wait_with_output().ok()?.stdout).ok()?;
+        let (patchlevel, outcome) = output.split_once('|')?;
+        patchlevel.starts_with(release).then(|| {
+            outcome
+                .strip_prefix("OK:")
+                .map_or(Shell::Raised, |value| Shell::Answered(value.to_owned()))
+        })
+    };
+    run().unwrap_or(Shell::Absent)
+}
+
+/// The body runs under the release the call is analysed under: `string cat` is
+/// 8.6's, so a body that calls it answers under 8.6 and later and abstains under
+/// 8.4 and 8.5, and a leading zero is octal up to 8.6 and decimal from 9.0, so one
+/// body answers differently under 8.6 and 9.0.
+///
+/// The derivation is the author's to ask for because the engine under the host
+/// emulates an older release imperfectly (issue #2333: `string is integer`'s width,
+/// `tcl_precision` under 8.4, `incr` of an unset local, `lreplace` and `lindex`
+/// bounds and index forms, `1.0/0`, `int(1e20)` and `1<<64` under 8.4, `format
+/// %c`), so the rows below are those that hold, and each is held to the real shell
+/// of the release it is analysed under: the analysis answers what the shell does,
+/// or abstains where the shell raises. A release with no shell on `PATH` skips its
+/// rows.
+#[test]
+fn a_derived_body_runs_under_the_release_the_call_is_analysed_under() {
+    const ALL: &[&str] = &["8.4", "8.5", "8.6", "9.0", "9.1"];
+
+    let cat = "proc vendor::f {a b} {string cat $a $b}";
+    for (dialect, expected) in [
+        ("tcl8.4", None),
+        ("tcl8.5", None),
+        ("tcl8.6", Some("xy")),
+        ("tcl9.0", Some("xy")),
+        ("tcl9.1", Some("xy")),
+    ] {
+        assert_eq!(
+            proved_under(dialect, cat, 2, "vendor::f x y").as_deref(),
+            expected,
+            "{dialect}"
+        );
+    }
+    let leading_zero = "proc vendor::f {x} {expr {$x + 010}}";
+    for (dialect, expected) in [("tcl8.6", "8"), ("tcl9.0", "10")] {
+        assert_eq!(
+            proved_under(dialect, leading_zero, 1, "vendor::f 0").as_deref(),
+            Some(expected),
+            "{dialect}"
+        );
+    }
+
+    // What the real shell of each release answers.
+    let rows: &[(&str, &str, usize, &str, &[&str])] = &[
+        (
+            "string cat",
+            "proc vendor::f {a b} {string cat $a $b}",
+            2,
+            "vendor::f x y",
+            ALL,
+        ),
+        (
+            "octal",
+            "proc vendor::f {x} {expr {$x + 010}}",
+            1,
+            "vendor::f 0",
+            ALL,
+        ),
+        (
+            "digit separator",
+            "proc vendor::f {x} {expr {$x + 1_000}}",
+            1,
+            "vendor::f 0",
+            ALL,
+        ),
+        (
+            "format %x",
+            "proc vendor::f {x} {format %x $x}",
+            1,
+            "vendor::f -1",
+            ALL,
+        ),
+        (
+            "an astral character's length",
+            "proc vendor::f {x} {string length \"\\U1F600$x\"}",
+            1,
+            "vendor::f a",
+            ALL,
+        ),
+        (
+            "a float past a word",
+            "proc vendor::f {x} {expr {int($x)}}",
+            1,
+            "vendor::f 1e20",
+            &["9.0", "9.1"],
+        ),
+    ];
+    for (row, definition, arity, call, releases) in rows {
+        let (mut compared, mut answered) = (0, 0);
+        for release in *releases {
+            let shell = real_shell(release, definition, call);
+            if shell == Shell::Absent {
+                eprintln!("skipped: no tclsh{release} on PATH ({row})");
+                continue;
+            }
+            let shell = shell.answer();
+            let analysed = proved_under(&format!("tcl{release}"), definition, *arity, call);
+            assert_eq!(
+                analysed, shell,
+                "{row} under {release}: the analysis against the shell's own answer\n{definition}\n{call}"
+            );
+            answered += usize::from(shell.is_some());
+            compared += 1;
+        }
+        assert!(
+            compared == 0 || answered > 0,
+            "{row}: no release answered a value, so nothing was compared"
+        );
+    }
 }

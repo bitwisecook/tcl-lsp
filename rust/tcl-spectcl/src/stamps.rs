@@ -61,7 +61,9 @@
 //!   a stamp must pass both gates;
 //! - `alias_of` and a `runtime_backing` other than `none` are dropped, with a
 //!   warning naming the tier, from a tier whose capability holds neither
-//!   ([`admit_declarations`]).
+//!   ([`admit_declarations`]); a `runtime_backing` that is a Tcl body is a
+//!   reference body, which the compiler inlines into the code that calls the
+//!   command, and is dropped from every tier but the workspace's own package.
 //!
 //! A command no package ships has no tier and the capability gate leaves it
 //! alone. Like a refused stamp, a dropped declaration costs the command no
@@ -86,9 +88,11 @@ use std::sync::{Mutex, OnceLock, PoisonError};
 use rustc_hash::FxHashMap;
 use tcl_dialect::model::Provenance;
 use tcl_registry::forms::CommandForm;
-use tcl_registry::model::capability::{CodegenCapability, DependencyTier};
+use tcl_registry::model::capability::{CodegenCapability, DependencyTier, ReferenceBodies};
 use tcl_registry::registry::CommandRegistry;
+use tcl_registry::semantic_operation::SemanticOperationId;
 use tcl_registry::spec::{CommandSpec, SubCommand};
+use tcl_registry::stamp_window::StampWindow;
 use tcl_registry::{BodySource, RuntimeBacking};
 
 use crate::backing::BackingSyntax;
@@ -301,8 +305,13 @@ pub enum Declaration {
     /// `alias_of NAME`, which a site recorded against a shipped builtin rests
     /// on.
     AliasOf(&'static str),
-    /// A `runtime_backing` other than `none`, as declared.
+    /// A `runtime_backing` other than `none` and a Tcl body, as declared.
     RuntimeBacking(RuntimeBacking),
+    /// A `runtime_backing` that is a Tcl body, from a package whose tier may
+    /// declare a backing: the body is a reference body, which the compiler
+    /// inlines into the code of whatever calls the command, so it is held to
+    /// the matrix's own row for them.
+    ReferenceBody(RuntimeBacking),
 }
 
 impl Declaration {
@@ -313,8 +322,13 @@ impl Declaration {
             // The body is the pack's own text and can run to pages.
             Self::RuntimeBacking(RuntimeBacking::TclBody {
                 source: BodySource::PackText { .. },
+                ..
+            })
+            | Self::ReferenceBody(RuntimeBacking::TclBody {
+                source: BodySource::PackText { .. },
+                ..
             }) => "runtime_backing tcl-body {-pack-text …}".to_owned(),
-            Self::RuntimeBacking(backing) => format!(
+            Self::RuntimeBacking(backing) | Self::ReferenceBody(backing) => format!(
                 "runtime_backing {}",
                 BackingSyntax::from_backing(backing).spelling()
             ),
@@ -326,6 +340,7 @@ impl Declaration {
         match self {
             Self::AliasOf(_) => "`alias_of`",
             Self::RuntimeBacking(_) => "a `runtime_backing`",
+            Self::ReferenceBody(_) => "a reference body",
         }
     }
 
@@ -334,6 +349,20 @@ impl Declaration {
         match self {
             Self::AliasOf(_) => capability.builtin_alias,
             Self::RuntimeBacking(_) => capability.runtime_backing,
+            Self::ReferenceBody(_) => {
+                capability.runtime_backing
+                    && !matches!(capability.reference_body, ReferenceBodies::Forbidden)
+            }
+        }
+    }
+
+    /// Who may declare it, as the tiers the matrix names.
+    const fn remedy(self) -> &'static str {
+        match self {
+            Self::AliasOf(_) | Self::RuntimeBacking(_) => {
+                "only the workspace's own package and its direct dependencies may"
+            }
+            Self::ReferenceBody(_) => "only the workspace's own package may",
         }
     }
 }
@@ -355,12 +384,12 @@ impl DeclarationRefusal {
     #[must_use]
     pub fn message(&self) -> String {
         format!(
-            "`{}` refused for `{}`: {} may not declare {}; only the workspace's own package \
-             and its direct dependencies may",
+            "`{}` refused for `{}`: {} may not declare {}; {}",
             self.declaration.spelling(),
             self.command,
             pack_of(self.tier),
             self.declaration.noun(),
+            self.declaration.remedy(),
         )
     }
 }
@@ -378,10 +407,20 @@ pub fn declaration_refusals(
         return Vec::new();
     };
     let capability = CodegenCapability::for_tier(tier);
-    let declared = spec.alias_of.map(Declaration::AliasOf).into_iter().chain(
-        (!spec.runtime_backing.is_none())
-            .then_some(Declaration::RuntimeBacking(spec.runtime_backing)),
-    );
+    // A Tcl body is held to the reference-body row once the tier may declare a
+    // backing at all; a tier that may not refuses it as the backing it is.
+    let backing = match spec.runtime_backing {
+        RuntimeBacking::None => None,
+        backing @ RuntimeBacking::TclBody { .. } if capability.runtime_backing => {
+            Some(Declaration::ReferenceBody(backing))
+        }
+        backing => Some(Declaration::RuntimeBacking(backing)),
+    };
+    let declared = spec
+        .alias_of
+        .map(Declaration::AliasOf)
+        .into_iter()
+        .chain(backing);
     declared
         .filter(|declaration| !declaration.permitted_by(capability))
         .map(|declaration| DeclarationRefusal {
@@ -405,7 +444,9 @@ pub fn admit_declarations(command: &mut PackCommand) -> Vec<DeclarationRefusal> 
         for refusal in &refusals {
             match refusal.declaration {
                 Declaration::AliasOf(_) => drops.alias_of = true,
-                Declaration::RuntimeBacking(_) => drops.runtime_backing = true,
+                Declaration::RuntimeBacking(_) | Declaration::ReferenceBody(_) => {
+                    drops.runtime_backing = true;
+                }
             }
         }
         command.spec = stripped(command.spec, drops);
@@ -536,20 +577,69 @@ fn drop_stamp(spec: &mut CommandSpec, site: StampSite, stamp: CodegenStamp) {
     }
 }
 
+/// Clear the unversioned field when it holds `stamp`'s value, and every window
+/// that does: a windowed stamp is the same stamp, and refusing one must not
+/// leave it standing in a window.
 fn clear_command(spec: &mut CommandSpec, stamp: CodegenStamp) {
     match stamp {
-        CodegenStamp::Codegen(_) => spec.codegen_hook = None,
-        CodegenStamp::InlineCodegen(_) => spec.inline_codegen_hook = None,
-        CodegenStamp::Intrinsic(_) => spec.semantic_operation = None,
+        CodegenStamp::Codegen(id) => {
+            clear_field(&mut spec.codegen_hook, &id);
+            spec.codegen_hook_windows = without_windows(spec.codegen_hook_windows, id);
+        }
+        CodegenStamp::InlineCodegen(id) => {
+            clear_field(&mut spec.inline_codegen_hook, &id);
+            spec.inline_codegen_hook_windows =
+                without_windows(spec.inline_codegen_hook_windows, id);
+        }
+        CodegenStamp::Intrinsic(id) => {
+            let operation = SemanticOperationId::Intrinsic(id);
+            clear_field(&mut spec.semantic_operation, &operation);
+            spec.semantic_operation_windows =
+                without_windows(spec.semantic_operation_windows, operation);
+        }
     }
 }
 
 fn clear_subcommand(sub: &mut SubCommand, stamp: CodegenStamp) {
     match stamp {
-        CodegenStamp::Codegen(_) => sub.codegen_hook = None,
-        CodegenStamp::InlineCodegen(_) => sub.inline_codegen_hook = None,
-        CodegenStamp::Intrinsic(_) => sub.semantic_operation = None,
+        CodegenStamp::Codegen(id) => {
+            clear_field(&mut sub.codegen_hook, &id);
+            sub.codegen_hook_windows = without_windows(sub.codegen_hook_windows, id);
+        }
+        CodegenStamp::InlineCodegen(id) => {
+            clear_field(&mut sub.inline_codegen_hook, &id);
+            sub.inline_codegen_hook_windows = without_windows(sub.inline_codegen_hook_windows, id);
+        }
+        CodegenStamp::Intrinsic(id) => {
+            let operation = SemanticOperationId::Intrinsic(id);
+            clear_field(&mut sub.semantic_operation, &operation);
+            sub.semantic_operation_windows =
+                without_windows(sub.semantic_operation_windows, operation);
+        }
     }
+}
+
+fn clear_field<T: PartialEq>(field: &mut Option<T>, stamp: &T) {
+    if field.as_ref() == Some(stamp) {
+        *field = None;
+    }
+}
+
+/// `windows` without the ones that carry `stamp`, leaking a new slice only when
+/// one was there to drop.
+fn without_windows<T: Copy + PartialEq>(
+    windows: &'static [StampWindow<T>],
+    stamp: T,
+) -> &'static [StampWindow<T>] {
+    if windows.iter().all(|window| window.value != stamp) {
+        return windows;
+    }
+    let kept: Vec<StampWindow<T>> = windows
+        .iter()
+        .filter(|window| window.value != stamp)
+        .copied()
+        .collect();
+    Box::leak(kept.into_boxed_slice())
 }
 
 fn clear_form(form: &mut CommandForm, stamp: CodegenStamp) {
@@ -579,6 +669,7 @@ mod tests {
             file: std::path::PathBuf::new(),
             content_hash: 0,
             dependency_tier: None,
+            reference_text: None,
         }
     }
 
@@ -714,6 +805,166 @@ mod tests {
         assert_eq!(first.codegen_hook, None);
     }
 
+    /// A stamp in a window is held to the same two gates and the same target
+    /// rule as the plain one, and a refusal drops it from the windows — and
+    /// leaves every other stamp and window where it was.
+    #[test]
+    fn a_windowed_stamp_is_refused_and_dropped_as_the_plain_one_is() {
+        use tcl_registry::lifecycle::Lifecycle;
+
+        const FROM_9: &[StampWindow<CodegenHookId>] = &[StampWindow {
+            lifecycle: Lifecycle::introduced_in("9.0"),
+            value: CodegenHookId::Lassign,
+        }];
+        const LLENGTH_FROM_9: &[StampWindow<CodegenHookId>] = &[StampWindow {
+            lifecycle: Lifecycle::introduced_in("9.0"),
+            value: CodegenHookId::Llength,
+        }];
+        let windowed = |alias_of, plain| CommandSpec {
+            name: "vendor::unpack",
+            alias_of,
+            codegen_hook: plain,
+            codegen_hook_windows: FROM_9,
+            ..CommandSpec::DEFAULT
+        };
+
+        // `lassign`'s own stamp, in a window, from a bundled pack.
+        let mut kept = command(windowed(Some("lassign"), None));
+        let before = kept.spec;
+        assert!(admit_codegen_stamps(&mut kept, Provenance::BundledPack, shipped()).is_empty());
+        assert!(
+            std::ptr::eq(kept.spec, before),
+            "an admitted stamp keeps its spec"
+        );
+
+        // The same from the workspace tier: refused, and the window goes with
+        // the plain stamp beside it.
+        let mut tiered = command(windowed(Some("lassign"), Some(CodegenHookId::Llength)));
+        let refusals = admit_codegen_stamps(&mut tiered, Provenance::WorkspaceTrusted, shipped());
+        assert_eq!(refusals.len(), 2);
+        assert!(
+            refusals
+                .iter()
+                .all(|refusal| refusal.reason == RefusalReason::TierGate)
+        );
+        assert_eq!(tiered.spec.codegen_hook, None);
+        assert!(tiered.spec.codegen_hook_windows.is_empty());
+        assert!(!carries_stamp(tiered.spec));
+
+        // A bundled pack's plain stamp that is not its target's own goes, and
+        // the window that is stays.
+        let mut partly = command(windowed(Some("lassign"), Some(CodegenHookId::Llength)));
+        let refusals = admit_codegen_stamps(&mut partly, Provenance::BundledPack, shipped());
+        assert_eq!(refusals.len(), 1);
+        assert_eq!(
+            refusals[0].stamp,
+            CodegenStamp::Codegen(CodegenHookId::Llength)
+        );
+        assert_eq!(
+            refusals[0].reason,
+            RefusalReason::NotTheTargetsOwn("lassign")
+        );
+        assert_eq!(partly.spec.codegen_hook, None);
+        assert_eq!(partly.spec.codegen_hook_windows, FROM_9);
+
+        // Refusing a window's stamp leaves a different plain stamp alone.
+        let mut mixed = command(CommandSpec {
+            name: "vendor::unpack",
+            alias_of: Some("lassign"),
+            codegen_hook: Some(CodegenHookId::Lassign),
+            codegen_hook_windows: LLENGTH_FROM_9,
+            ..CommandSpec::DEFAULT
+        });
+        let refusals = admit_codegen_stamps(&mut mixed, Provenance::BundledPack, shipped());
+        assert_eq!(refusals.len(), 1);
+        assert_eq!(
+            refusals[0].stamp,
+            CodegenStamp::Codegen(CodegenHookId::Llength)
+        );
+        assert_eq!(
+            mixed.spec.codegen_hook,
+            Some(CodegenHookId::Lassign),
+            "the plain stamp is the target's own and stays"
+        );
+        assert!(mixed.spec.codegen_hook_windows.is_empty());
+
+        // A windowed stamp is not the target's own where the target is not the
+        // builtin that carries it.
+        let mut foreign = command(windowed(Some("lsort"), None));
+        let refusals = admit_codegen_stamps(&mut foreign, Provenance::BundledPack, shipped());
+        assert_eq!(refusals.len(), 1);
+        assert_eq!(refusals[0].reason, RefusalReason::NotTheTargetsOwn("lsort"));
+        assert!(foreign.spec.codegen_hook_windows.is_empty());
+
+        // And none at all without an `alias_of`.
+        let mut bare = command(windowed(None, None));
+        let refusals = admit_codegen_stamps(&mut bare, Provenance::BundledPack, shipped());
+        assert_eq!(refusals[0].reason, RefusalReason::NoAliasOf);
+        assert!(bare.spec.codegen_hook_windows.is_empty());
+    }
+
+    /// A subcommand's windows are the same stamps at the subcommand's site.
+    #[test]
+    fn a_windowed_subcommand_stamp_is_dropped_at_its_own_site_only() {
+        use tcl_registry::lifecycle::Lifecycle;
+
+        const LENGTH_FROM_9: &[StampWindow<SemanticOperationId>] = &[StampWindow {
+            lifecycle: Lifecycle::introduced_in("9.0"),
+            value: SemanticOperationId::Intrinsic(IntrinsicId::StringLength),
+        }];
+        let length = SubCommand {
+            name: "length",
+            semantic_operation_windows: LENGTH_FROM_9,
+            ..SubCommand::DEFAULT
+        };
+        let other = SubCommand {
+            name: "range",
+            semantic_operation_windows: LENGTH_FROM_9,
+            ..SubCommand::DEFAULT
+        };
+        let mut refused = command(CommandSpec {
+            name: "vendor::str",
+            alias_of: None,
+            subcommands: Box::leak(Box::new([length, other])),
+            ..CommandSpec::DEFAULT
+        });
+        let refusals = admit_codegen_stamps(&mut refused, Provenance::BundledPack, shipped());
+        assert_eq!(refusals.len(), 2);
+        assert!(
+            refused
+                .spec
+                .subcommands
+                .iter()
+                .all(|sub| sub.semantic_operation_windows.is_empty())
+        );
+        assert_eq!(
+            refused
+                .spec
+                .subcommands
+                .iter()
+                .map(|sub| sub.name)
+                .collect::<Vec<_>>(),
+            ["length", "range"],
+            "only the stamps go"
+        );
+
+        let mut admitted = command(CommandSpec {
+            name: "vendor::str",
+            alias_of: Some("string"),
+            subcommands: Box::leak(Box::new([SubCommand {
+                name: "length",
+                semantic_operation_windows: LENGTH_FROM_9,
+                ..SubCommand::DEFAULT
+            }])),
+            ..CommandSpec::DEFAULT
+        });
+        assert!(admit_codegen_stamps(&mut admitted, Provenance::BundledPack, shipped()).is_empty());
+        assert_eq!(
+            admitted.spec.subcommands[0].semantic_operation_windows,
+            LENGTH_FROM_9
+        );
+    }
+
     /// A command a package ships, at `tier`: `lassign`'s own stamp, `alias_of
     /// lassign`, and a shipped-builtin backing.
     fn shipped_by(tier: Option<DependencyTier>) -> PackCommand {
@@ -842,7 +1093,77 @@ mod tests {
                 Declaration::RuntimeBacking(RuntimeBacking::HostNative).permitted_by(capability),
                 named
             );
+            // A reference body is the workspace's own package's alone.
+            assert_eq!(
+                Declaration::ReferenceBody(tcl_body()).permitted_by(capability),
+                tier == DependencyTier::Root
+            );
         }
+    }
+
+    fn tcl_body() -> RuntimeBacking {
+        RuntimeBacking::pack_text("proc vendor::double {x} {expr {$x * 2}}")
+    }
+
+    /// A Tcl body is a reference body, which only the workspace's own package
+    /// may supply: a direct dependency keeps every other backing and loses
+    /// this one, said in the reference body's own words, and a further tier,
+    /// which may declare no backing at all, loses it as a backing.
+    #[test]
+    fn only_the_workspaces_own_package_may_supply_a_reference_body() {
+        let body = || {
+            let mut command = command(CommandSpec {
+                name: "vendor::double",
+                runtime_backing: tcl_body(),
+                ..CommandSpec::DEFAULT
+            });
+            command.dependency_tier = None;
+            command
+        };
+        let mut shipped_by_no_package = body();
+        assert!(admit_declarations(&mut shipped_by_no_package).is_empty());
+        assert_eq!(shipped_by_no_package.spec.runtime_backing, tcl_body());
+
+        let mut root = body();
+        root.dependency_tier = Some(DependencyTier::Root);
+        assert!(admit_declarations(&mut root).is_empty());
+        assert_eq!(root.spec.runtime_backing, tcl_body());
+
+        let mut direct = body();
+        direct.dependency_tier = Some(DependencyTier::Direct);
+        let refusals = admit_declarations(&mut direct);
+        assert_eq!(
+            refusals
+                .iter()
+                .map(DeclarationRefusal::message)
+                .collect::<Vec<_>>(),
+            vec![
+                "`runtime_backing tcl-body {-pack-text …}` refused for `vendor::double`: a \
+                 direct dependency's pack may not declare a reference body; only the \
+                 workspace's own package may"
+            ]
+        );
+        assert_eq!(direct.spec.runtime_backing, RuntimeBacking::None);
+
+        let mut transitive = body();
+        transitive.dependency_tier = Some(DependencyTier::Transitive);
+        let refusals = admit_declarations(&mut transitive);
+        assert_eq!(refusals.len(), 1);
+        assert_eq!(
+            refusals[0].declaration,
+            Declaration::RuntimeBacking(tcl_body()),
+            "a tier with no backings refuses it as one"
+        );
+        assert_eq!(transitive.spec.runtime_backing, RuntimeBacking::None);
+
+        // A backing that is no Tcl body is not a reference body.
+        let mut host = command(CommandSpec {
+            name: "vendor::native",
+            runtime_backing: RuntimeBacking::HostNative,
+            ..CommandSpec::DEFAULT
+        });
+        host.dependency_tier = Some(DependencyTier::Direct);
+        assert!(admit_declarations(&mut host).is_empty());
     }
 
     #[test]
@@ -863,9 +1184,7 @@ mod tests {
         );
 
         // A body carried in the pack is named, not quoted: it can run to pages.
-        let text = Declaration::RuntimeBacking(RuntimeBacking::TclBody {
-            source: BodySource::PackText { text: "return 1" },
-        });
+        let text = Declaration::RuntimeBacking(RuntimeBacking::pack_text("return 1"));
         assert_eq!(text.spelling(), "runtime_backing tcl-body {-pack-text …}");
     }
 

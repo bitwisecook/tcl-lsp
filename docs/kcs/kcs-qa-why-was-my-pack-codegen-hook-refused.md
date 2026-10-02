@@ -27,6 +27,10 @@ both of these are true:
   built-in has the same row. `codegen_hook -native Lassign` is `lassign`'s
   own, so it can only sit on a command that says `alias_of lassign`.
 
+A row that ends in `-introduced`, `-deprecated` or `-retired` is one
+release window of the same stamp, and it is kept or refused on the same two
+terms: a window cannot get a stamp past the rule that the plain row could not.
+
 Otherwise the server drops the row and puts one warning on the command's
 line:
 
@@ -36,7 +40,8 @@ pack may not name a codegen catalogue member; the stamp would have to sit
 on `alias_of lassign`
 ```
 
-Only that row goes. The command keeps its arity, argument roles, hover
+Only that row goes — a refused stamp leaves the windows of every other
+stamp where they were. The command keeps its arity, argument roles, hover
 text, and hook bodies, so completion, hover, and diagnostics work as
 before. Calls to it compile to ordinary command dispatch, which is always
 correct.

@@ -568,6 +568,21 @@ message. See [W139](../../kcs/codes/kcs-diagnostic-w139-retired-at-resolved-vers
   read each leave it transitive, the least a package gets. The tier is part
   of the pack set's key, so a package moving in the lockfile's graph reloads
   what its packs may declare.
+- **A package names its packs with a `spec` directive.** A manifest that says
+  `spec { packs {rules.tclspec vendor/more.tclspec} tier direct }` names the
+  `.tclspec` files it ships, as paths relative to the manifest and inside the
+  package, and discovery loads exactly those beside it — a draft or a fixture
+  next to the manifest is not a pack — while a manifest without the directive
+  keeps the scan of every `.tclspec` under its directory. The directive is
+  data, as every manifest directive is: it names files and runs nothing.
+  `tier` is the tier the package asks for its packs when it is a dependency,
+  and it is a request: the load holds it no nearer the root than the position
+  the lockfile's graph gives the package, so a package may ask for less than
+  its position licenses and never more, and the workspace's own package takes
+  no request. A pack the directive names that is not there is reported on the
+  file by the load. `tcl pkg install` records a hash of each pack a fetched
+  package names in the lockfile (`spec_integrity`), the same content hash a
+  compiled unit's claim on the pack carries.
 - **Live reload of a pack outside the workspace needs a 3.17 client.** The
   session-wide watcher registration uses workspace-relative patterns, which a
   client matches only inside its workspace folders, so the user tier and any
@@ -595,7 +610,11 @@ message. See [W139](../../kcs/codes/kcs-diagnostic-w139-retired-at-resolved-vers
   1.x pack to the newest vocabulary (`--check`, `--verify`, `--restyle`;
   [dialect-and-package-registry-centralisation.md](dialect-and-package-registry-centralisation.md)
   §6); `tcl spec export` renders a pack as canonical SpecTcl — its
-  expansion, if it is a program. The MCP server carries `spectcl_check`
+  expansion, if it is a program; `tcl spec test` requires the package a pack
+  describes in a real shell — only under the package manager's opt-in policy,
+  because that runs the package's code — and reports each declared fact
+  (arity, examples, return type, purity, a Tcl-body reference body) the
+  package does not bear out. The MCP server carries `spectcl_check`
   (evaluate a pack and report notices, `load_error`, target-dependence,
   and — for a caller-chosen `tier`/`trust` pair, defaulting to a trusted
   workspace — the provenance an `-override`/`dialect`/reserved-name
@@ -962,27 +981,62 @@ rung* there).
 
 A pack may also say how a command's behaviour reaches the runtime, with
 `runtime_backing` — `none`, `host-native`, `shipped-builtin ID`,
-`tcl-body {-package-source PATH}`, or `tcl-body {-pack-text {TEXT}}` (a
-`RuntimeBacking`, rung 4 of the same page). It is declared vocabulary: every
-shipped core command declares one, an override keeps the shipped command's
-(the security floor), and nothing yet admits a compiled site on it. A
-`-pack-text` body, which a library upgrade makes diverge silently, is
-reported at load as an information notice on the command's row.
+`tcl-body {-package-source PATH ?-evaluate?}`, or `tcl-body {-pack-text {TEXT}
+?-evaluate?}` (a `RuntimeBacking`, rung 4 of the same page). Every shipped core
+command declares one and an override keeps the shipped command's (the security
+floor). A
+`tcl-body` backing is a **reference body**: the text of the `proc` that defines
+the command, which the compiler inlines into the procedures that call it. The
+text is the pack's own for `-pack-text`, and for `-package-source` the file of
+the package that ships the pack, relative to the nearest directory above the
+pack that holds a `tclpkg.tcl`, read once at load through the store that read
+the pack — the compiler reads no file, an unreadable path is a warning on the
+command's row, and what was read is part of the pack set's key. The text must be
+exactly one `proc` that defines the command it backs; anything else is passed
+over, as is a call the policy that inlines a module's own procedures declines,
+and a call at a script's global level. A site that inlines one records the
+pack's facts with a claim on the binding that holds the live command to that
+definition, and the VM runs it only while the command is a procedure of exactly
+that text and holds the same facts: a library that diverges from the pack turns
+the site back to ordinary dispatch ([../compiler/registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
+§ *What the artefact records per rung*, rung 3). A `-pack-text` body, which a
+library upgrade makes diverge silently, is reported at load as an information
+notice on the command's row. A command backed any other way is never inlined.
+
+When the author adds `-evaluate` beside the source and the body is also one the
+bounded host can run — one `proc` with required parameters, every command on the
+hook host's whitelist, nothing reaching for the frame, a channel, a process or
+the world, `return` only as the last statement — the load derives the command's
+declared implementation from it, as an `evaluate -implementation` written beside
+the body would, and the analyser evaluates a call whose arguments it knows by
+running the body in an engine pinned to the release the call is analysed under
+([../compiler/value-evaluation.md](../compiler/value-evaluation.md) § *The
+declared-implementation route*). The flag is the author's assertion that the body
+answers what a real shell does under every release the pack is analysed for: the
+engine emulates an older release imperfectly, so nothing is derived from a body
+whose author did not say so, and such a body draws no notice. The derivation
+needs the command's `arity` to be exactly the body's parameters. A command whose
+author wrote its `semantics` or `evaluate` is left as written, and the flag
+beside either is a contradiction the notice says; one with subcommands or forms,
+one with arity windows and one with another arity are left without, and so is a
+body the scan refuses, each with a warning on the command's row that says why.
 
 How far the package that ships a pack sits from the workspace root narrows
 what the pack may declare, beside the gate above: a declaration must pass
 both. The workspace's own package may declare everything, a direct
 dependency may declare `alias_of` and a `runtime_backing` but no codegen-axis
-stamp, and a transitive or development dependency may declare none of the
-three, so a package deep in a dependency graph cannot change what the
-workspace emits (`CodegenCapability::for_tier`,
+stamp and no reference body (a `tcl-body` backing), and a transitive or
+development dependency may declare none of the three, so a package deep in a
+dependency graph cannot change what the workspace emits (`CodegenCapability::for_tier`,
 [../compiler/registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
 § *Dialects and packages*). The load drops an `alias_of` or a backing the
 tier may not declare and publishes a warning on the command's row that names
 the tier — "`alias_of lassign` refused for `dep::unpack`: a transitive
 dependency's pack may not declare `alias_of`; only the workspace's own
-package and its direct dependencies may" — and the command keeps every other
-fact. A pack no package ships has no tier and is not narrowed. The user's
+package and its direct dependencies may", and "`runtime_backing tcl-body
+{-pack-text …}` refused for `dep::double`: a direct dependency's pack may not
+declare a reference body; only the workspace's own package may" — and the
+command keeps every other fact. A pack no package ships has no tier and is not narrowed. The user's
 answer is [why was a declaration dropped from my dependency's pack](../../kcs/kcs-qa-why-was-a-declaration-dropped-from-my-dependencys-pack.md).
 
 The `world_effects` block rows stay documented vocabulary the loader does

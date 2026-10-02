@@ -812,6 +812,112 @@ fn an_unsafe_stub_is_hidden_in_a_safe_interpreter() {
     );
 }
 
+// ───────────────────────── the extension default ─────────────────────────
+
+// `-extension` says native code registers the command, so nothing is known of
+// it and the declaration starts from the conservative default on every axis
+// (`tcl_registry::extension_default`): it evaluates code at any level, reads
+// and writes any state, is a taint sink and source, is unsafe and hidden in a
+// safe interpreter, and is never pure. The other flags narrow it, each on its
+// own axis and on no other.
+
+/// The default's evaluation axis: any argument may be run as a script or name
+/// a variable, so a call is a dynamic barrier and the minifier leaves the
+/// locals around it alone — where the same stub without `-extension` states no
+/// behaviour and its local is compacted.
+#[test]
+fn an_extension_stub_fences_its_scope_from_renaming() {
+    let flagged = compacted(&stubbed("ext_spy {} -extension", &local_around("ext_spy")));
+    assert!(
+        flagged.contains("$local"),
+        "an extension command may observe the scope it runs in; got {flagged:?}"
+    );
+    let flagless = compacted(&stubbed("ext_spy {}", &local_around("ext_spy")));
+    assert!(
+        !flagless.contains("$local"),
+        "a stub that says nothing of the command fences nothing; got {flagless:?}"
+    );
+}
+
+/// The default's safety axis: native code is hidden in a safe interpreter
+/// without `-unsafe` being written.
+#[test]
+fn an_extension_stub_is_hidden_in_a_safe_interpreter() {
+    let flagged = codes(&stubbed(
+        "ext_run {cmd} -extension",
+        &in_safe_interp("ext_run ls"),
+    ));
+    assert!(
+        flagged.contains(&"W129".to_owned()),
+        "native code is hidden in a safe interpreter; got {flagged:?}"
+    );
+    let flagless = codes(&stubbed("ext_run {cmd}", &in_safe_interp("ext_run ls")));
+    assert!(
+        !flagless.contains(&"W129".to_owned()),
+        "without `-extension` nothing says the command is hidden; got {flagless:?}"
+    );
+}
+
+/// The default's purity axis is never pure, so the unused result of a wrapper
+/// around the call stays; `-pure` narrows that axis, and only the effect axes
+/// with it: the same stub is still hidden in a safe interpreter, and no longer
+/// a barrier, because the declaration said what the command does.
+#[test]
+fn a_stated_purity_narrows_an_extension_stub_and_leaves_its_safety() {
+    let unstated = optimisation_codes(&stubbed(
+        "ext_label {x} -extension",
+        &pure_wrapper("ext_label"),
+    ));
+    assert!(
+        !unstated.contains(&"O126".to_owned()),
+        "an extension command is never pure until it is declared so; got {unstated:?}"
+    );
+    let narrowed = stubbed("ext_label {x} -extension -pure", &pure_wrapper("ext_label"));
+    assert!(
+        optimisation_codes(&narrowed).contains(&"O126".to_owned()),
+        "a declared-pure extension command is pure to the summary"
+    );
+    let safe = codes(&stubbed(
+        "ext_label {x} -extension -pure",
+        &in_safe_interp("ext_label ls"),
+    ));
+    assert!(
+        safe.contains(&"W129".to_owned()),
+        "purity says nothing of safety, so the command stays hidden; got {safe:?}"
+    );
+    let fenced = compacted(&stubbed(
+        "ext_spy {} -extension -pure",
+        &local_around("ext_spy"),
+    ));
+    assert!(
+        !fenced.contains("$local"),
+        "a pure command evaluates no code, so it fences no scope; got {fenced:?}"
+    );
+}
+
+/// A stated effect replaces the default's unknown one: `-mutator` reads and
+/// writes its target and nothing else, so the scope is not fenced; `-barrier`
+/// beside it says the command evaluates code after all, and the scope is.
+#[test]
+fn a_stated_mutation_narrows_an_extension_stub_and_a_stated_barrier_survives_it() {
+    let mutator = compacted(&stubbed(
+        "ext_mut {} -extension -mutator",
+        &local_around("ext_mut"),
+    ));
+    assert!(
+        !mutator.contains("$local"),
+        "a command that only rewrites its target fences nothing; got {mutator:?}"
+    );
+    let barrier = compacted(&stubbed(
+        "ext_mut {} -extension -mutator -barrier",
+        &local_around("ext_mut"),
+    ));
+    assert!(
+        barrier.contains("$local"),
+        "a stated barrier survives a stated effect; got {barrier:?}"
+    );
+}
+
 // ─────────────────────────────── nearest wins ─────────────────────────────
 
 /// A stub that redeclares a catalogued command answers alone: `after ms

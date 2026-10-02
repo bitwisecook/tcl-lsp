@@ -58,8 +58,8 @@ it gates hard breaks (a word whose *meaning* changed), never additions.
 It is the **only** loader directive; a `pragma` statement is an unknown
 property, dropped with a logged notice.
 
-The current vocabulary is **2.1**. `1`, `1.0`, `1.1`, `1.2`, `2.0` and `2.1` all
-name a vocabulary the loader reads in full. A pack declaring a newer
+The current vocabulary is **2.2**. `1`, `1.0`, `1.1`, `1.2`, `2.0`, `2.1` and
+`2.2` all name a vocabulary the loader reads in full. A pack declaring a newer
 *minor* of a major the loader knows still loads, with a notice saying
 which vocabulary the loader knows — it only loses the words that server
 has never heard of. A newer **major** is the one case that fails closed;
@@ -76,7 +76,7 @@ Additive only, so nothing written against 1.0 has to change.
 | **1.2** | versioned `arity` and `arg` rows; `ambient_package`; second-level option blocks; option-level `-taints-var-write`, `-variable-scope`, `-script-timing`, and `-callback-taint-inputs`; positional `callback_taint_inputs`; `script_timing_resolver`; `object_class -method-prefix-matching`; and `tk_geometry` |
 | **2.0** | `available {PROVIDER SPEC…}` / `-available` at every scope `dialects` is accepted; the `environment NAME { … }` (with `help_terms` and `version_ceiling` rows since the EDA shells moved into their packs) and `dialect NAME { … }` pack-level blocks; `refine NAME { … }`, the invocation refinement, at command and subcommand scope |
 | **2.1** | `arg_role_resolver_roles {ROLE …}` at command and subcommand scope; the non-empty closed set is required whenever `arg_role_resolver` is present so every consumer can conservatively cache the roles a dynamic resolver may emit |
-| **2.2** | the value-transfer statements at command, subcommand, and `refine` scope, innermost winning: `semantics -native ID` / `semantics { effects … result … stores … iterate … }` / `semantics none`; `evaluate -direct ID` / `-expression ID` / `-native ID` / `-implementation ID -host bounded_tcl { inputs … depends … budget … body {params} {…} }` / `evaluate none`; `facts -native ID` / `facts { … }` / `facts none`; the option-row flags `-evaluate none` and `-evaluate-reason WORD` |
+| **2.2** | the value-transfer statements at command, subcommand, and `refine` scope, innermost winning: `semantics -native ID` / `semantics { effects … result … stores … iterate … }` / `semantics none`; `evaluate -direct ID` / `-expression ID` / `-native ID` / `-implementation ID -host bounded_tcl { inputs … depends … budget … body {params} {…} }` / `evaluate none`; `facts -native ID` / `facts { … }` / `facts none`; the option-row flags `-evaluate none` and `-evaluate-reason WORD`; the three lifecycle flags on `codegen_hook`, `inline_codegen_hook` and `semantic_operation` at command and subcommand scope, each flagged row one window of the stamp |
 
 Every 1.1 word is one the option row already spelled, moved outward: the
 flags are `Lifecycle`'s own three releases, on the entity's own package
@@ -99,6 +99,20 @@ exactly what it meant; `available` is the new spelling of the same claim,
 and both are projected onto one internal representation, so a body written
 either way loads to a byte-equal spec. `tcl spec upgrade` rewrites 1.x
 sources mechanically.
+
+2.2 versions the codegen axis the way 1.2 versioned the signature.
+`codegen_hook`, `inline_codegen_hook` and `semantic_operation` take the three
+lifecycle flags at command and subcommand scope: a row without them is the
+stamp for every release, one with them is a *window* of it, and several may be
+declared. The releases are the Tcl core's — a bytecode emitter written against
+9.0's instruction set is not 8.6's — so a window is asked about the primary
+release of the profile the call is compiled for. The first window covering it
+wins, the plain row stands where none does, and a point that does not settle
+the release — none pinned, or the whole ladder across a window's edge — selects
+nothing, so the call is dispatched plain and a subcommand's decline is not
+answered by its command's stamp. Windows must not overlap, an impossibly ordered
+one is dropped and not widened to every release, and a form takes no window.
+`native_lowering` has windows in the registry and no spelling here.
 
 Two rules come with the major, and they run the other way — an *older*
 loader meeting a *newer* pack:
@@ -422,7 +436,9 @@ provides `NAME` at `VERSION` without a `package require` — the
 pack-authored twin of an ambient `LibraryPin`. Both words are required;
 a row with no version is dropped with a notice, because an ambient
 package with no version would floor at nothing, which is what the row
-exists to stop.
+exists to stop, and so is a row whose version is not a package version
+(`ambient_package Tk junk`), because a floor the comparison cannot read
+orders against the profile's pin as it happens to.
 
 The version composes with the document's own `package require` lines and
 the profile's library pin by taking the **greatest** — all three are
@@ -592,7 +608,7 @@ That is exactly the `args: &[&str]` every current hook receives.
 | `subcommand` | the resolved subcommand word, or empty |
 | `nwords` | `[llength $words]`, for symmetry with the argv-shaped hooks |
 | `kinds` | one word per element of `words`: `literal`, `dynamic`, `expanded`, or `opaque` |
-| `tcl-version` | `8.4` … `9.1`, or empty when the profile names no release |
+| `tcl-version` | `8.4` … `9.1`, or empty when the profile has no evaluation point: a Tcl release gives its own, a vendor fork whose release was measured (iRules, iApps, tmsh) gives that release, and a profile nothing measured gives none |
 | `dialect` | the active dialect member word |
 | `in-event-body` | `0` / `1` — the one lexical fact `context_gate` takes today |
 
@@ -972,7 +988,9 @@ gate rather than pass silently.
   or `semantic_operation {Intrinsic …}` — goes further: it survives only on
   a bundled pack's command whose `alias_of` names the shipped builtin that
   carries it, and the load drops it everywhere else with a warning naming
-  the provenance and the target (the stamp rejection rule). A pack a
+  the provenance and the target (the stamp rejection rule); a stamp in a
+  window is the same stamp, held to the same rule and dropped from the windows
+  when refused. A pack a
   package ships, beside its `tclpkg.tcl`, is narrowed further by how far the
   package sits from the workspace root: a transitive or development
   dependency's pack also loses `alias_of` and a `runtime_backing`, each with
@@ -982,8 +1000,10 @@ gate rather than pass silently.
   override keeps the shipped command's security facts and its
   compiler-side identity — the two codegen hooks, `lowering_hook`,
   `analyser_hook`, `semantic_operation`, `state_transitions`,
-  `native_lowering`, `bpf_op` and `runtime_backing` — wherever the
-  shipped command has one, and gives no notice that it did.
+  `native_lowering`, `bpf_op` and `runtime_backing`, with the windows beside
+  the four stamps — wherever the shipped command has one, and gives no notice
+  that it did. A command that ships a stamp, plain or in a window, leaves its
+  override no window of its own.
 
 ## What a pack cannot author
 
@@ -1347,6 +1367,7 @@ schema order. "excluded" rows carry the reason.
 | `forms` | `form KIND {synopsis} ?-dialects {…}? ?-introduced V? ?-deprecated V? ?-retired V?` | one row per form; the three releases are `FormSpec.lifecycle` |
 | `command_forms` | `refine NAME { … }` | one block per invocation form (2.0); the body takes `arity`, `selector {WORD …} ?-exact?`, `arg N -role R`, `option …`, the four `option_*` relations, `available`/`dialects`, `traits`, `mutator`, `side_effect …` / `side_effects none`. An omitted overlay inherits, so `traits {}` and no `traits` row are different declarations. The descriptor's native halves (`completion`, `dispatch_dependencies`, `literal_argument_validator`) stay Rust-only and a form carrying one is reported, not thinned. Plain `forms` still only documents synopsis/lifecycle. |
 | `semantic_operation` | `semantic_operation Invoke\|{Intrinsic ID}\|{StructuredLowering ID}` | an operation identity, so it keeps the enum spelling rather than `-native` |
+| `semantic_operation_windows` | `semantic_operation SPELLING -introduced V ?-deprecated V? ?-retired V?` | since 2.2; one row per window, beside the plain row. Repeatable, must not overlap, and a window the primary release does not settle selects nothing |
 | `completion` | **excluded** | `CompletionDescriptor` describes the command's *control-flow edges*, so a wrong value corrupts the CFG rather than one value — see "Why `completion` is excluded and `const_fold` is not". The traits `BREAKS_LOOP` / `CONTINUES_LOOP` / `CATCHABLE_THROW` stay authorable and cover the standard codes |
 | `assigns_variable_at` | `assigns_variable_at N` |  |
 | `safe_on_uninit` | `safe_on_uninit {SET …}` |  |
@@ -1354,7 +1375,9 @@ schema order. "excluded" rows carry the reason.
 | `const_fold_versioned` | `const_fold_versioned {words ctx} { … }` \| `-native ID` | same, with `tcl-version` in `ctx` |
 | `lowering_hook` | `lowering_hook -native ID` | closed catalogue |
 | `codegen_hook` | `codegen_hook -native ID` | closed catalogue |
+| `codegen_hook_windows` | `codegen_hook -native ID -introduced V ?-deprecated V? ?-retired V?` | since 2.2; the plain row with a lifecycle is one window, as `arity`'s is. Repeatable, must not overlap |
 | `inline_codegen_hook` | `inline_codegen_hook -native ID` | closed catalogue |
+| `inline_codegen_hook_windows` | `inline_codegen_hook -native ID -introduced V ?-deprecated V? ?-retired V?` | since 2.2; the same contract |
 | `bpf_op` | `bpf_op -native ID` | BPF dialect only; documented, not yet read by the loader |
 | `analyser_hook` | `analyser_hook -native ID` | closed catalogue |
 | `return_type_hook` | `return_type_hook -native ID` | closed catalogue; names the algorithm that types a call whose result shape moves with the call (`lsearch -inline`, `regsub`'s positional count). `return_type` stays the one-value-per-command answer and the hook wins over it |
@@ -1413,7 +1436,7 @@ schema order. "excluded" rows carry the reason.
 | `deprecated_replacement` | `deprecated_replacement NAME` |  |
 | `deprecated_replacement_drop_in` | `deprecated_replacement_drop_in ?yes\|no?` |  |
 | `alias_of` | `alias_of NAME` | the shipped builtin this pack command is — the target whose own codegen-axis stamps a bundled pack may carry (`docs/design/compiler/registry-consumer-contracts.md` § "The loader's stamp rejection rule"); dropped, with a warning, from a transitive or development dependency's pack |
-| `runtime_backing` | `runtime_backing none\|host-native\|shipped-builtin ID\|tcl-body {-package-source PATH}\|tcl-body {-pack-text {TEXT}}` | how the command's behaviour reaches the runtime (`docs/design/compiler/registry-consumer-contracts.md` § "Four rungs of codegen meeting `.tclspec`", rung 4); every shipped core command declares one, and an unstated one reads as `none`. A `-pack-text` body is reported at load; a backing is dropped, with a warning, from a transitive or development dependency's pack |
+| `runtime_backing` | `runtime_backing none\|host-native\|shipped-builtin ID\|tcl-body {-package-source PATH ?-evaluate?}\|tcl-body {-pack-text {TEXT} ?-evaluate?}` | how the command's behaviour reaches the runtime (`docs/design/compiler/registry-consumer-contracts.md` § "Four rungs of codegen meeting `.tclspec`", rung 4); every shipped core command declares one, and an unstated one reads as `none`. A `-pack-text` body is reported at load; a backing is dropped, with a warning, from a transitive or development dependency's pack. `-evaluate`, before or after the source, is the author's assertion that the analyser may run the body to fold a call: no declared implementation is derived from a body without it |
 | `byte_array_payload` | `byte_array_payload -replace-data-index N ?-message-flag-shift?` |  |
 | `byte_array_effect` | `byte_array_effect None\|Transparent\|Coerces\|CaseFolds\|Encodes\|{Rebinarifies N}` |  |
 | `definition_body` | `definition_body NAME\|{ … }` | a shipped grammar by name (`tcloo`, `tcloo-configurable`, `snit`, `snit-widget`, `itcl`), a pack `descriptor`, or the inline block — see "Definer grammars and scoped bodies" |
@@ -1461,7 +1484,9 @@ schema order. "excluded" rows carry the reason.
 | `const_fold_versioned` | `const_fold_versioned {words ctx} { … }` \| `-native ID` | same, with `tcl-version` in `ctx` |
 | `lowering_hook` | `lowering_hook -native ID` | closed catalogue |
 | `codegen_hook` | `codegen_hook -native ID` | closed catalogue |
+| `codegen_hook_windows` | `codegen_hook -native ID -introduced V ?-deprecated V? ?-retired V?` | since 2.2; the plain row with a lifecycle is one window, as `arity`'s is. Repeatable, must not overlap |
 | `inline_codegen_hook` | `inline_codegen_hook -native ID` | closed catalogue |
+| `inline_codegen_hook_windows` | `inline_codegen_hook -native ID -introduced V ?-deprecated V? ?-retired V?` | since 2.2; the same contract |
 | `analyser_hook` | `analyser_hook -native ID` | closed catalogue |
 | `return_type_hook` | `return_type_hook -native ID` | closed catalogue; names the algorithm that types a call whose result shape moves with the call (`lsearch -inline`, `regsub`'s positional count). `return_type` stays the one-value-per-command answer and the hook wins over it |
 | `command_table_effect` | `command_table_effect DefinesProcedure\|RenamesCommands\|CreatesAliases` |  |
@@ -1475,6 +1500,7 @@ schema order. "excluded" rows carry the reason.
 | `versioned_arg_values` | `versioned_arg_value N VALUE ?-introduced V? ?-deprecated V? ?-retired V?` | one row per gate; the same statement is legal in a `command` body since 1.1 |
 | `subcommand_forms` | `refine NAME { … }` | the subcommand-level twin of `command_forms`, one grammar and one reader |
 | `semantic_operation` | `semantic_operation Invoke\|{Intrinsic ID}\|{StructuredLowering ID}` | an operation identity, so it keeps the enum spelling rather than `-native` |
+| `semantic_operation_windows` | `semantic_operation SPELLING -introduced V ?-deprecated V? ?-retired V?` | since 2.2; one row per window, beside the plain row. Repeatable, must not overlap, and a window the primary release does not settle selects nothing |
 | `completion` | **excluded** | `CompletionDescriptor` describes the command's *control-flow edges*, so a wrong value corrupts the CFG rather than one value — see "Why `completion` is excluded and `const_fold` is not". The traits `BREAKS_LOOP` / `CONTINUES_LOOP` / `CATCHABLE_THROW` stay authorable and cover the standard codes |
 | `dialects` | `dialects {SET …}` | absent inherits the parent command's set |
 | `introduced_version` | `introduced_version V` | `Lifecycle.introduced` |

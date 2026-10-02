@@ -98,6 +98,21 @@ unit compiled without a pack — and refuses the rest like any other failed
 binding: plain dispatch when the unit carries source and a compile service
 is installed, an admission error otherwise.
 
+`ReferenceBody` is the claim of a procedure binding the compiler took from a
+pack: a command a pack declares `TclBody`-backed has its definition inlined into
+the procedures that call it (`tcl_compiler::inlining::inline_reference_bodies`),
+which records the binding as it does for a procedure the module defines and
+codegen records the claim beside it, naming the binding, the kind of backing
+(`tcl_runtime_api::BackingKind`) and the pack's `PackFactStamp`. Admission holds
+the live command to the binding as it does any other, and beside the held stamp
+requires the claim's backing to be `TclBody` and its binding to be one the
+function carries (`site_claims_hold`): an exact match of a procedure's text says
+nothing about whether the command *is* that procedure, and the VM defines none
+from a claim. A definition's text is the spec's own for `PackText` and the file
+the loader read at load for `PackageSource`; the compiler reads no file, and the
+text it copies is appended to the compile's source and is no part of the
+artefact's (`ModuleAsm::source` is the module's own).
+
 Every module a compiler emits states an `ArtefactIdentityManifest`
 (`ModuleAsm::manifest`, `tcl_runtime_api::manifest`): the ABI version
 (`CODEGEN_ABI_VERSION`, a fingerprint of `CodegenAbiImportId`'s table), the
@@ -121,7 +136,8 @@ rungs that rest on it and no others:
 |---|---|
 | `abi_version`, `environment`, `release`, `build` | every rung, since they decide what every word of the unit decoded to: the module is not run, and the error names the field and both values (`validate_module_profile`) |
 | `packages`, `packs` | rungs 1 and 2: a function with a pack-fact or builtin-alias claim |
-| `intrinsic_table_hash`, `embedded_stdlib_revision` | rung 4: a function with command bindings, whose specialisations rest on a shipped implementation's identity |
+| `intrinsic_table_hash` | rung 4: a function with command bindings, whose specialisations rest on a shipped implementation's identity |
+| `embedded_stdlib_revision` | rungs 3 and 4: a function with procedure bindings, whose body may have been resolved from the library, and one with command bindings |
 
 Every pack the artefact states must be one the VM holds, and a VM may hold
 more; every other field must be equal. A function's rungs are

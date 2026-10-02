@@ -739,13 +739,7 @@ mod tests {
         // Tk placement.
         let tk = resolve_environment("tk");
         let tk_context = tk.default_context_registry();
-        assert!(
-            tk_context
-                .context()
-                .authoring_query()
-                .packages
-                .contains(&"Tk")
-        );
+        assert!(tk_context.context().authoring_query().carries("Tk"));
         assert!(tk_context.context().placement_is_ambient("Tk"));
         // …and no plain-Tcl environment gains it from the lenient hosted
         // rule: *hosting* Tk is not *shipping* it.
@@ -753,10 +747,7 @@ mod tests {
             let environment = resolve_environment(plain);
             let generation = environment.default_context_registry();
             let context = generation.context();
-            assert!(
-                !context.authoring_query().packages.contains(&"Tk"),
-                "{plain}"
-            );
+            assert!(!context.authoring_query().carries("Tk"), "{plain}");
             assert!(context.can_host_package("Tk"), "{plain}");
             assert!(!context.placement_is_ambient("Tk"), "{plain}");
         }

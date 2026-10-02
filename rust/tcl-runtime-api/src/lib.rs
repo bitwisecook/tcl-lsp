@@ -496,7 +496,7 @@ pub use backing::{BackingReport, RegisteredBacking};
 
 /// What a specialised site claims about the spec-pack facts it rests on.
 mod site_claim;
-pub use site_claim::{PackFactStamp, SiteClaim};
+pub use site_claim::{BackingKind, PackFactStamp, SiteClaim};
 
 /// What an artefact says about the world it was compiled for, and the
 /// runtime's counterpart to compare it against.

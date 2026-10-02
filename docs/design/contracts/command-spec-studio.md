@@ -873,13 +873,25 @@ each `proc` into a draft:
 |---|---|
 | `arity` | the parameter list — defaults are optional, trailing `args` is variadic |
 | `arg_roles` | `ProcArgTrait` from [proc-arg-trait inference](proc-arg-traits.md), deep pass enabled |
-| `traits` | the same trait observations |
+| `traits` | the same trait observations, and `PURE` as a proposal when the body is side-effect free |
+| `side_effects`, `return_type` | proposals from the compiler's summary of the body: the state outside its frame it writes or reads through a command, and the type every path answers |
 | `hover`, `forms` | the `proc`'s doc comment and parameter list |
 | `required_package`, `introduced_version` | `package provide` |
 
 `ProcArgTrait::DynamicNameLocal` maps to **no** role: it is callee-local, so
 passing a literal does not consume the caller's variable and marking it
 `VarWrite` would be wrong.
+
+What a body states comes from `infer::infer_from_body(params, body, dialect)`,
+which reads the interprocedural summary of a procedure built from the parameter
+list and the body (a name the list binds is local and any other is not), and the
+analyser's parameter traits for the parameters the body invokes as commands. Each
+fact is a proposal: a body is evidence of what the command does today, and whether
+a fact is part of its contract is the author's call, so each is added with its line
+of evidence and nothing the draft already states is replaced. The summary does
+not record a read of a global through a variable substitution, so a body that
+only reads one is still proposed `PURE`: the trait says side-effect free, not
+deterministic.
 
 Every inferred draft carries `Inferred::notes` — one line of evidence per
 guess, surfaced in the UI. **Inference reports its reasoning, never a bare

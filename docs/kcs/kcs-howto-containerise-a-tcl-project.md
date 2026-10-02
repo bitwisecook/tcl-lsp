@@ -94,6 +94,15 @@ instruction text does not change between builds, so Docker reuses the cached
 layer — and the binary in it — until something above it changes or you build
 with `--no-cache`. Pin the release when you need a rebuild to track it.
 
+### 5. (Optional) Native extensions your specs declare
+
+If a `.tclspec` pack in the project declares a command `host-native`, `tcl
+docker create` lists the Tcl package behind it and ends the Dockerfile with a
+`package require` check for each, so the build fails naming an extension the
+image lacks. Install the extension above that check, for example with
+`--extra-package`; the generator does not know which operating-system package
+provides it.
+
 ## How to tell it worked
 
 The build prints the checksum verification and the version of the CLI it

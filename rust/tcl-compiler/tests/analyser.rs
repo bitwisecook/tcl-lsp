@@ -8317,12 +8317,12 @@ mod const_cmd_subst_set_rhs {
     }
 
     #[test]
-    fn a_vendor_profile_abstains_from_version_sensitive_const_substitution() {
-        // FP guard: iRules has a real Tcl runtime version, but its profile's
-        // const-fold projection is deliberately unknown until versioned
-        // folds are verified for that shell.  The version-sensitive
-        // `format %d 010` therefore must stay unresolved rather than being
-        // folded as Tcl 8.4/9.0 semantics.
+    fn a_vendor_profile_folds_a_version_sensitive_constant_only_where_its_release_was_measured() {
+        // The version-sensitive `format %d 010` is 8 under Tcl 8.4 (a leading
+        // zero is octal) and 10 under 9.0. iRules is an 8.4 fork whose release
+        // was measured, so it folds as 8.4 does; `expect` models an 8.6 base that
+        // nobody measured, so a fold under it stays unresolved rather than being
+        // folded as one release's semantics.
         let src = concat!(
             "namespace eval tc { proc setdef {a b} { return 1 } }\n",
             "proc user {} {\n",
@@ -8330,11 +8330,17 @@ mod const_cmd_subst_set_rhs {
             "    ${value}::setdef x y\n",
             "}\n",
         );
-        let r = analysis(src, "f5-irules");
+        let measured = analysis(src, "f5-irules");
         assert_eq!(
-            resolutions_of(&r, "${value}"),
+            resolutions_of(&measured, "${value}"),
+            ["::8::setdef"],
+            "a measured vendor release folds as that release"
+        );
+        let unmeasured = analysis(src, "expect");
+        assert_eq!(
+            resolutions_of(&unmeasured, "${value}"),
             ["::${value}::setdef"],
-            "a version-sensitive vendor fold must abstain"
+            "a vendor base nothing measured must abstain"
         );
     }
 

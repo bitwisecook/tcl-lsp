@@ -178,6 +178,11 @@ fn install_into(
                 // these facts, and a VM admits the site only while it holds
                 // the same ones (`PackSet::fact_stamps`).
                 registry.insert_pack_origin(installed, pack_origin(pack, command));
+                // The body a `-package-source` backing named, as the load read
+                // it: the compiler has no file to go to.
+                if let Some(text) = &command.reference_text {
+                    registry.insert_reference_text(installed, std::sync::Arc::clone(text));
+                }
             }
         }
     }

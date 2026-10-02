@@ -329,13 +329,15 @@ fn the_speclib_directive_is_a_content_signature() {
 #[test]
 fn spectcl_is_a_catalogued_dialect() {
     use tcl_dialect::KNOWN_DIALECTS;
-    use tcl_dialect::model::{Family, SurfaceLayer, SurfaceQuery};
+    use tcl_dialect::model::{Family, PackageFloor, SurfaceLayer, SurfaceQuery};
 
     assert!(KNOWN_DIALECTS.contains(&"spectcl"));
     assert_eq!(
         tcl_dialect::DialectProfile::find("spectcl")
             .map(tcl_dialect::DialectProfile::surface_query),
-        Some(SurfaceQuery::core(Family::Tcl, "9.0").with_packages(&["spectcl"]))
+        Some(
+            SurfaceQuery::core(Family::Tcl, "9.0").with_packages(&[PackageFloor::named("spectcl")])
+        )
     );
     let profile = tcl_registry::model::ingress::resolve_environment("spectcl").analyser_profile();
     assert_eq!(profile.name, "spectcl");
@@ -453,13 +455,16 @@ fn the_word_sslictcl_alone_does_not_route_a_tcl_script() {
 #[test]
 fn sslictcl_is_a_catalogued_dialect() {
     use tcl_dialect::KNOWN_DIALECTS;
-    use tcl_dialect::model::{Family, SurfaceLayer, SurfaceQuery};
+    use tcl_dialect::model::{Family, PackageFloor, SurfaceLayer, SurfaceQuery};
 
     assert!(KNOWN_DIALECTS.contains(&"sslictcl"));
     assert_eq!(
         tcl_dialect::DialectProfile::find("sslictcl")
             .map(tcl_dialect::DialectProfile::surface_query),
-        Some(SurfaceQuery::core(Family::Tcl, "9.0").with_packages(&["sslictcl"]))
+        Some(
+            SurfaceQuery::core(Family::Tcl, "9.0")
+                .with_packages(&[PackageFloor::named("sslictcl")])
+        )
     );
     let profile = tcl_registry::model::ingress::resolve_environment("sslictcl").analyser_profile();
     assert_eq!(profile.name, "sslictcl");

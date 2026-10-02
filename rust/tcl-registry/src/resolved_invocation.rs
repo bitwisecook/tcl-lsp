@@ -45,6 +45,7 @@ use crate::result_stability::ResultStability;
 use crate::semantic_operation::SemanticOperationId;
 use crate::side_effects::SideEffect;
 use crate::spec::{ArgRoleResolver, CaseInvocation, CommandSpec, InlineCaseClause, SubCommand};
+use crate::stamp_window::StampSelection;
 use crate::state_transition::{
     ResolvedStateTransitions, StateTransitionKnowledge, StateTransitions,
 };
@@ -61,48 +62,103 @@ pub(crate) fn descriptor_operation(
     codegen: Option<CodegenHookId>,
     inline_codegen: Option<InlineCodegenHookId>,
 ) -> Option<SemanticOperationId> {
+    level_operation(
+        StampSelection::stated(semantic),
+        lowering,
+        StampSelection::stated(codegen),
+        StampSelection::stated(inline_codegen),
+    )
+    .stamp()
+}
+
+/// What one level of descriptors — a form, a subcommand, or the command —
+/// says its semantic operation is, from the stamps it carries at the point
+/// asked about.
+///
+/// The order is the one the unversioned fields always had: a stated operation,
+/// else the structured lowering, else the intrinsic an inline hook names, else
+/// the one a codegen hook names. A level that declines on any of the stamps
+/// that could decide it declines as a whole — its operation is not known — and
+/// the level above does not answer in its place.
+fn level_operation(
+    semantic: StampSelection<SemanticOperationId>,
+    lowering: Option<LoweringHookId>,
+    codegen: StampSelection<CodegenHookId>,
+    inline_codegen: StampSelection<InlineCodegenHookId>,
+) -> StampSelection<SemanticOperationId> {
+    let intrinsic = || {
+        match inline_codegen {
+            StampSelection::Decline => return StampSelection::Decline,
+            StampSelection::Stamp(hook) => {
+                if let Some(id) = IntrinsicId::from_legacy_inline_codegen(hook) {
+                    return StampSelection::Stamp(SemanticOperationId::Intrinsic(id));
+                }
+            }
+            StampSelection::Inherit => {}
+        }
+        match codegen {
+            StampSelection::Decline => StampSelection::Decline,
+            StampSelection::Stamp(hook) => StampSelection::stated(
+                IntrinsicId::from_legacy_codegen(hook).map(SemanticOperationId::Intrinsic),
+            ),
+            StampSelection::Inherit => StampSelection::Inherit,
+        }
+    };
     semantic
-        .or(lowering.map(SemanticOperationId::StructuredLowering))
-        .or_else(|| {
-            inline_codegen
-                .and_then(IntrinsicId::from_legacy_inline_codegen)
-                .or_else(|| codegen.and_then(IntrinsicId::from_legacy_codegen))
-                .map(SemanticOperationId::Intrinsic)
-        })
+        .or(StampSelection::stated(
+            lowering.map(SemanticOperationId::StructuredLowering),
+        ))
+        .or(intrinsic())
+}
+
+fn form_operation(form: Option<&CommandForm>) -> StampSelection<SemanticOperationId> {
+    form.map_or(StampSelection::Inherit, |form| {
+        level_operation(
+            StampSelection::stated(form.semantic_operation),
+            form.lowering_hook,
+            StampSelection::stated(form.codegen_hook),
+            StampSelection::Inherit,
+        )
+    })
+}
+
+fn subcommand_operation(
+    sub: Option<&SubCommand>,
+    query: Option<&SurfaceQuery<'_>>,
+) -> StampSelection<SemanticOperationId> {
+    sub.map_or(StampSelection::Inherit, |sub| {
+        level_operation(
+            sub.semantic_operation_selection(query),
+            sub.lowering_hook,
+            sub.codegen_hook_selection(query),
+            sub.inline_codegen_hook_selection(query),
+        )
+    })
+}
+
+fn command_operation(
+    spec: &CommandSpec,
+    query: Option<&SurfaceQuery<'_>>,
+) -> StampSelection<SemanticOperationId> {
+    level_operation(
+        spec.semantic_operation_selection(query),
+        spec.lowering_hook,
+        spec.codegen_hook_selection(query),
+        spec.inline_codegen_hook_selection(query),
+    )
 }
 
 fn resolved_operation(
     spec: &CommandSpec,
     sub: Option<&SubCommand>,
     form: Option<&CommandForm>,
+    query: Option<&SurfaceQuery<'_>>,
 ) -> SemanticOperationId {
-    form.and_then(|form| {
-        descriptor_operation(
-            form.semantic_operation,
-            form.lowering_hook,
-            form.codegen_hook,
-            None,
-        )
-    })
-    .or_else(|| {
-        sub.and_then(|sub| {
-            descriptor_operation(
-                sub.semantic_operation,
-                sub.lowering_hook,
-                sub.codegen_hook,
-                sub.inline_codegen_hook,
-            )
-        })
-    })
-    .or_else(|| {
-        descriptor_operation(
-            spec.semantic_operation,
-            spec.lowering_hook,
-            spec.codegen_hook,
-            spec.inline_codegen_hook,
-        )
-    })
-    .unwrap_or(SemanticOperationId::Invoke)
+    form_operation(form)
+        .or(subcommand_operation(sub, query))
+        .or(command_operation(spec, query))
+        .stamp()
+        .unwrap_or(SemanticOperationId::Invoke)
 }
 
 // This is the single exhaustive projection from three nested registry owners
@@ -113,6 +169,7 @@ fn resolve_invocation_semantics<'r>(
     sub: Option<&'r SubCommand>,
     form: Option<&'r CommandForm>,
     inherit_command: bool,
+    query: Option<&SurfaceQuery<'_>>,
 ) -> InvocationSemantics<'r> {
     let (arg_roles, arg_role_resolver, clause_grammar) = match form {
         Some(form) => (form.arg_roles, None, None),
@@ -145,27 +202,12 @@ fn resolve_invocation_semantics<'r>(
     );
     InvocationSemantics {
         operation: if inherit_command {
-            resolved_operation(spec, sub, form)
+            resolved_operation(spec, sub, form, query)
         } else {
-            form.and_then(|form| {
-                descriptor_operation(
-                    form.semantic_operation,
-                    form.lowering_hook,
-                    form.codegen_hook,
-                    None,
-                )
-            })
-            .or_else(|| {
-                sub.and_then(|sub| {
-                    descriptor_operation(
-                        sub.semantic_operation,
-                        sub.lowering_hook,
-                        sub.codegen_hook,
-                        sub.inline_codegen_hook,
-                    )
-                })
-            })
-            .unwrap_or(SemanticOperationId::Invoke)
+            form_operation(form)
+                .or(subcommand_operation(sub, query))
+                .stamp()
+                .unwrap_or(SemanticOperationId::Invoke)
         },
         completion: form
             .and_then(|form| form.completion)
@@ -831,7 +873,7 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         subcommand: SubcommandResolution<'w>,
         dialect: Option<SurfaceQuery<'w>>,
     ) -> Self {
-        let semantics = resolve_invocation_semantics(spec, sub, form, true);
+        let semantics = resolve_invocation_semantics(spec, sub, form, true, dialect.as_ref());
         Self {
             words,
             canonical_command: spec.name,
@@ -860,7 +902,8 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         subcommand: SubcommandResolution<'w>,
         dialect: Option<SurfaceQuery<'w>>,
     ) -> Self {
-        let semantics = resolve_invocation_semantics(class_spec, Some(method), form, false);
+        let semantics =
+            resolve_invocation_semantics(class_spec, Some(method), form, false, dialect.as_ref());
         Self {
             words,
             canonical_command: class_spec.name,

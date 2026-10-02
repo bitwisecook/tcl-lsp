@@ -1354,6 +1354,71 @@ fn lassign_bytecoded() {
     assert!(ops.contains(&Op::LIST_RANGE_IMM));
 }
 
+/// The ops of `lassign "a b c" x y z` compiled against a registry projected to
+/// `profile`, whose `lassign` carries its bytecode hook as a window opening at
+/// 9.0 rather than as the plain field.
+fn lassign_ops_with_the_hook_stamped_from_9_0(
+    profile: &'static tcl_dialect::DialectProfile,
+) -> Vec<Op> {
+    use tcl_registry::hooks::CodegenHookId;
+    use tcl_registry::lifecycle::Lifecycle;
+    use tcl_registry::stamp_window::StampWindow;
+
+    let mut authored = CommandRegistry::build_default();
+    let mut lassign = authored.get("lassign").expect("lassign ships").clone();
+    lassign.codegen_hook = None;
+    lassign.codegen_hook_windows = Box::leak(Box::new([StampWindow {
+        lifecycle: Lifecycle::introduced_in("9.0"),
+        value: CodegenHookId::Lassign,
+    }]));
+    authored.insert(lassign);
+    let reg = authored.project_for_profile(profile);
+    let ir = lower_to_ir("lassign \"a b c\" x y z", &reg);
+    let cfg = build_cfg_codegen(&ir, true);
+    opcodes(&codegen_module(&cfg, &ir, &reg).top_level)
+}
+
+fn is_specialised_lassign(ops: &[Op]) -> bool {
+    ops.contains(&Op::LIST_INDEX_IMM) && ops.contains(&Op::LIST_RANGE_IMM)
+}
+
+/// A codegen stamp is a fact about a Tcl release: declared from 9.0, it
+/// specialises where the primary release is 9.0, and is dispatched plain where
+/// the point spans a window's edge — the permissive profile asks about the whole
+/// ladder — or sits below it. The unversioned `lassign` is the control: it
+/// specialises under the same permissive profile, so the decline is the window's.
+#[test]
+fn a_stamp_declared_from_9_0_declines_under_a_profile_spanning_8_6() {
+    use tcl_dialect::DialectProfile;
+
+    let pinned_at_9_0 = DialectProfile::find("tcl9.0").expect("tcl9.0 is a catalogue profile");
+    let pinned_at_8_6 = DialectProfile::find("tcl8.6").expect("tcl8.6 is a catalogue profile");
+    let spanning = DialectProfile::plain_tcl();
+
+    assert!(
+        is_specialised_lassign(&lassign_ops_with_the_hook_stamped_from_9_0(pinned_at_9_0)),
+        "pinned at 9.0, the window covers the release and the hook applies"
+    );
+    let at_8_6 = lassign_ops_with_the_hook_stamped_from_9_0(pinned_at_8_6);
+    assert!(
+        !is_specialised_lassign(&at_8_6) && at_8_6.contains(&Op::INVOKE_STK1),
+        "pinned at 8.6, no window covers the release: a plain invoke"
+    );
+    let across = lassign_ops_with_the_hook_stamped_from_9_0(spanning);
+    assert!(
+        !is_specialised_lassign(&across) && across.contains(&Op::INVOKE_STK1),
+        "across the ladder the window's edge divides it: declined, a plain invoke"
+    );
+
+    let control = CommandRegistry::build_default().project_for_profile(spanning);
+    let ir = lower_to_ir("lassign \"a b c\" x y z", &control);
+    let cfg = build_cfg_codegen(&ir, true);
+    assert!(
+        is_specialised_lassign(&opcodes(&codegen_module(&cfg, &ir, &control).top_level)),
+        "the unversioned stamp specialises under the same profile"
+    );
+}
+
 // Dict commands
 //
 // Rust emits VERIFY_DICT for the `dict create` subject normalisation but the

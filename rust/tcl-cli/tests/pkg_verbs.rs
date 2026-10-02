@@ -326,6 +326,66 @@ fn docker_create_installs_the_native_cli() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// A project whose specs declare a command host-native needs the extension
+/// that provides it in the image: the generated Dockerfile lists it and
+/// checks that it loads. A command that is not host-native lists nothing,
+/// and one that names no providing package is said so, not guessed at.
+#[test]
+fn docker_create_lists_a_host_native_commands_extension() {
+    let dir = temp_dir("docker-create-native");
+    std::fs::create_dir_all(dir.join(".tcl-lsp")).unwrap();
+    std::fs::write(
+        dir.join(".tcl-lsp/xml.tclspec"),
+        "speclib xml 2.0 {\n\
+         \x20   provides tdom\n\
+         \x20   command tdom::parse { arity 1; runtime_backing host-native }\n\
+         \x20   command tdom::version { arity 0; runtime_backing none }\n\
+         }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join(".tcl-lsp/anon.tclspec"),
+        "speclib anon 2.0 {\n\
+         \x20   command anon::poke { arity 0; runtime_backing host-native }\n\
+         }\n",
+    )
+    .unwrap();
+
+    let (stdout, stderr, code) = run_in(&dir, &["docker", "create", "--no-packages"]);
+    assert_eq!(code, 0, "{stderr}");
+    assert!(stdout.contains("native extensions"), "{stdout}");
+    assert!(stdout.contains("tdom"), "{stdout}");
+    assert!(
+        stderr.contains("anon::poke") && stderr.contains("names no providing package"),
+        "{stderr}"
+    );
+    let content = std::fs::read_to_string(dir.join("Dockerfile")).unwrap();
+    assert!(
+        content.contains("foreach e {tdom} {if {[catch {package require $e} m]}"),
+        "{content}"
+    );
+    assert!(!content.contains("anon"), "{content}");
+
+    // The same listing, machine-readable.
+    let (stdout, stderr, code) = run_in(
+        &dir,
+        &["docker", "create", "--no-packages", "--force", "--json"],
+    );
+    assert_eq!(code, 0, "{stderr}");
+    let output: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(output["native_extensions"], serde_json::json!(["tdom"]));
+
+    // Without the host-native declaration there is nothing to list.
+    std::fs::remove_file(dir.join(".tcl-lsp/xml.tclspec")).unwrap();
+    std::fs::remove_file(dir.join(".tcl-lsp/anon.tclspec")).unwrap();
+    let (stdout, _stderr, code) = run_in(&dir, &["docker", "create", "--no-packages", "--force"]);
+    assert_eq!(code, 0);
+    assert!(!stdout.contains("native extensions"), "{stdout}");
+    let content = std::fs::read_to_string(dir.join("Dockerfile")).unwrap();
+    assert!(!content.contains("native extension"), "{content}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 #[test]
 fn docker_create_rejects_the_cli_on_musl() {
     let dir = temp_dir("docker-create-alpine");
@@ -463,6 +523,99 @@ fn install_local_dep(tag: &str) -> (PathBuf, PathBuf, PathBuf) {
     let (_o, _e, code) = run_in_cache(&dir, Some(&cache), &["pkg", "install"]);
     assert_eq!(code, 0);
     (base, cache, dir)
+}
+
+/// A package that ships packs records their hash in the lockfile, and a changed
+/// pack in an unchanged release is a lockfile change: the hash is the content
+/// hash a compiled unit's claim on the pack carries, it moves when the pack
+/// does, and it stays put when the pack does not.
+#[test]
+fn a_changed_pack_changes_the_lockfile() {
+    let base = temp_dir("pkg-spec-integrity");
+    let cache = base.join("cache");
+    let dir = base.join("proj");
+    std::fs::create_dir_all(&dir).unwrap();
+    let dep = base.join("dep-src");
+    std::fs::create_dir_all(&dep).unwrap();
+    std::fs::write(
+        dep.join("tclpkg.tcl"),
+        "package dep\nversion 1.0.0\nlicense MIT\nspec {packs {dep.tclspec}}\n",
+    )
+    .unwrap();
+    std::fs::write(dep.join("dep.tcl"), "proc dep::hi {} { return hi }\n").unwrap();
+    let pack = "speclib dep 1 {\n    command dep::hi { arity 0 }\n}\n";
+    std::fs::write(dep.join("dep.tclspec"), pack).unwrap();
+
+    let (_o, _e, code) = run_in_cache(
+        &dir,
+        Some(&cache),
+        &["pkg", "init", "--name", "demo", "--version", "1.0.0"],
+    );
+    assert_eq!(code, 0);
+    let (_o, _e, code) = run_in_cache(
+        &dir,
+        Some(&cache),
+        &[
+            "pkg",
+            "add",
+            "dep",
+            "1.0.0",
+            "--source",
+            dep.to_str().unwrap(),
+        ],
+    );
+    assert_eq!(code, 0);
+    let spec_integrity = || {
+        let lock = tcl_pkg::lockfile::read_lockfile(dir.join("tclpkg.lock")).unwrap();
+        lock.lookup("dep").unwrap().spec_integrity.clone()
+    };
+
+    let (_o, e, code) = run_in_cache(&dir, Some(&cache), &["pkg", "install"]);
+    assert_eq!(code, 0, "{e}");
+    let first = spec_integrity().expect("the package ships a pack");
+    // The one pack's hash is its content hash, written as the lockfile does.
+    assert_eq!(
+        first,
+        tcl_pkg::lockfile::format_spec_integrity(&[tcl_spectcl::package_specs::pack_file_hash(
+            &dep.join("dep.tclspec"),
+            pack
+        )])
+    );
+    let lock = std::fs::read_to_string(dir.join("tclpkg.lock")).unwrap();
+    assert!(
+        lock.contains(&format!("\"spec_integrity\": \"{first}\"")),
+        "{lock}"
+    );
+
+    // An unchanged pack keeps the hash through a second install.
+    let (_o, e, code) = run_in_cache(&dir, Some(&cache), &["pkg", "install"]);
+    assert_eq!(code, 0, "{e}");
+    assert_eq!(spec_integrity().as_deref(), Some(first.as_str()));
+
+    // A changed pack, with the version and the manifest as they were, moves it.
+    std::fs::write(
+        dep.join("dep.tclspec"),
+        "speclib dep 1 {\n    command dep::hi { arity 0..1 }\n}\n",
+    )
+    .unwrap();
+    let (_o, e, code) = run_in_cache(&dir, Some(&cache), &["pkg", "install"]);
+    assert_eq!(code, 0, "{e}");
+    let changed = spec_integrity().expect("still ships a pack");
+    assert_ne!(changed, first, "a changed pack must change the lockfile");
+
+    // A package that names no packs records nothing.
+    std::fs::write(
+        dep.join("tclpkg.tcl"),
+        "package dep\nversion 1.0.0\nlicense MIT\n",
+    )
+    .unwrap();
+    let (_o, e, code) = run_in_cache(&dir, Some(&cache), &["pkg", "install"]);
+    assert_eq!(code, 0, "{e}");
+    assert_eq!(spec_integrity(), None);
+    let lock = std::fs::read_to_string(dir.join("tclpkg.lock")).unwrap();
+    assert!(!lock.contains("spec_integrity"), "{lock}");
+
+    let _ = std::fs::remove_dir_all(&base);
 }
 
 // `pkg verify` must recompute and compare the integrity hash,

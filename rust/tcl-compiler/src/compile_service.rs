@@ -261,6 +261,7 @@ impl BytecodeCompileService {
             profile,
             plain_command_dispatch,
         );
+        let ir = crate::inlining::inline_reference_bodies(ir, registry, config, profile);
         let prepared = prepare_cfg_context_bundle(&ir, registry);
         let cfg =
             build_cfg_codegen_with_registry_and_context(&ir, false, registry, &prepared, config);
@@ -295,6 +296,7 @@ impl BytecodeCompileService {
             Some(profile),
             plain_command_dispatch,
         );
+        let ir = crate::inlining::inline_reference_bodies(ir, registry, config, Some(profile));
         let prepared = prepare_cfg_context_bundle(&ir, registry);
         let cfg =
             build_cfg_codegen_with_registry_and_context(&ir, false, registry, &prepared, config);

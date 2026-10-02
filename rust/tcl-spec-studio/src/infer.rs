@@ -37,6 +37,10 @@
 //!   the parameter list.
 //! - **package gating** from `package provide`, so the drafts come back
 //!   already scoped to the package that defines them.
+//! - **facts the body states** from the compiler's interprocedural summary
+//!   ([`InferredFacts`]): whether the body is side-effect free, which state
+//!   outside its frame it reads or writes, the type its paths answer, and the
+//!   parameters it invokes as commands — each carried as a proposal.
 //!
 //! Everything inferred is a *starting point* carrying its own evidence
 //! ([`Inferred::notes`]), not an assertion — the studio shows the reasoning
@@ -47,9 +51,15 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde_json::{Value, json};
 use tcl_compiler::analyser::state::Analyser;
 use tcl_compiler::analyser::types::ProcArgTrait;
+use tcl_compiler::compilation_unit::CompilationUnit;
+use tcl_compiler::interprocedural::ProcSummary;
+use tcl_compiler::side_effects::EffectRegion;
 use tcl_compiler::signature_scan::arity::arity_of;
 use tcl_compiler::signature_scan::types::ParamDef;
+use tcl_registry::TclType;
+use tcl_registry::side_effects::{SideEffect, SideEffectTarget};
 
+use crate::catalogue;
 use crate::draft::{self, Draft};
 
 /// One file of an imported package.
@@ -108,6 +118,184 @@ impl Import {
             "warnings": self.warnings.clone(),
         })
     }
+}
+
+/// What a procedure's body states about the command it implements, as the
+/// compiler's own reading of it: the interprocedural summary for the effects and
+/// the answer's type, the analyser's parameter traits for the callbacks.
+///
+/// Every field is a proposal. The body is evidence of what the command does
+/// today; whether a fact is part of the command's contract is the author's call,
+/// which is why an import carries each with the line that supports it.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct InferredFacts {
+    /// The body is free of side effects: no write outside its own frame and no
+    /// call the summary cannot read.
+    pub pure: bool,
+    /// The state outside its frame the body reads or writes, one row per kind.
+    pub side_effects: Vec<SideEffect>,
+    /// The type every path of the body answers, when they agree on one.
+    pub return_type: Option<TclType>,
+    /// The parameters the body invokes as commands, by position.
+    pub callback_slots: Vec<usize>,
+}
+
+/// The facts the body of a procedure states, read as the body of `proc NAME
+/// {PARAMS} {BODY}` under `dialect`.
+///
+/// `params` is the parameter list as written between the braces; a body means
+/// nothing without it, because a name the list binds is local and any other is
+/// not.
+#[must_use]
+pub fn infer_from_body(params: &str, body: &str, dialect: &str) -> InferredFacts {
+    const NAME: &str = "::__spec_body";
+    let source = format!("proc {NAME} {{{params}}} {{{body}}}\n");
+    let mut analyser = Analyser::new();
+    analyser.deep_param_traits = true;
+    let result = analyser.analyse(&source, dialect);
+    let callbacks = result
+        .all_procs
+        .get(NAME)
+        .map(callback_slots)
+        .unwrap_or_default();
+    facts_in(&unit_of(&source, dialect), NAME, callbacks)
+}
+
+/// The compilation unit of `source` with its interprocedural summaries.
+fn unit_of(source: &str, dialect: &str) -> CompilationUnit {
+    let registry = crate::environment::store_for_dialect(dialect);
+    CompilationUnit::build_for_dialect(source, registry, false, dialect).with_interprocedural(
+        registry,
+        tcl_lsp_core::optional_profile_for_dialect(dialect),
+    )
+}
+
+/// The positions of the parameters `proc_def`'s body invokes as commands.
+fn callback_slots(proc_def: &tcl_compiler::analyser::types::ProcDef) -> Vec<usize> {
+    proc_def
+        .params
+        .iter()
+        .enumerate()
+        .filter(|(_, param)| {
+            proc_def
+                .param_traits
+                .get(&param.name)
+                .is_some_and(|traits| traits.contains(&ProcArgTrait::Command))
+        })
+        .map(|(index, _)| index)
+        .collect()
+}
+
+/// The facts `unit` holds for the procedure `qualified`, with the callback slots
+/// the analyser found. Nothing is proposed for a procedure the unit has no
+/// summary of.
+fn facts_in(unit: &CompilationUnit, qualified: &str, callbacks: Vec<usize>) -> InferredFacts {
+    let Some(summary) = unit
+        .interproc
+        .as_ref()
+        .and_then(|analysis| analysis.procedures.get(qualified))
+    else {
+        return InferredFacts::default();
+    };
+    InferredFacts {
+        pure: summary.pure,
+        side_effects: effects_of(summary),
+        return_type: unit
+            .function(qualified)
+            .and_then(|function| function.return_type.tcl_type()),
+        callback_slots: callbacks,
+    }
+}
+
+/// The side-effect rows the summary's regions state: the variables outside the
+/// frame, and state the analysis could not name.
+fn effects_of(summary: &ProcSummary) -> Vec<SideEffect> {
+    let (reads, writes) = (summary.effect_reads, summary.effect_writes);
+    let mut rows = Vec::new();
+    let global = writes.intersects(EffectRegion::GLOBAL_STATE) || summary.writes_global;
+    if global || reads.intersects(EffectRegion::GLOBAL_STATE) {
+        rows.push(SideEffect {
+            target: SideEffectTarget::Variable,
+            reads: reads.intersects(EffectRegion::GLOBAL_STATE),
+            writes: global,
+            ..SideEffect::DEFAULT
+        });
+    }
+    if writes.intersects(EffectRegion::UNKNOWN_STATE) {
+        rows.push(SideEffect {
+            target: SideEffectTarget::Unknown,
+            reads: reads.intersects(EffectRegion::UNKNOWN_STATE),
+            writes: true,
+            ..SideEffect::DEFAULT
+        });
+    }
+    rows
+}
+
+impl InferredFacts {
+    /// Carry the facts onto `draft`, each with the line that supports it. A field
+    /// the draft already states is left as it is.
+    fn apply(&self, d: &mut Draft, notes: &mut Vec<String>) {
+        if self.pure {
+            let mut traits: BTreeSet<String> = d
+                .get("traits")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(|name| name.as_str().map(str::to_owned))
+                .collect();
+            if traits.insert("PURE".to_owned()) {
+                d.insert("traits".into(), json!(traits));
+                notes.push(
+                    "proposed `PURE`: the body writes nothing outside its own frame and calls \
+                     only commands the compiler can read"
+                        .to_owned(),
+                );
+            }
+        }
+        if !self.side_effects.is_empty() && d.get("side_effects").is_none_or(is_empty_array) {
+            let rows: Vec<Value> = self
+                .side_effects
+                .iter()
+                .map(|effect| draft::side_effect(effect).0)
+                .collect();
+            d.insert("side_effects".into(), Value::Array(rows));
+            for effect in &self.side_effects {
+                notes.push(format!(
+                    "proposed a side effect on {} ({}): from the body's reads and writes outside its frame",
+                    catalogue::variant_name(&effect.target),
+                    match (effect.reads, effect.writes) {
+                        (true, true) => "reads and writes",
+                        (true, false) => "reads",
+                        _ => "writes",
+                    }
+                ));
+            }
+        }
+        if let Some(kind) = self.return_type
+            && d.get("return_type").is_none_or(Value::is_null)
+        {
+            d.insert("return_type".into(), json!(catalogue::variant_name(&kind)));
+            notes.push(format!(
+                "proposed `return_type {}`: every path of the body answers a value of that type",
+                catalogue::variant_name(&kind)
+            ));
+        }
+        if !self.callback_slots.is_empty() {
+            notes.push(format!(
+                "the body invokes parameter(s) {} as commands: callback position(s)",
+                self.callback_slots
+                    .iter()
+                    .map(usize::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
+    }
+}
+
+fn is_empty_array(value: &Value) -> bool {
+    value.as_array().is_some_and(Vec::is_empty)
 }
 
 /// The registry [`ArgRole`](tcl_registry::ArgRole) variant a parameter trait
@@ -216,6 +404,7 @@ fn draft_for_proc(
     file: &str,
     body: &str,
     dialect: &str,
+    facts: &InferredFacts,
 ) -> Inferred {
     let mut d = draft::default_command_draft();
     let mut notes: Vec<String> = Vec::new();
@@ -271,6 +460,7 @@ fn draft_for_proc(
     // its own evidence line. Runs after the signature pass so a role the
     // analyser proved is never overwritten by a shape guess.
     crate::corpus::scan(body, params, dialect).apply(&mut d, &mut notes);
+    facts.apply(&mut d, &mut notes);
     describe(&mut d, proc_def, &name, package, version, file, &mut notes);
 
     notes.push(
@@ -404,7 +594,9 @@ pub fn import_package(files: &[SourceFile], dialect: &str) -> Import {
             continue;
         }
 
+        let unit = unit_of(&file.text, dialect);
         for proc_def in result.all_procs.values() {
+            let facts = facts_in(&unit, &proc_def.qualified_name, callback_slots(proc_def));
             let start = proc_def.body_span.start() as usize;
             let end = proc_def.body_span.end() as usize;
             // The recorded span runs from the body word's opening brace to the
@@ -414,7 +606,7 @@ pub fn import_package(files: &[SourceFile], dialect: &str) -> Import {
             let body = file.text.get(start..end).unwrap_or_default();
             let body = body.strip_prefix('{').unwrap_or(body);
             let body = body.strip_suffix('}').unwrap_or(body);
-            let inferred = draft_for_proc(proc_def, None, None, &file.name, body, dialect);
+            let inferred = draft_for_proc(proc_def, None, None, &file.name, body, dialect, &facts);
             by_name.insert(proc_def.qualified_name.clone(), inferred);
         }
     }
@@ -607,6 +799,164 @@ mod tests {
             render.notes.iter().any(|n| n.contains("`--`")),
             "the `--` handling must be reported: {:?}",
             render.notes
+        );
+    }
+
+    /// What a body states about the command it implements is read from the
+    /// compiler's own summary of it, never from a name: whether it is free of
+    /// side effects, the state it touches outside its frame, the type it answers
+    /// and the parameters it calls.
+    #[test]
+    fn a_bodys_effects_answer_and_callbacks_are_read_from_the_summary() {
+        let tidy = infer_from_body("x", "expr {$x * 2}", "tcl9.0");
+        assert!(tidy.pure, "{tidy:?}");
+        assert!(tidy.side_effects.is_empty(), "{tidy:?}");
+
+        let constant = infer_from_body("x", "return 1", "tcl9.0");
+        assert_eq!(constant.return_type, Some(TclType::Int), "{constant:?}");
+
+        let writes = infer_from_body("x", "set ::seen $x", "tcl9.0");
+        assert!(!writes.pure, "{writes:?}");
+        assert!(
+            writes
+                .side_effects
+                .iter()
+                .any(|effect| effect.target == SideEffectTarget::Variable && effect.writes),
+            "{writes:?}"
+        );
+
+        let reads = infer_from_body("x", "return [set ::seen]", "tcl9.0");
+        assert!(
+            reads
+                .side_effects
+                .iter()
+                .any(|effect| effect.target == SideEffectTarget::Variable
+                    && effect.reads
+                    && !effect.writes),
+            "{reads:?}"
+        );
+
+        let calls = infer_from_body("cb x", "$cb [$cb $x]", "tcl9.0");
+        assert_eq!(calls.callback_slots, vec![0], "{calls:?}");
+        assert!(
+            !calls.pure,
+            "a call the summary cannot read is not pure: {calls:?}"
+        );
+
+        let prints = infer_from_body("x", "puts $x", "tcl9.0");
+        assert!(!prints.pure, "{prints:?}");
+
+        let unknown = infer_from_body("x", "frobnicate $x", "tcl9.0");
+        assert!(!unknown.pure, "{unknown:?}");
+        assert!(
+            unknown
+                .side_effects
+                .iter()
+                .any(|effect| effect.target == SideEffectTarget::Unknown && effect.writes),
+            "state the analysis cannot name is a row of its own: {unknown:?}"
+        );
+
+        // A name the parameter list does not bind is not the frame's.
+        let reaches = infer_from_body("x", "upvar 1 $x y; set y 1", "tcl9.0");
+        assert!(!reaches.pure, "{reaches:?}");
+    }
+
+    /// A proposal never replaces what the draft already says: a `return_type` and
+    /// side-effect rows that are there stay, and nothing is noted for the facts
+    /// that were not applied.
+    #[test]
+    fn a_proposal_leaves_a_field_the_draft_already_states() {
+        let facts = InferredFacts {
+            pure: false,
+            side_effects: vec![SideEffect {
+                target: SideEffectTarget::Variable,
+                writes: true,
+                ..SideEffect::DEFAULT
+            }],
+            return_type: Some(TclType::Int),
+            callback_slots: Vec::new(),
+        };
+        let mut stated = draft::default_command_draft();
+        stated.insert("return_type".into(), json!("String"));
+        stated.insert(
+            "side_effects".into(),
+            json!([{"target": "HttpHeader", "reads": true}]),
+        );
+        let mut notes = Vec::new();
+        facts.apply(&mut stated, &mut notes);
+        assert_eq!(stated["return_type"], json!("String"));
+        assert_eq!(stated["side_effects"][0]["target"], json!("HttpHeader"));
+        assert_eq!(stated["side_effects"].as_array().map(Vec::len), Some(1));
+        assert!(notes.is_empty(), "{notes:?}");
+
+        let mut blank = draft::default_command_draft();
+        let mut notes = Vec::new();
+        facts.apply(&mut blank, &mut notes);
+        assert_eq!(blank["return_type"], json!("Int"));
+        assert_eq!(notes.len(), 2, "{notes:?}");
+    }
+
+    /// An import carries them onto the draft as proposals, each with its line
+    /// of evidence, and states nothing a command's own body does not show.
+    #[test]
+    fn an_import_carries_the_bodys_facts_as_proposals() {
+        let import = import_package(
+            &file(
+                "package provide demo 1.0\n\
+                 proc demo::answer {x} { return 42 }\n\
+                 proc demo::note {x} { set ::last $x }\n\
+                 proc demo::twice {cb x} { $cb [$cb $x] }\n",
+            ),
+            "tcl9.0",
+        );
+        let answer = find(&import, "demo::answer");
+        assert_eq!(answer.draft["return_type"], json!("Int"));
+        assert!(
+            answer.draft["traits"]
+                .as_array()
+                .is_some_and(|traits| traits.contains(&json!("PURE"))),
+            "{:?}",
+            answer.draft["traits"]
+        );
+        assert!(
+            answer
+                .notes
+                .iter()
+                .any(|note| note.starts_with("proposed `PURE`")),
+            "{:?}",
+            answer.notes
+        );
+        assert!(
+            answer
+                .notes
+                .iter()
+                .any(|note| note.starts_with("proposed `return_type Int`")),
+            "{:?}",
+            answer.notes
+        );
+
+        let note = find(&import, "demo::note");
+        let rows = note.draft["side_effects"].as_array().expect("rows");
+        assert!(
+            rows.iter()
+                .any(|row| row["target"] == json!("Variable") && row["writes"] == json!(true)),
+            "{rows:?}"
+        );
+        assert!(
+            !note.draft["traits"]
+                .as_array()
+                .is_some_and(|traits| traits.contains(&json!("PURE"))),
+            "a body that writes a global is not proposed pure"
+        );
+
+        let twice = find(&import, "demo::twice");
+        assert!(
+            twice
+                .notes
+                .iter()
+                .any(|note| note.contains("invokes parameter(s) 0")),
+            "{:?}",
+            twice.notes
         );
     }
 

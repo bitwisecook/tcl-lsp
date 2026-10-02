@@ -327,6 +327,11 @@ pub const GAPS: &[Gap] = &[
         spelling: "",
         kind: GapKind::Excluded,
     },
+    Gap {
+        key: "native_lowering_windows",
+        spelling: "",
+        kind: GapKind::Excluded,
+    },
     // `semantics` is not in this bucket: the structural half is plain data all the
     // way down (like `object_class`), and a route with no body renders in
     // full. What still cannot survive a bare `CommandSpec` — a declared
@@ -2708,10 +2713,13 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     native_hook(out, ctx, draft, "context_gate");
     catalogue_hook(out, ctx, draft, "lowering_hook");
     catalogue_hook(out, ctx, draft, "codegen_hook");
+    hook_window_rows(out, ctx, draft, "codegen_hook");
     catalogue_hook(out, ctx, draft, "inline_codegen_hook");
+    hook_window_rows(out, ctx, draft, "inline_codegen_hook");
     catalogue_hook(out, ctx, draft, "analyser_hook");
     catalogue_hook(out, ctx, draft, "return_type_hook");
     semantic_operation_row(out, ctx, draft);
+    semantic_operation_window_rows(out, ctx, draft);
     gap_todo(out, ctx, draft, "bpf_op");
     gap_todo(out, ctx, draft, "completion");
     gap_todo(out, ctx, draft, "dispatch_dependencies");
@@ -3092,7 +3100,8 @@ fn runtime_backing_row(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
         Err(_) => out.comment(&format!(
             "TODO(spectcl): `runtime_backing {spelling}` does not read; the loader \
              takes `none`, `host-native`, `shipped-builtin ID`, `tcl-body \
-             {{-package-source PATH}}` or `tcl-body {{-pack-text {{TEXT}}}}`."
+             {{-package-source PATH ?-evaluate?}}` or `tcl-body {{-pack-text {{TEXT}} \
+             ?-evaluate?}}`."
         )),
     }
 }
@@ -3110,15 +3119,70 @@ fn semantic_operation_row(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
     if !ctx.set(draft, "semantic_operation") {
         return;
     }
-    let kind = str_of(&value["kind"]);
-    let detail = value["detail"].as_str();
-    let spelling = tcl_spectcl::semantic_operations()
-        .find(|operation| operation.kind_str() == kind && operation.detail_str() == detail)
-        .map(tcl_spectcl::semantic_operation_spelling)
-        .and_then(|spelling| word(&spelling));
-    match spelling {
+    match semantic_operation_word(value) {
         Some(spelling) => out.line(&format!("semantic_operation {spelling}")),
         None => todo(out, "semantic_operation"),
+    }
+}
+
+/// The loader's spelling of a draft semantic operation, when the closed
+/// vocabulary has one.
+fn semantic_operation_word(value: &Value) -> Option<String> {
+    let kind = str_of(&value["kind"]);
+    let detail = value["detail"].as_str();
+    tcl_spectcl::semantic_operations()
+        .find(|operation| operation.kind_str() == kind && operation.detail_str() == detail)
+        .map(tcl_spectcl::semantic_operation_spelling)
+        .and_then(|spelling| word(&spelling))
+}
+
+/// ` -introduced V -deprecated V -retired V`, for the releases a window's
+/// lifecycle states.
+fn lifecycle_flags(lifecycle: &Value) -> String {
+    let mut flags = String::new();
+    for (flag, key) in [
+        ("-introduced", "introduced"),
+        ("-deprecated", "deprecated"),
+        ("-retired", "retired"),
+    ] {
+        if let Some(at) = lifecycle.get(key).and_then(Value::as_str) {
+            let _ = write!(flags, " {flag} {at}");
+        }
+    }
+    flags
+}
+
+/// `KEY -native ID -introduced V ?-deprecated V? ?-retired V?` — one row per
+/// window of a catalogue hook (`SpecTcl` 2.2), after the plain row.
+fn hook_window_rows(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft, key: &str) {
+    let windows = format!("{key}_windows");
+    if !ctx.set(draft, &windows) {
+        return;
+    }
+    for window in as_array(&draft[windows.as_str()]) {
+        if let Some(id) = window["value"].as_str() {
+            out.line(&format!(
+                "{key} -native {id}{}",
+                lifecycle_flags(&window["lifecycle"])
+            ));
+        }
+    }
+}
+
+/// `semantic_operation SPELLING -introduced V ?-deprecated V? ?-retired V?` —
+/// one row per window of the semantic operation, after the plain row.
+fn semantic_operation_window_rows(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
+    if !ctx.set(draft, "semantic_operation_windows") {
+        return;
+    }
+    for window in as_array(&draft["semantic_operation_windows"]) {
+        match semantic_operation_word(&window["value"]) {
+            Some(spelling) => out.line(&format!(
+                "semantic_operation {spelling}{}",
+                lifecycle_flags(&window["lifecycle"])
+            )),
+            None => todo(out, "semantic_operation"),
+        }
     }
 }
 
@@ -3728,9 +3792,12 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
     native_hook(out_body, ctx, sub, "literal_argument_validator");
     catalogue_hook(out_body, ctx, sub, "lowering_hook");
     catalogue_hook(out_body, ctx, sub, "codegen_hook");
+    hook_window_rows(out_body, ctx, sub, "codegen_hook");
     catalogue_hook(out_body, ctx, sub, "inline_codegen_hook");
+    hook_window_rows(out_body, ctx, sub, "inline_codegen_hook");
     catalogue_hook(out_body, ctx, sub, "analyser_hook");
     semantic_operation_row(out_body, ctx, sub);
+    semantic_operation_window_rows(out_body, ctx, sub);
     gap_todo(out_body, ctx, sub, "completion");
     gap_todo(out_body, ctx, sub, "dispatch_dependencies");
     gap_todo(out_body, ctx, sub, "result_stability");

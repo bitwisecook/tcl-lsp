@@ -155,6 +155,7 @@
 3	tcl-spec-studio::versions	test	tcl-spec-studio	versions
 3	tcl-spectcl::eda_loadables	test	tcl-spectcl	eda_loadables
 3	tcl-spectcl::pack_formatting	test	tcl-spectcl	pack_formatting
+3	tcl-spectcl::package_specs	test	tcl-spectcl	package_specs
 3	tcl-spectcl::workspace_packs	test	tcl-spectcl	workspace_packs
 3	tcl-sslictcl::config_adapters	test	tcl-sslictcl	config_adapters
 3	tcl-syntax	lib	tcl-syntax	tcl_syntax

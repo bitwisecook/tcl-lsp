@@ -62,7 +62,7 @@ pub use grammar::{
     is_expr_word_operator,
 };
 pub use library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKey};
-pub use profile::{DialectFileExtension, DialectProfile};
+pub use profile::{DialectFileExtension, DialectProfile, EvaluationEvidence};
 pub use profile::{KNOWN_DIALECTS, available_dialects};
 pub use version::{
     ByteStringEncoding, CorePackage, PackagePrefer, RequirementValidationError,

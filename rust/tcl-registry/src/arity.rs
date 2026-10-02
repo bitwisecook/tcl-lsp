@@ -205,16 +205,7 @@ impl ArityWindow {
     /// second unbounded window is always an error.
     #[must_use]
     pub fn overlaps(self, other: Self) -> bool {
-        fn ends_before(a: crate::lifecycle::Lifecycle, b: crate::lifecycle::Lifecycle) -> bool {
-            match (a.retired, b.introduced) {
-                (Some(retired), Some(introduced)) => {
-                    crate::version::compare(retired, introduced).is_le()
-                }
-                _ => false,
-            }
-        }
-        !ends_before(self.lifecycle, other.lifecycle)
-            && !ends_before(other.lifecycle, self.lifecycle)
+        self.lifecycle.overlaps(other.lifecycle)
     }
 }
 

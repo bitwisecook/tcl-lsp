@@ -49,12 +49,13 @@ use crate::resolved_invocation::{
 };
 use crate::side_effects::SideSwitchTarget;
 use crate::spec::{BytePayloadSpec, CommandSpec, SubCommand};
+use crate::stamp_window::StampSelection;
 use crate::state_transition::{StateTransition, StateTransitions, TransitionSubject};
 use crate::traits::Traits;
 use crate::types::VarWriteTyping;
 use crate::{InvocationArguments, InvocationWords};
-use tcl_dialect::DialectProfile;
 use tcl_dialect::model::Family;
+use tcl_dialect::model::PackageFloor;
 use tcl_dialect::model::SurfaceQuery;
 use tcl_dialect::model::surface_admits;
 use tcl_dialect::model::surface_breadth;
@@ -611,6 +612,15 @@ pub struct CommandRegistry {
     /// to packs — a package's own version floor must not depend
     /// on whether this crate happens to know the package's name.
     ambient_packages: Vec<(&'static str, &'static str)>,
+    /// The packages this registry's own point carries and the floor the
+    /// registry guarantees of each — what [`Self::own_surface_query`] lends
+    /// as the query's packages.
+    ///
+    /// Derived from [`Self::profile`] (which packages) and
+    /// [`Self::package_floor`] (which release), so every seam that moves
+    /// either refreshes it. Empty for a profile-less registry and for a
+    /// profile whose point carries no package.
+    own_packages: Vec<PackageFloor<'static>>,
     /// Special variables a `SpecTcl` pack declared with `special_var`, in
     /// installation order — the pack-authored rows [`Self::special_vars`]
     /// reads beside the shipped table.
@@ -650,6 +660,10 @@ pub struct CommandRegistry {
     /// registry indexes is `&'static` and never freed, so an address names
     /// one spec for the life of the process.
     pack_origins: FxHashMap<usize, crate::pack_origin::PackOrigin>,
+    /// The text of the definition a `TclBody`-backed pack command's
+    /// `PackageSource` pointer resolved to at load, keyed by the installed
+    /// spec's address as [`Self::pack_origins`] is ([`Self::reference_body`]).
+    reference_texts: FxHashMap<usize, Arc<str>>,
     /// This registry's generation: a number no other registry, and no
     /// earlier state of this one, has had. Every mutation draws a new one,
     /// so a memo keyed by it names exactly the command surface it resolved
@@ -1503,11 +1517,13 @@ impl CommandRegistry {
             loaded_layers: Vec::new(),
             profile: None,
             ambient_packages: Vec::new(),
+            own_packages: Vec::new(),
             special_vars: Vec::new(),
             document_grammar: None,
             effective_semantics: OnceLock::new(),
             overlay: None,
             pack_origins: FxHashMap::default(),
+            reference_texts: FxHashMap::default(),
             generation: next_registry_generation(),
         };
         for spec in tcl_specs() {
@@ -1674,7 +1690,23 @@ impl CommandRegistry {
     /// profile rather than re-deriving from loaded packs.
     pub(crate) fn set_profile(&mut self, profile: &'static tcl_dialect::DialectProfile) {
         self.profile = Some(profile);
+        self.refresh_own_packages();
         self.invalidate_effective_semantics();
+    }
+
+    /// Re-derive [`Self::own_packages`] from the profile and the floors this
+    /// registry now guarantees.
+    fn refresh_own_packages(&mut self) {
+        let carried = self
+            .profile
+            .map_or(&[][..], |profile| profile.surface_packages);
+        self.own_packages = carried
+            .iter()
+            .map(|package| PackageFloor {
+                name: package.name,
+                version: self.package_floor(package.name),
+            })
+            .collect();
     }
 
     /// Derive an exact registry view for `profile`, preserving this registry's
@@ -1705,7 +1737,8 @@ impl CommandRegistry {
         }
         projected.set_profile(profile);
 
-        let query = profile.surface_query();
+        let own_packages = projected.own_packages.clone();
+        let query = profile.surface_query().with_packages(&own_packages);
         projected.by_name = projected
             .by_name
             .iter()
@@ -1729,6 +1762,7 @@ impl CommandRegistry {
         // pack each authored spec came from travel with the specs themselves.
         projected.overlay = self.overlay;
         projected.pack_origins.clone_from(&self.pack_origins);
+        projected.reference_texts.clone_from(&self.reference_texts);
         projected.invalidate_effective_semantics();
         projected
     }
@@ -1749,8 +1783,9 @@ impl CommandRegistry {
     /// registry resolves to no spec, so the call reaches the runtime's
     /// availability gate as a generic dispatch instead of being inlined.
     #[must_use]
-    pub fn own_surface_query(&self) -> Option<SurfaceQuery<'static>> {
-        self.profile.map(DialectProfile::surface_query)
+    pub fn own_surface_query(&self) -> Option<SurfaceQuery<'_>> {
+        self.profile
+            .map(|profile| profile.surface_query().with_packages(&self.own_packages))
     }
 
     /// Whether a loaded core layer is a Tcl 9.x release — the derivation a
@@ -1811,6 +1846,50 @@ impl CommandRegistry {
         self.pack_origins.get(&std::ptr::from_ref(spec).addr())
     }
 
+    /// Record the definition text a pack command's `PackageSource` backing
+    /// resolved to — what the loader read from the package at load, so that
+    /// nothing downstream reads a file ([`Self::reference_body`]).
+    pub fn insert_reference_text(&mut self, spec: &'static CommandSpec, text: Arc<str>) {
+        self.reference_texts
+            .insert(std::ptr::from_ref(spec).addr(), text);
+    }
+
+    /// The Tcl definition `spec`'s backing says defines the command: the text
+    /// a `PackText` backing carries, or the file a `PackageSource` backing
+    /// resolved to at load. `None` for every other backing, and for a
+    /// `PackageSource` the loader had no package to read.
+    #[must_use]
+    pub fn reference_body(&self, spec: &CommandSpec) -> Option<&str> {
+        use crate::runtime_backing::{BodySource, RuntimeBacking};
+        match spec.runtime_backing {
+            RuntimeBacking::TclBody {
+                source: BodySource::PackText { text },
+                ..
+            } => Some(text),
+            RuntimeBacking::TclBody {
+                source: BodySource::PackageSource { .. },
+                ..
+            } => self
+                .reference_texts
+                .get(&std::ptr::from_ref(spec).addr())
+                .map(AsRef::as_ref),
+            _ => None,
+        }
+    }
+
+    /// Every spec a pack installed whose backing is a Tcl body this registry
+    /// holds the text of, with the text — the commands a compile may inline
+    /// the definition of. A spec a later insertion shadowed is not among them.
+    pub fn reference_bodies(&self) -> impl Iterator<Item = (&'static CommandSpec, &str)> {
+        self.overlay_specs.iter().filter_map(|&spec| {
+            let text = self.reference_body(spec)?;
+            self.pack_origin(spec)?;
+            self.get_exact(spec.name)
+                .is_some_and(|live| std::ptr::eq(live, spec))
+                .then_some((spec, text))
+        })
+    }
+
     /// Index one row from the compiled-in command universe without recording
     /// it as an authored overlay.
     fn insert_shipped_static(&mut self, spec: &'static CommandSpec) {
@@ -1822,6 +1901,7 @@ impl CommandRegistry {
     /// `version` — the `ambient_package` statement of a `SpecTcl` pack.
     pub fn insert_ambient_package(&mut self, package: &'static str, version: &'static str) {
         self.ambient_packages.push((package, version));
+        self.refresh_own_packages();
         self.generation = next_registry_generation();
     }
 
@@ -2135,8 +2215,8 @@ impl CommandRegistry {
     /// added later cannot quietly answer for a command the profile's
     /// dialect does not have.
     fn spec_for_this_registry(&self, head: &str) -> Option<&CommandSpec> {
-        match self.profile {
-            Some(profile) => self.get_for_surface(head, Some(profile.surface_query())),
+        match self.own_surface_query() {
+            Some(query) => self.get_for_surface(head, Some(query)),
             None => self.get(head),
         }
     }
@@ -2541,7 +2621,7 @@ impl CommandRegistry {
         let Some(profile) = self.profile else {
             return true;
         };
-        if dialect.is_none_or(|query| query != profile.surface_query()) {
+        if dialect.is_none_or(|query| !query.same_point(&profile.surface_query())) {
             // The query is about some other surface's availability; this
             // profile's operator-exclusion does not apply to it.
             return true;
@@ -2640,11 +2720,14 @@ impl CommandRegistry {
         self.overlay
     }
 
-    /// Return command names whose command-level descriptor selects `operation`.
+    /// Return command names whose command-level descriptor selects `operation`
+    /// at some release.
     ///
     /// This uses the same target-neutral descriptor precedence as structured
-    /// invocation resolution. It is intended for whole-module trust proofs that
-    /// need to quantify over every registry spelling of one semantic operation.
+    /// invocation resolution, over the stamps a command carries plain and in
+    /// every window. It is intended for whole-module trust proofs that need to
+    /// quantify over every registry spelling of one semantic operation, at
+    /// whichever release the module is compiled for.
     pub fn command_names_for_semantic_operation(
         &self,
         operation: crate::SemanticOperationId,
@@ -2653,12 +2736,15 @@ impl CommandRegistry {
             specs
                 .iter()
                 .any(|spec| {
-                    crate::resolved_invocation::descriptor_operation(
-                        spec.semantic_operation,
-                        spec.lowering_hook,
-                        spec.codegen_hook,
-                        spec.inline_codegen_hook,
-                    ) == Some(operation)
+                    spec.descriptor_combinations()
+                        .any(|(semantic, codegen, inline_codegen)| {
+                            crate::resolved_invocation::descriptor_operation(
+                                semantic,
+                                spec.lowering_hook,
+                                codegen,
+                                inline_codegen,
+                            ) == Some(operation)
+                        })
                 })
                 .then_some(*name)
         })
@@ -2686,7 +2772,18 @@ impl CommandRegistry {
     /// the static, resolved-profile answer. `None` remains permissive for an
     /// unpinned package or a hand-assembled registry with no ambient claim.
     fn package_floor_for_spec(&self, spec: &CommandSpec) -> Option<&'static str> {
-        let package = spec.owning_package()?;
+        self.package_floor(spec.owning_package()?)
+    }
+
+    /// The version floor this registry itself guarantees for `package`: the
+    /// profile's pinned runtime library version and the highest a loaded
+    /// pack declared with `ambient_package`, the stronger of the two when
+    /// both are stated.
+    ///
+    /// The one place the two claims are combined: a spec's owning package
+    /// ([`Self::package_floor_for_spec`]) and a package the registry's own
+    /// point carries ([`Self::own_surface_query`]) ask it alike.
+    fn package_floor(&self, package: &str) -> Option<&'static str> {
         let profile_floor = self
             .profile
             .and_then(|profile| profile.library_floor_default(package));
@@ -2734,11 +2831,7 @@ impl CommandRegistry {
     /// no widget or method spellings.
     #[must_use]
     pub fn instance_methods(&self, class_name: &str) -> Vec<&'static SubCommand> {
-        self.instance_methods_at(
-            class_name,
-            None,
-            self.profile.map(tcl_dialect::DialectProfile::surface_query),
-        )
+        self.instance_methods_at(class_name, None, self.own_surface_query())
     }
 
     /// [`Self::instance_methods`] with a document-resolved floor for the
@@ -2811,12 +2904,7 @@ impl CommandRegistry {
         class_name: &str,
         method: &str,
     ) -> Option<&crate::spec::SubCommand> {
-        self.instance_method_at(
-            class_name,
-            method,
-            None,
-            self.profile.map(tcl_dialect::DialectProfile::surface_query),
-        )
+        self.instance_method_at(class_name, method, None, self.own_surface_query())
     }
 
     /// [`Self::instance_method`] with a document-resolved owning-package
@@ -3964,9 +4052,7 @@ impl CommandRegistry {
                 )
             },
         );
-        let effective_dialect = self
-            .profile()
-            .map_or(dialect, |profile| Some(profile.surface_query()));
+        let effective_dialect = self.own_surface_query().or(dialect);
         Some((*case, case.invocation(args, &options, effective_dialect)?))
     }
 
@@ -5246,9 +5332,7 @@ impl CommandRegistry {
         args: InvocationArguments<'_>,
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Vec<FormatStringArg> {
-        let effective_dialect = self
-            .profile()
-            .map_or(dialect, |profile| Some(profile.surface_query()));
+        let effective_dialect = self.own_surface_query().or(dialect);
         let spec = if effective_dialect.is_none() {
             self.get(name)
         } else {
@@ -5312,9 +5396,7 @@ impl CommandRegistry {
         args: &[&str],
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Vec<crate::patterns::PatternArg> {
-        let effective_dialect = self
-            .profile()
-            .map_or(dialect, |profile| Some(profile.surface_query()));
+        let effective_dialect = self.own_surface_query().or(dialect);
         let spec = if effective_dialect.is_none() {
             self.get(name)
         } else {
@@ -5366,9 +5448,7 @@ impl CommandRegistry {
         args: InvocationArguments<'_>,
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Vec<crate::patterns::PatternArg> {
-        let effective_dialect = self
-            .profile()
-            .map_or(dialect, |profile| Some(profile.surface_query()));
+        let effective_dialect = self.own_surface_query().or(dialect);
         let spec = if effective_dialect.is_none() {
             self.get(name)
         } else {
@@ -5708,13 +5788,19 @@ impl CommandRegistry {
         let sub = selection.sub;
         let form = selection.form;
 
+        // A stamp is read at the point the call is resolved at: a level whose
+        // windows that point does not settle declines, and the call is
+        // dispatched plain rather than by the level above's stamp.
+        let point = dialect.as_ref();
+        let command_codegen = spec.codegen_hook_selection(point);
+        let command_inline = spec.inline_codegen_hook_selection(point);
         let mut resolved = ResolvedCall {
             spec,
             sub,
             form,
             lowering_hook: spec.lowering_hook,
-            codegen_hook: spec.codegen_hook,
-            inline_codegen_hook: spec.inline_codegen_hook,
+            codegen_hook: command_codegen.stamp(),
+            inline_codegen_hook: command_inline.stamp(),
             analyser_hook: spec.analyser_hook,
         };
 
@@ -5723,14 +5809,17 @@ impl CommandRegistry {
                 .and_then(|f| f.lowering_hook)
                 .or(sub.lowering_hook)
                 .or(spec.lowering_hook);
-            resolved.codegen_hook = form
-                .and_then(|f| f.codegen_hook)
-                .or(sub.codegen_hook)
-                .or(spec.codegen_hook);
+            resolved.codegen_hook = StampSelection::stated(form.and_then(|f| f.codegen_hook))
+                .or(sub.codegen_hook_selection(point))
+                .or(command_codegen)
+                .stamp();
             // Forms carry no inline hook — the inline emitters guard
             // their own applicability (arity / shape) at the dispatch
             // site, so subcommand-level wins over command-level.
-            resolved.inline_codegen_hook = sub.inline_codegen_hook.or(spec.inline_codegen_hook);
+            resolved.inline_codegen_hook = sub
+                .inline_codegen_hook_selection(point)
+                .or(command_inline)
+                .stamp();
             // Forms carry no analyser hook either — the analyser
             // handlers keep their own shape guards, so the
             // subcommand-level stamp wins over the command-level one.
@@ -5740,7 +5829,9 @@ impl CommandRegistry {
 
         if let Some(f) = form {
             resolved.lowering_hook = f.lowering_hook.or(spec.lowering_hook);
-            resolved.codegen_hook = f.codegen_hook.or(spec.codegen_hook);
+            resolved.codegen_hook = StampSelection::stated(f.codegen_hook)
+                .or(command_codegen)
+                .stamp();
             resolved.form = Some(f);
         }
         Some(resolved)
@@ -5849,9 +5940,7 @@ impl CommandRegistry {
         // `CommandSpec.options` level (a single set per spec), so we
         // consult that directly when no subcommand match was found.
         if spec.options.iter().any(|o| o.name == "--") {
-            let effective_dialect = self
-                .profile()
-                .map_or(dialect, |profile| Some(profile.surface_query()));
+            let effective_dialect = self.own_surface_query().or(dialect);
             let reserved_trailing_words =
                 spec.case_list.map_or(spec.reserved_trailing_words, |case| {
                     case.option_scan_reserved_trailing_words(
@@ -5909,7 +5998,7 @@ impl CommandRegistry {
     /// [`TransitionSubject::Unknown`]: crate::TransitionSubject::Unknown
     #[must_use]
     pub fn command_binding_transitions(&self, words: InvocationWords<'_>) -> StateTransitions {
-        let query = self.profile.map(DialectProfile::surface_query);
+        let query = self.own_surface_query();
         self.resolve_structured_invocation(words, query)
             .resolved()
             .map_or_else(StateTransitions::default, |invocation| {
@@ -6345,6 +6434,7 @@ impl std::fmt::Debug for CommandRegistry {
             .field("loaded_layers", &self.loaded_layers)
             .field("profile", &self.profile.map(|p| p.name))
             .field("ambient_packages", &self.ambient_packages)
+            .field("own_packages", &self.own_packages)
             .field("special_vars", &self.special_vars)
             .field(
                 "document_grammar",
@@ -6356,6 +6446,7 @@ impl std::fmt::Debug for CommandRegistry {
             )
             .field("overlay", &self.overlay)
             .field("pack_origins", &self.pack_origins.len())
+            .field("reference_texts", &self.reference_texts.len())
             .field("generation", &self.generation)
             .finish()
     }
@@ -6372,6 +6463,112 @@ mod tests {
     use tcl_dialect::model::SpecProvider;
     use tcl_dialect::model::{Family, SpecSurface, SurfaceLayer, SurfaceQuery};
     use tcl_dialect::surface;
+
+    fn body_backed(name: &'static str, backing: crate::RuntimeBacking) -> crate::CommandSpec {
+        crate::CommandSpec {
+            name,
+            runtime_backing: backing,
+            ..crate::CommandSpec::DEFAULT
+        }
+    }
+
+    fn text_backing(text: &'static str) -> crate::RuntimeBacking {
+        crate::RuntimeBacking::pack_text(text)
+    }
+
+    fn origin() -> crate::pack_origin::PackOrigin {
+        crate::pack_origin::PackOrigin {
+            pack: "vendor".to_owned(),
+            content_hash: 7,
+            vocabulary_version: "2".to_owned(),
+        }
+    }
+
+    /// The reference bodies a registry offers are the specs a pack installed,
+    /// whose backing is a Tcl body this registry holds the text of, and which
+    /// are still the answer for their name: the text a `PackText` carries or a
+    /// `PackageSource` resolved to at load, never an embedder's own spec, a
+    /// backing of another kind, a `PackageSource` nobody read, or a spec a later
+    /// insertion shadowed.
+    #[test]
+    fn a_registry_offers_the_live_pack_installed_bodies_it_holds_text_for() {
+        let installed = |registry: &mut CommandRegistry, spec: crate::CommandSpec| {
+            let spec: &'static crate::CommandSpec = Box::leak(Box::new(spec));
+            registry.insert_static(spec);
+            registry.insert_pack_origin(spec, origin());
+            spec
+        };
+        let mut registry = CommandRegistry::build_default();
+        let in_text = installed(
+            &mut registry,
+            body_backed("vendor::text", text_backing("proc vendor::text {} {}")),
+        );
+        let from_file = installed(
+            &mut registry,
+            body_backed(
+                "vendor::file",
+                crate::RuntimeBacking::package_source("lib.tcl"),
+            ),
+        );
+        registry.insert_reference_text(from_file, Arc::from("proc vendor::file {} {}"));
+        // Not offered: nobody read the file; the host owns the command; the
+        // embedder inserted it; and a later spec shadowed it.
+        installed(
+            &mut registry,
+            body_backed(
+                "vendor::unread",
+                crate::RuntimeBacking::package_source("absent.tcl"),
+            ),
+        );
+        installed(
+            &mut registry,
+            body_backed("vendor::native", crate::RuntimeBacking::HostNative),
+        );
+        registry.insert(body_backed(
+            "embedder::text",
+            text_backing("proc embedder::text {} {}"),
+        ));
+        installed(
+            &mut registry,
+            body_backed(
+                "vendor::shadowed",
+                text_backing("proc vendor::shadowed {} {}"),
+            ),
+        );
+        registry.insert(body_backed(
+            "vendor::shadowed",
+            crate::RuntimeBacking::HostNative,
+        ));
+
+        let offered: Vec<(&str, &str)> = registry
+            .reference_bodies()
+            .map(|(spec, text)| (spec.name, text))
+            .collect();
+        assert_eq!(
+            offered,
+            vec![
+                ("vendor::text", "proc vendor::text {} {}"),
+                ("vendor::file", "proc vendor::file {} {}"),
+            ]
+        );
+        assert_eq!(
+            registry.reference_body(in_text),
+            Some("proc vendor::text {} {}")
+        );
+        assert_eq!(
+            registry.reference_body(from_file),
+            Some("proc vendor::file {} {}")
+        );
+        // A projection for a profile carries the text with the spec.
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        assert_eq!(
+            registry
+                .project_for_profile(profile)
+                .reference_bodies()
+                .count(),
+            2
+        );
+    }
 
     /// Tcl 9.0.4: inside a method the bare words resolve to the receiving
     /// object's `my` command or the `::oo::Helpers` namespace path, while every
@@ -6434,12 +6631,7 @@ mod tests {
             assert!(registry.get(&rooted).is_none(), "rooted {head}");
             assert!(
                 registry
-                    .get_for_surface(
-                        &rooted,
-                        registry
-                            .profile()
-                            .map(tcl_dialect::DialectProfile::surface_query),
-                    )
+                    .get_for_surface(&rooted, registry.own_surface_query())
                     .is_none(),
                 "profiled rooted {head}"
             );
@@ -7098,7 +7290,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let package = synthetic_spec("d6_package", Some(SpecSurface::EXPECT), Traits::empty());
         let core = synthetic_spec("d6_core", Some(SpecSurface::ALL_TCL), Traits::empty());
-        let packages = ["expect"];
+        let packages = [PackageFloor::named("expect")];
         let with_package = SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&packages);
 
         // Package rows are visible through the package set and are narrower
@@ -7155,6 +7347,402 @@ mod tests {
                 .best_visible(&specs, plain.own_surface_query())
                 .map(|spec| spec.name),
             Some("d6_profile_operator")
+        );
+    }
+
+    /// A registry whose pack declared a floor for a package its point carries
+    /// asks under a query that is not `==` its profile's — and is still that
+    /// profile's own point, so the profile's operator exclusion applies to it.
+    #[test]
+    fn a_floor_on_the_own_query_leaves_it_the_profiles_own_point() {
+        let iapps = tcl_dialect::DialectProfile::find("f5-iapps").expect("catalogue profile");
+        assert!(!iapps.operators_as_commands);
+        let mut registry = CommandRegistry::build_default().project_for_profile(iapps);
+        registry.insert_ambient_package("iapps", "1.0");
+        let own = registry.own_surface_query();
+        let query = own.expect("a profiled registry has a point");
+        assert_eq!(
+            query.package("iapps"),
+            Some(&PackageFloor::at("iapps", "1.0"))
+        );
+        assert_ne!(query, iapps.surface_query());
+        assert!(query.same_point(&iapps.surface_query()));
+
+        let operator = synthetic_spec("floor_probe_operator", None, Traits::OPERATOR_COMMAND);
+        let ordinary = synthetic_spec("floor_probe_ordinary", None, Traits::empty());
+        assert!(!registry.spec_visible(operator, own));
+        assert!(registry.spec_visible(ordinary, own));
+        assert!(
+            registry.spec_visible(operator, Some(SurfaceQuery::core(Family::Tcl, "8.6"))),
+            "asked at another point, the exclusion is not this profile's to apply"
+        );
+    }
+
+    /// Whether a name is a command in this registry's own dialect is asked at
+    /// the point the registry's floors make, however late a floor arrives.
+    #[test]
+    fn a_command_is_known_here_only_where_the_floored_point_admits_it() {
+        const FROM_8_6: &[tcl_dialect::model::SpecWindow] = &[("8.6", None)];
+        let gated = synthetic_spec(
+            "floor_probe_from_86",
+            Some(surface![SpecSurface::package_in("Tk", FROM_8_6)]),
+            Traits::empty(),
+        );
+        for (floor, known) in [(None, true), (Some("8.5"), false), (Some("8.6"), true)] {
+            let mut authored = CommandRegistry::build_default();
+            authored.insert_static(gated);
+            let mut registry = authored.project_for_profile(tcl_dialect::DialectProfile::tk());
+            assert!(
+                registry.has_command_in_this_dialect("floor_probe_from_86"),
+                "indexed, and admitted while no floor is stated"
+            );
+            if let Some(floor) = floor {
+                registry.insert_ambient_package("Tk", floor);
+            }
+            assert_eq!(
+                registry.has_command_in_this_dialect("floor_probe_from_86"),
+                known,
+                "under a floor of {floor:?}"
+            );
+        }
+    }
+
+    // Versioned codegen-axis stamps: selected at the point a call is resolved
+    // at, and declined — never guessed — where that point does not settle them.
+
+    const HOOK_FROM_9: &[crate::stamp_window::StampWindow<crate::hooks::CodegenHookId>] =
+        &[crate::stamp_window::StampWindow {
+            lifecycle: crate::lifecycle::Lifecycle::introduced_in("9.0"),
+            value: crate::hooks::CodegenHookId::Lassign,
+        }];
+    const INLINE_BEFORE_9: &[crate::stamp_window::StampWindow<
+        crate::hooks::InlineCodegenHookId,
+    >] = &[crate::stamp_window::StampWindow {
+        lifecycle: crate::lifecycle::Lifecycle::UNSPECIFIED.retired_from("9.0"),
+        value: crate::hooks::InlineCodegenHookId::Expr,
+    }];
+
+    fn points() -> [(&'static str, Option<SurfaceQuery<'static>>); 5] {
+        [
+            ("8.6", Some(SurfaceQuery::core(Family::Tcl, "8.6"))),
+            ("9.0", Some(SurfaceQuery::core(Family::Tcl, "9.0"))),
+            ("9.1", Some(SurfaceQuery::core(Family::Tcl, "9.1"))),
+            (
+                "the whole ladder",
+                Some(SurfaceQuery::any_release(Family::Tcl)),
+            ),
+            ("no point", None),
+        ]
+    }
+
+    #[test]
+    fn a_stamp_window_is_selected_at_the_primary_release_and_declines_where_it_is_not_settled() {
+        use crate::hooks::{CodegenHookId, InlineCodegenHookId};
+
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(CommandSpec {
+            name: "stamp::probe",
+            codegen_hook_windows: HOOK_FROM_9,
+            inline_codegen_hook_windows: INLINE_BEFORE_9,
+            ..CommandSpec::DEFAULT
+        });
+        for (point, query, codegen, inline) in [
+            ("8.6", points()[0].1, None, Some(InlineCodegenHookId::Expr)),
+            ("9.0", points()[1].1, Some(CodegenHookId::Lassign), None),
+            ("9.1", points()[2].1, Some(CodegenHookId::Lassign), None),
+            ("the whole ladder", points()[3].1, None, None),
+            ("no point", points()[4].1, None, None),
+        ] {
+            let call = registry
+                .resolve_call("stamp::probe", &["$l", "a"], query)
+                .expect("the probe resolves");
+            assert_eq!(call.codegen_hook, codegen, "codegen hook at {point}");
+            assert_eq!(call.inline_codegen_hook, inline, "inline hook at {point}");
+        }
+    }
+
+    #[test]
+    fn the_plain_stamp_stands_where_no_window_covers_and_a_window_wins_where_one_does() {
+        use crate::hooks::CodegenHookId;
+
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(CommandSpec {
+            name: "stamp::beside",
+            codegen_hook: Some(CodegenHookId::Llength),
+            codegen_hook_windows: HOOK_FROM_9,
+            ..CommandSpec::DEFAULT
+        });
+        for (point, query, codegen) in [
+            ("8.6", points()[0].1, Some(CodegenHookId::Llength)),
+            ("9.0", points()[1].1, Some(CodegenHookId::Lassign)),
+            ("the whole ladder", points()[3].1, None),
+        ] {
+            let call = registry
+                .resolve_call("stamp::beside", &["$l"], query)
+                .expect("the probe resolves");
+            assert_eq!(call.codegen_hook, codegen, "{point}");
+        }
+    }
+
+    /// A subcommand whose windows state nothing at the release is the command's
+    /// own call; one whose windows the point does not settle is dispatched
+    /// plain, and the command's hook is not the answer in its place.
+    #[test]
+    fn a_subcommand_inherits_where_its_windows_are_silent_and_does_not_where_they_decline() {
+        use crate::hooks::CodegenHookId;
+
+        let sub = SubCommand {
+            name: "get",
+            codegen_hook_windows: HOOK_FROM_9,
+            ..SubCommand::DEFAULT
+        };
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(CommandSpec {
+            name: "stamp::ensemble",
+            codegen_hook: Some(CodegenHookId::Dict),
+            subcommands: Box::leak(Box::new([sub])),
+            ..CommandSpec::DEFAULT
+        });
+        for (point, query, codegen) in [
+            ("8.6", points()[0].1, Some(CodegenHookId::Dict)),
+            ("9.0", points()[1].1, Some(CodegenHookId::Lassign)),
+            ("the whole ladder", points()[3].1, None),
+            ("no point", points()[4].1, None),
+        ] {
+            let call = registry
+                .resolve_call("stamp::ensemble", &["get", "$d", "k"], query)
+                .expect("the ensemble resolves");
+            assert_eq!(call.codegen_hook, codegen, "{point}");
+            // The command's own call is not the subcommand's to decline.
+            let own = registry
+                .resolve_call("stamp::ensemble", &["$d"], query)
+                .expect("the command resolves");
+            assert_eq!(own.codegen_hook, Some(CodegenHookId::Dict), "{point}");
+        }
+    }
+
+    #[test]
+    fn a_semantic_operation_window_decides_the_operation_a_resolved_invocation_has() {
+        use crate::intrinsic::IntrinsicId;
+        use crate::semantic_operation::SemanticOperationId;
+        use crate::stamp_window::StampWindow;
+
+        const LENGTH_FROM_9: &[StampWindow<SemanticOperationId>] = &[StampWindow {
+            lifecycle: crate::lifecycle::Lifecycle::introduced_in("9.0"),
+            value: SemanticOperationId::Intrinsic(IntrinsicId::StringLength),
+        }];
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(CommandSpec {
+            name: "stamp::length",
+            semantic_operation_windows: LENGTH_FROM_9,
+            ..CommandSpec::DEFAULT
+        });
+        for (point, query, operation) in [
+            ("8.6", points()[0].1, SemanticOperationId::Invoke),
+            (
+                "9.0",
+                points()[1].1,
+                SemanticOperationId::Intrinsic(IntrinsicId::StringLength),
+            ),
+            (
+                "the whole ladder",
+                points()[3].1,
+                SemanticOperationId::Invoke,
+            ),
+            ("no point", points()[4].1, SemanticOperationId::Invoke),
+        ] {
+            let invocation = registry
+                .resolve_invocation("stamp::length", &["abc"], query)
+                .expect("the probe resolves");
+            assert_eq!(invocation.semantics.operation, operation, "{point}");
+        }
+    }
+
+    /// A subcommand whose operation windows state nothing at the release is the
+    /// command's own operation; one whose windows the point does not settle is
+    /// a plain invoke, and the command's operation is not the answer instead.
+    #[test]
+    fn a_subcommand_operation_inherits_where_silent_and_is_plain_where_it_declines() {
+        use crate::intrinsic::IntrinsicId;
+        use crate::semantic_operation::SemanticOperationId;
+        use crate::stamp_window::StampWindow;
+
+        const LENGTH_FROM_9: &[StampWindow<SemanticOperationId>] = &[StampWindow {
+            lifecycle: crate::lifecycle::Lifecycle::introduced_in("9.0"),
+            value: SemanticOperationId::Intrinsic(IntrinsicId::StringLength),
+        }];
+        let concat = SemanticOperationId::Intrinsic(IntrinsicId::Concat);
+        let size = SubCommand {
+            name: "size",
+            semantic_operation_windows: LENGTH_FROM_9,
+            ..SubCommand::DEFAULT
+        };
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(CommandSpec {
+            name: "stamp::inherits",
+            semantic_operation: Some(concat),
+            subcommands: Box::leak(Box::new([size])),
+            ..CommandSpec::DEFAULT
+        });
+        for (point, query, operation) in [
+            ("8.6", points()[0].1, concat),
+            (
+                "9.0",
+                points()[1].1,
+                SemanticOperationId::Intrinsic(IntrinsicId::StringLength),
+            ),
+            (
+                "the whole ladder",
+                points()[3].1,
+                SemanticOperationId::Invoke,
+            ),
+            ("no point", points()[4].1, SemanticOperationId::Invoke),
+        ] {
+            let invocation = registry
+                .resolve_invocation("stamp::inherits", &["size", "abc"], query)
+                .expect("the ensemble resolves");
+            assert_eq!(invocation.semantics.operation, operation, "{point}");
+        }
+    }
+
+    /// The operation a codegen or inline hook names is read through the same
+    /// selection: a window gives it where it covers the release, and a level
+    /// that declines gives plain dispatch, not its command's operation.
+    #[test]
+    fn the_operation_a_windowed_hook_names_is_selected_and_declined_like_the_hook() {
+        use crate::hooks::{CodegenHookId, InlineCodegenHookId};
+        use crate::intrinsic::IntrinsicId;
+        use crate::lifecycle::Lifecycle;
+        use crate::semantic_operation::SemanticOperationId;
+        use crate::stamp_window::StampWindow;
+
+        const LLENGTH_FROM_9: &[StampWindow<CodegenHookId>] = &[StampWindow {
+            lifecycle: Lifecycle::introduced_in("9.0"),
+            value: CodegenHookId::Llength,
+        }];
+        const LINDEX_FROM_9: &[StampWindow<InlineCodegenHookId>] = &[StampWindow {
+            lifecycle: Lifecycle::introduced_in("9.0"),
+            value: InlineCodegenHookId::Lindex,
+        }];
+        let concat = SemanticOperationId::Intrinsic(IntrinsicId::Concat);
+        let by_codegen = SubCommand {
+            name: "count",
+            codegen_hook_windows: LLENGTH_FROM_9,
+            ..SubCommand::DEFAULT
+        };
+        let by_inline = SubCommand {
+            name: "at",
+            inline_codegen_hook_windows: LINDEX_FROM_9,
+            ..SubCommand::DEFAULT
+        };
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(CommandSpec {
+            name: "stamp::hooked",
+            semantic_operation: Some(concat),
+            subcommands: Box::leak(Box::new([by_codegen, by_inline])),
+            ..CommandSpec::DEFAULT
+        });
+        let operation = |sub: &str, query| {
+            registry
+                .resolve_invocation("stamp::hooked", &[sub, "abc"], query)
+                .expect("the ensemble resolves")
+                .semantics
+                .operation
+        };
+        for (sub, at_9) in [
+            (
+                "count",
+                SemanticOperationId::Intrinsic(IntrinsicId::ListLength),
+            ),
+            ("at", SemanticOperationId::Intrinsic(IntrinsicId::ListIndex)),
+        ] {
+            assert_eq!(
+                operation(sub, points()[0].1),
+                concat,
+                "{sub} at 8.6 inherits"
+            );
+            assert_eq!(operation(sub, points()[1].1), at_9, "{sub} at 9.0");
+            for (point, query) in [
+                ("the whole ladder", points()[3].1),
+                ("no point", points()[4].1),
+            ] {
+                assert_eq!(
+                    operation(sub, query),
+                    SemanticOperationId::Invoke,
+                    "{sub} at {point} declines"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_native_lowering_window_is_read_at_the_point_and_declines_across_its_edge() {
+        use crate::completion::CompletionCode;
+        use crate::lifecycle::Lifecycle;
+        use crate::native_lowering::NativeLowering;
+        use crate::stamp_window::StampWindow;
+
+        const BREAK_FROM_9: &[StampWindow<NativeLowering>] = &[StampWindow {
+            lifecycle: Lifecycle::introduced_in("9.0"),
+            value: NativeLowering::Completion(CompletionCode::Break),
+        }];
+        let spec = CommandSpec {
+            name: "stamp::native",
+            native_lowering_windows: BREAK_FROM_9,
+            ..CommandSpec::DEFAULT
+        };
+        let shapes = points().map(|(_, query)| spec.native_lowering_at(query.as_ref()));
+        assert_eq!(
+            shapes,
+            [
+                NativeLowering::Generic,
+                NativeLowering::Completion(CompletionCode::Break),
+                NativeLowering::Completion(CompletionCode::Break),
+                NativeLowering::Generic,
+                NativeLowering::Generic,
+            ]
+        );
+        assert_eq!(
+            spec.native_lowering(),
+            NativeLowering::Generic,
+            "the plain accessor reads the plain field alone"
+        );
+    }
+
+    /// Every operation a windowed stamp could give a command counts when the
+    /// question is surface-blind: which names could be this operation.
+    #[test]
+    fn a_windowed_operation_is_counted_by_the_questions_that_ask_no_release() {
+        use crate::intrinsic::IntrinsicId;
+        use crate::semantic_operation::SemanticOperationId;
+        use crate::stamp_window::StampWindow;
+
+        const LENGTH_FROM_9: &[StampWindow<SemanticOperationId>] = &[StampWindow {
+            lifecycle: crate::lifecycle::Lifecycle::introduced_in("9.0"),
+            value: SemanticOperationId::Intrinsic(IntrinsicId::StringLength),
+        }];
+        let spec = CommandSpec {
+            name: "stamp::length",
+            semantic_operation_windows: LENGTH_FROM_9,
+            ..CommandSpec::DEFAULT
+        };
+        assert!(spec.intrinsic_ids().contains(&IntrinsicId::StringLength));
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(spec);
+        assert!(
+            registry
+                .command_names_for_semantic_operation(SemanticOperationId::Intrinsic(
+                    IntrinsicId::StringLength
+                ))
+                .any(|name| name == "stamp::length")
+        );
+        assert!(
+            !CommandSpec {
+                name: "stamp::plain",
+                ..CommandSpec::DEFAULT
+            }
+            .intrinsic_ids()
+            .contains(&IntrinsicId::StringLength)
         );
     }
 
@@ -12892,7 +13480,10 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["\"password:\" {send pw} -re {ye+s} {send yes} timeout {puts slow}"],
-                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+                    Some(
+                        SurfaceQuery::core(Family::Tcl, "8.6")
+                            .with_packages(&[PackageFloor::named("expect")])
+                    ),
                 )
                 .is_some(),
             "clause-leading flags must not break valid Expect pattern/body pairs"
@@ -12902,7 +13493,10 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["{-re} {send literal}"],
-                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+                    Some(
+                        SurfaceQuery::core(Family::Tcl, "8.6")
+                            .with_packages(&[PackageFloor::named("expect")])
+                    ),
                 )
                 .is_some(),
             "a braced flag-shaped pattern is literal text, not a clause flag"
@@ -12912,7 +13506,10 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["-re {ye+s}"],
-                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                    Some(
+                        SurfaceQuery::core(Family::Tcl, "8.6")
+                            .with_packages(&[PackageFloor::named("expect")])
+                    )
                 )
                 .is_some(),
             "Expect permits a final pattern without an action"
@@ -12925,7 +13522,10 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &args,
-                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+                    Some(
+                        SurfaceQuery::core(Family::Tcl, "8.6")
+                            .with_packages(&[PackageFloor::named("expect")]),
+                    ),
                 )
                 .expect("outer Expect value option followed by a final pattern");
             assert_eq!(invocation.clause_list_index, None, "{args:?}");
@@ -12945,7 +13545,10 @@ mod tests {
                         &[&format!(
                             "{pattern} {{send literal}} default {{send other}}"
                         )],
-                        Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+                        Some(
+                            SurfaceQuery::core(Family::Tcl, "8.6")
+                                .with_packages(&[PackageFloor::named("expect")])
+                        ),
                     )
                     .is_some(),
                 "{pattern:?} is a literal Tcl list pattern, not script syntax"
@@ -12956,7 +13559,10 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["-timeout"],
-                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                    Some(
+                        SurfaceQuery::core(Family::Tcl, "8.6")
+                            .with_packages(&[PackageFloor::named("expect")])
+                    )
                 )
                 .is_none(),
             "a value-taking clause flag without a value/pattern/body is invalid"
@@ -12979,7 +13585,10 @@ mod tests {
             .case_invocation(
                 "expect",
                 &args,
-                Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+                Some(
+                    SurfaceQuery::core(Family::Tcl, "8.6")
+                        .with_packages(&[PackageFloor::named("expect")]),
+                ),
             )
             .expect("inline Expect flags and value flags must parse");
         let clauses = crate::CaseListSpec::EXPECT
@@ -12996,7 +13605,10 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["-not", "ready", "{send ok}"],
-                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                    Some(
+                        SurfaceQuery::core(Family::Tcl, "8.6")
+                            .with_packages(&[PackageFloor::named("expect")])
+                    )
                 )
                 .is_some(),
             "unique Expect flag abbreviations must retain the action body"
@@ -13029,7 +13641,10 @@ mod tests {
                     .case_invocation(
                         "expect",
                         &args,
-                        Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                        Some(
+                            SurfaceQuery::core(Family::Tcl, "8.6")
+                                .with_packages(&[PackageFloor::named("expect")])
+                        )
                     )
                     .is_some(),
                 "canonical {flag} must parse"
@@ -13040,7 +13655,10 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["-timeout", "5", "pattern", "{action}"],
-                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                    Some(
+                        SurfaceQuery::core(Family::Tcl, "8.6")
+                            .with_packages(&[PackageFloor::named("expect")])
+                    )
                 )
                 .is_some()
         );
@@ -13050,7 +13668,10 @@ mod tests {
                     .case_invocation(
                         "expect",
                         &[flag, "pattern", "{action}"],
-                        Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                        Some(
+                            SurfaceQuery::core(Family::Tcl, "8.6")
+                                .with_packages(&[PackageFloor::named("expect")])
+                        )
                     )
                     .is_some(),
                 "unique abbreviation {flag} must parse"
@@ -13062,7 +13683,10 @@ mod tests {
                     .case_invocation(
                         "expect",
                         &[flag, "pattern", "{action}"],
-                        Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                        Some(
+                            SurfaceQuery::core(Family::Tcl, "8.6")
+                                .with_packages(&[PackageFloor::named("expect")])
+                        )
                     )
                     .is_some(),
                 "unique canonical-prefix {flag} must remain an inline clause flag"
@@ -13074,7 +13698,10 @@ mod tests {
                     .case_invocation(
                         "expect",
                         &[flag, "pattern", "{action}"],
-                        Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                        Some(
+                            SurfaceQuery::core(Family::Tcl, "8.6")
+                                .with_packages(&[PackageFloor::named("expect")])
+                        )
                     )
                     .is_none(),
                 "ambiguous or unknown {flag} must invalidate the invocation"
@@ -13085,7 +13712,10 @@ mod tests {
             .case_invocation(
                 "expect",
                 &args,
-                Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+                Some(
+                    SurfaceQuery::core(Family::Tcl, "8.6")
+                        .with_packages(&[PackageFloor::named("expect")]),
+                ),
             )
             .expect("-- makes -re a pattern");
         let clauses = crate::CaseListSpec::EXPECT
@@ -13097,7 +13727,10 @@ mod tests {
             .case_invocation(
                 "expect",
                 &["-re", "pattern"],
-                Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+                Some(
+                    SurfaceQuery::core(Family::Tcl, "8.6")
+                        .with_packages(&[PackageFloor::named("expect")]),
+                ),
             )
             .expect("omitted final action is valid");
         assert_eq!(
@@ -13112,7 +13745,10 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["-nobrace", "{pattern}"],
-                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                    Some(
+                        SurfaceQuery::core(Family::Tcl, "8.6")
+                            .with_packages(&[PackageFloor::named("expect")])
+                    )
                 )
                 .is_some(),
             "-nobrace makes one braced word an action-less pattern"
@@ -13121,7 +13757,10 @@ mod tests {
             .case_invocation(
                 "expect",
                 &["-brace", "{default {return FOLDED}}"],
-                Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+                Some(
+                    SurfaceQuery::core(Family::Tcl, "8.6")
+                        .with_packages(&[PackageFloor::named("expect")]),
+                ),
             )
             .expect("exact -brace selects a clause list");
         assert_eq!(brace.clause_list_index, Some(1));
@@ -13130,7 +13769,10 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["-b", "{default {return FOLDED}}"],
-                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+                    Some(
+                        SurfaceQuery::core(Family::Tcl, "8.6")
+                            .with_packages(&[PackageFloor::named("expect")])
+                    ),
                 )
                 .is_none(),
             "-brace is exact-only, so -b is not a clause flag abbreviation"
@@ -13140,7 +13782,10 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["-brac", "{default {return FOLDED}}"],
-                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+                    Some(
+                        SurfaceQuery::core(Family::Tcl, "8.6")
+                            .with_packages(&[PackageFloor::named("expect")])
+                    ),
                 )
                 .is_none(),
             "-brace must not accept a near-complete prefix either"
@@ -13155,7 +13800,10 @@ mod tests {
                     .case_invocation(
                         "expect",
                         args,
-                        Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                        Some(
+                            SurfaceQuery::core(Family::Tcl, "8.6")
+                                .with_packages(&[PackageFloor::named("expect")])
+                        )
                     )
                     .is_none(),
                 "force-list selector must be first and have one remainder: {args:?}"
@@ -13254,7 +13902,10 @@ mod tests {
                     .case_invocation(
                         "expect",
                         args,
-                        Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                        Some(
+                            SurfaceQuery::core(Family::Tcl, "8.6")
+                                .with_packages(&[PackageFloor::named("expect")])
+                        )
                     )
                     .is_none(),
                 "truncated Expect invocation must abstain: {args:?}",

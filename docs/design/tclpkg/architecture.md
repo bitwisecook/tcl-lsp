@@ -40,15 +40,28 @@ tclpkg.tcl (manifest)
    (braces, quotes, backslashes) and never performs variable or command
    substitution, so no package-provided code can execute as a side effect
    of resolving or installing.
-2. Fourteen directives are permitted: `package`, `version`, `description`,
+2. Fifteen directives are permitted: `package`, `version`, `description`,
    `license`, `author`, `homepage`, `tcl`, `require`, `dev-require`,
-   `replace`, `exclude`, `provides`, `entry`, `build`. Anything else is
-   refused with `command not permitted in safe mode: <cmd>`.
+   `replace`, `exclude`, `provides`, `entry`, `build`, `spec`. Anything else
+   is refused with `command not permitted in safe mode: <cmd>`.
 3. `package` and `version` are required; every other directive is optional,
    and a repeated `package` or `version` is an error.
 4. The `tcl` constraint defaults to `>=8.6` when omitted.
 5. `build` declares a build script but never causes one to run — see
    [`security.md`](security.md).
+5a. `spec { packs {a.tclspec b.tclspec} tier direct }` declares the
+   `.tclspec` packs the package ships and the tier it asks for them at. Like
+   `build` it is data: the braces hold key and value words, never a script.
+   Each pack is a relative path to a `.tclspec` file inside the package
+   directory (no `..`, no absolute or drive-qualified path), and `tier` is
+   `root`, `direct`, `transitive` or `development`, `direct` when omitted. The
+   pack loader reads the directive when it discovers packs beside a manifest: a
+   manifest with one has those packs and no others, and one without keeps every
+   `.tclspec` under its directory. The tier is a request and never a claim:
+   `tier::clamp_requested` holds it to be no nearer the root than the position
+   the lockfile's graph gives the package, so a package may ask for less than
+   its position licenses and never more, and the workspace's own package takes
+   no request.
 
 ### Lockfile (`tclpkg.lock`)
 
@@ -60,7 +73,14 @@ tclpkg.tcl (manifest)
    `--frozen` preserves it.
 8. The schema version is bumped only on a breaking change.
 9. The lockfile records the exact source, integrity hash, size, and the
-   `provides` / `license` read back from each fetched package.
+   `provides` / `license` read back from each fetched package. A package whose
+   manifest has a `spec` directive also records `spec_integrity`: the content
+   hash of each pack it names, as `xxh3-` and sixteen hex digits, joined by
+   commas in the manifest's order. Each is the value a compiled unit's claim on
+   that pack carries (`tcl_spectcl::package_specs::pack_file_hash`, folded over
+   any fragment the pack includes), so the lockfile and an artefact identify a
+   pack by one hash, and a changed pack in an unchanged package release changes
+   the lockfile. A package that names no packs has no such field.
 
 ### MVS resolver
 
@@ -145,7 +165,10 @@ colour, the check/cross/warning symbols, and the canonical `--json` mode.
 - `rust/tcl-pkg-model/src/lockfile.rs` — lockfile I/O
 - `rust/tcl-pkg-model/src/json.rs` — canonical JSON emitter
 - `rust/tcl-pkg-model/src/tier.rs` — a package's dependency tier, from the
-  lockfile's graph and the root manifest's requirements
+  lockfile's graph and the root manifest's requirements, and the clamp a
+  `spec` directive's requested tier is held to
+- `rust/tcl-spectcl/src/package_specs.rs` — the packs a `spec` directive names
+  and the hash the lockfile records for them
 - `rust/tcl-pkg/src/resolver.rs` — MVS resolver
 - `rust/tcl-pkg-model/src/version.rs` — version type and ordering
 - `rust/tcl-pkg/src/cas.rs` — CAS and integrity hashing

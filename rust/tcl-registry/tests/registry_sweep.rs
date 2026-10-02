@@ -65,6 +65,7 @@ use tcl_registry::hover::FormKind;
 use tcl_registry::lifecycle::Lifecycle;
 use tcl_registry::profiles::ProfileRegistry;
 use tcl_registry::side_effects::SideEffectTarget;
+use tcl_registry::stamp_window::StampWindow;
 use tcl_registry::taint::TaintColour;
 // `registry_for_dialect` is deliberately *not* imported: this file defines its
 // own below, routing the sweep through the shipped `.tclspec` loadables so the
@@ -351,6 +352,313 @@ fn arity_window_gate_rejects_each_malformed_shape() {
         Lifecycle::UNSPECIFIED,
         "a window whose own arity has min > max",
     );
+}
+
+/// Assert the invariants of a list of codegen-axis stamp windows.
+///
+/// A shipped-spec hard gate, like the arity windows': a pack degrades with a
+/// notice, a compiled-in spec fails the suite. Two properties, each a way a
+/// window set can be meaningless rather than merely unusual:
+///
+/// 1. every window's `Lifecycle` is ordered — an impossible window can never be
+///    selected;
+/// 2. no two windows overlap, because two stamps claiming one release make the
+///    selection depend on declaration order.
+///
+/// There is no containment check against the owner's own lifecycle: a stamp
+/// window is on the Tcl core's axis, and a package-owned command's lifecycle is
+/// on its package's.
+fn assert_stamp_windows_consistent<T: Copy>(windows: &[StampWindow<T>], what: &str) {
+    for (i, window) in windows.iter().enumerate() {
+        assert!(
+            window.lifecycle.validate().is_ok(),
+            "{what}: stamp window {i} has an impossible lifecycle"
+        );
+        for (j, other) in windows.iter().enumerate().skip(i + 1) {
+            assert!(
+                !window.overlaps(other),
+                "{what}: stamp windows {i} and {j} both cover a release"
+            );
+        }
+    }
+}
+
+/// Every stamp window list a command and its subcommands carry, through the
+/// gate above.
+fn assert_spec_stamp_windows_consistent(spec: &tcl_registry::CommandSpec, what: &str) {
+    assert_stamp_windows_consistent(spec.codegen_hook_windows, &format!("{what} codegen_hook"));
+    assert_stamp_windows_consistent(
+        spec.inline_codegen_hook_windows,
+        &format!("{what} inline_codegen_hook"),
+    );
+    assert_stamp_windows_consistent(
+        spec.semantic_operation_windows,
+        &format!("{what} semantic_operation"),
+    );
+    assert_stamp_windows_consistent(
+        spec.native_lowering_windows,
+        &format!("{what} native_lowering"),
+    );
+    for sub in spec.subcommands {
+        let what = format!("{what} {}", sub.name);
+        assert_stamp_windows_consistent(sub.codegen_hook_windows, &format!("{what} codegen_hook"));
+        assert_stamp_windows_consistent(
+            sub.inline_codegen_hook_windows,
+            &format!("{what} inline_codegen_hook"),
+        );
+        assert_stamp_windows_consistent(
+            sub.semantic_operation_windows,
+            &format!("{what} semantic_operation"),
+        );
+    }
+}
+
+/// No shipped spec carries two stamp windows that cover one release, or one
+/// that cannot be selected at any — and the gate that says so is live, not
+/// vacuous.
+///
+/// Every shipped spec currently declares empty stamp windows, so the sweep
+/// passes trivially and would keep passing if the gate's body were deleted.
+/// The malformed shapes below are what it exists to reject.
+#[test]
+fn stamp_windows_never_overlap() {
+    fn window(
+        introduced: Option<&'static str>,
+        retired: Option<&'static str>,
+        value: u8,
+    ) -> StampWindow<u8> {
+        StampWindow {
+            lifecycle: Lifecycle {
+                introduced,
+                deprecated: None,
+                retired,
+                deprecation_fix: None,
+            },
+            value,
+        }
+    }
+    fn rejects(windows: &[StampWindow<u8>], why: &str) {
+        let caught = std::panic::catch_unwind(|| {
+            assert_stamp_windows_consistent(windows, "probe");
+        });
+        assert!(caught.is_err(), "the gate must reject {why}");
+    }
+
+    let reg = CommandRegistry::build_default();
+    for name in reg.command_names() {
+        for spec in reg.specs(name) {
+            assert_spec_stamp_windows_consistent(spec, name);
+        }
+    }
+
+    // A well-formed pair is accepted, so the cases below fail for their stated
+    // reason and not because the helper rejects everything.
+    assert_stamp_windows_consistent(
+        &[window(None, Some("9.0"), 1), window(Some("9.0"), None, 2)],
+        "probe",
+    );
+    rejects(
+        &[window(Some("9.0"), Some("8.6"), 1)],
+        "a window retired before it was introduced",
+    );
+    rejects(
+        &[window(None, Some("9.0"), 1), window(Some("8.6"), None, 2)],
+        "two windows that both cover 8.6",
+    );
+    rejects(
+        &[window(None, None, 1), window(None, None, 2)],
+        "two unbounded windows",
+    );
+    rejects(
+        &[window(Some("9.0"), None, 1), window(Some("9.1"), None, 1)],
+        "two windows of one stamp that both cover 9.1",
+    );
+}
+
+/// The conservative fact for a command a native extension registers is the top
+/// of every axis, stated once (`docs/design/compiler/registry-consumer-contracts.md`
+/// § *C Tcl extensions*): unknown arity; every argument may be a script or a
+/// variable name at any level; unknown reads and writes; may create, rename
+/// and delete commands and establish traces; may complete with any code, a
+/// normal completion among them; a taint sink and source; unsafe and hidden in
+/// a safe interpreter; never pure; and host-native, so it names no stamp and no
+/// window and is dispatched plain at every release.
+///
+/// Two axes are the registry's own wildcard and are left unstated: a command
+/// with no state-transition descriptor resolves to `UnknownInvocation`, which a
+/// closed "unknown rebinding" statement could only narrow. The negative is the
+/// narrowing itself: a stated purity replaces the effect axes and no other, so
+/// a pure extension command is still a taint source and still hidden in a safe
+/// interpreter.
+/// The traits the design page names for the extension default, each by the name
+/// `traits.rs` gives it, and nothing else: a trait added to the default is a
+/// decision, not drift.
+fn extension_default_traits() -> Traits {
+    [
+        "EVALUATES_CODE",
+        "CREATES_BARRIER",
+        "CREATES_DYNAMIC_BARRIER",
+        "UNSAFE",
+        "SAFE_INTERP_HIDDEN",
+        "TAINT_SINK",
+        "TAINT_SOURCE",
+        "ESTABLISHES_VARIABLE_TRACE",
+    ]
+    .iter()
+    .map(|name| tcl_registry::traits::Trait::from_name(name).expect(name))
+    .collect()
+}
+
+/// What the default's own spec states, and what it leaves to the registry's
+/// wildcard.
+fn check_extension_default_spec(spec: &tcl_registry::CommandSpec) {
+    use tcl_registry::RuntimeBacking;
+    use tcl_registry::completion::{CompletionCodeDomain, CompletionDescriptor};
+    use tcl_registry::side_effects::SideEffect;
+
+    let expected = extension_default_traits();
+    assert_eq!(spec.traits, expected, "got {}", spec.traits);
+    assert!(!spec.traits.contains(Traits::PURE), "never pure");
+
+    assert_eq!(spec.arity, Arity::any());
+    assert_eq!(
+        spec.side_effects,
+        [SideEffect {
+            target: SideEffectTarget::Unknown,
+            reads: true,
+            writes: true,
+            ..SideEffect::DEFAULT
+        }],
+        "unknown reads and writes"
+    );
+    assert_eq!(spec.completion, Some(CompletionDescriptor::CONSERVATIVE));
+    assert_eq!(
+        CompletionDescriptor::CONSERVATIVE.codes,
+        CompletionCodeDomain::Any
+    );
+    assert_eq!(spec.runtime_backing, RuntimeBacking::HostNative);
+
+    // No stamp, no window and no hook: a host-native command is never
+    // specialised, whatever the release.
+    assert!(
+        spec.codegen_hook.is_none()
+            && spec.codegen_hook_windows.is_empty()
+            && spec.inline_codegen_hook.is_none()
+            && spec.inline_codegen_hook_windows.is_empty()
+            && spec.semantic_operation.is_none()
+            && spec.semantic_operation_windows.is_empty()
+            && spec.native_lowering.is_none()
+            && spec.native_lowering_windows.is_empty()
+            && spec.lowering_hook.is_none()
+            && spec.analyser_hook.is_none()
+    );
+    // The wildcard axes are unstated, not stated narrower.
+    assert!(
+        spec.command_table_effect.is_none()
+            && spec.state_transitions.is_none()
+            && spec.world_effects.is_none()
+    );
+}
+
+/// What a registry makes of the default at every arity and at every release.
+fn check_extension_default_resolution(spec: tcl_registry::CommandSpec) {
+    use tcl_registry::completion::CompletionDescriptor;
+    use tcl_registry::{SemanticOperationId, StateTransitionKnowledge};
+
+    let mut registry = CommandRegistry::build_default();
+    registry.insert(spec);
+    for words in [
+        &[][..],
+        &["a"][..],
+        &["a", "b", "c", "d", "e", "f", "g"][..],
+    ] {
+        let resolved = registry
+            .resolve_invocation("ext_cmd", words, None)
+            .expect("the extension command resolves");
+        let facts = resolved.facts();
+        assert!(
+            facts
+                .arity
+                .accepts(u16::try_from(words.len()).expect("small"))
+        );
+        assert_eq!(facts.completion, CompletionDescriptor::CONSERVATIVE);
+        assert_eq!(facts.operation, SemanticOperationId::Invoke);
+        assert!(
+            matches!(
+                facts.state_transitions,
+                StateTransitionKnowledge::UnknownInvocation
+            ),
+            "it may rebind any command and establish any trace"
+        );
+        assert!(resolved.effects().requires_world_barrier());
+    }
+    for point in [
+        None,
+        Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+        Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+        Some(SurfaceQuery::any_release(Family::Tcl)),
+    ] {
+        let call = registry
+            .resolve_call("ext_cmd", &["a"], point)
+            .expect("the extension command resolves");
+        assert!(
+            call.codegen_hook.is_none()
+                && call.inline_codegen_hook.is_none()
+                && call.lowering_hook.is_none()
+                && call.analyser_hook.is_none(),
+            "dispatched plain at {point:?}"
+        );
+    }
+}
+
+/// The declared form of the default is the spec's, and a stated purity narrows
+/// the effect axes and no other.
+fn check_extension_default_narrowing() {
+    use tcl_dialect::model::Provenance;
+    use tcl_registry::extension_default;
+    use tcl_registry::model::DeclaredCommand;
+
+    let declared =
+        DeclaredCommand::extension("ext_cmd".to_owned(), Vec::new(), Provenance::Document);
+    assert_eq!(declared.traits, extension_default_traits());
+    let pure = declared.narrowed_by(Traits::PURE, Vec::new());
+    assert!(pure.traits.contains(Traits::PURE));
+    assert!(
+        !pure.traits.intersects(extension_default::EFFECT_AXES) && pure.side_effects.is_empty(),
+        "purity replaces the effect axes: {}",
+        pure.traits
+    );
+    assert!(
+        pure.traits.contains(Traits::TAINT_SOURCE)
+            && pure.traits.contains(Traits::TAINT_SINK)
+            && pure.traits.contains(Traits::UNSAFE)
+            && pure.traits.contains(Traits::SAFE_INTERP_HIDDEN),
+        "purity says nothing of taint or safety: {}",
+        pure.traits
+    );
+}
+
+/// The conservative fact for a command a native extension registers is the top
+/// of every axis, stated once (`docs/design/compiler/registry-consumer-contracts.md`
+/// § *C Tcl extensions*): unknown arity; every argument may be a script or a
+/// variable name at any level; unknown reads and writes; may create, rename
+/// and delete commands and establish traces; may complete with any code, a
+/// normal completion among them; a taint sink and source; unsafe and hidden in
+/// a safe interpreter; never pure; and host-native, so it names no stamp and no
+/// window and is dispatched plain at every release.
+///
+/// Two axes are the registry's own wildcard and are left unstated: a command
+/// with no state-transition descriptor resolves to `UnknownInvocation`, which a
+/// closed "unknown rebinding" statement could only narrow. The negative is the
+/// narrowing itself: a stated purity replaces the effect axes and no other, so
+/// a pure extension command is still a taint source and still hidden in a safe
+/// interpreter.
+#[test]
+fn the_extension_default_is_at_the_top_of_every_axis() {
+    let spec = tcl_registry::CommandSpec::extension_default("ext_cmd");
+    check_extension_default_spec(&spec);
+    check_extension_default_resolution(spec);
+    check_extension_default_narrowing();
 }
 
 // SWEEP 1 — every command in every dialect, every accessor.
@@ -1132,6 +1440,7 @@ fn a_shipped_builtin_is_attested_by_the_commands_own_name() {
             }
             RuntimeBacking::TclBody {
                 source: BodySource::PackageSource { relative_path },
+                ..
             } => assert!(
                 ["init.tcl", "package.tcl", "parray.tcl"].contains(&relative_path),
                 "{}: {relative_path:?} is not a library file the runtime embeds",

@@ -23,9 +23,16 @@
 //! runtime_backing none
 //! runtime_backing host-native
 //! runtime_backing shipped-builtin ID
-//! runtime_backing tcl-body {-package-source PATH}
-//! runtime_backing tcl-body {-pack-text {TEXT}}
+//! runtime_backing tcl-body {-package-source PATH ?-evaluate?}
+//! runtime_backing tcl-body {-pack-text {TEXT} ?-evaluate?}
 //! ```
+//!
+//! `-evaluate` is the author's assertion that the body may be run to fold a call
+//! at analysis time: nothing derives a declared implementation from a Tcl body
+//! whose author did not say so, because the engine that runs it emulates an older
+//! release imperfectly and only the author can vouch that the body does not meet
+//! the difference. It may stand before or after the source, and is spelled after
+//! it.
 //!
 //! Each line is one variant of [`RuntimeBacking`]
 //! (`docs/design/compiler/registry-consumer-contracts.md` § *Four rungs of
@@ -39,7 +46,8 @@ use tcl_syntax::list::{join_list, list_element, split_list_lenient};
 
 /// What the statement's words say when they do not read.
 const EXPECTED: &str = "expected `none`, `host-native`, `shipped-builtin ID`, \
-                        `tcl-body {-package-source PATH}` or `tcl-body {-pack-text {TEXT}}`";
+                        `tcl-body {-package-source PATH ?-evaluate?}` or \
+                        `tcl-body {-pack-text {TEXT} ?-evaluate?}`";
 
 /// A `runtime_backing` declaration, as the statement spells it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -58,11 +66,15 @@ pub enum BackingSyntax {
     PackageSource {
         /// The path, relative to the package's installed source.
         relative_path: String,
+        /// Whether the author asserted the body may be evaluated (`-evaluate`).
+        evaluate: bool,
     },
     /// `tcl-body {-pack-text {TEXT}}` — a body carried in the pack.
     PackText {
         /// The body text.
         text: String,
+        /// Whether the author asserted the body may be evaluated (`-evaluate`).
+        evaluate: bool,
     },
 }
 
@@ -82,17 +94,29 @@ impl BackingSyntax {
             }),
             ["tcl-body", source] => {
                 let source = split_list_lenient(source);
-                match source.iter().map(AsRef::as_ref).collect::<Vec<&str>>()[..] {
+                let words = source.iter().map(AsRef::as_ref).collect::<Vec<&str>>();
+                // The flag stands before the pair or after it, so a word that is
+                // the flag's spelling and a pair's value is told by where it is.
+                let (pair, evaluate) = match words[..] {
+                    ["-evaluate", ref pair @ ..] | [ref pair @ .., "-evaluate"]
+                        if pair.len() == 2 =>
+                    {
+                        (pair, true)
+                    }
+                    ref pair => (pair, false),
+                };
+                match *pair {
                     ["-package-source", path] if !path.is_empty() => Ok(Self::PackageSource {
                         relative_path: path.to_owned(),
+                        evaluate,
                     }),
                     ["-pack-text", text] if !text.is_empty() => Ok(Self::PackText {
                         text: text.to_owned(),
+                        evaluate,
                     }),
-                    _ => Err(
-                        "`tcl-body` takes `{-package-source PATH}` or `{-pack-text {TEXT}}`"
-                            .to_owned(),
-                    ),
+                    _ => Err("`tcl-body` takes `{-package-source PATH ?-evaluate?}` or \
+                              `{-pack-text {TEXT} ?-evaluate?}`"
+                        .to_owned()),
                 }
             }
             _ => Err(EXPECTED.to_owned()),
@@ -123,14 +147,11 @@ impl BackingSyntax {
             Self::ShippedBuiltin { identity } => {
                 format!("shipped-builtin {}", list_element(identity))
             }
-            Self::PackageSource { relative_path } => format!(
-                "tcl-body {}",
-                list_element(&join_list(["-package-source", relative_path.as_str()]))
-            ),
-            Self::PackText { text } => format!(
-                "tcl-body {}",
-                list_element(&join_list(["-pack-text", text.as_str()]))
-            ),
+            Self::PackageSource {
+                relative_path,
+                evaluate,
+            } => body_spelling("-package-source", relative_path, *evaluate),
+            Self::PackText { text, evaluate } => body_spelling("-pack-text", text, *evaluate),
         }
     }
 
@@ -145,13 +166,17 @@ impl BackingSyntax {
             },
             RuntimeBacking::TclBody {
                 source: BodySource::PackageSource { relative_path },
+                evaluate,
             } => Self::PackageSource {
                 relative_path: relative_path.to_owned(),
+                evaluate,
             },
             RuntimeBacking::TclBody {
                 source: BodySource::PackText { text },
+                evaluate,
             } => Self::PackText {
                 text: text.to_owned(),
+                evaluate,
             },
         }
     }
@@ -166,16 +191,37 @@ impl BackingSyntax {
             Self::None => RuntimeBacking::None,
             Self::HostNative => RuntimeBacking::HostNative,
             Self::ShippedBuiltin { identity } => RuntimeBacking::shipped(leak_str(identity)),
-            Self::PackageSource { relative_path } => {
-                RuntimeBacking::package_source(leak_str(relative_path))
+            Self::PackageSource {
+                relative_path,
+                evaluate,
+            } => {
+                let backing = RuntimeBacking::package_source(leak_str(relative_path));
+                if *evaluate {
+                    backing.evaluated()
+                } else {
+                    backing
+                }
             }
-            Self::PackText { text } => RuntimeBacking::TclBody {
-                source: BodySource::PackText {
-                    text: leak_str(text),
-                },
-            },
+            Self::PackText { text, evaluate } => {
+                let backing = RuntimeBacking::pack_text(leak_str(text));
+                if *evaluate {
+                    backing.evaluated()
+                } else {
+                    backing
+                }
+            }
         }
     }
+}
+
+/// The `tcl-body` spelling of a body of one source, `-evaluate` after it when the
+/// author asserted it.
+fn body_spelling(option: &str, operand: &str, evaluate: bool) -> String {
+    let mut words = vec![option, operand];
+    if evaluate {
+        words.push("-evaluate");
+    }
+    format!("tcl-body {}", list_element(&join_list(words)))
 }
 
 #[cfg(test)]
@@ -205,7 +251,8 @@ mod tests {
         assert_eq!(
             BackingSyntax::parse(&["tcl-body".to_owned(), "-package-source init.tcl".to_owned()]),
             Ok(BackingSyntax::PackageSource {
-                relative_path: "init.tcl".to_owned()
+                relative_path: "init.tcl".to_owned(),
+                evaluate: false,
             })
         );
         assert_eq!(
@@ -214,9 +261,52 @@ mod tests {
                 "-pack-text {proc p {} {return 1}}".to_owned()
             ]),
             Ok(BackingSyntax::PackText {
-                text: "proc p {} {return 1}".to_owned()
+                text: "proc p {} {return 1}".to_owned(),
+                evaluate: false,
             })
         );
+    }
+
+    /// The author's assertion is `-evaluate`, before the source or after it, and
+    /// a text that happens to be that word is a text when it stands where one does.
+    #[test]
+    fn the_evaluate_flag_stands_before_the_source_or_after_it() {
+        let read = |source: &str| BackingSyntax::parse(&["tcl-body".to_owned(), source.to_owned()]);
+        let text = |text: &str, evaluate| {
+            Ok(BackingSyntax::PackText {
+                text: text.to_owned(),
+                evaluate,
+            })
+        };
+        assert_eq!(
+            read("-pack-text {proc p {} {}} -evaluate"),
+            text("proc p {} {}", true)
+        );
+        assert_eq!(
+            read("-evaluate -pack-text {proc p {} {}}"),
+            text("proc p {} {}", true)
+        );
+        assert_eq!(
+            read("-pack-text {proc p {} {}}"),
+            text("proc p {} {}", false)
+        );
+        assert_eq!(read("-pack-text -evaluate"), text("-evaluate", false));
+        assert_eq!(
+            read("-package-source lib/a.tcl -evaluate"),
+            Ok(BackingSyntax::PackageSource {
+                relative_path: "lib/a.tcl".to_owned(),
+                evaluate: true,
+            })
+        );
+        for bad in [
+            "-evaluate",
+            "-evaluate -evaluate",
+            "-pack-text {x} -evaluate -evaluate",
+            "-pack-text {x} -evaluate extra",
+            "-package-source a b -evaluate",
+        ] {
+            assert!(read(bad).is_err(), "{bad}");
+        }
     }
 
     #[test]
@@ -257,16 +347,25 @@ mod tests {
             },
             BackingSyntax::PackageSource {
                 relative_path: "lib/parray.tcl".to_owned(),
+                evaluate: false,
             },
             BackingSyntax::PackageSource {
                 relative_path: "a dir/with spaces.tcl".to_owned(),
+                evaluate: true,
             },
             BackingSyntax::PackText {
                 text: "proc p {a} {\n    return [list $a \"x\"]\n}".to_owned(),
+                evaluate: false,
             },
             // Unbalanced braces are backslash-quoted rather than braced.
             BackingSyntax::PackText {
                 text: "puts \"{\"".to_owned(),
+                evaluate: true,
+            },
+            // A text that is the flag's own spelling.
+            BackingSyntax::PackText {
+                text: "-evaluate".to_owned(),
+                evaluate: true,
             },
         ] {
             let spelling = syntax.spelling();
@@ -285,9 +384,9 @@ mod tests {
             RuntimeBacking::HostNative,
             RuntimeBacking::shipped("lassign"),
             RuntimeBacking::package_source("init.tcl"),
-            RuntimeBacking::TclBody {
-                source: BodySource::PackText { text: "return 1" },
-            },
+            RuntimeBacking::pack_text("return 1"),
+            RuntimeBacking::pack_text("return 1").evaluated(),
+            RuntimeBacking::package_source("init.tcl").evaluated(),
         ] {
             let syntax = BackingSyntax::from_backing(backing);
             let read = BackingSyntax::parse_spelling(&syntax.spelling()).expect("reads");

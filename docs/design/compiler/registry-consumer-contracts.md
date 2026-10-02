@@ -149,12 +149,91 @@ slices proceed without deciding anything here.
 > the WASM link harness refuses a module whose ABI version or intrinsic table
 > disagrees with what the linked runtime's `tcl_runtime_identity` states.
 >
-> The rest of the vocabulary is not built, and names nothing in the
-> workspace:
+> A package declares the packs it ships. `ManifestAst::spec`
+> (`tcl_pkg_model::manifest::SpecDirective`) is a data-only manifest
+> directive naming the `.tclspec` files the package ships and the tier it
+> asks for them at; discovery loads those beside the manifest and no others,
+> holds the requested tier no nearer the root than the package's position in
+> the lockfile's graph (`tier::clamp_requested`), and `LockedPackage` records
+> a hash of each pack that is the content hash a compiled unit's claim on it
+> carries. `tcl docker create` lists the Tcl package behind each command the
+> project's packs declare `HostNative`.
 >
-> - **Identity and backing** — the `ReferenceBody` and
->   `ShippedImplementation` claims and `IdentityKind`.
-> - **Packages** — `SpecDirective` and the `tcl spec test` verb.
+> A command a pack backs with a Tcl body has its definition inlined into the
+> code that calls it. `inline_reference_bodies`
+> (`rust/tcl-compiler/src/inlining/`) brings the definition the backing names
+> into a module, the procedures that call the command are rewritten, and
+> codegen records a `SiteClaim::ReferenceBody` beside the procedure binding
+> that holds the live command to the definition (`BackingKind`,
+> `rust/tcl-runtime-api/src/site_claim.rs`). The capability matrix's
+> `reference_body` row decides at load whether a pack may declare one, a
+> `PackageSource` body is read at load, through the store that read the pack
+> (`tcl_spectcl::package_sources`), and the VM's `source` command reads through
+> the host's filesystem and honours `-encoding` for the four names `encoding
+> system` accepts (`utf-8`, `iso8859-1`, `ascii` and `unicode`), refusing any
+> other as Tcl's `unknown encoding`.
+>
+> A pack's declared facts are held to the package they describe. `tcl spec
+> test` (`rust/tcl-cli/src/commands/spec.rs`, the probe in
+> `commands/spec_test.rs`) requires the package in a real shell, under the
+> package manager's opt-in policy because that runs its code, and asks each
+> command the pack declares whether the package defines it, what its arity
+> refuses, what its examples answer and whether the answers have the declared
+> type, whether a Tcl-body reference body agrees with it, and whether a command
+> declared `pure` writes a variable of any namespace but the shell's own `::tcl`.
+> The policy is the operator's: the outermost project at or above the working
+> directory, never the tree the pack was found in, so a dependency vendored into
+> the project cannot opt itself in, from the project or from inside the
+> dependency. It prints one row per divergence and the
+> number of commands the shell actually asked, and exits 1 on any divergence and
+> on a shell that stopped before it had asked them all, whatever status it
+> stopped with; the probe ends with a line that counts the commands asked, which a
+> package that calls `exit` cannot print. It exits 2 when the verb could not run:
+> no shell, or one that outlives the policy's timeout. It is a CLI verb, and
+> nothing the editor runs executes a package.
+>
+> A reference body is also the command's declared implementation when its author
+> asks with `-evaluate` beside the backing and the sandbox can express it.
+> `reference_body::derive`
+> (`rust/tcl-registry/src/value_transfer/reference_body.rs`) reads the `proc`
+> against the hook host's command whitelist and admits only a body that is a
+> function of its parameters; the loader
+> (`rust/tcl-spectcl/src/loader/reference.rs`) gives the command the declaration
+> and the hook body that run it, and the analyser's answer to a call whose
+> arguments it knows is the body's, run in an engine pinned to the target
+> release. The assertion is the author's because that engine emulates an older
+> release imperfectly and only the author can vouch that the body does not meet
+> the difference; the scan is the precondition and never the licence.
+> `infer_from_body` (`rust/tcl-spec-studio/src/infer.rs`) reads a body's purity,
+> effects, return type and callbacks for an import's drafts.
+>
+> The codegen axis is versioned, and the release a versioned fold evaluates
+> under comes through an evidence gate. A codegen-axis stamp —
+> `codegen_hook`, `inline_codegen_hook`, `semantic_operation` and, on the
+> compiled catalogue, `native_lowering` — can carry ordered windows beside its
+> plain field (`StampWindow`, `rust/tcl-registry/src/stamp_window.rs`).
+> `StampSelection` selects one at the release a call is resolved at and
+> declines, to plain dispatch, where the point does not settle a release, and a
+> pack writes a window as `-introduced`, `-deprecated` and `-retired` on the
+> stamp's statement. A profile's evaluation point
+> (`DialectProfile::evaluation_point`) is its runtime base only where something
+> measured it — a Tcl release's pinned toolchain, or the note a measured fork
+> carries — so a versioned fold answers as Tcl 8.4 under iRules, iApps and tmsh
+> and keeps to the answer every release gives under a profile nothing measured.
+> `SurfaceQuery::packages` carries the floor each package's context guarantees
+> (`PackageFloor`), and a package row windowed on the package's own axis is
+> admitted only where that floor lies in a window.
+>
+> A command a native extension registers has one conservative default, stated
+> once: `CommandSpec::extension_default` is the top of every axis the registry
+> has a fact for (a dynamic barrier, unknown reads and writes, a taint sink and
+> source, hidden in a safe interpreter, never pure, any completion code,
+> host-native, no stamp), and a stub's `-extension` flag declares it for a
+> command a document names, the other flags narrowing it one axis each
+> (`DeclaredCommand::extension` and `DeclaredCommand::narrowed_by`).
+>
+> The rest of the vocabulary is not built, and names nothing in the
+> workspace: the `ShippedImplementation` claim and `IdentityKind`.
 >
 > `AnalysisContext`, `AnalysisInputs`, `PlanAnswer`, `OperandId`,
 > `TemplateWordPlan`, and `EvalAnswer` are the types
@@ -1541,8 +1620,18 @@ error.
   (`attach_identities` in `runtime/rust/src/interp.rs`), to every builtin
   whose spec declares an intrinsic, from the generation it is pinned to and
   never from a pack overlay, and `execute_intrinsic` implements one of the 28
-  `IntrinsicId` members. Its emitted modules carry no identity: no ABI
-  version, no dialect pin, no registry generation, no pack hashes.
+  `IntrinsicId` members. Each emitted module carries the `tcl.manifest`
+  custom section, written last by `WasmModule::to_bytes` and read by
+  `ArtefactIdentityManifest::from_wasm`: the ABI version, the environment,
+  release and build the unit's dialect resolves to, the package floors, the
+  intrinsic-table hash and the embedded library's revision. Its pack list is
+  empty, because a WASM site records no claim — a guarded fast path is
+  checked against the live command on every call. The runtime exports
+  `tcl_runtime_identity`, and the link harness
+  (`rust/tcl-compiler/tests/common/wasm_link.rs`) refuses a module whose ABI
+  version or intrinsic-table hash disagrees with it, or that states no
+  manifest, before anything is composed; the other fields are the VM's to
+  check.
 - A pack's `codegen_hook`, `inline_codegen_hook`, and `semantic_operation
   {Intrinsic …}` stamps survive the load only as a bundled pack's
   `alias_of` target's own, and are dropped with a warning naming the
@@ -1651,7 +1740,7 @@ and lifetime argument.
 | 0 | arity and roles | none needed; generic dispatch | exists, sound |
 | 1 | purity, effects, types, transfers, evaluators | none possible at run time; the fact is authoritative for analysis by ruling; what emitted code can check is the binding, and the pack facts it was compiled under | evaluators exist; the answer protocol does not; a constant a pack's `const_fold` computed claims the pack's facts, checked at admission |
 | 2 | this command is a shipped builtin | the live binding is that builtin | `alias_of` decides which codegen stamps a bundled pack keeps, and codegen records the target's identity and claims the pack's facts, checked at admission |
-| 3 | a reference Tcl body | exact definition match of the live proc | the admission seam exists; no spec field |
+| 3 | a reference Tcl body | exact definition match of the live proc | a `TclBody` backing's definition is inlined into the procedures that call the command and claims the pack's facts, checked at admission; the backing is the spec field |
 | 4 | a runtime implementation ships with the package | the runtime reports what it loaded; the artefact pins it | the `runtime_backing` field exists and every core command declares it; both runtimes report what they back and the gate holds the declaration to the WASM runtime's answer; no bundler |
 
 ```mermaid
@@ -1686,23 +1775,27 @@ One claim per specialised site, and the rung is the variant. Rung 0
 records nothing because there is nothing a generic dispatch can get wrong:
 a unit with no claims is the rung-0 case, and no variant stands for it.
 
-Rungs 1 and 2 are built. `SiteClaim` and `PackFactStamp` live in
+Rungs 1, 2 and 3 are built. `SiteClaim` and `PackFactStamp` live in
 `rust/tcl-runtime-api/src/site_claim.rs`, and `FunctionAsm::site_claims`
-carries a function's claims beside its `command_bindings`. Codegen records
-`PackFacts` where a spec an installed pack supplied answered a constant
-fold (`rust/tcl-compiler/src/const_subst.rs`), and `BuiltinAlias` where a
-binding's identity came through `alias_of` (`ResolvedCall::stamp_identity`
-answered the target). `rust/tcl-compiler/src/site_claims.rs` builds both
-from the origin the installer records beside each spec it inserts
-(`CommandRegistry::pack_origin`, `rust/tcl-registry/src/pack_origin.rs`),
-the registry's overlay generation, and the compiling thread's evaluator
-revision. The claim variants of rungs 3 and 4 are not built. `RuntimeBacking`
-and `BodySource`, which rung 4's variant will carry, are built and ride on the
-spec rather than in the artefact.
+carries a function's claims beside its `command_bindings` and
+`procedure_bindings`. Codegen records `PackFacts` where a spec an installed
+pack supplied answered a constant fold (`rust/tcl-compiler/src/const_subst.rs`),
+`BuiltinAlias` where a binding's identity came through `alias_of`
+(`ResolvedCall::stamp_identity` answered the target), and `ReferenceBody` for
+each procedure binding of a function that names a definition the inliner copied
+from a pack (`claim_reference_bodies`, `rust/tcl-compiler/src/codegen/emitter/mod.rs`;
+a procedure the module defines for itself has a binding and no claim).
+`rust/tcl-compiler/src/site_claims.rs` builds the stamps from the origin the
+installer records beside each spec it inserts (`CommandRegistry::pack_origin`,
+`rust/tcl-registry/src/pack_origin.rs`), the registry's overlay generation, and
+the compiling thread's evaluator revision. The claim variant of rung 4 is not
+built. `RuntimeBacking` and `BodySource` are built and ride on the spec rather
+than in the artefact; the claim states only the kind of backing (`BackingKind`),
+because the definition it rests on is in the procedure binding beside it.
 
 ```rust,ignore
-/// What a specialised site carries in the artefact. Rungs 1 and 2 are
-/// built; rungs 3 and 4 are proposed.
+/// What a specialised site carries in the artefact. Rungs 1, 2 and 3 are
+/// built; rung 4 is proposed.
 enum SiteClaim {
     /// Rung 1. The pack facts this site's specialisation rests on — a
     /// constant a pack's `const_fold` computed at compile time.
@@ -1714,11 +1807,13 @@ enum SiteClaim {
         binding: CommandBindingIdentity,
         facts: PackFactStamp,
     },
-    /// Proposed. Rung 3. A reference Tcl body, plus the backing that says
-    /// a proc is the right thing to compare against at all.
+    /// Rung 3. A reference Tcl body inlined at this site, plus the kind of
+    /// backing that says a proc is the right thing to compare against at all.
+    /// The procedure binding is also one of the function's procedure bindings,
+    /// checked as any other is.
     ReferenceBody {
         procedure: ProcedureBindingIdentity,
-        backing: RuntimeBacking,
+        backing: BackingKind,
         facts: PackFactStamp,
     },
     /// Proposed. Rung 4. A shipped implementation, and the identity kind
@@ -1755,13 +1850,24 @@ struct PackFactStamp {
 enum RuntimeBacking {
     /// A shipped builtin, attested by its registry identity.
     ShippedBuiltin { identity: &'static str },
-    /// A Tcl body, with where the body text comes from.
-    TclBody { source: BodySource },
+    /// A Tcl body, with where the body text comes from and whether its
+    /// author asserts it may be run to fold a call (`-evaluate`).
+    TclBody { source: BodySource, evaluate: bool },
     /// A command the host registered natively — a shimmed C command, an
     /// embedder's own handler — attested by a guard identity and never by
     /// a procedure definition.
     HostNative,
     /// Nothing executes this command in the target runtime.
+    None,
+}
+
+/// What a `ReferenceBody` claim states of the backing it was inlined under:
+/// the variant of `RuntimeBacking`, without where a body or a builtin is
+/// named. Built (`tcl_runtime_api::BackingKind`, `RuntimeBacking::kind`).
+enum BackingKind {
+    ShippedBuiltin,
+    TclBody,
+    HostNative,
     None,
 }
 
@@ -1804,10 +1910,10 @@ otherwise.
 | 0 | nothing | — | never |
 | 1 | every claim's `PackFactStamp` is one the VM holds, compared whole: pack, content hash, vocabulary version, overlay generation, and evaluator revision | the admission check in `rust/tcl-vm/src/interp.rs` (`function_command_bindings_match`), against the facts the embedder set with `Vm::set_pack_facts` — `PackSet::fact_stamps` for the set its registry installs | a pack changed, an overlay changed, a revision moved, or the VM holds no facts for the pack |
 | 2 | `command_binding_matches` re-resolves the recorded identity, follows one prefix-free alias hop, and accepts a `Command::Builtin` whose identity matches or a registry TclOO root; the claim's stamp is held, as for rung 1 | `rust/tcl-vm/src/interp.rs` | a proc, a host command, an ensemble, a shimmed C command, any execution trace, or a changed pack |
-| 3 | `procedure_binding_matches` compares creation name, parameters, and body text against the live proc, *and* the backing is `TclBody` | `rust/tcl-vm/src/interp.rs` plus the backing query | the body differs, or the backing is `ShippedBuiltin`, `HostNative`, or `None` — a proc is then a model of a C command, not the command |
+| 3 | `procedure_binding_matches` compares creation name, parameters, and body text against the live proc, *and* every reference-body claim of the function states a `TclBody` backing and names a procedure binding the function carries, with the claim's stamp held as for rung 1 | `rust/tcl-vm/src/interp.rs` (`function_command_bindings_match`: the procedure bindings and `site_claims_hold`) | the body differs, or the claim states `ShippedBuiltin`, `HostNative`, or `None` — a proc is then a model of a C command, not the command |
 | 4 | the runtime's loaded report equals the claimed backing, and the artefact's manifest matches the runtime's own context pin | the runtime's backing query and `ArtefactIdentityManifest` | the report names a different backing, or the manifest disagrees on ABI version, environment, release, packs, or the intrinsic-table hash |
 
-Rungs 1 and 2's checks are built. `Vm::set_pack_facts` replaces
+Rungs 1, 2 and 3's checks are built. `Vm::set_pack_facts` replaces
 the facts a VM holds and advances its compilation-deopt epoch, so a unit
 admitted under the old facts is checked again at its next entry or
 source-command boundary. A VM that holds none admits exactly the units that
@@ -1816,17 +1922,21 @@ claim nothing, which is every unit compiled without a pack.
 The manifest's check is built for every rung a unit has sites at. A module's
 manifest is compared with the identity the VM states of itself, and the fields
 that disagree refuse the rungs that rest on them: the packs and the package
-floors refuse rungs 1 and 2, the intrinsic table and the embedded library
-refuse rung 4 — every function with a command binding — and the ABI version,
-the environment, the release and the build refuse the module. Rung 4's claim
+floors refuse rungs 1 and 2, the intrinsic table refuses rung 4 — every
+function with a command binding — the embedded library refuses rungs 3 and 4,
+since a reference body may be resolved from it, and the ABI version, the
+environment, the release and the build refuse the module. Rung 4's claim
 variant and its comparison of the runtime's loaded report with the claimed
 backing are not built, so the manifest conjunct is the only one the
 specialisations that rest on a shipped builtin are admitted by today.
 
 Rung 3's extra conjunct is the one that is easy to lose: an exact body
 match is a true statement about a proc and says nothing about whether the
-command *is* that proc. Activation therefore never defines a proc for a
-command whose backing is `HostNative` or `None`.
+command *is* that proc. A reference-body claim whose backing is not `TclBody`
+is therefore refused even where the live procedure's text matches, and no path
+in the VM defines a procedure from a claim: the live procedure is whatever the
+library defined, and a command whose backing is `HostNative` or `None` is never
+compared against one.
 
 ### The loader's stamp rejection rule
 
@@ -1845,7 +1955,14 @@ refuses survives:
    the command itself, its subcommand of the same name, or its form of the
    same name. `CodegenHookId::Lassign` on a pack's `vendor::unpack` is
    refused unless that command declares `alias_of lassign`, and the
-   refusal names the target it would have had to name.
+   refusal names the target it would have had to name. A stamp in a window
+   (`codegen_hook -native ID -introduced V`) is the same stamp: a level's
+   stamps are its plain fields and every window's value, so the rule holds a
+   windowed stamp to the same target and the same gates, lists one that
+   several windows hold once, and drops it from the windows when it refuses.
+   The rule compares the stamp's identity with the target's and not the
+   window it sits in, so a bundled pack's window is reviewed against its
+   target's and not compared by the loader.
 2. **A tier gate decides who may stamp at all.** A codegen-axis stamp is
    admitted from `Provenance::BuiltIn` and `Provenance::BundledPack`
    (`stamps_admitted_from`) and refused from `User`, `WorkspaceTrusted`,
@@ -1869,9 +1986,12 @@ refuses survives:
    `lowering_hook`, `analyser_hook`, `semantic_operation`,
    `state_transitions`, `native_lowering`, `bpf_op`, and `runtime_backing`
    through any override, from any tier: an override keeps the shipped
-   command's value for each whenever the shipped command has one. The floor
-   reads command-level values; the same fields on a subcommand or a form are
-   not restored, and the stamp rule above covers only the stamps among them.
+   command's value for each whenever the shipped command has one. The
+   windows beside the four stamps follow them: a command that ships a stamp,
+   plain or in a window, takes the shipped windows over the override's, which
+   would select a different stamp at some release. The floor reads
+   command-level values; the same fields on a subcommand or a form are not
+   restored, and the stamp rule above covers only the stamps among them.
 
 Rules 1 to 4 are built.
 
@@ -1882,10 +2002,9 @@ Rules 1 to 4 are built.
   (`rust/tcl-registry/src/security_floor.rs`) is a codegen-axis contract
   about which stamps may change emitted code, not a trust gate on analysis
   facts, and § *The loader's stamp rejection rule* above is what widens it.
-  The `tcl spec test` verb, which runs the package's own implementation
-  under the real shell and diffs it against the pack's declared facts, is
-  a quality tool for shipped packs, not a prerequisite for a workspace
-  author's facts.
+  `tcl spec test` runs the package's own implementation under a real shell
+  and diffs it against the pack's declared facts; it is a quality tool, not a
+  prerequisite for a workspace author's facts.
 - **Rung 2** needed two corrections, and both are built. The loader
   refuses a stamp whose hook is not the target builtin's own (rule 1
   above). And codegen records the alias target's identity where it used to
@@ -1908,20 +2027,63 @@ Rules 1 to 4 are built.
   site.
 - **Rung 3** has the most leverage. As an evaluator, a reference body is
   the declared-implementation route of the evaluation contract: it runs in
-  the bounded engine under the target release, which needs the release
-  setter the `Engine` trait in `rust/tcl-engine-api/src/lib.rs` lacks, with
-  per-evaluation state isolation, and only value-position bodies the
-  sandbox can express qualify. As code, `procedure_binding_matches` in
-  `rust/tcl-vm/src/interp.rs` already compares creation name, parameters,
-  and body text against the live proc; the body therefore comes from
-  `BodySource::PackageSource`, a pointer into the library's own installed
-  source, or from `BodySource::PackText`, which a library upgrade makes
-  diverge silently and which is reported at load for exactly that reason.
-  Activation never defines a proc for a command whose backing is
-  `HostNative` or `None`, or the check admits a model of a C command. As a
-  derivation source, analysing the body yields purity, effects, return
-  type, callback slots, and the transfer — the facts
-  `ai/claude/skills/spec-author/SKILL.md` still leaves to the author.
+  the bounded engine under the target release, with per-evaluation state
+  isolation, and only value-position bodies the sandbox can express
+  qualify. The registry decides which: its scan admits one `proc` with
+  required parameters whose body is a script of commands the hook host's
+  whitelist names, followed through every nested script and expression, and
+  declines whatever it cannot read to the end — a command off the list, a name
+  or script argument the body computes, a callback, a namespace-qualified
+  variable, an expression function off its list, a `return` that is not the
+  last statement (`rust/tcl-registry/src/value_transfer/reference_body.rs`).
+  The loader gives an admitted body's command the declaration and the hook
+  body that runs it (`rust/tcl-spectcl/src/loader/reference.rs`) where the
+  author wrote `-evaluate` beside the backing, after the capability gate and the
+  read of the package's files, so it derives from the bodies in force. The
+  author's word is required because the engine under the host emulates an older
+  release imperfectly (`string is integer`'s width, `tcl_precision` under 8.4,
+  `incr` of an unset local, the bounds and index forms of `lreplace` and
+  `lindex`, `1.0/0`, `int(1e20)` and `1<<64` under 8.4, `format %c`): the rows on
+  which the analysis answers as each release's own shell does — `string cat`, a
+  leading zero, a digit separator, `format %x -1`, the length of an astral
+  character, `int(1e20)` from 9.0 — are held to those shells by a test
+  (`rust/tcl-spectcl/tests/pack_source_e2e.rs`). A command whose author stated
+  its evaluation keeps it, and the assertion beside it is a contradiction the
+  warning says; a command with subcommands or forms, with arity windows, or whose
+  arity is not exactly the body's parameters has none, as has a body the scan
+  refuses, each with one warning on its row that says why. A body whose author
+  did not assert it is not derived from and draws no notice. As code, a reference body
+  is built. `procedure_binding_matches` in `rust/tcl-vm/src/interp.rs`
+  compares creation name, parameters, and body text against the live proc, and
+  the definition the compiler inlines comes from the spec's backing: from
+  `BodySource::PackageSource`, a pointer into the package's own installed
+  source that the loader reads at load, through the store that read the pack,
+  so no compile reads a file (`rust/tcl-spectcl/src/package_sources.rs`), or
+  from `BodySource::PackText`, which a library upgrade makes diverge silently
+  and which is reported at load for exactly that reason and turns the site
+  plain on the first mismatch. The compiler brings a definition into a module
+  by lowering it on its own, shifting its spans past the module's source and
+  appending its text there (`ReferenceBodies`, `rust/tcl-compiler/src/ir.rs`),
+  and inlines only where the caller has a local variable table — a procedure
+  body — never at a script's global level. The splice is the call it replaces
+  and nothing else: where a command around the call reads its value — a
+  `catch`, a `try`, an `lmap` — only a body with no `return` stands in it, and in
+  an `lmap` only while the body stays one block; an `if` or a `switch` is not
+  made the last command of an arm; a braced word stays literal; a body that
+  reads a variable its own frame did not bind, or hands a command a variable's
+  name through a substitution (`[set y]`), stays a call; and a definition in a
+  namespace of its own is spliced into a caller in that namespace, and into
+  another only if it names no command by an unqualified word and substitutes
+  none. The VM defines no procedure from a claim, and refuses a claim whose
+  backing is not `TclBody`; otherwise the check would admit a model of a C
+  command. Only a pack's commands are inlined: a
+  `TclBody` command the shipped registry declares has no pack facts for a claim
+  to carry. As a derivation source, analysing the body yields purity, effects,
+  return type, callback slots, and the transfer: the transfer is the declared
+  implementation above, and the rest are `infer_from_body`'s proposals for an
+  import's drafts (`rust/tcl-spec-studio/src/infer.rs`), each with its line of
+  evidence. What `ai/claude/skills/spec-author/SKILL.md` still leaves to the
+  author is taint, version history, and a proposal the body cannot settle.
 - **Rung 4** is `RuntimeBacking` per command, and codegen picks the
   `IdentityKind` from it. The iRules test harness is an existing
   miniature: `rust/xtask/src/gen_irule_test_data.rs` generates Tcl mocks
@@ -2051,9 +2213,10 @@ struct ArtefactIdentityManifest {
   unit with rung-0 sites only is admitted under a changed pack set. The
   ABI version, the environment, the release and the build decide what every
   word of a unit decoded to, so they refuse every rung; the package floors
-  and the packs are what rungs 1 and 2 rest on; the intrinsic table and the
-  embedded library are what a specialisation resting on a shipped
-  implementation's identity assumes. A pack the artefact states must be one
+  and the packs are what rungs 1 and 2 rest on; the intrinsic table is what a
+  specialisation resting on a shipped implementation's identity assumes, and
+  the embedded library is that as well as where a reference body may be
+  resolved from, so it refuses rungs 3 and 4. A pack the artefact states must be one
   the runtime holds, and a runtime may hold more; every other field must be
   equal. The VM reads a function's rungs off what it records
   (`FunctionAsm::rungs`). A WASM host reads the runtime's own statement
@@ -2065,11 +2228,16 @@ struct ArtefactIdentityManifest {
   shipped to WASM (`rust/tcl-vm-wasm`) is a second WASM engine with a
   browser host, no filesystem, and the fallback profile, and needs the same
   statements.
-- **Pack bodies are in-memory text and need no filesystem.** Real package
-  sources reach the VM through a direct `std::fs` read in
-  `rust/tcl-vm/src/command.rs` that bypasses the host filesystem seam and
-  ignores the encoding option, and no browser host can serve them; the
-  pinned provisioning path in the evaluation contract is the replacement.
+- **Pack bodies are in-memory text and need no filesystem.** A package source
+  reaches the compiler as text the loader read at load, so no compile reads a
+  file. The VM's `source`, which loads the library that defines the command at
+  run time, reads through the host filesystem seam
+  (`rust/tcl-vm/src/command.rs`), so a host with no filesystem, such as a
+  browser, reads nothing, and decodes the file as the encoding `-encoding`
+  names — UTF-8 from Tcl 9, the system encoding before — where the names are the
+  four `encoding system` accepts (`utf-8`, `iso8859-1`, `ascii` and `unicode`) and
+  any other is Tcl's `unknown encoding`. `runtime/rust`'s
+  `source` reads through its host too and still ignores the option.
 - **Jim and every non-Tcl point execute as Tcl 9 by decision**
   (`vm_runtime_version` in `rust/tcl-dialect/src/profile.rs`), so a Jim
   attestation key has nothing to compare against.
@@ -2081,31 +2249,44 @@ struct ArtefactIdentityManifest {
 Every spec fact is scoped as availability rows asked at the point the
 environment resolves, with package placements as floors and realms deciding
 binding at the call site. A codegen-axis fact is versioned the way arity
-already is: ordered rows, first covering row wins, selected at the primary,
-and declining to plain dispatch whenever a declared target range disagrees
-with the primary — a decline the per-target evaluator narrows once it
-exists, and never a silent choice of one row.
+already is: ordered windows beside the plain field, first covering window
+wins, selected at the primary release the call is resolved at. It differs from
+arity in what a doubt costs, because a stamp applied at a release that does not
+have it emits wrong code. A point that does not settle the release — a query
+with none pinned, or one over the whole ladder across a window's edge — selects
+nothing and the call is dispatched plain, and a subcommand whose windows decline
+is not answered by its command's stamp: a decline is never a silent choice of
+one row. A target range a document or project declares has no reader here,
+because no host that compiles takes one; a per-target evaluator would narrow
+the decline once it exists.
 
 | Plumbing gap | Today | Fix |
 |---|---|---|
-| release for versioned evaluation | `TclVersion::from_profile` still answers only for the five plain Tcl profile names — untouched by the value-transfer lane's slice 4 (`docs/design/compiler/value-evaluation.md` § *Target semantics*, decision D72) — so every *other* vendor-profile consumer of it evaluates under the invariant subset; a deliberate guardrail until the routes are verified against real shells. The value-transfer route's own base-release rule no longer waits on this row: `TargetSemantics::of` reads `DialectProfile::runtime_version` directly, so iRules already evaluates under its declared 8.4 base and a vendor pack that diverges on an axis blocks the fold by declaring the axis (ruling 8, D72) | feed the environment's point through the evidence gate, per measured row, never by name; the hook context already carries `dialect` and `tcl-version` keys, the gap is the value for vendor profiles |
-| package version windows | validated and dropped; nothing gates on a package release | carry name and version in `SurfaceQuery::packages` |
+| release for versioned evaluation | `TclVersion::from_profile` answers the profile's `DialectProfile::evaluation_point`: a Tcl release's own, the base of a vendor fork whose release was measured (iRules, iApps and tmsh answer 8.4), and none for a profile nothing measured, whose folds keep to the answer every modelled release gives. The value-transfer routes' own base-release rule reads `DialectProfile::runtime_version` directly (`TargetSemantics::of`, `docs/design/compiler/value-evaluation.md` § *Target semantics*), so a vendor base nothing measured (`expect`, the EDA shells) is held back for the versioned folds and not for the routes | the routes' unmeasured bases reach the same gate, or the catalogue records their measurement; the hook context already carries `dialect` and `tcl-version` keys |
+| package version windows | `SurfaceQuery::packages` holds each package with the floor the context guarantees of it (`PackageFloor`), from a pack's `ambient_package` row and the profile's library pin, and a package row windowed on the package's own axis is admitted only where the floor lies in a window; a package with no stated floor admits every window. A pack's own `available {package NAME RANGE}` still validates the range and drops it, and the assembled registry's declaration lowering still covers a package's whole axis | the loader projects the range onto the row it builds, and `declarations_for_spec` answers the same windows against the package axis's primary |
+| codegen stamp windows | `StampWindow<T>` slices beside `codegen_hook`, `inline_codegen_hook`, `semantic_operation` and `native_lowering` on a command and the first three on a subcommand, read through `StampSelection` at the point `resolve_call` and `resolve_invocation` are asked at. A pack states a window as `-introduced` / `-deprecated` / `-retired` on the three statements, overlapping ones are noticed and an impossible one is dropped, and the stamp rule and the security floor see windows as they see the plain stamps. The value-transfer derivation reads the plain `native_lowering` only | a declared target range that disagrees with the primary; a stamp rule that compares a window with its target's; a spelling for a native lowering window |
 | the shared compilation unit | `compilation_unit` resolves the overlay's registry, keyed on the analysis context, and abstains with no unit when the overlay is not installed; `BytecodeCompileService::for_profile_with_overlay` gives the compile service the same generation and declines to compile without it. No shipped host builds that service: the `tclvm` engine takes an owned registry and the language server compiles no bytecode | a host that runs code compiled against a workspace's packs takes the overlay by key through that door; delivering it is a prerequisite for every rung above zero *for emitted code* |
 | implemented in C, Tcl, or built in | no declaration anywhere | `RuntimeBacking` on the package placement row for the registry and on the manifest and lockfile for the package manager; evidence, not proof; consumed by the resolver's load edge, realm binding knowledge, and the container generator |
-| packages shipping specs | de facto beside a `tclpkg.tcl` manifest and in library installs, undeclared and unverified. Discovery places a pack beside a manifest by the lockfile's graph (`PackFile::dependency_tier`), and the load applies the capability matrix to its codegen-axis stamps, `alias_of` and `runtime_backing`; a package declares no pack and no tier of its own, and the lockfile holds no hash of a pack | the `spec` directive below, with its lockfile hash and its requested tier; the matrix extended to reference bodies; native-identity resolution for the body families; and `tcl spec test`, which runs the package's implementation under the package manager's sandbox policy, never at editor load |
+| packages shipping specs | beside a `tclpkg.tcl` manifest and in library installs. A manifest's `spec` directive names the packs it ships and the tier it asks for them at, and the lockfile records a hash of each; a manifest without one keeps the scan of every pack beside it. Discovery places a pack beside a manifest by the lockfile's graph (`PackFile::dependency_tier`), held to the tier the package's position gives it when the directive asks for a nearer one, and the load applies the capability matrix to its codegen-axis stamps, `alias_of` and `runtime_backing` | the matrix extended to reference bodies; native-identity resolution for the body families; and `tcl spec test`, which runs the package's implementation under the package manager's sandbox policy, never at editor load |
 
-The manifest side of that last row, in the shapes `rust/tcl-pkg` already
-uses — `ManifestAst` for the directive, `LockedPackage` for the hash:
+The manifest side of that last row, in the shapes `rust/tcl-pkg-model` holds
+— `ManifestAst` for the directive, `LockedPackage` for the hash:
 
 ```rust,ignore
-/// Proposed. `ManifestAst::spec`, a data-only directive: declaring it
-/// never causes execution, the same rule `BuildDecl` follows.
+/// `ManifestAst::spec`, a data-only directive —
+/// `spec { packs {a.tclspec b.tclspec} tier direct }` — built in
+/// `rust/tcl-pkg-model/src/manifest.rs`: declaring it never causes
+/// execution, the same rule `BuildDecl` follows.
 struct SpecDirective {
-    /// `.tclspec` paths relative to the manifest, in load order.
+    /// `.tclspec` paths relative to the manifest, each inside the package
+    /// directory, in the order the manifest names them. Discovery loads
+    /// the packs in path order, as it loads every other scan's.
     packs: Vec<String>,
-    /// The tier the packs install at when this package is a dependency.
-    /// Declared, and clamped at resolution to no more than the tier the
-    /// package's own position licenses.
+    /// The tier the packs ask to install at when this package is a
+    /// dependency (`direct` when the directive says nothing). Clamped to be
+    /// no nearer the root than the tier the package's own position gives it
+    /// (`tier::clamp_requested`); the workspace's own package takes no
+    /// request.
     requested_tier: DependencyTier,
 }
 
@@ -2137,7 +2318,8 @@ struct CodegenCapability {
     runtime_backing: bool,
     /// May declare `alias_of`, which is what rung 2 rests on.
     builtin_alias: bool,
-    /// Which reference bodies it may supply. Not built: nothing consults it.
+    /// Which reference bodies it may supply: whether a `runtime_backing` that
+    /// is a Tcl body survives the load from a pack at this tier.
     reference_body: ReferenceBodies,
 }
 
@@ -2152,17 +2334,26 @@ enum ReferenceBodies {
 }
 ```
 
-`LockedPackage` gains the packs' integrity hash beside its existing
-`integrity`, so a changed pack in an unchanged package release is a
-lockfile change; `PackFactStamp::content_hash` is the same value, which is
-what lets an artefact's rung-1 check and the package manager's install
-check agree without a second hashing rule. `Root` is the only tier with
-every capability; `Direct` may declare `runtime_backing` and `alias_of`
-but no codegen stamp; `Transitive` and `Development` may declare neither,
-so a package deep in a dependency graph cannot change what the workspace
-emits. The container generator (`rust/tcl-pkg/src/docker.rs`) reads
-`runtime_backing` for the same reason the resolver's load edge does: a
-`HostNative` command needs its extension in the image.
+`LockedPackage::spec_integrity` holds the packs' hash beside the existing
+`integrity`: the content hash of each pack the directive names, as `xxh3-`
+and sixteen hex digits, joined by commas in the manifest's order, written
+for a package that ships packs and for no other. A changed pack in an
+unchanged package release is a lockfile change, and the value is
+`PackFactStamp::content_hash` — one function,
+`tcl_spectcl::package_specs::pack_file_hash`, folds a pack's fragments in
+for both — which is what lets an artefact's rung-1 check and the package
+manager's install check agree without a second hashing rule. `Root` is the
+only tier with every capability; `Direct` may declare `runtime_backing` and
+`alias_of` but no codegen stamp and no reference body — a `runtime_backing` that
+is a Tcl body is a reference body, which the compiler inlines into the code
+that calls the command, and the load drops it with a warning naming the tier;
+`Transitive` and `Development` may declare neither, so a package deep in a
+dependency graph cannot change what the workspace emits. The container generator reads `runtime_backing` for the
+same reason the resolver's load edge does: a `HostNative` command needs its
+extension in the image, so `tcl docker create` lists the Tcl package behind
+each one the project's packs declare and the Dockerfile checks that it
+loads (`DockerfileSpec::native_extensions`, in `rust/tcl-pkg/src/docker.rs`,
+which knows no registry type and receives package names).
 
 The two gates compose and do not overlap. The `Provenance` gate in
 § *The loader's stamp rejection rule* decides whether a pack from a
@@ -2189,8 +2380,9 @@ manifest and no lockfile is itself the outermost pair, becomes a root, and
 is not narrowed, which is what a pack with no tier is today. The gate does
 not bind a pack file to the package the lockfile lists: a manifest names its
 own package, so a dependency that names itself a package the lockfile does
-list takes that package's tier. The lockfile hash of each pack described
-below is what would bind the two, and it is not built.
+list takes that package's tier. The lockfile records the hash of each pack,
+which is what would bind the two, and nothing compares a loaded pack with it
+yet.
 
 ## C Tcl extensions
 
@@ -2227,17 +2419,26 @@ flowchart LR
     end
 ```
 
-- **State the conservative default once**, as a registry fact for an
-  extension command: unknown arity; every argument may be a script or a
-  variable name at any level, so it clears the constant environment and
-  abstains from interprocedural seeds; it may create, rename, or delete
-  commands, including itself; it may establish traces; it may complete with
-  any code, expressed through the existing completion and effect domains —
-  "any code" retains a possible normal successor and is not "always
-  terminates this block"; it is a taint sink and source; it is never pure;
-  it is hidden in safe interpreters. Its `runtime_backing` is
-  `HostNative`, so no rung-3 procedure check can be emitted for it. The
-  engine interface narrows `TCL_BREAK` and `TCL_CONTINUE` to errors and
+- **The conservative default is stated once**, as a registry fact for an
+  extension command (`CommandSpec::extension_default`, its traits and effect
+  in `rust/tcl-registry/src/extension_default.rs`): unknown arity; every
+  argument may be a script or a variable name at any level, so it clears the
+  constant environment and abstains from interprocedural seeds; it may
+  establish traces; it may complete with any code, expressed through the
+  existing completion and effect domains — "any code" retains a possible
+  normal successor and is not "always terminates this block"; it is a taint
+  sink and source; it is never pure; it is hidden in safe interpreters. It
+  may create, rename, or delete commands, including itself, which the default
+  states by declaring no transition descriptor: a command with none resolves
+  to the wildcard over every state domain, and a closed statement of an
+  unknown rebinding could only narrow it. Its `runtime_backing` is
+  `HostNative`, so no rung-3 procedure check can be emitted for it, and it
+  names no stamp and no window, so a call is dispatched plain at every
+  release. A stub declares the same default with `-extension`
+  (`DeclaredCommand::extension`), and the facts the other stub flags state
+  narrow it axis by axis, a stated effect replacing the effect axes and none
+  of the others ([../contracts/dialect-stubs.md](../contracts/dialect-stubs.md)
+  § *Extension commands*). The engine interface narrows `TCL_BREAK` and
   `TCL_RETURN` to `TCL_OK`; that narrowing is corrected — the interface
   carries the completion code the host command returned — before a hosted
   extension can exercise the default, and the correction is part of the
@@ -2347,6 +2548,10 @@ and come before any runtime guard work.
 - `rust/tcl-spectcl/src/loader.rs`, `loader/eval.rs`, `loader/environment_block.rs`, `discovery.rs`, `install.rs`, `stamps.rs` — what a pack may write, tier to provenance, discovery and the dependency tier it reads beside a manifest, the floor's application, and the two gates a stamp or a declaration must pass
 - `rust/tcl-registry/src/runtime_backing.rs`, `rust/tcl-spectcl/src/backing.rs` — `RuntimeBacking` and `BodySource`, and `BackingSyntax`, the one spelling of the `runtime_backing` statement for the loader and the Spec Studio
 - `rust/tcl-spec-hooks/src/sandbox.rs`, `pack_eval.rs`, `host.rs` — the hook whitelist, the pack evaluator, and the hook host with its per-pack engines, budgets, and context keys
+- `rust/tcl-registry/src/extension_default.rs`, `rust/tcl-registry/src/model/declaration.rs` — the conservative default for an extension command and the declared form that narrows it
+- `rust/tcl-compiler/src/inlining/reference.rs`, `rust/tcl-spectcl/src/package_sources.rs` — `inline_reference_bodies` and `ReferenceBodies`, and `provision`, which reads a `-package-source` body at load
+- `rust/tcl-registry/src/value_transfer/reference_body.rs`, `rust/tcl-spectcl/src/loader/reference.rs`, `rust/tcl-spec-studio/src/infer.rs` — the scan of a reference body, the loader pass that derives its declared implementation, and `infer_from_body`
+- `rust/tcl-cli/src/commands/spec.rs`, `spec_test.rs` — `tcl spec test` and the probe it sends to the shell
 - `rust/tcl-spec-studio/src/render_spectcl.rs`, `render_rs.rs`, `coverage.rs`, `schema.rs`, `draft.rs`, `help.rs` — `GAPS`, `GapKind`, the `.rs` contribution export, and the four studio surfaces
 - `rust/tcl-vm/src/compiled.rs` — `CompiledUnit`, `CompilerProvenance`, and the generations and manifest a unit carries
 - `rust/tcl-engine-api/src/lib.rs`, `rust/tcl-engine-tclvm/src/lib.rs`, `rust/tcl-cshim/src/lib.rs`, `rust/tcl-cshim/src/ffi.rs`, `rust/tcl-cshim/src/obj.rs`, `rust/tcl-cshim/include/tclshim.h` — the engine interface, its one implementation, `Interp::load_static` and its `Loaded` report, the 34 exported symbols, and the header
@@ -2366,12 +2571,13 @@ and come before any runtime guard work.
 - `rust/tcl-spec-studio/tests/spectcl_ports.rs` — `the_clause_grammar_derivation_agrees_with_the_shipped_walk`, widened to every grammar-carrying command
 - `rust/tcl-spec-studio/tests/spectcl_roundtrip.rs` — the round trip that loses the `semantic_operation` and `definition_body` `GAPS` rows, and carries `alias_of` (`alias_of_survives_the_round_trip`)
 - `rust/tcl-spec-studio/tests/option_row_editing.rs` — the option-row form that gains `-effect` and `option_effect_family`
-- `rust/tcl-registry/tests/registry_sweep.rs` — the descriptor agreement rules, beside `repeated_arg_layouts_never_pair_conditional_binding_with_an_ssa_def_role`
+- `rust/tcl-registry/tests/registry_sweep.rs` — the descriptor agreement rules, beside `repeated_arg_layouts_never_pair_conditional_binding_with_an_ssa_def_role`, and `the_extension_default_is_at_the_top_of_every_axis`
 - `rust/tcl-registry/tests/tcl91_dialect.rs` — the availability of `subst`'s positive option family
 - `rust/tcl-compiler/tests/mro_lattice_adversarial.rs`, `analyser.rs`, `cfg.rs` — the hierarchy, member, and clause behavioural parity gates
 - `rust/tcl-lsp-server/tests/preview_tickets_e2e.rs` — the definer spelling that reaches every provider with no consumer edit
 - `rust/tcl-cshim/tests/pkga_e2e.rs` — the byte-for-byte expectations captured against Tcl 9.0.4's own `tcl.h`, the shared conformance vectors for both C legs
 - `rust/tcl-spectcl/tests/i6_security_floor.rs` — the floor and its take-shipped extension
+- `rust/tcl-spectcl/tests/codegen_stamps.rs` — rung 3: `a_tcl_body_backed_command_is_inlined_and_admitted`, `a_host_native_backing_never_defines_a_proc` and `a_pack_text_body_that_diverges_turns_the_site_plain`; `rust/tcl-cli/tests/spec_verbs.rs` — `spec_test_reports_an_arity_divergence` and the verb's other rows
 - `rust/tcl-spectcl/tests/workspace_packs.rs`, `codegen_stamps.rs` — the stamp rejection rule's two witnesses: a refused stamp under the tier gate, and a bundled `alias_of` stamp whose recorded target identity the VM admits through its alias hop (refused for a proc at the pack name); the claims' admission: a changed pack refuses the site, and a pack's fold is admitted only under its facts; and, in `workspace_packs.rs`, the capability gate: `a_transitive_dependencys_alias_of_is_dropped` and `a_direct_dependency_keeps_alias_of_but_not_a_stamp`
 - `rust/tcl-vm/tests/command_mutation_deopt_e2e.rs` — `a_rung_zero_module_is_admitted_under_a_changed_pack_set`, the claims check's rung-0 floor, and the manifest's per-rung check: `a_manifest_disagreeing_on_packs_refuses_only_rung_one_sites`, `a_rung_zero_unit_is_admitted_under_a_changed_pack_set`, `a_manifest_for_another_world_refuses_the_whole_module`, `a_manifest_for_another_intrinsic_table_refuses_only_shipped_backing_sites`, `a_pin_to_other_package_floors_refuses_the_units_that_rest_on_packs` and `a_running_function_is_checked_against_its_manifest_when_the_pin_changes`
 - `rust/tcl-vm/tests/cross_version_command_surface_e2e.rs` — the pin: `the_profile_form_of_a_pin_is_the_context_the_profile_names`, `a_context_the_ingress_refuses_leaves_the_pin_unchanged`, and `the_trace_gate_reads_the_pinned_profile_not_the_release_name`

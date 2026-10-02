@@ -630,11 +630,11 @@ fn active_inlined_namespaced_boundary_replays_in_its_defining_namespace() {
         "set ::trigger_m {}; trace add variable ::trigger_m read mutate_m\n",
         "set ::trigger_e {}; trace add variable ::trigger_e read mutate_e\n",
         "proc ::n::callee {} {",
-        "llength $::trigger_n; puts -nonewline {}; expr {40 + 2}}\n",
+        "::llength $::trigger_n; ::puts -nonewline {}; expr {40 + 2}}\n",
         "proc ::m::callee {} {",
-        "llength $::trigger_m; puts -nonewline {}; expr {40 + 2}}\n",
+        "::llength $::trigger_m; ::puts -nonewline {}; expr {40 + 2}}\n",
         "proc ::e::callee {} {",
-        "llength $::trigger_e; puts -nonewline {}; expr {40 + 2}}\n",
+        "::llength $::trigger_e; ::puts -nonewline {}; expr {40 + 2}}\n",
         "proc caller_n {} {::n::callee}\n",
         "proc caller_m {} {::m::callee}\n",
         "proc caller_e {} {::e::callee}\n",
@@ -2826,6 +2826,70 @@ fn restored_builtin_identity_does_not_leave_the_vm_permanently_untrusted() {
     let completion = vm.invoke_function(&handle);
     assert_eq!(completion.code, Code::Ok, "{completion:?}");
     assert_eq!(completion.result.to_str().as_ref(), "3");
+}
+
+/// What answers for a command that is not the shipped one.
+struct HostAnswer;
+
+impl NativeCommand for HostAnswer {
+    fn invoke(&self, _vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
+        Completion::new(Code::Ok, Value::string("HOST"), Value::empty())
+    }
+}
+
+fn host_builtin(_vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
+    Completion::new(Code::Ok, Value::string("HOST"), Value::empty())
+}
+
+/// A handler an embedder registers through the guarded-builtin door is the
+/// embedder's command, whatever name it is registered at: a unit specialised
+/// for the shipped `llength` is refused over it — as it is over a native
+/// command or a procedure — and the handler answers. The shipped command is
+/// the control, and restoring it admits the unit again.
+#[test]
+fn a_host_registered_builtin_at_a_registry_name_is_not_the_shipped_command() {
+    let module = BytecodeCompileService::default()
+        .compile("set l {a b c}\nllength $l")
+        .expect("compiles");
+    let run = |vm: &mut Vm| {
+        let completion = vm.run_module(&module);
+        assert_eq!(completion.code, Code::Ok, "{}", completion.result.to_str());
+        completion.result.to_str().to_string()
+    };
+
+    let (mut shipped, _output) = vm();
+    assert_eq!(run(&mut shipped), "3", "the shipped command, as compiled");
+
+    let (mut native, _output) = vm();
+    native.register_native_command("llength", Rc::new(HostAnswer));
+    assert_eq!(run(&mut native), "HOST", "a native command");
+
+    let (mut procedure, _output) = vm();
+    eval_ok(&mut procedure, "proc llength args {return HOST}");
+    assert_eq!(run(&mut procedure), "HOST", "a procedure");
+
+    let (mut guarded, _output) = vm();
+    guarded.register_guarded_builtin(
+        "llength",
+        host_builtin,
+        tcl_runtime_api::guard::GuardIdentity::new(7, 1),
+    );
+    assert_eq!(run(&mut guarded), "HOST", "a guarded host builtin");
+
+    // The shipped token, renamed away and back, is the shipped command again.
+    let (mut restored, _output) = vm();
+    eval_ok(&mut restored, "rename llength held_llength");
+    restored.register_guarded_builtin(
+        "llength",
+        host_builtin,
+        tcl_runtime_api::guard::GuardIdentity::new(7, 1),
+    );
+    assert_eq!(run(&mut restored), "HOST");
+    eval_ok(
+        &mut restored,
+        "rename llength {}; rename held_llength llength",
+    );
+    assert_eq!(run(&mut restored), "3", "the shipped token is back");
 }
 
 #[test]

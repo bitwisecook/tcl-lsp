@@ -253,6 +253,17 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
         },
     ),
     (
+        "semantic_operation_windows",
+        Example {
+            code: "set n [llength $items]",
+            focuses: &[focus(
+                0,
+                "llength",
+                "has the operation of the window covering the primary release; where the point does not settle it, a plain invoke",
+            )],
+        },
+    ),
+    (
         "completion",
         Example {
             code: "error \"missing input\"\nputs unreachable",
@@ -327,6 +338,24 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
         },
     ),
     (
+        "codegen_hook_windows",
+        Example {
+            code: "lappend items $value",
+            focuses: &[
+                focus(
+                    0,
+                    "lappend",
+                    "takes the emitter of the window covering the primary release",
+                ),
+                focus(
+                    0,
+                    "$value",
+                    "under a profile spanning a window's edge the call is dispatched plain instead",
+                ),
+            ],
+        },
+    ),
+    (
         "inline_codegen_hook",
         Example {
             code: "if {[info exists cfg(port)]} { use $cfg(port) }\nset n [llength $items]",
@@ -342,6 +371,17 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
                     "another value-position call with its own inline emitter",
                 ),
             ],
+        },
+    ),
+    (
+        "inline_codegen_hook_windows",
+        Example {
+            code: "set n [llength $items]",
+            focuses: &[focus(
+                0,
+                "[llength $items]",
+                "uses the value-position emitter of the window covering the primary release",
+            )],
         },
     ),
     (
@@ -367,6 +407,17 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
                 focus(1, "global", "a scope link"),
                 focus(2, "break", "a fixed completion"),
             ],
+        },
+    ),
+    (
+        "native_lowering_windows",
+        Example {
+            code: "lappend items $x",
+            focuses: &[focus(
+                0,
+                "lappend",
+                "a cell read-modify-write shape in the window covering the primary release",
+            )],
         },
     ),
     (

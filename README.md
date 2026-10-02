@@ -1111,7 +1111,7 @@ stub expr-func sizeof 1
 Multiple stubs blocks per file are supported.  Argument roles include
 `body`, `expr`, `var`, `var_read`, `name`, `pattern`, `channel`, and
 `value` (default).  Flags include `-barrier`, `-loop`, `-pure`,
-`-mutator`, `-unsafe`, and `-scope_alias`.
+`-mutator`, `-unsafe`, `-scope_alias`, and `-extension`.
 
 Expression stubs declare custom math functions (`expr-func`) and infix
 operators (`expr-op`) with optional arity.
