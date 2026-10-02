@@ -386,6 +386,13 @@ pub enum NativeEvalId {
     /// `error`: the `TCL_ERROR` completion with the message and `-errorcode`
     /// its words give.
     ErrorRaise,
+    /// `return`: the completion its `-code` and `-level` give, with its
+    /// result.
+    ReturnComplete,
+    /// `break`: the `TCL_BREAK` completion.
+    BreakComplete,
+    /// `continue`: the `TCL_CONTINUE` completion.
+    ContinueComplete,
 }
 
 impl NativeEvalId {
@@ -415,6 +422,9 @@ impl NativeEvalId {
         Self::BinaryFormat,
         Self::VariableUnset,
         Self::ErrorRaise,
+        Self::ReturnComplete,
+        Self::BreakComplete,
+        Self::ContinueComplete,
     ];
 
     /// Stable spelling for the inventory and the Explorer.
@@ -445,6 +455,9 @@ impl NativeEvalId {
             Self::BinaryFormat => "binary-format",
             Self::VariableUnset => "variable-unset",
             Self::ErrorRaise => "error-raise",
+            Self::ReturnComplete => "return-complete",
+            Self::BreakComplete => "break-complete",
+            Self::ContinueComplete => "continue-complete",
         }
     }
 
@@ -475,7 +488,10 @@ impl NativeEvalId {
             | Self::ArraySet
             | Self::BinaryFormat
             | Self::VariableUnset
-            | Self::ErrorRaise => EvaluatorOwner::Registry,
+            | Self::ErrorRaise
+            | Self::ReturnComplete
+            | Self::BreakComplete
+            | Self::ContinueComplete => EvaluatorOwner::Registry,
         }
     }
 }

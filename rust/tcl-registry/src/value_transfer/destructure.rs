@@ -56,7 +56,7 @@ fn at_least(ops: &ConstOps<'_>, floor: TclVersion) -> bool {
 
 /// The decline for a form only the releases from `surface`'s floor have,
 /// under a target that does not name one of them.
-fn unavailable(surface: &[SpecSurface]) -> DeclineReason {
+pub(super) fn unavailable(surface: &[SpecSurface]) -> DeclineReason {
     surface
         .first()
         .map_or(DeclineReason::Unsupported, |surface| {

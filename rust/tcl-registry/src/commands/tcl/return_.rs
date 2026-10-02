@@ -250,6 +250,7 @@ pub fn spec() -> CommandSpec {
         lowering_hook: Some(LoweringHookId::Return),
         native_lowering: Some(NativeLowering::Structured(LoweringHookId::Return)),
         inline_codegen_hook: Some(InlineCodegenHookId::Return),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::completion::RETURN),
         forms: FORMS,
         context_gate: Some(return_context_gate),
         options: const {

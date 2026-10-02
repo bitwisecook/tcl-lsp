@@ -1879,10 +1879,12 @@ fn pinned_route_stamps() -> BTreeSet<(String, &'static str, &'static str)> {
         ("array unset", "none:unauthored", "-"),
         ("binary format", "direct:binary-format", "registry"),
         ("binary scan", "direct:binary-scan", "registry"),
+        ("break", "direct:break-complete", "registry"),
         ("case", "none:unauthored", "-"),
         ("catch", "none:unauthored", "-"),
         ("chan gets", "none:declared", "-"),
         ("const", "direct:const-write", "registry"),
+        ("continue", "direct:continue-complete", "registry"),
         ("dict append", "direct:dict-append", "registry"),
         ("dict incr", "direct:dict-incr", "registry"),
         ("dict lappend", "direct:dict-lappend", "registry"),
@@ -1909,6 +1911,7 @@ fn pinned_route_stamps() -> BTreeSet<(String, &'static str, &'static str)> {
         ("regexp", "direct:regexp-match", "registry"),
         ("regsub", "direct:regsub-substitute", "registry"),
         ("remove_from_collection", "none:declared", "-"),
+        ("return", "direct:return-complete", "registry"),
         ("scan", "direct:scan-format", "registry"),
         ("set", "direct:cell-write", "registry"),
         ("string length", "direct:string-length", "registry"),
@@ -2035,6 +2038,9 @@ fn route_label(route: EvalRoute) -> &'static str {
             NativeEvalId::BinaryFormat => "direct:binary-format",
             NativeEvalId::VariableUnset => "direct:variable-unset",
             NativeEvalId::ErrorRaise => "direct:error-raise",
+            NativeEvalId::ReturnComplete => "direct:return-complete",
+            NativeEvalId::BreakComplete => "direct:break-complete",
+            NativeEvalId::ContinueComplete => "direct:continue-complete",
         },
         EvalRoute::Expression { .. } => "expression:tcl.expr",
         EvalRoute::Implementation(_) => "implementation",
@@ -5051,6 +5057,204 @@ fn error_raises_its_message_and_code() {
     assert_eq!(
         raise(&[w("a"), w("b"), w("c"), w("d")]),
         EvalAnswer::Declined(DeclineReason::Unsupported)
+    );
+}
+
+/// What a completion route proves of a command's completion: the code a
+/// caller observes (what `catch` returns), the `-code` and `-level` of its
+/// return options, and the result where it is exact.
+fn code_completion(answer: &EvalAnswer) -> Option<(i64, i64, u32, Option<String>)> {
+    let EvalAnswer::Evaluated(outcome) = answer else {
+        return None;
+    };
+    let (code, level) = outcome.completion.options_code_and_level();
+    let result = match &outcome.result {
+        ExactValueOrUnavailable::Exact(value) => String::from_utf8(value.bytes.clone()).ok(),
+        ExactValueOrUnavailable::Unavailable(_) => None,
+    };
+    Some((outcome.completion.observed_code(), code, level, result))
+}
+
+/// `break` and `continue` complete with the code of the same name, which a
+/// caller observes as `catch` does (tclsh 8.4 to 9.0): `catch {break}` is 3
+/// and `catch {continue}` 4, each with the empty result and the options
+/// `-code N -level 0`. The commands take no word, and a word is `wrong #
+/// args`, which the route does not word.
+#[test]
+fn break_and_continue_complete_with_their_codes() {
+    let w = word;
+    for dialect in [Some("tcl8.4"), Some("tcl8.6"), Some("tcl9.0"), None] {
+        let run =
+            |command: &str, words: &[(&str, bool)]| completed(command, None, words, &[], dialect);
+        assert_eq!(
+            code_completion(&run("break", &[])),
+            Some((3, 3, 0, Some(String::new())))
+        );
+        assert_eq!(
+            code_completion(&run("continue", &[])),
+            Some((4, 4, 0, Some(String::new())))
+        );
+        for command in ["break", "continue"] {
+            assert_eq!(
+                run(command, &[w("extra")]),
+                EvalAnswer::Declined(DeclineReason::Unsupported)
+            );
+        }
+    }
+}
+
+/// `return` is `TCL_RETURN`, 2, with the result its last word gives and the
+/// `-code` and `-level` it carries (tclsh 8.4 to 9.0, measured through
+/// `catch`): `return -code error boom` is 2 with `-code 1 -level 1` until a
+/// procedure consumes the level, and from 8.5, where `-level` begins,
+/// `return -level 0 val` is a normal completion, `return -level 0 -code
+/// error msg` the error, and `-level 0 -code break` the code 3 itself. A
+/// lone word is the result whatever it starts with: `return -x` is `-x`.
+#[test]
+fn return_completes_with_its_code_and_level() {
+    let w = word;
+    let text = |text: &str| Some(text.to_owned());
+    for dialect in [Some("tcl8.4"), Some("tcl8.6"), Some("tcl9.0"), None] {
+        let seen = |words: &[(&str, bool)]| {
+            code_completion(&completed("return", None, words, &[], dialect))
+        };
+        // Under every target a level the form does not name is 1.
+        assert_eq!(seen(&[]), Some((2, 0, 1, text(""))));
+        assert_eq!(seen(&[w("abc")]), Some((2, 0, 1, text("abc"))));
+        assert_eq!(seen(&[w("-x")]), Some((2, 0, 1, text("-x"))));
+        for (words, code, result) in [
+            (&[w("-code"), w("error")][..], 1, ""),
+            (&[w("-code"), w("error"), w("boom")][..], 1, "boom"),
+            (&[w("-code"), w("5"), w("custom")][..], 5, "custom"),
+            (&[w("-code"), w("break")][..], 3, ""),
+            (&[w("-code"), w("continue"), w("x")][..], 4, "x"),
+            (&[w("-code"), w("ok"), w("val")][..], 0, "val"),
+            (&[w("-code"), w("-3"), w("neg")][..], -3, "neg"),
+        ] {
+            assert_eq!(seen(words), Some((2, code, 1, text(result))), "{words:?}");
+        }
+    }
+
+    for dialect in [
+        Some("tcl8.5"),
+        Some("tcl8.6"),
+        Some("tcl9.0"),
+        Some("tcl9.1"),
+    ] {
+        let run = |words: &[(&str, bool)]| completed("return", None, words, &[], dialect);
+        let seen = |words: &[(&str, bool)]| code_completion(&run(words));
+        assert_eq!(
+            seen(&[w("-level"), w("0"), w("val")]),
+            Some((0, 0, 0, text("val"))),
+            "{dialect:?}"
+        );
+        assert_eq!(
+            seen(&[w("-code"), w("ok"), w("-level"), w("0"), w("val")]),
+            Some((0, 0, 0, text("val")))
+        );
+        assert_eq!(
+            seen(&[w("-level"), w("2"), w("val")]),
+            Some((2, 0, 2, text("val")))
+        );
+        assert_eq!(
+            seen(&[w("-level"), w("0"), w("-code"), w("break")]),
+            Some((3, 3, 0, text("")))
+        );
+        assert_eq!(
+            seen(&[w("-level"), w("0"), w("-code"), w("7"), w("seven")]),
+            Some((7, 7, 0, text("seven")))
+        );
+        assert_eq!(
+            raised(&run(&[
+                w("-level"),
+                w("0"),
+                w("-code"),
+                w("error"),
+                w("msg")
+            ])),
+            Some((0, text("msg"), text("NONE")))
+        );
+    }
+
+    // `-level` is read only where the target has it.
+    for dialect in [Some("tcl8.4"), None] {
+        let answer = completed("return", None, &[w("-level"), w("0")], &[], dialect);
+        assert!(
+            matches!(
+                answer,
+                EvalAnswer::Declined(
+                    DeclineReason::Unsupported | DeclineReason::ReleaseAmbiguous(_)
+                )
+            ),
+            "{dialect:?}: {answer:?}"
+        );
+    }
+    assert!(matches!(
+        completed("return", None, &[w("-level"), w("0")], &[], None),
+        EvalAnswer::Declined(DeclineReason::ReleaseAmbiguous(_))
+    ));
+}
+
+/// What `return` does not read declines: an option beyond `-code` and
+/// `-level` (8.5 keeps any pair in the options dictionary, 8.4 refuses it),
+/// a code or level not spelled the one way every release reads it (`-code
+/// 010` is 8 before 9.0 and 10 from it), and a word that is not exact. A
+/// result the analysis does not prove leaves the completion certain, and a
+/// word not yet reached leaves the answer pending.
+#[test]
+fn return_declines_what_every_release_does_not_read_alike() {
+    let w = word;
+    let declines = |words: &[(&str, bool)]| {
+        completed("return", None, words, &[], Some("tcl8.6"))
+            == EvalAnswer::Declined(DeclineReason::Unsupported)
+    };
+    assert!(declines(&[
+        w("-errorcode"),
+        w("A"),
+        w("-code"),
+        w("error"),
+        w("m")
+    ]));
+    assert!(declines(&[w("-options"), w("{-code 1}"), w("m")]));
+    assert!(declines(&[w("a"), w("b")]));
+    assert!(declines(&[w("-foo"), w("bar")]));
+    assert!(declines(&[w("-code"), w("notacode"), w("x")]));
+    assert!(declines(&[w("-code"), w("010"), w("x")]));
+    assert!(declines(&[w("-code"), w("0x5"), w("x")]));
+    assert!(declines(&[w("-code"), w("+5"), w("x")]));
+    assert!(declines(&[w("-code"), w("2147483648"), w("x")]));
+    assert!(declines(&[w("-level"), w("-1"), w("x")]));
+    assert!(declines(&[w("-level"), w("01"), w("x")]));
+
+    let reg = CommandRegistry::build_default();
+    let semantics = resolve_semantics(reg.get("return").expect("return"), None, None);
+    let semantics = semantics.semantics().expect("the return route");
+    let mut inputs = TestInputs::new(
+        "return",
+        vec![
+            literal("-code", None),
+            literal("5", None),
+            literal("$v", None),
+        ],
+    );
+    inputs
+        .operands
+        .insert(2, FactView::Top(DeclineReason::NotExact));
+    assert_eq!(
+        code_completion(&semantics.evaluate(&inputs, &mut Budget::evaluation())),
+        Some((2, 5, 1, None))
+    );
+    inputs
+        .operands
+        .insert(1, FactView::Top(DeclineReason::NotExact));
+    assert_eq!(
+        semantics.evaluate(&inputs, &mut Budget::evaluation()),
+        EvalAnswer::Declined(DeclineReason::NotExact)
+    );
+    inputs.operands.insert(1, FactView::Pending);
+    assert_eq!(
+        semantics.evaluate(&inputs, &mut Budget::evaluation()),
+        EvalAnswer::Pending
     );
 }
 

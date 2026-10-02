@@ -664,9 +664,12 @@ impl ExactValueOrUnavailable {
 pub enum CompletionOutcome {
     /// `TCL_OK`: every ordered store ran, the result is the command's.
     Normal,
-    /// A non-error code a body plan completes with.
+    /// A completion by `return`, `break`, `continue` or a numeric `-code`,
+    /// as the return options state it. A caller observes `TCL_RETURN` while
+    /// `level` is positive and `code` itself at level 0
+    /// ([`CompletionOutcome::observed_code`]).
     Code {
-        /// The completion code.
+        /// The `-code` the completion carries.
         code: CompletionCode,
         /// The `-level`.
         level: u32,
@@ -700,6 +703,37 @@ impl CompletionOutcome {
     #[must_use]
     pub const fn is_normal(&self) -> bool {
         matches!(self, Self::Normal)
+    }
+
+    /// The completion code a caller observes, which is what `catch` returns:
+    /// 0 for a normal completion, 1 for an error, `TCL_RETURN` for a code
+    /// completion that still has a level to climb, and its own code at
+    /// level 0.
+    #[must_use]
+    pub fn observed_code(&self) -> i64 {
+        match self {
+            Self::Normal => 0,
+            Self::Error { .. } => 1,
+            Self::Code { code, level, .. } => {
+                if *level > 0 {
+                    CompletionCode::Return.as_int()
+                } else {
+                    code.as_int()
+                }
+            }
+        }
+    }
+
+    /// The `-code` and `-level` the return options state for the
+    /// completion: 0 and 0 for a normal one, 1 and 0 for an error, a code
+    /// completion's own otherwise.
+    #[must_use]
+    pub fn options_code_and_level(&self) -> (i64, u32) {
+        match self {
+            Self::Normal => (0, 0),
+            Self::Error { .. } => (1, 0),
+            Self::Code { code, level, .. } => (code.as_int(), *level),
+        }
     }
 }
 
@@ -916,6 +950,31 @@ mod tests {
             assert_eq!(value.bytes, text.as_bytes(), "{text:?}");
             assert_eq!(value.numeric, None, "{text:?}");
         }
+    }
+
+    #[test]
+    fn a_code_completion_states_what_a_caller_observes() {
+        let code = |code, level| CompletionOutcome::Code {
+            code,
+            level,
+            result: ExactValueOrUnavailable::exact_text(""),
+        };
+        let observed = |completion: &CompletionOutcome| {
+            (
+                completion.observed_code(),
+                completion.options_code_and_level(),
+            )
+        };
+        assert_eq!(observed(&CompletionOutcome::Normal), (0, (0, 0)));
+        assert_eq!(observed(&CompletionOutcome::error_unproven(2)), (1, (1, 0)));
+        // A level still to climb is `TCL_RETURN` whatever the code.
+        assert_eq!(observed(&code(CompletionCode::Ok, 1)), (2, (0, 1)));
+        assert_eq!(observed(&code(CompletionCode::Other(5), 1)), (2, (5, 1)));
+        assert_eq!(observed(&code(CompletionCode::Break, 2)), (2, (3, 2)));
+        // At level 0 the code is the completion.
+        assert_eq!(observed(&code(CompletionCode::Break, 0)), (3, (3, 0)));
+        assert_eq!(observed(&code(CompletionCode::Continue, 0)), (4, (4, 0)));
+        assert_eq!(observed(&code(CompletionCode::Other(-7), 0)), (-7, (-7, 0)));
     }
 
     #[test]
