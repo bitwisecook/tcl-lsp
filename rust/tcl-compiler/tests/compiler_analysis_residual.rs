@@ -1963,3 +1963,40 @@ fn registry_barrier_preserves_dead_prior_and_future_definitions() {
         );
     }
 }
+
+#[test]
+fn registry_handler_widens_array_element_read_by_terminator() {
+    let registry = reg();
+    for tail in [
+        "return $a(k)",
+        "if {$a(k) == 5} {return stale} else {return changed}",
+        "if {$flag} {set a(other) 9}; return $a(k)",
+    ] {
+        let source = format!("proc p {{flag}} {{set a(k) 5; missing_command; {tail}}}");
+        let cu = CompilationUnit::build_for(&source, &registry, false);
+        let fu = cu.function("::p").expect("procedure");
+        let symbol = fu.ssa.var_symbol("a(k)").expect("element");
+        assert!(
+            fu.sccp.values.iter().all(|((var, _), value)| {
+                *var != symbol || !matches!(value, tcl_compiler::analyses::LatticeValue::Const(_))
+            }),
+            "handler may mutate a(k) before {tail}: {:?}",
+            fu.sccp.values
+        );
+        assert!(fu.sccp.constant_branches.is_empty());
+    }
+    let control =
+        CompilationUnit::build_for("proc p {} {set a(k) 5; return $a(k)}", &registry, false);
+    let fu = control.function("::p").expect("procedure");
+    let symbol = fu.ssa.var_symbol("a(k)").expect("element");
+    assert!(
+        fu.sccp.values.iter().any(|((var, _), value)| {
+            *var == symbol
+                && *value
+                    == tcl_compiler::analyses::LatticeValue::Const(
+                        tcl_compiler::analyses::ConstValue::Int(5),
+                    )
+        }),
+        "the safe control must retain element precision"
+    );
+}

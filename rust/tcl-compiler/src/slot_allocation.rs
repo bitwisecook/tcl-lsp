@@ -53,7 +53,7 @@ use std::collections::{HashMap, HashSet};
 use tcl_registry::CommandRegistry;
 
 use crate::cfg::{self, BlockId, Terminator};
-use crate::ssa::{SsaFunction, SsaStatement};
+use crate::ssa::{SsaFunction, SsaStatement, Symbol};
 use crate::var_refs::{VarReferenceScanner, VarScanOptions, vars_in_expr};
 
 /// An undirected interference graph over variable **names**: each name maps to
@@ -213,14 +213,128 @@ pub fn live_out_by_name(
     live_out_by_name_counted(cfg, ssa, registry).0
 }
 
-/// Names live immediately after registry scalar barriers. Only these values
-/// can be consumed after a handler has changed the caller's frame; dead values
+struct ScalarBlockLiveness {
+    upward_uses: HashSet<Symbol>,
+    definitions: HashSet<Symbol>,
+    terminal_reads: HashSet<Symbol>,
+}
+
+/// Scalar proofs track individual array elements. Unlike slot liveness, a
+/// sibling element write must not kill the element a later terminator reads.
+fn scalar_block_liveness(
+    cfg: &cfg::Function,
+    ssa: &SsaFunction,
+    registry: &CommandRegistry,
+) -> HashMap<BlockId, ScalarBlockLiveness> {
+    let mut read_families: HashMap<&str, HashSet<Symbol>> = HashMap::new();
+    for name in ssa.var_names() {
+        if let Some(symbol) = ssa.var_symbol(name) {
+            read_families.entry(name).or_default().insert(symbol);
+            read_families
+                .entry(crate::naming::normalise_var_name(name))
+                .or_default()
+                .insert(symbol);
+        }
+    }
+    let mut scanner = VarReferenceScanner::for_registry(
+        VarScanOptions {
+            include_var_read_roles: true,
+            recurse_cmd_substitutions: true,
+            include_reads_before_write: false,
+            element_qualified: true,
+        },
+        registry,
+    );
+    let mut inputs = HashMap::new();
+    for (id, block) in &cfg.blocks {
+        // An opaque base read can consume any known element; a literal-key
+        // read retains its exact SSA identity.
+        let terminal_reads: HashSet<_> = terminator_read_names(block, &mut scanner, registry)
+            .iter()
+            .flat_map(|name| {
+                read_families
+                    .get(name.as_str())
+                    .into_iter()
+                    .flatten()
+                    .copied()
+            })
+            .collect();
+        let mut upward_uses = HashSet::new();
+        let mut definitions = HashSet::new();
+        if let Some(sblock) = ssa.blocks.get(id) {
+            for statement in &sblock.statements {
+                upward_uses.extend(
+                    statement
+                        .uses
+                        .keys()
+                        .filter(|var| !definitions.contains(*var))
+                        .copied(),
+                );
+                definitions.extend(statement.defs.keys().copied());
+            }
+        }
+        upward_uses.extend(
+            terminal_reads
+                .iter()
+                .filter(|var| !definitions.contains(*var))
+                .copied(),
+        );
+        inputs.insert(
+            *id,
+            ScalarBlockLiveness {
+                upward_uses,
+                definitions,
+                terminal_reads,
+            },
+        );
+    }
+    inputs
+}
+
+fn scalar_live_out(
+    cfg: &cfg::Function,
+    inputs: &HashMap<BlockId, ScalarBlockLiveness>,
+) -> HashMap<BlockId, HashSet<Symbol>> {
+    let mut live_in: HashMap<BlockId, HashSet<Symbol>> = HashMap::new();
+    let mut live_out = HashMap::new();
+    let predecessors = cfg.predecessors();
+    let mut worklist = cfg.reverse_postorder();
+    let mut queued: HashSet<_> = worklist.iter().copied().collect();
+    while let Some(id) = worklist.pop() {
+        queued.remove(&id);
+        let out: HashSet<_> = cfg
+            .block_successors(id)
+            .iter()
+            .flat_map(|successor| live_in.get(successor).into_iter().flatten().copied())
+            .collect();
+        let mut incoming = inputs[&id].upward_uses.clone();
+        incoming.extend(
+            out.iter()
+                .filter(|var| !inputs[&id].definitions.contains(*var))
+                .copied(),
+        );
+        live_out.insert(id, out);
+        if live_in.get(&id) != Some(&incoming) {
+            live_in.insert(id, incoming);
+            if let Some(parents) = predecessors.get(&id) {
+                for parent in parents {
+                    if queued.insert(*parent) {
+                        worklist.push(*parent);
+                    }
+                }
+            }
+        }
+    }
+    live_out
+}
+
+/// SSA variables live immediately after registry scalar barriers. Dead values
 /// still describe their earlier uses and must not lose those proofs.
 pub(crate) fn registry_barrier_live_names(
     cfg: &cfg::Function,
     ssa: &SsaFunction,
     registry: &CommandRegistry,
-) -> HashMap<BlockId, HashMap<usize, HashSet<crate::ssa::Symbol>>> {
+) -> HashMap<BlockId, HashMap<usize, HashSet<Symbol>>> {
     if !ssa.blocks.values().any(|block| {
         block.statements.iter().any(|stmt| {
             stmt.statement.synthetic_marker() == Some(crate::ir::SyntheticMarker::RegistryBarrier)
@@ -228,28 +342,25 @@ pub(crate) fn registry_barrier_live_names(
     }) {
         return HashMap::new();
     }
-    let live_out = live_out_by_name(cfg, ssa, registry);
+    let inputs = scalar_block_liveness(cfg, ssa, registry);
+    let live_out = scalar_live_out(cfg, &inputs);
     let mut result = HashMap::new();
-    let mut scanner = make_scanner(registry);
     for (id, sblock) in &ssa.blocks {
         let mut live = live_out.get(id).cloned().unwrap_or_default();
-        if let Some(block) = cfg.blocks.get(id) {
-            live.extend(terminator_read_names(block, &mut scanner, registry));
+        if let Some(input) = inputs.get(id) {
+            live.extend(&input.terminal_reads);
         }
         let mut barriers = HashMap::new();
         for (index, stmt) in sblock.statements.iter().enumerate().rev() {
             if stmt.statement.synthetic_marker()
                 == Some(crate::ir::SyntheticMarker::RegistryBarrier)
             {
-                barriers.insert(
-                    index,
-                    live.iter().filter_map(|n| ssa.var_symbol(n)).collect(),
-                );
+                barriers.insert(index, live.clone());
             }
             for var in stmt.defs.keys() {
-                live.remove(ssa.var_name(*var));
+                live.remove(var);
             }
-            live.extend(stmt.uses.keys().map(|var| ssa.var_name(*var).to_owned()));
+            live.extend(stmt.uses.keys().copied());
         }
         result.insert(*id, barriers);
     }
