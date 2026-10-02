@@ -1503,7 +1503,10 @@ const AMBIENT_SCOPE_FLAG: &str = "-dialects";
 ///
 /// Both words are required. A row naming no version is dropped rather than
 /// defaulted: an ambient package with no version would floor at nothing, which
-/// is what the row exists to stop being the case.
+/// is what the row exists to stop being the case. A word that is not a package
+/// version is no version either, and the row is dropped with it: the version is
+/// a floor, and a floor the comparison cannot read orders against the profile's
+/// pin as it happens to.
 ///
 /// The row is **unscoped by construction**: it floors its package for every
 /// document the pack is active in. Scoping the claim to some of a pack's
@@ -1521,6 +1524,13 @@ fn ambient_package_row(stmt: &Stmt, log: &mut Log) -> Option<AmbientPackage> {
         log.say(
             stmt.line,
             format!("`ambient_package {name}` needs the version the runtime provides; dropped"),
+        );
+        return None;
+    }
+    if !tcl_dialect::validate_version(version) {
+        log.say(
+            stmt.line,
+            format!("`ambient_package {name}` names `{version}`, which is not a package version; dropped"),
         );
         return None;
     }
@@ -10600,6 +10610,35 @@ mod tests {
             "{:?}",
             older.notices
         );
+    }
+
+    /// The version of an `ambient_package` row is a floor, so a word that is not a
+    /// package version is no floor: the row is dropped with a notice, and the rows
+    /// beside it stand.
+    #[test]
+    fn an_ambient_package_row_whose_version_is_not_a_version_is_dropped() {
+        let pack = evaluate_pack(
+            "speclib probe 1.2 {\n \
+             ambient_package Tk junk\n \
+             ambient_package Itcl 4.0.x\n \
+             ambient_package Tcllib 1.21\n \
+             ambient_package Thread 2.8a1\n \
+             command demo { arity 1 }\n}",
+        );
+        let named: Vec<(&str, &str)> = pack
+            .ambient_packages
+            .iter()
+            .map(|row| (row.name, row.version))
+            .collect();
+        assert_eq!(named, vec![("Tcllib", "1.21"), ("Thread", "2.8a1")]);
+        for word in ["junk", "4.0.x"] {
+            let said = format!("names `{word}`, which is not a package version");
+            assert!(
+                pack.notices.iter().any(|n| n.message.contains(&said)),
+                "{word}: {:?}",
+                pack.notices
+            );
+        }
     }
 
     /// `ambient_package NAME VERSION -dialects {…}`'s scoping flag is

@@ -436,7 +436,9 @@ provides `NAME` at `VERSION` without a `package require` — the
 pack-authored twin of an ambient `LibraryPin`. Both words are required;
 a row with no version is dropped with a notice, because an ambient
 package with no version would floor at nothing, which is what the row
-exists to stop.
+exists to stop, and so is a row whose version is not a package version
+(`ambient_package Tk junk`), because a floor the comparison cannot read
+orders against the profile's pin as it happens to.
 
 The version composes with the document's own `package require` lines and
 the profile's library pin by taking the **greatest** — all three are
