@@ -393,6 +393,9 @@ pub enum NativeEvalId {
     BreakComplete,
     /// `continue`: the `TCL_CONTINUE` completion.
     ContinueComplete,
+    /// `catch`: a closed script run under the protected policy, the code it
+    /// completes with, and the variables that receive it.
+    CatchProtected,
 }
 
 impl NativeEvalId {
@@ -425,6 +428,7 @@ impl NativeEvalId {
         Self::ReturnComplete,
         Self::BreakComplete,
         Self::ContinueComplete,
+        Self::CatchProtected,
     ];
 
     /// Stable spelling for the inventory and the Explorer.
@@ -458,6 +462,7 @@ impl NativeEvalId {
             Self::ReturnComplete => "return-complete",
             Self::BreakComplete => "break-complete",
             Self::ContinueComplete => "continue-complete",
+            Self::CatchProtected => "catch-protected",
         }
     }
 
@@ -491,7 +496,8 @@ impl NativeEvalId {
             | Self::ErrorRaise
             | Self::ReturnComplete
             | Self::BreakComplete
-            | Self::ContinueComplete => EvaluatorOwner::Registry,
+            | Self::ContinueComplete
+            | Self::CatchProtected => EvaluatorOwner::Registry,
         }
     }
 }

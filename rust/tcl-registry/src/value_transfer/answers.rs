@@ -764,6 +764,17 @@ pub enum StoreOutcome {
         /// What is still known.
         facts: FactBounds,
     },
+    /// The place holds a value afterwards of which the route proved the
+    /// binding and the bounds but not the text: `catch`'s options
+    /// dictionary. Unlike a [`Self::MayWrite`] the write certainly happened,
+    /// so the place is bound as `facts.existence` says whatever it held
+    /// before.
+    WriteUnavailable {
+        /// The target.
+        target: TargetId,
+        /// What is known of the value.
+        facts: FactBounds,
+    },
     /// One element of the array `target` names holds exactly `value`
     /// afterwards: a whole-array writer's pairs (`array set arr {k v}`),
     /// whose places are elements no operand spells. The place is the
@@ -787,6 +798,7 @@ impl StoreOutcome {
             | Self::Preserve { target }
             | Self::Unbind { target }
             | Self::MayWrite { target, .. }
+            | Self::WriteUnavailable { target, .. }
             | Self::WriteElement { target, .. } => *target,
         }
     }
@@ -800,7 +812,8 @@ impl StoreOutcome {
             Self::Write { .. }
             | Self::Preserve { .. }
             | Self::Unbind { .. }
-            | Self::MayWrite { .. } => None,
+            | Self::MayWrite { .. }
+            | Self::WriteUnavailable { .. } => None,
         }
     }
 }

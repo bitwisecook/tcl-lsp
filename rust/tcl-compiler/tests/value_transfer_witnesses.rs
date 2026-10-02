@@ -4144,6 +4144,213 @@ fn a_nested_catch_body_is_the_statements_effect() {
     }
 }
 
+/// The scripts of the `catch` code table that read nothing the program has
+/// not set, with what the result variable holds after `catch {script} m`
+/// under tclsh 8.4 to 9.1.
+const CATCH_RESULTS: &[(&str, &str)] = &[
+    ("error boom", "boom"),
+    ("return 5", "5"),
+    ("break", ""),
+    ("continue", ""),
+    ("set v 1", "1"),
+    ("expr {1/0}", "divide by zero"),
+    ("set y 5; error $y", "5"),
+    ("set y 5; set z $y; error $z", "5"),
+    ("error a; error b", "a"),
+    ("", ""),
+    ("catch {error z}", "1"),
+    ("set x 1; incr x", "2"),
+    ("string length abc", "3"),
+];
+
+/// A closed `catch` — brace-quoted, every command with a route of its own and
+/// every value exact — is evaluated to the code and the result its script
+/// completes with, so the result variable holds what the script returned: the
+/// last command's result, the message of the error it stopped at (the first
+/// completion that is not a normal one ends the script, whatever follows), or
+/// what `return` carried. The lattice holds it, the optimiser forwards it, and
+/// tclsh 8.4 to 9.1 print the same before and after.
+///
+/// What the program does not prove stays unknown — an error whose message
+/// reads a variable never set — and the variable is still bound.
+#[test]
+fn a_closed_catch_script_gives_its_result_variable_what_it_returned() {
+    for &(script, expected) in CATCH_RESULTS {
+        let source = format!("catch {{{script}}} m\nputs \"<$m>\"\n");
+        for dialect in DIALECTS {
+            let unit = unit_of(&source, dialect);
+            assert_eq!(
+                top_value_at(&unit, "m", 1).and_then(lattice_text),
+                Some(expected.to_owned()),
+                "{dialect}: {source}"
+            );
+            let (rewritten, _) = optimised(&source, dialect);
+            assert!(
+                rewritten.contains(&format!("puts \"<{expected}>\"")),
+                "{dialect}:\n{rewritten}"
+            );
+        }
+        prints_under_every_release(&source, &format!("<{expected}>\n"));
+    }
+
+    let unknown = "catch {error $nothing} m\nputs \"<$m>\"\n";
+    for dialect in DIALECTS {
+        assert_eq!(
+            top_value_at(&unit_of(unknown, dialect), "m", 1),
+            Some(LatticeValue::Overdefined),
+            "{dialect}"
+        );
+        let unbound_reads: Vec<String> = tcl_compiler::analyser::Analyser::new()
+            .analyse(unknown, dialect)
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == DiagCode::W210)
+            .map(|diagnostic| diagnostic.message.clone())
+            .collect();
+        assert!(
+            unbound_reads.iter().all(|message| !message.contains("'m'")),
+            "{dialect}: the result variable is bound: {unbound_reads:?}"
+        );
+    }
+    prints_under_every_release(unknown, "<can't read \"nothing\": no such variable>\n");
+
+    // A script that is not brace-quoted text is not known: `"error $e"` runs
+    // `error a b`, whose message is `a`, where its spelling would give `a b`.
+    let quoted = "set e {a b}\ncatch \"error $e\" m\nputs \"<$m>\"\n";
+    for dialect in DIALECTS {
+        assert_eq!(
+            top_value_at(&unit_of(quoted, dialect), "m", 1),
+            Some(LatticeValue::Overdefined),
+            "{dialect}"
+        );
+    }
+    prints_under_every_release(quoted, "<a>\n");
+}
+
+/// A word of a command inside a `catch` script that raises is the script's
+/// error, which the `catch` absorbs: the statement itself does not raise, so
+/// what follows it in a `try` body runs. tclsh 8.6 to 9.1 print `1`; taking
+/// the word's error for the statement's ended the block and folded `after` to
+/// the handler's `0`.
+#[test]
+fn an_error_a_catch_script_raises_is_not_the_statements_own() {
+    // The script's `return` keeps the `catch` one opaque call, and without it
+    // the script is lowered into the procedure's blocks.
+    for script in ["set a [error boom]; return x", "set a [error boom]"] {
+        let source = format!(
+            "proc p {{}} {{\n    try {{\n        catch {{{script}}} m\n        \
+             set after 1\n    }} on error {{}} {{\n        set after 0\n    }}\n    \
+             return $after\n}}\nputs [p]\n"
+        );
+        prints_under_releases_from(&source, "1\n", "8.6");
+        let unit = unit_of(&source, "tcl8.6");
+        let function = unit.procedures.get("::p").expect("the procedure");
+        let executable: Vec<&str> = function
+            .sccp
+            .executable_blocks
+            .iter()
+            .filter_map(|id| function.cfg.blocks.get(id))
+            .map(|block| block.name.as_str())
+            .collect();
+        assert!(
+            executable.iter().any(|name| name.starts_with("try_ok")),
+            "the body completes normally: {executable:?}"
+        );
+    }
+}
+
+/// A result the program does not prove is still bound, and the options
+/// dictionary beside it is a dictionary whose text the analysis never has:
+/// `catch {error $x} m o` evaluates to the code 1, binds `m` as a string and
+/// `o` as a dictionary, each with a value that is not available, and draws
+/// no W210 where they are read.
+#[test]
+fn an_unproven_result_and_the_options_dictionary_are_bound_and_typed() {
+    use tcl_compiler::value_transfer::FoldedType;
+    use tcl_registry::TclType;
+    use tcl_registry::value_transfer::RepresentationEvidence;
+    let source = "proc p {x} {\n    catch {error $x} m o\n    return [list $m $o]\n}\n";
+    let stated = |ty| {
+        Some(FoldedType {
+            intrep: Some(ty),
+            shape: None,
+            representation: RepresentationEvidence::Unknown,
+        })
+    };
+    for dialect in ["tcl8.5", "tcl8.6", "tcl9.0"] {
+        let unit = unit_of(source, dialect);
+        for var in ["m", "o"] {
+            assert_eq!(
+                value_at(&unit, "::p", var, 1),
+                Some(LatticeValue::Overdefined),
+                "{dialect}: {var}"
+            );
+        }
+        assert_eq!(folded_at(&unit, "::p", "m", 1), stated(TclType::String));
+        assert_eq!(folded_at(&unit, "::p", "o", 1), stated(TclType::Dict));
+        assert_eq!(answers_for(&unit, "::p", "catch"), ["evaluated"]);
+        assert!(!reports(source, dialect, DiagCode::W210), "{dialect}");
+    }
+}
+
+/// The options dictionary of a `catch` starts `-code N -level L` for every
+/// completion but an error (`error msg info code` lists `-errorinfo` first),
+/// so that is all the route states of its text: tclsh 8.5 to 9.1 give each
+/// row below that prefix. It is never an exact value, because a success is
+/// not always `-code 0 -level 0` alone: from 8.6 `incr` and `lappend` of an
+/// absent variable leave a stale `-errorcode {TCL READ VARNAME}` in the
+/// options of a normal completion, and `-errorinfo`, `-errorline` and
+/// `-errorstack` are the interpreter's own text.
+#[test]
+fn the_options_dictionary_starts_with_the_code_and_level_the_route_states() {
+    let rows = [
+        ("set v 1", "-code 0 -level 0"),
+        ("return 5", "-code 0 -level 1"),
+        ("break", "-code 3 -level 0"),
+        ("continue", "-code 4 -level 0"),
+        ("return -code 5 custom", "-code 5 -level 1"),
+        ("incr absent", "-code 0 -level 0"),
+        ("lappend absent x", "-code 0 -level 0"),
+    ];
+    let stale = "catch {incr absent} m o\nputs $o\n";
+    let mut ran = 0;
+    for (series, tclsh) in releases_on_path() {
+        if series < "8.5" {
+            continue;
+        }
+        ran += 1;
+        for (script, prefix) in rows {
+            let program = format!(
+                "catch {{{script}}} m o\nputs [expr {{[string first {{{prefix}}} $o] == 0}}]\n"
+            );
+            assert_eq!(
+                run_script(&tclsh, &program),
+                Some((true, "1\n".to_owned())),
+                "tclsh{series}: {program}"
+            );
+        }
+        let expected = if series >= "8.6" {
+            "-code 0 -level 0 -errorcode {TCL READ VARNAME}\n"
+        } else {
+            "-code 0 -level 0\n"
+        };
+        assert_eq!(
+            run_script(&tclsh, stale),
+            Some((true, expected.to_owned())),
+            "tclsh{series}"
+        );
+    }
+    assert!(ran > 0 || releases_on_path().is_empty());
+    let source = "proc p {} {\n    catch {incr absent} m o\n    return $o\n}\n";
+    for dialect in ["tcl8.5", "tcl8.6", "tcl9.0"] {
+        assert_eq!(
+            value_at(&unit_of(source, dialect), "::p", "o", 1),
+            Some(LatticeValue::Overdefined),
+            "{dialect}"
+        );
+    }
+}
+
 /// A call to a command the module cannot see reads its words before its head
 /// runs and may read or write any global afterwards: `foo` here is defined at
 /// run time, reads `g` and sets `g` and `m`, and tclsh 8.4 to 9.1 print what each

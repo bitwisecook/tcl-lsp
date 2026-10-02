@@ -365,6 +365,12 @@ pub enum NestedPolicy {
     /// Nested invocations whose ordered stores name only places the state
     /// can own, with an exact completion.
     LocalWrites,
+    /// A protected script's: its commands run in order under one state, each
+    /// as under [`Self::LocalWrites`], and the script's completion is the
+    /// first that is not the normal one, with the state holding the writes
+    /// that ran before it. A script whose command declines, or whose value
+    /// is not exact, declines whole.
+    Protected,
 }
 
 /// The ordered evaluation state of one expression or one word
@@ -427,7 +433,9 @@ pub fn written_in(writes: &[(PlaceRef, StoreOutcome)], name: &str) -> WrittenPla
             StoreOutcome::Write { value, .. } | StoreOutcome::WriteElement { value, .. } => {
                 WrittenPlace::Exact(value.clone())
             }
-            StoreOutcome::Unbind { .. } | StoreOutcome::MayWrite { .. } => WrittenPlace::Unknown,
+            StoreOutcome::Unbind { .. }
+            | StoreOutcome::MayWrite { .. }
+            | StoreOutcome::WriteUnavailable { .. } => WrittenPlace::Unknown,
         };
         if place.name == name {
             fact = left;

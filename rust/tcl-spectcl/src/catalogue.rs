@@ -520,6 +520,10 @@ pub const NATIVE_EVAL_IDS: &[Variant] = &[
         "ContinueComplete",
         "the continue completion behind continue",
     ),
+    v(
+        "CatchProtected",
+        "the protected script's completion behind catch",
+    ),
 ];
 
 /// [`tcl_registry::value_transfer::LanguageProfileId::ALL`] — `evaluate
