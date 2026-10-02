@@ -1041,22 +1041,8 @@ impl<'a> CfgBuilder<'a> {
         &self,
     ) -> impl Fn(&str) -> Option<crate::ir_helpers::ResolvedEmbeddedHead> + '_ {
         |head: &str| {
-            let namespace = self.invocation_namespace.for_head(head)?;
-            if self
-                .command_bindings
-                .target_resolution_may_be_unknown(head, namespace)
-            {
-                return None;
-            }
-            let mut found = self.command_bindings.targets(head, namespace).into_iter();
-            let target = found.next()?;
-            if found.next().is_some() || !target.registry_backed {
-                return None;
-            }
-            Some(crate::ir_helpers::ResolvedEmbeddedHead {
-                command: target.command,
-                prepended: target.prepended,
-            })
+            self.command_bindings
+                .resolved_embedded_head(head, &self.invocation_namespace)
         }
     }
 

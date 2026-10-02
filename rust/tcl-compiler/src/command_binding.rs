@@ -45,7 +45,7 @@ use crate::alias::is_current_interpreter;
 use crate::cfg::BlockId;
 use crate::cfg::Function as CfgFunction;
 use crate::ir::{Module, Script, Statement};
-use crate::ir_helpers::{evaluated_command_substitutions, nested_bodies};
+use crate::ir_helpers::{evaluated_command_substitutions_with_heads, nested_bodies};
 use crate::naming::is_dynamic_word;
 use crate::naming::normalise_qualified_name as nqn;
 use crate::var_escape::helpers::invocation_facts;
@@ -337,6 +337,28 @@ impl PartialEq for ModuleCommandBindings {
 impl Eq for ModuleCommandBindings {}
 
 impl ModuleCommandBindings {
+    /// Registry head and prepended arguments for the shared expression-word
+    /// descent. CFG projection and binding replay use the same alias answer.
+    pub(crate) fn resolved_embedded_head(
+        &self,
+        head: &str,
+        namespace: &crate::ir_helpers::ExecutionNamespace,
+    ) -> Option<crate::ir_helpers::ResolvedEmbeddedHead> {
+        let namespace = namespace.for_head(head)?;
+        if self.target_resolution_may_be_unknown(head, namespace) {
+            return None;
+        }
+        let mut found = self.targets(head, namespace).into_iter();
+        let target = found.next()?;
+        if found.next().is_some() || !target.registry_backed {
+            return None;
+        }
+        Some(crate::ir_helpers::ResolvedEmbeddedHead {
+            command: target.command,
+            prepended: target.prepended,
+        })
+    }
+
     /// Closed root-boundary effects do not include pre-definition missing
     /// candidates from historical observations. A completed retained call can
     /// publish those effects without inventing arbitrary binding mutation.
@@ -2243,7 +2265,8 @@ fn apply_embedded_transitions(
     namespace: &crate::ir_helpers::ExecutionNamespace,
     source_order_mode: bool,
 ) -> bool {
-    let embedded = evaluated_command_substitutions(stmt, registry);
+    let resolve = |head: &str| bindings.resolved_embedded_head(head, namespace);
+    let embedded = evaluated_command_substitutions_with_heads(stmt, registry, Some(&resolve));
     let observed = embedded.opaque || embedded.all_commands().next().is_some();
     if embedded.opaque {
         bindings.mark_opaque_binding_mutation();

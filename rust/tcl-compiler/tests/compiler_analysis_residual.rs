@@ -2153,14 +2153,28 @@ fn registry_value_clobber_preserves_seeded_parameter_before_handler() {
 
 #[test]
 fn braced_expression_rebinding_precedes_later_sibling_and_statement() {
-    // tclsh 9.0.4: both forms print `changed`; the former pure procedure now
+    // tclsh 9.0.4: all forms print `changed`; the former pure procedure now
     // resolves to eval after the earlier expression runs the rename script.
-    for middle in [
-        "list [expr {[rename aaa {}; rename eval aaa; set _ 0]}] [aaa {set x 6}]",
-        "list [expr {[rename aaa {}; rename eval aaa; set _ 0]}]; aaa {set x 6}",
+    for (prefix, middle) in [
+        (
+            "",
+            "list [expr {[rename aaa {}; rename eval aaa; set _ 0]}] [aaa {set x 6}]",
+        ),
+        (
+            "",
+            "list [expr {[rename aaa {}; rename eval aaa; set _ 0]}]; aaa {set x 6}",
+        ),
+        (
+            "interp alias {} e {} expr; ",
+            "list [e {[rename aaa {}; rename eval aaa; set _ 0]}]; aaa {set x 6}",
+        ),
+        (
+            "interp alias {} e {} expr 1 +; ",
+            "list [e {[rename aaa {}; rename eval aaa; set _ 0]}]; aaa {set x 6}",
+        ),
     ] {
         let source = format!(
-            "proc aaa args {{return 0}}; set x 5; {middle}; if {{$x == 5}} {{puts stale}} else {{puts changed}}"
+            "proc aaa args {{return 0}}; {prefix}set x 5; {middle}; if {{$x == 5}} {{puts stale}} else {{puts changed}}"
         );
         let cu = CompilationUnit::build_for(&source, &reg(), false);
         assert!(
@@ -2168,11 +2182,16 @@ fn braced_expression_rebinding_precedes_later_sibling_and_statement() {
             "earlier expression transitions must reach later invocations: {middle}"
         );
     }
-    let safe = CompilationUnit::build_for(
-        "proc aaa args {return 0}; set x 5; list [expr {[string length safe]}] [aaa {set x 6}]; if {$x == 5} {puts kept} else {puts changed}",
-        &reg(),
-        false,
-    );
-    assert_eq!(safe.top_level.sccp.constant_branches.len(), 1);
-    assert!(safe.top_level.sccp.constant_branches[0].value);
+    for (prefix, head) in [
+        ("", "expr"),
+        ("interp alias {} e {} expr; ", "e"),
+        ("interp alias {} e {} expr 1 +; ", "e"),
+    ] {
+        let source = format!(
+            "proc aaa args {{return 0}}; {prefix}set x 5; list [{head} {{[string length safe]}}] [aaa {{set x 6}}]; if {{$x == 5}} {{puts kept}} else {{puts changed}}"
+        );
+        let safe = CompilationUnit::build_for(&source, &reg(), false);
+        assert_eq!(safe.top_level.sccp.constant_branches.len(), 1);
+        assert!(safe.top_level.sccp.constant_branches[0].value);
+    }
 }

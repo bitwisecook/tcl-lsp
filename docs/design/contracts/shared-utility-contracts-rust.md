@@ -88,6 +88,9 @@ inventory. The compiler library's
 `complete_substitution_inventory_preserves_expression_sibling_order` regression
 checks both ordering and classification, and `compiler_analysis_residual` checks
 the resulting scalar proof against the Tcl rename/eval witnesses.
+`command_binding::ModuleCommandBindings::resolved_embedded_head` supplies the
+shared registry target and prepended arguments for this expression descent in
+both CFG projection and binding replay, including aliases to expression commands.
 
 ### `tcl-dialect` + `tcl-test-support` — C Tcl reference toolchains
 

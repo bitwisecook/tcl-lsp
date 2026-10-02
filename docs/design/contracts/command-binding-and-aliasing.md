@@ -290,3 +290,5 @@ owner records one evaluation-ordered index stream across the ordinary and
 in-frame expression inventories. Binding transitions and scalar barriers replay
 that stream; an earlier expression's nested renames reach both later siblings
 and following statements without changing the inventories used by call graphs.
+Both consumers use the same resolved registry head and alias-prepended argument
+offsets when discovering expression words, so aliases preserve that ordering.
