@@ -833,9 +833,6 @@ fn prior_container_elements<S: std::hash::BuildHasher>(
     target: &str,
 ) -> Option<Elements> {
     if let Some(t) = lookup_var_type(target, ctx.uses, ctx.types, ctx.ssa) {
-        if t.kind() == crate::types::TypeKind::Overdefined {
-            return Some(Elements::Unknown);
-        }
         if let Some(e) = t.elements() {
             return Some(e.clone());
         }
@@ -1360,19 +1357,6 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
     };
 
     let mut types: HashMap<ValueKey, TypeLattice> = HashMap::new();
-    // A fresh scalar clobber has an arbitrary runtime type, not the empty
-    // inference lattice. A later collection update cannot treat it as a new
-    // homogeneous container.
-    for (block, markers) in &ssa.value_clobbers {
-        if sccp.executable_blocks.contains(block) {
-            for versions in markers.values() {
-                for (&symbol, &(_, fresh)) in versions {
-                    types.insert((symbol, fresh), TypeLattice::overdefined());
-                }
-            }
-        }
-    }
-
     let mut changed = true;
     while changed {
         changed = false;
@@ -1446,6 +1430,28 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
             // Statements.
             if type_infer_process_statements(&mut types, ssa_block, &ctx) {
                 changed = true;
+            }
+            // Scalar-only clobbers retain the executable definition's type
+            // provenance, like the binding and taint domains. Treating a fresh
+            // value version as an uninitialised container loses prior elements.
+            if let Some(markers) = ssa.value_clobbers.get(bn) {
+                for versions in markers.values() {
+                    for (&symbol, &(prior, fresh)) in versions {
+                        let prior_type = types
+                            .get(&(symbol, prior))
+                            .cloned()
+                            .unwrap_or_else(TypeLattice::unknown);
+                        let old = types
+                            .get(&(symbol, fresh))
+                            .cloned()
+                            .unwrap_or_else(TypeLattice::unknown);
+                        let joined = type_join(&old, &prior_type);
+                        if joined != old {
+                            types.insert((symbol, fresh), joined);
+                            changed = true;
+                        }
+                    }
+                }
             }
         }
     }
