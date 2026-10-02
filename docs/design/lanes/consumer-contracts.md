@@ -4616,7 +4616,23 @@ deleted shows; negative: an `ifneeded` script whose `load` the table refuses
 leaves `package require` an error carrying `couldn't load file`);
 `rust/tcl-engine-tclvm`'s tests gain the variable door and the package door (a
 host command provides a package and a later `package require` is satisfied;
-a conflicting version is the error `package provide` gives). Model: opus. Size:
+a conflicting version is the error `package provide` gives). **The return
+options**, put on the plan once the doors' vectors against `tclsh9.0` showed the
+gap (D10.37): `HostOutcome` carries the options of the `return` that raised a
+`Return`, so a script a C command evaluates with `return -code error -errorcode
+{X Y} msg` (or `-code break`, `-level 2`, `-errorinfo …`) crosses as `TCL_RETURN`
+with them, as it does in C Tcl, where the interpreter holds them until the next
+evaluation or `Tcl_ResetResult`. `Tcl_EvalObjEx` answers the code and the shim
+keeps the options, the command's `HostOutcome` carries them when it answers
+`TCL_RETURN`, and the tclvm engine hands them to the VM as the completion's
+options, so the procedure that called the command ends as C Tcl's does: an error
+for `-code error`, a break for `-code break`, a return from the caller's caller for
+`-level 2`. Tests: the `doors_e2e.rs` row `doors_eval {return -code error
+-errorcode {X Y} msg}` moves from the recorded divergences to the table that agrees
+with `tclsh9.0`, beside rows for `-code error` through a procedure, `-code break`
+through a loop, `-level 2` and `-errorinfo`, each answer captured the same way from
+`doors.c`; `rust/tcl-engine-tclvm/tests/doors.rs` gains a host command that answers a
+`Return` with options; and D10.37 retires its line on it. Model: opus. Size:
 M. After: CC10.4.
 
 **CC10.6 — the WASM runtime implements `Engine`; WASM-hosted evaluation.**
