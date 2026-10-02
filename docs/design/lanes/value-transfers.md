@@ -6750,6 +6750,85 @@ three shapes (opaque, flattened `catch`, faithful build).
 - **Gates**: G7, G8, G9.
 - **Model**: opus. **Size**: M. **After**: VT10.2; CC2.2 (B-CC6).
 
+- **Reconciling with #2230** (written before the code; D237). origin/rust fixed
+  #2142 in the CFG builder while this lane held `try` for VT10.4: #2230
+  (merged there as 3c2c2837; thirty-one commits, d1637443 to cdd2c1d4) gives a
+  `finally` an edge from every way the body or a handler leaves, and each of
+  its review commits is a case a simpler wiring got wrong. The whole of
+  origin/rust merges after slice 10, so this item is built so that each fact
+  has one implementation afterwards: its registry half (VT10.4a) states the
+  handler protocol, and its CFG half (VT10.4b) is #2230's change, carried here
+  so that #2142's programs print what tclsh prints on this branch, with the
+  handler facts read from that protocol and not derived again.
+
+  *The facts, and who owns each.* Four were settled by #2230's last four
+  commits (6c2e6006, b395c7eb, 96abd3d6, cdd2c1d4), and a fifth is the decode
+  they all share:
+  1. **`try_ok` is normal completion** (`try_completes_normally`): a CFG fact
+     about which block a normal completion passes through. The CFG owns it;
+     it is carried as upstream wrote it, so the merge sees the same text.
+  2. **A `-` handler pre-empts a later handler with the same code**
+     (`handler_shadowed`): a fact about the handler list, the first match
+     wins and a `-` still selects its code. The registry owns it
+     (`HandlerChain::preempted`); upstream's function is not carried.
+  3. **A handler that binds a variable can raise before its exit**
+     (`handler_var_defs`, `push_handler_var_defs`, and the single-statement
+     test in `push_finally_exit_edges`): the binding is a store before the
+     body, which the registry states (`HandlerPlan::binders`), and the
+     synthetic statement that represents it is the CFG's shape. The CFG owns
+     the statement; it is carried as upstream wrote it.
+  4. **The empty `-` handler block has no edges, and the body it shares is
+     reached through its owner's edges, filtered against the whole group**
+     (`live_handler_group`): a fact about which handlers run which body. The
+     registry owns it (`HandlerChain::owner`, `HandlerChain::live_group`);
+     upstream's function is not carried.
+  5. **A handler's selector decodes with the dialect's numerals**
+     (`handler_code`, `try_handler_code_in`): the registry's completion-code
+     parse already owns the decode, and `HandlerChain::code` is the one place
+     a handler's code is read; `handler_misses_completion` is
+     `HandlerChain::misses`.
+
+  *The files the merge settles.*
+  - `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs`: upstream's
+    `push_try_handler_exception_edges` (a handler group, not one handler),
+    `lower_try`'s handler loop, `push_finally_exit_edges`,
+    `finish_try_finally`, `lower_try_finally`, `route_caught_loop_jumps`,
+    `caught_by_handler`, `totally_intercepted`, `try_completes_normally`,
+    `block_completion_code`, `terminal_code`, `handler_var_defs` and
+    `push_handler_var_defs`, and the one line `lower_catch` gains
+    (`total_interceptors`). All are carried here with the same names and
+    bodies, adapted in two ways only: a handler's kind is the typed
+    `HandlerMatch` (CC2.2) where upstream compares `"on"` and `"trap"`, and the
+    region entries VT10.2 records stay. Upstream's `handler_code`,
+    `handler_shadowed`, `live_handler_group` and `handler_misses_completion`
+    are the functions the merge deletes: they are the chain's, and the call
+    sites read it.
+  - `rust/tcl-compiler/src/cfg_builder/mod.rs`: the six fields upstream adds to
+    `CfgBuilder` (`finally_jump_edges`, `plain_return_blocks`,
+    `total_interceptors`, `try_entry`, `handler_caught`, `unwinding_tails`),
+    `exact_statement_completion` and `always_exits_process`, and the
+    `plain_return_blocks` insertion in the `return` lowering: identical.
+  - `rust/tcl-compiler/src/executable_ir.rs`: upstream adds
+    `try_handler_code_in`; here `try_handler_code` reads the chain's decode, and
+    the merge keeps ours.
+  - `rust/tcl-compiler/tests/cfg.rs` and `tests/optimiser.rs`: upstream appends
+    its tests (about 580 lines) to the end of both. VT10.4's tests are in
+    `value_transfer_witnesses.rs` and the registry's `value_transfers.rs`, so
+    neither file conflicts, and upstream's tests then exercise the code carried
+    here.
+  - `docs/design/compiler/cfg-construction.md`: the passage upstream adds under
+    *Exception edges* is carried with the sentences about facts 2, 4 and 5
+    pointing at the registry.
+  - In the registry nothing conflicts: `completion.rs` (`HandlerChain`,
+    `TrySemantics`), the `try` spec's declaration and the ledger row are this
+    lane's alone.
+
+  *Settled afterwards by the merge, by this paragraph:* take upstream's text of
+  every carried function; take ours at the call sites that read the chain and in
+  `try_handler_code`; delete upstream's four chain functions and
+  `try_handler_code_in`; run upstream's `a_finally_body_is_reachable_…` and its
+  sibling tests, which pass against the carried code.
+
 ##### VT10.5 — the prefix rule in the faithful-exceptions build
 
 - **Files**: `rust/tcl-compiler/src/cfg_builder/mod.rs`
@@ -10454,6 +10533,7 @@ Taken in slice 10, completion paths (§ *Slice 10* › *Record (2026-10-01): sli
 - **D234 — A command substitution that is a statement's whole value runs on whichever registry-owned route its command declares** (VT10.3d). D213's pair of a statement's effect call and its host ran the host's one command substitution under `LocalWrites` only where the command was on the expression engine's route: `ordered_script` refused every other, so `set c [catch {error boom} m]` kept `c` and `m` unknown though the route evaluates both, and `set a [incr n]` kept `n` and `a` unknown for the same reason. The refusal is gone: a `Direct` route — an evaluator the registry owns — runs as the expression route already did, its words' writes in order and its own stores after them, the call's definitions take what the state's writes left in each place, and the host takes the result and its folded type. The compiler names no command, so `incr`, `set`, `append`, `lappend`, `lassign`, `scan`, `regexp`, `dict set` and `catch` land their writes beside their result by the one rule. What it does not do: a host that is not an assignment — a `puts` argument, a `return`, a branch condition, so `if {[catch {…} m]} …` — keeps the effect-free policy; a head the module rebinds, an `Implementation` route and a command with no route are refused as before; a script that is not brace-quoted text stays unknown, as the `catch` route declines it (the 3c survivor, killed by the nested form's witness); and an outcome that is a code, not a normal completion or an error the pair publishes (D227), declines the pair. Two tests that pinned the effect-free reading are restated, not deleted: `a_value_position_set_reads_the_variable` (`[set x 10]` left its host no value; the host is now 10 and so is `x`) and `a_nested_catch_body_is_the_statements_effect` (a closed body now decides its condition, as tclsh decides it, where no diagnostic decided it; each program carries the truth of its condition and whether the analysis decides it, and a diagnostic that decides a condition the other way fails the test). Measured against tclsh 8.4 to 9.1 before the commit: an assignment's target word that substitutes (`set a([incr i]) [incr j]`) is outside the pair — the statement walk reads an assignment's value word only, so the call's definitions are the value word's and the target word's writes are in no definition, which is the case without the pair too (reported, below) — and a script word that is quoted or computed is outside the route (D232). Found while measuring, outside the plan, and reported to the coordinator rather than fixed: `set a([incr i]) 5` is deleted whole by O126 and `i` keeps the value it held, so `proc p {} {set i 0; set a([incr i]) 5; if {$i == 0} {return zero} else {return nonzero}}` returns `zero` optimised where it returns `nonzero`; O100's "Fold return of constant variable" rewrites `return "$r [string length abc]"` to `return 1` and `return "$r x"` to `return 1"` once `r` is a constant; and, inside D232's left-as-it-was, `proc p {} {set x 1; set c [catch "incr x"]; if {$x == 2} {return two} else {return other}}` and the same over `[catch $script]` return `two` where the optimised procedure returns `other`.
 - **D235 — A protected script a substitution runs is read where its word is text, and unreadable where it is run-time data** (VT10.3b2; corrects D232). D232 left every script that is not brace-quoted as it was, on the reasoning that the text a second round of substitution reads is not the word's. Measured against tclsh 8.4 to 9.1 that was a miscompile, not a loss of precision: `proc p {} {set x 1; set c [catch "incr x"]; if {$x == 2} {return two} else {return other}}` returns `two`, and the optimised procedure returned `other`, and so did the same procedure over `[catch $script]`. The statement form raises a barrier for a body it cannot read (`catch with dynamic body`), and the substitution walk neither descended nor widened. The walk now reads a script's word by what it is. A brace-quoted word is the script. A quoted or bare word that substitutes nothing and holds no escape is the same text as written, and is descended as the braced one is: `[catch "incr x; set y 2"]` writes `x` and `y`. Any other word — a variable or command substitution, an expanded word, a word with an escape, which a second round reads differently from its source text — is run-time data: the script may write any name, so the walk is marked `opaque`, which puts the barrier ahead of the host as the statement form's does. Both come from the clause plan's protected clause, so a `try` body follows the same rule, and a handler and a `finally` are as D232 left them. A quoted script is still not run by the `catch` route (`LatticeInputs::body` accepts a brace-quoted word only, D234), so its writes are may-definitions and nothing after it is decided on a value from before it. The wider class of #2323 — an `if` or `switch` arm, a loop, `eval`, `namespace eval`, `apply` — is unchanged and stays open.
 - **D236 — A flattened `catch` is evaluated where its region ends, over the state before its body, and the value its script ends with is observed** (VT10.3e). A `catch` in a procedure whose script is straight-line statements is lowered into blocks (`lower_catch`), and the statement that ends the region defines the result and options variables with no words of its own, which the code generator skips: the solver could only widen it. The analysis build now keeps the `catch` as written beside that statement (`Function::catch_ends`: the block before the body, the block that ends the region, and the call in the form the statement has when it is not flattened), and the codegen build keeps nothing, so the marker and the bytecode are as they were. The solver asks `LatticeDriver::evaluate_catch_end` at the marker, which runs the call through the route VT10.3c gave `catch` over the versions the block before the body exits with (`SsaBlock::exit_versions`), and takes the result and options variables' answers. The state before the body, not the state where the region ends, is the one the script runs over: over `x` = 1, `catch {incr x} m` leaves `m` 2 and `x` 2, where the joined state at the end would give an `incr` over 1 or 2. The script's own writes are not applied again, because its statements are in the flow and the solver has made them once. Found by the programs of this commit, and not an effect of the evaluation: the last command of a script is the value `catch` stores, so the last statement of a flattened body is observed where the region ends, and O126 had deleted it as a store nothing reads — `proc p {c} {catch {set v $c} m; puts "<$m>"}` printed `<>` optimised where tclsh prints `<7>`, and the same for a result variable that is a global or an `upvar` alias, an options variable beside it, and a `catch` in a branch; a result the lattice proved (`set v 1`) only hid it, by forwarding the value. The names the last statement stores now go to `alias_observed_vars`, the set O109 and O126 leave alone: a read on the marker would have made `set v …` read before it is set on the path where the body failed, a false W210, which that set was made to avoid. It costs precision, not soundness: every store to such a name in the procedure stays. The nested form (D234) and the opaque form (D233) are unchanged.
+- **D237 — `try` is two commits, and its CFG half is #2230's** (VT10.4). The plan gives VT10.4 one change: every unhandled throw source of a `try` body reaches its `finally`, and a `TrySemantics` that answers `CompletionProtocol::Handlers`. Reading origin/rust first showed #2230 (3c2c2837) already fixing #2142 in the CFG builder, in thirty-one commits and about 840 lines of `cfg_lower.rs`, each commit a case review found: a nested `finally`, a `break` that passes through one, a process exit, a handler that catches only some completions, a `-` group, a handler that binds a variable. A smaller wiring here would be the first draft of that series, with its false W210s and its forwards of a value a `return` path never sets, and the merge would hold two implementations of each fact. So VT10.4 is VT10.4a, the registry's handler protocol (`HandlerChain`, `TrySemantics`, the `try` declaration), and VT10.4b, #2230's CFG change carried here with the handler facts read from the chain. The paragraph under VT10.4 names the facts and the files the merge settles. Two departures from the plan's text. Its program 1, `proc p {} {set f 0; try {error boom} finally {set f 1}; return $f}`, is not "neither W220 nor W210": the body always raises, so `return $f` never runs and both stores are dead, W220 is a true positive on each, and what the issue calls wrong is W210; the witness asserts W210 absent there and, for the variant that wraps the `try` in a `catch` so that the `return` runs, that the `finally` store is live and `set f 0` is the dead one. And the plan's "or `try_end` when there is none" is not carried: a `try` with no `finally` has no tail that its exits reach, since the exception resumes unwinding past it (#2230's doc says the same).
 
 ### Open questions for the owner
 
