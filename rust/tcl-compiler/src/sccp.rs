@@ -694,6 +694,7 @@ fn sccp_process_phis(
     changed
 }
 
+#[derive(Clone, Copy)]
 struct StatementInputs<'a> {
     escaping: &'a HashSet<String>,
     policy: FoldPolicy,
