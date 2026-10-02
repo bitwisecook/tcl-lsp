@@ -81,36 +81,28 @@ use crate::draft::{self, Draft, OPTION_DEPRECATION_FIX_HOOK_KEY, SOURCE_DIALECT_
 ///
 /// The rule is "declare the newest vocabulary the *body* actually uses": a
 /// header naming an older vocabulary than the body needs is exactly the
-/// inconsistency the loader's per-site notice reports, and pinning this to a
-/// stale literal made the renderer produce it (#1627).
+/// inconsistency the loader's per-site notice reports, so pinning this to a
+/// stale literal would make the renderer produce that notice on its own
+/// output.
 ///
-/// It parted company with [`tcl_spectcl::NEWEST_VOCABULARY_VERSION`] for one
-/// release, and is back on it. The pin at `1.2` said: 2.0's additions are
-/// `available`, the `environment` block, and the `dialect` block, the
-/// renderer emitted none of them, and a 2.0 header over an entirely 1.x body
-/// would be a failed upgrade wearing a 2.0 header — so the constant sat at
-/// the newest vocabulary the renderer could actually *reach*, and would move
-/// when the renderer learned the 2.0 spellings.
-///
-/// **It has learned the one that applies to it.** [`availability_rows`]
-/// writes every dialect set the algebra can carry as `available` /
-/// `-available` — the 2.0 word — at every scope the loader reads it:
-/// command, subcommand, option, form, side effect, option conflict, and
-/// second-level operation. A rendered body is therefore 2.0 wherever a
-/// draft says anything about availability at all, which is nearly every
-/// command in the registry, and pinning the header at 1.2 would now
-/// reproduce #1627 exactly — the loader's per-site notice on a `available`
-/// row under a 1.2 declaration.
+/// Tracking [`tcl_spectcl::NEWEST_VOCABULARY_VERSION`] directly is correct
+/// because [`availability_rows`] writes every dialect set the algebra can
+/// carry as `available` / `-available` — the 2.0 word — at every scope the
+/// loader reads it: command, subcommand, option, form, side effect, option
+/// conflict, and second-level operation. A rendered body is therefore 2.0
+/// wherever a draft says anything about availability at all, which is
+/// nearly every command in the registry; pinning the header older would
+/// reproduce the loader's per-site notice on an `available` row under an
+/// older declaration.
 ///
 /// The other two 2.0 additions are **pack-level blocks a draft cannot
 /// hold**: a draft is one command's model, so nothing in it renders as an
-/// `environment` or a `dialect` block, and waiting for those would pin this
-/// constant forever. What remains of the old worry is a draft that says
-/// nothing about availability, whose body is 1.x under a 2.0 header. That is
-/// the harmless direction: over-declaring produces no notice anywhere (the
-/// loader only reports a *site newer than* the declaration), and a pack the
-/// renderer just wrote has no legacy rows left untranslated for U1 to fail
-/// on — it has fields, not rows.
+/// `environment` or a `dialect` block. This is harmless: a draft that says
+/// nothing about availability renders a 1.x body under a 2.0 header, and
+/// over-declaring produces no notice anywhere (the loader only reports a
+/// *site newer than* the declaration) — a pack the renderer just wrote has
+/// no legacy rows left untranslated for U1 to fail on, it has fields, not
+/// rows.
 pub const DSL_VERSION: &str = tcl_spectcl::NEWEST_VOCABULARY_VERSION;
 
 const AVAILABILITY_VERSION: &str = "2.0";
@@ -145,6 +137,11 @@ pub enum GapKind {
     LoaderGap,
     /// The design excludes the field from what a pack may author at all.
     Excluded,
+    /// The field is a row of a pack-level block (`environment`, `dialect`),
+    /// and a draft is one command's model, so no draft key holds it. The
+    /// studio carries the block through an edit unchanged, and `tcl spec
+    /// export` writes its rows as the pack declared them.
+    PackLevel,
 }
 
 impl GapKind {
@@ -156,6 +153,7 @@ impl GapKind {
             }
             Self::LoaderGap => "the loader has no reader for that property word yet",
             Self::Excluded => "a pack may not author this field",
+            Self::PackLevel => "a draft is one command's model, and this is a pack-level row",
         }
     }
 }
@@ -172,14 +170,15 @@ pub struct Gap {
     pub kind: GapKind,
 }
 
-/// Every field a draft can hold that a rendered pack cannot carry.
+/// Every field a draft can hold that a rendered pack cannot carry, and every
+/// pack-level row that has no draft key.
 ///
 /// This is the renderer's half of the round-trip contract: the gate in
 /// `tests/spectcl_roundtrip.rs` allows a rendered-then-reloaded draft to differ
 /// from its source **only** on these keys, and reports any other difference as
 /// a failure.
 pub const GAPS: &[Gap] = &[
-    // --- the value is not in the draft ------------------------------------
+    // The value is not in the draft.
     //
     // `object_class` left this bucket. It looked like the others — an
     // `Option<&'static …>` reference — but the descriptor behind it is plain
@@ -273,7 +272,7 @@ pub const GAPS: &[Gap] = &[
         spelling: "result_stability Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}",
         kind: GapKind::DraftOpaque,
     },
-    // --- the draft has it; the loader does not read it yet -----------------
+    // The draft has it; the loader does not read it yet.
     //
     // Eleven keys left this bucket as the loader grew their readers:
     // the three `{VARIANT payload …}` element-structure facts,
@@ -284,7 +283,7 @@ pub const GAPS: &[Gap] = &[
     // still cannot say is above (no value in the draft) or below (excluded by
     // design), not here.
     //
-    // `remote_method` (issue #1707) arrived here: the descriptor is plain data
+    // `remote_method` belongs here: the descriptor is plain data
     // and the draft carries its whole Rust expression, but the SpecTcl
     // vocabulary has no property word for it yet, so writing one would only
     // produce an unknown-property notice.  A pack authoring a second RPC family
@@ -304,7 +303,7 @@ pub const GAPS: &[Gap] = &[
         spelling: "body_interpreter Current|{Argument INDEX}",
         kind: GapKind::LoaderGap,
     },
-    // --- excluded by design -------------------------------------------------
+    // Excluded by design.
     Gap {
         key: "completion",
         spelling: "",
@@ -324,6 +323,16 @@ pub const GAPS: &[Gap] = &[
         spelling: "",
         kind: GapKind::Excluded,
     },
+    // The same shape, over `subst`'s own switch table: which substitutions a
+    // call runs is read from options a pack can already declare, but the answer
+    // is computed, and the only commands carrying `PERFORMS_SUBSTITUTION` are
+    // core Tcl's. Excluded until a declarative selector exists, rather than
+    // inventing a Tcl-body hook family for one command.
+    Gap {
+        key: "substitution_resolver",
+        spelling: "",
+        kind: GapKind::Excluded,
+    },
     // The native-lowering descriptor is the compiler's own account of how it
     // may compile a command to native code — a representation lattice and the
     // framing it is allowed to elide, meaningful only to `tcl-compiler`'s
@@ -335,6 +344,24 @@ pub const GAPS: &[Gap] = &[
         key: "native_lowering",
         spelling: "",
         kind: GapKind::Excluded,
+    },
+    // Rows of the pack-level `environment NAME { … }` block. The studio's
+    // forms edit commands; an environment block is carried through an edit
+    // untouched, and `tcl spec export` writes its rows as declared.
+    Gap {
+        key: "environment_kind",
+        spelling: "kind language|packages",
+        kind: GapKind::PackLevel,
+    },
+    Gap {
+        key: "environment_short_name",
+        spelling: "short_name TEXT",
+        kind: GapKind::PackLevel,
+    },
+    Gap {
+        key: "environment_selecting_identity",
+        spelling: "selecting_identity ID",
+        kind: GapKind::PackLevel,
     },
 ];
 
@@ -1541,7 +1568,7 @@ struct Ctx<'a> {
     ///
     /// A renderer that emitted `available` into a pack declaring 1.x would
     /// produce exactly the header/body inconsistency the loader reports per
-    /// site (#1627), so the *header* decides the spelling: a 2.0 pack — every
+    /// site, so the *header* decides the spelling: a 2.0 pack — every
     /// pack the studio creates, since [`DSL_VERSION`] is the newest
     /// vocabulary — takes `available`, and a document that declares an older
     /// vocabulary keeps `dialects` and stays a valid pack of its own
@@ -1932,7 +1959,7 @@ fn arity_shape(value: &Value) -> String {
 }
 
 /// `arity SHAPE -introduced V ?-deprecated V? ?-retired V?` — one row per
-/// version window (`SpecTcl` 1.2, issue #1627).
+/// version window (`SpecTcl` 1.2).
 ///
 /// Emitted after the plain `arity` row, matching the order the loader reads
 /// them and the order `CommandSpec::DEFAULT` declares them. A spec with no
@@ -2339,7 +2366,7 @@ fn hover_block(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
 /// Render the body of one `command NAME { … }` block.
 #[allow(clippy::too_many_lines)]
 fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
-    // --- identity and availability -----------------------------------------
+    // Identity and availability.
     set_word(out, ctx, draft, "surface");
     set_word(out, ctx, draft, "traits");
     arity_row(out, ctx, draft);
@@ -2358,7 +2385,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     set_word(out, ctx, draft, "safe_on_uninit");
     expr_row(out, ctx, draft, "deprecation_fix", deprecation_fix_row);
 
-    // --- types and shape ---------------------------------------------------
+    // Types and shape.
     out.gap();
     enum_word(out, ctx, draft, "return_type");
     if ctx.set(draft, "var_write_typing")
@@ -2445,13 +2472,13 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     }
     expr_row(out, ctx, draft, "defines_symbol", defines_symbol_row);
 
-    // --- subcommand dispatch -----------------------------------------------
+    // Subcommand dispatch.
     flag(out, ctx, draft, "allow_unknown_subcommands");
     enum_word(out, ctx, draft, "prefix_matching");
     enum_word(out, ctx, draft, "default_form_first_word");
     text_list(out, ctx, draft, "self_receiver_words");
 
-    // --- hooks -------------------------------------------------------------
+    // Hooks.
     out.gap();
     native_hook(out, ctx, draft, "arg_role_resolver");
     if ctx.resolver_capabilities {
@@ -2477,7 +2504,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     gap_todo(out, ctx, draft, "dispatch_dependencies");
     gap_todo(out, ctx, draft, "result_stability");
 
-    // --- effects -----------------------------------------------------------
+    // Effects.
     out.gap();
     enum_word(out, ctx, draft, "command_table_effect");
     side_effect_rows(out, draft, ctx.availability);
@@ -2485,13 +2512,14 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     gap_todo(out, ctx, draft, "world_effects");
     gap_todo(out, ctx, draft, "state_transitions");
 
-    // --- taint and security ------------------------------------------------
+    // Taint and security.
     out.gap();
     text(out, ctx, draft, "taint_output_sink");
     text_list(out, ctx, draft, "taint_output_sink_subcommands");
     text(out, ctx, draft, "taint_log_sink");
     index_list(out, ctx, draft, "taint_network_sink_args");
     index_list(out, ctx, draft, "taint_code_sink_args");
+    enum_word(out, ctx, draft, "taint_numeric_coercion");
     text_list(out, ctx, draft, "taint_interp_eval_subcommands");
     set_word(out, ctx, draft, "taint_source");
     set_word(out, ctx, draft, "taint_transform");
@@ -2512,7 +2540,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
         }
     }
 
-    // --- iRules ------------------------------------------------------------
+    // iRules.
     gap_todo(out, ctx, draft, "event_requires");
     gap_todo(out, ctx, draft, "event_requirement_forms");
     gap_todo(out, ctx, draft, "event_emits");
@@ -2522,7 +2550,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     gap_todo(out, ctx, draft, "event_handler_priority");
     gap_todo(out, ctx, draft, "irules_top_level_effect");
 
-    // --- translation -------------------------------------------------------
+    // Translation.
     out.gap();
     if ctx.set(draft, "xc_translatable")
         && let Some(value) = draft["xc_translatable"].as_bool()
@@ -2536,7 +2564,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     text(out, ctx, draft, "deprecated_replacement");
     flag(out, ctx, draft, "deprecated_replacement_drop_in");
 
-    // --- descriptors -------------------------------------------------------
+    // Descriptors.
     out.gap();
     gap_todo(out, ctx, draft, "definition_body");
     manufacturer_rows(out, draft);
@@ -2564,14 +2592,14 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
         }
     }
     // No property word in the vocabulary yet — see the `remote_method` entry in
-    // `GAPS` (issue #1707).
+    // `GAPS`.
     gap_todo(out, ctx, draft, "remote_method");
 
-    // --- options -----------------------------------------------------------
+    // Options.
     option_block(out, ctx, draft);
     versioned_arg_value_rows_for(out, ctx, draft);
 
-    // --- documentation -----------------------------------------------------
+    // Documentation.
     if ctx.set(draft, "forms") {
         out.gap();
         for form in as_array(&draft["forms"]) {
@@ -2594,7 +2622,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
 
     refine_blocks(out, ctx, draft, "command_forms");
 
-    // --- subcommands -------------------------------------------------------
+    // Subcommands.
     for sub in as_array(draft.get("subcommands").unwrap_or(&Value::Null)) {
         let Some(body) = sub.as_object() else {
             continue;
@@ -3056,7 +3084,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
         }
         push_lifecycle_flags(&mut words, &mut lost, row);
         // A second-level operation with its own option table (`namespace
-        // ensemble create` vs `configure`, issue #1610) takes a block body,
+        // ensemble create` vs `configure`) takes a block body,
         // exactly as a subcommand does. An operation that declares *nothing*
         // about options — the JSON `null` — keeps the flag row and inherits;
         // an operation declaring an empty table gets an empty block, because
@@ -3366,7 +3394,7 @@ mod tests {
     /// The rendered rows, end to end, over a real shipped command: the
     /// command scope takes the statement spelling and an option takes the
     /// flag, and both load back to the very bits the draft held.
-    /// **Q12/D2's migration test.** Every Tk command that refines its
+    /// Every Tk command that refines its
     /// subcommand forms round-trips through the pack DSL: the rendered
     /// `refine` blocks reload to the same form tables the compiled specs
     /// carry. Tk's form sites are the measured blocker the descriptor
@@ -3449,8 +3477,8 @@ mod tests {
     /// The header decides the spelling, and the two never disagree: a pack
     /// declaring the newest vocabulary takes `available`, and one rendered
     /// under an older declared vocabulary keeps the legacy word — so neither
-    /// earns the loader's per-site "newer than this pack declares" notice
-    /// (#1627, in both directions).
+    /// earns the loader's per-site "newer than this pack declares" notice,
+    /// in either direction.
     #[test]
     fn the_header_and_the_body_agree_on_their_vocabulary() {
         assert_eq!(DSL_VERSION, tcl_spectcl::NEWEST_VOCABULARY_VERSION);

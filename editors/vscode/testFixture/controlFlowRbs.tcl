@@ -1,4 +1,4 @@
-# FP-RBS control-flow family (PR #634) — only the empty-foreach read fires.
+# FP-RBS control-flow family — only the empty-foreach read fires.
 proc silent_tailcall {cond} {
     if {$cond} { tailcall g } else { set r 1 }
     return $r
@@ -15,7 +15,7 @@ proc fires_empty_foreach {} {
     foreach x {} { set y $x }
     puts $y
 }
-# FP-RBS-19 (#756) — a may-run loop whose body defines the variable is assumed
+# FP-RBS-19 — a may-run loop whose body defines the variable is assumed
 # to run, so an after-loop read is silent (matches C Tcl).
 proc silent_dynamic_foreach_accumulator {items} {
     foreach v $items { lappend acc $v }

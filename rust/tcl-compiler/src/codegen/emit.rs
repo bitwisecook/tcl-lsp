@@ -21,11 +21,10 @@
 //!
 //! This seam is part of the canonical pipeline documented in
 //! `docs/design/compiler/wasm-codegen.md`: a backend implements `Emit` to map
-//! the *structure* of a Tcl procedure onto its own artifact. The first
-//! implementor is the canonical WASM pipeline's general plan
-//! ([`crate::codegen::wasm::compile_wasm`]); the working bytecode emitter is
-//! deliberately **not** retrofitted onto it (per the red-team: that is a rewrite,
-//! not a refactor — it stays on its own driver behind the byte-identity gate).
+//! the *structure* of a Tcl procedure onto its own artifact. The canonical WASM
+//! pipeline's general plan ([`crate::codegen::wasm::compile_wasm`]) implements
+//! it; the bytecode emitter deliberately does not — it stays on its own driver
+//! behind the byte-identity gate.
 //!
 //! A backend first receives the lowered statement through
 //! [`Emit::emit_typed_statement`]. Declining it preserves the original-source

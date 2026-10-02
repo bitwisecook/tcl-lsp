@@ -354,6 +354,63 @@ declare_traits! {
     DestroysVariable => DESTROYS_VARIABLE, Names, "destroys a variable";
     /// Reads the target variable before writing (`incr`, `append`, `lappend`).
     ReadsBeforeWrite => READS_BEFORE_WRITE, Names, "reads its target before writing it";
+    /// Writes its target variables only when a runtime **data** condition
+    /// holds — a `regexp` match, a `scan` conversion the input reached — and
+    /// leaves each variable's previous value in place otherwise.
+    ///
+    /// Measured identical on tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0:
+    /// a failed `regexp` leaves its match variables untouched and does *not*
+    /// create ones that did not exist, `scan {12 nope} {%d %d} p q` returns
+    /// `1` and leaves `q` alone, and `binary scan AB a1a5 c e` the same. On
+    /// the *match* path every listed variable is written, including ones with
+    /// no corresponding capture group (they get `""`), so this is a may-write
+    /// over the whole target list rather than "writes only the first N".
+    ///
+    /// [`ArgRole::VarWrite`](crate::ArgRole::VarWrite) stays on those
+    /// positions — they are the command's variable targets for every
+    /// name-aware consumer, and removing it would break the iRules
+    /// global-write checks that read the same role. This says only that the
+    /// write is a *may*-write, so the definition it appears to kill is not
+    /// dead. The command-level analogue of
+    /// [`RepeatedArgLayout::conditional_binding`](crate::repeated::RepeatedArgLayout::conditional_binding),
+    /// for targets an `arg_role_resolver` places rather than a repeated
+    /// layout.
+    ///
+    /// `string is class -failindex var` is one too: it writes `var` only when
+    /// the class test fails.
+    ///
+    /// Do **not** apply to `regsub`, `gets`, `lassign` or `catch`: each was
+    /// measured writing unconditionally, including on the failure path
+    /// (`regsub {xx} zz YY a` leaves `a` as `zz`, `gets` at EOF writes `""`),
+    /// and carries [`Traits::UNCONDITIONAL_VARIABLE_WRITE`] instead.
+    ConditionalVariableWrite => CONDITIONAL_VARIABLE_WRITE, Names,
+        "writes its target variables only when a runtime match succeeds";
+    /// Writes every variable target it names whenever it completes, on its
+    /// failure path too: `catch` binds its result and options variables
+    /// whatever the script's completion code, `gets` and `chan gets` at end
+    /// of file write `""`, `regsub` with no match writes the unchanged input,
+    /// and `lassign` writes `""` to a target with no value. `append`, `lappend` and the
+    /// `dict` mutators (`set`, `append`, `lappend`, `incr`, `unset`) create
+    /// an unset target (`append a` with no value raises instead, so it never
+    /// completes). `file tempfile nameVar`, `info default … varname` (`""`
+    /// without a default), `zlib gunzip -headerVar`, and Tcl 9's `const` and
+    /// `encoding convertto|convertfrom -failindex` (`-1` on success) write
+    /// theirs too. Measured identical on tclsh 8.4.20 (which has no `lassign`
+    /// or `dict`), 8.5.19, 8.6.18, 9.0.4 and 9.1b0.
+    ///
+    /// Only scalar writers: `array set` creates an array, which a scalar read
+    /// still raises on, and `dict update` / `dict with` write their key
+    /// variables only for keys the dictionary holds.
+    ///
+    /// The positive counterpart of [`Traits::CONDITIONAL_VARIABLE_WRITE`]: a
+    /// consumer may treat a target as set after the command only when this
+    /// trait says so. A loop header (`foreach` over an empty list leaves its
+    /// variable unset) and a may-writer carry neither. It covers the
+    /// [`ArgRole::VarWrite`](crate::ArgRole::VarWrite) targets alone, never a
+    /// variable a script argument assigns (`catch {error e; set a 1} x`
+    /// leaves `a` unset).
+    UnconditionalVariableWrite => UNCONDITIONAL_VARIABLE_WRITE, Names,
+        "writes every target variable whenever it completes";
     /// Creates a scope alias — upvar-like binding (`upvar`, `global`, `variable`).
     CreatesScopeAlias => CREATES_SCOPE_ALIAS, Names, "creates an upvar-like scope alias";
     /// Creates an alias to the interpreter's global namespace (`global`).
@@ -427,7 +484,7 @@ declare_traits! {
     /// command-prefix extraction to what they find, which keeps
     /// `[namespace code [list X]]`, `[namespace code {X a}]`, and
     /// `[namespace code X]` all resolving through one rule and no
-    /// command name in the walker (issue #923 idx 92).
+    /// command name in the walker.
     WrapsCommandPrefix => WRAPS_COMMAND_PREFIX, Callbacks, "wraps a script into a command prefix";
 
     // Safety
@@ -463,7 +520,7 @@ declare_traits! {
     /// The metaclasses all share one `definition_body` grammar, so this is a
     /// per-command fact rather than a grammar flag — it replaces the
     /// `metaclass == "oo::configurable"` spelling test the method-resolution
-    /// scan used to make (issue #1275).
+    /// scan would otherwise make.
     ConfiguresByProperty => CONFIGURES_BY_PROPERTY, Objects, "answers `configure`/`cget` from declared properties";
     /// A metaclass whose manufactured classes cannot themselves manufacture
     /// instances. Tcl 9.0's `oo::abstract` unexports every manufacturer from
@@ -807,7 +864,7 @@ declare_traits! {
     /// `link` is deliberately outside all three. `link` *creates* bareword
     /// commands in the object's namespace (`link {alias method}`), so those
     /// barewords are per-class data — not language keywords — and no
-    /// consumer may treat `link` itself as a dispatch site (issue #1026).
+    /// consumer may treat `link` itself as a dispatch site.
     ///
     /// A dialect that gained or lost `my` would propagate through this
     /// spec's `dialects` mask, so consumers query the registry rather than
@@ -907,7 +964,7 @@ declare_traits! {
     /// re-exposed (`interp expose`) or reached via
     /// `interp invokehidden`; the analyser's safe-context walk
     /// consults this flag generically — no command name appears in
-    /// the consumer (issue #945 fault 7).
+    /// the consumer.
     SafeInterpHidden => SAFE_INTERP_HIDDEN, Security, "hidden in a safe interpreter";
 
     /// Declares the enclosing file to be a loadable **package**, so the
@@ -916,7 +973,7 @@ declare_traits! {
     /// interprocedural call-site seed (`tcl_compiler::unit_scope`) refuses
     /// to treat a file's visible call sites as the complete caller set once
     /// this appears, because no project enumeration bounds a consumer in
-    /// another checkout (issue #977).
+    /// another checkout.
     ProvidesPackage => PROVIDES_PACKAGE, Packages, "declares this file a loadable package";
 
     /// Pulls another compilation unit's script into *this* interpreter, so
@@ -924,14 +981,14 @@ declare_traits! {
     /// `source`, `load`, `package require`, `auto_load`, `auto_import`.  A
     /// weaker signal than [`Traits::PROVIDES_PACKAGE`]: the loaded unit is
     /// normally a file the host's project already contains, so real
-    /// cross-file evidence can cover it (issue #977).
+    /// cross-file evidence can cover it.
     LoadsExternalUnit => LOADS_EXTERNAL_UNIT, Packages, "runs another unit's script in this interpreter";
 
     /// Publishes a command name for another unit to import or dispatch
     /// through — `namespace export`, `namespace ensemble create` /
     /// `configure`.  Like [`Traits::PROVIDES_PACKAGE`], it marks the file's
     /// commands as an API surface whose callers the file does not contain
-    /// and no enumeration bounds (issue #977).
+    /// and no enumeration bounds.
     ExportsCommand => EXPORTS_COMMAND, Packages, "publishes a command name for another unit";
 
     /// The interpreter's fallback for a command word that resolves to
@@ -945,7 +1002,7 @@ declare_traits! {
     /// consults this trait so it can enumerate those dispatches as real
     /// call sites of a module's own handler instead of seeing only its
     /// direct callers — a coincidentally-uniform set of which would
-    /// otherwise fold a genuinely runtime-varying parameter (issue #1044).
+    /// otherwise fold a genuinely runtime-varying parameter.
     /// Carried by the spec so no consumer spells the name `unknown`.
     ///
     /// Global only: a namespace-local `proc unknown` is *not* the handler
@@ -994,8 +1051,8 @@ declare_traits! {
     /// loop variable takes a different concrete value each time round, so
     /// exactly the commands carrying this trait have to be re-dispatched
     /// per element to see the whole set of names the loop installs —
-    /// `foreach t {A B} { oo::define $t { … } }` extends both `A` and `B`
-    /// (issue #923 idx 55/86).  Every *other* command in the body keeps the
+    /// `foreach t {A B} { oo::define $t { … } }` extends both `A` and `B`.
+    /// Every *other* command in the body keeps the
     /// single evaluation the ordinary walk gave it, so the simulation
     /// cannot duplicate diagnostics or scope entries.
     ///
@@ -1016,8 +1073,8 @@ declare_traits! {
     /// `namespace path` — neither of which is reachable from anywhere
     /// else. tclsh 9.0.4 at the top level: `link foo` / `my foo` /
     /// `next` / `nextto` / `self` / `classvariable v` every one raises
-    /// `invalid command name`, and `info commands ::link` is empty
-    /// (issue #1026). tclsh 8.6.14 agrees for the four it has, and an
+    /// `invalid command name`, and `info commands ::link` is empty.
+    /// tclsh 8.6.14 agrees for the four it has, and an
     /// `apply` lambda written *inside* a method body loses the context
     /// too (`invalid command name "link"`), because `apply` runs its body
     /// in the global namespace.
@@ -1048,7 +1105,7 @@ declare_traits! {
     /// `TARGET`). The analyser's class-body walk consults this trait to
     /// find the calls that populate `ClassDef::linked_members`, so the
     /// keyword is registry data rather than a `texts[0] == "link"` literal
-    /// in the walker (issue #1026).
+    /// in the walker.
     ///
     /// Deliberately *not* one of the three `TclOO` dispatch traits: `link`
     /// creates dispatching barewords, it does not dispatch — see
@@ -1099,7 +1156,7 @@ declare_traits! {
     /// [`crate::arg_role::ArgRole::NamespaceName`] word names — it brings
     /// the namespace into existence if it does not already exist, and its
     /// name word is therefore a *definition* site go-to-definition answers
-    /// with (issue #1088).
+    /// with.
     ///
     /// `namespace eval` is the only carrier, and the oracle is why.  On
     /// tclsh 9.0.4 and 8.6.16, byte-identically: two `namespace eval ::a
@@ -1124,7 +1181,7 @@ declare_traits! {
     /// A trait rather than a name list in the analyser because the set is
     /// open: a `ttk::` megawidget or a vendor Tk fork can ship another
     /// manager, and its spec should join generic geometry analysis without an
-    /// analyser edit (issue #1390).
+    /// analyser edit.
     TkGeometryManager => TK_GEOMETRY_MANAGER, Objects, "a Tk geometry manager";
 
     /// The command **stores** its script argument instead of running it —
@@ -1146,7 +1203,7 @@ declare_traits! {
     /// proof that this call completes?" reads *this* flag: unset means the
     /// body may run here, which is the safe answer for every command that
     /// has not declared otherwise. Inferring dormancy from what a command
-    /// *lacks* let the computed-metaclass walk (issue #1571) claim a class
+    /// *lacks* let the computed-metaclass walk claim a class
     /// created after `uplevel 1 $script`, a script that can abort before the
     /// creation is ever reached.
     ///
@@ -1225,6 +1282,8 @@ declare_trait_examples! {
     DefinesProcedure => flow!("proc greet {name} { return \"hello $name\" }\nputs [greet Ada]"; (0, "proc"); (0, "proc greet", "adds a command definition"), (0, "{name}", "declares its parameter"), (1, "[greet Ada]", "resolves to the new procedure"));
     DestroysVariable => flow!("set token secret\nunset token\ninfo exists token"; (1, "unset"); (0, "token", "creates variable state"), (1, "unset token", "destroys that state"), (2, "info exists token", "now returns false"));
     ReadsBeforeWrite => flow!("set count 4\nincr count 2\nputs $count"; (1, "incr"); (0, "count 4", "supplies the old value"), (1, "incr count 2", "reads it before writing the incremented value"), (2, "$count", "observes 6"));
+    ConditionalVariableWrite => flow!("set host unknown\nregexp {^(\\w+):} $line host\nputs $host"; (1, "regexp"); (0, "host unknown", "supplies the value a failed match keeps"), (1, "regexp", "writes host only when the pattern matches"), (2, "$host", "is the captured text on a match and unknown otherwise"));
+    UnconditionalVariableWrite => flow!("catch {error boom} message\nputs $message"; (0, "catch"); (0, "{error boom}", "fails with boom"), (0, "catch", "writes message on the failure path too"), (1, "$message", "is always set here and reads boom"));
     CreatesScopeAlias => flow!("set outer initial\nproc update {} { upvar 1 outer local; set local changed }\nupdate\nputs $outer"; (1, "upvar"); (0, "outer", "lives in the caller"), (1, "upvar 1 outer local", "aliases it into the procedure"), (3, "$outer", "observes the write through the alias"));
     AliasesGlobal => flow!("set ::mode old\nproc update {} { global mode; set mode new }\nupdate\nputs $::mode"; (1, "global"); (0, "::mode", "lives in the global namespace"), (1, "global mode", "aliases it in the procedure"), (3, "$::mode", "observes the global write"));
     CreatesBarrier => flow!("set script {set changed 1}\neval $script\nputs $changed"; (1, "eval"); (0, "{set changed 1}", "contains runtime-selected code"), (1, "eval $script", "blocks ordinary static dataflow across dynamic execution"), (2, "$changed", "is created by that code"));

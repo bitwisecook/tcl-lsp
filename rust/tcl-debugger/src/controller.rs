@@ -90,8 +90,7 @@ impl DebugController {
     }
 
     /// Decide whether to pause at a source-line boundary, given the line and
-    /// the current frame `level`.'s
-    /// stop decision.
+    /// the current frame `level`.
     ///
     /// Returns `Some(reason)` to stop (and the reason to report), or `None` to
     /// keep running. On a stop, the caller should [`resume`](Self::resume) with

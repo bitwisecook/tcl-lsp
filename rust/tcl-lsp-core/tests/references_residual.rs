@@ -218,7 +218,7 @@ fn references_class_includes_mixin_usage_in_other_class() {
 
 #[test]
 fn references_class_superclass_does_not_cross_a_namespace_collision() {
-    // FP guard (issue #923): two classes named `Base` in different namespaces.
+    // FP guard: two classes named `Base` in different namespaces.
     // References for `::a::Base` include the `superclass ::a::Base` site but
     // never `::b::Base`'s declaration — mirroring C's call-site resolution.
     // tclsh-proof: `namespace eval ::a {oo::class create Base {};

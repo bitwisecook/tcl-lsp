@@ -136,9 +136,10 @@ suite("Highlighting Health — helpers", () => {
     assert.strictEqual(tclLanguageIdForExtension(".iappimpl"), "tcl-iapp");
   });
 
-  // Issue #1625: the hand-written switch this replaced knew 4 of the 25
-  // registered extensions, so "Switch to Tcl" on a `.sdc` file offered plain
-  // `tcl` — dropping the file's whole dialect on the way.
+  // A hand-written switch enumerating extensions would have to cover all 25
+  // registered ones to answer correctly — e.g. so "Switch to Tcl" on a
+  // `.sdc` file offers `tcl-synopsys` rather than plain `tcl`, which would
+  // drop the file's whole dialect.
   test("covers every registered extension, not just the F5 ones", () => {
     assert.strictEqual(tclLanguageIdForExtension(".sdc"), "tcl-synopsys");
     assert.strictEqual(tclLanguageIdForExtension(".xdc"), "tcl-xilinx");

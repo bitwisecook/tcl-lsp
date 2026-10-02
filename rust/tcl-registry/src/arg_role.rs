@@ -89,6 +89,15 @@ pub enum ArgRole {
     LoopVarList,
     /// Procedure parameter list.
     ParamList,
+    /// A procedure's **static-variable list** — Jim's `proc name args ?statics?
+    /// body`. Each element is a bare `name`, a `{name value}` pair, or (from
+    /// Jim 0.83) `&name`; every one declares a variable that persists across
+    /// calls and is visible in the body without being an argument.
+    ///
+    /// Distinct from [`Self::ParamList`] on the question a call-site check
+    /// asks: statics are never supplied by the caller, so they add nothing
+    /// to the procedure's arity.
+    StaticVarList,
     /// Symbolic name (proc name, namespace name).
     Name,
     /// Pattern or regex.
@@ -156,7 +165,7 @@ pub enum ArgRole {
     /// exactly-writable command reference for find-references /
     /// go-to-definition / rename — but the **existence policy differs**:
     /// the reference must never feed the W123 unresolved-command pass
-    /// (issue #945 fault 9: reference identity and existence assertion are
+    /// (reference identity and existence assertion are
     /// orthogonal, and a probe asserts nothing).
     CommandNameProbe,
     /// An anonymous-lambda **literal** — Tcl's `apply` argument shape, a
@@ -186,7 +195,7 @@ pub enum ArgRole {
     ///
     /// A first-class namespace **reference**: the compiler records the word
     /// as a namespace occurrence so go-to-definition / hover / find-references
-    /// reach the `namespace eval` block(s) that declare it (issue #1088).
+    /// reach the `namespace eval` block(s) that declare it.
     /// Namespaces are their own symbol space in Tcl — disjoint from commands
     /// and from variables — so this is neither
     /// [`Self::CommandName`] nor [`Self::VarRead`]; a consumer that treated a
@@ -216,7 +225,7 @@ pub enum ArgRole {
     /// A word consumed **purely as a boolean** — the command runs it through
     /// `Tcl_GetBooleanFromObj` (or the Tcl-level equivalent) and its bytes
     /// are never otherwise observable, so every accepted spelling of the same
-    /// truth value is interchangeable (issue #1256).
+    /// truth value is interchangeable.
     ///
     /// That interchangeability is the whole point: it is what lets the
     /// formatter's canonical-boolean rewrite turn `-strict yes` into
@@ -253,7 +262,7 @@ pub enum ArgRole {
     ///
     /// The role exists so an analysis can *prove* what a body hands back
     /// without naming `return`: the only consumer today is the metaclass
-    /// `unknown`-dispatch proof (issue #1303), which must establish that
+    /// `unknown`-dispatch proof, which must establish that
     /// `[Widget .w]` yields `.w` rather than assume it.
     ///
     /// Stamp it only on a word whose bytes really are the result, unchanged.
@@ -276,6 +285,7 @@ impl ArgRole {
         Self::VarRead,
         Self::LoopVarList,
         Self::ParamList,
+        Self::StaticVarList,
         Self::Name,
         Self::Pattern,
         Self::Option,
@@ -320,12 +330,13 @@ impl ArgRole {
     ///
     /// The match is exhaustive on purpose: a new [`ArgRole`] that can hold a
     /// script fails to compile until someone decides which side it falls on.
-    /// That decision used to be implicit, and the walkers each carried their
-    /// own idea of it — which is how an object referenced only from a `switch`
-    /// arm came to be invisible to the reference graph that `bigip-cleanup`
-    /// decides deletions from. A clause list is not an [`ArgRole::Body`], so
-    /// nothing descended into it (see [`crate::CommandSpec::case_list`], which
-    /// carries the scripts a role cannot).
+    /// Leaving that decision to each walker's own judgement is the hazard
+    /// this closes: an object referenced only from a `switch` arm could
+    /// otherwise go invisible to the reference graph that `bigip-cleanup`
+    /// decides deletions from, because a clause list is not an
+    /// [`ArgRole::Body`] and nothing descends into it (see
+    /// [`crate::CommandSpec::case_list`], which carries the scripts a role
+    /// cannot).
     ///
     /// [`ArgRole::Body`] is a complete script. [`ArgRole::Expr`] is not, but the
     /// `[…]` substitutions inside it are, and they run with the same effects a
@@ -347,6 +358,7 @@ impl ArgRole {
             | Self::VarRead
             | Self::LoopVarList
             | Self::ParamList
+            | Self::StaticVarList
             | Self::Name
             | Self::Pattern
             | Self::Option
@@ -391,6 +403,7 @@ impl ArgRole {
             | Self::VarRead
             | Self::LoopVarList
             | Self::ParamList
+            | Self::StaticVarList
             | Self::Name
             | Self::Pattern
             | Self::Option
@@ -419,8 +432,8 @@ impl ArgRole {
     /// `info exists m` read `m` exactly as `$m` does), the dead-store
     /// suppressor's command-substitution scan (a **braced** word in this role
     /// is a *literal* name, so a `$x` inside it is part of that name and not
-    /// a read of `x` — issue #1109), and the cursor resolver that answers
-    /// which cell a brace-quoted name word denotes (issue #1108).
+    /// a read of `x`), and the cursor resolver that answers
+    /// which cell a brace-quoted name word denotes.
     ///
     /// [`Self::LoopVarList`] is deliberately excluded: that word is a *list*
     /// of names, not one name, so a consumer must split it before it has a
@@ -439,6 +452,7 @@ impl ArgRole {
             | Self::CommandNameProbe
             | Self::LoopVarList
             | Self::ParamList
+            | Self::StaticVarList
             | Self::Name
             | Self::Pattern
             | Self::Option
@@ -493,6 +507,7 @@ impl ArgRole {
             | Self::VarRead
             | Self::LoopVarList
             | Self::ParamList
+            | Self::StaticVarList
             | Self::Name
             | Self::Pattern
             | Self::Option
@@ -588,6 +603,13 @@ impl ArgRole {
                 (0, "{width height}", "declares the locals the body may read"),
                 (0, "$width * $height", "reads those locals"),
                 (1, "area 3 4", "must supply exactly two words or reports E002/E003"),
+            ),
+            Self::StaticVarList => worked_example!(
+                "proc counter {} {{n 0}} { incr n }\nputs [counter]\nputs [counter]";
+                carrier (0, "{{n 0}}");
+                (0, "{{n 0}}", "declares n, initialised once when the proc is defined and kept between calls"),
+                (0, "incr n", "reads and writes that persistent cell, so it is not a read before set"),
+                (1, "counter", "supplies no argument for n: a static never adds to the arity"),
             ),
             Self::Name => worked_example!(
                 "proc greet {who} { puts \"hello $who\" }\ngreet Ada";

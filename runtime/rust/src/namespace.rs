@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Command namespaces (T1.5) — the command-table-as-core-service.
+//! Command namespaces — the command-table-as-core-service.
 //!
 //! The runtime's command lookup is **one** `resolve(currentNs, name) → Command`
 //! function (the command-binding contract's A1/A2 — see
@@ -66,7 +66,7 @@ pub enum RenameOutcome {
     /// this also catches a same-slot "self-rename" like `rename foo foo`,
     /// which tclsh 9.0.4 refuses too, since the source is still occupying
     /// that slot at check time); both `old` and the occupant at `new` are
-    /// left untouched (issue #1412 item 1).
+    /// left untouched.
     TargetExists,
 }
 
@@ -315,7 +315,7 @@ pub struct Namespaces {
     /// C keeps a dying Namespace alive through its activation/token refs.
     dying_children: BTreeMap<(NsId, Vec<u8>), NsId>,
     dying: BTreeSet<NsId>,
-    /// M11: Tcl 8.x resolves an unqualified variable at **namespace scope**
+    /// Tcl 8.x resolves an unqualified variable at **namespace scope**
     /// to the global variable when the namespace has none but the global
     /// namespace does (reads and writes both); 9.0 removed the fallback
     /// (TIP 278, `TCL_NAMESPACE_ONLY`).  Defaults to the 9.0 behaviour
@@ -712,7 +712,7 @@ impl Namespaces {
     /// (C creates them even when the rename is later refused). A trailing
     /// separator run names the empty-string `{}` command in the full qualifier
     /// chain (`rename foo x::` binds `::x::`, `rename bar ::` the global `{}` —
-    /// tclsh 8.6/9.0-pinned, #934), matching `command_home_ns` / `home_of`.
+    /// tclsh 8.6/9.0-pinned), matching `command_home_ns` / `home_of`.
     fn destination_of(&mut self, current: NsId, new: &[u8]) -> Option<(NsId, Vec<u8>)> {
         let absolute = new.starts_with(b"::");
         let segments = split_qualifier(new);
@@ -931,7 +931,7 @@ impl Namespaces {
         // A written name ending in a separator run names the empty-string
         // `{}` command inside its FULL qualifier chain — every segment is a
         // namespace part, none is the tail (`proc x:: {} {}` defines
-        // `::x::`, tclsh 8.6/9.0-pinned, #934) — mirroring `home_of`'s
+        // `::x::`, tclsh 8.6/9.0-pinned) — mirroring `home_of`'s
         // resolution split so definition and dispatch agree.
         let ns_parts: &[&[u8]] = if ends_with_separator(name) || name.is_empty() {
             &segments[..]
@@ -1030,7 +1030,7 @@ impl Namespaces {
         !self.dead.contains(&ns) && !self.dying.contains(&ns)
     }
 
-    // -- activations and deferred teardown (C's `activationCount`) -----------
+    // activations and deferred teardown (C's `activationCount`)
 
     /// Count the activation `Tcl_PushCallFrame` adds when a call frame starts
     /// running in `ns`.
@@ -1092,7 +1092,7 @@ impl Namespaces {
         false
     }
 
-    // -- per-namespace variable tables (the variable resolver's storage) ------
+    // per-namespace variable tables (the variable resolver's storage)
 
     /// For a **qualified** variable name, the `(namespace, simple tail)` it
     /// addresses, or `None` if that namespace doesn't exist. Absolute when
@@ -1193,7 +1193,7 @@ impl Namespaces {
         out
     }
 
-    // -- the `namespace` command surface --------------------------------------
+    // the `namespace` command surface
 
     /// The fully-qualified name a command `name` resolves to from `current`
     /// (`namespace which -command`), or `None` if it doesn't resolve.
@@ -1726,7 +1726,7 @@ impl Namespaces {
         self.arena[ns].commands.remove(name).is_some()
     }
 
-    // -- helpers --------------------------------------------------------------
+    // helpers
 
     /// Locate the namespace + simple name that *holds* the binding `name`
     /// resolves to, following C Tcl's full command-resolution order
@@ -1754,7 +1754,7 @@ impl Namespaces {
         // A name ending in a separator run — or consisting only of colons, or
         // empty — names the empty-string `{}` command in the qualified
         // namespace; `qualifier_segments` drops that empty tail, so restore
-        // it (#934: with `proc {} {} {}` defined, `::` and `:::` both
+        // it (with `proc {} {} {}` defined, `::` and `:::` both
         // dispatch it, tclsh 8.6/9.0-pinned).
         let (simple, ns_parts): (&[u8], &[&[u8]]) = if ends_with_separator(name) || name.is_empty()
         {

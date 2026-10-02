@@ -40,7 +40,6 @@ class TclFileType private constructor() : LanguageFileType(TclLanguage) {
             "itcl",
             "tm",
             "test",
-            "globals",
             "exp",
             "expect",
             "scf",
@@ -51,12 +50,13 @@ class TclFileType private constructor() : LanguageFileType(TclLanguage) {
             "irule",
             "irules",
             "tmsh",
+            "tclspec",
+            "sslictcl",
+            "globals",
             "qsf",
             "qpf",
             "qip",
             "do",
-            "tclspec",
-            "sslictcl",
             "sdc",
             "upf",
             "xdc",
@@ -66,7 +66,7 @@ class TclFileType private constructor() : LanguageFileType(TclLanguage) {
 
         // The statically contributed extensions, plus whatever a discovered
         // SpecTcl pack claims and the plugin has managed to associate with one
-        // of its file types (issue #1650). Without the second half a
+        // of its file types. Without the second half a
         // pack-claimed file would open as Tcl and still get no language
         // server, since this is what decides whether to start one.
         @JvmStatic

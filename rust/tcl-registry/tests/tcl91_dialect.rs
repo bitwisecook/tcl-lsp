@@ -24,7 +24,7 @@
 //! observable over LSP; the observable completion / W003 behaviour is covered
 //! by the `lsp_e2e` suite.
 
-use tcl_dialect::available_dialects;
+use tcl_dialect::model::EnvironmentRegistry;
 use tcl_dialect::model::SpecSurface;
 use tcl_dialect::model::surface_admits;
 use tcl_dialect::model::{Family, SurfaceQuery};
@@ -40,7 +40,11 @@ fn tcl91_is_a_known_catalogued_dialect() {
         tcl_dialect::DialectProfile::find("tcl9.1").map(tcl_dialect::DialectProfile::surface_query),
         Some(SurfaceQuery::core(Family::Tcl, "9.1"))
     );
-    assert!(available_dialects().contains(&"tcl9.1"));
+    assert!(
+        EnvironmentRegistry::compiled_selectable()
+            .iter()
+            .any(|environment| environment.id.as_str() == "tcl9.1")
+    );
 }
 
 #[test]
@@ -70,6 +74,40 @@ fn unicode_is_91_only_with_normalization_subcommands() {
             .unwrap_or_else(|| panic!("unicode {name}"));
         assert!(sub.pure, "unicode {name} is a pure normalization");
         assert!(sub.options.iter().any(|o| o.name == "-profile"));
+    }
+}
+
+#[test]
+fn grapheme_is_91_only_with_its_ensemble_arities() {
+    use tcl_registry::ArgRole;
+    // generic/tclGrapheme.c (9.1.0; absent from 9.1b0): `tclGraphemeImplMap`,
+    // arities from each subcommand's `Tcl_WrongNumArgs`.
+    let r = reg();
+    for name in ["::tcl::unsupported::grapheme", "tcl::unsupported::grapheme"] {
+        let spec = r.get(name).unwrap_or_else(|| panic!("{name} registered"));
+        assert!(spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.1"))));
+        assert!(!spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.0"))));
+        for (sub, args) in [
+            ("index", 2),
+            ("length", 1),
+            ("next", 2),
+            ("offset", 2),
+            ("prev", 2),
+            ("range", 3),
+            ("reverse", 1),
+            ("split", 1),
+        ] {
+            let s = spec
+                .subcommand(sub)
+                .unwrap_or_else(|| panic!("{name} {sub}"));
+            assert_eq!(s.arity, tcl_registry::Arity::exact(args), "{name} {sub}");
+        }
+        for sub in ["next", "prev"] {
+            let s = spec.subcommand(sub).unwrap();
+            assert!(!s.pure, "{sub} writes indexVar");
+            assert_eq!(s.arg_roles, &[(1, ArgRole::VarWrite)], "{sub}");
+        }
+        assert!(spec.subcommand("split").unwrap().pure);
     }
 }
 
@@ -192,8 +230,7 @@ fn lfilter_is_a_91_list_loop() {
 fn coroutine_probe_and_inject_run_arbitrary_code() {
     // doc/coroutine.n (9.1): `coroprobe` evaluates a command in the coroutine
     // now; `coroinject` schedules one for the next resume.  Both run arbitrary
-    // code → an Unknown read+write effect (like `eval` / `uplevel`), which was
-    // previously unencoded.
+    // code → an Unknown read+write effect (like `eval` / `uplevel`).
     use tcl_registry::side_effects::SideEffectTarget;
     let r = reg();
     for name in ["coroprobe", "coroinject"] {

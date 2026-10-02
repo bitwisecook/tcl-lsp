@@ -31,7 +31,7 @@
 //! ## What "unequal" is allowed to mean
 //!
 //! Exactly the keys [`render_spectcl::GAPS`] names, and nothing else. Each is
-//! one of three kinds, and each kind is a different claim:
+//! one of four kinds, and each kind is a different claim:
 //!
 //! - [`GapKind::DraftOpaque`] — the DSL *has* a spelling and the loader reads
 //!   it, but the draft model records the field as "set, expression not
@@ -41,6 +41,8 @@
 //! - [`GapKind::LoaderGap`] — the draft holds the value and the design memo
 //!   documents a spelling, but no loader reader exists yet.
 //! - [`GapKind::Excluded`] — a pack may not author the field at all.
+//! - [`GapKind::PackLevel`] — a row of a pack-level block (`environment`),
+//!   which no per-command draft key holds.
 //!
 //! **Native hooks are deliberately not in that list.** A hook field renders as
 //! `field -native ID`, the loader installs its family's abstention, and
@@ -341,7 +343,7 @@ fn only_implied_command_prefix_roles(rendered: &Value, shipped: &Value) -> bool 
     implied == shipped_roles && !prefixes.is_empty()
 }
 
-/// Arity windows survive render → load → re-seed (issue #1627).
+/// Arity windows survive render → load → re-seed.
 ///
 /// The whole-surface trip above cannot cover them: every shipped spec has
 /// empty `arity_windows`, so the field is absent from every draft it visits
@@ -640,7 +642,7 @@ fn every_command_in_every_dialect_round_trips_through_spectcl() {
             gap.key,
             gap.kind,
             match gap.kind {
-                GapKind::DraftOpaque | GapKind::LoaderGap => gap.spelling,
+                GapKind::DraftOpaque | GapKind::LoaderGap | GapKind::PackLevel => gap.spelling,
                 GapKind::Excluded => "excluded from what a pack may author",
             }
         );
@@ -815,7 +817,7 @@ fn statement_words(source: &str, _command: &str) -> BTreeSet<String> {
 }
 
 /// A second-level subcommand that carries its own option table is written as a
-/// **block**, and the block survives the round trip (issue #1610).
+/// **block**, and the block survives the round trip.
 ///
 /// `namespace ensemble create` and `configure` are the case the field exists
 /// for: two different C option tables (`ensembleCreateOptions` /
@@ -899,8 +901,7 @@ fn a_sub_subcommands_own_option_table_survives_the_round_trip() {
 /// no block at all says "this operation declares nothing, use the
 /// subcommand's". If the DSL could only spell the second, the round trip would
 /// quietly turn `namespace ensemble exists`'s empty table back into an
-/// inheriting one and re-offer it the parent's union (issue #1610, Codex
-/// review).
+/// inheriting one and re-offer it the parent's union.
 #[test]
 fn an_empty_sub_subcommand_option_block_means_empty_not_inherit() {
     let shipped = load_command("namespace", "tcl").expect("tcl has `namespace`");

@@ -47,8 +47,7 @@ fn lmap_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 /// `?varlist list?...` repeats before the trailing body: the variable specs
 /// sit at every other argument from 0, and the body — the last word — is
 /// excluded.  The role resolver marks that body; this declares the repeating
-/// head so no consumer has to re-derive the stride from the command's name
-/// (issue #1185).
+/// head so no consumer has to re-derive the stride from the command's name.
 static REPEATED: &[RepeatedArgLayout] = &[RepeatedArgLayout {
     exclude_trailing: 1,
     ..RepeatedArgLayout::strided(ArgRole::LoopVarList, 0, 2)
@@ -90,8 +89,8 @@ pub fn spec() -> CommandSpec {
         // `foreach`: n varList/list pairs (n >= 1) plus one command body, so a
         // valid count is odd and >= 3.  An even count is `wrong # args`
         // (verified against tclsh 9.0.4: `lmap a b c d` → `wrong # args: should
-        // be "lmap varList list ?varList list ...? command"`).  Previously
-        // `at_least(3)`, which missed the odd/even parity `foreach` enforces.
+        // be "lmap varList list ?varList list ...? command"`).  A bare
+        // `at_least(3)` would miss the odd/even parity `foreach` enforces.
         arity: Arity::stepped(3, Arity::UNLIMITED, 2),
         arg_role_resolver: Some(lmap_arg_roles),
         arg_role_resolver_roles: &[ArgRole::Body],

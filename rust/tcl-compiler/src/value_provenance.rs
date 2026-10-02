@@ -21,7 +21,7 @@
 //! Answers, at a specific program point (an SSA use of a variable), the
 //! question "which *written constants* can this variable hold here, and
 //! where in the source is each one written?" — the fact the constant-
-//! `$cmd` dispatch settlement needs (issue #945 faults 1 and 2):
+//! `$cmd` dispatch settlement needs:
 //!
 //! * the **value set** must be flow-sensitive: a `set cmd bar` inside an
 //!   `if` arm *joins* the outer `set cmd foo` at the dispatch point, it
@@ -142,8 +142,8 @@ fn pure_copy_source(value: &str) -> Option<&str> {
 /// whitespace, so Tcl's own `list` command needs no brace/backslash
 /// quoting to represent it (tclsh9.0/8.6-verified: `[list a b]` is
 /// byte-identical to the string `"a b"` for such elements). Deliberately
-/// narrow — the exact shape issue #923 idx 94's own repro needs, not a
-/// general `list`-command simulator: any element needing quoting protection
+/// narrow — not a general `list`-command simulator: any element needing
+/// quoting protection
 /// (containing whitespace, braces, or another special character) bails, as
 /// does anything other than a single, whole-value `[list ...]` call.
 ///
@@ -368,9 +368,9 @@ fn contributor_from_stmt(
                 return collect(fu, index, src_sym, src_version, visited, out, config);
             }
             // A `[list W1 W2 ...]` value whose every element is a plain
-            // literal folds to the space-joined string — issue #923 idx
-            // 94's own minimal repro (`set cmdD [list greetD World]; eval
-            // $cmdD`). The joined *value* has no single source span (it's
+            // literal folds to the space-joined string (`set cmdD [list greetD
+            // World]; eval $cmdD`). The joined *value* has no single source
+            // span (it's
             // synthesised from several separate argument tokens), but the
             // first element — the actual command-dispatch anchor, the only
             // part `settle_one_site`'s `head_expanded` narrowing ever reads

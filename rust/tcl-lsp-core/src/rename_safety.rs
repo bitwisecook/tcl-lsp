@@ -34,7 +34,7 @@
 //!
 //! # What is gated
 //!
-//! ## Untracked receivers (issue #923 differential-audit finding idx 79)
+//! ## Untracked receivers
 //!
 //! ```tcl
 //! oo::class create Vector3d {
@@ -52,8 +52,8 @@
 //! by a runtime `info object isa` test.  The analyser's
 //! `instance_classes` therefore has no binding for it, and the reference
 //! scan ([`crate::references::find_obj_method_call_sites`]) correctly does
-//! not match the site.  Renaming `X` used to emit an edit set touching only
-//! the declaration; applying it and running under both interpreters gives
+//! not match the site.  An edit set that touched only the declaration would,
+//! applied and run under both interpreters, give
 //! `unknown method "X": must be Get, GetX, Y or destroy`.
 //!
 //! The receiver's class cannot be *proved* to be this class — and it cannot
@@ -80,7 +80,7 @@
 //! word for it (an `oo::define` block the class record does not span), the
 //! rename is refused rather than emitted incomplete.
 //!
-//! ## Ambiguous object commands (issue #981, object-command half)
+//! ## Ambiguous object commands
 //!
 //! `CLASS create NAME` binds `NAME` in the *creation site's* namespace, so
 //! `::a::Factory create rex` and `::b::Widget create rex` are two different
@@ -99,7 +99,7 @@
 //! may be naming the very cell being renamed, with no word to rewrite — so
 //! a rename that would touch that namespace is refused.
 //!
-//! The refusal is decided **per site**, not per document (issue #1093): a
+//! The refusal is decided **per site**, not per document: a
 //! word's written text bounds the names it can produce, because a
 //! substitution can evaluate to anything but the literal characters around it
 //! cannot change.  `set ::other::$n 1` therefore stops refusing a rename of
@@ -178,7 +178,7 @@ pub struct MethodRenameTarget<'a> {
     /// its dispatches are: renaming a member whose declaration site is a
     /// `renamemethod`'s destination word rewrites that word, and for some names
     /// the result is a class definition real Tcl refuses to run
-    /// ([`renamed_member_would_abort`], issue #1121 review).
+    /// ([`renamed_member_would_abort`]).
     pub new_name: &'a str,
 }
 
@@ -202,7 +202,7 @@ pub fn method_rename_hazard(
 }
 
 /// The requested new name would turn a `renamemethod` in this document into one
-/// that **aborts the whole class definition** (issue #1121 review).
+/// that **aborts the whole class definition**.
 ///
 /// A moved member's declaration site *is* the `renamemethod`'s destination word
 /// (that is what makes the arrived member navigable at all), so renaming it
@@ -243,9 +243,9 @@ fn renamed_member_would_abort(
         // A `renamemethod` acts on exactly one of the class's two method
         // tables, and so does the member being renamed — so a move on the
         // *other* side is not evidence about this rename at all. Without this
-        // filter an instance-side `renamemethod old same` refused an unrelated
-        // class-side `self method same` -> `old`, which real Tcl runs happily
-        // (issue #1178 review). Oracle, byte-identical on 9.0.4 and 8.6.14:
+        // filter an instance-side `renamemethod old same` would refuse an
+        // unrelated class-side `self method same` -> `old`, which real Tcl
+        // runs happily. Oracle, byte-identical on 9.0.4 and 8.6.14:
         //
         //   oo::class create ::P2 { method old {} { return inst-old }
         //                           renamemethod old same
@@ -352,7 +352,7 @@ fn unlocatable_member_reference(
         // Both sides count. The word is load-bearing wherever it was written,
         // and a `self export X` / `self filter X` left behind breaks the class
         // command's dispatch of the renamed member exactly as an unwrapped one
-        // breaks an instance's (issue #1119) — so the class-side sets have to
+        // breaks an instance's — so the class-side sets have to
         // be consulted here or the refusal silently stops covering them.
         let recorded = class_def.exports.contains(target.method)
             || class_def.unexports.contains(target.method)
@@ -390,7 +390,7 @@ fn unlocatable_member_reference(
 /// Two different classes binding the very same **qualified** object-command
 /// name (`::a::Factory create rex` and `::a::Widget create rex`).
 ///
-/// Namespace scoping (issue #981) tells `::a::rex` from `::b::rex`, but two
+/// Namespace scoping tells `::a::rex` from `::b::rex`, but two
 /// creations of the same qualified name are genuinely indistinguishable: a
 /// later `rex make` reaches whichever creation ran last, which is a runtime
 /// fact.  Rewriting either class's `make` would rewrite call sites that may
@@ -439,7 +439,7 @@ fn tail_of(qualified: &str) -> &str {
 /// A dispatch site this rename can neither rewrite nor rule out.
 ///
 /// * **untracked receiver, literal member word** — `$v METHOD`, where `v`
-///   has no class binding at all (idx 79's `$args X` / `$other X`).  The
+///   has no class binding at all (`$args X` / `$other X`).  The
 ///   receiver may be an instance of the renamed class; nothing in the
 ///   source says it isn't.
 /// * **computed member word on a receiver of this family** — `$v $m` /
@@ -486,7 +486,7 @@ fn dispatch_hazard(
             // The receiver's class binding: the analyser's `instance_classes`
             // walk first, then the object-type lattice's scope-keyed map — a
             // **singleton** there is the same sound fact the reference scan
-            // rewrites through (issue #994 C5b), so a site the scan covers is
+            // rewrites through, so a site the scan covers is
             // no hazard and a site provably of a *different* class is not
             // either.  A multi-class or absent lattice binding stays the
             // untracked-receiver refusal: widening an abstention into "not
@@ -557,7 +557,7 @@ fn dispatch_hazard(
 ///
 /// Shared with [`crate::namespace_rename`] so the two rename gates scan the
 /// same regions — a gate that visits fewer regions than its edit collector is
-/// a hollow guarantee (issue #1092).
+/// a hollow guarantee.
 pub(crate) fn walk_document(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
@@ -688,7 +688,7 @@ fn slice(source: &str, span: Span) -> Option<&str> {
 /// [`tcl_compiler::dynamic_names::names_a_dynamic_variable`]'s.  No command
 /// name is matched here.
 ///
-/// # Per-site provenance (issue #1093)
+/// # Per-site provenance
 ///
 /// The refusal is **per site**, not per document: a dynamic word refuses only
 /// when it can be proved *unprovable* — when the names it can produce include
@@ -697,26 +697,26 @@ fn slice(source: &str, span: Span) -> Option<&str> {
 /// around it cannot change, so
 /// [`tcl_compiler::dynamic_names::dynamic_variable_word_can_spell`] treats the
 /// word as a pattern and the cell's spellings as the candidates.  `set
-/// ::other::$n 1` beside a rename of `::ns::v` no longer refuses; `variable
-/// $n` inside `::ns` still does, which is the issue's own oracle
+/// ::other::$n 1` beside a rename of `::ns::v` does not refuse; `variable
+/// $n` inside `::ns` does, which the oracle bears out
 /// (`namespace eval ns { variable v 1; proc bump {n} {variable $n; set $n 2} }`
 /// really does reach the cell through `ns::bump v`).
 ///
 /// Abstain-toward-refuse is unchanged — the predicate answers "could spell it"
 /// for everything it cannot rule out.
 ///
-/// # Per-site value provenance (issue #1262)
+/// # Per-site value provenance
 ///
 /// A lone `$n` is a bare wildcard, so the text bound alone rules nothing out.
 /// The *value* set can: the analyser resolves each computed name word through
 /// the constant lattice that **dominates** it and carries the answer out on
 /// [`AnalysisResult::dynamic_variable_names`](tcl_compiler::analyser::AnalysisResult::dynamic_variable_names),
 /// so `namespace eval ::ns { variable v 1; proc p {} { set n other; set $n 2 } }`
-/// no longer refuses a rename of `::ns::v` — that `$n` is provably `other`.
+/// does not refuse a rename of `::ns::v` — that `$n` is provably `other`.
 ///
 /// Narrowing only ([`site_resolution_rules_out`]): a site whose resolution is
 /// branch-dependent or parameter-fed, and a site the walk never reached, keep
-/// refusing exactly as before.  The residual is everything the dominating
+/// refusing.  The residual is everything the dominating
 /// -constant lattice does not track — a value from a `[…]` substitution, a
 /// caller-supplied parameter, an `upvar`-aliased name.
 #[must_use]
@@ -763,7 +763,7 @@ pub fn namespace_variable_rename_hazard(
                 };
                 // …and neither is one whose *value* the analyser proved:
                 // `set n other; set $n 2` names `other` at that site, never
-                // this cell, however wildcard the text is (issue #1262).
+                // this cell, however wildcard the text is.
                 // Narrowing only — a site with no recorded resolution, or one
                 // the analyser's walk never reached, keeps refusing.
                 if site_resolution_rules_out(analysis, tok.span, cell, dialect) {
@@ -790,7 +790,7 @@ pub fn namespace_variable_rename_hazard(
 }
 
 /// Whether the analyser's per-site provenance proves the dynamic name word at
-/// `span` cannot spell `cell` (issue #1262).
+/// `span` cannot spell `cell`.
 ///
 /// The word's *text* bounds the names it can produce, but a bare `$n` is a
 /// lone wildcard and bounds nothing.  The analyser knows more while it walks:
@@ -826,8 +826,8 @@ fn site_resolution_rules_out(
 /// Refuse a **variable** rename whose target's name can only be written
 /// quoted — `{$n}` / `${$n}`, `{a b}` / `${a b}`, `{[gen]}`.
 ///
-/// Such a variable is perfectly legal and, since #1078, correctly modelled as
-/// its own cell (tclsh 9.0.4 / 8.6.14: `set {$n} v; info exists {$n}` → 1
+/// Such a variable is perfectly legal and is modelled as its own cell
+/// (tclsh 9.0.4 / 8.6.14: `set {$n} v; info exists {$n}` → 1
 /// while `info exists n` → 0).  What it is *not* is renameable by span
 /// substitution, which is all the variable-rename edit builder does:
 ///
@@ -838,8 +838,8 @@ fn site_resolution_rules_out(
 ///   name, so every occurrence would need its quoting recomputed — including
 ///   read sites spelt `${$n}`, whose `${…}` may or may not survive.
 ///
-/// Guessing produces a script that no longer parses, so the rename is refused
-/// with the reason, following the #1091 typed-refusal precedent.  A rename
+/// Guessing produces a script that no longer parses, so the rename is
+/// refused with a typed reason.  A rename
 /// **to** such a name never gets this far: `is_safe_symbol_name` already
 /// rejects new names carrying `$` / whitespace / brackets.
 #[must_use]
@@ -926,14 +926,14 @@ mod tests {
         .map(|r| r.reason)
     }
 
-    /// Issue #923 differential-audit finding idx 79, in its own shape.
+    /// The untracked-receiver hazard in its own shape.
     ///
     /// nico-robert/tomato's `Vector3d.tcl` copy-constructor: `$other` is
     /// `[lindex $args 0]` guarded by a runtime `info object isa` test, so it
     /// really is a `Vector3d` at run time (tclsh 9.0.4 / 8.6.16 both print
-    /// `v2 = 7 9`) but the analyser has no binding for it.  The rename used to
-    /// emit an edit set touching only the declaration; applying exactly that
-    /// and re-running gives, on both interpreters:
+    /// `v2 = 7 9`) but the analyser has no binding for it.  An edit set
+    /// touching only the declaration, applied and re-run, gives on both
+    /// interpreters:
     ///
     /// ```text
     /// unknown method "X": must be Get, GetX, Y or destroy
@@ -1051,7 +1051,7 @@ mod tests {
         assert_eq!(hazard(src, &["::Dog"], "speak", false), None);
     }
 
-    /// FP guard, issue #981's object-command half: two classes binding the
+    /// FP guard, the object-command half: two classes binding the
     /// *same qualified* object command.  `::a::Factory create rex` twice over
     /// (here with two different classes in one namespace) leaves which class
     /// a later `rex make` reaches a runtime fact — the second `create`
@@ -1115,8 +1115,8 @@ mod tests {
         .map(|r| r.reason)
     }
 
-    /// PR #1645 review (Codex, P2) — the rename gate reads a computed name's
-    /// `${…}` extent under the **document's** close rule, not the 9.x default.
+    /// The rename gate reads a computed name's `${…}` extent under the
+    /// **document's** close rule, not the 9.x default.
     ///
     /// The literal characters around a substitution are the whole bound this
     /// gate rests on, so the two release rules move the decision in opposite
@@ -1185,9 +1185,9 @@ mod tests {
         assert_eq!(var_hazard(src, "::ns::v"), None);
     }
 
-    // Issue #1093 — per-site provenance.  The refusal now asks whether *this*
-    // word can spell *this* cell, instead of refusing on any dynamic word
-    // anywhere in the document.
+    // Per-site provenance.  The refusal asks whether *this* word can spell
+    // *this* cell, rather than refusing on any dynamic word anywhere in the
+    // document.
 
     /// TN: a dynamic word under a different, statically-written namespace
     /// cannot spell a cell in `::ns`, so the rename proceeds.
@@ -1252,12 +1252,12 @@ mod tests {
         assert!(reason.contains("computed at run time"), "{reason}");
     }
 
-    // Issue #1262 — per-site *value* provenance.  The text bound cannot see
-    // what a lone `$n` holds; the analyser's dominating-constant lattice can,
-    // and now carries the answer out on `dynamic_variable_names`.
+    // Per-site *value* provenance.  The text bound cannot see what a lone
+    // `$n` holds; the analyser's dominating-constant lattice can, and carries
+    // the answer out on `dynamic_variable_names`.
 
-    /// TN, the issue's own shape: a `$n` whose dominating constant is
-    /// provably a different name no longer refuses.
+    /// TN: a `$n` whose dominating constant is provably a different name does
+    /// not refuse.
     ///
     /// tclsh-proof (8.6.14): `namespace eval ::ns {variable v 1; proc p {}
     /// {set n other; set $n 2}}; ::ns::p; info exists ::ns::v` -> 1 and
@@ -1344,7 +1344,7 @@ mod tests {
         );
     }
 
-    // Issue #1121 review — a moved member's declaration site is the
+    // A moved member's declaration site is the
     // `renamemethod`'s destination word, so renaming it rewrites that word and
     // some new names produce a body real Tcl refuses to run.  The gate reads
     // the same `RenamedMember` fold the W315 diagnostic does.
@@ -1488,7 +1488,7 @@ mod tests {
         );
     }
 
-    /// TN (CRITICAL, issue #1178 review): the hazard is **side-local**. An
+    /// TN (CRITICAL): the hazard is **side-local**. An
     /// instance-side `renamemethod old same` says nothing about a
     /// class-object-side `same`, so renaming that class-side member to `old` is
     /// legal and must not be refused. Oracle, byte-identical on tclsh 9.0.4 and

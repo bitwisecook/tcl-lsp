@@ -1,3 +1,81 @@
+# v2.2.5
+
+A stable patch with a broad correctness sweep. The bytecode VM and the WASM
+runtime gained a long run of TclOO and command-lifecycle fixes, the refactor
+engine now reads variables and command boundaries the way the segmenter does,
+and `# noqa` is finally honoured the same way everywhere. The language server
+also stops outliving the editor that started it.
+
+## New features
+
+- iRule translation to F5 Distributed Cloud renders pasteable **XC Console
+  documents**, derives DNS-1035-safe object names, and ships the accompanying
+  docs set.
+- The BIG-IP object-graph, embedded-rule, minimiser and partition-rename
+  commands, and `tcl-lsp.xcTranslate`, are dispatched by the language server,
+  so every editor gets them rather than only the ones with bespoke wiring.
+- The workspace scan's file budget is a setting, so a large monorepo can raise
+  it instead of silently indexing a truncated workspace.
+- The registry answers which substitutions a call performs, and the Spec Studio
+  forms expose the resolver.
+- IRULE5001 honours the debug gate its message has always promised, and stays
+  off bodies that always run.
+
+## Improvements
+
+- `# noqa` is honoured by `diag`, `lint` and `validate` through one shared
+  helper; `disable=*` works on an abstaining document; and a quick-fix is no
+  longer offered for a check a `noqa` already silences. A marker must be a real
+  `# noqa`, not the bare word appearing in prose.
+- The CLI reports the source-text findings the editor publishes, so the two
+  surfaces agree.
+- SpecTcl corpus analysis batches synthetic calls, parallelises independent
+  overlays and shares analyser and optimiser compilation units; SslicTcl
+  consolidates its certificate metadata probes.
+- Comment and documentation prose across the tree now states what the code does
+  and why, rather than how it came to be, with UK spelling throughout —
+  including the W307 diagnostic text and the Spec Studio callback-taint help.
+
+## Bug fixes
+
+- The language server exits within a bounded grace once its session is over and
+  runs its exit watchdog on an OS thread, instead of leaving a `tcl-lsp-server`
+  process behind after the editor closes.
+- It no longer waits for the workspace index while holding the document map,
+  and refreshes every locked workspace when a dependency changes.
+- A spec-pack directory outside the workspace is watched by base URI rather than
+  an absolute glob. The old pattern was matched against the workspace instead,
+  which made eglot watch every directory in the project until it ran out of file
+  descriptors and failed to start.
+- Generating a deeply nested dict's string representation no longer recurses
+  once per level, so a dict built through `{*}` argument expansion cannot
+  overflow the native stack.
+- A long sweep of TclOO and command-lifecycle correctness in the bytecode VM and
+  the runtime: identity preserved across namespace generations and command
+  moves, retirement phased and qualified by generation, deferred tailcall
+  activations installed, command generations re-resolved after callbacks, stable
+  variable cell identity, `dict info`, `array get` element read traces, hidden
+  command execution traced, byte-valued script completions preserved, and the
+  error stack retained across an explicit `info`.
+- The refactor engine classifies extract-proc variables at the frame boundary
+  and over the whole statement tree, keeps the reads a substituting command
+  makes, reads a braced word as the literal it is, resolves inline-variable uses
+  inside command substitutions, takes extract-variable boundaries from the
+  segmenter, and guards inline-proc against a body's nested statements.
+- The optimiser stops O107 emptying complexity-guarded bodies, scopes
+  runtime-selected frame opacity to its own frame, and walks lowered `eval` and
+  `uplevel` bodies for binding effects.
+- `subst`'s switches are read only through the registry, and the binary field
+  grammar has a single owner gated per release.
+- `f5-query` names the rustls crypto provider per `ClientConfig` rather than
+  relying on a process-wide default.
+- The Sublime plugin is held to its 3.8 host in the formatter as well as the
+  plugin, and the TMM shim patchlevel is restored.
+- The GitHub Pages deploy builds again: a helper left ungated after the x509
+  caveats were removed was dead code in the report-WASM build, which denies
+  warnings.
+- W218's padding is repaired.
+
 # v2.2.4
 
 This stable patch is mostly the JetBrains plugin. Three defects made it

@@ -72,9 +72,10 @@ struct Axis {
 }
 
 /// The closed axis vocabulary (§6.2). Every value here is a value the
-/// lexer can actually be built with, or — for the two `jim*` values — a
-/// spelling reserved for the Jim branch, accepted and carried but not yet
-/// projectable onto a [`LexerGrammar`] (see [`PackDialect::to_grammar`]).
+/// lexer can actually be built with, including the `jim*` spellings on
+/// the `numbers` and `escapes` axes, which [`PackDialect::to_grammar`]
+/// projects onto the Jim variants of [`NumberSyntax`] and
+/// [`EscapeSyntax`].
 const AXES: &[Axis] = &[
     Axis {
         name: "expand_syntax",
@@ -111,6 +112,34 @@ const AXES: &[Axis] = &[
     Axis {
         name: "bom_skip",
         values: &["on", "off"],
+    },
+    // The five axes on which Jim's parser — a reimplementation, not a
+    // fork — differs from every C Tcl release. The lexer has implemented
+    // all five since the Jim family landed; they were read by
+    // [`PackDialect::to_grammar`] but missing here, so no pack could set
+    // one and every non-default arm was unreachable (#2070). Without them
+    // the §2 classification gate could not see a pack redeclaring Jim: the
+    // nine axes above cannot express a Jim-shaped grammar, so
+    // [`PackDialect::duplicates_compiled_release`] answered `None` for one.
+    Axis {
+        name: "word_separators",
+        values: &["tcl", "jim"],
+    },
+    Axis {
+        name: "brace_backslash_newline",
+        values: &["folds", "literal"],
+    },
+    Axis {
+        name: "quote_termination",
+        values: &["strict", "concatenating"],
+    },
+    Axis {
+        name: "var_syntax",
+        values: &["tcl", "jim"],
+    },
+    Axis {
+        name: "list_parse",
+        values: &["strict", "lenient"],
     },
 ];
 
@@ -439,4 +468,220 @@ fn axis_row(dialect: &mut PackDialect, stmt: &Stmt, log: &mut Log) -> bool {
         line: stmt.line,
     });
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{AXES, PackDialect, PackDialectAxis, PackDialectRelease};
+    use std::fmt::Write as _;
+    use tcl_dialect::model::{BuildProfileId, Family};
+
+    /// Evaluate a pack declaring one `dialect` block with exactly `rows`.
+    fn dialect_pack(rows: &str) -> crate::loader::Pack {
+        crate::loader::evaluate_pack(&format!(
+            "speclib probe 2.0 {{\n dialect probed {{\n  release 1.0\n{rows} }}\n}}"
+        ))
+    }
+
+    /// A block setting exactly `axes`, without going through the loader —
+    /// so the §2 classification gate does not reject it for reproducing a
+    /// compiled grammar, which is a separate question from whether the
+    /// axis is in the vocabulary.
+    fn block_with(axes: &[(&'static str, &'static str)]) -> PackDialect {
+        PackDialect {
+            name: "probed".to_owned(),
+            releases: vec![PackDialectRelease {
+                release: "1.0".to_owned(),
+                build: BuildProfileId::default(),
+                line: 3,
+            }],
+            axes: axes
+                .iter()
+                .map(|(axis, value)| PackDialectAxis {
+                    axis,
+                    value,
+                    line: 4,
+                })
+                .collect(),
+            line: 2,
+        }
+    }
+
+    /// #2070's defect class, pinned at its source: **every axis name
+    /// `to_grammar` reads is in [`AXES`]**.
+    ///
+    /// This is the assertion the other two cannot make. Both of those
+    /// iterate `AXES`, so an axis that `to_grammar` reads and `AXES` omits
+    /// is invisible to them — which is exactly how five of them survived.
+    /// The two lists live in one file and drifted apart there, so the test
+    /// reads that file: `self.axis("NAME")` is the only way an axis value
+    /// is fetched, and every name so fetched must be settable.
+    #[test]
+    fn axes_lists_every_axis_to_grammar_reads_issue_2070() {
+        // Bounded to `to_grammar`'s own body, so this test's marker
+        // literals below do not match themselves.
+        let source = include_str!("dialect_block.rs");
+        let from = source
+            .find("pub fn to_grammar")
+            .expect("`to_grammar` by that name");
+        let to = source[from..]
+            .find("pub fn duplicates_compiled_release")
+            .expect("`duplicates_compiled_release` follows it");
+        let body = &source[from..from + to];
+
+        // Two ways an axis is read: `self.axis("NAME")` directly, and the
+        // `flag("NAME", default)` closure for the on/off axes.
+        let mut read: Vec<&str> = Vec::new();
+        for marker in ["self.axis(\"", "flag(\""] {
+            read.extend(body.match_indices(marker).filter_map(|(at, marker)| {
+                let rest = &body[at + marker.len()..];
+                rest.find('"').map(|end| &rest[..end])
+            }));
+        }
+
+        assert_eq!(
+            read.len(),
+            AXES.len(),
+            "`to_grammar` reads {} axes and AXES lists {} — {read:?}",
+            read.len(),
+            AXES.len()
+        );
+        for name in read {
+            assert!(
+                AXES.iter().any(|axis| axis.name == name),
+                "`to_grammar` reads the `{name}` axis, but it is not in AXES, \
+                 so no pack can set it and the non-default arms are unreachable"
+            );
+        }
+    }
+
+    /// #2070, first half: every axis in the closed table is *settable*.
+    ///
+    /// `axis_row` rejects a name absent from [`AXES`] and the notice names
+    /// it, rejecting the whole block — so five axes `to_grammar` reads
+    /// (`word_separators`, `brace_backslash_newline`, `quote_termination`,
+    /// `var_syntax`, `list_parse`) could never be set by any pack.
+    ///
+    /// A §2 classification notice is not a vocabulary rejection and is
+    /// expected here: most single-axis blocks do reproduce a compiled
+    /// grammar. Only the vocabulary notice is the failure.
+    #[test]
+    fn every_axis_is_in_the_closed_vocabulary_issue_2070() {
+        for axis in AXES {
+            for value in axis.values {
+                let pack = dialect_pack(&format!("  axis {} {}\n", axis.name, value));
+                let rejected: Vec<_> = pack
+                    .notices
+                    .iter()
+                    .filter(|notice| notice.message.contains("closed axis vocabulary"))
+                    .collect();
+                assert!(
+                    rejected.is_empty(),
+                    "`axis {} {}` is not in the closed vocabulary: {rejected:?}",
+                    axis.name,
+                    value
+                );
+            }
+        }
+    }
+
+    /// #2070, second half: every value on every axis reaches a distinct
+    /// grammar, so no match arm in `to_grammar` is unreachable.
+    #[test]
+    fn every_axis_value_reaches_a_distinct_grammar_issue_2070() {
+        for axis in AXES {
+            let mut seen = Vec::new();
+            for value in axis.values {
+                let grammar = block_with(&[(axis.name, value)])
+                    .to_grammar()
+                    .unwrap_or_else(|| panic!("`axis {} {}` has no grammar", axis.name, value));
+                assert!(
+                    !seen.contains(&grammar),
+                    "`axis {} {}` produces a grammar another value on the same axis \
+                     already produced — the match arm is unreachable",
+                    axis.name,
+                    value
+                );
+                seen.push(grammar);
+            }
+        }
+    }
+
+    /// #2070's consequence, not merely its dead code: the §2 classification
+    /// gate could not see a pack redeclaring Jim.
+    ///
+    /// The five missing axes are exactly the ones on which Jim's parser —
+    /// a reimplementation, not a fork — differs from every C Tcl release
+    /// (see `GRAMMAR_JIM` in `tcl-dialect`). A pack setting all nine
+    /// reachable axes to Jim's values still produced a Tcl-shaped grammar,
+    /// so `duplicates_compiled_release` answered `None` and the block was
+    /// accepted as a brand-new dialect. It is now rejected, naming Jim.
+    #[test]
+    fn a_pack_declaring_jims_grammar_is_classified_as_jim_issue_2070() {
+        const JIM: &[(&str, &str)] = &[
+            ("expand_syntax", "on"),
+            ("braced_var", "first-close"),
+            ("array_index", "tcl8"),
+            ("expr_comments", "none"),
+            ("numbers", "jim"),
+            ("escapes", "jim"),
+            ("irules_brace_separator", "off"),
+            ("brace_line_continuation", "off"),
+            ("bom_skip", "off"),
+            ("word_separators", "jim"),
+            ("brace_backslash_newline", "literal"),
+            ("quote_termination", "concatenating"),
+            ("var_syntax", "jim"),
+            ("list_parse", "lenient"),
+        ];
+
+        assert_eq!(
+            block_with(JIM)
+                .duplicates_compiled_release()
+                .map(|(family, _)| family),
+            Some(Family::Jim),
+            "grammar was {:?}",
+            block_with(JIM).to_grammar()
+        );
+
+        let mut rows = String::new();
+        for (axis, value) in JIM {
+            let _ = writeln!(rows, "  axis {axis} {value}");
+        }
+        let pack = dialect_pack(&rows);
+        assert!(
+            pack.dialects.is_empty(),
+            "the block should be rejected by the §2 gate"
+        );
+        assert!(
+            pack.notices
+                .iter()
+                .any(|notice| notice.message.contains("grammar of jim")),
+            "{:?}",
+            pack.notices
+        );
+    }
+
+    /// The `dialect` spec's own documentation restates the axis names, and
+    /// it had already drifted — it omitted `array_index` and
+    /// `brace_line_continuation` before #2070 added five more. Pin the two
+    /// lists together so the next addition cannot forget the user-facing
+    /// half.
+    #[test]
+    fn the_registry_spec_documents_every_axis_issue_2070() {
+        let specs = tcl_registry::commands::spectcl::spectcl_command_specs();
+        let dialect = specs
+            .iter()
+            .find(|spec| spec.name == "dialect")
+            .expect("a `dialect` statement spec");
+        let hover = dialect.hover.as_ref().expect("a hover snippet");
+        let documentation = format!("{} {}", hover.summary, hover.snippet);
+        for axis in AXES {
+            assert!(
+                documentation.contains(&format!("`{}`", axis.name)),
+                "the `dialect` spec does not document the `{}` axis",
+                axis.name
+            );
+        }
+    }
 }

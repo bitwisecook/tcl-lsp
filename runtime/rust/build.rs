@@ -18,7 +18,7 @@
 
 //! Build the bignum backend: compile reference libtommath to a static archive
 //! and link it, so the `TCL_BIGNUM_TYPE` obj rep can FFI the `mp_*` functions
-//! (the numeric tower's bignum rung — EXP-BIGNUM).
+//! (the numeric tower's bignum rung).
 //!
 //! Recipe (validated native + wasm32, `experiments/bignum/`): build **pristine**
 //! libtommath with `-DTCL_WITH_EXTERNAL_TOMMATH` (so its `.c` files use the real
@@ -32,8 +32,8 @@
 //! tower-less wasm build (with a `cargo:warning`) rather than failing.
 //!
 //! Source location: `$TCL_TOMMATH_DIR`, else the fetched tree at
-//! `<repo>/tmp/tcl9.0.4/libtommath`. (Vendoring the source for a
-//! fresh-checkout-reproducible build is a tracked follow-up.)
+//! `<repo>/tmp/tcl9.0.4/libtommath`. The source is not vendored, so a fresh
+//! checkout depends on one of those two being present.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -75,8 +75,8 @@ fn main() {
         //
         // A wasm32 function pointer *is* an index into this table, so an
         // emitted module that wants the runtime to call one of its functions
-        // (issue #1774's native proc entries) has to install a `ref.func` into
-        // a table the runtime can `call_indirect` over. `wasm-ld` links the
+        // (a native proc entry) has to install a `ref.func` into a table the
+        // runtime can `call_indirect` over. `wasm-ld` links the
         // table private and fixed-size by default (`(table 2 2 funcref)`),
         // which makes both halves impossible: the module cannot import it, and
         // `table.grow` on a table at its maximum returns `-1`.

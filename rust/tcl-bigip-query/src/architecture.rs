@@ -864,8 +864,6 @@ fn manifest_enrichment_json(m: &Manifest) -> (Vec<J>, Vec<J>, Vec<J>, Map<String
     (zones, interfaces, dns, maps)
 }
 
-/// Render the architecture as a left-to-right Mermaid flowchart, one subgraph
-/// per tier, edges labelled with the number of evidencing flows.
 /// Build the cross-device architecture graph as JSON —
 /// `{"nodes":[{"id","label","cls"}], "edges":[{"from","to","label"}]}` for the
 /// report's elkjs renderer. One node per device (tier folded into the label,

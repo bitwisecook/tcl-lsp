@@ -67,7 +67,7 @@ pub use tcl_dialect::PackagePrefer;
 
 /// The `package prefer` mode in force at `at` in `analysis` — the
 /// interpreter-global selection rule [`PackageResolver::resolve_require`]
-/// needs (issue #1126 item 1).
+/// needs.
 ///
 /// `package prefer` is a monotone latch: it starts at `default`, a
 /// `package prefer latest` raises it, and
@@ -88,7 +88,7 @@ pub use tcl_dialect::PackagePrefer;
 /// not run, and flipping the selection rule would move go-to-definition onto a
 /// different release of the package.  That abstention is toward `default`.
 ///
-/// # What `default` carries (issue #1253)
+/// # What `default` carries
 ///
 /// The interpreter's own starting mode is not always `stable`:
 /// `TCL_PKG_PREFER_LATEST` in the environment makes it `latest`, and on 9.0+
@@ -409,8 +409,8 @@ fn is_version_word(word: &str) -> bool {
 /// Tcl-era `pkg_mkIndex` output, where the index always sources concrete
 /// files but hand-written indices sometimes don't.  When *that* finds nothing
 /// either the declaration is still returned, with an empty `source_files` —
-/// see [`PackageInfo::source_files`] for what that state means and why
-/// dropping it was issue #923 differential-audit finding idx 72.
+/// see [`PackageInfo::source_files`] for what that state means and why the
+/// declaration must not be dropped.
 ///
 /// Declarations are found through the [`reachability`] scan, so a declaration
 /// nested inside an `if` branch is found (the TEA "pick a Tcl 8 or Tcl 9
@@ -466,12 +466,11 @@ pub fn parse_pkg_index(
         // A declaration with no implementation *file* is still a declaration.
         // The `load`-only C extension (`package ifneeded pix 0.8 [list apply
         // {dir {… load [file join $dir $os $lib] Pix}} $dir]`, whose directory
-        // holds nothing but `pkgIndex.tcl` and the shared object) is the real
-        // shape this used to drop on the floor — name and version parsed
-        // successfully, then thrown away, so `provides("pix")` was false for a
-        // package plainly declared in the workspace and every W120 in any
-        // document requiring it was suppressed as "unknowable" (issue #923
-        // differential-audit finding idx 72).
+        // holds nothing but `pkgIndex.tcl` and the shared object) is the
+        // shape that must not be dropped: parsing the name and version and
+        // then throwing them away makes `provides("pix")` false for a
+        // package plainly declared in the workspace, and every W120 in any
+        // document requiring it is then suppressed as "unknowable".
         //
         // Recording it with an empty `source_files` is the honest state: the
         // package **exists**, its command set is **not statically
@@ -949,7 +948,7 @@ impl PackageResolver {
     /// Tcl rejects as a syntax error; it is treated here as unconstrained.
     ///
     /// **Equal-comparing duplicate providers contribute every one of their
-    /// files** (issue #1126 item 2). C Tcl collapses two `package ifneeded`
+    /// files**. C Tcl collapses two `package ifneeded`
     /// registrations whose versions compare equal (`1.0` / `1.0.0`, `5` /
     /// `0005`) into one entry, keeping the *first* registration's version
     /// string and the *last* one's script — and the registration order is
@@ -1128,7 +1127,7 @@ impl PackageResolver {
     /// This is the package-database analogue of the built-in command registry:
     /// a command an installed library makes available through its auto-load
     /// index is as *resolvable* as a built-in, so the unknown-command (W123)
-    /// check must treat it as known rather than flag it (issue #832). The
+    /// check must treat it as known rather than flag it. The
     /// decision is data-driven — it never matches on a specific command name.
     #[must_use]
     pub fn auto_loads_command(&self, cmd: &str, namespace: &str) -> bool {
@@ -1176,7 +1175,7 @@ impl PackageResolver {
     /// ([`reachability::Availability::Conditional`]) counts as loadable: the
     /// scan does not know it *won't* run, and treating "unsure" as "absent"
     /// would resurrect exactly the false unknown-command reports this
-    /// modelling exists to remove (issue #923 idx 42).
+    /// modelling exists to remove.
     #[must_use]
     pub fn reachable_files(
         &self,

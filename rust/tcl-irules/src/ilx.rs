@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! iRulesLX remote-method sites — the Tcl half of the Tcl↔JavaScript symbol
-//! model, and the JavaScript scanner that finds the other half (issue #1707).
+//! model, and the JavaScript scanner that finds the other half.
 //!
 //! An iRule reaches a Node.js extension by name:
 //!
@@ -93,15 +93,12 @@ use crate::walker::{
     literal_arg_value, resolve_head, semantic_head, var_token_name,
 };
 
-// ---------------------------------------------------------------------------
-// The Tcl side
-// ---------------------------------------------------------------------------
+// The Tcl side.
 
 /// The `(plugin, extension)` pair an ILX handle names.
 ///
 /// Scoped by construction: a method name is unique only *within* one
-/// extension, which is why nothing here is keyed by method name alone
-/// (issue #1707 criterion 1).
+/// extension, which is why nothing here is keyed by method name alone.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct IlxExtension {
     /// The ILX plugin name, as written in `ILX::init`.
@@ -252,9 +249,8 @@ fn recurse(
     // `namespace eval` body does not.  A body that does not inherit the frame
     // must not inherit the handle bindings either — `set h [ILX::init p e];
     // proc f {} { ILX::call $h m }` reads an *undefined* `$h` when `f` runs,
-    // and resolving it from the enclosing scope would be exactly the guess
-    // criterion 4 forbids (issue #1707 review).  Asked of the registry, so no
-    // command name appears here.
+    // and resolving it from the enclosing scope would be exactly the wrong
+    // guess.  Asked of the registry, so no command name appears here.
     let inherits_frame = ctx.registry.plain_body_arg_indices(head, args);
     for body_idx in ctx.registry.arg_indices_for_role(head, args, ArgRole::Body) {
         if let Some(tok) = cmd.argv.get(body_idx + 1)
@@ -463,9 +459,7 @@ fn record_handle_binding(
     scope.bind(&var, target);
 }
 
-// ---------------------------------------------------------------------------
-// The JavaScript side
-// ---------------------------------------------------------------------------
+// The JavaScript side.
 
 /// One `ILXServer.addMethod("name", …)` registration in an extension source.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -516,7 +510,7 @@ pub fn extension_entry_file(package_json: Option<&str>) -> String {
 /// The method table `source` leaves an extension with — its `addMethod`
 /// registrations, minus anything a `removeMethod` takes back out.
 ///
-/// Supported, and nothing else (issue #1707 criterion 6):
+/// Supported, and nothing else:
 ///
 /// * `var ilx = new f5.ILXServer();` / `new ILXServer()` — any `new`
 ///   expression whose constructor path ends in `ILXServer`, assigned to a
@@ -534,7 +528,7 @@ pub fn extension_entry_file(package_json: Option<&str>) -> String {
 ///
 /// `ilx.addMethod('m', cb); ilx.removeMethod('m');` leaves no `m` in the
 /// running extension, so offering the earlier registration as `m`'s definition
-/// would be a wrong answer rather than a missing one (issue #1707 review).
+/// would be a wrong answer rather than a missing one.
 /// Removal is therefore *modelled*, and deliberately without order: source
 /// order is not execution order — a `removeMethod` can sit in a branch, a
 /// callback, or a later module — so a literal removal suppresses that name
@@ -1026,7 +1020,7 @@ mod tests {
     #[test]
     fn dynamic_plugin_extension_or_reassignment_abstains() {
         // Every one of these keeps the method word (hover can name it) and
-        // drops the target (navigation must not guess) — issue #1707 crit. 4.
+        // drops the target (navigation must not guess).
         for source in [
             "when X {\n set h [ILX::init $p e]\n ILX::call $h m\n}\n",
             "when X {\n set h [ILX::init p $e]\n ILX::call $h m\n}\n",
@@ -1058,8 +1052,8 @@ mod tests {
     fn a_body_that_opens_a_new_frame_does_not_inherit_the_handle() {
         // A `proc` body runs in a fresh local frame, so `$h` is *undefined*
         // when `f` runs — resolving it from the enclosing scope would be a
-        // false go-to-definition (issue #1707 review). Which bodies inherit
-        // the caller's frame is registry data (`CommandSpec::body_kind`).
+        // false go-to-definition. Which bodies inherit the caller's frame
+        // is registry data (`CommandSpec::body_kind`).
         let got = calls(concat!(
             "set h [ILX::init p e]\n",
             "proc f {} { ILX::call $h m }\n",

@@ -102,8 +102,9 @@ impl OperandTypes {
 
 /// A type context for the current function, or `None` when no type lattice is
 /// available. Passed to the `*_typed` entry points so the operand-dropping
-/// identities fire only on provably typed operands. `None` keeps the historical
-/// aggressive behaviour for callers (and tests) that have no type lattice.
+/// identities fire only on provably typed operands. `None` keeps the
+/// unguarded, aggressive behaviour for callers (and tests) that have no type
+/// lattice.
 pub type NumericCtx<'a> = Option<&'a OperandTypes>;
 
 /// Build the [`OperandTypes`] for `fu`: a name is numeric (resp. integer) when
@@ -158,15 +159,16 @@ fn lattice_is_integer(t: &TypeLattice) -> bool {
 
 /// Whether `node` is provably numeric for `expr` arithmetic — so dropping it
 /// from an identity rewrite cannot hide Tcl's numeric-coercion error.
-/// With no type context (`None`) every node is assumed numeric, preserving
-/// the legacy behaviour for callers without a lattice.
+/// With no type context (`None`) every node is assumed numeric.
 fn node_provably_numeric(node: &ExprNode, numeric: NumericCtx<'_>) -> bool {
     let Some(ctx) = numeric else {
         return true;
     };
     match node {
         ExprNode::Literal { .. } => true,
-        ExprNode::String { text, .. } => is_numeric_string_in_every_release(text),
+        ExprNode::String { text, .. } => {
+            fixed_operand_text(text).is_some_and(is_numeric_string_in_every_release)
+        }
         ExprNode::Var { name, .. } => ctx.numeric.contains(name.as_str()),
         _ => false,
     }
@@ -175,13 +177,14 @@ fn node_provably_numeric(node: &ExprNode, numeric: NumericCtx<'_>) -> bool {
 /// Whether `node` is provably an *integer* for `expr` arithmetic — so folding
 /// it to an integer literal, or dropping an integer-only operator around it,
 /// matches Tcl's result and error behaviour. With no type context (`None`)
-/// every node is assumed integer, preserving the legacy aggressive behaviour.
+/// every node is assumed integer.
 fn node_provably_integer(node: &ExprNode, numeric: NumericCtx<'_>) -> bool {
     let Some(ctx) = numeric else {
         return true;
     };
     match node {
-        ExprNode::Literal { text, .. } | ExprNode::String { text, .. } => is_integer_string(text),
+        ExprNode::Literal { text, .. } => is_integer_string(text),
+        ExprNode::String { text, .. } => fixed_operand_text(text).is_some_and(is_integer_string),
         ExprNode::Var { name, .. } => ctx.integer.contains(name.as_str()),
         _ => false,
     }
@@ -212,8 +215,9 @@ fn node_provably_integer(node: &ExprNode, numeric: NumericCtx<'_>) -> bool {
 /// the proof.
 fn node_cannot_be_nan(node: &ExprNode, numeric: NumericCtx<'_>) -> bool {
     match node {
-        ExprNode::Literal { text, .. } | ExprNode::String { text, .. } => {
-            !is_nan_string_in_any_release(text)
+        ExprNode::Literal { text, .. } => !is_nan_string_in_any_release(text),
+        ExprNode::String { text, .. } => {
+            fixed_operand_text(text).is_some_and(|value| !is_nan_string_in_any_release(value))
         }
         ExprNode::Var { name, .. } => {
             numeric.is_some_and(|ctx| ctx.integer.contains(name.as_str()))
@@ -241,6 +245,15 @@ fn is_nan_string_in_any_release(text: &str) -> bool {
 /// Strip the surrounding `"…"` / `{…}` delimiters (if any) from an `expr`
 /// literal or a propagated constant's value text, for the numeric
 /// classifiers below.
+/// A string operand's value when the proofs here may read it: `None` for one
+/// that substitutes, whose value is unknown (`"$x" == 1` is a numeric compare
+/// when `x` is `1.0`, and `"$x"` may be `NaN`), and for a value that itself
+/// holds a quote or brace, which [`strip_literal_delims`] would misread
+/// (#2227, found in review).
+fn fixed_operand_text(text: &str) -> Option<&str> {
+    tcl_syntax::expr::fixed_string_operand(text).filter(|value| !value.contains(['"', '{', '}']))
+}
+
 fn strip_literal_delims(text: &str) -> &str {
     text.trim()
         .trim_start_matches(['"', '{'])
@@ -596,7 +609,7 @@ fn simplify_node_once(
     depth: u32,
 ) -> ExprNode {
     use crate::expr_ast::UnaryOp;
-    // Native-stack safety net (issue #996): this bottom-up rewriter recurses
+    // Native-stack safety net: this bottom-up rewriter recurses
     // once per `ExprNode` level. Past the cap, pass the node through
     // unchanged (no rewrite) rather than recurse — a safe no-op for a
     // simplifier, and the same shape it returns for any node it can't rewrite.
@@ -734,7 +747,7 @@ fn is_mul(n: &ExprNode) -> bool {
 /// integer literal (otherwise the whole node is an opaque term — a
 /// non-literal subtrahend is not negated here). `None` on integer overflow.
 fn collect_add_terms(node: &ExprNode, terms: &mut Vec<ExprNode>, depth: u32) -> Option<i64> {
-    // Native-stack safety net (issue #996): past the cap, stop flattening and
+    // Native-stack safety net: past the cap, stop flattening and
     // treat the whole remaining subtree as one opaque term contributing the
     // additive identity — the same handling as any non-chain leaf, so the
     // reassociation stays sound (all non-constant terms preserved).
@@ -795,7 +808,7 @@ fn build_add_expr(terms: &[ExprNode], constant: i64) -> ExprNode {
 /// Flatten a `*` chain: multiply the literal constants, push non-literals.
 /// `None` on integer overflow.
 fn collect_mul_terms(node: &ExprNode, terms: &mut Vec<ExprNode>, depth: u32) -> Option<i64> {
-    // Native-stack safety net (issue #996): past the cap, stop flattening and
+    // Native-stack safety net: past the cap, stop flattening and
     // treat the remaining subtree as one opaque term contributing the
     // multiplicative identity — same handling as any non-chain leaf.
     if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
@@ -1063,20 +1076,19 @@ fn reduce_unary(
     }
 
     // `!(x <cmp> y)` → inverted comparison, and DeMorgan for `!(a && b)`.
-    // `BinOp::inverse()` (tcl_syntax::expr::operators, issue #983's
-    // unification) is the single source for which comparison inverts to
-    // which — used to be a local 8-arm match missing the TIP 461
-    // string-ordering four (`lt`/`le`/`gt`/`ge`) and list membership
-    // (`in`/`ni`), so `!(x lt y)`/`!(x in list)` never simplified even
-    // though the same total-order/negation identity holds for them as for
-    // the numeric/string-eq forms already covered.
+    // `BinOp::inverse()` (tcl_syntax::expr::operators) is the single source
+    // for which comparison inverts to which — a local match here drifts, and
+    // one missing the TIP 461 string-ordering four (`lt`/`le`/`gt`/`ge`) or
+    // list membership (`in`/`ni`) leaves `!(x lt y)` / `!(x in list)`
+    // unsimplified even though the same total-order/negation identity holds
+    // for them as for the numeric/string-eq forms already covered.
     //
     // The four *ordered numeric* rows (`<`/`<=`/`>`/`>=`) carry a NaN
     // precondition (`BinOp::inverse_needs_non_nan`): `expr {!(NaN < 1)}` is 1
     // but `expr {NaN >= 1}` is 0, so they fire only when both operands are
     // proved non-NaN. `==`/`!=` are exact complements even for NaN, and the
     // string / membership operators have no NaN rule, so those stay
-    // unconditional (issue #1437).
+    // unconditional.
     if matches!(op, UnaryOp::Not | UnaryOp::WordNot)
         && let ExprNode::Binary {
             op: inner_op,
@@ -1176,8 +1188,8 @@ fn reduce_self_comparison(
         BinOp::StrEq => 1,
         // The reflexive folds are the ones NaN breaks: `expr {NaN == NaN}` is
         // 0, `expr {NaN <= NaN}` is 0, and `expr {NaN != NaN}` is 1 — the
-        // opposite of every answer below. So they need $x proved non-NaN
-        // (issue #1437); without the proof the expression stays as written.
+        // opposite of every answer below. So they need $x proved non-NaN;
+        // without the proof the expression stays as written.
         BinOp::Eq | BinOp::Le | BinOp::Ge if node_cannot_be_nan(left, numeric) => 1,
         BinOp::Ne if node_cannot_be_nan(left, numeric) => 0,
         // `$x - $x` / `$x ^ $x` fold to the *integer* literal 0, so `$x` must
@@ -1201,7 +1213,7 @@ fn reduce_self_comparison(
 /// provably *numeric*. The `x * 0 → 0` annihilator folds to an **integer**
 /// literal, so it is gated on the operand being provably *integer*: for a
 /// double `$x`, `expr {1.5 * 0}` is `0.0`, not `0`. Without a
-/// type context both guards pass (legacy aggressive behaviour).
+/// type context both guards pass.
 fn reduce_arith_identity(
     op: BinOp,
     left: &ExprNode,
@@ -1513,13 +1525,31 @@ fn streq_promote_node(node: &ExprNode) -> Option<ExprNode> {
     })
 }
 
+/// Whether `left == right` (and `!=`) compares its operands as strings
+/// whatever the other one holds, so `eq` / `ne` give the same answer.
+///
+/// Tcl compares numerically only when both operands are numbers, so it is
+/// enough that one is a fixed string that is not a number under any release.
+/// A boolean word counts as a string here: `==` never reads `true` as `1`
+/// (`expr {"true" == 1}` is `0` on tclsh 8.4.20 through 9.1b0), while `nan`,
+/// ` 1`, `0x10`, `08` (9.0) and `1_0` (9.0) are numbers. A substituting
+/// operand proves nothing: `"$x" == 1` is numeric when `x` is `1.0`.
+pub(crate) fn eq_ne_compares_as_strings(left: &ExprNode, right: &ExprNode) -> bool {
+    let fixed_non_numeric = |node: &ExprNode| {
+        matches!(node, ExprNode::String { text, .. }
+            if fixed_operand_text(text).is_some_and(|value| !is_numeric_string_in_any_release(value)))
+    };
+    fixed_non_numeric(left) || fixed_non_numeric(right)
+}
+
 /// Whether `node` is provably **not** a number for `expr` — the dual of
 /// [`node_provably_numeric`], used to gate the eq/ne string-compare
 /// promotion (O120). Only a string literal whose stripped text is neither
 /// numeric nor a boolean word qualifies; everything else (variables, command
 /// substitutions, arithmetic) is conservatively rejected.
 fn node_provably_non_numeric(node: &ExprNode) -> bool {
-    matches!(node, ExprNode::String { text, .. } if !is_numeric_or_boolean_string(text))
+    matches!(node, ExprNode::String { text, .. }
+        if fixed_operand_text(text).is_some_and(|value| !is_numeric_or_boolean_string(value)))
 }
 
 /// Whether the (delimiter-stripped) text parses as a number **or** is one of
@@ -1563,13 +1593,13 @@ fn make_int_literal(value: i64) -> ExprNode {
 /// subtree.
 #[must_use]
 pub fn expr_has_command_subst(node: &ExprNode) -> bool {
-    // Public entry: the top of an expression tree is nesting depth 0 (issue
-    // #996 — the recursion cap lives in [`expr_has_command_subst_at`]).
+    // Public entry: the top of an expression tree is nesting depth 0; the
+    // recursion cap lives in [`expr_has_command_subst_at`].
     expr_has_command_subst_at(node, 0)
 }
 
 fn expr_has_command_subst_at(node: &ExprNode, depth: u32) -> bool {
-    // Native-stack safety net (issue #996): past the cap, assume "yes, has a
+    // Native-stack safety net: past the cap, assume "yes, has a
     // command substitution" — the conservative direction, since callers use
     // this to *suppress* an optimisation when a command sub is present, so a
     // false `true` only forgoes a rewrite, never enables an unsound one.
@@ -1593,10 +1623,13 @@ fn expr_has_command_subst_at(node: &ExprNode, depth: u32) -> bool {
                 || expr_has_command_subst_at(false_branch, depth + 1)
         }
         ExprNode::Call { args, .. } => args.iter().any(|a| expr_has_command_subst_at(a, depth + 1)),
+        // A `"…"` operand substitutes, so a `[cmd]` in it runs: O110 rewrote
+        // `expr {"[incr x]" && 0}` to `0`, losing the `incr` (#2227, found in
+        // review).
+        ExprNode::String { text, .. } => crate::word_subst::quoted_operand_body(text).is_some(),
         ExprNode::Literal { .. }
         | ExprNode::Var { .. }
         | ExprNode::Raw { .. }
-        | ExprNode::String { .. }
         // A word, not an expression: it holds no command substitution.
         | ExprNode::CompiledWord { .. } => false,
     }
@@ -1620,8 +1653,8 @@ pub fn expr_uses_shadowed_mathfunc<S: std::hash::BuildHasher>(
     node: &ExprNode,
     procedures: &std::collections::HashMap<String, crate::ir::Procedure, S>,
 ) -> bool {
-    // Public entry: the top of an expression tree is nesting depth 0 (issue
-    // #996 — the recursion cap lives in [`expr_uses_shadowed_mathfunc_at`]).
+    // Public entry: the top of an expression tree is nesting depth 0; the
+    // recursion cap lives in [`expr_uses_shadowed_mathfunc_at`].
     expr_uses_shadowed_mathfunc_at(node, procedures, 0)
 }
 
@@ -1630,7 +1663,7 @@ fn expr_uses_shadowed_mathfunc_at<S: std::hash::BuildHasher>(
     procedures: &std::collections::HashMap<String, crate::ir::Procedure, S>,
     depth: u32,
 ) -> bool {
-    // Native-stack safety net (issue #996): past the cap, assume "yes, uses a
+    // Native-stack safety net: past the cap, assume "yes, uses a
     // shadowed mathfunc" — the conservative direction, since callers use this
     // to *suppress* constant folding when a mathfunc may be shadowed, so a
     // false `true` only forgoes a fold, never performs an unsound one.
@@ -1709,7 +1742,7 @@ mod tests {
         assert!(try_fold_expr("   ", None).is_none());
     }
 
-    /// Regression coverage for issue #996: `simplify_node_once`,
+    /// `simplify_node_once`,
     /// `collect_add_terms`, `collect_mul_terms`, `expr_has_command_subst` and
     /// `expr_uses_shadowed_mathfunc` each recurse once per `ExprNode` level
     /// with no depth cap before this fix. The Pratt parser caps *its* output
@@ -1920,7 +1953,7 @@ mod tests {
 
     #[test]
     fn arith_identity_numeric_guard() {
-        // No type context (`None`) → legacy aggressive behaviour: drop.
+        // No type context (`None`) → unguarded behaviour: drop.
         for e in [
             "$x * 0", "$x + 0", "$x * 1", "$x - 0", "$x / 1", "$x % 1", "$x << 0",
         ] {
@@ -1992,7 +2025,7 @@ mod tests {
         }
     }
 
-    /// Issue #1437: `!($x < 1)` → `$x >= 1` is wrong when `$x` may be NaN
+    /// `!($x < 1)` → `$x >= 1` is wrong when `$x` may be NaN
     /// (`expr {!(NaN < 1)}` is 1, `expr {NaN >= 1}` is 0), so the four ordered
     /// comparisons invert only on operands proved NaN-free.
     #[test]
@@ -2039,7 +2072,7 @@ mod tests {
 
     /// `==`/`!=` are exact complements even for NaN, and the string / membership
     /// operators never compare numerically — those rows keep inverting with no
-    /// type facts at all (issue #1437).
+    /// type facts at all.
     #[test]
     fn equality_and_string_comparison_inversion_stays_unconditional() {
         let empty = OperandTypes::default();
@@ -2060,7 +2093,7 @@ mod tests {
         }
     }
 
-    /// Issue #1437: `$x == $x` is 0 and `$x != $x` is 1 for a NaN `$x`, so the
+    /// `$x == $x` is 0 and `$x != $x` is 1 for a NaN `$x`, so the
     /// reflexive folds need the same non-NaN proof. `$x < $x` / `$x > $x` are
     /// false for every value including NaN, and `eq`/`ne` have no NaN notion, so
     /// those keep folding unconditionally.
@@ -2195,9 +2228,9 @@ mod tests {
         // is a genuine Tcl number (tclsh: `expr {"0x1a" == 26}` -> 1, a
         // numeric compare), so treating it as "provably non-numeric" would
         // silently turn a numeric comparison into a string comparison.
-        // Before the fix, `is_numeric_string_in_every_release("0x1a")` was false, so
-        // `node_provably_non_numeric` wrongly returned true for this
-        // literal and the eq/ne promotion fired.
+        // `is_numeric_string_in_every_release("0x1a")` must therefore be
+        // true, or `node_provably_non_numeric` returns true for this literal
+        // and the eq/ne promotion fires.
         let (out, changed) = try_eq_ne_string_compare_simplify_expr("\"0x1a\" == $y", None);
         assert!(
             !changed,

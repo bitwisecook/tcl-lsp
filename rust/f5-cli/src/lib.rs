@@ -66,7 +66,8 @@ where
 /// `tcl_lsp_core::minify`, which calls straight into
 /// `tcl_compiler::analyser::Analyser::analyse` on caller-supplied Tcl
 /// source — the same depth-capped-but-stack-hungry recursion chain that
-/// crashed `tcl-lsp-server` in issue #996. The OS-provided main-thread
+/// crashed `tcl-lsp-server` on deeply nested input. The OS-provided
+/// main-thread
 /// stack this binary would otherwise inherit is outside this crate's
 /// control (8 MiB by default on Linux, far less guaranteed elsewhere), so
 /// every verb runs on an explicitly-sized thread instead.

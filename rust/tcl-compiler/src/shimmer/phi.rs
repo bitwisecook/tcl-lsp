@@ -124,8 +124,8 @@ fn classify_phi_shimmer(ctx: &PhiCtx<'_>, phi: &Phi, in_loop: bool) -> Option<Sh
         return None;
     }
     // Every coarse type the union tracks, in canonical order. Two members is
-    // the classic pair; three or more (previously collapsed to OVERDEFINED
-    // and silently missed) now report every merging type.
+    // the classic pair; three or more report every merging type rather than
+    // collapsing to OVERDEFINED.
     let members: Vec<TclType> = {
         let mut coarse: Vec<TclType> = lattice.shapes().iter().map(TypeShape::coarse).collect();
         coarse.dedup();

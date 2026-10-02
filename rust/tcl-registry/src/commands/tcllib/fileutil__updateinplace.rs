@@ -38,7 +38,7 @@ pub fn spec() -> CommandSpec {
         // The trailing `cmdOrBody` argument is invoked as a
         // command prefix with the file contents appended at runtime.
         // Static arity checks must relax the proc's required arity
-        // by 1 when checking the callback (see `e30b6ae9`, `#308`).
+        // by 1 when checking the callback.
         body_arg_implicit_args: 1,
         hover: Some(HoverSnippet {
             summary: "Update a file in place using a command.",

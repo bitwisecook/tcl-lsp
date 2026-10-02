@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Guardrail for the **interned garbage collector** invariant (issue #1299).
+//! Guardrail for the **interned garbage collector** invariant.
 //!
 //! Six interned structs in this crate key on content that changes as a
 //! procedure body is edited — `ItemBodyKey`, `FnLatticeKey`, `ProcBodyKey`,
@@ -335,7 +335,7 @@ fn drive_edit_session(durability: InputDurability, max_edits: u32) -> Session {
         edits_driven = edit;
     }
 
-    let slots = <dyn salsa::Database>::memory_usage(&db)
+    let slots = <dyn salsa::Database>::memory_usage(&mut db)
         .structs
         .iter()
         .map(|info| (info.debug_name().to_owned(), info.count()))

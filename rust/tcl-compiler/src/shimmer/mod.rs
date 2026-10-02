@@ -237,9 +237,8 @@ pub(crate) fn find_shimmer_warnings(
 ///
 /// The committed-intrep dataflow is consumed by the use-site and expr
 /// detectors; the cycle-block set by all three (it decides the S100 / S101
-/// in-loop split).  Recomputing the latter per pass is what made a
-/// 2000-branch flat proc take ~69 s before the graph walk became a single
-/// Tarjan pass (issue #1240).
+/// in-loop split).  Recomputing the latter per pass costs ~69 s on a
+/// 2000-branch flat proc; the graph walk is a single Tarjan pass instead.
 pub(crate) struct ShimmerFacts {
     /// Committed-intrep facts — see [`commit::compute_commit_facts`].
     pub commit: commit::CommitFacts,

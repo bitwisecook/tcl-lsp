@@ -203,8 +203,8 @@ pub struct ProfileDefaultEvidence {
 // filtering the captured name in code instead.
 
 /// The `class match|search` word-operator alternation, derived from the
-/// shared `BinOp` source of truth (issue #983/#986's unification) rather
-/// than a hand-maintained string — the same canonical names `tcl-irules`'s
+/// shared `BinOp` source of truth rather than a hand-maintained string —
+/// the same canonical names `tcl-irules`'s
 /// `is_class_operator` matches against, so a rename of one of these variants
 /// is a compile error here too, not silent drift. See the sync test
 /// `class_operators_regex_matches_irules_word_operator_set`.
@@ -1226,7 +1226,7 @@ mod tests {
         codes(source).iter().any(|c| c == code)
     }
 
-    /// Sync test (#983 residual): the `class match`/`search` operator
+    /// Sync test: the `class match`/`search` operator
     /// alternation derived here from the shared `BinOp` source of truth must
     /// contain exactly the same word set as `tcl-irules`'s own
     /// `is_class_operator`, so the two independent consumers of the iRules

@@ -829,9 +829,8 @@ mod tests {
     }
 
     /// Every finding carries the releases it was produced against, and they
-    /// survive the round trip to disk — the whole point of issue #1328's
-    /// harness change: a version-skewed campaign must be recognisable from
-    /// the registry alone, long after the run.
+    /// survive the round trip to disk: a version-skewed campaign must be
+    /// recognisable from the registry alone, long after the run.
     #[test]
     fn a_finding_records_both_engines_versions_and_the_skew_flag() {
         let dir = tmp("versions");

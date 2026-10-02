@@ -39,6 +39,7 @@ use crate::compilation_unit::CompilationUnit;
 
 use super::elimination::DeadStore;
 use super::helpers::select::select_non_overlapping;
+use super::helpers::spans::{full_rewrite_span, line_delete_span};
 use super::helpers::var_refs::{bareword_occurrences, count_var_refs};
 use super::{Optimisation, PassContext, PassId, run_passes};
 
@@ -157,12 +158,12 @@ fn build_pass_context<'a>(
     ctx
 }
 
-/// Phase 1 of [`optimise_unit`]: run every pass over the built unit and return
-/// the **canonicalised raw** optimisation set (before overlap selection /
-/// const-dead-store coupling / group renumbering — that whole-module tail is
-/// [`finalise_optimisations`]).
+/// The first half of [`optimise_unit`]: run every pass over the built unit and
+/// return the **canonicalised raw** optimisation set, before overlap selection
+/// / const-dead-store coupling / group renumbering — that whole-module tail is
+/// [`finalise_optimisations`].
 ///
-/// Split out so the per-procedure optimiser memo can run this phase on a
+/// Split out so the per-procedure optimiser memo can run this half on a
 /// **single-procedure offset-0** unit (one proc in `cu.procedures`, its offset-0
 /// body in `cu.ir_module.procedures`, the reconstructed interproc summary +
 /// `redefined_procedures` + module `command_mutations` it depends on) and cache
@@ -188,8 +189,8 @@ pub fn optimise_unit_raw(
     ctx.optimisations
 }
 
-/// Phase 2 of [`optimise_unit`]: the **whole-module tail** over a canonicalised
-/// raw optimisation set — overlap selection, const-propagation/dead-store
+/// The second half of [`optimise_unit`]: the **whole-module tail** over a
+/// canonicalised raw optimisation set — overlap selection, const-propagation/dead-store
 /// coupling, the resurrected-reference guard, and group renumbering.  Reads
 /// `cu.source` (absolute span slices) and iterates `cu.procedures` / `cu.methods`,
 /// so it always runs over the **real whole-module unit** with the assembled,
@@ -354,7 +355,7 @@ fn couple_propagated_const_dead_stores(
     if crate::taint::is_irules_dialect(dialect) {
         return;
     }
-    // Whole-module variable-trace facts (issue #1377): a dynamic trace
+    // Whole-module variable-trace facts: a dynamic trace
     // target makes every name potentially traced, so no propagated const
     // def is provably dead anywhere in the module.
     if cu.ir_module.has_dynamic_variable_trace {
@@ -419,8 +420,7 @@ struct CoupleCtx<'a> {
     scope_aliases: std::collections::HashSet<String>,
     rmw_hidden: std::collections::HashSet<String>,
     /// [`crate::ir::Module::traced_variables`] — canonical (`::`-stripped)
-    /// names under an active variable trace anywhere in the module
-    /// (issue #1377).
+    /// names under an active variable trace anywhere in the module.
     traced: &'a std::collections::BTreeSet<String>,
 }
 
@@ -489,7 +489,7 @@ fn couple_const_dead_store_chain(
     let (var, _ver) = &chain.key;
     // Single constant scalar def, never aliased / global / RMW-hidden /
     // traced. The whole-module trace fact stores the canonical
-    // (`::`-stripped) spelling (issue #1377), so an unqualified store still
+    // (`::`-stripped) spelling, so an unqualified store still
     // matches a `trace add variable ::var …` installed anywhere.
     if def_count.get(var.as_str()).copied().unwrap_or(0) != 1 {
         return None;
@@ -571,8 +571,11 @@ fn couple_const_dead_store_chain(
     // Approach B: `def_stmt` is from `fu.cfg` (relative to `base_offset`).
     // Widen past the inner-end convention before deleting: a value word that
     // is quoted, braced, or bracketed leaves its closer outside the statement
-    // span, and a deletion that stops short of it strands the closer.
-    let del_span = line_delete_span(source, fu.abs_span(def_stmt.span()));
+    // Widen past the inner-end convention before taking the line: a quoted
+    // value word leaves its closer outside the statement span, and a deletion
+    // that stops short of it strands the closer on a line of its own.
+    let written = full_rewrite_span(source, fu.abs_span(def_stmt.span()));
+    let del_span = line_delete_span(source, written);
     Some(Optimisation::new(
         DiagCode::O109,
         "Eliminate dead store",
@@ -669,28 +672,6 @@ fn function_source_span(fu: &crate::compilation_unit::FunctionUnit) -> (usize, u
         // memoised offset-0 path.
         (fu.abs_pos(lo) as usize, fu.abs_pos(hi) as usize)
     }
-}
-
-/// Extend a statement's span to swallow its trailing newline (and leading
-/// indentation) so the whole `set` line is removed cleanly.
-fn line_delete_span(source: &str, span: tcl_lexer::Span) -> tcl_lexer::Span {
-    let bytes = source.as_bytes();
-    let mut start = span.start() as usize;
-    let mut end = span.end() as usize;
-    // Back up over leading spaces/tabs on the line.
-    while start > 0 && matches!(bytes.get(start - 1), Some(b' ' | b'\t')) {
-        start -= 1;
-    }
-    // Swallow a single trailing newline (and a preceding CR).
-    if end < bytes.len() && bytes[end] == b'\n' {
-        end += 1;
-    } else if end + 1 < bytes.len() && bytes[end] == b'\r' && bytes[end + 1] == b'\n' {
-        end += 2;
-    }
-    tcl_lexer::Span::new(
-        u32::try_from(start).unwrap_or(u32::MAX),
-        u32::try_from(end).unwrap_or(u32::MAX),
-    )
 }
 
 /// Canonicalise group ids in-place to `0, 1, 2, …` by order of first appearance.
@@ -811,6 +792,7 @@ pub fn optimise_raw_for_profile(
         dialect,
         crate::interprocedural::ObjectTypeMap(&object_types),
         &identities,
+        Some(&cu.declared_commands),
         &cu.cfg_module,
     );
     cu.interproc = Some(ia);
@@ -863,8 +845,7 @@ pub fn apply_optimisations(source: &str, optimisations: &[Optimisation]) -> Stri
 /// iteration count is one per pass attempted, including the final pass that
 /// finds nothing new. A single-pass profile is simply `max_iterations == 1`.
 ///
-/// This is the shared core behind the `tcl opt` CLI verb and the
-/// `tcl_lsp_py` optimiser facade.
+/// This is the shared core behind the `tcl opt` CLI verb.
 #[must_use]
 pub fn optimise_source_multipass_filtered<S: std::hash::BuildHasher>(
     source: &str,
@@ -873,15 +854,44 @@ pub fn optimise_source_multipass_filtered<S: std::hash::BuildHasher>(
     max_iterations: usize,
     disabled: &std::collections::HashSet<String, S>,
 ) -> (String, Vec<Optimisation>, usize) {
+    optimise_source_multipass_admitting(source, registry, dialect, max_iterations, |_, kept| {
+        kept.into_iter()
+            .filter(|o| !disabled.contains(o.code.as_str()))
+            .collect()
+    })
+}
+
+/// The general form behind [`optimise_source_multipass_filtered`]: `admit`
+/// decides, once per pass, which of that pass's candidates are applied.
+///
+/// It is handed the text the pass actually ran over, not the original source,
+/// because a *line-keyed* rule cannot be resolved once up front. Suppression
+/// directives (`# noqa`, `# tcl-lsp: disable=`) name a line, and every applied
+/// rewrite shifts the lines below it — so a policy resolved against the
+/// original numbering would, from the second pass on, silence the wrong
+/// rewrites. Re-resolving per pass is what keeps a directive attached to the
+/// statement its author wrote it above.
+///
+/// A code-keyed rule has no such problem, which is why the `disabled`-set
+/// wrapper can ignore the text argument entirely.
+#[must_use]
+pub fn optimise_source_multipass_admitting<F>(
+    source: &str,
+    registry: &CommandRegistry,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    max_iterations: usize,
+    mut admit: F,
+) -> (String, Vec<Optimisation>, usize)
+where
+    F: FnMut(&str, Vec<Optimisation>) -> Vec<Optimisation>,
+{
     let mut current = source.to_owned();
     let mut all: Vec<Optimisation> = Vec::new();
     let mut iterations = 0;
     for _ in 0..max_iterations {
         iterations += 1;
-        let kept: Vec<Optimisation> = optimise_with_dialect(&current, registry, dialect)
-            .into_iter()
-            .filter(|o| !disabled.contains(o.code.as_str()))
-            .collect();
+        let candidates = optimise_with_dialect(&current, registry, dialect);
+        let kept = admit(&current, candidates);
         if kept.is_empty() {
             break;
         }
@@ -965,7 +975,7 @@ mod tests {
         );
     }
 
-    /// Regression coverage for issue #996: every optimiser pass
+    /// Every optimiser pass
     /// (`propagation`, `expr_simplify`, `pattern_recognition`,
     /// `structure_elimination`, `code_sinking`) walks `Script`/`Statement`
     /// bodies recursively and is now depth-capped
@@ -981,9 +991,9 @@ mod tests {
     /// `tcl-compiler` is a library — it does not own the stack its callers
     /// run it on. Every real consumer (`tcl-lsp-server`/`tcl-mcp`/the `tcl`
     /// CLI/`f5-cli`/`tcl-debugger`) already wraps calls into it with a
-    /// dedicated 64 MiB thread (issue #996's primary fix); `cargo test`'s
-    /// bare ~2 MiB per-test default is not representative of that and was
-    /// never the depth caps' design target — they bound *frame count*, not
+    /// dedicated 64 MiB thread; `cargo test`'s
+    /// bare ~2 MiB per-test default is not representative of that and is
+    /// not the depth caps' design target — they bound *frame count*, not
     /// the stack cost of each frame (see `docs/design/compiler/
     /// recursive-descent-depth-limits.md`). So this spawns its own
     /// production-sized thread rather than asserting on the test harness's
@@ -1019,8 +1029,8 @@ mod tests {
     #[test]
     fn constant_loop_condition_fold_keeps_braces() {
         // A constant `while` condition folded through O101 must not drop the
-        // opening brace of the braced condition (the CFG loop-condition span
-        // omits the closing `}`, which previously produced `while 1}`).
+        // opening brace of the braced condition: the CFG loop-condition span
+        // omits the closing `}`, so a naive rewrite yields `while 1}`.
         // `while {1}` is already minimal → unchanged; `while {1 < 2}` folds
         // to `while {1}` (braces preserved).
         assert_eq!(optimised("while {1} { break }\n"), "while {1} { break }\n");

@@ -67,7 +67,7 @@
 //!
 //! `lappend auto_path lib` / `set v helper.tcl; source $v` fold to a path
 //! with no root.  Tcl resolves such a path against the **interpreter's
-//! working directory at run time** (oracle, tclsh 8.6.16 and 9.0.4:
+//! working directory at run time** (tclsh 8.6.16 and 9.0.4:
 //! `cd other; tclsh ../sub/main.tcl` where `main.tcl` does
 //! `set v helper.tcl; source $v` loads `other/helper.tcl`, *not*
 //! `sub/helper.tcl` — `[info script]` plays no part), which is a fact no
@@ -152,9 +152,8 @@ pub fn evaluate_auto_path_entry(
 /// [`evaluate_auto_path_entry`], with the document's single-assignment
 /// constants ([`constant_path_assignments`], folded) answering variable
 /// references — which is what carries the corpus idiom
-/// `set libDir [file join $dir lib]; lappend auto_path $libDir` (issue #775;
-/// georgtree/SpiceGenTcl's own `SpiceGenTcl.tcl` registers its `lib`
-/// directory exactly this way, and contributed nothing without it).
+/// `set libDir [file join $dir lib]; lappend auto_path $libDir` — the shape
+/// a package uses to register its own `lib` directory.
 #[must_use]
 pub fn evaluate_auto_path_entry_with_constants<S: std::hash::BuildHasher>(
     entry: &AutoPathEntry,
@@ -320,8 +319,7 @@ pub fn evaluate_auto_path_expr_with_resolver(
 ///
 /// Without the chain only `dir` folds, and every `source` built on
 /// `$sourceDir` abstains — the shape that leaves a whole package's worth of
-/// `source` lines unresolved (issue #775; georgtree/SpiceGenTcl's own
-/// `SpiceGenTcl.tcl` is seventeen such lines).
+/// `source` lines unresolved.
 ///
 /// Deliberately narrow in two ways it must stay narrow:
 ///
@@ -349,8 +347,8 @@ pub fn constant_path_vars(
 /// One recorded fact about a path-constant candidate: a write, a
 /// declaration, or a write that cannot be attributed.
 ///
-/// Three kinds because the corpus needs all three distinguished
-/// (issue #775): ruff's `variable ruff_dir` **declaration** followed by an
+/// Three kinds because the corpus needs all three distinguished:
+/// ruff's `variable ruff_dir` **declaration** followed by an
 /// unconditional `set` must fold (so a declaration cannot count as a write),
 /// Tk's declaration plus *if-guarded* set must abstain (so a declaration
 /// must still mark namespace membership, blocking a bare read from falling
@@ -370,7 +368,7 @@ pub struct PathConstantWrite {
     /// `::alited::LIBDIR`.
     pub ns: String,
     /// Byte offset of the writing command in its document.  Cross-file
-    /// import (issue #1368) is position-gated on it: a parent's write flows
+    /// import is position-gated on it: a parent's write flows
     /// to a sourced child only when it precedes the `source` statement, so
     /// an assignment *after* the source contributes nothing to it.
     pub at: u32,
@@ -591,7 +589,7 @@ fn raw_value(seg: &crate::segmenter::SegmentedCommand, word_index: usize) -> Pat
 /// inscope` (identical argument layout, same lowering hook) must *not* count
 /// — and the words are found through [`tcl_registry::ArgRole::NamespaceName`]
 /// and [`tcl_registry::ArgRole::Body`] rather than the fixed indices 2 and 3
-/// with a `words[1] == "eval"` test (issue #1390).
+/// with a `words[1] == "eval"` test.
 ///
 /// The body must be the last word, keeping the previous restriction to the
 /// single-braced-word form: `namespace eval ns a b` concatenates its trailing
@@ -697,8 +695,8 @@ fn descend_namespace_body(
 }
 
 /// The `(name index, value index)` argument pairs a load-time command
-/// *assigns* — the registry's answer to what `set` and `variable` were
-/// recognised by name for (issue #1390).
+/// *assigns* — the registry's answer, rather than recognising `set` and
+/// `variable` by name.
 ///
 /// Two shapes, both spec-declared:
 ///
@@ -804,7 +802,7 @@ fn collect_set_write(
 ///
 /// `set dir /a; append dir /b; source [file join $dir x.tcl]` loads
 /// `/a/b/x.tcl`, so `$dir` must fold to nothing rather than to the `set`'s
-/// value (issue #1370 review).  Which arguments a command writes is registry
+/// value.  Which arguments a command writes is registry
 /// data ([`tcl_registry::ArgRole::VarWrite`]) rather than a command-name
 /// match (AGENTS.md), so every read-modify-write — `append`, `lappend`,
 /// `incr`, `dict set`, a user command whose spec says so — counts without
@@ -927,9 +925,9 @@ pub fn fold_constant_assignments(
 }
 
 /// [`fold_constant_assignments`] with **imported** constants — values a
-/// source-graph ancestor established before this document runs (issue
-/// #1368; OSVVM's `StartUpShared.tcl` reads `::osvvm::OsvvmScriptDirectory`,
-/// which every file that sources it assigns first).
+/// source-graph ancestor established before this document runs — the shape
+/// where a shared start-up file reads a namespace variable every file that
+/// sources it assigns first.
 ///
 /// The returned map is the document's complete view: the imports, overlaid
 /// by the document's own folds.  Ownership rules, each load-bearing:
@@ -1181,8 +1179,8 @@ fn tokenise(text: &str) -> Option<Vec<Tok>> {
 /// A substitutable word containing `$` parses as [`Node::Subst`]; everything
 /// else word-shaped is [`Node::Lit`].  A braced word is always `Lit`, even
 /// when it spells `$` or `[` — braces suppress substitution in Tcl, so
-/// `{$d}` names a file literally called `$d` and `{[}` is a literal `[`
-/// (this used to mis-read as an open bracket when tokens were bare strings).
+/// `{$d}` names a file literally called `$d` and `{[}` is a literal `[` —
+/// a bare-string token would mis-read that as an open bracket.
 fn parse(tokens: &[Tok], mut pos: usize) -> (Option<Node>, usize) {
     let Some(tok) = tokens.get(pos) else {
         return (None, pos);
@@ -1251,7 +1249,7 @@ fn eval(
         // expression with no document profile in hand — so the *default*
         // release rule applies, which is the one a document with no explicit
         // dialect is lexed under. A name this misreads simply fails to
-        // resolve, abstaining the whole fold (issue #1604).
+        // resolve, abstaining the whole fold.
         Node::Subst(word) => crate::text::fold_interpolation_single(
             word,
             tcl_dialect::BracedVarStyle::default(),
@@ -1308,8 +1306,7 @@ fn eval(
 /// This is what makes the corpus idiom fold — `set dir [file normalize [file
 /// dirname [info script]]]`, and the equivalent `[file dirname [file normalize
 /// [info script]]]`, both of which are anchored by `[info script]`.  Without
-/// it every `source [file join $dir …]` in a file written that way abstained
-/// (issue #775).
+/// it every `source [file join $dir …]` in a file written that way abstains.
 /// A drive-relative `C:foo` is rejected by the same test, since [`root_len`]
 /// only counts `X:/` as a root — it names a per-drive working directory, which
 /// is no more knowable than the process-wide one.
@@ -1505,7 +1502,7 @@ mod tests {
         );
     }
 
-    /// TP (issue #923 idx 73) — the exact idiom `pix` writes: three nested
+    /// TP — the idiom `pix` writes: three nested
     /// `file dirname`s around `[info script]`, one level deeper than the
     /// two-level form the other tests use.  `examples/user.tcl` reaching the
     /// repo root two directories up is what makes the package resolvable
@@ -1527,7 +1524,7 @@ mod tests {
     /// running the same fold from two different directories must not change
     /// the answer.
     ///
-    /// Oracle (tclsh 8.6.16 / 9.0.4): `set v helper.tcl; source $v` inside
+    /// On tclsh 8.6.16 / 9.0.4: `set v helper.tcl; source $v` inside
     /// `sub/main.tcl` run as `cd other && tclsh ../sub/main.tcl` loads
     /// `other/helper.tcl` — resolution is against the interpreter's *run
     /// time* working directory, which a language server cannot know and must
@@ -1585,12 +1582,12 @@ mod tests {
     }
 
     // `file normalize` — the wrapper the corpus writes around the
-    // `[info script]` idiom, and the reason every `source [file join $dir …]`
-    // in a file spelled that way used to abstain (issue #775).
+    // `[info script]` idiom; without it every `source [file join $dir …]`
+    // in a file spelled that way abstains.
 
     /// Both nestings of the corpus idiom fold, and to the same directory.
     ///
-    /// Oracle (tclsh 8.6.16 / 9.0.4): with `[info script]` reporting
+    /// On tclsh 8.6.16 / 9.0.4: with `[info script]` reporting
     /// `/proj/test/arbitaryTest.tcl`, both spellings answer `/proj/test`.
     #[test]
     fn file_normalize_folds_the_info_script_idiom() {
@@ -1647,12 +1644,12 @@ mod tests {
         });
     }
 
-    // Chained single-assignment constants (issue #775).
+    // Chained single-assignment constants.
 
     /// A directory reached through an intermediate folds, so the whole chain
-    /// resolves — georgtree/SpiceGenTcl's own `SpiceGenTcl.tcl` shape.
+    /// resolves.
     ///
-    /// Oracle (tclsh 8.6.16 / 9.0.4): running `/proj/SpiceGenTcl.tcl`, `dir`
+    /// On tclsh 8.6.16 / 9.0.4: running `/proj/SpiceGenTcl.tcl`, `dir`
     /// is `/proj` and `sourceDir` is `/proj/src`.
     #[test]
     fn constants_fold_through_a_chain() {
@@ -1722,7 +1719,7 @@ mod tests {
 
     /// A resolved value containing spaces is **one** path element, exactly as
     /// `file join {my dir} x` treats its arguments (filename(n): join takes
-    /// arguments, not words — a space is just a character).  Oracle, tclsh
+    /// arguments, not words — a space is just a character).  On tclsh
     /// 8.6.14: `set d "my dir"; file join $d x` → `my dir/x`, and a `source`
     /// through such a join really loads from the spaced directory.  This is
     /// the case that makes node-based resolution obligatory: splicing
@@ -1805,8 +1802,8 @@ mod tests {
         assert!(!constants.contains_key("inner"), "{constants:?}");
     }
 
-    // Namespace-variable path constants (issue #775) — each test is a
-    // corpus shape, named for the project that writes it.
+    // Namespace-variable path constants — each test is a corpus shape, named
+    // for the project that writes it.
 
     /// tcllib snit's shape, verbatim: `variable` with a value inside a
     /// `namespace eval ::snit:: { … }` (trailing colons and all), consumed
@@ -1899,7 +1896,7 @@ mod tests {
         );
     }
 
-    // Cross-file imports (issue #1368) — the fold-level half: how one
+    // Cross-file imports — the fold-level half: how one
     // document's fold consumes values its source-graph ancestors provide.
     // The graph half lives with the workspace index.
 
@@ -2014,7 +2011,7 @@ mod tests {
     /// A read-modify-write (`append`) poisons its target: the value after it
     /// is not the `set`'s.  Recognised through the registry's
     /// [`tcl_registry::ArgRole::VarWrite`] roles, so every mutating command
-    /// counts, not a hand-listed few (issue #1370 review).
+    /// counts, not a hand-listed few.
     #[test]
     fn a_read_modify_write_poisons_the_constant() {
         for src in [
@@ -2054,9 +2051,8 @@ mod tests {
         assert!(!constants.contains_key("dir"), "{constants:?}");
     }
 
-    /// A braced value is data: Tcl suppressed substitution when it was
-    /// assigned, so `$root` inside it is five characters, not a reference
-    /// (issue #1370 review).
+    /// A braced value is data: Tcl suppresses substitution when it is
+    /// assigned, so `$root` inside it is five characters, not a reference.
     #[test]
     fn a_braced_value_is_literal_data() {
         let constants = constant_path_vars(
@@ -2247,12 +2243,11 @@ mod tests {
         assert_eq!(evaluate_auto_path_expr("   ", None), None);
     }
 
-    /// TP (issue #923 idx 73) — the raw text the analyser records for a
+    /// TP — the raw text the analyser records for a
     /// `lappend auto_path …` argument is exactly what this evaluator folds, so
     /// the package database can consume `AnalysisResult::auto_path_entries`
     /// An `auto_path` entry naming a chained constant contributes its
-    /// directory — georgtree/SpiceGenTcl's exact registration shape (issue
-    /// #775):
+    /// directory — a package's own registration shape:
     ///
     /// ```tcl
     /// set dir [file dirname [file normalize [info script]]]
@@ -2309,7 +2304,7 @@ mod tests {
         );
     }
 
-    // Slash-form path arithmetic (PR #1086 finding 1).
+    // Slash-form path arithmetic.
     //
     // Pure string math, so the Windows shapes are exercised on any host — the
     // evaluator has no `cfg(windows)` branch to skip.
@@ -2321,8 +2316,8 @@ mod tests {
         assert_eq!(path_dirname("/a"), "/");
         assert_eq!(path_dirname("/"), "/");
         // A rootless single component: `.`, exactly as tclsh 8.6.16 / 9.0.4
-        // answer `file dirname a` — the empty string this used to return had
-        // to be rescued by absolutising against the process's own working
+        // answer `file dirname a`.  Returning the empty string instead would
+        // have to be rescued by absolutising against the process's own working
         // directory, which is not something a language server may assume.
         assert_eq!(path_dirname("a"), ".");
         assert_eq!(path_join(&["/a/b".into(), "..".into()]), "/a/b/..");
@@ -2437,7 +2432,7 @@ mod tests {
         );
     }
 
-    // `set` vs `lappend` arity (PR #1086 finding 2).
+    // `set` vs `lappend` arity.
 
     /// Fold every entry a source records, in order.
     fn fold_all(src: &str, info_script: &str) -> Vec<String> {
@@ -2450,7 +2445,7 @@ mod tests {
     }
 
     /// TP — `set auto_path {A B}` assigns a **list**, so both directories are
-    /// searched.  Oracle (`tclsh8.6` / `tclsh9.0`): `set auto_path {/opt/p1
+    /// searched.  On `tclsh8.6` / `tclsh9.0`: `set auto_path {/opt/p1
     /// /opt/p2}; llength $auto_path` → 2, and `package require` finds a package
     /// under either.
     #[test]
@@ -2466,7 +2461,7 @@ mod tests {
     }
 
     /// TN — a brace-quoted element containing a space is **one** directory
-    /// (`llength {/opt/a {/opt/with space} /opt/b}` → 3, oracle-confirmed), and
+    /// (`llength {/opt/a {/opt/with space} /opt/b}` → 3 on tclsh), and
     /// so is every `lappend` word however many spaces it holds.
     #[test]
     fn braced_elements_and_lappend_words_stay_one_directory_each() {

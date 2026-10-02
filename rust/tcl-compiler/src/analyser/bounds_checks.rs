@@ -50,8 +50,8 @@ const SIMPLE_CMP_OPS: &[&str] = &["<=", ">=", "<", ">", "==", "!=", "eq", "ne"];
 /// `return` / `error` / `exit` / `throw` — is read from the registry's
 /// [`tcl_registry::Traits::TERMINATES_BLOCK`] trait, so a newly-added
 /// block-terminating command is recognised automatically instead of needing a
-/// second hardcoded list (this is what closes the `throw`/`tailcall` W241
-/// false positive: both leave the loop but neither was in the old literal set).
+/// second hardcoded list — a hardcoded set that omits `throw` or `tailcall`
+/// draws a W241 false positive, since both leave the loop.
 fn is_loop_exit_command(name: &str, registry: Option<&tcl_registry::CommandRegistry>) -> bool {
     let bare = name.trim_start_matches(':');
     if bare == "break" || bare == "tailcall" {
@@ -253,10 +253,9 @@ pub(crate) fn loop_termination_diagnostics(
 /// argument words can reference (and the body can update) a variable this
 /// shallow scan never sees — `while {[string length $u] > $rest}` picked
 /// `rest`, a threshold the loop never touches, over `u`, which the body
-/// visibly shrinks each iteration (issue #1316; the module doc's own
-/// "intentionally shallow ... avoiding false positives" philosophy,
-/// extended to the one case that slipped through it — corpus example:
-/// `tcltest.tcl`'s option-usage word-wrapper).
+/// visibly shrinks each iteration — the module doc's own "intentionally
+/// shallow ... avoiding false positives" stance applied to this shape
+/// (corpus example: `tcltest.tcl`'s option-usage word-wrapper).
 fn extract_counter_name(cond: &str, grammar: &tcl_dialect::LexerGrammar) -> Option<String> {
     let tokens = tokenise_expr_checked_with_grammar(strip_braces(cond), grammar).0;
     if tokens.iter().any(|t| t.kind == ExprTokenType::Command) {
@@ -823,25 +822,22 @@ pub(crate) fn lset_index_diagnostics(
 /// The literal length of the list `var_name` holds when the `lset` at
 /// `before_offset` runs, or `None` when it is not statically recoverable.
 ///
-/// Structural, not textual (issue #1391).  The walk segments the document,
-/// descends the braced word that *contains* the `lset` one level at a time,
-/// and takes the length from the last literal assignment to `var_name` in the
-/// innermost script the `lset` shares.  Descending resets the accumulator,
-/// which is the structural spelling of the brace-depth-zero rule the byte
-/// scan enforced: a `set` in an enclosing (or sibling) script is never
-/// trusted for a nested `lset`.
+/// Structural, not textual.  The walk segments the document, descends the
+/// braced word that *contains* the `lset` one level at a time, and takes the
+/// length from the last literal assignment to `var_name` in the innermost
+/// script the `lset` shares.  Descending resets the accumulator: a `set` in an
+/// enclosing (or sibling) script is never trusted for a nested `lset`.
 ///
-/// What that buys over the byte scan it replaces:
+/// What that buys over a byte scan:
 ///
 /// * a `set` written inside a comment or a string literal is not a command,
-///   so it no longer supplies a length (the false positive);
-/// * an intervening `proc` / `apply` / `try` / `namespace eval` *sibling* no
-///   longer blocks recovery — only actually descending into a body does — so
-///   the `set x {a b c}` … `proc p {} {…}` … `lset x 9 v` shape reports again
-///   (the false negative from the four-name marker list);
+///   so it supplies no length (a false positive a text scan would draw);
+/// * an intervening `proc` / `apply` / `try` / `namespace eval` *sibling* does
+///   not block recovery — only actually descending into a body does — so the
+///   `set x {a b c}` … `proc p {} {…}` … `lset x 9 v` shape still reports;
 /// * a `set` not written at a line start, or one whose literal contains a
-///   nested `{…}` sublist, now counts, because the segmenter reports words
-///   rather than a line-anchored `\{[^{}]*\}` regex.
+///   nested `{…}` sublist, still counts, because the segmenter reports words
+///   rather than matching a line-anchored `\{[^{}]*\}` regex.
 fn infer_list_length_from_recent_set(
     source: &str,
     var_name: &str,
@@ -880,6 +876,16 @@ fn infer_list_length_from_recent_set(
             }
             if let Some(length) = literal_list_assignment(registry, &cmd, var_name) {
                 best = Some(length);
+            } else if writes_the_name(registry, &cmd, var_name) {
+                // A write this scan cannot turn into a fresh literal length —
+                // `lappend`/`append`/`incr`, or a `set` whose value is not one
+                // literal word — invalidates the length recovered from an
+                // earlier literal assignment. Keeping the stale one reported
+                // `set xs {}` as the length at a later `lset xs 2 X`, a W231
+                // "list has 0 elements" on a list that really has three
+                // (#2054). Abstaining matches how the rest of this checker
+                // handles a value it cannot pin down.
+                best = None;
             }
         }
         match inner {
@@ -911,6 +917,25 @@ const MAX_SCOPE_DESCENT: tcl_core_types::RecursionLimit = tcl_core_types::Recurs
 /// The value must be a single braced word, which is what makes it a literal:
 /// the segmenter has already stripped the delimiter, so the text splits
 /// directly as a Tcl list.
+/// Whether `cmd` writes `var_name` at all, however it writes it.
+///
+/// Deliberately weaker than [`literal_list_assignment`]: no
+/// `READS_BEFORE_WRITE` / `WHOLE_ARRAY_ARG` exclusion and no single-literal-word
+/// requirement, because the question here is only "did this command touch the
+/// name", not "what is its new length".
+fn writes_the_name(
+    registry: &tcl_registry::CommandRegistry,
+    cmd: &SegmentedCommand,
+    var_name: &str,
+) -> bool {
+    let head = cmd.name().strip_prefix("::").unwrap_or(cmd.name());
+    let args: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
+    registry
+        .arg_indices_for_role(head, &args, tcl_registry::ArgRole::VarWrite)
+        .into_iter()
+        .any(|index| args.get(index) == Some(&var_name))
+}
+
 fn literal_list_assignment(
     registry: &tcl_registry::CommandRegistry,
     cmd: &SegmentedCommand,
@@ -1278,7 +1303,7 @@ mod tests {
 
     #[test]
     fn w241_throw_and_tailcall_leave_the_loop() {
-        // FP fix: `throw` and `tailcall` both terminate the loop after one
+        // `throw` and `tailcall` both terminate the loop after one
         // iteration (verified against tclsh 9.0.4), so a `while 1` body
         // containing either is NOT provably infinite. `throw` resolves via the
         // registry's TERMINATES_BLOCK trait; `tailcall` is named explicitly.
@@ -1636,7 +1661,7 @@ mod tests {
         assert_eq!(super::condition_constant("$x < 10"), None);
     }
 
-    // -- W231 (lset out of range) & W242 (unprovable termination) -----
+    // W231 (lset out of range) & W242 (unprovable termination).
 
     fn code_msgs_for(src: &str, dialect: &str, code: &str) -> Vec<String> {
         let mut a = Analyser::new();
@@ -1694,6 +1719,41 @@ mod tests {
         }
     }
 
+    /// A write this scan cannot turn into a fresh length invalidates the one
+    /// it recovered earlier, instead of reporting the stale figure (#2054).
+    ///
+    /// `set xs {}` then `lappend xs a b c` leaves a three-element list, and
+    /// tclsh 9.0.4 runs `lset xs 2 X` happily, printing `a b X`. W231 used to
+    /// report "list has 0 elements" from the initial `set`.
+    #[test]
+    fn w231_abstains_after_a_write_it_cannot_measure() {
+        for src in [
+            // The issue's own shape.
+            "set xs {}\nlappend xs a b c\nlset xs 2 X\n",
+            // Same gap, reached by a non-literal `set` rather than `lappend`.
+            "set xs {}\nset y {a b c}\nset xs $y\nlset xs 2 X\n",
+            // And by a command substitution.
+            "set xs {}\nset xs [list a b c]\nlset xs 2 X\n",
+            // `append` is the same class of unmeasurable write.
+            "set xs {}\nappend xs \"a b c\"\nlset xs 2 X\n",
+        ] {
+            assert!(
+                code_msgs(src, "W231").is_empty(),
+                "an unmeasurable write must invalidate the earlier length: {src:?}",
+            );
+        }
+    }
+
+    /// The abstention must not silence a genuine out-of-range index: with no
+    /// intervening write the literal length still stands.
+    #[test]
+    fn w231_still_reports_a_real_overrun() {
+        assert!(
+            !code_msgs("set xs {a b}\nlset xs 5 X\n", "W231").is_empty(),
+            "an untouched literal list keeps its length",
+        );
+    }
+
     #[test]
     fn w231_silent_without_recoverable_length() {
         // No prior literal `set` → only negative literals would fire.
@@ -1729,18 +1789,18 @@ mod tests {
         assert!(code_msgs("for {set i 0} {$i < 10} {incr i} {puts hi}\n", "W242").is_empty());
     }
 
-    // FP-STY-… (issue #1316 sweep, corpus: `tcltest.tcl`'s option-usage
-    // word-wrapper): a `[cmd $var]` command substitution in the condition
-    // hides the loop's real progress variable from the shallow scalar scan,
-    // which then blames whichever *other* bare variable it finds instead.
+    // Corpus shape (`tcltest.tcl`'s option-usage word-wrapper): a `[cmd $var]`
+    // command substitution in the condition hides the loop's real progress
+    // variable from the shallow scalar scan, which would then blame whichever
+    // *other* bare variable it finds instead.
 
     #[test]
     fn w242_silent_when_the_progress_variable_is_inside_a_command_substitution() {
         // FP: `u` shrinks every iteration via `string range`/`string trim` in
         // the body — real, provable progress — but the condition's only
         // *bare* variable is `rest` (a fixed threshold the loop never
-        // touches), which the old first-`Variable`-token scan picked
-        // instead. Exact corpus shape.
+        // touches), which a first-`Variable`-token scan would pick instead.
+        // Exact corpus shape.
         assert!(
             code_msgs(
                 "while {[string length $u] > $rest} {\
@@ -1787,7 +1847,7 @@ mod tests {
     fn w231_list_length_recovered_inside_proc_body() {
         // The `set l {a b c}` shares the proc body's flat scope with the
         // `lset`, so its length (3) is recovered and `99` proves OOR —
-        // the case top-level-only segmentation used to miss.
+        // top-level-only segmentation would miss this.
         assert_eq!(
             w231("proc f {} {\n    set l {a b c}\n    lset l 99 X\n}\n"),
             1
@@ -1860,8 +1920,7 @@ mod tests {
             w231("set l {a b c}\nnamespace eval ns {\n    lset l 99 X\n}\n"),
             0
         );
-        // Nor across an `oo::define` member body, which the four-name
-        // scope-marker scan never knew about (issue #1391).
+        // Nor across an `oo::define` member body.
         assert_eq!(
             w231("set l {a b c}\noo::define C {\n    method m {} { lset l 99 X }\n}\n"),
             0
@@ -1871,9 +1930,9 @@ mod tests {
     #[test]
     fn w231_ignores_a_set_that_is_not_a_command() {
         // The `set` inside the quoted word is text, not an assignment, so it
-        // supplies no length and cannot shorten the real one.  The
-        // line-anchored byte scan matched it and reported index 4 as out of
-        // range for a two-element list (issue #1391).
+        // supplies no length and cannot shorten the real one.  A line-anchored
+        // byte scan matches it and reports index 4 as out of range for a
+        // two-element list.
         let src = "set l {a b c d e f}\nputs \"\nset l {a b}\n\"\nlset l 4 X\n";
         assert_eq!(w231(src), 0);
     }
@@ -1881,9 +1940,9 @@ mod tests {
     #[test]
     fn w231_reports_across_a_sibling_definition() {
         // `proc` here is a *sibling* command, not a scope the `lset` is
-        // inside, so the top-level `set`'s length still reaches it.  The
-        // `\\b(?:proc|namespace\\s+eval|apply|try)\\b` marker scan saw the
-        // word `proc` between the two and went silent (issue #1391).
+        // inside, so the top-level `set`'s length still reaches it.  A
+        // `\\b(?:proc|namespace\\s+eval|apply|try)\\b` marker scan sees the
+        // word `proc` between the two and goes silent.
         assert_eq!(
             w231("set l {a b c}\nproc helper {} { return 1 }\nlset l 9 X\n"),
             1
@@ -1892,9 +1951,9 @@ mod tests {
 
     #[test]
     fn w231_recovers_a_length_the_line_anchored_scan_missed() {
-        // Not at a line start, and a literal carrying a nested sublist:
-        // both are ordinary words to the segmenter and neither matched
-        // `(?:^|\\n)\\s*set\\s+(\\w+)\\s+(\\{[^{}]*\\})` (issue #1391).
+        // Not at a line start, and a literal carrying a nested sublist: both
+        // are ordinary words to the segmenter, though neither matches
+        // `(?:^|\\n)\\s*set\\s+(\\w+)\\s+(\\{[^{}]*\\})`.
         assert_eq!(w231("puts hi; set l {a {b c} d}\nlset l 9 X\n"), 1);
     }
 }

@@ -194,6 +194,84 @@ macro_rules! surface {
     }};
 }
 
+/// One core point of a [`SurfaceQuery`]: a family and, when one is pinned,
+/// the release on its ladder. A release of `None` is *any* release of the
+/// family.
+pub type CorePoint<'a> = (Family, Option<&'a str>);
+
+/// The most core points one query carries: a document's own family, then
+/// the ancestry anchor its command surface is inherited from.
+const MAX_CORE_POINTS: usize = 2;
+
+/// The core points a query asks at, **nearest first**.
+///
+/// A family that inherits a command surface from an ancestor and adds to it
+/// asks at its own family first and at the ancestor's anchor second. A row
+/// naming either admits the query, and where rows of both offer the same
+/// command the nearer one is the one selected ([`surface_nearness`]). Empty
+/// for a context with no core runtime of its own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CorePoints<'a> {
+    points: [Option<CorePoint<'a>>; MAX_CORE_POINTS],
+}
+
+impl<'a> CorePoints<'a> {
+    /// No core point.
+    pub const NONE: Self = Self {
+        points: [None; MAX_CORE_POINTS],
+    };
+
+    /// A single point: `family` at `release`, or at any release when `None`.
+    #[must_use]
+    pub const fn one(family: Family, release: Option<&'a str>) -> Self {
+        Self {
+            points: [Some((family, release)), None],
+        }
+    }
+
+    /// Two points, `nearest` ahead of `next`.
+    #[must_use]
+    pub const fn two(nearest: CorePoint<'a>, next: CorePoint<'a>) -> Self {
+        Self {
+            points: [Some(nearest), Some(next)],
+        }
+    }
+
+    /// The points of `ordered`, nearest first. Points past the second are
+    /// dropped: a family asks at itself and at one ancestry anchor.
+    #[must_use]
+    pub fn from_ordered(ordered: impl IntoIterator<Item = CorePoint<'a>>) -> Self {
+        let mut points = [None; MAX_CORE_POINTS];
+        for (slot, point) in points.iter_mut().zip(ordered) {
+            *slot = Some(point);
+        }
+        Self { points }
+    }
+
+    /// The nearest point: the query's own family.
+    #[must_use]
+    pub const fn nearest(&self) -> Option<CorePoint<'a>> {
+        self.points[0]
+    }
+
+    /// The points, nearest first.
+    pub fn iter(&self) -> impl Iterator<Item = CorePoint<'a>> + '_ {
+        self.points.iter().flatten().copied()
+    }
+
+    /// How many points there are.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.iter().count()
+    }
+
+    /// Whether there is no point.
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.points[0].is_none()
+    }
+}
+
 /// The point a surface question is asked at — the replacement for the retired
 /// availability point (Q13).
 ///
@@ -203,13 +281,13 @@ macro_rules! surface {
 /// no bit for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SurfaceQuery<'a> {
-    /// The core family the context resolves to, and the release on its
-    /// ladder. The outer `None` is a context with no core runtime of its
-    /// own — the BIG-IP config surface, the permissive fallback. The inner
-    /// `None` is *any* release of that family: what the mask said by
-    /// setting every ladder bit, which a context with no resolved primary
-    /// still needs to say.
-    pub core: Option<(Family, Option<&'a str>)>,
+    /// The core points the context resolves to, nearest first, each a
+    /// family and the release on its ladder. Empty is a context with no
+    /// core runtime of its own — the BIG-IP config surface, the permissive
+    /// fallback. A release of `None` is *any* release of that family: what
+    /// the mask said by setting every ladder bit, which a context with no
+    /// resolved primary still needs to say.
+    pub core: CorePoints<'a>,
     /// The packages active in the context.
     pub packages: &'a [&'a str],
 }
@@ -219,7 +297,7 @@ impl<'a> SurfaceQuery<'a> {
     #[must_use]
     pub const fn core(family: Family, release: &'a str) -> Self {
         Self {
-            core: Some((family, Some(release))),
+            core: CorePoints::one(family, Some(release)),
             packages: &[],
         }
     }
@@ -228,7 +306,7 @@ impl<'a> SurfaceQuery<'a> {
     #[must_use]
     pub const fn any_release(family: Family) -> Self {
         Self {
-            core: Some((family, None)),
+            core: CorePoints::one(family, None),
             packages: &[],
         }
     }
@@ -244,20 +322,33 @@ impl SpecSurface {
     /// Whether this row admits `query`.
     #[must_use]
     pub fn admits(&self, query: &SurfaceQuery<'_>) -> bool {
+        self.nearness(query).is_some()
+    }
+
+    /// The position of the nearest point of `query` this row admits: a core
+    /// row's is the index of the first core point it matches, and a package
+    /// row's is `0`, because a package the context carries is part of the
+    /// context itself. `None` when the row admits nothing.
+    fn nearness(&self, query: &SurfaceQuery<'_>) -> Option<usize> {
         match self.provider {
-            SpecProvider::Core(family) => match query.core {
-                Some((asked, release)) => asked == family && self.covers(release),
-                None => false,
-            },
+            SpecProvider::Core(family) => query
+                .core
+                .iter()
+                .position(|(asked, release)| asked == family && self.covers(release)),
             // A package row's window is on the package's own axis, which a
             // query carries no point on: the resolved context narrows by the
             // placement floor instead.
-            SpecProvider::Package(package) => query.packages.contains(&package),
+            SpecProvider::Package(package) => query.packages.contains(&package).then_some(0),
         }
     }
 
     /// Whether `release` falls in one of this row's windows. An unstated
     /// release asks about the whole ladder, which any window meets.
+    ///
+    /// Asked on every registry lookup, once per authored row, so it hands the
+    /// bounds to [`crate::version::version_in_any_window`] rather than
+    /// `format!`-ing a `"from-until"` requirement per window and re-parsing
+    /// `release` behind each one (issue #2021).
     fn covers(&self, release: Option<&str>) -> bool {
         if self.windows.is_empty() {
             return true;
@@ -265,17 +356,7 @@ impl SpecSurface {
         let Some(release) = release else {
             return true;
         };
-        self.windows.iter().any(|&(from, until)| {
-            crate::version::version_satisfies(release, &requirement(from, until))
-        })
-    }
-}
-
-/// The requirement spelling for a half-open window.
-fn requirement(from: &str, until: Option<&str>) -> String {
-    match until {
-        Some(until) => format!("{from}-{until}"),
-        None => format!("{from}-"),
+        crate::version::version_in_any_window(release, self.windows)
     }
 }
 
@@ -293,6 +374,18 @@ pub fn surface_admits(rows: &[SpecSurface], query: Option<&SurfaceQuery<'_>>) ->
         None => true,
         Some(query) => rows.iter().any(|row| row.admits(query)),
     }
+}
+
+/// How near to the query's own family the closest admitting row sits: the
+/// index of the first core point of `query` some row admits, `0` for a
+/// package row, and `None` when no row admits.
+///
+/// Selection between two visible specs of one command prefers the lower
+/// number, so a row from a document's own family shadows a row it merely
+/// inherits. A query with one core point ranks every admitted row `0`.
+#[must_use]
+pub fn surface_nearness(rows: &[SpecSurface], query: &SurfaceQuery<'_>) -> Option<usize> {
+    rows.iter().filter_map(|row| row.nearness(query)).min()
 }
 
 /// Whether any row admits `family` at `release` **or at any later release on
@@ -392,4 +485,93 @@ pub fn surfaces_overlap(left: &[SpecSurface], right: &[SpecSurface]) -> bool {
                 }
         })
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const JIM_FROM_080: &[SpecSurface] = &[SpecSurface::core_in(Family::Jim, &[("0.80", None)])];
+
+    fn jim_then_tcl() -> SurfaceQuery<'static> {
+        SurfaceQuery {
+            core: CorePoints::two((Family::Jim, None), (Family::Tcl, Some("8.6"))),
+            packages: &[],
+        }
+    }
+
+    #[test]
+    fn a_row_from_either_core_point_admits() {
+        let query = jim_then_tcl();
+        assert!(surface_admits(JIM_FROM_080, Some(&query)));
+        assert!(surface_admits(SpecSurface::TCL86, Some(&query)));
+        assert!(!surface_admits(SpecSurface::TCL84, Some(&query)));
+        assert!(!surface_admits(SpecSurface::IRULES, Some(&query)));
+    }
+
+    #[test]
+    fn a_jim_row_is_admitted_by_no_tcl_point() {
+        for query in [
+            SurfaceQuery::core(Family::Tcl, "8.6"),
+            SurfaceQuery::any_release(Family::Tcl),
+            SurfaceQuery::any_release(Family::F5Tcl),
+        ] {
+            assert!(!surface_admits(JIM_FROM_080, Some(&query)), "{query:?}");
+        }
+    }
+
+    #[test]
+    fn a_window_on_the_own_family_is_met_only_within_it() {
+        let pinned = |release| SurfaceQuery {
+            core: CorePoints::two((Family::Jim, Some(release)), (Family::Tcl, Some("8.6"))),
+            packages: &[],
+        };
+        assert!(surface_admits(JIM_FROM_080, Some(&pinned("0.82"))));
+        assert!(!surface_admits(JIM_FROM_080, Some(&pinned("0.76"))));
+    }
+
+    #[test]
+    fn nearness_ranks_the_own_family_ahead_of_the_anchor() {
+        let query = jim_then_tcl();
+        assert_eq!(surface_nearness(JIM_FROM_080, &query), Some(0));
+        assert_eq!(surface_nearness(SpecSurface::TCL86, &query), Some(1));
+        assert_eq!(surface_nearness(SpecSurface::TCL84, &query), None);
+        let both = surface![
+            SpecSurface::core(Family::Tcl),
+            SpecSurface::core(Family::Jim)
+        ];
+        assert_eq!(surface_nearness(both, &query), Some(0));
+    }
+
+    #[test]
+    fn a_query_with_one_core_point_ranks_every_admitted_row_alike() {
+        let query = SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["Tk"]);
+        assert_eq!(surface_nearness(SpecSurface::TCL86, &query), Some(0));
+        assert_eq!(surface_nearness(SpecSurface::ALL_TCL, &query), Some(0));
+        assert_eq!(surface_nearness(SpecSurface::TK, &query), Some(0));
+        assert_eq!(surface_nearness(SpecSurface::TCL90, &query), None);
+    }
+
+    #[test]
+    fn core_points_keep_their_order_and_drop_the_excess() {
+        let points = [
+            (Family::Jim, None),
+            (Family::Tcl, Some("8.6")),
+            (Family::F5Tcl, None),
+        ];
+        let kept = CorePoints::from_ordered(points);
+        assert_eq!(kept, CorePoints::two(points[0], points[1]));
+        assert_eq!(kept.iter().collect::<Vec<_>>(), points[..2]);
+        assert_eq!(kept.nearest(), Some(points[0]));
+        assert_eq!(kept.len(), 2);
+
+        assert!(CorePoints::NONE.is_empty());
+        assert_eq!(CorePoints::NONE.nearest(), None);
+        assert_eq!(CorePoints::from_ordered([]), CorePoints::NONE);
+        assert_eq!(
+            CorePoints::one(Family::Tcl, None),
+            CorePoints::from_ordered([(Family::Tcl, None)])
+        );
+        assert_eq!(CorePoints::one(Family::Tcl, None).len(), 1);
+    }
 }

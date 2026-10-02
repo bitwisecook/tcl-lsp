@@ -131,7 +131,7 @@ pub fn signature_help(
 ///
 /// The signature rendered is *the reached proc's*, so a `namespace import
 /// -force` whose covering `namespace export` lives in another file changes
-/// which parameter list is correct at this call (issue #1116 item 1).  Showing
+/// which parameter list is correct at this call.  Showing
 /// the shadowed local proc's signature would mis-describe the call that
 /// actually runs.
 ///
@@ -845,9 +845,9 @@ mod tests {
 
     #[test]
     fn proc_signature_stops_at_its_script_body() {
-        // Issue #1735's screenshots put the caret at the ends of these body
-        // lines. Neither position belongs to the outer `proc` invocation: the
-        // body is a registry-declared nested Tcl script.
+        // The caret at the end of either body line belongs to neither the
+        // outer `proc` invocation: the body is a registry-declared nested Tcl
+        // script.
         let src = concat!(
             "proc someproc {arg1 arg2} {\n",
             "    # this box always appears\n",

@@ -22,8 +22,7 @@
 //! from-scratch `analyse` produces. We apply random edit sequences to corpus
 //! files and assert `incremental == fresh` (byte-identical `AnalysisResult`) at
 //! every step. Any divergence (when incremental did not fall back to a full
-//! walk) is a correctness bug. This is the backbone the per-item rewrite will
-//! reuse — extend it as new incremental paths land.
+//! walk) is a correctness bug.
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -133,7 +132,7 @@ fn random_edit(text: &str, rng: &mut Rng) -> String {
     }
 }
 
-/// Targeted (non-ignored) guard for the `apply`-lambda namespace fix: a `proc`
+/// Targeted (non-ignored) guard for `apply`-lambda namespaces: a `proc`
 /// nested in an apply body must produce a byte-identical `AnalysisResult` on the
 /// incremental (per-item / deferred) and fresh (full) paths, whether the apply
 /// sits inside a `namespace eval`, pins an explicit lambda namespace, or defines

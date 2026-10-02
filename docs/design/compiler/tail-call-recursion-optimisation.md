@@ -19,7 +19,7 @@ O122 subsumes O121 — when a proc is fully tail-recursive (all self-calls are i
 
 1. **Tail position** — a self-call is in tail position if it is the last statement in the proc body, or the last statement in every branch of an `if`/`elseif`/`else` or `switch` at the end of the body. Calls inside `expr`, `catch`, `try`, loops, or nested command substitutions are never in tail position.
 
-2. **O121 fires when** — for each self-call in tail position. `optimise_tail_calls` emits an O121 candidate at every tail-position self-call; these may later be suppressed when a higher-priority O122 covers the same range. The rewrite wraps the tail call with `tailcall`.
+2. **O121 fires when** — for each self-call in tail position, on a dialect that has `tailcall` (Tcl 8.6+, TIP 327). `optimise_tail_calls` emits an O121 candidate at every tail-position self-call; these may later be suppressed when a higher-priority O122 covers the same range. The rewrite prefixes the call as written with `tailcall`, so braced, quoted, and `{*}`-expanded words reach the rewrite unaltered.
 
 3. **O122 fires when** — every self-call in the proc is in tail position, the proc has at least one parameter, every tail site passes exactly one argument per parameter, and — for a proc with more than one parameter — the dialect has `lassign` (Tcl 8.5+). The entire proc body is rewritten to an iterative `while {1}` loop with parameter reassignment in place of each recursive call.
 
@@ -135,6 +135,8 @@ Neither O121 nor O122 fires because neither call is in tail position. O123 does 
 
 - **Single parameter**: `set param $newval`
 - **Multiple parameters**: `lassign [list $arg1 $arg2 ...] param1 param2 ...` — avoids evaluation-order bugs where reassigning `a` before reading the old `a` for `b` would corrupt the value.
+
+Both rewrites take the arguments from the source text of the call, not from the IR. The IR holds each word's *value* with its delimiters stripped, so `f {x y} "q r" $c` would come back as five words rather than three, and `[list …]` would hand `lassign` the wrong element per parameter. Reading the source keeps one list element per argument and preserves `{*}`.
 
 ## File-path anchors
 

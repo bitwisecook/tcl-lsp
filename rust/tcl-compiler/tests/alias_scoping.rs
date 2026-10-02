@@ -347,8 +347,9 @@ mod taint_through_alias {
     fn taint_through_expr_command_substitution_still_warns() {
         // A taint source nested in an `[expr {…}]` command
         // substitution must propagate into the assigned variable, so a later
-        // `eval $x` fires T100. Storing the value through `expr` previously
-        // laundered the taint (join_uses saw no `$var`), a false negative.
+        // `eval $x` fires T100. Storing the value through `expr` must not
+        // launder the taint (`join_uses` seeing no `$var` would be a false
+        // negative).
         assert!(fires("set x [expr {[HTTP::payload] + 1}]\neval $x", "T100"));
     }
 

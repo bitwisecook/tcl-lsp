@@ -16,20 +16,18 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Op-coverage regression gate for `Vm::tick`'s bytecode dispatch (issue
-//! #1411).
+//! Op-coverage regression gate for `Vm::tick`'s bytecode dispatch.
 //!
-//! `Vm::tick`'s `match instr.op { … }` (`tcl-vm/src/exec.rs`) used to end in
-//! a wildcard arm: any `Op` variant without a dedicated case fell through to
-//! a run-time error string (`"opcode {mnemonic} not implemented in
-//! tcl-vm"`) instead of a build failure. #1411 was exactly that gap —
-//! `Op::PUSH_RETURN_CODE` had five codegen emission sites
-//! (`tcl-compiler/src/codegen/control_flow.rs`) and zero VM dispatch arms —
-//! and it was invisible until a compiled `catch`/`try`/`return -code` body
-//! hit it at run time.
+//! A `Vm::tick`'s `match instr.op { … }` (`tcl-vm/src/exec.rs`) ending in a
+//! wildcard arm would let any `Op` variant without a dedicated case fall
+//! through to a run-time error string (`"opcode {mnemonic} not implemented
+//! in tcl-vm"`) instead of a build failure. A codegen emission site with no
+//! matching VM dispatch arm — `Op::PUSH_RETURN_CODE` had five
+//! (`tcl-compiler/src/codegen/control_flow.rs`) — would then be invisible
+//! until a compiled `catch`/`try`/`return -code` body hit it at run time.
 //!
-//! The mechanical fix lives in `exec.rs`, not in this file: the wildcard arm
-//! is gone, so `match instr.op` now lists every `Op` variant explicitly.
+//! `match instr.op` in `exec.rs` lists every `Op` variant explicitly, with
+//! no wildcard arm, so this gate holds.
 //! Adding a new `Op` variant (or ever again removing an arm) without a real
 //! dispatch case fails to **compile** `tcl-vm` — `rustc`'s own
 //! non-exhaustive-match check is the gate, which is strictly stronger than
@@ -167,8 +165,7 @@ fn lor_truth_table() {
     }
 }
 
-/// Neither opcode ever reaches the (now-removed) "not implemented" catch-all
-/// — the specific regression #1411 warned about. Pinned as an explicit
+/// Neither opcode ever reaches a "not implemented" catch-all. Pinned as an explicit
 /// string check, independent of the truth-table assertions above, so a
 /// future reintroduction of a wildcard dispatch arm that happens to also
 /// break the boolean logic still fails here with the diagnostic string that

@@ -22,8 +22,9 @@ use crate::taint::SetterConstraint;
 use tcl_dialect::model::SpecSurface;
 
 /// The setter form of `HTTP::path` requires its value to start
-/// with `/` (IRULE3101). Registry-driven replacement for the hardcoded
-/// `SETTER_CONSTRAINTS` table in `tcl_compiler::taint`.
+/// with `/` (IRULE3101). Kept here as registry data, alongside the rest
+/// of the spec, rather than in `tcl_compiler::taint`'s own table, so the
+/// constraint cannot drift from the spec it belongs to.
 const SETTER_CONSTRAINTS: &[SetterConstraint] = &[SetterConstraint {
     arg_index: 0,
     required_prefix: "/",

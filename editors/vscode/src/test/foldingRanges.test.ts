@@ -86,8 +86,7 @@ suite("Folding Ranges", () => {
 
     // The continuation run `MyLongCommand $argument1 \ ... $argument3` spans the
     // last three lines of the fixture (0-indexed 17..19).  Line-continuation
-    // folding was dropped by the folding rewrite and restored in #541, so a
-    // fold must cover that run.
+    // folding must produce a fold covering that run.
     const contRange = ranges.find((r) => r.start === 17 && r.end >= 19);
     assert.ok(
       contRange,

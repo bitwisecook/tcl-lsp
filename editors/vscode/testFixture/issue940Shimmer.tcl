@@ -1,4 +1,4 @@
-# Issue #940: a pure list literal is a valid list, so reading it as one is a
+# A pure list literal is a valid list, so reading it as one is a
 # free first conversion — no S100/S101 shimmer. The committed case at the end
 # confirms a genuine container shimmer still fires.
 set fontSizes {10.0 12.0 16.0 24.0}

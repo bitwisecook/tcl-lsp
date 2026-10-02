@@ -16,8 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Disassembly regression + C-Tcl-`dis` oracle for the opaque body commands
-//! generalised in this work: `apply`, `namespace eval`, and `array for`.
+//! Disassembly regression + C-Tcl-`dis` oracle for the opaque body commands:
+//! `apply`, `namespace eval`, and `array for`.
 //!
 //! C Tcl compiles each of these to a runtime call with the script body pushed
 //! as a single **unparsed literal** — it never compiles the body's inner
@@ -119,7 +119,7 @@ fn our_codegen_keeps_body_commands_opaque() {
     }
 }
 
-// ---- C Tcl `dis` oracle ------------------------------------------------------
+// C Tcl `dis` oracle.
 
 fn run_tcl(tclsh: &str, script: &str) -> Option<String> {
     let mut child = Command::new(tclsh)

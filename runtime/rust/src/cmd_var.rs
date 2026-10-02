@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `global` / `variable` / `upvar` (T1.5, the variable-namespace side).
+//! `global` / `variable` / `upvar` — the variable-namespace side.
 //!
 //! All three install variable [`Link`](crate::frame::Link)s through the one
 //! variable resolver ([`crate::vars`]) — the variable parallel of `rename`/
@@ -51,10 +51,10 @@ use crate::obj::TclObj;
 
 /// Register `global`, `variable`, and `upvar`; also re-registers `set` (and,
 /// where the numeric tower is linked, `incr`) to fix their return value after
-/// a write trace runs (issue #1633 row 1) — see [`set_cmd`] and [`incr_cmd`].
+/// a write trace runs — see [`set_cmd`] and [`incr_cmd`].
 /// The override pattern mirrors TclOO's own `variable` override in
-/// `builtins::install` (installed later still wins; nothing after this lane's
-/// files re-registers `set`/`incr`).
+/// `builtins::install` (installed later still wins; nothing registered
+/// after this module re-registers `set`/`incr`).
 pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"global", global);
     interp.register_builtin(b"variable", variable);
@@ -64,7 +64,7 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"incr", incr_cmd);
 }
 
-// -- set / incr: return-after-trace ------------------------------------------
+// set / incr: return-after-trace
 //
 // C's `TclPtrSetVarIdx` (tclVar.c 9.0.4:2050-2065) stores the value, fires the
 // write traces, and only *then* decides what to return: the cell's *current*
@@ -149,9 +149,10 @@ fn incr_constant_error(
 /// Compiled code must dispatch through this rather than naming
 /// `builtins::incr` directly. `builtins::incr` calls `set_result(sum)` after
 /// the write traces have run, so a trace that rewrites or unsets the cell can
-/// drop the only reference to that fresh sum — the use-after-free #1633 row 1
-/// fixes for interpreted `incr`. A compiled `incr` reaching the old body would
-/// resurface it, and return the pre-trace value.
+/// drop the only reference to that fresh sum, a use-after-free that
+/// `installed_incr`/[`incr_cmd`] fix for interpreted `incr`. A compiled
+/// `incr` reaching `builtins::incr` directly would resurface it, and return
+/// the pre-trace value.
 pub(crate) fn installed_incr() -> fn(&mut Interp, &[*mut TclObj]) -> Code {
     #[cfg(have_tommath)]
     {
@@ -216,7 +217,7 @@ fn inverted_upvar(interp: &mut Interp, local: &[u8]) -> Code {
     interp.error_with_code(&message, b"TCL UPVAR INVERTED")
 }
 
-// -- global ----------------------------------------------------------------
+// global
 
 /// `global varName ?varName ...?` — link each name's tail to the global of that
 /// name (resolved in the global namespace context).
@@ -233,7 +234,7 @@ fn global(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-// -- variable --------------------------------------------------------------
+// variable
 
 /// `variable ?name value ...? name ?value?` — declare/link namespace variables,
 /// initialising those given a value. The trailing name may omit its value.
@@ -272,7 +273,7 @@ pub(crate) fn variable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-// -- upvar -----------------------------------------------------------------
+// upvar
 
 /// `upvar ?level? otherVar localVar ?otherVar localVar ...?` — link each
 /// `localVar` in the current frame to `otherVar`. The optional level is `#N`
@@ -595,7 +596,7 @@ mod tests {
         });
     }
 
-    /// M11: the 8.x namespace-scope fallback to global, off by default (9.0 /
+    /// The 8.x namespace-scope fallback to global, off by default (9.0 /
     /// TIP 278) and on for an 8.x runtime version — tclsh 8.6/9.0-pinned
     /// (reads fall back, writes hit the global, a `variable` declaration
     /// blocks it, and `info exists` / `unset` agree).
@@ -650,7 +651,7 @@ mod tests {
 
     /// The gate is selected by the emulated *release*, not by a caller
     /// remembering which side of 9.0 the fallback lives on
-    /// (`set_runtime_version` — issue #1328).
+    /// (`set_runtime_version`).
     ///
     /// Both directions, for every modelled release: 8.4/8.5/8.6 fall back and
     /// 9.0/9.1 do not, and each release's *opposite* behaviour must not hold.
@@ -870,7 +871,7 @@ mod tests {
 
     /// The user-visible consequence of getting resolution wrong: a trace must
     /// fire on the variable an access *resolves to*, whatever spelling either
-    /// side used (issue #1328).
+    /// side used.
     #[test]
     fn traces_fire_on_the_resolved_variable_not_the_spelling() {
         // A qualified registration must catch an unqualified access, and vice

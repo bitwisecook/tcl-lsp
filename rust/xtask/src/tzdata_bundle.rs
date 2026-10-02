@@ -33,7 +33,7 @@
 //! Entries are sorted ascending by name so the resolver can binary-search
 //! the index. Aliases share one deduplicated payload. With `--trim-from` /
 //! `--trim-to` the `TZif` transition list is trimmed to the window
-//! (`v1`-only, leap tables dropped), matching `_trim_tzif`.
+//! (`v1`-only, leap tables dropped).
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -42,9 +42,8 @@ use std::process::ExitCode;
 use anyhow::{Context, Result};
 
 /// `(name, relative-path)` for every curated zone. Aliases (e.g.
-/// `US/Eastern` → `America/New_York`) share a payload. Transcribed from
-/// `_CURATED_ZONES`; output is invariant to this ordering
-/// (entries are sorted by name before packing).
+/// `US/Eastern` → `America/New_York`) share a payload. Output is invariant
+/// to this ordering (entries are sorted by name before packing).
 const CURATED_ZONES: &[(&str, &str)] = &[
     ("UTC", "Etc/UTC"),
     ("GMT", "Etc/GMT"),
@@ -205,7 +204,8 @@ pub fn run(
 }
 
 /// Read the curated zones from `zoneinfo` and pack them into a bundle.
-/// Returns `Err(message)` for `SystemExit(msg)` cases.
+/// Returns `Err(message)` for a fatal input error (missing directory, no
+/// zones resolved, or an over-long zone alias).
 fn build_bundle(
     zoneinfo: &Path,
     trim_from: Option<i64>,

@@ -176,14 +176,14 @@ fn fp_sty_03_genuine_list_building_still_fires() {
     );
 }
 
-// FP-STY-04 — W126 non-channel value: lattice fix for lassign destructure
+// FP-STY-04 — W126 non-channel value: lassign destructure typing
 
 #[test]
 fn fp_sty_04_lassign_destructure_channels_no_w126() {
     // FP-STY-04: `lassign [chan pipe] ch wch` destructures the LIST result of
-    // `chan pipe` into per-element channel-typed locals. Pre-fix the analyser typed
-    // the lassign def-targets as LIST, causing W126 to fire when those locals were
-    // later used as channels. Fix: lassign def-targets are typed UNKNOWN.
+    // `chan pipe` into per-element channel-typed locals. The lassign def-targets
+    // are typed UNKNOWN: typing them LIST fires W126 when those locals are later
+    // used as channels.
     let src = "lassign [chan pipe] ch wch\nputs $ch x";
     assert!(
         !fires(src, D, "W126"),
@@ -194,11 +194,11 @@ fn fp_sty_04_lassign_destructure_channels_no_w126() {
 
 #[test]
 fn tp_sty_04_puts_non_channel_literal_still_fires_w126() {
-    // TP control for FP-STY-04: `puts` now declares its `channelId`
+    // TP control for FP-STY-04: `puts` declares its `channelId`
     // argument's position (via a dynamic `arg_role_resolver`, since the
     // optional leading `-nonewline` shifts it), so a value that provably
-    // isn't a channel in that slot must still fire W126 — the fix above
-    // only silences the *destructured, type-unknown* case, not a
+    // isn't a channel in that slot must still fire W126 — the UNKNOWN typing
+    // above only silences the *destructured, type-unknown* case, not a
     // genuinely wrong literal.
     let src = "puts \"not_a_channel\" hello";
     assert!(
@@ -274,9 +274,8 @@ fn fp_sty_05_user_call_still_fires() {
 #[test]
 fn fp_sty_06_oid_chain_no_w124() {
     // FP-STY-06: `1.3.6.1.4.1.4203.1.11.3` (LDAP PEN OID) is an enterprise OID,
-    // NOT an IPv4 address. The naive regex matched an embedded 4-component slice
-    // where octet 4203 > 255; W124 (and the now-retired W122 it superseded —
-    // issue #1317) fired falsely.
+    // NOT an IPv4 address. A naive regex matches an embedded 4-component slice
+    // where octet 4203 > 255, so W124 fires falsely without the OID carve-out.
     let src = "set oid 1.3.6.1.4.1.4203.1.11.3";
     assert!(
         !fires(src, D, "W124"),
@@ -379,7 +378,7 @@ fn fp_sty_08_bare_keyword_param_still_fires() {
     );
 }
 
-// FP-STY-09 — W214 dispatcher needs arity-compatible peer (D3-P9/D4-F4)
+// FP-STY-09 — W214 dispatcher needs arity-compatible peer
 
 const FP_STY_09_REPRO: &str = "\
 namespace eval ::n {
@@ -424,7 +423,7 @@ namespace eval ::n {
     );
 }
 
-// FP-STY-10 — scan_provably_no_match soundness (%n / Inf / format whitespace, D4-F1)
+// FP-STY-10 — scan_provably_no_match soundness (%n / Inf / format whitespace)
 
 const FP_STY_10_REPRO: &str = "proc f {} { scan {} %n n; puts $n }\n";
 
@@ -474,7 +473,7 @@ fn fp_sty_10_scan_genuine_no_match_still_fires() {
     );
 }
 
-// FP-STY-11 — variadic var-write resolver for scan / lassign / binary scan (D4-F2)
+// FP-STY-11 — variadic var-write resolver for scan / lassign / binary scan
 
 const FP_STY_11_REPRO: &str = "\
 proc f {} {
@@ -485,9 +484,9 @@ proc f {} {
 
 #[test]
 fn fp_sty_11_scan_20_vars_no_false_w210() {
-    // FP-STY-11: pre-fix the scan spec hard-coded VAR_WRITE for slots [2..19]
-    // only; the 20th var (v19) wasn't recognised and the subsequent `return $v19`
-    // falsely fired W210. D4-F2 closure adds the dynamic arg_role_resolver.
+    // FP-STY-11: a scan spec that hard-codes VAR_WRITE for slots [2..19] only
+    // does not recognise the 20th var (v19), so the subsequent `return $v19`
+    // falsely fires W210. The dynamic arg_role_resolver classifies every slot.
     assert!(
         !fires(FP_STY_11_REPRO, D, "W210"),
         "FP-STY-11: scan with 20 vars must not false-fire W210 on v18/v19; emitted: {:?}",
@@ -497,7 +496,7 @@ fn fp_sty_11_scan_20_vars_no_false_w210() {
 
 #[test]
 fn fp_sty_11_lassign_many_vars_no_false_w210() {
-    // FP-STY-11: same fix for `lassign` — all positional args after the list arg
+    // FP-STY-11: same for `lassign` — all positional args after the list arg
     // are classified VAR_WRITE.
     let src =
         "proc f {l} { lassign $l a b c d e f g h i j k l2 m n o p q r s t u v w x y; return $y }\n";
@@ -510,7 +509,7 @@ fn fp_sty_11_lassign_many_vars_no_false_w210() {
 
 #[test]
 fn fp_sty_11_binary_scan_many_vars_no_false_w210() {
-    // FP-STY-11: same fix for `binary scan`.
+    // FP-STY-11: same for `binary scan`.
     let src = "proc f {} { binary scan {} {i i i i i i i i i i i i i i i i i i i i} a b c d e f g h i j k l m n o p q r s t; return $t }\n";
     assert!(
         !fires(src, D, "W210"),
@@ -796,7 +795,7 @@ fn fp_sty_14_composite_body_still_fires() {
 
 #[test]
 fn fp_sty_14_uplevel_body_participates_in_w105_like_eval() {
-    // Issue #837: now that `uplevel`'s script word carries `ArgRole::Body`, the
+    // `uplevel`'s script word carries `ArgRole::Body`, so the
     // W105 unbraced-body check applies to it exactly as it does to `eval`.
     // TP: a quoted interpolated body past the level word is an inline script
     // woven from substitutions — brace it.
@@ -829,8 +828,8 @@ fn fp_sty_14_uplevel_body_participates_in_w105_like_eval() {
 #[test]
 fn fp_sty_15_regsub_dollar_anchor_no_errors() {
     // FP-STY-15: `regsub "\n$" $msg "" out` — `"\n$"` is a literal regex
-    // end-of-line anchor ($ before " is not a substitution). Pre-fix the lexer
-    // merged the closing quote with $msg, raising E002/E205/W306 on valid Tcl.
+    // end-of-line anchor ($ before " is not a substitution). Mis-lexing it
+    // merges the closing quote with $msg and raises E002/E205/W306 on valid Tcl.
     let src = r#"regsub "\n$" $msg "" out"#;
     let all = codes(src, D);
     assert!(
@@ -1084,10 +1083,10 @@ fn fp_sty_18_genuine_unknown_subcommand_without_expansion_still_fires() {
 
 #[test]
 fn fp_sty_19_wm_iconbadge_not_unknown() {
-    // FP-STY-19: `wm iconbadge` is a genuine Tk 9.0+ subcommand (wm.n) that
-    // was missing from the registry entirely, so it drew a spurious
-    // "Unknown subcommand" under every dialect (Tk subcommands are checked
-    // regardless of the active Tcl dialect). Under tcl9.0 it is fully known.
+    // FP-STY-19: `wm iconbadge` is a genuine Tk 9.0+ subcommand (wm.n). Absent
+    // from the registry it draws a spurious "Unknown subcommand" under every
+    // dialect (Tk subcommands are checked regardless of the active Tcl
+    // dialect). Under tcl9.0 it is fully known.
     assert!(
         !fires("wm iconbadge .win 5", "tcl9.0", "W001"),
         "FP-STY-19: wm iconbadge must NOT fire W001 under tcl9.0; emitted: {:?}",
@@ -1111,8 +1110,7 @@ fn fp_sty_19_wm_iconbadge_not_unknown() {
 #[test]
 fn fp_sty_19_grid_pack_place_content_not_unknown() {
     // FP-STY-19: Tk 9.0 renamed `slaves` to `content` (grid.n/pack.n/
-    // place.n) as the canonical spelling; it was missing from the registry
-    // entirely for all three geometry managers.
+    // place.n) as the canonical spelling, for all three geometry managers.
     for src in [
         "grid content .frame",
         "pack content .frame",

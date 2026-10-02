@@ -158,7 +158,7 @@ mod tests {
     use core::ffi::c_char;
 
     /// Reset, run `body`, then assert the run left zero residual and no
-    /// double-frees — the T1.1 acceptance shape.
+    /// double-frees.
     fn assert_leak_free(body: impl FnOnce()) {
         tcl_test_reset_counters();
         body();

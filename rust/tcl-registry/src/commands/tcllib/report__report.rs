@@ -18,7 +18,7 @@
 
 //! `report::report` — create a report object.
 //
-// VERIFIED: tcllib report(n) (report 0.3.1 / 0.4 / 0.5).  Synopsis:
+// tcllib report(n) (report 0.3.1 / 0.4 / 0.5) synopsis:
 //
 //     ::report::report reportName columns ?style "style arg..."?
 //

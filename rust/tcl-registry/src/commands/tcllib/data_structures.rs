@@ -27,7 +27,7 @@
 //! Command names, arity bounds, synopses, and summaries are derived from the
 //! upstream tcllib 2.0 manual pages.  Requires Tcl 8.5+.
 //!
-//! ## P5 — `struct::tree` across its two trains
+//! ## `struct::tree` across its two trains
 //!
 //! `struct::tree` is the redesign's flagship adversarial module: tcllib
 //! 2.0's `struct/pkgIndex.tcl` offers **1.2.3** (`tree1.tcl`) and **2.1.3**
@@ -52,7 +52,7 @@
 //! `lappend cmdcpy <action> $name $node; uplevel` call, so one descriptor
 //! serves both.
 //!
-//! **What this module cannot say** (the P5 limits, each with its field):
+//! **What this module cannot say** (each limit with its field):
 //!
 //! - *Scoped completion codes.*  `::struct::tree::prune` is `return -code 5`,
 //!   meaningful only inside a `walk` body.  The producer half is expressible
@@ -68,8 +68,8 @@
 //!   `-order post`/`-order in` — a relation between an option's value and a
 //!   command used *inside the walk body*, which is the body-scoped half of the
 //!   same E-R6 gap as `prune`'s completion code, not an option relation.
-//!   (`-order in` with `-type bfs`, the *other* half of what used to be
-//!   recorded here, **is** expressible under E-R14 and is declared below.)
+//!   (`-order in` with `-type bfs`, by contrast, **is** expressible under
+//!   E-R14 and is declared below.)
 //! - *Instance-method version gating.*  The lifecycles on `walkproc` and on
 //!   `walk -command` are declared but unread: the analyser has no diagnostic
 //!   site on the instance-method dispatch path.  That is a missing consumer,
@@ -658,7 +658,7 @@ mod tests {
             .expect("the struct::tree class")
     }
 
-    /// **P5.** The two walker interfaces coexist on one class, each
+    /// The two walker interfaces coexist on one class, each
     /// carrying the lifecycle that says which `struct::tree` train it
     /// belongs to — the multi-train case as declaration data.
     #[test]

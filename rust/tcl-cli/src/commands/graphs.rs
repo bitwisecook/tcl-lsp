@@ -16,8 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Analysis/graph verbs: `symbols`, `callgraph`, `symbolgraph`, `dataflow`,
-//! and `diagram`.
+//! Analysis/graph verbs: `symbols`, `callgraph`, `symbolgraph`, and
+//! `dataflow`.
 //!
 //! These verbs combine every resolved input into one source
 //! (`combine_sources`), analyse it, and

@@ -47,34 +47,33 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 RUNNER="$SCRIPT_DIR/test_runner_84.tcl"
 OUTPUT_BASE="$REPO_ROOT/tests/test_reference"
 
-# Test files from the VM conformance plan
-# Same list as the main script, but many won't exist in 8.4.
-# The script skips missing files gracefully.
+# Test files grouped by area, matching the list in the main capture script.
+# Many won't exist in 8.4; the script skips missing files gracefully.
 TEST_FILES=(
-    # Phase 1 — Parser
+    # Parser
     parse.test
     parseOld.test
-    # Phase 2 — Expressions
+    # Expressions
     compExpr-old.test
     compExpr.test
     expr-old.test
     expr.test
     mathop.test
-    # Phase 3 — Variables & Scoping
+    # Variables & Scoping
     incr-old.test
     incr.test
     set-old.test
     var.test
     upvar.test
     uplevel.test
-    # Phase 4 — Strings
+    # Strings
     split.test
     format.test
     scan.test
     append.test
     subst.test
     string.test
-    # Phase 5 — Lists (Core)
+    # Lists (Core)
     list.test
     llength.test
     concat.test
@@ -84,14 +83,14 @@ TEST_FILES=(
     linsert.test
     lreplace.test
     lrepeat.test
-    # Phase 6 — Lists (Advanced)
+    # Lists (Advanced)
     lsearch.test
     cmdIL.test
     lmap.test
     lset.test
     lpop.test
     lseq.test
-    # Phase 7 — Control Flow
+    # Control Flow
     if-old.test
     if.test
     while-old.test
@@ -100,23 +99,23 @@ TEST_FILES=(
     for.test
     foreach.test
     switch.test
-    # Phase 8 — Procedures
+    # Procedures
     proc-old.test
     proc.test
     apply.test
     rename.test
     unknown.test
-    # Phase 9 — Dicts & Arrays
+    # Dicts & Arrays
     dict.test
     cmdAH.test
-    # Phase 10 — Namespaces
+    # Namespaces
     namespace-old.test
     namespace.test
-    # Phase 11 — Error Handling & Eval
+    # Error Handling & Eval
     eval.test
     error.test
     result.test
-    # Phase 12 — Info & Introspection
+    # Info & Introspection
     info.test
 )
 

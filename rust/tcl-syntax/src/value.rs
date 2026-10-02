@@ -51,6 +51,8 @@ use std::rc::Rc;
 
 use tcl_dialect::TclVersion;
 
+use crate::number::Radix;
+
 /// Count the release-defined Tcl characters in a UTF-8 string value.
 ///
 /// Rust strings cannot contain unpaired UTF-16 surrogates, but every Unicode
@@ -154,9 +156,9 @@ impl std::error::Error for ValueError {}
 ///
 /// That mattered: the rule existed in three independent copies plus one place
 /// it had been *missed*, where `dict get {a 1 a 2} a` folded to `1` while both
-/// tclsh oracles say `2` (issues #1427, #1591, #1608). Callers must not
-/// re-implement the walk; the cross-crate parity gate
-/// `dict_canonicalisation_parity` fails when a copy reappears and diverges.
+/// tclsh oracles say `2`. Callers must not re-implement the walk; the
+/// cross-crate parity gate `dict_canonicalisation_parity` fails when a copy
+/// reappears and diverges.
 ///
 /// The odd-length check belongs to the caller: what an unpaired trailing
 /// element means (an error, or a declined fold) differs per layer.
@@ -206,6 +208,18 @@ where
 /// backing list is odd-length. The pair type is the implementor's `Value`, so it
 /// is parameterised here to keep [`ValueOps::dict_pairs`]'s signature readable.
 pub type DictPairs<V> = Result<Vec<(V, V)>, ValueError>;
+
+/// An integer's sign and magnitude for arbitrary-precision formatting.
+///
+/// The magnitude has no sign or radix prefix and uses lowercase digits. The
+/// command core owns conversion prefixes, precision, and padding.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IntegerMagnitude {
+    /// Whether the integer is negative.
+    pub negative: bool,
+    /// The unsigned digits in the requested radix.
+    pub digits: String,
+}
 
 pub trait ValueOps {
     /// The runtime's value type (a cheap-to-clone handle).
@@ -260,6 +274,29 @@ pub trait ValueOps {
 
     /// As a wide integer (`Tcl_GetWideIntFromObj`).
     fn as_int(&mut self, v: &Self::Value) -> Result<i64, ValueError>;
+
+    /// The integer's sign and magnitude in `radix` for a bignum format path.
+    ///
+    /// Fixed-width value models use the wide-integer default. Bignum-capable
+    /// runtimes override it so `format %llx` never narrows through `i64`.
+    fn integer_magnitude(
+        &mut self,
+        v: &Self::Value,
+        radix: Radix,
+        _syntax: tcl_dialect::NumberSyntax,
+    ) -> Result<IntegerMagnitude, ValueError> {
+        let value = self.as_int(v)?;
+        let digits = match radix {
+            Radix::Bin => format!("{:b}", value.unsigned_abs()),
+            Radix::Oct => format!("{:o}", value.unsigned_abs()),
+            Radix::Dec => value.unsigned_abs().to_string(),
+            Radix::Hex => format!("{:x}", value.unsigned_abs()),
+        };
+        Ok(IntegerMagnitude {
+            negative: value.is_negative(),
+            digits,
+        })
+    }
 
     /// Parse a `string compare`/`string equal` `-length` argument.
     ///

@@ -30,14 +30,14 @@
 //! Body/handler/finally each run as a phase of an explicit-stack state machine
 //! (`TryState`/`TryPhase`/[`advance_try`]) rather than through
 //! `Vm::eval_source`'s nested drive, so a `yield` inside any of them stays
-//! yieldable (issue #1311) — the phase transitions (handler matching, var
-//! binding, `-during` chaining) are the same Rust-side logic the old
-//! synchronous version had, just resumed from `Vm::unwind` instead of run
+//! yieldable — the phase transitions (handler matching, var
+//! binding, `-during` chaining) are the same Rust-side logic a synchronous
+//! version would need, just resumed from `Vm::unwind` instead of run
 //! inline between two `eval_source` calls.
 
 use std::rc::Rc;
 
-use tcl_runtime_api::{Code, Completion};
+use tcl_runtime_api::{Code, Completion, FatalTail};
 
 use crate::command::{completion_options, opt_get, options_dict};
 use crate::interp::{Vm, err, ok};
@@ -94,7 +94,7 @@ pub(crate) enum TryPhase {
 pub(crate) struct TryState {
     plan: Rc<TryPlan>,
     phase: TryPhase,
-    pub(crate) fatal_tail: Option<String>,
+    pub(crate) fatal_tail: Option<FatalTail>,
 }
 
 /// One phase of a `try` deferred to the explicit stack: the phase's compiled
@@ -287,7 +287,7 @@ fn parse_clauses(rest: &[Value]) -> Result<(Vec<Handler>, Option<Value>), Comple
 /// `try body ?handler ...? ?finally script?` — structured exception handling.
 ///
 /// Parses and validates the grammar synchronously (unchanged), then defers the
-/// body to the explicit stack via `vm.pending.try_phase` (issue #1311) instead of
+/// body to the explicit stack via `vm.pending.try_phase` instead of
 /// running it through `Vm::eval_source`. [`advance_try`] carries the
 /// handler-matching / `finally` logic forward from there, one phase per
 /// `Vm::unwind` fold.
@@ -314,7 +314,9 @@ fn cmd_try(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             ok(Value::empty())
         }
         Ok(prepared) => {
-            let body_completion = prepared.fatal_tail.map_or_else(|| ok(Value::empty()), err);
+            let body_completion = prepared
+                .fatal_tail
+                .map_or_else(|| ok(Value::empty()), |tail| vm.raise_fatal_tail(tail));
             match advance_after_body(vm, &plan, body_completion) {
                 TryOutcome::Push(req) => {
                     vm.pending.try_phase = Some(req);
@@ -324,9 +326,8 @@ fn cmd_try(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             }
         }
         // A body parse error is a regular runtime error, subject to the same
-        // `on error`/`trap`/`finally` handling as any other body error —
-        // mirrors the old `Vm::eval_source`-based version, whose `Err
-        // (TclError)` became a plain `Completion{Error}` fed through
+        // `on error`/`trap`/`finally` handling as any other body error: its
+        // `Err(TclError)` becomes a plain `Completion{Error}` fed through
         // `advance_after_body`'s handler matching, not returned as a hard
         // failure that skips it (try-body-parse-error tclsh-pinned test).
         Err(e) => match advance_after_body(vm, &plan, err(e.message)) {
@@ -412,7 +413,9 @@ fn advance_after_body(vm: &mut Vm, plan: &Rc<TryPlan>, body_comp: Completion<Val
                     },
                 }),
                 Ok(prepared) => {
-                    let completion = prepared.fatal_tail.map_or_else(|| ok(Value::empty()), err);
+                    let completion = prepared
+                        .fatal_tail
+                        .map_or_else(|| ok(Value::empty()), |tail| vm.raise_fatal_tail(tail));
                     advance_after_handler(vm, plan, &body_opts, completion)
                 }
                 Err(e) => finish_body_or_handler(vm, plan, err(e.message)),
@@ -462,9 +465,9 @@ fn finish_body_or_handler(
         let _ = vm.take_error_info();
     }
     // Compiled lazily here rather than in `cmd_try` up front: a `finally`
-    // never runs before this point, matching the old synchronous ordering (a
+    // never runs before this point, so a
     // body/handler compile error is reported before `finally`'s own grammar
-    // is ever touched).
+    // is ever touched.
     let prepared = match vm.prepare_script_commands(&fin.to_str()) {
         Ok(prepared) => prepared,
         // A `finally` parse error is `finally`'s own exception overriding the
@@ -473,7 +476,9 @@ fn finish_body_or_handler(
         Err(e) => return advance_after_finally(vm, outcome, err(e.message)),
     };
     let Some(script) = prepared.prefix else {
-        let completion = prepared.fatal_tail.map_or_else(|| ok(Value::empty()), err);
+        let completion = prepared
+            .fatal_tail
+            .map_or_else(|| ok(Value::empty()), |tail| vm.raise_fatal_tail(tail));
         return advance_after_finally(vm, outcome, completion);
     };
     TryOutcome::Push(TryReq {

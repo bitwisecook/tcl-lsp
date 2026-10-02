@@ -160,11 +160,11 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
 
     let module = BpfModule { programs };
 
-    // Handler composition (issue #1204): two handlers of the *same* event at the
-    // *same* priority have no deterministic order — the priority sort cannot
-    // distinguish them and the event-name tiebreaker is identical. That is an
-    // ambiguous composition; reject it rather than emit a non-deterministic
-    // chain ("sorting independent object files is not sufficient").
+    // Two handlers of the *same* event at the *same* priority have no
+    // deterministic order — the priority sort cannot distinguish them and
+    // the event-name tiebreaker is identical. That is an ambiguous
+    // composition; reject it rather than emit a non-deterministic chain
+    // ("sorting independent object files is not sufficient").
     if let Some((event, priority)) = crate::compose::ambiguous_priorities(&module)
         .into_iter()
         .next()
@@ -419,8 +419,8 @@ mod tests {
     use tcl_dialect::{NumberSyntax, TclVersion};
     use tcl_syntax::number::{runtime_syntax, set_runtime_syntax};
 
-    /// Regression and mutation proof for #1466: loading the BPF command pack
-    /// alone is intentionally profile-less. The front end must instead obtain
+    /// Regression and mutation proof: loading the BPF command pack alone is
+    /// intentionally profile-less. The front end must instead obtain
     /// the cached, profile-stamped registry so every downstream registry fact
     /// describes BPF's exact Tcl 9.0 embedding.
     #[test]
@@ -437,8 +437,9 @@ mod tests {
         assert_eq!(registry.octal_fold_policy(), Some(false));
         assert!(registry.bpf_op("when").is_some(), "BPF pack is loaded");
 
-        // Mutant: the pre-#1466 construction has the same command pack but no
-        // profile, so it cannot carry BPF's release facts through the registry.
+        // Mutant: a registry built without loading the profile has the same
+        // command pack but no profile, so it cannot carry BPF's release
+        // facts through the registry.
         let mut unstamped = CommandRegistry::build_default();
         unstamped.load_bpf();
         assert!(unstamped.profile().is_none());
@@ -587,8 +588,8 @@ mod tests {
 
     #[test]
     fn every_registry_described_event_now_compiles() {
-        // Issue #1310: TC and cgroup codegen landed, so every event the
-        // registry describes is codegen-ready — `resolve_event_prog_type`'s
+        // With TC and cgroup codegen implemented, every event the registry
+        // describes is codegen-ready — `resolve_event_prog_type`'s
         // "described, but codegen not ready" branch
         // (`BpfDiag::BadEvent` naming the event precisely rather than
         // claiming it unknown) has no live event to fire on today. It stays
@@ -646,8 +647,8 @@ mod tests {
         assert!(module.programs[0].program.blocks.len() >= 3);
     }
 
-    /// Registry/lowering drift gate (issue #1202 acceptance criterion): every
-    /// BPF-dialect command carries a typed `bpf_op` descriptor, and the
+    /// Registry/lowering drift gate: every BPF-dialect command carries a
+    /// typed `bpf_op` descriptor, and the
     /// lowerer/capability policy dispatch on that descriptor — never on a
     /// command-name switch. This walks the *actual* registered BPF command set
     /// and proves each command is describable, so a newly registered command

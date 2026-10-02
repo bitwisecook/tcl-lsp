@@ -49,6 +49,8 @@ mod document_symbols;
 mod edit_tracking_stress;
 #[path = "e2e/editor_features.rs"]
 mod editor_features;
+#[path = "e2e/environment_notice.rs"]
+mod environment_notice;
 #[path = "e2e/hover.rs"]
 mod hover;
 #[path = "e2e/invariants.rs"]
@@ -100,6 +102,14 @@ mod issue1331_crossfile_diagnostics;
 /// to their `ILXServer.addMethod` registration in the extension's JavaScript.
 #[path = "e2e/issue1707_ilx_methods.rs"]
 mod issue1707_ilx_methods;
+/// Issue #2021 — the exit watchdog: a session that is over (stdin EOF, or
+/// the `exit` notification) must force the process to terminate within a
+/// bounded grace even while a handler future (the startup workspace scan)
+/// is still running.
+#[path = "e2e/issue2021_exit_watchdog.rs"]
+mod issue2021_exit_watchdog;
+#[path = "e2e/issue2021_workspace_scan_cap.rs"]
+mod issue2021_workspace_scan_cap;
 #[path = "e2e/issue923_class_refs.rs"]
 mod issue923_class_refs;
 #[path = "e2e/issue923_crossdoc.rs"]
@@ -112,6 +122,8 @@ mod issue945;
 mod issue954_followup;
 #[path = "e2e/issue996_stack_overflow.rs"]
 mod issue996_stack_overflow;
+#[path = "e2e/jim.rs"]
+mod jim;
 #[path = "e2e/name_resolution.rs"]
 mod name_resolution;
 #[path = "e2e/navigation.rs"]

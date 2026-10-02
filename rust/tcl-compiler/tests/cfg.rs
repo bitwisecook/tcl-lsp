@@ -291,9 +291,9 @@ fn for_rotation_requires_a_non_stale_constant_init() {
     // an opaque call that could touch the loop var must invalidate the stale
     // constant — otherwise a possibly-zero-iteration loop would be wrongly
     // rotated (its optimiser static-for summary and its zero-trip edge would be
-    // unsound). W210 no longer distinguishes these (a may-run loop whose body
-    // defines the var is silent after the loop, matching C Tcl — issue #756), so
-    // this pins the rotation decision directly on the CFG shape.
+    // unsound). W210 does not distinguish these (a may-run loop whose body
+    // defines the var is silent after the loop, matching C Tcl), so this pins
+    // the rotation decision directly on the CFG shape.
 
     // Guaranteed: `0 < 3` is true on entry → rotated (header carries `1`).
     assert_eq!(
@@ -409,7 +409,7 @@ fn spans_overlap(a: (usize, usize), b: (usize, usize)) -> bool {
 // false pair out of `for_header`.
 const BRANCHY: &str = "proc f {x} {\n    set total 0\n    for {set i 0} {$i < $x} {incr i} {\n        if {$i % 2 == 0} { incr total $i } else { incr total 1 }\n    }\n    return $total\n}\n";
 
-// -- assign_lanes (the routing contract) --
+// assign_lanes: the routing contract.
 
 #[test]
 fn disjoint_spans_share_lane_zero() {
@@ -478,7 +478,7 @@ fn no_two_same_lane_edges_overlap() {
     }
 }
 
-// -- build_cfg_edges --
+// build_cfg_edges.
 
 #[test]
 fn branch_kinds_and_lanes() {
@@ -671,5 +671,85 @@ impl XorShift {
         self.0 = x;
         // Take the high bits (better distributed than the low bits).
         (x.wrapping_mul(0x2545_F491_4F6C_DD1D) >> 32) as u32
+    }
+}
+
+/// A `break` out of a `try` resumes at its loop target from the `finally`
+/// clause's own last block. The statements after the `try` are appended to
+/// `try_after_finally`, and a `break` does not run them: in
+/// `while 1 { try {break} finally {}; set x 1 }` tclsh 8.6.18 and 9.0.4 leave
+/// `x` unset at the loop exit. Resuming from `try_after_finally` carried the
+/// `set x 1` along the `break` path (found in review).
+#[test]
+fn a_jump_resumed_after_a_finally_skips_the_code_after_the_try() {
+    for src in [
+        "proc p {} {\n    while 1 {\n        try {break} finally {}\n        set x 1\n    }\n    return $x\n}\n",
+        "proc p {} {\n    while 1 {\n        try { try {break} finally {} } finally {}\n        set x 1\n    }\n    return $x\n}\n",
+    ] {
+        let module = cfg(src);
+        let func = proc(&module, "::p");
+        let loop_end = func
+            .blocks
+            .iter()
+            .find(|(_, b)| b.name.starts_with("while_end"))
+            .map(|(id, _)| *id)
+            .expect("while_end block");
+        let resumes: Vec<_> = func
+            .exception_edges
+            .iter()
+            .filter(|(_, to)| *to == loop_end)
+            .map(|(from, _)| &func.blocks[from])
+            .collect();
+        assert!(
+            !resumes.is_empty(),
+            "the `break` must reach the loop exit: {src}"
+        );
+        for block in resumes {
+            assert!(
+                block.name.starts_with("try_finally"),
+                "resumed from {} rather than the clause: {src}",
+                block.name
+            );
+            assert!(
+                !block
+                    .statements
+                    .iter()
+                    .any(|s| matches!(s, Statement::AssignConst { name, .. } if name == "x")),
+                "the `break` path runs `set x 1`: {src}"
+            );
+        }
+    }
+}
+
+/// A `break` a nested `catch` swallows never reaches the enclosing `try`'s
+/// handlers, so it is not routed into its `on break` handler: tclsh 8.6.18
+/// and 9.0.4 run no handler for `try {catch {break}; return} on break {} {…}`
+/// (found in review).
+#[test]
+fn a_break_a_nested_catch_swallows_is_not_routed_to_an_outer_handler() {
+    let module = cfg(
+        "proc p {} {\n    while 1 {\n        try {catch {break}; return} on break {} {unset y}\n        break\n    }\n}\n",
+    );
+    let func = proc(&module, "::p");
+    let handlers: Vec<_> = func
+        .blocks
+        .iter()
+        .filter(|(_, b)| b.name.starts_with("try_handler"))
+        .map(|(id, _)| *id)
+        .collect();
+    assert!(!handlers.is_empty(), "the `on break` handler is lowered");
+    for block in func.blocks.values().filter(|b| {
+        b.statements
+            .iter()
+            .any(|s| matches!(s, Statement::Call { command, .. } if command == "break"))
+            && b.name.starts_with("catch_body")
+    }) {
+        if let Some(Terminator::Goto { target, .. }) = &block.terminator {
+            assert!(
+                !handlers.contains(target),
+                "{} is routed into the outer handler",
+                block.name
+            );
+        }
     }
 }

@@ -22,9 +22,19 @@ use crate::semantic_operation::SemanticOperationId;
 const RUNTIME_INVARIANT_SEMANTICS: u32 = 0;
 const TCL8_UTF16_STRING_SEMANTICS: u32 = 1;
 const TCL9_SCALAR_STRING_SEMANTICS: u32 = 2;
+/// Tcl 8.4/8.5, whose three-byte `TCL_UTF_MAX` makes a supplementary code
+/// point count as its four UTF-8 bytes rather than as a surrogate pair. A
+/// distinct key, not a reuse of the 8.6 one: the whole point of this value is
+/// that an implementation attested under one string model must not be shared
+/// with a release that counts differently, and 8.4 answers 4 where 8.6
+/// answers 2. Appended rather than renumbered, because these keys are stable.
+const TCL84_BMP_STRING_SEMANTICS: u32 = 3;
 const INVARIANT_SEMANTICS: &[u32] = &[RUNTIME_INVARIANT_SEMANTICS];
-const VERSIONED_STRING_SEMANTICS: &[u32] =
-    &[TCL8_UTF16_STRING_SEMANTICS, TCL9_SCALAR_STRING_SEMANTICS];
+const VERSIONED_STRING_SEMANTICS: &[u32] = &[
+    TCL8_UTF16_STRING_SEMANTICS,
+    TCL9_SCALAR_STRING_SEMANTICS,
+    TCL84_BMP_STRING_SEMANTICS,
+];
 
 /// Target-neutral identity of a registry-described intrinsic operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -165,12 +175,15 @@ impl IntrinsicId {
     /// Stable runtime-semantics key included in guarded implementation identity.
     ///
     /// Most intrinsics currently have one release-invariant implementation
-    /// contract. `StringLength` is versioned because Tcl 8 counts UTF-16-style
-    /// `Tcl_UniChar` units while Tcl 9 counts Unicode scalar values.
+    /// contract. `StringLength` is versioned because the releases count
+    /// differently: 8.4/8.5 count BMP characters and spell a supplementary
+    /// code point as its four UTF-8 bytes, 8.6 counts UTF-16-style
+    /// `Tcl_UniChar` units, and 9.x counts Unicode scalar values.
     #[must_use]
     pub const fn guard_semantics_key(self, runtime: TclVersion) -> u32 {
         match self {
             Self::StringLength => match runtime.string_character_model() {
+                StringCharacterModel::BmpCharsElseUtf8Bytes => TCL84_BMP_STRING_SEMANTICS,
                 StringCharacterModel::Utf16CodeUnits => TCL8_UTF16_STRING_SEMANTICS,
                 StringCharacterModel::UnicodeScalars => TCL9_SCALAR_STRING_SEMANTICS,
             },
@@ -335,6 +348,23 @@ mod tests {
         assert_eq!(
             IntrinsicId::from_legacy_inline_codegen(InlineCodegenHookId::String),
             None
+        );
+    }
+
+    /// #2140: `docs/design/compiler/wasm-native-lowering-plan.md` § 2.5
+    /// note 4 quotes this catalogue's size to make its point — one
+    /// `execute_intrinsic` arm against the whole declared set. It said
+    /// "about twenty" while the enum held twenty-eight.
+    ///
+    /// Growing the catalogue is expected; leaving the plan quoting the old
+    /// number is not. This fails until the note is updated with it.
+    #[test]
+    fn the_intrinsic_catalogue_is_the_size_this_plan_quotes_issue_2140() {
+        assert_eq!(
+            IntrinsicId::ALL.len(),
+            28,
+            "update `docs/design/compiler/wasm-native-lowering-plan.md` \u{a7} 2.5 note 4, \
+             which quotes this count, then update this assertion"
         );
     }
 

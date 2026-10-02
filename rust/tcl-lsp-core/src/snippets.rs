@@ -121,8 +121,6 @@ fn var_choices(ctx: &SnippetContext, tabstop: u32, default: &str) -> String {
     format!("${{{tabstop}|{choices}|}}")
 }
 
-// Tcl-core generators
-
 fn gen_proc(ctx: &SnippetContext) -> String {
     let i = ctx.indent_unit;
     format!("proc ${{1:name}} {{${{2:args}}}} {{\n{i}$0\n}}")
@@ -223,8 +221,6 @@ fn gen_dict_for(ctx: &SnippetContext) -> String {
     let dict_ph = var_choices(ctx, 3, "dictVar");
     format!("dict for {{${{1:key}} ${{2:value}}}} {dict_ph} {{\n{i}$0\n}}")
 }
-
-// -- iRules event generators (declining via `""`) ----
 
 /// `true` when `event` is already declared in the file.
 fn has_event(ctx: &SnippetContext, event: &str) -> bool {

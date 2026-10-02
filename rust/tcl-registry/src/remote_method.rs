@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Remote-method descriptors — commands that name a method implemented in
-//! **another language**, reached over an RPC handle (issue #1707).
+//! **another language**, reached over an RPC handle.
 //!
 //! The archetype, and the only family modelled today, is iRulesLX: an iRule
 //! opens a handle onto a running Node.js extension and then calls a method the
@@ -78,7 +78,7 @@ pub enum RemoteFamily {
 ///
 /// Kept distinct because the two commands are genuinely different operations —
 /// `ILX::call` blocks for the reply and yields it, `ILX::notify` is fire and
-/// forget — even though they share one method target (issue #1707 criterion 5).
+/// forget — even though they share one method target.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RemoteDispatch {
     /// The iRule blocks until the extension replies, and the call evaluates to
@@ -135,8 +135,7 @@ pub struct RemoteHandleSpec {
     /// own hover synopsis records `ILX::init (EXTENSION | (PLUGIN EXTENSION))`),
     /// but F5 documents only the two-word form and says nothing about which
     /// plugin the short form binds to.  Requiring the documented arity exactly
-    /// makes the short form abstain instead of inventing an association
-    /// (issue #1707 criterion 4).
+    /// makes the short form abstain instead of inventing an association.
     pub exact_argc: u8,
 }
 

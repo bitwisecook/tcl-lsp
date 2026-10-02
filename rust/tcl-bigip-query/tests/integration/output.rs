@@ -19,9 +19,8 @@
 //! Checks for the value model, `jsonfmt`, and `output` render modes.
 //!
 //! The expected strings are captured verbatim from the query DSL's reference
-//! output (`output.render` / JSON serialisation) — see the `gen`-comment beside
-//! each — and asserted against this crate. Self-contained: no external reference at test
-//! time.
+//! output (`output.render` / JSON serialisation) and asserted against this
+//! crate. Self-contained: no external reference at test time.
 
 use indexmap::IndexMap;
 use tcl_bigip_query::output::render;

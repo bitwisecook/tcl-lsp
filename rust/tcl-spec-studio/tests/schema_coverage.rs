@@ -83,9 +83,9 @@ fn default_initialiser_fields(source: &str, after_marker: &str) -> Vec<String> {
 /// Spec fields the studio deliberately edits as several separate keys.
 ///
 /// `lifecycle` is one `Lifecycle` value on the spec but three independent
-/// releases and one quick-fix hook in the form (#1210), so the schema names
-/// them separately and the draft carries all four. Everything else is one
-/// field, one key.
+/// releases and one quick-fix hook in the form, so the schema names them
+/// separately and the draft carries all four. Everything else is one field,
+/// one key.
 const EXPANDED_FIELDS: &[(&str, &[&str])] = &[(
     "lifecycle",
     &[

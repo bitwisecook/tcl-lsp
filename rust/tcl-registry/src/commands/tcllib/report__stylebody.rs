@@ -18,7 +18,7 @@
 
 //! `report::stylebody` — introspect a style's definition script.
 //
-// VERIFIED: tcllib report(n).  `::report::stylebody styleName` returns the
+// tcllib report(n).  `::report::stylebody styleName` returns the
 // script associated with the style.  `package require Tcl 8.5 9`.
 
 use crate::prelude::*;

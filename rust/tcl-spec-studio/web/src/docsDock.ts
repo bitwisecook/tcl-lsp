@@ -89,7 +89,7 @@ export interface DockSources {
   packs: ReadonlyMap<string, PackRow>;
 }
 
-/* Anchors ---------------------------------------------------------------- */
+// Anchors
 
 /**
  * The stable DOM id of a setting's row in the form.
@@ -102,7 +102,7 @@ export function fieldAnchorId(key: string): string {
   return `field-${key.replace(/[^A-Za-z0-9_-]/g, "-")}`;
 }
 
-/* Subjects --------------------------------------------------------------- */
+// Subjects
 
 /** Every documented key the schema carries, mapped to its display label. */
 export function labelIndex(schema: Schema): Map<string, string> {
@@ -265,7 +265,7 @@ export function describeSubject(sources: DockSources, subject: DockSubject): Doc
   }
 }
 
-/* Routing ---------------------------------------------------------------- */
+// Routing
 
 /**
  * A linkable view of the studio.

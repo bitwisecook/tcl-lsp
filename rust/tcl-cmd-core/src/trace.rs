@@ -222,9 +222,9 @@ pub fn resolve_option<'a>(word: &str, visible: &[&'a str]) -> Result<&'a str, Cm
     Ok(visible[index])
 }
 
-/// `bad type "X": must be execution, command, or variable` — the trace-type
-/// option error (`trace add|remove|info <type> …`). C's `traceTypeOptions`
-/// reports it as a `bad option`.
+/// `bad option "X": must be execution, command, or variable` — the trace-type
+/// error (`trace add|remove|info <type> …`). C resolves the type word against
+/// `traceTypeOptions`, so it reports a bad *option*, not a bad type.
 #[must_use]
 pub fn bad_type_error(got: &str) -> CmdError {
     CmdError::new(format!(

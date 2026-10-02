@@ -19,7 +19,7 @@
 """A tiny standalone report web server (stdlib only, no extra dependencies).
 
 Serves the shared builder page and generates reports server-side via
-:func:`f5report.build_report`. The same page (``shared/src/pages/input.ts``)
+:func:`f5report.build_report`. The same page (``frontend/src/pages/input.ts``)
 drives this server through its ``ServerBackend``; uploaded UCS files are spilled
 to a temp file so the full SSL-cert PEMs are recovered. Run with
 ``python -m f5report --serve`` or the ``f5-report-web`` entry point.

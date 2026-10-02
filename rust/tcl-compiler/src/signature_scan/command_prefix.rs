@@ -52,7 +52,7 @@
 //!   `Traits::WRAPS_COMMAND_PREFIX` command): the wrapper's own result is a
 //!   command prefix, so its wrapped word is unwrapped one level and run back
 //!   through the shapes above. The idiom Tk's `library/fontchooser.tcl` uses
-//!   for its trace callbacks (issue #923 idx 92). A *braced* wrapped word is
+//!   for its trace callbacks. A *braced* wrapped word is
 //!   excluded: the analyser already walks it as a script, and a second record
 //!   at the same span would double the code-lens reference count (see
 //!   [`extract_wrapped_prefix_head`]).
@@ -369,17 +369,16 @@ fn extract_prefix_head(
 ///
 /// The **bareword** shape (`[namespace code Tracer]`) is *not* excluded, even
 /// though `Analyser::dispatch_one_body_argument` does dispatch a bareword
-/// `Body` word as a zero-argument call (the issue #923 idx 61 fix).  That
+/// `Body` word as a zero-argument call.  That
 /// dispatch runs on the analyser's own statement walk, which does not descend
 /// into a `[…]` command substitution — and a `namespace code` wrapper is
 /// always inside one, since its result has to be substituted to be used.
 /// Measured, not assumed: excluding the bareword shape here drops the
-/// callback's reference count from 1 to 0 (PR #1075 review, P2 — the review's
-/// double-count diagnosis holds for the braced word, which was already
-/// guarded, but not for this one).
+/// callback's reference count from 1 to 0.  The double-count that justifies
+/// excluding the braced shape does not arise for this one.
 ///
-/// The `None` traits read below is deliberate under
-/// invariant I4: this is a navigation/reference **widening** query (an
+/// The `None` traits read below is deliberate: this is a
+/// navigation/reference **widening** query (an
 /// extra recorded reference, never a semantic specialisation), so
 /// over-approximating across environments is the conservative direction.
 ///

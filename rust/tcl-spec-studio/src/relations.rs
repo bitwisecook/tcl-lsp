@@ -149,6 +149,7 @@ pub const CLUSTERS: &[Cluster] = &[
             "taint_log_sink",
             "taint_network_sink_args",
             "taint_code_sink_args",
+            "taint_numeric_coercion",
             "taint_interp_eval_subcommands",
             "taint_sink_safe_colour",
             "taint_sink_gate",
@@ -215,6 +216,7 @@ pub const CLUSTERS: &[Cluster] = &[
             "creates_scope_alias",
             "variable_scope",
             "loop_list_header",
+            "substitution_resolver",
         ],
     },
     Cluster {

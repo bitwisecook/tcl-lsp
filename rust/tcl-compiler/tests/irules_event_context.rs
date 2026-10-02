@@ -39,9 +39,8 @@ fn codes(source: &str, dialect: &str) -> Vec<String> {
 
 #[test]
 fn bare_return_with_args_directly_in_event_body_still_warns() {
-    // Regression guard for the positive case: `return` with arguments
-    // written *directly* inside a `when` body (no intervening `proc`) is
-    // exactly what W142 exists to catch.
+    // `return` with arguments written *directly* inside a `when` body (no
+    // intervening `proc`) is exactly what W142 exists to catch.
     let src = "when HTTP_REQUEST {\n    return \"x\"\n}\n";
     let got = codes(src, "f5-irules");
     assert!(

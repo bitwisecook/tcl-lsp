@@ -24,7 +24,7 @@ if {[file exists [file join $script_dir _mock_stubs.tcl]]} {
 source [file join $script_dir itest_core.tcl]
 source [file join $script_dir orchestrator.tcl]
 
-# ── Configure test defaults ──────────────────────────────────────
+# Configure test defaults
 
 ::orch::configure_tests \
     -profiles {TCP CLIENTSSL HTTP} \
@@ -59,7 +59,7 @@ source [file join $script_dir orchestrator.tcl]
         }
     }
 
-# ── Test cases ───────────────────────────────────────────────────
+# Test cases
 
 ::orch::test "routing-1.0" "API request routes to api_pool" -body {
     ::orch::run_http_request -host api.example.com -uri /v1/health
@@ -93,6 +93,6 @@ source [file join $script_dir orchestrator.tcl]
     ::orch::assert_that pool_selected equals api_pool
 }
 
-# ── Summary ──────────────────────────────────────────────────────
+# Summary
 
 ::orch::run_and_exit

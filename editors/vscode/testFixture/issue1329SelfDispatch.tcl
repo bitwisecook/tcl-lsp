@@ -1,4 +1,4 @@
-# Fixture for issues #1329 and #1330 — bareword `my <method>` must be
+# Fixture — bareword `my <method>` must be
 # diagnosed like every other same-object dispatch spelling, and the range
 # every dispatch diagnostic reports must cover the offending word exactly.
 #

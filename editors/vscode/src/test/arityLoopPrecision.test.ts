@@ -33,8 +33,8 @@ function linesWithCode(diags: vscode.Diagnostic[], code: string): number[] {
   return withCode(diags, code).map((d) => d.range.start.line);
 }
 
-// Arity-data corrections (verified against tclsh 9.0.4) plus the tight E003
-// range and the W241 throw/tailcall loop-exit fix, delivered end-to-end.
+// Arity data (verified against tclsh 9.0.4), the tight E003 range, and W241
+// throw/tailcall loop-exit detection, asserted through the real editor client.
 //
 // Fixture line map (0-based):
 //   2  lreverse {a b c} extra1 extra2   → E003, tight on the surplus words

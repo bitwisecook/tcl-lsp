@@ -68,7 +68,6 @@ use tcl_compiler::state_ssa::{CfgStatePosition, StateOp, StateSite};
 use tcl_compiler::taint::find_taint_warnings_for_cu;
 use tcl_compiler::world_state_ssa::{WorldStateSsaDecline, project_transition_facts};
 use tcl_lexer::{LexerConfig, LineIndex, Span, TokenType};
-use tcl_registry::available_dialects;
 // See the note in `lib.rs`: the explorer resolves against the active pack set.
 use tcl_spectcl::bundled::active_registry_for_dialect as registry_for_dialect;
 use tcl_syntax::expr::ast::render_expr;
@@ -83,20 +82,19 @@ use crate::views::{Severity, VIEW_META};
 /// Serialise the `meta` view: dialect list, view-tab table, and the
 /// severity vocabulary.
 ///
-/// Dialects carry their catalog labels (`display_name` for menus,
-/// `short_name` for toolbars) exactly like the `views` entries carry
-/// theirs, so no GUI consumer needs its own name table. A name without a
-/// catalog profile repeats itself as both labels.
+/// Dialects are the selectable environments in selectable order, each carrying
+/// its labels (`display_name` for menus, `short_name` for toolbars) exactly
+/// like the `views` entries carry theirs, so no GUI consumer needs its own
+/// name table.
 #[must_use]
 pub fn serialise_meta() -> Value {
-    let dialects: Vec<Value> = available_dialects()
+    let dialects: Vec<Value> = tcl_registry::model::selectable_environments()
         .iter()
-        .map(|d| {
-            let profile = crate::environment::catalogue_profile_for_dialect(d);
+        .map(|environment| {
             json!({
-                "name": *d,
-                "displayName": profile.map_or(*d, |p| p.display_name),
-                "shortName": profile.map_or(*d, |p| p.short_name),
+                "name": environment.id.as_str(),
+                "displayName": environment.display_name.as_ref(),
+                "shortName": environment.short_name.as_ref(),
             })
         })
         .collect();
@@ -135,9 +133,9 @@ pub fn serialise_meta() -> Value {
         "severities": severities,
         "traits": traits,
         // The codegen-pass catalogue, so a front end can render its toggles
-        // before the first compile — the same reason `dialects` is here
-        // (issue #1183). The per-result `semanticOptimisations` view carries
-        // the same rows plus the state the shown module was built with.
+        // before the first compile — the same reason `dialects` is here.
+        // The per-result `semanticOptimisations` view carries the same rows
+        // plus the state the shown module was built with.
         "semanticOptimisations": serialise_semantic_optimisations(
             SemanticOptimisationConfig::new(),
         ),
@@ -1313,9 +1311,9 @@ pub fn serialise_optimisations(result: &ExplorerResult, li: &LineIndex, source: 
                 "replacement": o.replacement,
                 // Informational rather than actionable, and its span is the
                 // whole consuming statement rather than a sub-word. Without
-                // this the view is indistinguishable from an applicable
-                // rewrite — which is how a hint-only O102 came to be read as a
-                // one-click fix (issue #1934). The LSP has always sent it.
+                // this flag a hint-only finding like O102 is indistinguishable
+                // from an applicable rewrite and can be read as a one-click
+                // fix, so the LSP sends it unconditionally.
                 "hintOnly": o.hint_only,
             })
         })
@@ -1861,9 +1859,9 @@ fn source_decline_value(
 
 fn semantic_decline_value(availability: &ExecutableAnalysisAvailability) -> Option<Value> {
     match availability {
-        // The re-keyed sidecar (ledger C1 / §11.2 D1) reaches this state by
-        // carrying no resolved environment at all, so there is no mask left to
-        // name in the payload.
+        // The re-keyed sidecar reaches this state by carrying no resolved
+        // environment at all, so there is no mask left to name in the
+        // payload.
         ExecutableAnalysisAvailability::ContextUnavailable => {
             Some(json!({"kind": "context-unavailable"}))
         }
@@ -2412,13 +2410,13 @@ pub fn serialise_bounds(result: &ExplorerResult) -> Value {
 /// with the seed verdict at each argument position — the inputs
 /// `tcl_compiler::unit_scope::params_constants_from_call_sites` reads, so a
 /// surprising (or surprisingly absent) constant fold can be traced to the
-/// evidence that produced it (issue #977).
+/// evidence that produced it.
 #[must_use]
 pub fn serialise_unit_scope(result: &ExplorerResult) -> Value {
     let scope = &result.unit.caller_scope;
     // `scan_unit_linkage` already masks to `UNIT_LINKAGE_TRAITS`, so every
     // name here is a boundary — and `iter_names` is generated from the trait
-    // declarations, so this cannot drift from them (#1034).
+    // declarations, so this cannot drift from them.
     let boundaries: Vec<Value> = scope
         .linkage
         .iter_names()
@@ -3332,19 +3330,21 @@ mod tests {
     #[test]
     fn meta_lists_all_dialects_views_and_severities() {
         let meta = serialise_meta();
-        // Every dialect the registry offers is exposed, and in its order.
-        // Derived from `available_dialects` rather than pinned to a count:
-        // the invariant worth holding is "the explorer drops none of them",
-        // and a magic number only ever announces a new dialect (`spectcl`,
-        // most recently) by turning CI red on the branch that adds it.
+        // Every environment the registry offers is exposed, and in its order.
+        // Derived from the selectable set rather than pinned to a count: the
+        // invariant worth holding is "the explorer drops none of them".
         let dialects: Vec<&str> = meta["dialects"]
             .as_array()
             .unwrap()
             .iter()
             .map(|d| d["name"].as_str().unwrap())
             .collect();
-        assert_eq!(dialects, available_dialects());
-        // Every entry carries its catalog labels, like the `views` entries.
+        let selectable: Vec<&str> = tcl_dialect::model::EnvironmentRegistry::compiled_selectable()
+            .iter()
+            .map(|environment| environment.id.as_str())
+            .collect();
+        assert_eq!(dialects, selectable);
+        // Every entry carries its labels, like the `views` entries.
         for entry in meta["dialects"].as_array().unwrap() {
             assert!(entry["displayName"].as_str().is_some_and(|s| !s.is_empty()));
             assert!(entry["shortName"].as_str().is_some_and(|s| !s.is_empty()));
@@ -3519,7 +3519,7 @@ mod tests {
         );
 
         // `meta` carries the catalogue with nothing enabled, so the panel can
-        // be built before a compile lands (issue #1183's rule for dialects).
+        // be built before a compile lands — the same rule dialects follow.
         let meta = serialise_meta();
         assert_eq!(
             meta["semanticOptimisations"]["passes"]
@@ -3622,8 +3622,8 @@ mod tests {
 
     /// The interprocedural view surfaces the caller-uniform-literal SCCP
     /// seed, and stops surfacing it when a dynamic dispatch reaches the
-    /// same procedure with a different literal (issue #976) — the one fact
-    /// that explains why a condition on a parameter did or did not fold.
+    /// same procedure with a different literal — the one fact that explains
+    /// why a condition on a parameter did or did not fold.
     #[test]
     fn interproc_view_shows_the_param_constant_seed_and_its_withdrawal() {
         const HELPER: &str = "proc helper {mode} {\n\
@@ -4363,7 +4363,7 @@ mod tests {
 
     /// The Unit Scope view must show *why* the interprocedural seed fired:
     /// the registry-declared boundaries the file crosses, whether a
-    /// cross-file view was supplied, and the per-position verdict (#977).
+    /// cross-file view was supplied, and the per-position verdict.
     #[test]
     fn unit_scope_reports_uniform_literals_and_no_boundary() {
         let result = run_pipeline(

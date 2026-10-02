@@ -120,6 +120,29 @@ fn walk_statement(
         } => {
             try_rewrite_assign_expr(ctx, *span, name, expr, numeric, procedures);
         }
+        // `return [expr {…}]` gets the same partial simplification as
+        // `set v [expr {…}]` (#1962). The walker used to fall through here,
+        // so `return [expr {$r ** 2}]` was left alone while the `set` form
+        // became `set v [expr {$r * $r}]`.
+        //
+        // It belongs in this walker and not beside `return`'s other
+        // rewrites in `propagation`, because the rewrite needs the
+        // `NumericCtx` threaded here. That context is *permissive* when
+        // absent — `node_provably_numeric` answers `true` for `None` — so a
+        // caller without it would silently license `expr {$x + 0}` →
+        // `expr {$x}`, which changes behaviour: the first raises on a
+        // non-numeric `$x` and the second returns the string.
+        //
+        // O101 and O115 for `return` stay in `propagation`'s
+        // `try_fold_return_terminator`; only the O110 / O113 half is new,
+        // so neither is reported twice.
+        Statement::Return {
+            span,
+            expr: Some(expr),
+            ..
+        } => {
+            try_rewrite_return_expr(ctx, *span, expr, numeric);
+        }
         Statement::If {
             clauses, else_body, ..
         } => {
@@ -275,6 +298,78 @@ fn try_rewrite_assign_expr(
             collapse_assign_expr_wrapper(name, &reduced),
         ));
     }
+}
+
+/// The O110 / O113 half of `return [expr {…}]` simplification (#1962),
+/// mirroring [`try_rewrite_assign_expr`]'s second half.
+///
+/// The guards are deliberately the same three: a `Raw` node carries no
+/// parsed form to simplify; a command substitution inside the expression
+/// may have side effects a rewrite must not drop or duplicate; and `expr`
+/// must be provably untouched module-wide, or `[expr {…}]` no longer has
+/// builtin arithmetic semantics.
+///
+/// Ordering matches too — instcombine before strength reduction, because
+/// the identities collapse to simpler forms while strength reduction
+/// produces same-complexity rewrites — so the two statement shapes report
+/// the same code for the same expression.
+///
+/// O101 is not attempted here: `propagation::try_fold_return_terminator`
+/// already folds a constant `return [expr {…}]`, and repeating it would
+/// report the same fold twice.
+fn try_rewrite_return_expr(
+    ctx: &mut PassContext<'_>,
+    span: Span,
+    expr: &ExprNode,
+    numeric: NumericCtx<'_>,
+) {
+    use super::helpers::expr_simplify::{
+        expr_has_command_subst, instcombine_expr_typed, try_strength_reduce_expr_typed,
+    };
+    use super::helpers::spans::full_rewrite_span;
+
+    if matches!(expr, ExprNode::Raw { .. })
+        || expr_has_command_subst(expr)
+        || !ctx.command_mutations.trusts("expr")
+    {
+        return;
+    }
+
+    let rendered = crate::expr_ast::render_expr(expr);
+    let (simplified, inst_changed) = instcombine_expr_typed(&rendered, false, numeric, ctx.dialect);
+    if inst_changed {
+        ctx.report(Optimisation::new(
+            DiagCode::O110,
+            "Simplify expression (instcombine)",
+            full_rewrite_span(ctx.source, span),
+            collapse_return_expr_wrapper(&simplified),
+        ));
+        return;
+    }
+    let (reduced, sred_changed) = try_strength_reduce_expr_typed(&rendered, numeric, ctx.dialect);
+    if sred_changed {
+        ctx.report(Optimisation::new(
+            DiagCode::O113,
+            "Strength-reduce expression",
+            full_rewrite_span(ctx.source, span),
+            collapse_return_expr_wrapper(&reduced),
+        ));
+    }
+}
+
+/// The `return`-shaped twin of [`collapse_assign_expr_wrapper`]: a
+/// safe-to-inline literal drops the `[expr {…}]` wrapper so a cascading
+/// pass need not re-fold a trivial `expr {K}`; anything else keeps it.
+fn collapse_return_expr_wrapper(simplified: &str) -> String {
+    let trimmed = simplified.trim();
+    let looks_literal = !trimmed.is_empty()
+        && !trimmed.contains([
+            ' ', '\t', '\n', '\r', '$', '[', ']', '{', '}', '"', '\\', '\0', ';',
+        ]);
+    if looks_literal {
+        return format!("return {trimmed}");
+    }
+    format!("return [expr {{{simplified}}}]")
 }
 
 /// Build the replacement for ``set name [expr {…}]`` after a
@@ -501,6 +596,81 @@ mod tests {
             ctx.optimisations.iter().any(|o| o.code == DiagCode::O101),
             "expected O101 via run_passes, got {:?}",
             ctx.optimisations,
+        );
+    }
+
+    /// Issue #1962: the expression rewriters reached a `set` body but not a
+    /// `return` one, so `return [expr {$r ** 2}]` was left alone while
+    /// `set v [expr {$r ** 2}]` became `set v [expr {$r * $r}]`.
+    ///
+    /// Asserted as an *agreement* between the two statement shapes rather
+    /// than as a fixed expectation, since that is the property the issue
+    /// asks for and it cannot drift apart silently.
+    #[test]
+    fn return_and_set_bodies_agree_on_expression_rewrites_issue_1962() {
+        let codes = |src: &str| -> Vec<String> {
+            crate::optimiser::optimise_raw_for_profile(
+                src,
+                &tcl_registry::CommandRegistry::build_default(),
+                Some(
+                    tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+                ),
+            )
+            .iter()
+            .map(|o| o.code.to_string())
+            .collect()
+        };
+
+        // Strength reduction, the issue's own example. Both shapes rewrite,
+        // and both report the same code.
+        assert_eq!(
+            codes("proc square {r} {\n    return [expr {$r ** 2}]\n}\n"),
+            vec!["O110".to_owned()],
+            "return shape",
+        );
+        assert_eq!(
+            codes("proc square {r} {\n    set v [expr {$r ** 2}]\n    return $v\n}\n"),
+            vec!["O110".to_owned()],
+            "set shape",
+        );
+
+        // The type guard is real in both, and permissive-when-absent is the
+        // trap: `expr {$x + 0}` raises on a non-numeric `$x` while
+        // `expr {$x}` returns the string, so dropping `+ 0` needs a proof.
+        assert!(
+            codes("proc id {x} {\n    return [expr {$x + 0}]\n}\n").is_empty(),
+            "an unproven operand must not lose `+ 0` in a return",
+        );
+        assert!(
+            codes("proc id {x} {\n    set v [expr {$x + 0}]\n    return $v\n}\n").is_empty(),
+            "nor in a set",
+        );
+        // Proven numeric, the return shape does rewrite — so the guard above
+        // is a real proof and not the rewrite being unreachable.
+        assert_eq!(
+            codes("proc n {x} {\n    set x 4\n    return [expr {$x + 0}]\n}\n"),
+            vec!["O110".to_owned()],
+            "a provably numeric operand may lose `+ 0`",
+        );
+
+        // A command substitution may have side effects, so the rewrite must
+        // not move around one.
+        assert!(
+            codes("proc s {x} {\n    return [expr {[llength $x] ** 2}]\n}\n").is_empty(),
+            "a command substitution blocks the rewrite",
+        );
+
+        // `propagation::try_fold_return_terminator` still owns O101 and
+        // O115 for `return`; neither may now be reported twice.
+        assert_eq!(
+            codes("proc c {} {\n    return [expr {1 + 2}]\n}\n"),
+            vec!["O101".to_owned()],
+            "constant fold stays single-reported",
+        );
+        assert_eq!(
+            codes("proc d {x} {\n    return [expr {[expr {$x * 2}]}]\n}\n"),
+            vec!["O115".to_owned()],
+            "nested unwrap stays single-reported",
         );
     }
 }

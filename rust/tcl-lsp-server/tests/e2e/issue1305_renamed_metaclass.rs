@@ -16,11 +16,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Issue #1305 — a `rename`d metaclass command manufactures nothing.
+//! A `rename`d metaclass command must not manufacture nothing.
 //!
-//! `rename ::R::M ::R::Mk` then `::R::Mk create ::R::W {…}` used to abstain:
-//! the class-factory record was keyed on the name the metaclass was
-//! *created* with, and nothing carried it across the `rename`.
+//! `rename ::R::M ::R::Mk` then `::R::Mk create ::R::W {…}` must not abstain:
+//! the class-factory record is keyed on the name the metaclass was
+//! *created* with, so identity has to carry across the `rename`.
 //!
 //! C-Tcl ground truth (tclsh 8.6.16 / 9.0.4): `rename` moves the class's
 //! command, and the class keeps working through its new name, so

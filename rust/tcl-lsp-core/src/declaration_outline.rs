@@ -129,7 +129,7 @@ pub fn declarations(source: &str, dialect: &'static DialectProfile) -> Vec<Block
 ///
 /// The lexer's `Str` span starts at the opening `{` and, for a closed
 /// non-empty body, ends just before the closing `}`; an empty `{}` clamps
-/// onto the closer, which must be trimmed off before re-lexing (issue #527).
+/// onto the closer, which must be trimmed off before re-lexing.
 fn body_slice<'a>(original: &'a str, token: &tcl_lexer::Token) -> Option<(&'a str, u32)> {
     let content_start = token.span.start() as usize + token.content_offset as usize;
     let raw_end = token.span.end() as usize;

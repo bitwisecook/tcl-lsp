@@ -16,8 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Runtime file-extension registration for SpecTcl-pack-declared extensions
-// (issue #1626).
+// Runtime file-extension registration for SpecTcl-pack-declared extensions.
 //
 // # Why this exists
 //
@@ -92,8 +91,7 @@ const OWNED_KEY = "tclLsp.packFileAssociations.owned";
  * filesystem, while everything on the server side of this — `is_tcl_source`,
  * `dialect_from_extension`, the watcher registrations — folds case. A plain
  * `*.foo` would therefore leave `SAMPLE.FOO` opening as plaintext with no
- * client attached, which is the same gap the contributed `filenames` had
- * (review finding P2-2).
+ * client attached, which is the same gap the contributed `filenames` had.
  *
  * Per character rather than by listing variants, and deliberately the same
  * shape the manifest's generated `filenamePatterns` and the
@@ -109,9 +107,9 @@ export function globFor(extension: string): string {
 }
 
 /**
- * What this module last wrote, tolerating the shape it used to persist.
+ * What this module last wrote, tolerating older persisted shapes.
  *
- * An earlier build stored a bare `string[]` of globs. Reading one of those as
+ * A previous release stored a bare `string[]` of globs. Reading one of those as
  * "no remembered values" is the safe direction: every entry it named looks
  * user-owned, so the worst case is that a stale association survives until the
  * user removes it, rather than this module deleting something it cannot prove

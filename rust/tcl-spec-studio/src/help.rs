@@ -180,6 +180,16 @@ command-level compatibility fallback in force. In SpecTcl the body calls \
 `timing IDX SameInvocation|Deferred|ReferenceOnly`.",
     ),
     (
+        "substitution_resolver",
+        "The per-call sibling of the `PERFORMS_SUBSTITUTION` trait: use it \
+when switches decide *which* of backslash, command and variable substitution \
+the call runs over its own argument, as with `subst -novariables`. The trait \
+alone tells a consumer only that some substitution happens, which is not \
+enough to answer \"does this argument read a variable?\". Silence means every \
+kind on every call, and a call the resolver cannot read must answer every \
+kind — assuming a substitution does not happen is what loses a real read.",
+    ),
+    (
         "callback_taint_inputs",
         "Lists only callback substitutions whose bytes are externally controlled. \
 For Tk validation, `%P`, `%s`, and `%S` carry editable text; for key bindings, \
@@ -775,6 +785,14 @@ attacker steering *where* the script connects.",
 reaching one is the classic injection: `eval $userInput`. Declaring the \
 precise slots keeps the finding accurate on commands where only some \
 arguments are executed.",
+    ),
+    (
+        "taint_numeric_coercion",
+        "Which argument words a call reads as *numbers* — `switch -integer`'s \
+subject. Tainted data reaching one is not executed, but Tcl's numeric reading \
+of it (`0x10` is 16, a non-number raises) can subvert the decision taken on \
+it, the same hazard as a tainted operand of a braced `expr`. The shape names \
+the option that turns coercion on, so other calls of the command stay quiet.",
     ),
     (
         "taint_interp_eval_subcommands",
@@ -1395,6 +1413,14 @@ and highlighting.",
 transform colour is claimed. A command whose sanitising effect comes from \
 the literal it was given — `string map` with a mapping that deletes CR and \
 LF — earns its colour call by call, not once for the command.",
+    ),
+    (
+        "taintNumericCoercion",
+        "Numeric-coercion shapes",
+        "Which argument words a call reads as numbers, so a tainted one is a \
+T100 numeric-coercion sink. Each shape names the option that turns the \
+coercion on — `switch -integer` reads its subject as a wide integer, plain \
+`switch` compares text — so only the calls that coerce are flagged.",
     ),
     (
         "formatType",

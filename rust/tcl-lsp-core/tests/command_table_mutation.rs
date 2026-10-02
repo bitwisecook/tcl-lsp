@@ -46,8 +46,7 @@
 //!   inscope ::demo Tracer}}` and writing the variable dispatches
 //!   `::demo::Tracer`, so the wrapped `Tracer` word is a real call site.
 //!
-//! Three further claims were pinned on tclsh 9.0.4 and 8.6.14 for the PR
-//! #1075 review round:
+//! Three further claims, pinned on tclsh 9.0.4 and 8.6.14:
 //!
 //! * `proc a {} {return A}` / `proc b {} {return B}` / `rename a x` /
 //!   `interp alias {} x {} b` — `x` returns `B`: the *later* of the two
@@ -66,8 +65,8 @@
 //!   *outside* the body: `proc outer {} { later }` / `proc later {…}` prints
 //!   `LATER`.
 //!
-//! Issue #1064, issue #1062's deferred B1/B2, and issue #923 differential
-//! -audit findings idx 21 / 45 / 89 / 92.
+//! Every claim above is an oracle for the command-table mutation shapes this
+//! file pins.
 
 use tcl_compiler::analyser::{Analyser, AnalysisResult};
 use tcl_lsp_core::definition::{LspRange, definition};
@@ -86,8 +85,7 @@ fn start_lines(ranges: &[LspRange]) -> Vec<u32> {
 ///
 /// Distinct from [`refs`] on purpose: `references()` dedupes by range, so a
 /// call site recorded twice is invisible there, while `code_lenses` counts
-/// `proc_reference_spans().len()` raw and would show it doubled (PR #1075
-/// review, P2).
+/// `proc_reference_spans().len()` raw and would show it doubled.
 fn lens_count(source: &str, qname: &str) -> usize {
     let analysis = analyse(source);
     let title = tcl_lsp_core::code_lens::code_lenses(
@@ -124,7 +122,7 @@ fn refs(source: &str) -> impl Fn(u32, u32) -> Vec<u32> + '_ {
     }
 }
 
-// rename — go-to-definition (issue #1064)
+// rename — go-to-definition
 
 #[test]
 fn tp_definition_follows_rename_to_the_original_proc() {
@@ -177,7 +175,7 @@ fn tp_definition_follows_rename_to_a_class() {
     );
 }
 
-// interp alias — go-to-definition (issue #923 idx 89)
+// interp alias — go-to-definition
 
 #[test]
 fn tp_definition_prefers_an_alias_over_the_proc_it_replaced() {
@@ -232,7 +230,7 @@ fn tn_definition_declines_an_argument_prepending_alias() {
     );
 }
 
-// find-references across the mutation (issue #923 idx 21 / 89)
+// find-references across the mutation
 
 #[test]
 fn tp_references_include_call_sites_spelled_through_an_alias() {
@@ -285,7 +283,7 @@ fn tn_references_exclude_a_call_written_before_the_alias() {
 
 #[test]
 fn tp_references_on_an_alias_target_reach_the_shadowing_call_site() {
-    // TP: idx 89's other half — `::tk::spinbox`'s reference set must include
+    // TP: `::tk::spinbox`'s reference set must include
     // the `::ttk::spinbox` call the alias redirects onto it.
     let src = concat!(
         "namespace eval ::ttk {}\n",
@@ -302,8 +300,8 @@ fn tp_references_on_an_alias_target_reach_the_shadowing_call_site() {
     );
 }
 
-/// The other query direction of the same document — the one that was still
-/// wrong after the go-to-definition half of idx 89 landed.
+/// The other query direction of the same document, which go-to-definition
+/// alone does not settle.
 ///
 /// Oracle (tclsh 9.0.4 and 8.6.16, byte-identical): the script prints
 /// `classic tk::spinbox: .sb -from 0 -to 100`, so `::ttk::spinbox`'s own
@@ -420,8 +418,8 @@ fn tn_an_alias_installed_in_another_body_does_not_drop_the_call_site() {
     );
 }
 
-/// The idx 89 document, shared by the tests above so they all speak about
-/// exactly the same program (`f8/alias_shadow.tcl`, run under both
+/// The alias-shadow document, shared by the tests above so they all speak
+/// about exactly the same program (`f8/alias_shadow.tcl`, run under both
 /// interpreters).
 const ALIAS_SHADOW_SRC: &str = concat!(
     "namespace eval ::ttk {}\n",
@@ -432,7 +430,7 @@ const ALIAS_SHADOW_SRC: &str = concat!(
     "::ttk::spinbox .sb -from 0 -to 100\n",
 );
 
-// proc self-redefinition (issue #923 idx 45)
+// proc self-redefinition
 
 #[test]
 fn tp_definition_between_two_declarations_reaches_the_first() {
@@ -477,8 +475,7 @@ fn tp_references_agree_from_either_declaration_of_a_redefined_proc() {
     );
 }
 
-// Latest binding wins when a name carries both a rename and an alias
-// (PR #1075 review, P2)
+// Latest binding wins when a name carries both a rename and an alias.
 
 /// `proc a`, `proc b`, `rename a x`, `interp alias {} x {} b` — oracle
 /// (tclsh 9.0.4 and 8.6.14): `x` returns `B`.  The alias ran last, so it is
@@ -556,7 +553,7 @@ fn tp_alias_onto_a_live_command_still_resolves_when_written_first() {
     );
 }
 
-// A rename moves the command object (PR #1075 review, P2)
+// A rename moves the command object
 
 /// Oracle (tclsh 9.0.4 and 8.6.14): `oldp` → `first`, `p` → `second`.  The
 /// rename handed `oldp` the object `p` held *then*; the later `proc p` builds
@@ -603,12 +600,12 @@ fn tn_references_do_not_merge_two_commands_split_by_a_rename() {
 #[test]
 fn tp_references_through_a_rename_without_a_redefinition_are_unaffected() {
     // TN guard for the identity check: with a single declaration there is
-    // nothing to disambiguate, so idx 21's plain case still unifies.
+    // nothing to disambiguate, so the plain case still unifies.
     let src = "proc greet {} { return hi }\nrename greet hello\nhello\n";
     assert_eq!(refs(src)(0, 6), vec![0, 1, 2]);
 }
 
-// Same-body redefinition order (PR #1075 review, P2)
+// Same-body redefinition order
 
 #[test]
 fn tp_definition_inside_a_body_respects_that_bodys_own_redefinitions() {
@@ -693,7 +690,7 @@ fn tp_definition_follows_a_rename_from_another_bodys_statement() {
     );
 }
 
-// `namespace code [list X]` callbacks (issue #923 idx 92)
+// `namespace code [list X]` callbacks
 
 const TRACER: &str = concat!(
     "namespace eval ::demo {\n",
@@ -772,7 +769,7 @@ fn tracer_source(callback: &str) -> String {
 fn tp_lens_counts_each_namespace_code_callback_shape_once() {
     // The lens count is the raw span count, so a call site recorded by both
     // the body recursion and the command-prefix unwrap shows up as two
-    // references for one callback (PR #1075 review, P2). One recorder per
+    // references for one callback. One recorder per
     // shape: `[namespace code X]` and `[namespace code {X}]` are recorded by
     // the analyser's `ArgRole::Body` walk, `[namespace code [list X]]` — which
     // that walk's `has_substitution` guard stops at — by the unwrap.

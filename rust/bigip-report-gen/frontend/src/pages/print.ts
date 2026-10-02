@@ -217,8 +217,9 @@
   // each finding's range in an underline span — the MESSAGES live in
   // `diagnostics[]`. On screen they are listed in the `.irule-diags` panel, which
   // print.css hides (it is interactive chrome, and print.ts never builds one for
-  // the print run anyway). So a printed report used to carry underlined code and
-  // no findings at all: the underline told you *where*, and nothing told you *what*.
+  // the print run anyway). Without this, a printed report would carry underlined
+  // code and no findings at all: the underline tells you *where*, but nothing
+  // tells you *what*.
   //
   // Render the findings into the printout instead, next to the iRule they belong
   // to. Screen-hidden, so it never flashes up mid-print-run.
@@ -345,8 +346,8 @@
   }
 
   // The topology / apps / architecture diagrams are laid out asynchronously, and
-  // on a large estate that takes well past the fixed delay this used to allow —
-  // printing early gave pages with an empty diagram box on them. Wait for the
+  // on a large estate that can take well past a fixed delay — printing before
+  // it settles would give pages with an empty diagram box on them. Wait for the
   // panels being printed to actually have their <svg>, and cap the wait so a
   // host that legitimately never draws one ("no linked objects") can't hang the
   // print run.

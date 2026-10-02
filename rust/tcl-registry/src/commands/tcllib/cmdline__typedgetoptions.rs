@@ -27,6 +27,8 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "cmdline::typedGetoptions",
         surface: None,
+        // Reads argvVar, then rewrites it without the options it consumed.
+        traits: Traits::READS_BEFORE_WRITE,
         arity: Arity::new(2, 3),
         hover: Some(HoverSnippet {
             summary: "Parse all typed command-line options according to a specification.",

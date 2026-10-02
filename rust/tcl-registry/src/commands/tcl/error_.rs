@@ -53,10 +53,10 @@ pub fn spec() -> CommandSpec {
         // tmsh, the EDA shells, expect, tk) carries it unmodified.
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         // `LANGUAGE_KEYWORD`, like its sibling `throw`: both raise an exception
-        // and both are `TERMINATES_BLOCK`. `error` carried neither the trait nor
-        // any keyword colouring, so `catch { error boom }` painted `catch` as a
-        // control keyword and `error` as an ordinary library call — the two
-        // halves of one construct in two different colours (issue #904).
+        // and both are `TERMINATES_BLOCK`. Without both, `catch { error boom }`
+        // would paint `catch` as a control keyword and `error` as an ordinary
+        // library call — the two halves of one construct in two different
+        // colours.
         //
         // Every Tcl grammar that *has* a function category agrees `error` is not
         // one: Pygments lists it under `Keyword`, tree-sitter under `@keyword`,

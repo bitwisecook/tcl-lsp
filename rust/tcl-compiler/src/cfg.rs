@@ -44,7 +44,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_lexer::Span;
 
 use crate::expr_ast::ExprNode;
-use crate::ir::{CommandBindingSite, Statement};
+use crate::ir::{CommandBindingSite, Statement, WordExpr};
 
 // Block identity
 
@@ -97,6 +97,9 @@ pub enum Terminator {
     Return {
         /// Return value text, if any.
         value: Option<String>,
+        /// Canonical source word for the return value, when lowering retained
+        /// one for a simple return form.
+        value_word: Option<WordExpr>,
         /// Source span of the return statement.
         span: Option<Span>,
         /// Parsed return expression, if any.
@@ -387,8 +390,7 @@ impl Function {
     /// Compute the predecessor map: block → set of predecessor blocks.
     ///
     /// O(V+E), and it allocates — a caller that needs the map more than once
-    /// should build it once and pass it down rather than re-deriving it
-    /// (issue #1251).
+    /// should build it once and pass it down rather than re-deriving it.
     #[must_use]
     pub fn predecessors(&self) -> HashMap<BlockId, HashSet<BlockId>> {
         self.predecessor_map()
@@ -568,6 +570,7 @@ mod tests {
     fn make_return(value: Option<&str>) -> Terminator {
         Terminator::Return {
             value: value.map(String::from),
+            value_word: None,
             span: None,
             expr: None,
             braced: false,

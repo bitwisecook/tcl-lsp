@@ -18,10 +18,10 @@
 
 //! End-to-end golden differential test for the query evaluator + builtins.
 //!
-//! The pipeline captured in `tests/fixtures/eval.json`
-//! from the captured query DSL fixtures: parse → evaluate
-//! against a JSON-backed root → `output::render`. For each `(query, input,
-//! mode)` the Rust output (or `error:` message) must match the expected value exactly.
+//! The pipeline (parse → evaluate against a JSON-backed root →
+//! `output::render`) checked against the query DSL fixtures captured in
+//! `tests/fixtures/eval.json`. For each `(query, input, mode)` the Rust
+//! output (or `error:` message) must match the expected value exactly.
 //! Self-contained — no external reference at test time.
 
 use indexmap::IndexMap;

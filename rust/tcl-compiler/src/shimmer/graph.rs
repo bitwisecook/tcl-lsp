@@ -38,7 +38,7 @@ use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 /// and a reverse-reachability BFS for each cycle block it found — O(V·(V+E)),
 /// which on a wide loop-free CFG is pure waste (every walk crosses the whole
 /// graph and finds nothing) and took ~69 s on a 2000-branch flat proc
-/// (issue #1240).
+/// with a walk per block.
 #[must_use]
 pub fn loop_body_blocks(cfg: &CfgFunction) -> HashSet<String> {
     cycle_block_ids(cfg)
@@ -249,6 +249,7 @@ mod tests {
         f.blocks.get_mut(&body).unwrap().terminator = Some(goto(entry));
         f.blocks.get_mut(&exit).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -267,6 +268,7 @@ mod tests {
         f.blocks.get_mut(&entry).unwrap().terminator = Some(goto(next));
         f.blocks.get_mut(&next).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -298,6 +300,7 @@ mod tests {
         f.blocks.get_mut(&body).unwrap().terminator = Some(goto(head));
         f.blocks.get_mut(&exit).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -328,6 +331,7 @@ mod tests {
         ));
         f.blocks.get_mut(&exit).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -356,6 +360,7 @@ mod tests {
         f.blocks.get_mut(&c).unwrap().terminator = Some(branch(cond(), c, done));
         f.blocks.get_mut(&done).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,
@@ -367,8 +372,8 @@ mod tests {
         assert!(!lb.contains("done"));
     }
 
-    /// A wide, loop-free CFG — the shape issue #1240 measured — must come back
-    /// empty, and must do so without walking the graph once per block.
+    /// A wide, loop-free CFG must come back empty, and must do so without
+    /// walking the graph once per block.
     #[test]
     fn loop_body_blocks_wide_acyclic_chain_is_empty() {
         let mut f = Function::new("::top", "b0");
@@ -387,6 +392,7 @@ mod tests {
             ));
             f.blocks.get_mut(&side).unwrap().terminator = Some(Terminator::Return {
                 value: None,
+                value_word: None,
                 span: None,
                 expr: None,
                 braced: false,
@@ -395,6 +401,7 @@ mod tests {
         }
         f.blocks.get_mut(&prev).unwrap().terminator = Some(Terminator::Return {
             value: None,
+            value_word: None,
             span: None,
             expr: None,
             braced: false,

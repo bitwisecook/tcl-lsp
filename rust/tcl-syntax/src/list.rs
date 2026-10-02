@@ -710,8 +710,8 @@ fn convert_element(b: &[u8], quote: Quote, leading_hash_unsafe: bool, out: &mut 
 ///
 /// This is the single renderer behind [`list_element`] and [`join_list`] *and*
 /// behind the WASM runtime's list/dict string-rep generation, which works in
-/// raw bytes (a Tcl value is not required to be UTF-8) and previously carried
-/// its own port of the same four `CONVERT_*` modes (issue #1439).
+/// raw bytes (a Tcl value is not required to be UTF-8) rather than carrying
+/// its own port of the same four `CONVERT_*` modes.
 ///
 /// `leading_hash_unsafe` is the `TCL_DONT_QUOTE_HASH` inverse: pass `true` for
 /// the first element of a list or a command word, where a bare leading `#`
@@ -768,7 +768,7 @@ where
 /// `a\ b` is **one** element (the escaped space is data), `{a b}` is one
 /// element whose braces are structure, and a `"a b"` element is one element
 /// too. Losing any of those changes the list's length, which for a `proc`
-/// parameter list is a change of arity (issue #1196).
+/// parameter list is a change of arity.
 ///
 /// Returns `Err` for input that is not a well-formed list (an unmatched brace
 /// or quote, junk after a closing delimiter). A caller that is reformatting
@@ -1074,8 +1074,6 @@ mod tests {
             ("a]b", "a\\]b"),
             ("a[b", "{a[b}"),
             ("a\"b", "a\\\"b"),
-            // Merged in from the WASM runtime's own table when its second port
-            // of this codec was replaced by a binding of this one (#1439).
             ("[append", "{[append}"),
             ("a$b", "{a$b}"),
             ("a[b]c", "{a[b]c}"),
@@ -1099,7 +1097,7 @@ mod tests {
         }
     }
 
-    /// Issue #1439 — the byte entry point is the *same* renderer
+    /// The byte entry point is the *same* renderer
     /// [`list_element`] uses, and it stays byte-exact for input the `&str` API
     /// cannot carry: a Tcl value is a byte string, and the WASM runtime feeds
     /// this codec raw object bytes that need not be valid UTF-8.

@@ -16,20 +16,17 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Dialect detection heuristics (and re-exports of the dialect vocabulary).
+//! Dialect detection heuristics.
 //!
-//! The dialect *types* — `SpecSurface`, [`KNOWN_DIALECTS`], the
-//! `DialectProfile` catalog — live in the foundational `tcl-dialect` crate
-//! (dialect-profile-model.md §3) so layers below the registry (tcl-lexer,
-//! tcl-syntax) consume the same source of truth. They are re-exported here
-//! for the registry's own convenience and for backwards compatibility.
+//! The dialect *types* — `SpecSurface`, the `DialectProfile` catalogue — live
+//! in the foundational `tcl-dialect` crate (dialect-profile-model.md §3) so
+//! layers below the registry (tcl-lexer, tcl-syntax) consume the same source
+//! of truth.
 //!
-//! What genuinely lives here is dialect *detection*: the directive /
+//! What lives here is dialect *detection*: the directive /
 //! shebang / content-signature / version-guard heuristics, which tokenise
 //! source text and therefore need `tcl_lexer` — they sit above the lexer,
 //! unlike the vocabulary itself.
-
-pub use tcl_dialect::{KNOWN_DIALECTS, available_dialects};
 
 /// Number of leading lines scanned for a `# tcl-dialect:` directive.
 pub const DIALECT_DIRECTIVE_SCAN_LINES: usize = 5;
@@ -49,69 +46,6 @@ fn tcl_version_dialect(ver: &str) -> Option<&'static str> {
 /// `true` when the ASCII byte is a `\w` word character.
 fn is_word_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_'
-}
-
-/// Whether `haystack` contains `word` delimited by `\b` boundaries (ASCII).
-fn has_word(haystack: &str, word: &str) -> bool {
-    let bytes = haystack.as_bytes();
-    let mut i = 0;
-    while let Some(off) = haystack[i..].find(word) {
-        let start = i + off;
-        let end = start + word.len();
-        let before = start == 0 || !is_word_byte(bytes[start - 1]);
-        let after = end == bytes.len() || !is_word_byte(bytes[end]);
-        if before && after {
-            return true;
-        }
-        i = start + 1;
-    }
-    false
-}
-
-/// The interpreter names a Tcl shebang may spell, each of which may carry a
-/// `<x.y>` version suffix: the Tcl shell and the Tk shell.
-///
-/// `wish` is here because a `#!/usr/bin/wish8.6` script is a Tcl 8.6 script by
-/// the same reasoning `tclsh8.6` is — Tk is a *library* in this model, not a
-/// dialect profile, so the shell name only ever contributes the version
-/// (issue #1625). A bare `#!/usr/bin/wish` therefore still falls through to
-/// the content tiers, exactly as a bare `tclsh` does.
-const SHEBANG_TCL_SHELLS: &[&str] = &["tclsh", "wish"];
-
-/// Extract `<x.y>` from a `…\b(tclsh|wish)<x.y>\b…` shebang (input already
-/// lowercased).
-fn shebang_tclsh_version(lower: &str) -> Option<String> {
-    SHEBANG_TCL_SHELLS
-        .iter()
-        .find_map(|shell| shebang_shell_version(lower, shell))
-}
-
-/// [`shebang_tclsh_version`] for one interpreter name.
-fn shebang_shell_version(lower: &str, shell: &str) -> Option<String> {
-    let bytes = lower.as_bytes();
-    let mut i = 0;
-    while let Some(off) = lower[i..].find(shell) {
-        let start = i + off;
-        let before = start == 0 || !is_word_byte(bytes[start - 1]);
-        let mut j = start + shell.len();
-        let d1 = j;
-        while j < bytes.len() && bytes[j].is_ascii_digit() {
-            j += 1;
-        }
-        if before && j > d1 && j < bytes.len() && bytes[j] == b'.' {
-            j += 1;
-            let d2 = j;
-            while j < bytes.len() && bytes[j].is_ascii_digit() {
-                j += 1;
-            }
-            let after = j == bytes.len() || !is_word_byte(bytes[j]);
-            if j > d2 && after {
-                return Some(lower[d1..j].to_string());
-            }
-        }
-        i = start + 1;
-    }
-    None
 }
 
 /// Extract a leading `<major>.<minor>` version from `s` — one or more digits, a
@@ -388,12 +322,12 @@ pub const DETECT_SCAN_BYTES: usize = 8192;
 /// watched-file filter and rename filter read it; the `tcl` CLI's directory
 /// discovery reads it; and `cargo xtask gen-vscode-package` generates the VS
 /// Code extension's `workspaceContains` activation glob from it. Each of those
-/// used to keep its own list and two of the three had drifted — the activation
-/// glob named nine of the twelve (issue #1242).
+/// risks keeping its own list and drifting out of sync with it — an
+/// activation glob naming only nine of the twelve is exactly that failure mode.
 ///
 /// Lower-case by convention; every consumer compares case-insensitively (a
 /// glob consumer folds case per character, since `workspaceContains` matches
-/// case-sensitively on Linux — issue #1215).
+/// case-sensitively on Linux).
 ///
 /// This is deliberately **not** the same question as
 /// [`dialect_from_extension`], which maps an extension to a *dialect* and
@@ -403,24 +337,22 @@ pub const TCL_SOURCE_EXTENSIONS: &[&str] = &[
     "tcl", "tk", "itcl", "tm", "irul", "irule", "iapp", "iappimpl", "impl", "exp", "apl", "test",
     // The long spellings of the two extensions above that every editor
     // registers: `.irules` is owned by `f5-irules` and `.expect` by `expect`
-    // in the profile catalog, so a file with either name opens as project
-    // source in VS Code / JetBrains / Sublime / Zed. They were simply missed
-    // when their short forms were listed, which left them registered by the
-    // editors but never *indexed* — `is_tcl_source`, the watched-file glob,
-    // the rename filter and the CLI directory walk all skipped them, so
-    // cross-file references and rename silently missed those files until one
-    // was opened (issue #1625).
+    // in the profile catalogue, so a file with either name opens as project
+    // source in VS Code / JetBrains / Sublime / Zed. Without an entry here,
+    // `is_tcl_source`, the watched-file glob, the rename filter and the CLI
+    // directory walk would all skip them, so cross-file references and
+    // rename would silently miss such files until one happened to be opened.
     "irules", "expect",
     // `.tmsh` is an F5 tmsh *script* — Tcl the user writes and keeps beside
     // the rest of a project, in the same sense `.exp` is, and unlike the EDA
-    // vendor suffixes below. It was omitted here, which left the
-    // `workspaceContains` activation glob without it: a workspace whose only
-    // Tcl files were `.tmsh` was never indexed (issue #1625).
+    // vendor suffixes below. Without it here, the `workspaceContains`
+    // activation glob would omit it: a workspace whose only Tcl files were
+    // `.tmsh` would never be indexed.
     "tmsh",
     // SpecTcl packs (`spec-packs.md`): a `.tclspec` is one Tcl script, sits
     // beside the code it describes, and is indexed like any other source.
     "tclspec",
-    // SslicTcl TLS declarations (#1543): a `.sslictcl` is one Tcl script that
+    // SslicTcl TLS declarations: a `.sslictcl` is one Tcl script that
     // is read and never evaluated, kept beside the deployment it describes,
     // and indexed like any other source.
     "sslictcl",
@@ -432,8 +364,8 @@ pub const TCL_SOURCE_EXTENSIONS: &[&str] = &[
 /// Glob consumers that have no case-insensitivity option match against the
 /// platform file system: case-insensitively on Windows and macOS,
 /// case-**sensitively** on Linux. That is true of LSP
-/// `workspace/didChangeWatchedFiles` registrations (issue #1215) and of VS
-/// Code's `workspaceContains` activation events (issue #1242) alike, so both
+/// `workspace/didChangeWatchedFiles` registrations and of VS
+/// Code's `workspaceContains` activation events alike, so both
 /// build their glob here.
 ///
 /// Brace-expanding the casings (`{tcl,TCL}`) does not fix it — `Upper.Tcl` is
@@ -453,7 +385,7 @@ pub fn tcl_source_glob_any_case() -> String {
 /// factored out because the same problem appears wherever a *name* rather
 /// than an extension has to be matched case-insensitively by a consumer with
 /// no case-insensitivity option — VS Code's contributed `filenamePatterns`
-/// being the case that motivated splitting it out (issue #1625).
+/// being the case that motivated splitting it out.
 #[must_use]
 pub fn fold_case_in_glob(literal: &str) -> String {
     literal
@@ -529,8 +461,7 @@ pub fn register_pack_extension_dialects(pairs: impl IntoIterator<Item = (String,
 /// files the toolchain reaches on its own — the LSP workspace scan, the
 /// watched-file admission filter, the rename filter, the CLI directory walk —
 /// read the static constant alone, so closed files stayed unindexed and
-/// external edits never refreshed references or definitions (issue #1626,
-/// review finding P1-3).
+/// external edits never refreshed references or definitions.
 ///
 /// Two kinds of extension are filtered out, for different reasons.
 /// [`TCL_SOURCE_EXTENSIONS`] entries, because a consumer unions this with that
@@ -616,7 +547,7 @@ fn pack_extension_dialect(ext: &str) -> Option<&'static str> {
     guard.as_ref()?.get(ext).copied()
 }
 
-/// The dialect owning the whole basename `base` per the catalog's
+/// The dialect owning the whole basename `base` per the catalogue's
 /// `filenames` axis (`bigip.conf` → `f5-bigip`), or `None`.
 ///
 /// A basename claim is the more specific of the two static tiers — the files
@@ -638,9 +569,9 @@ fn catalog_filename_dialect(base: &str) -> Option<&'static str> {
     .copied()
 }
 
-/// The dialect owning `ext` per the [`tcl_dialect::DialectProfile`] catalog —
+/// The dialect owning `ext` per the [`tcl_dialect::DialectProfile`] catalogue —
 /// the `file_extensions` axis each profile declares (`xdc` →
-/// `xilinx-eda-tcl`). Built once; the catalog's invariant tests guarantee
+/// `xilinx-eda-tcl`). Built once; the catalogue's invariant tests guarantee
 /// one owner per extension.
 fn catalog_extension_dialect(ext: &str) -> Option<&'static str> {
     static MAP: std::sync::OnceLock<std::collections::HashMap<&'static str, &'static str>> =
@@ -663,7 +594,7 @@ fn catalog_extension_dialect(ext: &str) -> Option<&'static str> {
 ///
 /// Pack-declared routing ([`register_pack_extension_dialects`]) is consulted
 /// first, so a loaded pack owns its extensions; the
-/// [`tcl_dialect::DialectProfile`] catalog's per-profile `file_extensions`
+/// [`tcl_dialect::DialectProfile`] catalogue's per-profile `file_extensions`
 /// are the no-packs fallback and the home of everything no pack declares.
 /// Deliberate non-mappings stay deliberate: `.svrf` (Calibre rule decks) is
 /// a declarative DSL, not Tcl, so it falls through to content/default; the
@@ -685,9 +616,9 @@ pub fn dialect_from_extension(filename: &str) -> Option<&'static str> {
     if base.ends_with(".invs_setup.tcl") || base.ends_with(".genus_setup.tcl") {
         return Some("cadence-eda-tcl");
     }
-    // The catalog's whole-basename tier (`bigip.conf`), ahead of the
+    // The catalogue's whole-basename tier (`bigip.conf`), ahead of the
     // extension tier: a file claimed by name has no extension worth
-    // claiming (issue #1625).
+    // claiming.
     if let Some(dialect) = catalog_filename_dialect(base.as_str()) {
         return Some(dialect);
     }
@@ -991,18 +922,54 @@ fn detect_from_content(head: &str) -> Option<&'static str> {
     None
 }
 
-/// The dialect named by a `#!…` shebang on the first line (`expect`, or a
-/// versioned `tclsh<x.y>` / `wish<x.y>`), or `None`.
+/// The interpreter a `#!` line names: the basename of its first token or,
+/// when that is `env`, of the first token after it that is neither a flag
+/// (`-S`, `-i`) nor a `NAME=value` assignment. `None` when the line names no
+/// interpreter.
+fn shebang_interpreter(line: &str) -> Option<&str> {
+    fn basename(path: &str) -> &str {
+        path.rsplit(['/', '\\']).next().unwrap_or(path)
+    }
+    let mut tokens = line.strip_prefix("#!")?.split_whitespace();
+    let mut program = tokens.next()?;
+    if basename(program).eq_ignore_ascii_case("env") {
+        program = tokens.find(|token| {
+            let assignment = token
+                .split_once('=')
+                .is_some_and(|(name, _)| !name.is_empty() && !name.contains('/'));
+            !token.starts_with('-') && !assignment
+        })?;
+    }
+    Some(basename(program))
+}
+
+/// The environment a `#!…` shebang on the first line names, or `None`.
+///
+/// Every environment declares the interpreter words that select it
+/// (`DetectionFacts::shebang_words`: `jimsh`, `wish`, `expect`,
+/// `tclsh8.6`, `wish9.0`). The line's interpreter ([`shebang_interpreter`])
+/// selects the environment that declares it exactly, ignoring ASCII case, so
+/// `wish` does not match `wish8.6`, `tclsh8.6` does not match `tclsh8.60`, and
+/// a directory named for another shell (`/home/wish/bin/jimsh`) never
+/// selects.
+///
+/// The lenient `tcl` environment names its unversioned shell `tclsh`, but a
+/// bare `tclsh` says nothing about the release, so that word selects
+/// nothing here and the content tiers decide.
 fn shebang_dialect(source: &str) -> Option<&'static str> {
-    let first = source.lines().next()?;
-    if !first.starts_with("#!") {
-        return None;
-    }
-    let lower = first.to_ascii_lowercase();
-    if has_word(&lower, "expect") {
-        return Some("expect");
-    }
-    shebang_tclsh_version(&lower).and_then(|ver| tcl_version_dialect(&ver))
+    let interpreter = shebang_interpreter(source.lines().next()?)?;
+    crate::model::environments()
+        .definitions()
+        .iter()
+        .filter(|definition| definition.id.as_str() != tcl_dialect::model::LENIENT_ENVIRONMENT_ID)
+        .find(|definition| {
+            definition
+                .server_detection
+                .shebang_words
+                .iter()
+                .any(|word| word.eq_ignore_ascii_case(interpreter))
+        })
+        .map(|definition| intern_environment_id(definition.id.as_str()))
 }
 
 /// The *content-borne* dialect signals, in the priority the project wants:
@@ -1032,7 +999,8 @@ fn detect_content_signals(head: &str) -> Option<&'static str> {
 /// Heuristics are applied in this priority order, most-trusted first:
 /// 1. an explicit `# tcl-dialect: <name>` directive (first
 ///    [`DIALECT_DIRECTIVE_SCAN_LINES`] lines);
-/// 2. the `#!…` shebang (`expect`, `tclsh<x.y>`, `wish<x.y>`);
+/// 2. the `#!…` shebang, read against every environment's `shebang_words`
+///    (`expect`, `jimsh`, `wish`, `tclsh<x.y>`, `wish<x.y>`);
 /// 3. a tokenised `package require ?-exact? Tcl <x.y>` or `package vsatisfies
 ///    [package require Tcl] <x.y>` version guard;
 /// 4. content signatures — iRules `when EVENT {`, F5 `tmsh::` / iApp, EDA-tool
@@ -1084,8 +1052,8 @@ pub fn detect_dialect(source: &str, filename: Option<&str>, default: &'static st
 
 /// Detect a Tcl dialect from a script's *content* — used when no explicit
 /// dialect is configured. Checks, in priority order: a `# tcl-dialect:`
-/// directive (first [`DIALECT_DIRECTIVE_SCAN_LINES`] lines), a
-/// `#!…tclsh<x.y>` / `#!…wish<x.y>` / `#!…expect` shebang (first line), then a
+/// directive (first [`DIALECT_DIRECTIVE_SCAN_LINES`] lines), a shebang
+/// (first line) naming one of the environments' interpreter words, then a
 /// tokenised
 /// `package require ?-exact? Tcl <x.y>` or `package vsatisfies [package require
 /// Tcl] <x.y>` version guard over the first [`DETECT_SCAN_BYTES`] bytes.
@@ -1098,18 +1066,8 @@ pub fn detect_dialect_from_source(source: &str) -> Option<&'static str> {
     if let Some(d) = detect_dialect_directive(source) {
         return Some(d);
     }
-    if let Some(first) = source.lines().next()
-        && first.starts_with("#!")
-    {
-        let lower = first.to_ascii_lowercase();
-        if has_word(&lower, "expect") {
-            return Some("expect");
-        }
-        if let Some(ver) = shebang_tclsh_version(&lower)
-            && let Some(d) = tcl_version_dialect(&ver)
-        {
-            return Some(d);
-        }
+    if let Some(d) = shebang_dialect(source) {
+        return Some(d);
     }
     let head = scan_head(source);
     let scan =
@@ -1337,33 +1295,104 @@ mod detect_tests {
         );
     }
 
-    /// Issue #1625: the Tk shell names a Tcl version exactly as `tclsh` does.
-    /// Tk is modelled as a library, not a dialect, so a `wish` shebang
-    /// contributes only its version — and a *bare* `wish` contributes nothing,
-    /// falling through to the content tiers like a bare `tclsh`.
+    /// A versioned Tk shell names its Tcl release exactly as `tclsh` does;
+    /// a bare `wish` is the Tk environment, and a bare `tclsh` names no
+    /// release and so falls through to the content tiers.
     #[test]
-    fn a_wish_shebang_names_its_tcl_version() {
+    fn a_wish_shebang_names_the_tk_shell_or_its_tcl_version() {
+        for (source, expected) in [
+            ("#!/usr/bin/wish8.6\nbutton .b\n", "tcl8.6"),
+            ("#!/usr/bin/env wish9.0\nbutton .b\n", "tcl9.0"),
+            ("#!/usr/bin/wish\nbutton .b\n", "tk"),
+            ("#!/usr/bin/env wish\nbutton .b\n", "tk"),
+            ("#!/usr/bin/tclsh8.4\nputs hi\n", "tcl8.4"),
+            ("#!/usr/bin/tclsh\nputs hi\n", DEF),
+        ] {
+            assert_eq!(detect_dialect(source, None, DEF), expected, "{source}");
+        }
+    }
+
+    #[test]
+    fn a_jimsh_shebang_names_jim() {
+        for line in [
+            "#!/usr/bin/jimsh",
+            "#!/usr/bin/env jimsh",
+            "#!/usr/local/bin/jimsh -",
+        ] {
+            assert_eq!(
+                detect_dialect(&format!("{line}\nputs hi\n"), None, DEF),
+                "jim",
+                "{line}"
+            );
+        }
         assert_eq!(
-            detect_dialect("#!/usr/bin/wish8.6\nbutton .b\n", None, DEF),
-            "tcl8.6"
+            super::detect_dialect_from_source("#!/usr/bin/jimsh\n"),
+            Some("jim")
         );
+        // The interpreter word is delimited: a longer name is another program.
         assert_eq!(
-            detect_dialect("#!/usr/bin/env wish9.0\nbutton .b\n", None, DEF),
-            "tcl9.0"
-        );
-        // Bare `wish`: no version, no opinion.
-        assert_eq!(
-            detect_dialect("#!/usr/bin/wish\nbutton .b\n", None, DEF),
+            detect_dialect("#!/usr/bin/jimshell\nputs hi\n", None, DEF),
             DEF
-        );
-        // The `tclsh` half is unchanged.
-        assert_eq!(
-            detect_dialect("#!/usr/bin/tclsh8.4\nputs hi\n", None, DEF),
-            "tcl8.4"
         );
     }
 
-    /// Issue #1625: the catalog's whole-basename axis routes the BIG-IP
+    /// The interpreter is the line's program (or the program `env` runs), so
+    /// a directory, an argument or a flag that spells another shell selects
+    /// nothing.
+    #[test]
+    fn the_shebang_interpreter_is_the_program_the_line_runs() {
+        for (line, expected) in [
+            ("#!/home/wish/bin/jimsh", "jim"),
+            ("#!/usr/bin/env -S jimsh -e", "jim"),
+            ("#!/usr/bin/env -i FOO=1 jimsh", "jim"),
+            ("#! /usr/bin/jimsh", "jim"),
+            ("#!/opt/jimsh/bin/tclsh8.6", "tcl8.6"),
+            ("#!/usr/bin/env wish9.0 -f", "tcl9.0"),
+            ("#!/usr/bin/JimSH", "jim"),
+        ] {
+            assert_eq!(
+                detect_dialect(&format!("{line}\nputs hi\n"), None, DEF),
+                expected,
+                "{line}"
+            );
+        }
+        for line in [
+            "#!/usr/bin/tclsh8.3",
+            "#!/bin/sh -c 'exec jimsh'",
+            "#!/usr/bin/env",
+            "#!/usr/bin/env -S",
+            "#!",
+            "#!/usr/bin/tclsh8.60",
+        ] {
+            assert_eq!(
+                detect_dialect(&format!("{line}\nputs hi\n"), None, DEF),
+                DEF,
+                "{line}"
+            );
+        }
+        assert_eq!(super::shebang_interpreter("#!/usr/bin/env"), None);
+        assert_eq!(super::shebang_interpreter("puts hi"), None);
+    }
+
+    /// A shebang outranks a version guard, and a directive outranks the
+    /// shebang.
+    #[test]
+    fn the_shebang_tier_sits_between_the_directive_and_the_content_tiers() {
+        assert_eq!(
+            detect_dialect("#!/usr/bin/jimsh\npackage require Tcl 8.6\n", None, DEF),
+            "jim"
+        );
+        assert_eq!(
+            detect_dialect(
+                "#!/usr/bin/jimsh\n# tcl-dialect: tcl8.5\nputs hi\n",
+                None,
+                DEF
+            ),
+            "tcl8.5"
+        );
+    }
+
+    /// The catalogue's whole-basename axis routes the BIG-IP
     /// config files, which have no extension worth claiming — a bare `.conf`
     /// belongs to every unrelated config file on the machine.
     #[test]
@@ -1383,7 +1412,7 @@ mod detect_tests {
         assert_eq!(dialect_from_extension("bigip.conf.bak"), None);
     }
 
-    /// Issue #1625: the long spellings every editor registers are indexed
+    /// The long spellings every editor registers are indexed
     /// too, and so is the tmsh script extension — they were registered but
     /// never walked, so cross-file references silently missed them.
     #[test]
@@ -1411,7 +1440,7 @@ mod detect_tests {
     /// scan indexes it. If they could disagree, a file would be indexed but
     /// not watched (so external edits never refresh it) or watched but not
     /// indexed (so its events are admitted and then dropped) — the exact
-    /// half-wired state review finding P1-3 was about.
+    /// half-wired state this guards against.
     ///
     /// Asserts nothing about *which* packs are loaded, so it is safe beside
     /// the process-global routing table other tests share.

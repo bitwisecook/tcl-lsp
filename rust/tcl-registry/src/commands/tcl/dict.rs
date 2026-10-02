@@ -104,6 +104,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "append",
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictAppend)),
+        traits: Traits::UNCONDITIONAL_VARIABLE_WRITE,
         arity: Arity::at_least(2),
         detail: "Append to a value in a dictionary.",
         synopsis: "dict append dictionaryVariable key ?string ...?",
@@ -234,6 +235,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "incr",
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictIncr)),
+        traits: Traits::UNCONDITIONAL_VARIABLE_WRITE,
         arity: Arity::new(2, 3),
         detail: "Increment a value in a dictionary.",
         synopsis: "dict incr dictionaryVariable key ?increment?",
@@ -273,6 +275,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "lappend",
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictListAppend)),
+        traits: Traits::UNCONDITIONAL_VARIABLE_WRITE,
         arity: Arity::at_least(2),
         detail: "Append list elements to a dictionary value.",
         synopsis: "dict lappend dictionaryVariable key ?value ...?",
@@ -365,6 +368,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "set",
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictSet)),
+        traits: Traits::UNCONDITIONAL_VARIABLE_WRITE,
         arity: Arity::at_least(3),
         detail: "Set a value in a dictionary.",
         synopsis: "dict set dictionaryVariable key ?key ...? value",
@@ -405,7 +409,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "unset",
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictUnset)),
-        traits: Traits::FIRE_AND_FORGET_TEARDOWN,
+        traits: Traits::FIRE_AND_FORGET_TEARDOWN.union(Traits::UNCONDITIONAL_VARIABLE_WRITE),
         arity: Arity::at_least(2),
         detail: "Remove keys from a dictionary variable.",
         synopsis: "dict unset dictionaryVariable key ?key ...?",
@@ -453,8 +457,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arg_role_resolver_roles: &[ArgRole::VarWrite, ArgRole::VarRead, ArgRole::Body],
         // `dictionaryVariable key varName ?key varName ...? body` — each
         // `varName` is a local the body sees, at every other index from 2
-        // (after the subcommand word), with the trailing body excluded
-        // (issue #1185).  `LoopVarList`, not `VarWrite`: the binding happens
+        // (after the subcommand word), with the trailing body excluded.
+        // `LoopVarList`, not `VarWrite`: the binding happens
         // once before the body *and only when the key is present* (tclsh: an
         // absent key leaves varName unset), so SSA must not model it as an
         // unconditional def — the key-aware read-before-set harvester owns
@@ -830,8 +834,8 @@ pub fn qualified_specs() -> Vec<CommandSpec> {
                 const_fold: sub.const_fold,
                 const_fold_versioned: sub.const_fold_versioned,
                 // Carry the subcommand's full *analysis* contract onto the
-                // standalone spelling, not just its arity/hover (Codex
-                // review, PR #1020). A `SubCommand`'s arg-role indices are
+                // standalone spelling, not just its arity/hover. A
+                // `SubCommand`'s arg-role indices are
                 // already 0-based *after* the subcommand word — exactly the
                 // standalone command's own arg indexing — so `dict set`'s
                 // `VarWrite` on arg 0 and `dict for`'s `LoopVarList` + `Body`
@@ -881,7 +885,7 @@ mod tests {
 
     #[test]
     fn qualified_specs_carry_the_subcommand_analysis_contract() {
-        // Codex review (PR #1020): standalone `::tcl::dict::*` specs must
+        // Standalone `::tcl::dict::*` specs must
         // inherit the subcommand's arg-roles / analyser hook, not just its
         // arity and hover. `dict set`'s `VarWrite` on arg 0 and `dict for`'s
         // `Body` on arg 2 + its `DictFor` hook transfer verbatim (subcommand

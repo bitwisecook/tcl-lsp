@@ -99,7 +99,6 @@ pub const fn spec() -> CommandSpec {
                 connection_side: ConnectionSide::Both,
                 ..SideEffect::DEFAULT
             },
-            // Pool selection.
             SideEffect {
                 target: SideEffectTarget::PoolSelection,
                 reads: true,

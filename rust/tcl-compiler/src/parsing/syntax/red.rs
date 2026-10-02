@@ -569,14 +569,13 @@ mod tests {
 
     #[test]
     fn lexer_line_index_agrees_with_red_overlay_on_lone_cr() {
-        // A lone CR is *not* a line break — post-fix
-        // main counts only `\n` (and the LF of a CRLF) in every line
-        // index. The red overlay's `build_line_starts` already does, so
-        // the lexer's `SourceMap` / `LineIndex` must agree, or the CST
-        // and the lexer report different lines for a token after a bare
-        // CR (the position-equivalence inconsistency CST fuzzing exposed:
-        // a CR-counting lexer index put `b` in `"a\rb"` on line 1 while
-        // the red overlay put it on line 0).
+        // A lone CR is *not* a line break: every line index counts only
+        // `\n` (and the LF of a CRLF). The red overlay's
+        // `build_line_starts` does, so the lexer's `SourceMap` /
+        // `LineIndex` must agree, or the CST and the lexer report
+        // different lines for a token after a bare CR — a CR-counting
+        // index would put `b` in `"a\rb"` on line 1 while the red overlay
+        // puts it on line 0.
         //
         // `build_line_starts` is an independent `\n`-only index, so this
         // is a genuine cross-check, not a self-comparison.

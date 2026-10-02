@@ -22,19 +22,14 @@
 //! Absent from Tcl 8.4, 8.5, and 8.6: `TclCmd/zipfs.html` 404s on the
 //! 8.4 and 8.5 doc trees, and on 8.6 both the `.html` and `.htm`
 //! extensions resolve to the site's generic "URL Not Found" page (HTTP
-//! 200, but the same not-found body as the 8.4/8.5 404s) — fetched and
-//! read directly for all three rather than inferred from the 9.0+
-//! manpage's absence of an explicit "Changed in" note. Introduced in
+//! 200, but the same not-found body as the 8.4/8.5 404s). Introduced in
 //! Tcl 9.0; the tcl-lang.org `zipfs.html` manual pages for Tcl 9.0.4 and
 //! 9.1b0 are byte-for-byte identical apart from doc-anchor line-number
-//! IDs. That identity was further cross-checked directly against
-//! `generic/tclZipfs.c` on GitHub's `core-9-0-branch` (patch level 9.0.5
-//! at fetch time — one patch ahead of the 9.0.4 manpage snapshot, with
-//! no code difference relevant here) and `main` (9.1b1, one beta ahead
-//! of the 9.1b0 manpage snapshot): every `ZipFS*ObjCmd`'s `objc` bounds
-//! check is unchanged between the two branches, so every
-//! `SubCommand::arity` below is one fact true for the whole
-//! `TCL90_PLUS` gate, not two facts that happen to agree.
+//! IDs, and `generic/tclZipfs.c` agrees between `core-9-0-branch` and
+//! `main`: every `ZipFS*ObjCmd`'s `objc` bounds check is unchanged
+//! between the two branches, so every `SubCommand::arity` below is one
+//! fact true for the whole `TCL90_PLUS` gate, not two facts that happen
+//! to agree.
 //!
 //! The public command is the bare `zipfs`; the ensemble also answers to
 //! its fully-qualified `::tcl::zipfs` name, so two forms are registered

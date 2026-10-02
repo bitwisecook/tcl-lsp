@@ -16,12 +16,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Coverage port for four under-covered `tcl-compiler` pipeline modules:
+//! Coverage for four `tcl-compiler` pipeline modules:
 //!   * `src/interval_bounds.rs` — integer-interval / list-length / string-length
 //!     dynamic bounds checks (W230 lindex / W231 lset / W232 string index /
-//!     W233 divide-by-zero). Targets the branches the existing
-//!     `intervals.rs` leaves cold: the `classify` *negative*-index reason
-//!     (every existing test exercises only `past_end` / `past_append`), the
+//!     W233 divide-by-zero). Covers the branches `intervals.rs` leaves
+//!     cold: the `classify` *negative*-index reason (the tests there drive
+//!     only `past_end` / `past_append`), the
 //!     `list_command_length` `[list …]` element-count path, the divide-by-zero
 //!     matrix corners (nested-ternary forcing, `%`), and the `string_length_map`
 //!     backslash-escape resolution.
@@ -31,11 +31,11 @@
 //!     the `expr_has_command` node kinds (ternary / unary / call), and the
 //!     `collect_defs_from_script` `While` / `For` / `Try` / `Switch` recursion
 //!     arms. The `pub(crate)` `condition_command_out_vars` →
-//!     `cmd_substitution_out_vars` → `catch_body_out_vars` chain is reached
+//!     `cmd_substitution_out_vars` → `script_text_out_vars` chain is reached
 //!     end-to-end through the analyser's W210 read-before-set *suppression* for a
 //!     variable an `if`/`while` *condition* command-substitution writes.
 //!   * `src/compilation_unit.rs` — the `CompilationUnit::build_for` pipeline.
-//!     Targets the build paths the in-crate tests skip: namespaced procedures,
+//!     Covers the build paths the in-crate tests skip: namespaced procedures,
 //!     the `with_interprocedural` taint re-run, `with_memory_ssa`, the
 //!     `functions` / `analysable_functions` / `function` accessors, and the
 //!     `decode_param_constants` round-trip.
@@ -60,9 +60,6 @@
 //!   handlers, cross-event variable lifetime) — have no direct core-tclsh
 //!   observation. They are asserted structurally and flagged `// f5-dialect`
 //!   (iRules events) or noted as compiler-internal at the site.
-//!
-//! No Rust bug was found: every bound / interval / out-var / scope verdict
-//! asserted here agrees with the tclsh ground truth.
 
 use tcl_compiler::analyser::Analyser;
 use tcl_compiler::analyses::{ConstValue, LatticeValue};
@@ -130,9 +127,10 @@ fn build_irules(src: &str) -> CompilationUnit {
 
 // interval_bounds.rs — the `classify` *negative*-index reason.
 //
-// `intervals.rs` exercises only the `past_end` / `past_append` reasons;
-// the first branch of `classify` (`hi < 0 → "negative"`) is cold. A provably
-// negative const index drives it for each of the three readers/mutators.
+// The tests in `intervals.rs` drive only the `past_end` / `past_append`
+// reasons; the first branch of `classify` (`hi < 0 → "negative"`) is cold.
+// A provably negative const index drives it for each of the three
+// readers/mutators.
 // tclsh: a negative index reads `""` (lindex / string index) and errors
 // (lset) — all out of range, so all three warnings are sound.
 mod negative_index_classify {
@@ -219,9 +217,10 @@ mod list_command_length {
 
 // interval_bounds.rs — divide-by-zero matrix corners (W233).
 //
-// `intervals.rs` covers the flat `&&`/`||`/`?:` guard outcomes; these add
-// the corners it leaves cold: a *nested* forced ternary arm, modulo by a
-// const-zero variable, and the subtraction-to-zero inside a forced arm.
+// The tests in `intervals.rs` cover the flat `&&`/`||`/`?:` guard outcomes;
+// these add the corners they leave cold: a *nested* forced ternary arm,
+// modulo by a const-zero variable, and the subtraction-to-zero inside a
+// forced arm.
 // tclsh: `expr {…/0}` / `expr {…%0}` raise *divide by zero* (8.6 + 9.0).
 mod divide_by_zero_corners {
     use super::*;
@@ -373,7 +372,7 @@ mod defs_from_expr_out_vars {
     #[test]
     fn catch_body_nested_gets_writer() {
         // The catch body holds a nested command writer (`gets`); its out-var is
-        // recovered through `catch_body_out_vars`. tclsh: `catch {gets $ch ln2}`
+        // recovered through `script_text_out_vars`. tclsh: `catch {gets $ch ln2}`
         // sets `ln2`.
         assert_eq!(defs("[catch {gets $ch ln2}]"), vec!["ln2".to_string()]);
     }

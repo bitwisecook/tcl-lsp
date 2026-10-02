@@ -22,6 +22,7 @@
 
 use f5_xc::model::TranslateStatus;
 use f5_xc::{render_json, render_terraform, translate_irule};
+use tcl_core_types::DiagCode;
 
 /// Find the route whose origin pool has the given name.
 fn route_for_pool<'a>(
@@ -79,6 +80,23 @@ fn starts_with_path_is_prefix_match() {
     let pm = route.path_match.as_ref().unwrap();
     assert_eq!(pm.match_type, "prefix");
     assert_eq!(pm.value, "/api");
+}
+
+/// A quoted operand substitutes, so `"/api$v"` is not the prefix `/api$v`;
+/// a braced one is its text without the braces (#2227, found in review).
+#[test]
+fn a_prefix_is_translated_only_from_fixed_text() {
+    let path_match = |operand: &str| {
+        let src = format!(
+            "when HTTP_REQUEST {{\n    if {{[HTTP::path] starts_with {operand}}} {{\n        pool api_pool\n    }}\n}}"
+        );
+        translate_irule(&src)
+            .routes
+            .iter()
+            .find_map(|r| r.path_match.as_ref().map(|pm| pm.value.clone()))
+    };
+    assert_eq!(path_match("\"/api$v\""), None);
+    assert_eq!(path_match("{/api}").as_deref(), Some("/api"));
 }
 
 #[test]
@@ -142,12 +160,9 @@ fn untranslatable_event_is_flagged() {
     let src = "when CLIENT_ACCEPTED {\n    set foo 1\n}";
     let result = translate_irule(src);
     assert_eq!(result.untranslatable_count(), 1);
-    assert!(
-        result
-            .items
-            .iter()
-            .any(|i| i.status == TranslateStatus::Untranslatable && i.diagnostic_code == "XC201")
-    );
+    assert!(result.items.iter().any(
+        |i| i.status == TranslateStatus::Untranslatable && i.diagnostic_code == DiagCode::Xc201
+    ));
     assert!(result.coverage_pct.abs() < 1e-9);
 }
 
@@ -307,10 +322,21 @@ fn terraform_pool_name_with_slashes_is_sanitised() {
         !tf.contains("volterra_origin_pool\" \"/Common/web-pool\""),
         "raw slashed name leaked into resource label:\n{tf}"
     );
-    // The real object name is preserved as the `name` attribute.
+    // The `name` attribute is the XC object name, which must be DNS-1035:
+    // the BIG-IP path is not a legal one, so it cannot be passed through.
     assert!(
-        tf.contains("name      = \"/Common/web-pool\""),
-        "TF dropped the real pool name:\n{tf}"
+        !tf.contains("name      = \"/Common/web-pool\""),
+        "raw BIG-IP path used as the XC object name:\n{tf}"
+    );
+    let xc_name = f5_xc::xc_object_name("/Common/web-pool");
+    assert!(
+        tf.contains(&format!("name      = \"{xc_name}\"")),
+        "TF does not carry the derived XC name {xc_name:?}:\n{tf}"
+    );
+    // The real path is not lost — it travels in the description.
+    assert!(
+        tf.contains("Translated from BIG-IP /Common/web-pool"),
+        "TF dropped the source path:\n{tf}"
     );
     // The label and the route reference must agree. Extract the label from the
     // resource header and confirm the reference uses it verbatim.

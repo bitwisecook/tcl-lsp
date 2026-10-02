@@ -16,9 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Caller-frame injection — issue #923 differential-audit cluster C1
-//! (idx 7, 22, 38, 57, 59, 98) plus the `eval` / `uplevel` FP class #1076
-//! left documented as out of scope.
+//! Caller-frame injection across upvar-based out-parameters,
+//! uplevel-constructed `set`/call forwarding, and argparse's caller-frame
+//! DSL, plus the `eval` / `uplevel` FP class left documented as out of scope.
 //!
 //! Every case below is a whole-file diagnostic run, so it exercises the real
 //! chain: the per-proc [frame-effect
@@ -71,7 +71,7 @@ fn w211(src: &str) -> HashSet<String> {
     vars_for(src, "W211")
 }
 
-// idx 57 / 59 — a proc that upvar-writes a by-name out-parameter.
+// A proc that upvar-writes a by-name out-parameter.
 
 /// The ticklecharts `setdef` / `estruct` shape: `upvar 1 $name local` plus a
 /// write through the alias, called with a literal name.
@@ -88,10 +88,9 @@ namespace eval demo {
 fn idx57_out_param_write_is_seen_through_every_call_spelling() {
     // tclsh 9.0.4 / 8.6.14: `demo::estruct itemLegend1 {a b}` leaves
     // `itemLegend1` set in the caller — reading it is not read-before-set.
-    // The bare and fully-absolute spellings already worked; the ordinary
-    // relative-qualified one (`demo::estruct`) silently missed, because the
-    // summary was keyed only under `estruct` and `::demo::estruct`
-    // (issue #923 audit idx 59's isolation ladder p1/p2/p3).
+    // The summary must be keyed under all three spellings — `estruct`,
+    // `::demo::estruct`, and the relative-qualified `demo::estruct` —
+    // otherwise the relative-qualified call is silently missed.
     for call in [
         "estruct itemLegend1 {a b}",
         "demo::estruct itemLegend1 {a b}",
@@ -134,7 +133,7 @@ proc user {} {
     assert!(w210(src).contains("itemLegend1"), "got {:?}", w210(src));
 }
 
-// idx 59 — the same out-parameter helper, defined in ANOTHER FILE.
+// The same out-parameter helper, defined in ANOTHER FILE.
 
 /// The ticklecharts layout the finding was actually mined from: `setdef`
 /// lives in `utils.tcl`, the caller in `options.tcl`, and only a
@@ -204,7 +203,7 @@ fn idx59_control_a_registry_command_is_not_an_opaque_callee() {
     assert!(w210(src).contains("options"), "got {:?}", w210(src));
 }
 
-// idx 38 — `uplevel <caller> [list set …]`, the tclopt `NewArrays` shape.
+// `uplevel <caller> [list set …]`, the tclopt `NewArrays` shape.
 
 #[test]
 fn idx38_uplevel_constructed_set_defines_the_callers_variable() {
@@ -255,7 +254,7 @@ proc host {} { lit; puts $litVar }
     assert!(!w210(src).contains("litVar"), "got {:?}", w210(src));
 }
 
-// idx 7 — `argparse`, which injects caller-frame locals from its own DSL.
+// `argparse`, which injects caller-frame locals from its own DSL.
 
 #[test]
 fn idx7_argparse_injects_caller_frame_locals() {
@@ -288,7 +287,7 @@ proc plain {args} { puts \"a=$a\" }
     assert!(w210(src).contains("a"), "got {:?}", w210(src));
 }
 
-// The `eval` / `uplevel <dynamic body>` FP class (#1076 "not covered").
+// The `eval` / `uplevel <dynamic body>` FP class.
 
 #[test]
 fn eval_of_an_unreadable_script_blinds_its_own_frame() {
@@ -339,7 +338,7 @@ fn control_a_literal_eval_body_is_not_a_barrier() {
     assert!(w210(src).contains("neverSet"), "got {:?}", w210(src));
 }
 
-// issue #1019 — `uplevel <caller> [list callee …]` forwards one frame.
+// `uplevel <caller> [list callee …]` forwards one frame.
 
 #[test]
 fn idx1019_uplevel_constructed_call_forwards_the_callees_upvar_one_frame() {

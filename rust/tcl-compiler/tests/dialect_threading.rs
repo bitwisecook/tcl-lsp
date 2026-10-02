@@ -16,16 +16,17 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Dialect threading through lowering and the compilation unit (issue #1048).
+//! Dialect threading through lowering and the compilation unit.
 //!
 //! The document's dialect has to reach three layers before a dialect-only
 //! operator behaves like an operator: the lexer config (word tokenisation),
 //! the *expression* grammar the lowering parses conditions with, and the fold
-//! policy the lattice pipeline runs under. The lowering layer used to parse
-//! every `if` / `while` / `for` / `expr` condition with a hardcoded `None`
-//! dialect, so an iRules word operator reached the IR as an opaque
-//! `ExprNode::Raw` that no fold could evaluate — the constant-condition
-//! diagnostic (I230) could not fire even with an explicit `--dialect`.
+//! policy the lattice pipeline runs under. The lowering layer must parse
+//! every `if` / `while` / `for` / `expr` condition under that dialect rather
+//! than a hardcoded `None`: otherwise an iRules word operator reaches the IR
+//! as an opaque `ExprNode::Raw` that no fold can evaluate, and the
+//! constant-condition diagnostic (I230) can't fire even with an explicit
+//! `--dialect`.
 //!
 //! The cases below pin the four corners for I230 on a word-operator condition:
 //! it fires under `f5-irules` when the subject is constant (TP), stays silent

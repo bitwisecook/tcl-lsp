@@ -17,14 +17,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The compiler's dialect-name ingress — a thin delegation to the shared
-//! seam in [`tcl_registry::model::ingress`] (centralisation contract R-a,
-//! ledger row C2 — the compiler half of P1-F).
+//! seam in [`tcl_registry::model::ingress`].
 //!
-//! Wave 1 landed this module here; wave 2 moved the implementation into
-//! the registry model so `tcl-lsp-core`, `tcl-lsp-db`, and
-//! `tcl-lsp-server` resolve names through the *same* seam rather than a
-//! second copy. The re-exports below keep every compiler call site (and
-//! this module's wave-1 tests) unchanged; see the shared module's docs
+//! The implementation lives in the registry model so `tcl-lsp-core`,
+//! `tcl-lsp-db`, and `tcl-lsp-server` resolve names through the *same* seam
+//! rather than a second copy. The re-exports below keep every compiler call
+//! site (and this module's tests) unchanged; see the shared module's docs
 //! for the resolution rules and the three accepted micro-unifications.
 
 use std::sync::{Mutex, OnceLock};
@@ -36,8 +34,7 @@ pub(crate) use tcl_registry::model::ingress::{
 /// Intern `name` as a `&'static str` — transitional plumbing for the
 /// version-gate axis, whose `Package` arm predates the model's
 /// `Arc<str>` package names. Bounded by the compiled placement
-/// vocabulary (each distinct name leaks once). Retired with the axis's
-/// re-typing under ledger C1 (post-P1-G). Compiler-local: it is not a
+/// vocabulary (each distinct name leaks once). Compiler-local: it is not a
 /// dialect ingress, so it stays out of the shared seam.
 #[must_use]
 pub(crate) fn interned_package_name(name: &str) -> &'static str {
@@ -90,12 +87,12 @@ mod tests {
                 "{name}"
             );
         }
-        // The `tk` ingress: permissive analyser profile (the old
-        // `by_name` answer — the P3 ruling keeps that asymmetry, since
-        // `tk` is a package plus an environment and never a catalogue
-        // dialect), typed additive unit profile (the old `resolve_known`
-        // answer), and the Tk fact as a **placement** — the environment
-        // ships Tk ambient, which is what a `wish` shell is.
+        // The `tk` ingress: permissive analyser profile — matching
+        // `DialectProfile::by_name`, since `tk` is a package plus an
+        // environment and never a catalogue dialect — typed additive unit
+        // profile — matching `DialectProfile::resolve_known` — and the Tk
+        // fact as a **placement**: the environment ships Tk ambient, which
+        // is what a `wish` shell is.
         let tk = resolve_environment("tk");
         assert!(tk.document_context().ambient_package("Tk"));
         assert!(tk.analyser_profile().is_fallback());
@@ -112,7 +109,7 @@ mod tests {
             "the generation answers under the resolved environment"
         );
         // An uninstalled pack overlay falls back to the un-overlaid
-        // generation, exactly as the old if-built door did.
+        // generation.
         let fallback = environment.context_registry(&KeyedVersions::default(), 0xDEAD);
         assert!(Arc::ptr_eq(generation.commands(), fallback.commands()));
     }

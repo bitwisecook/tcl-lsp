@@ -1,4 +1,4 @@
-# Issue #969: "Condition '$count & 1' is always false" fired on a genuinely
+# "Condition '$count & 1' is always false" must not fire on a genuinely
 # alternating parity check inside a recursive, namespaced proc. Root cause:
 # the interprocedural param-constant seed resolved `dfs`'s bare recursive
 # self-call against the global namespace instead of `::graph`, so that call

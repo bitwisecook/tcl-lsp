@@ -312,7 +312,7 @@ pub enum AnalyserHookId {
     /// parameter list).  Records the proc the same last-definition-wins
     /// way a literal `proc` does — a real corpus idiom (`tk/library/
     /// safetk.tcl`) declares a throwaway 0-arg literal `proc` stub, then
-    /// unconditionally redefines it this way (issue #923 idx 90).
+    /// unconditionally redefines it this way.
     OptProc,
     /// `apply {{params} body ?ns?} ?arg ...?` — models the lambda like
     /// a `proc` (params bind in a fresh scope; element 1 is the body).
@@ -335,7 +335,7 @@ pub enum AnalyserHookId {
     /// names the declaring namespace exposes; `-clear` resets the
     /// namespace's previously recorded patterns first. Gates whether a
     /// bareword call reached only through a wildcard `namespace import
-    /// NS::*` may resolve to a command in `NS` (issue #923 idx 18): Tcl
+    /// NS::*` may resolve to a command in `NS`: Tcl
     /// only imports names a source namespace actually exported
     /// (`Tcl_Export`, `tclNamesp.c`), so an unexported sibling command
     /// must stay unresolved through the import.
@@ -343,8 +343,8 @@ pub enum AnalyserHookId {
     /// `namespace forget ?pattern ...?` — records the removal of an
     /// imported alias. The counterpart of [`Self::NamespaceImport`]: an
     /// import edge has a lifecycle, and `namespace forget` ends it, so a
-    /// bare call after the forget raises `invalid command name` (issue
-    /// #1103, oracle tclsh 8.6.14 / 9.0.4). Recorded as an ordered event
+    /// bare call after the forget raises `invalid command name`
+    /// (oracle tclsh 8.6.14 / 9.0.4). Recorded as an ordered event
     /// beside `namespace export`'s `-clear` tombstones.
     NamespaceForget,
     /// `namespace path {ns ...}` — records the namespace's
@@ -398,7 +398,7 @@ pub enum AnalyserHookId {
     /// existence and safe state in the analyser's interpreter-domain map
     /// (stamped on `interp`'s `create` subcommand).  A safe child's
     /// evaluation contexts hide every [`crate::Traits::SAFE_INTERP_HIDDEN`]
-    /// command (issue #945 fault 7).
+    /// command.
     InterpCreate,
     /// `interp delete ?path ...?` — removes the recorded interpreter
     /// state (stamped on `interp`'s `delete` subcommand).
@@ -435,13 +435,13 @@ pub enum AnalyserHookId {
     /// namespace, when some `package require` needs it — so its
     /// presence is what tells a package-derived load order that the
     /// mapping from require-site to the statements that actually run
-    /// is *not* static (issue #1279).
+    /// is *not* static.
     PackageIfneeded,
     /// `package prefer ?latest|stable?` — records the interpreter's
     /// version-selection mode change (stamped on `package`'s `prefer`
     /// subcommand), which decides whether a later `package require`
     /// takes the highest acceptable version or the highest acceptable
-    /// *stable* one (issue #1126 item 1).
+    /// *stable* one.
     PackagePrefer,
     /// `source fileName`, `source -encoding enc fileName`, or Tcl 9's
     /// `source -nopkg fileName` — records the source target.
@@ -492,7 +492,7 @@ pub type VersionedConstFoldFn = fn(args: &[&str], version: Option<TclVersion>) -
 /// instead, `regsub` returns a replacement count until its `varName` is
 /// omitted and it returns the substituted string instead. Typing every call by the
 /// command's usual result makes the compiler confidently wrong about the
-/// others — issue #1720, where iterating a `regexp -all -inline` result drew a
+/// others: iterating a `regexp -all -inline` result once drew a
 /// shimmer warning saying the list "has int intrep".
 ///
 /// The spec names the algorithm; [`crate::return_type`] keeps it. That split

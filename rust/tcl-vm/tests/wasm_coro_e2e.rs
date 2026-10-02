@@ -92,11 +92,10 @@ fn have_node() -> bool {
 }
 
 fn have_wasm_target() -> bool {
-    // `rustup target list --installed` reports the *installed* targets. The
-    // earlier `rustc --print target-list` listed every triple rustc *knows* —
-    // `wasm32-unknown-unknown` is always in it, installed or not — so this never
-    // skipped and instead tried (and failed) the wasm build on CI runners whose
-    // toolchain lacks the target's `core`/`std`. When `rustup` is absent we
+    // `rustup target list --installed` reports the *installed* targets, unlike
+    // `rustc --print target-list`, which lists every triple rustc knows about
+    // regardless of whether its `core`/`std` are installed —
+    // `wasm32-unknown-unknown` always appears there. When `rustup` is absent we
     // can't confirm the target, so skip (the build would fail the same way).
     Command::new("rustup")
         .args(["target", "list", "--installed"])

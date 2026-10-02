@@ -4,7 +4,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# Contract tests for the standalone-runtime CI lane (issue #1768):
+# Contract tests for the standalone-runtime CI lane:
 #
 #   1. `scripts/dev/runtime-rust-path.sh` classifies exactly the runtime's
 #      resolved local package closure and its external Tcl 9 smoke corpus as
@@ -134,7 +134,7 @@ echo "standalone runtime path classifier tests passed"
 # the numeric tower enabled. `runtime/rust`'s build script degrades SILENTLY to
 # a bignum-less build when it cannot find libtommath — `expr` is then not even
 # registered — so a green run without TCL_TOMMATH_DIR would be a much weaker
-# gate than it looks (the same trap issue #1542 documents for the real link).
+# gate than it looks (the same trap the real link's own suite must avoid).
 runtime_target=$(awk '
     /^runtime-rust-test:/ { in_target = 1 }
     in_target && /^[A-Za-z0-9_.-]+:/ && $1 != "runtime-rust-test:" { exit }

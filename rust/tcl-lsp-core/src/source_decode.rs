@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The source-decoding contract — one decoder, and the diagnostics that say
-//! what it had to substitute (issue #1326).
+//! what it had to substitute.
 //!
 //! # The problem
 //!
@@ -60,7 +60,7 @@
 //! * **W109** — the source does not look like UTF-8 *text* at all (UTF-16 /
 //!   UTF-32 / binary).  The caller is expected to **abstain** from the rest of
 //!   the analysis rather than publish findings derived from mis-decoded bytes:
-//!   a three-line UTF-16LE iRule used to produce 87 nonsense diagnostics.
+//!   a three-line UTF-16LE iRule otherwise produces 87 nonsense diagnostics.
 //!
 //! W305 (bidirectional formatting controls) is a Unicode-text finding rather
 //! than a byte-decoding finding. Its canonical producer lives in
@@ -369,7 +369,7 @@ fn classify_fault(at: &[u8]) -> Utf8Fault {
 ///
 /// Offsets that land mid-character, or past the end, clamp to the nearest
 /// character boundary rather than panicking — the same defensive posture
-/// issue #1325 established for token spans.
+/// token spans take.
 fn position_of(text: &str, offset: usize) -> (u32, u32) {
     let offset = offset.min(text.len());
     let before = &text[..text.floor_char_boundary(offset)];
@@ -421,7 +421,7 @@ pub fn encoding_integrity_diagnostics(
 ) -> Vec<StyleDiagnostic> {
     let mut out = Vec::new();
 
-    // ---- W109: this is not UTF-8 text at all -------------------------------
+    // W109: this is not UTF-8 text at all.
     // This is a byte-level verdict. A sequence of NUL characters in an LSP
     // string can be deliberate Tcl data; only the original bytes establish an
     // encoding signature.
@@ -449,7 +449,7 @@ pub fn encoding_integrity_diagnostics(
         return out;
     }
 
-    // ---- W107: valid text, but not the bytes on disk -----------------------
+    // W107: valid text, but not the bytes on disk.
     if let Some(&DecodeReport {
         first_error: Some(err),
         error_count,
@@ -503,6 +503,16 @@ fn replacement_range(text: &str, offset: usize) -> LspRange {
 /// Abstention here is a positive answer, not a silent degradation: the file
 /// gets one accurate diagnostic saying it is not UTF-8, instead of dozens of
 /// findings about characters that are decoding artefacts.
+///
+/// The *rule* is [`DecodeReport::requires_abstention`], and it has only ever
+/// had one implementation — this is its `Option`-lifting form, for the many
+/// callers that hold an `Option<&DecodeReport>` because a document may not
+/// have been decoded through this boundary at all. A caller holding a report
+/// outright (the CLI's `InputDocument::abstains_on_encoding`) asks the rule
+/// directly. Every surface that abstains goes through one of those two, so
+/// the editor and the CLI cannot drift — which is what
+/// `docs/design/contracts/lsp-diagnostics-publication.md` § Encoding
+/// integrity and abstention requires (#2122).
 #[must_use]
 pub fn should_abstain(report: Option<&DecodeReport>) -> bool {
     report.is_some_and(DecodeReport::requires_abstention)

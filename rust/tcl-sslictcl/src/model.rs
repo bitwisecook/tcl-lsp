@@ -447,7 +447,7 @@ pub struct SslicModel {
     /// Named certificate chains, leaf first.
     #[serde(default)]
     pub chains: BTreeMap<String, ChainDeclaration>,
-    /// Imported testssl.sh documents, including normalized findings and the
+    /// Imported testssl.sh documents, including normalised findings and the
     /// complete source JSON for forward-compatible reprocessing.
     #[serde(default)]
     pub testssl_imports: BTreeMap<String, TestSslImport>,

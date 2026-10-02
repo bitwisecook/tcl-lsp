@@ -34,24 +34,17 @@
 # pins the CPU for tens of seconds — so they get a single-slot group and never
 # run alongside each other; the hundreds of light tests still parallelise fully.
 #
-# This is a *scheduling* optimisation only. It is deliberately no longer load
-# bearing for correctness: issue #1082 removed the tests' dependence on winning
-# a wall-clock race, so they pass at default parallelism on a contended machine
-# with or without this grouping (and with plain `cargo test`, which does not
-# read this file at all). Their barriers now wait on explicit progress signals
-# from the server and scale with measured machine capacity, and their genuine
-# latency guarantees are asserted relative to that capacity rather than against
-# an absolute — see the module docs in
+# This is a *scheduling* optimisation only, not load-bearing for correctness:
+# the tests' barriers wait on explicit progress signals from the server and
+# scale with measured machine capacity rather than a wall-clock race, so they
+# pass at default parallelism on a contended machine with or without this
+# grouping (and with plain `cargo test`, which does not read this file at
+# all) — see the module docs in
 # `rust/tcl-lsp-server/tests/e2e/semantic_tokens_reference_client.rs` and
 # `rust/tcl-lsp-server/tests/e2e/common/mod.rs`. A timeout here is therefore a
-# real signal again, not "the known CPU-starvation flake".
-# The former `heavy-lsp-e2e = { max-threads = 1 }` group is gone: measured
-# 2026-08-13 (this branch), the full lsp-e2e suite passes 1,949/1,949 with the
-# group removed and runs 133 s (24 %) faster — the serial floor was the cost.
-# The grouping stopped being load-bearing after issue #1082 (see the history
-# above); the heaviest members are now `#[ignore]`d into the manual tier
-# instead, which removes the contention at the source rather than scheduling
-# around it.
+# real signal, not CPU-starvation flake. The heaviest members are `#[ignore]`d
+# into the manual tier instead, which removes the contention at the source
+# rather than scheduling around it.
 [test-groups]
 # Corpus sweeps already parallelise internally; cap how many run concurrently
 # under `--run-ignored` so N sweeps don't each spawn a full rayon pool and

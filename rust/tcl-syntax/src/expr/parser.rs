@@ -323,7 +323,7 @@ impl<'a> PrattParser<'a> {
         // C resolves an identifier followed by `(` as a function before it
         // tries boolean-word recognition, including a boolean spelling such as
         // `true(1)`. Keep that precedence while accepting every unique boolean
-        // prefix through the canonical boolean owner (issue #1580).
+        // prefix through the canonical boolean owner.
         if matches!(tok.kind, ExprTokenType::Bool | ExprTokenType::Function)
             && self.tokens.get(self.pos + 1).map(|next| next.kind) == Some(ExprTokenType::ParenOpen)
         {
@@ -1208,7 +1208,7 @@ mod tests {
     /// valid in tmsh and iApp `expr` too, not iRules-only
     /// (`docs/design/f5/bigip-irule-parser-measurements.md` §4a) — so any
     /// F5Tcl-cored profile parses them, while plain Tcl stays byte-identical
-    /// (the same source degrades to `Raw`, exactly as before).
+    /// (the same source still degrades to `Raw`).
     #[test]
     fn f5_word_operators_parse_under_every_f5_cored_profile() {
         for dialect in ["f5-irules", "f5-tmsh", "f5-iapps"] {

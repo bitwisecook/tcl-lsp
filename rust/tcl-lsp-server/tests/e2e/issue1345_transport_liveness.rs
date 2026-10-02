@@ -8,7 +8,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! End-to-end coverage for the handler/input liveness cycle in issue #1345.
+//! End-to-end coverage for the handler/input liveness cycle.
 
 use std::time::Duration;
 

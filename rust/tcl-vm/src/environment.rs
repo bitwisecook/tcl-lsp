@@ -17,8 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The VM's dialect ingress — this engine's face of the one shared seam,
-//! [`tcl_registry::model::ingress`] (centralisation contract R-a,
-//! retirement-ledger rows C2/B1/B11; P1-F wave 3, the backend lane).
+//! [`tcl_registry::model::ingress`].
 //!
 //! Every dialect **name** the VM accepts (there is exactly one kind: the
 //! release name a [`TclVersion`] pin spells, [`Vm::set_runtime_version`])
@@ -30,18 +29,13 @@
 //! Nothing in this module changes what the VM admits. The names it resolves
 //! are the closed set [`TclVersion::dialect_name`] spells, whose environments
 //! are their same-named catalogue entries, so [`profile_for_dialect`] returns
-//! the very profile `DialectProfile::by_name` did; the generation's command
-//! store is the very `Arc` the old `(profile, overlay)` cache owns, so
+//! the same profile `DialectProfile::by_name` returns; the generation's
+//! command store is the same `Arc` the per-profile cache owns, so
 //! [`store_for_profile`] returns the allocation `registry_for_profile`
-//! returned; and the document authoring mask is test-pinned to the threaded
+//! returns; and the document authoring mask is test-pinned to the threaded
 //! profile's `surface_query` for every profile an ingress can produce, so
 //! [`surface_point`] answers the command-availability gate exactly as the mask
-//! read did.
-//!
-//! Post-P1-G (which deleted the name validators and old cache doors):
-//! the `&'static DialectProfile` these helpers take and hand back
-//! retires with ledger C1's re-type, and the VM's pin then carries a
-//! [`tcl_registry::model::DocumentEnvironment`] instead.
+//! read does.
 //!
 //! **Scope: the VM executes Tcl 9 semantics.** The closed set above is a
 //! set of *Tcl releases*; a dialect with no Tcl ladder rung (`jim`) never
@@ -68,12 +62,11 @@ use tcl_registry::CommandRegistry;
 
 /// Resolve a dialect **name** to the profile this VM pins.
 ///
-/// The environment-model form of the retired
-/// the retired name resolver: the resolved environment's
-/// [`unit_profile`], which is its same-named catalogue profile for every
-/// release name the VM pins and the permissive fallback for the lenient
-/// and unknown spellings — exactly `by_name`'s answer at every one of
-/// this engine's ingresses.
+/// The environment-model form of the name resolver: the resolved
+/// environment's [`unit_profile`], which is its same-named catalogue
+/// profile for every release name the VM pins and the permissive fallback
+/// for the lenient and unknown spellings — exactly `by_name`'s answer at
+/// every one of this engine's ingresses.
 ///
 /// [`unit_profile`]: tcl_registry::model::DocumentEnvironment::unit_profile
 pub(crate) fn profile_for_dialect(name: &str) -> &'static DialectProfile {
@@ -81,19 +74,19 @@ pub(crate) fn profile_for_dialect(name: &str) -> &'static DialectProfile {
 }
 
 /// The command **store** for `profile` — the resolved environment's
-/// registry generation, replacing the retired
-/// `tcl_registry::model::ingress::static_context_for_profile(profile).commands()`.
+/// registry generation, from
+/// `tcl_registry::model::static_context_for_profile(profile).commands()`.
 ///
 /// A profile's canonical name **is** a canonical environment id, so this
 /// is an id-keyed generation lookup rather than a re-parse, and the
-/// generation's store is the same allocation the old per-profile cache
-/// published (`tcl_registry::model::assembly`'s `command_store`).
+/// generation's store is the same allocation
+/// `tcl_registry::model::assembly`'s `command_store` publishes.
 ///
-/// The `&'static` promotion is sound on the same terms the old one was:
-/// the un-overlaid generation axis is a closed set and those entries are
-/// retained unconditionally, so the promotion leaks a clone of one `Arc`,
-/// never a second assembly. That matters here — the VM caches this handle
-/// on the pin and consults it on every command resolution.
+/// The `&'static` promotion is sound because the un-overlaid generation
+/// axis is a closed set and those entries are retained unconditionally,
+/// so the promotion leaks a clone of one `Arc`, never a second assembly.
+/// That matters here — the VM caches this handle on the pin and consults
+/// it on every command resolution.
 pub(crate) fn store_for_profile(profile: &'static DialectProfile) -> &'static CommandRegistry {
     tcl_registry::model::static_context_for_profile(profile).commands()
 }
@@ -123,9 +116,9 @@ pub(crate) fn surface_point(profile: &'static DialectProfile) -> SurfaceQuery<'s
 /// release ([`TclVersion::dialect_profile_name`]) rather than on a pinned
 /// profile handle.
 ///
-/// One resolution of the name, not two: the old form was
-/// the retired resolver's availability-mask read, and the resolved
-/// environment's document authoring point is that same point.
+/// One resolution of the name, not two: the resolved environment's
+/// document authoring point is the same point an availability-mask read
+/// over the resolved profile would give.
 ///
 /// [`TclVersion::dialect_profile_name`]: tcl_dialect::TclVersion::dialect_profile_name
 pub(crate) fn surface_point_for_dialect(name: &str) -> SurfaceQuery<'static> {

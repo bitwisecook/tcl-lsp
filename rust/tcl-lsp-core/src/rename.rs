@@ -157,7 +157,7 @@ pub struct PrepareRename {
 }
 
 /// The cursor word's own range + text as a [`PrepareRename`] — the
-/// consumer-document fall-through (M8).  [`prepare_rename`] anchors on a
+/// consumer-document fall-through.  [`prepare_rename`] anchors on a
 /// *local* declaration; when the document has none (the symbol is defined in
 /// a sibling / autoloaded library file), the server may still accept the
 /// rename after resolving the word through the workspace index — the range
@@ -201,7 +201,7 @@ pub fn prepare_rename(
 ///
 /// A `namespace import -force` whose covering `namespace export` lives in
 /// another file changes *which* definition a bare call site denotes, so a
-/// rename started from that call must retarget with it (issue #1116 item 1).
+/// rename started from that call must retarget with it.
 /// When the reached definition is not in this document the resolver answers
 /// `None` and the rename abstains — the safe outcome, and far better than
 /// rewriting the unrelated local proc the shadow deleted.
@@ -214,10 +214,9 @@ pub fn prepare_rename_in_program(
     resolution: crate::definition::CallResolution<'_>,
 ) -> Option<PrepareRename> {
     let line_index = LineIndex::new(source);
-    // A namespace name is renameable (issue #1114), and the check must come
+    // A namespace name is renameable, and the check must come
     // first: the word resolvers below would otherwise anchor prepare on a
-    // same-spelled proc or class in a completely different place in the file
-    // (issue #1088 review, finding 1).
+    // same-spelled proc or class in a completely different place in the file.
     //
     // The range offered is the **final segment** of the namespace inside the
     // word under the cursor, because that is the only byte range the rename
@@ -237,9 +236,8 @@ pub fn prepare_rename_in_program(
         );
     }
     // Variable?  Shared `$ref` gate: a `$name`-shaped substring in a comment
-    // or a data brace is not a reference, so it is not renameable either
-    // (issue #923 idx 24) — and neither is the `$n` inside a brace-quoted
-    // *name* word (PR #1106 review, P2).
+    // or a data brace is not a reference, so it is not renameable either —
+    // and neither is the `$n` inside a brace-quoted *name* word.
     let byte_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
     if let Some(var_name) = crate::definition::substituting_var_at_position(
         source,
@@ -375,24 +373,24 @@ fn pre_edit_refusal(
     line_index: &LineIndex,
 ) -> Option<crate::rename_safety::RenameRefusal> {
     // When the cursor names a `TclOO` member: refuse outright if any dispatch
-    // of it in this document cannot be proved safe to rewrite (issue #923 idx
-    // 79), or if the *requested name* would turn a `renamemethod` into one that
-    // aborts the whole class definition (issue #1121 review).
+    // of it in this document cannot be proved safe to rewrite, or if the
+    // *requested name* would turn a `renamemethod` into one that
+    // aborts the whole class definition.
     method_rename_refusal(
         source, dialect, line, character, new_name, analysis, line_index,
     )
     // A namespace name is answered by its own tier
-    // ([`crate::namespace_rename`], issue #1114), and a refusal from it must
+    // ([`crate::namespace_rename`]), and a refusal from it must
     // stay a refusal: `Ok(vec![])` falls through to the server's
     // workspace-resolved rename branch, which resolves the word as a
-    // *command* and rewrote a same-spelled proc instead (issue #1088 review,
-    // finding 1).  The cursor is provably on a registry-declared
+    // *command* and would rewrite a same-spelled proc instead.  The cursor is
+    // provably on a registry-declared
     // `ArgRole::NamespaceName` argument, so it names a namespace and nothing
     // else.
     .or_else(|| namespace_rename_refusal(source, dialect, line, character, new_name, analysis))
     // A variable whose *name* can only be written quoted (`set {$n} 1`) cannot
     // be renamed by substituting into the recorded spans — see the gate's own
-    // doc (issue #1078).  Decided before `rename_variable_at`, whose
+    // doc.  Decided before `rename_variable_at`, whose
     // `$`-reference cursor search would otherwise read the `$n` *inside* the
     // braces as a reference to the unrelated variable `n` and rename that one.
     .or_else(|| {
@@ -443,7 +441,7 @@ pub fn rename_with_diagnosis(
 ///
 /// A `namespace import -force` whose covering `namespace export` lives in
 /// another file changes *which* definition a bare call site denotes, so a
-/// rename started from that call must retarget with it (issue #1116 item 1).
+/// rename started from that call must retarget with it.
 /// When the reached definition is not in this document the resolver answers
 /// `None` and the rename abstains — the safe outcome, and far better than
 /// rewriting the unrelated local proc the shadow deleted.
@@ -691,10 +689,10 @@ fn rename_named_command(
 /// own declaration name, a `my` dispatch, a tracked `$obj` dispatch. The
 /// positions this tier owns (the method word inside an untracked `[$other
 /// X]`, the bareword in `export … X …`) are precisely the ones from which the
-/// idx-79 hazard used to emit a declaration-only edit set that breaks the
+/// hazard emits a declaration-only edit set that breaks the
 /// program once applied. Asking the same question about the same member here
 /// makes the verdict independent of *which occurrence* the rename was
-/// triggered from (issue #923 idx 79, verification pass).
+/// triggered from.
 fn gated_untargeted_member_rename(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
@@ -728,9 +726,9 @@ fn gated_untargeted_member_rename(
 }
 
 /// The refusal for a cursor sitting on a **namespace name** — a word the
-/// registry marks [`tcl_registry::ArgRole::NamespaceName`] (issue #1088) —
-/// when [`crate::namespace_rename`]'s tier cannot prove the edit set complete
-/// (issue #1114).
+/// registry marks [`tcl_registry::ArgRole::NamespaceName`] —
+/// when [`crate::namespace_rename`]'s tier cannot prove the edit set
+/// complete.
 ///
 /// It has to be a refusal rather than an empty edit set for the reason
 /// [`rename_with_diagnosis`]'s own doc gives: an empty set falls through to
@@ -752,7 +750,7 @@ fn namespace_rename_refusal(
 }
 
 /// The **in-document** namespace rename: every written spelling of the
-/// namespace the cursor names, rewritten to `new_name` (issue #1114).
+/// namespace the cursor names, rewritten to `new_name`.
 ///
 /// `None` when the cursor names no namespace.  A refusal has already been
 /// decided by [`namespace_rename_refusal`] in [`pre_edit_refusal`], so this
@@ -815,7 +813,7 @@ fn method_rename_refusal(
 /// that still reaches a member — the untracked call site the gate exists to
 /// protect, an `export`/`unexport` bareword — is resolved by
 /// [`untargeted_member_rename_target`] instead and asked the same question
-/// here (issue #923 idx 79, verification pass).
+/// here.
 fn member_rename_hazard(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
@@ -852,11 +850,11 @@ fn member_rename_hazard(
 /// [`resolve_member_span`]) — and not a re-derivation. That tier answers
 /// exactly the cursor positions no trusted dispatch tier claims: the method
 /// name inside `[$untracked X]`, and the bareword in an `export … X …` list.
-/// Both of those used to reach `rename_method` with no hazard check at all,
-/// so the very shape [`crate::rename_safety`] refuses when the cursor sits on
-/// the declaration silently emitted a declaration-only edit set from one line
-/// away — applying it and running under tclsh 9.0.4 / 8.6.16 gives `unknown
-/// method "X"` at the untouched dispatch (issue #923 idx 79).
+/// Without the check they would reach `rename_method` ungated, so the very
+/// shape [`crate::rename_safety`] refuses when the cursor sits on the
+/// declaration would silently emit a declaration-only edit set from one line
+/// away — applying that and running it under tclsh 9.0.4 / 8.6.16 gives
+/// `unknown method "X"` at the untouched dispatch.
 ///
 /// Restricted to `method` / `classmethod`: a *property* has no dispatch
 /// (see [`rename_method`]'s own property branch), so it has no dispatch
@@ -928,9 +926,8 @@ fn rename_variable_at(
 /// `target` is `(class_q, method, is_classmethod)` — bundled to keep the
 /// parameter count under the lint budget; `is_classmethod` reflects which
 /// [`crate::definition::MethodBucket`] the caller's own receiver resolved
-/// to (`$obj method` vs. a bare `ClassName method` classmethod dispatch,
-/// issue #923 idx 120), not something re-derivable from `class_q`/`method`
-/// alone.
+/// to (`$obj method` vs. a bare `ClassName method` classmethod dispatch),
+/// not something re-derivable from `class_q`/`method` alone.
 ///
 /// A `TclOO` method that is (re)defined by a super- or sub-class is a
 /// single polymorphic name: `$obj method` dispatch can reach any
@@ -939,7 +936,7 @@ fn rename_variable_at(
 /// [`override_family`].  Shared by the in-class-body and external
 /// `$obj method` rename entry points.
 /// Rename an [incr Tcl] class-scoped `proc` from a `Factory::make` call site
-/// or its declaration (issue #990).
+/// or its declaration.
 ///
 /// Tried after the proc / class rename paths so an ordinary qualified proc
 /// call of the same spelling keeps priority.  The edits come from the shared
@@ -987,7 +984,7 @@ fn rename_method_in_class(
     for member in &family {
         // Reached via an external call site — either `$obj method` (always
         // instance-context) or a bare `ClassName method` classmethod
-        // dispatch (issue #923 idx 120) — so `is_classmethod` is fixed by
+        // dispatch — so `is_classmethod` is fixed by
         // the caller's own receiver resolution, never re-derived per family
         // member (a method and a classmethod occupy separate dispatch
         // tables; the receiver picks exactly one for the whole rename).
@@ -1039,7 +1036,7 @@ pub fn method_rename_target(
 }
 
 /// Like [`method_rename_target`] but also reports the **access context**
-/// of the cursor's call shape (issue #945 fault 4): an external
+/// of the cursor's call shape: an external
 /// `$obj m` dispatches through exported methods only, while a `my m`
 /// call or a declaration-side cursor inside the class body reaches
 /// unexported methods too.
@@ -1083,9 +1080,9 @@ fn callback_prefix_target_in_workspace(
     // below return theirs — the family, definition and rename tiers each
     // resolve the provider from it through this same chain, and handing them a
     // provider instead would drop the receiver's own `export` / `unexport`
-    // stub on the way (issue #1705: `Base` unexports `tock`, `Child` exports
-    // the inherited name, and only a chain rooted at `Child` still reaches
-    // `Base`'s body).
+    // stub on the way: when `Base` unexports `tock` and `Child` exports the
+    // inherited name, only a chain rooted at `Child` still reaches `Base`'s
+    // body.
     let chain = if is_classmethod {
         workspace.class_method_dispatch_chain(&receiver, word, access)
     } else {
@@ -1103,8 +1100,7 @@ fn callback_prefix_target_in_workspace(
 /// knows none, and the server's workspace-class oracle reanalysis does not
 /// close that gap: it supplies class **names** only, never their member
 /// tables. So a class-side call from an ordinary consumer fell through both
-/// receiver branches and definition / references / rename all answered nothing
-/// (issue #1119 review).
+/// receiver branches and definition / references / rename all answer nothing.
 ///
 /// Passing `index` lets the classmethod arm ask the workspace what it cannot
 /// see locally, through the same dispatch chain the resolvers use. The
@@ -1143,7 +1139,7 @@ pub fn method_target_with_access_in_workspace(
     // namespace in effect where it is written, then the global one, then
     // through whatever `namespace import` has made reachable there. Both facts
     // are read off the cursor, so the server only has to hand over the index
-    // and the document's URI (issue #1178 review).
+    // and the document's URI.
     let receiver_ns = crate::definition::namespace_context_at(
         &analysis.global_scope,
         cursor,
@@ -1185,7 +1181,7 @@ pub fn method_target_with_access_in_workspace(
         // — so every bare `ClassName member` was classified instance-side and
         // resolved against the wrong table. That is why a class-side member
         // could never reach the cross-file class-command dispatch, whatever
-        // the index held (issue #1119).
+        // the index held.
         //
         // The gate keeps the change to exactly the shape it is about: an
         // object handle still takes the instance branch, and a bare class name
@@ -1219,13 +1215,13 @@ pub fn method_target_with_access_in_workspace(
         // itself a reference to that member.  It only is when the cursor sits
         // on the member's **own declaration name**, or on a bareword that
         // `link` genuinely made bareword-callable and pointed back at this
-        // same member (`ClassDef::linked_members`, issue #923 idx 113 — an
-        // un-linked bareword errors "invalid command name" in real Tcl, so it
-        // names nothing).  This is the gate the in-document provider's
+        // same member (`ClassDef::linked_members` — an un-linked bareword
+        // errors "invalid command name" in real Tcl, so it names nothing).
+        // This is the gate the in-document provider's
         // `definition::lookup_class_member` already applies; without it here,
         // any same-spelled word — a parameter, a literal, an un-linked
-        // sibling call — was read as the member and handed to the workspace
-        // resolver, which then answered non-deterministically (issue #1028).
+        // sibling call — reads as the member and reaches the workspace
+        // resolver, which then answers non-deterministically.
         let on_declaration = |m: &tcl_compiler::analyser::MethodDef| {
             m.name_span.start() <= cursor && cursor < m.name_span.end()
         };
@@ -1470,7 +1466,7 @@ fn rename_var(
 
 /// Whether this call site is an ensemble **dispatch word whose spelling the
 /// rename must not touch** — the `show` of `::app::widget show` when the
-/// ensemble bound it with `-map {show ::app::widget::Show}` (issue #1281).
+/// ensemble bound it with `-map {show ::app::widget::Show}`.
 ///
 /// A `-map` key is an arbitrary name with no required relationship to the
 /// target it dispatches to (tclsh 8.6.14 / 9.0.4: with that map,
@@ -1561,7 +1557,7 @@ fn rename_proc(
     }) {
         return Some(Vec::new());
     }
-    // Provenance gate (issue #945 fault 1): an indirect dispatch of this
+    // Provenance gate: an indirect dispatch of this
     // proc whose contributing constants are not all source-writable cannot
     // be kept alive by any edit set — refuse the whole rename rather than
     // emit edits that leave the dispatch running the old name.
@@ -1577,7 +1573,7 @@ fn rename_proc(
     }];
     for inv in &analysis.command_invocations {
         // An indirect site's span does not carry the written name (a constant
-        // `$cmd` head, M7) — rewriting it would splice the new name over
+        // `$cmd` head) — rewriting it would splice the new name over
         // unrelated text.  References still report it; rename must not.
         if inv.indirect {
             continue;
@@ -1647,7 +1643,7 @@ fn rename_class(
     } else {
         new_name.to_owned()
     };
-    // Provenance gate (issue #945 fault 1) — mirrors `rename_proc`: an
+    // Provenance gate — mirrors `rename_proc`: an
     // indirect dispatch with unwritable contributing constants cannot
     // follow the rename, so refuse it outright.
     if analysis.command_invocations.iter().any(|inv| {
@@ -1661,7 +1657,7 @@ fn rename_class(
         new_text: new_decl_text,
     }];
     for inv in &analysis.command_invocations {
-        // Indirect sites (M7) are references, never rename targets — the span
+        // Indirect sites are references, never rename targets — the span
         // does not carry the written name.
         if inv.indirect {
             continue;
@@ -1876,7 +1872,7 @@ pub fn cross_document_symbol_edits(
     let mut edits = Vec::new();
     // Call sites.
     for inv in index.invocations_of(qualified_name, current_uri) {
-        // Indirect sites (constant `$cmd` heads, M7) are references, never
+        // Indirect sites (constant `$cmd` heads) are references, never
         // rename targets — their span is not the written name.
         if inv.indirect {
             continue;
@@ -1884,7 +1880,7 @@ pub fn cross_document_symbol_edits(
         // The cross-document half of the same `-map` gate the in-document
         // rename applies — see [`ensemble_map_dispatch_word`].  An ensemble
         // declared in one document and dispatched from another is exactly the
-        // shape issue #923 idx 85 widened the recording to reach.
+        // shape the recording covers.
         if ensemble_map_dispatch_word(inv.ensemble_dispatch) {
             continue;
         }
@@ -1935,10 +1931,10 @@ pub fn cross_document_symbol_edits(
 /// qualified name is `qualified_name` — every call site, name-link word, and
 /// definition site the index knows, the current document included.
 ///
-/// This is the consumer-document rename path (M8): the cursor sits on a call
+/// This is the consumer-document rename path: the cursor sits on a call
 /// whose definition lives in another document (a workspace sibling, or a
-/// library file the autoload tier merged), so the in-document rename had no
-/// local definition to resolve against and produced nothing.  The index
+/// library file the autoload tier merged), so the in-document rename has no
+/// local definition to resolve against and produces nothing.  The index
 /// supplies everything instead.  Returns `None` when the rename would shadow
 /// an existing workspace command — the same collision discipline as the
 /// in-document rename's local gate.
@@ -1953,7 +1949,7 @@ pub fn workspace_symbol_rename_edits(
     if index.workspace_command_exists(&new_qualified) {
         return None;
     }
-    // Provenance gate (issue #945 fault 1): an indirect dispatch of this
+    // Provenance gate: an indirect dispatch of this
     // command anywhere in the workspace whose contributing constants are
     // not all source-writable cannot follow any edit set — abstain.
     if index.rename_blocked(qualified_name) {
@@ -2138,14 +2134,14 @@ fn cell_rename_spans(
 /// `build_var_ref_replacement` already emits a self-closed `${new}`
 /// string, so replacing only the short span leaves the source's own
 /// original `}` sitting right after it, corrupting `${new}` into
-/// `${new}}` (issue #923 idx 95 — this broke `tk.tcl`'s `${dir}view`
-/// idiom badly enough to fail to parse post-rename). Mirrors
+/// `${new}}` — enough to break `tk.tcl`'s `${dir}view` idiom so that the
+/// renamed source no longer parses. Mirrors
 /// `token_text`'s own degenerate-`${}`-empty-name check so this never
 /// mis-fires on a span that already legitimately includes the brace.
 ///
 /// The widening itself is not decided here: [`tcl_lexer::word_span_at`]
 /// owns the closer arithmetic for every delimited word shape, `${name}`
-/// included, and this is a two-line delegate to it (issue #1423).
+/// included, and this is a two-line delegate to it.
 fn var_ref_edit_span(source: &str, span: tcl_lexer::Span) -> tcl_lexer::Span {
     tcl_lexer::word_span_at(source, span)
 }
@@ -2220,7 +2216,7 @@ fn split_array_suffix(rest: &str) -> (&str, &str) {
 /// namespace).  `"greet"` → `""` likewise.
 fn namespace_prefix_of(qualified: &str) -> &str {
     // `qualified` is a constructed key: its holder comes from the
-    // construction-inverse split (#934) — a repeated-strip + `rfind` would
+    // construction-inverse split — a repeated-strip + `rfind` would
     // misread a lone-colon segment.  The root holder maps to `""` (a global
     // proc has no enclosing-namespace prefix).
     let (holder, _tail) = tcl_syntax::naming::key_holder_and_tail(qualified);
@@ -2266,9 +2262,9 @@ mod tests {
     /// same thing an editor does — sorted back-to-front so earlier byte
     /// offsets stay valid as later edits are spliced in. Some tests below
     /// use this to check the *result*, not just that `new_text` looks
-    /// right in isolation: idx 95's own bug (a rename edit range short by
-    /// one byte) shipped uncaught precisely because every prior brace-ref
-    /// test only asserted `new_text`, never applied it.
+    /// right in isolation: a rename edit range short by one byte is
+    /// invisible to a test that only asserts `new_text` and never applies
+    /// it.
     fn apply_edits(source: &str, edits: &[TextEdit]) -> String {
         let line_index = LineIndex::new(source);
         let mut spans: Vec<(usize, usize, &str)> = edits
@@ -2297,7 +2293,7 @@ mod tests {
         result
     }
 
-    /// Issue #1281 — the `-map` half. Renaming the target must rewrite the
+    /// The `-map` half. Renaming the target must rewrite the
     /// declaration and the `-map` *value* and leave the subcommand word
     /// alone.
     ///
@@ -2339,9 +2335,9 @@ mod tests {
         );
     }
 
-    /// Issue #1281 — the `-subcommands` half, and the true negative for the
-    /// gate above: the fix must not over-correct into never rewriting an
-    /// ensemble dispatch word.
+    /// The `-subcommands` half, and the true negative for the gate above: the
+    /// gate must not over-correct into never rewriting an ensemble dispatch
+    /// word.
     ///
     /// Oracle (tclsh 8.6.14 / 9.0.4, identical): a `-subcommands {alpha}`
     /// ensemble whose proc has been renamed to `beta` answers
@@ -2381,7 +2377,7 @@ mod tests {
         );
     }
 
-    /// Issue #1281 — the gate is a *rename* gate, not a reference rule. Both
+    /// The gate is a *rename* gate, not a reference rule. Both
     /// dispatch sites stay in find-references (they are genuine references
     /// under either provenance); only the emitted edit sets differ. The two
     /// share `invocation_references_proc`, so this is the assertion that
@@ -2428,7 +2424,7 @@ mod tests {
         );
     }
 
-    /// Issue #1281 — a dynamically built `-map` records no mapping at all, so
+    /// A dynamically built `-map` records no mapping at all, so
     /// the dispatch word is never attributed to the target and no rename can
     /// rewrite it. The abstention is inherited from the recording site rather
     /// than re-decided in rename.
@@ -2466,11 +2462,9 @@ mod tests {
 
     #[test]
     fn rename_rewrites_a_method_return_captured_dispatch_site() {
-        // Issue #994 C5b / #1143: `b` is typed only by the object-type
-        // lattice's method-return edge, so before the unification renaming
-        // `greet` refused (untracked-receiver hazard on `$b greet`) even
-        // though hover/definition resolved the site.  Now the site is a
-        // proven ::B dispatch: the rename proceeds and rewrites it.
+        // `b` is typed only by the object-type lattice's method-return edge,
+        // which makes the site a proven `::B` dispatch rather than an
+        // untracked receiver: the rename proceeds and rewrites it.
         let src = "oo::class create A { method make {} { ::return [::B new] } }\n\
                    oo::class create B { method greet {} { ::return \"hi\" } }\n\
                    set a [A new]\n\
@@ -2503,7 +2497,7 @@ mod tests {
     #[test]
     fn rename_still_refuses_on_a_genuinely_untracked_receiver() {
         // The refusal gate stays honest: a `$x greet` whose receiver has no
-        // binding in either map is still the idx-79 untracked-receiver
+        // binding in either map is still the untracked-receiver
         // hazard, so the rename must refuse (empty edit set) rather than
         // leave the site pointing at a dead name.
         let src = "oo::class create B { method greet {} { return \"hi\" } }\n\
@@ -2550,14 +2544,11 @@ mod tests {
 
     #[test]
     fn rename_rewrites_bare_calls_to_a_proc_installed_into_oo_helpers() {
-        // Issue #923 idx 56 (main audit wave, high severity): the finding's
-        // own demonstrated failure mode — renaming `::oo::Helpers::classvar`
-        // previously produced a `WorkspaceEdit` with only the declaration
-        // rewritten, leaving the bare `classvar hits` call site inside the
-        // method body pointed at the now-nonexistent old name. Applying
-        // that edit would crash the very next invocation with "invalid
-        // command name" at runtime, while the tool reported it as a
-        // complete, safe rename.
+        // Renaming `::oo::Helpers::classvar` must rewrite the bare `classvar
+        // hits` call site inside the method body as well as the declaration.
+        // A declaration-only edit set leaves that call pointed at a
+        // nonexistent name, and the next invocation crashes with "invalid
+        // command name" — while the tool reports a complete, safe rename.
         let src = "proc ::oo::Helpers::classvar {name} {\n    set ns [uplevel 1 {my getONSClass}]\n    tailcall namespace upvar $ns $name $name\n}\noo::class create Counter {\n    variable _label\n    constructor {label} { set _label $label }\n    method getONSClass {} { return [self class] }\n    method bump {} {\n        classvar hits\n        incr hits\n        return \"$_label:$hits\"\n    }\n}\n";
         let analysis = analyse(src);
         // Cursor on the `classvar` declaration (line 0, col 20).
@@ -2592,14 +2583,12 @@ mod tests {
 
     #[test]
     fn rename_from_the_in_proc_global_alias_rewrites_the_callers_canonical_set_too() {
-        // Issue #923 idx 68 (main audit wave, high severity, pix corpus):
-        // the finding's own stated consequence of the `references()` gap —
-        // triggering Rename from the in-proc `global tolComp` alias
-        // previously rewrote only the proc's own 4 spans, leaving the
-        // caller's `set ::tolComp 0.05` pointed at the now-decoupled old
-        // name. Applying that edit would silently fall back to `isEqual`'s
-        // hardcoded 0.01 default instead of the caller-intended tolerance —
-        // a real runtime-behavior break introduced by a "successful" rename.
+        // Triggering Rename from the in-proc `global tolComp` alias must
+        // rewrite the caller's `set ::tolComp 0.05` too, not just the proc's
+        // own 4 spans.  Leaving the caller behind decouples the two, so the
+        // program silently falls back to `isEqual`'s hardcoded 0.01 default
+        // instead of the caller-intended tolerance — a runtime break
+        // introduced by a "successful" rename.
         let src =
             "proc use {} {\n    global tolComp\n    return $tolComp\n}\nset ::tolComp 0.05\nuse\n";
         let analysis = analyse(src);
@@ -2629,7 +2618,7 @@ mod tests {
 
     #[test]
     fn rename_from_the_callers_canonical_set_rewrites_every_in_proc_global_alias_too() {
-        // The reverse direction of the test above (issue #923 idx 68):
+        // The reverse direction of the test above:
         // triggering Rename from the caller's own `set ::tolComp` must
         // rewrite every in-proc `global tolComp` occurrence too, not just
         // the caller's own 2 spans.
@@ -2710,12 +2699,10 @@ mod tests {
 
     #[test]
     fn rename_rewrites_the_renames_own_old_word_too() {
-        // TP — issue #923 idx 39 (main audit wave), the critical half: a
-        // rename that skips this occurrence is worse than a no-op — the
-        // real corpus repro shows the resulting edit set leaves a genuine
-        // `rename OLD ""` pointing at a now-nonexistent command, crashing a
-        // previously-passing tcltest at runtime with "can't delete ...:
-        // command doesn't exist" and no diagnostic warning anywhere.
+        // TP — a rename that skips this occurrence is worse than a no-op: the
+        // edit set leaves a genuine `rename OLD ""` pointing at a nonexistent
+        // command, so the script fails at runtime with "can't delete ...:
+        // command doesn't exist" and no diagnostic anywhere.
         let src = "proc helperFunc {x} { return [expr {$x * 2}] }\nhelperFunc 21\nrename helperFunc \"\"\n";
         let analysis = analyse(src);
         let edits = rename(
@@ -2787,7 +2774,7 @@ mod tests {
         // method` position resolves to one: the provider is whatever the
         // workspace chain rooted there reaches, and re-rooting the chain at
         // the provider instead would drop the receiver's own `export` /
-        // `unexport` stub on the way (issue #1705).
+        // `unexport` stub on the way.
         assert_eq!(
             method_target_with_access_in_workspace(
                 child_src,
@@ -2882,7 +2869,7 @@ mod tests {
     fn cross_document_symbol_edits_leaves_wildcard_imported_call_site_untouched() {
         use crate::workspace_index::WorkspaceIndex;
         // A wildcard `namespace import ::mymod::*` creates no textual link to
-        // rewrite (issue #923 idx 18, unlike the exact-import case tested
+        // rewrite (unlike the exact-import case tested
         // above): renaming `::mymod::helper` must rewrite its own
         // declaration but leave `app.tcl`'s bareword call site untouched —
         // it names the *local* imported command, which keeps its own
@@ -2905,7 +2892,7 @@ mod tests {
         assert_eq!(edits[0].uri, "file:///mymod.tcl");
     }
 
-    /// Issue #1281 — the class-rename tier carries the same gate. A `-map`
+    /// The class-rename tier carries the same gate. A `-map`
     /// target can name a class command just as easily as a proc
     /// (`-map {make ::Widget}` dispatches `widget make` to `::Widget`), and
     /// `rename_class` gathers call sites through the same invocation loop, so
@@ -2944,7 +2931,7 @@ mod tests {
         );
     }
 
-    /// Issue #1281, cross-document half: the workspace edit path
+    /// The cross-document half: the workspace edit path
     /// ([`cross_document_symbol_edits`], which `workspace_symbol_rename_edits`
     /// drives over *every* document) gathers the same invocation records, so
     /// it needs the same provenance gate — otherwise the corruption simply
@@ -3027,13 +3014,11 @@ mod tests {
 
     #[test]
     fn rename_from_proc_param_bareword_declaration_rewrites_every_use() {
-        // TP — differential-audit finding idx 9 (main audit wave): renaming
-        // from a cursor placed directly on a proc parameter's own bareword
-        // name (not a `$`-prefixed read) previously produced *zero* edits
-        // — an LSP that silently no-ops a rename request is worse than one
-        // that fails loudly, since the user has no signal anything went
-        // wrong. Both the parameter's own declaration and its `$name` read
-        // must be rewritten.
+        // TP — renaming from a cursor placed directly on a proc parameter's
+        // own bareword name (not a `$`-prefixed read) must rewrite both the
+        // parameter's declaration and its `$name` read.  Answering *zero*
+        // edits is worse than failing loudly: the user has no signal that
+        // anything went wrong.
         let src = "proc greet {name} { return $name }\n";
         let analysis = analyse(src);
         // Cursor on `name` inside the parameter list (col 12-16).
@@ -3154,10 +3139,10 @@ mod tests {
 
     #[test]
     fn var_ref_edit_span_covers_a_braced_name_word() {
-        // Issue #1423: the `${`-only hand-roll recognised one word shape.
         // A braced *name* word (`set {a b} 1`) follows the same inner-end
-        // convention, so the edit range stopped short and left the `}`
-        // orphaned after the replacement. The owner covers every shape.
+        // convention as `${…}`, so an edit range that stops short leaves the
+        // `}` orphaned after the replacement.  `word_span_at` covers every
+        // delimited shape, so both are widened the same way.
         let src = "set {a b} 1";
         assert_eq!(&src[4..8], "{a b");
         assert_eq!(
@@ -3211,7 +3196,7 @@ mod tests {
 
     #[test]
     fn rename_var_applying_the_braced_reference_edit_does_not_duplicate_the_closing_brace() {
-        // Issue #923 idx 95. The `Var` token's own lexer span for a
+        // The `Var` token's own lexer span for a
         // non-degenerate `${name}` form stops one byte short of the
         // closing `}` (`${a{b}}` names `a{b}`, whose content can itself
         // legitimately end in `}` — see `var_ref_edit_span`'s doc), so
@@ -3237,12 +3222,12 @@ mod tests {
     #[test]
     fn rename_var_applying_the_dir_view_idiom_edit_produces_valid_tcl() {
         // The real `tk/library/tk.tcl:594-596` idiom this finding traces
-        // through (`$w ${dir}view scroll ...`, subcommand synthesized by
-        // concatenating `$dir` with literal `view`): renaming `dir`
-        // previously produced `$w ${direction}}view ...` once applied —
-        // tclsh8.6/9.0 both fail to even parse the enclosing proc ("extra
-        // characters after close-brace"), since the stray extra `}` shifts
-        // Tcl's own brace-counting scan for where the proc body ends.
+        // through (`$w ${dir}view scroll ...`, subcommand synthesised by
+        // concatenating `$dir` with literal `view`): a one-byte-short edit
+        // range applies as `$w ${direction}}view ...`, and tclsh8.6/9.0 both
+        // fail to even parse the enclosing proc ("extra characters after
+        // close-brace"), since the stray extra `}` shifts Tcl's own
+        // brace-counting scan for where the proc body ends.
         let src = "proc ::tk::MouseWheel {w dir amount {factor -120.0} {units units}} {\n    $w ${dir}view scroll [expr {$amount/$factor}] $units\n}\n";
         let analysis = analyse(src);
         // Cursor on the `d` of `dir` inside `${dir}view` (line 1, col 9).
@@ -3797,13 +3782,13 @@ mod tests {
 
     #[test]
     fn rename_method_rewrites_a_my_dispatch_call_inside_a_switch_arm() {
-        // Issue #923 idx 63 (main audit wave, high severity): the real
-        // corpus's `ticklecharts::chart::Add` dispatcher shape — `switch
+        // The `ticklecharts::chart::Add` dispatcher shape — `switch
         // ... { barSeries { my AddBarSeries {*}$args } ... }`. `rename`
         // reaches `my`-dispatch call sites via `references::
         // method_references_for_class` (`scan_my_method_region`), so this
-        // is the same fix as `references_for_method_reach_a_my_dispatch_
-        // call_inside_a_switch_arm`, verified end-to-end through rename.
+        // exercises the same resolver as
+        // `references_for_method_reach_a_my_dispatch_call_inside_a_switch_arm`
+        // end-to-end through rename.
         let src = "oo::class create widget {\n    method bar {} { return \"bar-value\" }\n    method dispatch {args} {\n        switch -exact -- [lindex $args 0] {\n            bar { my bar {*}[lrange $args 1 end] }\n        }\n    }\n}\n";
         let analysis = analyse(src);
         // Cursor on the `bar` declaration (line 1, col 11).
@@ -3827,11 +3812,10 @@ mod tests {
 
     #[test]
     fn rename_method_rewrites_my_dispatch_when_class_extended_via_separate_oo_define() {
-        // Issue #923 idx 52 (main audit wave, high severity): `Gadget` is
-        // created via `oo::class create` with no body; every method
-        // (including the `my Helper` call site) is added via a *separate*,
-        // later `oo::define Gadget { ... }` block — the real corpus shape
-        // (`ticklecharts::chart`). Renaming from the `Helper` declaration
+        // `Gadget` is created via `oo::class create` with no body; every
+        // method (including the `my Helper` call site) is added via a
+        // *separate*, later `oo::define Gadget { ... }` block — the
+        // `ticklecharts::chart` shape. Renaming from the `Helper` declaration
         // must rewrite the `my Helper` call site living in that separate
         // block too, not silently skip it (which would leave the program
         // calling a now-nonexistent method after the rename).
@@ -3904,13 +3888,11 @@ mod tests {
         }
     }
 
-    /// Regression: `rename_method` used to also run an unconditional
-    /// bare-head scan that rewrote *any* command invocation whose head text
-    /// matched the renamed method's name — including an unrelated builtin
-    /// call that merely happens to share the name.  A `TclOO` method is
-    /// never a bare-callable command (only `my <method>` dispatches it), so
-    /// a bare call is always a call to something else and must never be
-    /// touched by a method rename.
+    /// A method rename must not run a bare-head scan over every command
+    /// invocation whose head text matches the renamed method's name —
+    /// including an unrelated builtin call that merely happens to share it.
+    /// A `TclOO` method is never a bare-callable command (only `my <method>`
+    /// dispatches it), so a bare call is always a call to something else.
     #[test]
     fn rename_method_does_not_rewrite_unrelated_bare_command_with_same_name() {
         let src = "oo::class create C {\n    method format {} {}\n    method show {} { format %d 1 }\n}\n";
@@ -4009,17 +3991,17 @@ mod tests {
         assert_eq!(edits[0].range.start_line, 2, "{edits:?}");
     }
 
-    // `method_target_with_access`'s receiver-side split (issue #1119).
+    // `method_target_with_access`'s receiver-side split.
 
     /// TP: a bare `ClassName member` naming a **class-side** member resolves as
     /// a classmethod, so downstream cross-file resolution reads the
     /// class-object side's tables.
     ///
-    /// Previously unreachable: `receiver_instance_class`'s last resort is "this
-    /// bare word names a class", so it answered first and every bare
-    /// `ClassName member` was classified instance-side — which is why a
-    /// class-side member could never reach the cross-file class-command
-    /// dispatch, whatever the workspace index held.
+    /// `receiver_instance_class`'s last resort is "this bare word names a
+    /// class", so without the class-side gate ahead of it every bare
+    /// `ClassName member` classifies instance-side and no class-side member
+    /// can reach the cross-file class-command dispatch, whatever the
+    /// workspace index holds.
     #[test]
     fn method_target_classifies_a_bare_class_receiver_as_a_classmethod() {
         let src =
@@ -4097,7 +4079,7 @@ mod tests {
     }
 
     // `method_target_with_access`'s class-body fallback — the idx-113 link
-    // gate (issue #1028).
+    // gate.
 
     /// TP: the cursor on a method's own declaration name is the member.
     #[test]
@@ -4138,10 +4120,10 @@ mod tests {
         );
     }
 
-    /// FP guard (issue #1028): an **un-linked** bareword sibling call names
+    /// FP guard: an **un-linked** bareword sibling call names
     /// nothing — real Tcl raises `invalid command name "foo"` there
     /// (tclsh9.0-verified) — so the resolver must abstain rather than hand
-    /// the word to the workspace resolver, which used to answer it
+    /// the word to the workspace resolver, which answers it
     /// non-deterministically.
     #[test]
     fn method_target_abstains_on_an_unlinked_bareword_sibling_call() {
@@ -4201,7 +4183,7 @@ mod tests {
         assert_eq!(edits[1].range.start_line, 3);
     }
 
-    /// FN→TP (issue #957's general form): a `my <property>` read nested
+    /// FN→TP: a `my <property>` read nested
     /// inside `if` control flow is renamed too — the property rename path
     /// shares `scan_my_method_sites`'s control-flow recursion with methods.
     #[test]
@@ -4245,7 +4227,7 @@ mod tests {
         assert!(edits.is_empty(), "{edits:?}");
     }
 
-    /// Regression for issue #957's general form: renaming a method must
+    /// Renaming a method must
     /// rewrite a `my method` call site nested inside `if` / `switch`
     /// control flow, not just a top-level or `[...]`-nested call — `rename`
     /// delegates to the same `method_references_for_class` resolver
@@ -4352,7 +4334,7 @@ mod tests {
 
     #[test]
     fn rename_classmethod_from_call_site_rewrites_decl_and_inheriting_subclass_call() {
-        // TP — issue #923 idx 120: renaming `find` with the cursor on the
+        // TP — renaming `find` with the cursor on the
         // `ActiveRecord find foo bar` call site must rewrite the
         // declaration, that same call, AND the inherited `Table find`
         // call — three edits, none missed (rename.rs has no separate
@@ -4386,7 +4368,7 @@ mod tests {
 
     #[test]
     fn rename_method_from_cursor_on_bare_obj_command_call_site() {
-        // Codex #881 (symmetry): triggering rename with the cursor ON the
+        // Symmetry: triggering rename with the cursor ON the
         // `bark` token of a bare `rex bark` dispatch rewrites the declaration
         // and the call site — not only the declaration-triggered rename.
         let src = "oo::class create Dog {\n    method bark {} {}\n}\nDog create rex\nrex bark\n";
@@ -4660,7 +4642,7 @@ mod tests {
     fn rename_inherited_method_from_external_obj_site() {
         // `$d speak` where `d` is a `Dog` that *inherits* `speak` from
         // `Animal` (no override).  Renaming from the external call site
-        // must rewrite the base declaration (previously produced nothing).
+        // must rewrite the base declaration.
         let src = "oo::class create Animal {\n\
                        method speak {} { return x }\n\
                    }\n\
@@ -4695,8 +4677,8 @@ mod tests {
     fn rename_inherited_method_rewrites_subclass_instance_obj_sites() {
         // Renaming an inherited method from the *base declaration* must also
         // rewrite `$d method` sites where `$d` is an instance of a subclass
-        // that inherits (does not override) it — the exact-class-equality
-        // filter used to drop these, leaving them pointing at the old name.
+        // that inherits (does not override) it — an exact-class-equality
+        // filter would drop these, leaving them pointing at the old name.
         let src = "oo::class create Animal {\n\
                        method speak {} { return x }\n\
                    }\n\
@@ -4812,7 +4794,7 @@ mod tests {
         );
     }
 
-    /// TP + TN, issue #981's object-command half.
+    /// TP + TN, the object-command half.
     ///
     /// Oracle (tclsh 9.0.4 / 8.6.16, identical): `::a::Factory create rex`
     /// and `::b::Widget create rex` bind two different commands; `rex make`
@@ -4907,7 +4889,7 @@ mod tests {
         );
     }
 
-    /// FP (Codex review of PR #1091, finding 3) — `namespace upvar ::ns v
+    /// FP — `namespace upvar ::ns v
     /// local` names the cell in its *third* word; `local` is an independent
     /// local spelling.  Rewriting the alias token and leaving the target word
     /// behind re-points the alias at a cell that no longer exists.
@@ -5077,9 +5059,9 @@ mod tests {
         assert!(applied.contains("puts $::ns::total"), "{applied}");
     }
 
-    /// FP guard, end of the in-document path: the idx-79 shape refuses with a
-    /// reason rather than emitting the declaration-only edit set that broke
-    /// the program on both interpreters.
+    /// FP guard, end of the in-document path: the untracked-receiver shape
+    /// refuses with a reason rather than emitting the declaration-only edit
+    /// set that breaks the program on both interpreters.
     #[test]
     fn fp_rename_refuses_the_untracked_receiver_dispatch() {
         let src = "oo::class create Vector3d {\n\
@@ -5119,13 +5101,11 @@ mod tests {
         );
     }
 
-    // -- idx 79: the gate must not depend on the trigger position ---------
-    //
-    // The declaration-anchored refusal above was the *only* direction the
-    // gate covered.  A real editor's "rename symbol" gesture can be invoked
-    // from any occurrence, and from the two below the server used to return a
-    // live WorkspaceEdit rewriting only the declaration and the `export`
-    // word.  Applying that edit and running it (tclsh 9.0.4 and 8.6.16, byte
+    // The gate must not depend on the trigger position.  A real editor's
+    // "rename symbol" gesture can be invoked from any occurrence, and an
+    // ungated one returns, from the two positions below, a live
+    // WorkspaceEdit rewriting only the declaration and the `export` word.
+    // Applying that edit and running it (tclsh 9.0.4 and 8.6.16, byte
     // identical):
     //
     //   unknown method "X": must be Get, GetX, Y, Z or destroy

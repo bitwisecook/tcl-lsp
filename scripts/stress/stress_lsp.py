@@ -16,7 +16,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""LSP-API-driven stress suite for tcl-lsp-server — issue #829 robustness suite,
+"""LSP-API-driven stress suite for tcl-lsp-server — robustness suite,
 "through the front end" half.
 
 Drives the *real* `tcl-lsp-server` binary over stdio JSON-RPC — exactly what an
@@ -39,9 +39,9 @@ Usage:
 Scenarios:
     tokens   Many large documents, concurrent rapid-edit + immediate
              semanticTokens/full bursts. Asserts every response arrives within
-             a hard ceiling (never starved — issue #829's core complaint) and
+             a hard ceiling (never starved) and
              that responses are always well-formed.
-    startup  Reproduces the exact race from issue #829's screenshots: a
+    startup  Reproduces the exact startup race: a
              workspace with a `source`-ancestor file that requires a package,
              and a module using that package with no local `package require`.
              Opens the module immediately (racing the server's own workspace
@@ -96,7 +96,7 @@ from dataclasses import dataclass
 # reconstruct it — the exact document text(s), the JSON-RPC messages sent
 # (a replay log), server stderr, and a plain-English description — to a
 # discoverable directory, and print a single `STRESS_FAILURE:` line naming
-# it. Both halves of the #829 stress suite use the identical marker string
+# it. Both halves of this stress suite use the identical marker string
 # so a person or an agent driving either one can `grep STRESS_FAILURE:` the
 # combined output and go straight to the bundle, rather than re-running an
 # inherently timing-dependent stress harness to reproduce what it saw.
@@ -347,7 +347,7 @@ class LspClient:
         except (BrokenPipeError, OSError) as exc:
             # The server process died (or its stdin closed) between the last
             # successful write and this one — a genuine, expected failure
-            # mode under stress (issue #829 robustness suite), not a bug in
+            # mode under stress, not a bug in
             # this harness. Mark dead and surface it the same way a timed-out
             # request does, rather than letting a raw `BrokenPipeError`
             # propagate out of a worker thread as an unhandled exception and
@@ -443,7 +443,7 @@ class LspClient:
 
 def generate_big_tcl(n: int) -> str:
     """Same shape as the Rust suites' `generate_big_tcl` (n procs, ~10
-    lines each) — kept independent so all three legs of the #829 stress
+    lines each) — kept independent so all three legs of the stress
     suite (this script, the native lsp_e2e tests, and the direct-infra
     example) exercise comparable-weight fixtures without sharing code across
     language boundaries."""

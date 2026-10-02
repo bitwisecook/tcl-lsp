@@ -22,9 +22,9 @@
 //! compiler and target-family lowerers.  It deliberately contains **no Tcl
 //! command names, registry lookups, or emitter callbacks**.  The
 //! [`tcl_registry::CommandRegistry`](tcl_registry::CommandRegistry) remains
-//! the source of truth for command semantics; a future common semantic IR
-//! supplies a typed [`SemanticOperationKey`] for each resolved operation.
-//! Backends then register how their target can legalise that operation.
+//! the source of truth for command semantics; the common semantic IR supplies
+//! a typed [`SemanticOperationKey`] for each resolved operation.  Backends
+//! then register how their target can legalise that operation.
 //!
 //! This is distinct from `tcl_platform::Capabilities`: platform capabilities
 //! describe facilities granted to one running interpreter, such as filesystem
@@ -42,10 +42,10 @@
 //! - [`RuntimeCapabilities`] describes runtime services it can call; and
 //! - [`ResourceLimits`] describes quantitative resource bounds.
 //!
-//! The contract is intentionally useful before the executable semantic IR is
-//! introduced: callers may use a small local operation enum in tests or an
-//! experimental backend.  Once `SemanticOpId` exists, that type implements
-//! [`SemanticOperationKey`] and becomes the only production map key.
+//! The operation key is a trait rather than a concrete type, so a test or an
+//! experimental backend may use a small local operation enum.  The registry's
+//! [`SemanticOperationId`](tcl_registry::SemanticOperationId) is the
+//! production map key.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -1087,9 +1087,10 @@ pub enum LegalisationFailure {
 
 /// Per-target legalisation data keyed by common semantic operation identity.
 ///
-/// The map is deliberately generic: the common executable IR will supply the
-/// concrete operation ID.  This prevents a target backend from treating Tcl
-/// command spelling as its dispatch key.
+/// The map is deliberately generic over the operation key, which prevents a
+/// target backend from treating Tcl command spelling as its dispatch key.  In
+/// production that key is the registry's
+/// [`SemanticOperationId`](tcl_registry::SemanticOperationId).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetContract<Op> {
     family: TargetFamily,

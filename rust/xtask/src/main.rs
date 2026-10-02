@@ -20,8 +20,8 @@
 //! tasks.
 //!
 //! Each subcommand is kept byte-compatible with the `scripts/` tool it
-//! replaces so the Makefile / CI can switch over incrementally; the legacy
-//! script stays as the fallback for one release cycle, then retires.
+//! replaces so the Makefile / CI can switch over incrementally, with the
+//! legacy script available as a fallback.
 //!
 //! Run a task with `cargo xtask <command>` (the workspace `.cargo/config.toml`
 //! aliases `xtask` to `run --package xtask --`).
@@ -37,17 +37,28 @@
 //! - `audit-option-dialects` — probe `OptionSpec` dialect gates against real
 //!   tclsh 8.4/8.5/8.6/9.0 (`--check` instead cross-checks the audit's probe
 //!   table against the registry's declared options — the audit↔registry drift
-//!   gate, issue #1396).
+//!   gate).
 //! - `callback-inventory` — generate or verify the registry-backed executable
-//!   and callback surface inventory (issue #1706).
+//!   and callback surface inventory.
 //! - `diag-tables` — generate the `docs/generated/` code tables from the
 //!   `DiagCode` catalogue (`--check` to verify instead of write).
 //! - `f5-query-builtins-doc` — verify `docs/references/f5_query/builtins.md`
-//!   documents exactly the builtins `tcl-bigip-query` registers (issue #1404).
+//!   documents exactly the builtins `tcl-bigip-query` registers.
 //! - `bigip-data-schema` — verify the hand-maintained BIG-IP object-spec data
-//!   is internally consistent (issue #1404).
+//!   is internally consistent.
+//! - `catalogue-callers` — hold every spelling of `DialectProfile::all()`,
+//!   `KNOWN_DIALECTS` and `available_dialects(` to an allowlist (`--check` is
+//!   accepted for symmetry; the gate only verifies).
 //! - `gen-editor-catalogs` — generate the VS Code iRules-event catalog JSON
 //!   from the registry (`--check` to verify instead of write).
+//! - `gen-editor-configs` — generate the Zed `extension.toml` language table,
+//!   the Helix, Emacs, Neovim and Sublime guides' configuration and dialect
+//!   lists, and `INSTALL-editors.md`'s extension lists from the environment
+//!   registry (`--check` to verify instead of write).
+//! - `gen-environment-docs` — generate the README dialect tables,
+//!   `docs/generated/environments.md`, the dialect-selection KCS note's lists,
+//!   and `ai/prompts/manifest.json` from the environment registry (`--check`
+//!   to verify instead of write).
 //! - `number-drift` — flag hand-rolled Tcl radix-prefix recognition outside
 //!   `tcl_syntax::number`, and verify expression boundaries use
 //!   `tcl_dialect::scan_expr_number`.
@@ -56,7 +67,7 @@
 //! - `segmentation-drift` — flag a hand-rolled Tcl command-terminator scan
 //!   or a private `Sep`/`Eol` word-start state machine outside the command /
 //!   word boundary owners, and verify the owner/scanner corpus differential
-//!   is still wired (issue #1786).
+//!   is still wired.
 //! - `smoke-targets` — validate or execute the exact Cargo fallback for the
 //!   convention-named smoke tier.
 
@@ -73,6 +84,7 @@ mod callback_coverage;
 mod callback_inventory;
 #[path = "smoke_targets.rs"]
 mod cargo_smoke;
+mod catalogue_callers;
 mod command_backing;
 mod diag_emission;
 mod diag_tables;
@@ -84,8 +96,10 @@ mod fp_sweep;
 mod gen_ai;
 mod gen_bundled_environments;
 mod gen_editor_catalogs;
+mod gen_editor_configs;
 mod gen_editor_dialects;
 mod gen_editor_settings;
+mod gen_environment_docs;
 mod gen_irule_test_data;
 mod gen_jetbrains;
 mod gen_tmlanguage_keywords;
@@ -153,7 +167,7 @@ enum Command {
     AuditOptionDialects {
         /// Run the audit↔registry drift guard instead of probing tclsh: every
         /// audited option must be declared by the registry's `OptionSpec`
-        /// tables. Exits non-zero on a disagreement (issue #1396).
+        /// tables. Exits non-zero on a disagreement.
         #[arg(long)]
         check: bool,
     },
@@ -176,7 +190,7 @@ enum Command {
     },
 
     /// Verify `docs/references/f5_query/builtins.md` documents exactly the
-    /// builtins `tcl-bigip-query` registers — no more, no fewer (issue #1404).
+    /// builtins `tcl-bigip-query` registers — no more, no fewer.
     #[command(name = "f5-query-builtins-doc")]
     F5QueryBuiltinsDoc {
         /// Accepted for symmetry with the other gates (the lint always
@@ -187,8 +201,7 @@ enum Command {
     },
 
     /// Verify the hand-maintained BIG-IP object-spec data
-    /// (`rust/tcl-registry/src/bigip/data/`) is internally consistent
-    /// (issue #1404).
+    /// (`rust/tcl-registry/src/bigip/data/`) is internally consistent.
     #[command(name = "bigip-data-schema")]
     BigipDataSchema {
         /// Accepted for symmetry with the other gates (the lint always
@@ -207,7 +220,7 @@ enum Command {
     },
 
     /// Verify every non-internal, non-reserved `DiagCode` has at least one
-    /// real construction site under `rust/tcl-compiler/src` (issue #1317).
+    /// real construction site under `rust/tcl-compiler/src`.
     #[command(name = "diag-emission-check")]
     DiagEmissionCheck,
 
@@ -220,7 +233,7 @@ enum Command {
     },
 
     /// Generate the editors' registered file-extension / language lists from
-    /// the `DialectProfile` catalog plus the bundled packs' `file_extension`
+    /// the `DialectProfile` catalogue plus the bundled packs' `file_extension`
     /// rows.
     GenEditorExtensions {
         /// Verify the committed manifests are in sync instead of rewriting
@@ -234,6 +247,27 @@ enum Command {
     GenBundledEnvironments {
         /// Verify the committed seed is in sync with the packs instead of
         /// rewriting it; exit non-zero on drift.
+        #[arg(long)]
+        check: bool,
+    },
+
+    /// Generate the configuration the editor guides and manifests without a
+    /// generator of their own carry (Zed `extension.toml`, Helix, Emacs,
+    /// Neovim and Sublime guides, `INSTALL-editors.md`) from the compiled
+    /// environment registry.
+    GenEditorConfigs {
+        /// Verify the committed regions are in sync instead of rewriting them;
+        /// exit non-zero on drift.
+        #[arg(long)]
+        check: bool,
+    },
+
+    /// Generate the README dialect tables, `docs/generated/environments.md`,
+    /// the dialect-selection KCS note's lists, and the AI prompt manifest from
+    /// the compiled environment registry.
+    GenEnvironmentDocs {
+        /// Verify the committed documentation and manifest are in sync instead
+        /// of rewriting them; exit non-zero on drift.
         #[arg(long)]
         check: bool,
     },
@@ -349,13 +383,24 @@ enum Command {
         check: bool,
     },
 
-    /// Flag any code use of the dialect/registry APIs retired in P1-G
+    /// Flag any code use of the retired dialect/registry APIs
     /// (`DialectProfile::by_name` and kin, the string-keyed registry
-    /// doors, external `ProfileQueries`) — the zero-reference gate of the
-    /// centralisation ledger.
+    /// doors, external `ProfileQueries`) — the zero-reference gate for
+    /// centralised resolution.
     #[command(name = "retired-api-gate")]
     RetiredApiGate {
         /// Accepted for symmetry with the other gates (the lint always
+        /// verifies; it never rewrites).
+        #[arg(long)]
+        check: bool,
+    },
+
+    /// Hold every caller of `DialectProfile::all()`, `KNOWN_DIALECTS` and
+    /// `available_dialects(` to the allowlist in `rust/xtask/src/catalogue_callers.rs`: a list of names
+    /// shown to a user reads the environment registry, not the catalogue.
+    #[command(name = "catalogue-callers")]
+    CatalogueCallers {
+        /// Accepted for symmetry with the other gates (the gate always
         /// verifies; it never rewrites).
         #[arg(long)]
         check: bool,
@@ -436,7 +481,7 @@ enum Command {
 
     /// Dump every firing of one or more diagnostic/optimisation codes across
     /// a corpus, dialect-aware, grouped by message shape — the false-positive
-    /// audit harness (issue #1316; `docs/design/compiler/fp-sweep.md`).
+    /// audit harness (`docs/design/compiler/fp-sweep.md`).
     FpSweep {
         /// Diagnostic/optimisation code to sweep (repeatable, e.g. `--code
         /// W111 --code W112`).
@@ -476,7 +521,9 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::GenEditorCatalogs { check } => gen_editor_catalogs::run(check),
         Command::GenEditorExtensions { check } => editor_extensions::run(check),
         Command::GenBundledEnvironments { check } => gen_bundled_environments::run(check),
+        Command::GenEditorConfigs { check } => gen_editor_configs::run(check),
         Command::GenEditorDialects { check } => gen_editor_dialects::run(check),
+        Command::GenEnvironmentDocs { check } => gen_environment_docs::run(check),
         Command::GenIruleTestData { check } => gen_irule_test_data::run(check),
         Command::GenZedQueries { check } => gen_zed_queries::run(check),
         Command::GenTmlanguageKeywords { check } => gen_tmlanguage_keywords::run(check),
@@ -491,6 +538,7 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::SegmentationDrift { check } => Ok(segmentation_drift::run(check)),
         Command::RetiredApiGate { check } => Ok(retired_api_gate::run(check)),
         Command::RuntimeStdlib => runtime_stdlib::run(),
+        Command::CatalogueCallers { check } => Ok(catalogue_callers::run(check)),
         Command::OwnerResolution => owner_resolution::run(),
         Command::PackGoldens { check } => Ok(pack_goldens::run(check)),
         Command::SslictclData {

@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Issue #1202 hardening: strict framework grammar, proof-bearing packet
+//! Hardening: strict framework grammar, proof-bearing packet
 //! reads, typed maps with capacity and missing-vs-zero, full-width constants,
 //! and the liveness-based slot allocator. TP/FP/TN/FN coverage: each malformed
 //! input is rejected (true positive), each well-formed counterpart still

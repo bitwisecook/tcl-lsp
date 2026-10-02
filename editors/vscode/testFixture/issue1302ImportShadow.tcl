@@ -1,4 +1,4 @@
-# Fixture for issue #1302 (see issue1302ImportShadow.test.ts).
+# Fixture for the namespace-import shadow test (see issue1302ImportShadow.test.ts).
 #
 # The unforced glob import below is REFUSED by real Tcl, because `::` already
 # holds `set`. So the `set` call reaches the builtin and is NOT a reference to

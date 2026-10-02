@@ -16,11 +16,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The **semantic view**'s binding vocabulary (redesign §4.2) — types and
-//! contract landed in P1-E; P1a integrated the realm state: the compiler's
-//! document realm scan (`tcl_compiler::realm`) produces these values, the
-//! analyser's one `exists` oracle (centralisation R-c) answers them per
-//! program point, and the three selection primitives in
+//! The **semantic view**'s binding vocabulary (redesign §4.2): the
+//! compiler's document realm scan (`tcl_compiler::realm`) produces these
+//! values, the analyser's one `exists` oracle (centralisation R-c) answers
+//! them per program point, and the three selection primitives in
 //! [`crate::model::assembly`] consume the binding proof (invariant I4).
 //!
 //! ## The consumer contract (invariants I3–I5)
@@ -53,11 +52,11 @@
 //! variants on [`crate::state_transition::StateTransition`]: that enum is
 //! matched exhaustively by consumers across the workspace (analyser,
 //! compiler, LSP), so growing it is a breaking change those crates must
-//! opt into. **P1a integration point**: `RealmState` composes the
-//! existing command-binding lattice, `InterpreterTransition`, and this
-//! package family; at that point either `StateTransition` gains a
-//! `Package(PackageTransition)` variant in a coordinated change, or the
-//! realm layer keeps consuming the two families side by side.
+//! opt into. When `RealmState` composes the existing command-binding
+//! lattice, `InterpreterTransition`, and this package family, either
+//! `StateTransition` gains a `Package(PackageTransition)` variant in a
+//! coordinated change, or the realm layer keeps consuming the two
+//! families side by side.
 
 use std::sync::Arc;
 
@@ -71,8 +70,8 @@ use crate::state_transition::TransitionSubject;
 ///
 /// Identity is the spec allocation itself: compiled specs are interned
 /// `&'static` values, so two keys are equal exactly when they name the
-/// same registration. The P2 generation work re-keys dynamic pack specs
-/// by `(generation, registration)` when non-`'static` specs join.
+/// same registration. Non-`'static` specs will need re-keying by
+/// `(generation, registration)` once they join the registry.
 #[derive(Clone, Copy)]
 pub struct SpecKey(&'static CommandSpec);
 

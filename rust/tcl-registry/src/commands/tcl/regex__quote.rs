@@ -30,10 +30,11 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// regex-metacharacter-quoting idiom this registry recognises under four
 /// names (`regex::quote` / `re_quote` / `regex_quote` / `regexp::quote`).
 /// It is not a documented core Tcl command: Tcl ships no
-/// metacharacter-quoting builtin. `re_syntax.n` (the previous, inaccurate
-/// `source` citation below) documents regexp syntax only and never
-/// mentions a quoting command or utility, re-read directly against Tcl
-/// 8.4, 8.5, 8.6, 9.0, and 9.1 alike. The `TclCmd` alphabetical command
+/// metacharacter-quoting builtin. `re_syntax.n` documents regexp syntax
+/// only and never mentions a quoting command or utility, checked
+/// directly against Tcl 8.4, 8.5, 8.6, 9.0, and 9.1 alike — so the
+/// `source` field below is left empty rather than citing it. The `TclCmd`
+/// alphabetical command
 /// index likewise lists no `quote`- or `regex`-prefixed command (only
 /// `regexp`/`regsub`/`re_syntax`) on all five trees: `contents.htm` for
 /// 8.4/8.5/8.6 directly, and the bare `TclCmd/` directory listing for

@@ -74,7 +74,7 @@ pub(super) fn scope_at<'a>(root: &'a Scope, path: &[usize]) -> Option<&'a Scope>
 /// lookup does) and then join with one exact `::`.  The accumulated `ns` is a
 /// *constructed* key and is never re-parsed: a `::`-run inside it is a
 /// legitimately colon-named segment (`namespace eval :`), which a
-/// concat-then-normalise would collapse into its parent (issue #934).
+/// concat-then-normalise would collapse into its parent.
 fn join_namespace(ns: &str, part: &str) -> String {
     if part.starts_with("::") {
         return normalise_qualified_name(part);
@@ -141,7 +141,7 @@ fn advance_command_resolution_namespace(ns: &str, child: &Scope) -> String {
             // The defining namespace is the qualified name's *holder* — via
             // the command-name join and the construction-inverse split, so a
             // lone-colon or trailing-separator proc name derives the right
-            // prefix (#934: `proc :` at the root defines in `::`, never in a
+            // prefix (`proc :` at the root defines in `::`, never in a
             // phantom namespace named `:`).
             let qualified = crate::naming::qualify(ns, &child.name);
             let (holder, _tail) = crate::naming::key_holder_and_tail(&qualified);
@@ -168,7 +168,7 @@ fn advance_command_resolution_namespace(ns: &str, child: &Scope) -> String {
 /// at the method and miss the lambda — which is exactly the frame that
 /// matters, because `apply` runs its body in the global namespace and so
 /// loses the object context (tclsh 9.0.4: `apply {{} { link Helper }}`
-/// inside a method raises `invalid command name "link"`; issue #1026).
+/// inside a method raises `invalid command name "link"`).
 /// Where the tree *is* properly nested, no two children of one node
 /// contain the same offset, so this is the plain first-match walk.
 fn innermost_containing_child(cursor: &Scope, byte_offset: u32) -> Option<&Scope> {
@@ -226,8 +226,7 @@ pub fn command_resolution_namespace_at(root: &Scope, byte_offset: u32) -> String
 /// from every method body in the program — this is what lets
 /// [`tcl_lsp_core::references::invocation_references_named`]'s namespace
 /// gate recognise such a call site as a genuine reference to that proc,
-/// alongside the ordinary `call_ns == target_ns` case (issue #923 idx 56,
-/// main audit wave).
+/// alongside the ordinary `call_ns == target_ns` case.
 ///
 /// Same traversal as [`command_resolution_namespace_at`] (so the two can
 /// never disagree about which scope is innermost), tracking whether the
@@ -240,7 +239,7 @@ pub fn command_resolution_namespace_at(root: &Scope, byte_offset: u32) -> String
 ///
 /// Because a `TclOO` object frame is exactly where `::oo::Helpers` sits on
 /// the path, this is also the **resolution** half of the `oo::Helpers`
-/// scoping rule (issue #1026) — including the per-object `my`, which is not
+/// scoping rule — including the per-object `my`, which is not
 /// an `::oo::Helpers` member at all (`namespace which -command my` answers
 /// `::oo::ObjN::my` under tclsh 9.0.4) yet is reachable in exactly the same
 /// frames and nowhere else. The `Proc` reset is what makes an `apply` lambda
@@ -248,7 +247,7 @@ pub fn command_resolution_namespace_at(root: &Scope, byte_offset: u32) -> String
 /// command name "link"` / `"my"` / `"self"` there.
 ///
 /// **"Resolves here" and "is callable here" are different facts, and this
-/// answers only the first** (Codex review of PR #1084). `W123` — "is this an
+/// answers only the first.** `W123` — "is this an
 /// unknown command" — keys on resolution and therefore on this predicate.
 /// Completion and hover ask "may the user write this word here", which is
 /// callability, and must use [`innermost_scope_is_oo_method_frame`] instead:
@@ -274,7 +273,7 @@ pub fn innermost_scope_reaches_oo_helpers(root: &Scope, byte_offset: u32) -> boo
 /// "this frame resolves like a `TclOO` member body", so the two facts are
 /// one lookup and cannot drift apart.
 ///
-/// This is the single recording site for the path (issue #1137 idx 51): the
+/// This is the single recording site for the path: the
 /// analyser folds it into every affected invocation's
 /// `resolution_candidates`, so a cross-document consumer walking that list
 /// finds a `proc ::oo::Helpers::NAME` declared in *another* file without
@@ -450,7 +449,7 @@ pub fn namespace_variables(root: &Scope) -> Vec<(String, &VarDef)> {
     // `Scope::variables` is a `HashMap`, so the walk's per-node order is the
     // process hash seed's; sort by declaration span (then name) for a stable,
     // meaningful index order — the same reasoning as `sorted_by_span` on the
-    // proc/class side (issue #1028).
+    // proc/class side.
     out.sort_by(|(qa, a), (qb, b)| {
         a.definition_span
             .start()
@@ -585,7 +584,7 @@ impl<A> KnownPredicateCtx<'_, A> {
     /// target, or an `interp alias` target, established at `fact_off` — is
     /// still live *for a call at `call_off`*: no `rename NAME {}` / `interp
     /// alias {} NAME {}` deletion of `qualified` itself has been recorded
-    /// *after* that offset (issue #973: a proc/class/rename/alias target
+    /// *after* that offset (a proc/class/rename/alias target
     /// that was later renamed away must not still count as known —
     /// calling it fails "invalid command name" in real Tcl, confirmed
     /// against tclsh 8.6.14). Mirrors `fact_superseded_by_deletion` in
@@ -602,7 +601,7 @@ impl<A> KnownPredicateCtx<'_, A> {
     /// [`Analyser::fact_live_for_call`] is (the W123 pass's answer to the
     /// identical question) — a namespaced local candidate must not lose to
     /// the global one just because *some later* deletion exists, when this
-    /// specific call runs before it; issue #1009 Codex review: `proc bar
+    /// specific call runs before it: `proc bar
     /// {}`, `namespace eval foo { proc bar {}; proc caller {} { bar } }`,
     /// `foo::caller`, `rename foo::bar {}` still resolves `bar` (called
     /// from `foo::caller`, before the rename) to `::foo::bar`, not the
@@ -612,7 +611,7 @@ impl<A> KnownPredicateCtx<'_, A> {
     ///
     /// The enclosing definition need not be called at the top level
     /// *itself* — [`Analyser::reachable_call_offsets`] answers the
-    /// transitive question (issue #1015), so an arbitrarily deep chain of
+    /// transitive question, so an arbitrarily deep chain of
     /// enclosing definitions bottoming out at a real top-level call counts,
     /// while a mutual-recursion cycle no top-level call enters does not.
     fn live_for_call(&self, qualified: &str, fact_off: u32, call_off: u32) -> bool {
@@ -695,8 +694,8 @@ fn record_known_winner<A>(
 /// node kinds as [`lookup_var_in_namespace`] (a proc-local `set ::x val`
 /// stores under the *proc's* own table, not reachable here — same
 /// documented trade-off `lookup_var_in_scope_chain` already accepts for the
-/// general case; issue #923 idx 68 only needs the realistic top-level /
-/// namespace-body shape the audit's own repro exercises). Matches by exact
+/// general case; only the realistic top-level / namespace-body shape is
+/// needed here). Matches by exact
 /// `VarDef::name` equality against `target` rather than a table lookup,
 /// since the stored key can be any literal spelling that *resolves* to
 /// `target`, not necessarily `target`'s own exact text.
@@ -719,7 +718,7 @@ fn lookup_var_by_literal_qualified_name<'a>(root: &'a Scope, target: &str) -> Op
 /// misses — the literal-verbatim key [`lookup_var_by_literal_qualified_name`]
 /// expects (a `set` whose own spelling already carried its qualification).
 /// The single entry point `tcl_lsp_core::definition::linked_var_reference_spans`
-/// needs (issue #923 idx 68) to fold a `global`/`variable`/`namespace upvar`
+/// needs to fold a `global`/`variable`/`namespace upvar`
 /// alias's target back to its canonical cell regardless of which way the
 /// cell itself was spelled.
 #[must_use]
@@ -740,8 +739,8 @@ pub fn lookup_var_by_qualified_name<'a>(root: &'a Scope, target: &str) -> Option
 /// Used to check whether a plain declaration with no `link_target` of
 /// its own (`link_target: None` — it isn't an alias, so it was never
 /// given one) is nonetheless the *canonical cell* an alias in another
-/// scope names via its own `link_target` (issue #923 idx 68, main audit
-/// wave: a top-level `set tolComp` / `set ::tolComp`, aliased inside a
+/// scope names via its own `link_target` (a top-level `set tolComp` /
+/// `set ::tolComp`, aliased inside a
 /// proc via `global tolComp`, needs Find-References/Rename queried from
 /// *either* side to reach both — querying from the alias already finds
 /// the cell via [`lookup_var_by_qualified_name`], but the reverse
@@ -837,7 +836,7 @@ impl Analyser {
         let source_len = u32::try_from(self.source.len()).unwrap_or(u32::MAX);
         // Each read carries whether it used the `${…}` brace form, whose
         // content is a *literal* name: `${$n}` reads the variable called `$n`,
-        // not `n` (issue #1078).
+        // not `n`.
         let mut reads: Vec<(String, tcl_lexer::Span, bool)> = Vec::new();
         for tok in &cmd.all_tokens {
             if tok.kind != TokenType::Var {
@@ -894,7 +893,7 @@ impl Analyser {
             // Registry `VarRead`-role name words of this command itself
             // (`info exists m`, `array get m`) — a use site of `m` exactly as
             // `$m` is, and one the `$`-token walk above cannot see because
-            // there is no `$` to see (issue #1108).
+            // there is no `$` to see.
             collect_name_role_reads(cmd, registry, &mut extra);
             for site in extra {
                 self.record_var_read_braced(&site.name, site.span, scope_path, site.braced_literal);
@@ -981,8 +980,8 @@ impl Analyser {
     /// The base case is a call whose own site is not inside any proc/class
     /// body — that call runs where it is written. The recursive case is a
     /// call inside some definition `E`'s body: it runs whenever `E` runs, so
-    /// it inherits `E`'s own earliest reachable offset (issue #1015:
-    /// `proc helper {}`, `proc inner {} { helper }`, `proc outer {} { inner
+    /// it inherits `E`'s own earliest reachable offset
+    /// (`proc helper {}`, `proc inner {} { helper }`, `proc outer {} { inner
     /// }`, `outer`, `rename helper {}` — tclsh8.6/9.0 run this clean,
     /// because `outer`'s top-level call reaches `helper` two bodies deep,
     /// before the rename).
@@ -995,19 +994,18 @@ impl Analyser {
     ///
     /// Read by [`Self::finalise_invocation_resolutions`]'s `live_for_call`
     /// and by [`Self::fact_live_for_call`] as the "was this call's enclosing
-    /// definition itself reached before the deletion" escape hatch (issue
-    /// #1009 Codex review, generalised by #1015).
+    /// definition itself reached before the deletion" escape hatch.
     ///
     /// # A body edge may raise a callee's offset but never lower a base one
     ///
     /// A call site's *presence* in a body is not proof that the body reaches
     /// it. `proc a {} { if {0} { b } }` never calls `b`, so `a`'s own
     /// earliest offset says nothing about when `b` first runs — yet the
-    /// unrestricted fixpoint handed `b` (and everything `b` calls) `a`'s
-    /// early offset, which then read as "reached before the deletion" and
-    /// silently withdrew a correct W123.
+    /// unrestricted fixpoint would hand `b` (and everything `b` calls) `a`'s
+    /// early offset, which then reads as "reached before the deletion" and
+    /// silently withdraws a correct W123.
     ///
-    /// Oracle (tclsh8.6, `review-probes-sound/r1.tcl`): with `proc b {}
+    /// Oracle (tclsh8.6): with `proc b {}
     /// { helper }`, `proc a {} { if {0} { b } }`, `a`, `rename helper {}`,
     /// `b` — the final `b` really does fail with `invalid command name
     /// "helper"`.
@@ -1016,8 +1014,8 @@ impl Analyser {
     /// analysis proves unreachable, but those facts do not exist yet here:
     /// SCCP runs later, over the IR this analyser's result feeds, so
     /// consulting it at edge-collection time would be circular. What is
-    /// available is the base case itself, so the fixpoint keeps the
-    /// **weaker, non-circular** rule the review offered as its alternative:
+    /// available is the base case itself, so the fixpoint keeps a
+    /// **weaker, non-circular** rule:
     ///
     /// > a body edge may only ever *add* a callee offset, never *lower* a
     /// > base top-level one.
@@ -1025,11 +1023,10 @@ impl Analyser {
     /// A callee with its own top-level call site has an offset that is
     /// already a fact about real execution; a speculative path through some
     /// body may not undercut it. A callee with no top-level call site keeps
-    /// the old optimism — the chain is the only evidence there is, and
-    /// dropping it would reopen issue #1015.
+    /// the optimistic answer — the chain is the only evidence there is.
     ///
     /// This is deliberately approximate in the sound direction for the
-    /// review's repros and deliberately optimistic elsewhere. It does not
+    /// chained-call shapes above and deliberately optimistic elsewhere. It does not
     /// catch a dead edge to a callee that is never called at top level at
     /// all, and it can raise an offset for a *live* body edge whose callee
     /// also has a later top-level call.
@@ -1127,8 +1124,8 @@ impl Analyser {
         // Earliest top-level (non-body) call-site offset per resolved
         // qualified name, from the invocations the walk has already
         // recorded — computed before the mutable loop below so
-        // `live_for_call`'s body-call escape hatch (issue #1009 Codex
-        // review) can consult it, and cached on `self` so the later W123 /
+        // `live_for_call`'s body-call escape hatch can consult it, and cached
+        // on `self` so the later W123 /
         // const-dispatch / variable-command passes' `Self::fact_live_for_call`
         // calls reuse the same map instead of rebuilding it.
         self.reachable_call_offsets = self.compute_reachable_call_offsets();
@@ -1240,8 +1237,8 @@ impl Analyser {
                 // dynamic head (`${ns}::setdef`) is exactly this case — the
                 // written name is not the dispatched one — and the walk
                 // already recorded its candidate list from the *folded* name,
-                // so settle against that instead of discarding it (issue #923
-                // idx 54 residual: without this the local-first guess
+                // so settle against that instead of discarding it (without
+                // this the local-first guess
                 // `::tk::tk::setdef` was never demoted to the global
                 // `::tk::setdef` the call really reaches, and find-references
                 // from the declaration missed the site).  An unusual spelling
@@ -1290,13 +1287,12 @@ impl Analyser {
             // cross-file consumers (the reference matchers treat it, and the
             // candidate list above, as candidates rather than ground truth).
         }
-        // The constant-`$cmd` dispatch sites (M7) are *not* settled here:
+        // The constant-`$cmd` dispatch sites are *not* settled here:
         // their value facts come from the compiler's flow-sensitive value
         // model, which needs the CFG/SSA `CompilationUnit` — see
-        // `settle_const_dispatches` in the diagnostics phase (issue #945
-        // faults 1–2: the lexical constant map this pass once read is
-        // last-write-wins across `if`/loop joins and discards the defining
-        // literal's writable span).
+        // `settle_const_dispatches` in the diagnostics phase.  A lexical
+        // constant map is last-write-wins across `if`/loop joins and discards
+        // the defining literal's writable span, so it cannot answer here.
     }
 }
 
@@ -1308,10 +1304,10 @@ impl Analyser {
 /// The first known candidate wins, exactly as
 /// [`crate::naming::resolve_command_with`] would.  With no recorded
 /// candidates this keeps the pre-existing behaviour: the settled name is the
-/// sole candidate (issue #923 idx 54 residual — before this, the walk's
-/// local-first guess `::tk::tk::setdef` was never demoted to the global
-/// `::tk::setdef` the call really reaches, so find-references from the
-/// declaration missed the site while go-to-definition found it).
+/// sole candidate.  Without the settlement the walk's local-first guess
+/// `::tk::tk::setdef` is never demoted to the global `::tk::setdef` the call
+/// really reaches, so find-references from the declaration misses the site
+/// while go-to-definition finds it.
 fn settle_prebuilt_candidates<A>(
     inv: &mut crate::signature_scan::types::SignatureCommandInvocation,
     resolved: String,
@@ -1349,8 +1345,8 @@ impl Analyser {
         // Track whether this binding's *current* value dominates uses after
         // an `if`/`try` join. A conditional write (`conditional_depth > 0`)
         // does not; a straight-line (depth-0) write does and re-establishes
-        // dominance over any earlier conditional one (Codex review, PR
-        // #1020 — see `nondominating_consts` / `lookup_dominating_const_string`).
+        // dominance over any earlier conditional one (see
+        // `nondominating_consts` / `lookup_dominating_const_string`).
         if self.conditional_depth > 0 {
             self.nondominating_consts
                 .entry(scope_path.to_vec())
@@ -1378,7 +1374,7 @@ impl Analyser {
     /// body). A binding poisoned in [`Self::nondominating_consts`] at the
     /// scope where it is found yields `None`: the value is branch-dependent,
     /// so identity resolution (`source`/`rename` targets) must abstain
-    /// rather than pick the last-written branch (Codex review, PR #1020).
+    /// rather than pick the last-written branch.
     /// The nearest binding still wins — a poisoned inner binding shadows an
     /// outer dominating one, exactly as Tcl variable scoping would.
     #[must_use]
@@ -1435,7 +1431,7 @@ impl Analyser {
 
     /// The constant-string value recorded for `base_name` in the namespace
     /// whose fully-qualified, `::`-rooted resolution path is `target_ns`
-    /// (issue #923 idx 116) — the `const_strings` analogue of
+    /// — the `const_strings` analogue of
     /// [`lookup_var_in_namespace`], needed because a namespace-qualified
     /// reference (`$lexical::body`) must resolve against wherever that
     /// namespace's own `set` lives, not the lexical ancestor chain
@@ -1497,8 +1493,8 @@ impl Analyser {
     }
 
     /// Record `set VAR [interp create ...]`'s resolved interpreter-domain
-    /// `key` as `var_name`'s value in the scope at `scope_path` (issue
-    /// #923 idx 9) — the interpreter-value-flow analogue of
+    /// `key` as `var_name`'s value in the scope at `scope_path` — the
+    /// interpreter-value-flow analogue of
     /// [`Self::set_const_string`], scope-chain-aware for the same reason:
     /// two unrelated procs binding the same variable name to different
     /// interpreters must never collide.
@@ -1546,8 +1542,8 @@ impl Analyser {
     /// then `::foo` — even though there is no enclosing `namespace eval`.
     /// A lexical walk (one that skips proc scopes) answers `::` there and
     /// mis-homes everything the body creates or looks up: procs, classes,
-    /// ensembles, `namespace import`/`export` targets, and aliases
-    /// (issue #923 idx 85).  Every analyser site that needs "the namespace
+    /// ensembles, `namespace import`/`export` targets, and aliases.
+    /// Every analyser site that needs "the namespace
     /// current at this point" uses this one rule.
     #[must_use]
     pub(super) fn command_resolution_namespace(&self, scope_path: &[usize]) -> String {
@@ -1673,9 +1669,9 @@ impl Analyser {
     /// Braces suppress every substitution, so the content is the name verbatim:
     /// `${$n}` reads the variable *called* `$n`, which Tcl keeps distinct from
     /// `n` (tclsh 9.0.4 / 8.6.14: `set {$n} v; set ${$n}` → `can't read "v"`,
-    /// i.e. it read `$n` and got `v`). Stripping the `$` here landed the
+    /// i.e. it read `$n` and got `v`). Stripping the `$` here would land the
     /// reference on the wrong variable and let Find-References / Rename merge
-    /// the two (issue #1078).
+    /// the two.
     pub fn record_var_read_braced(
         &mut self,
         name: &str,
@@ -1801,8 +1797,8 @@ impl Analyser {
     /// scope-table-local, so a *relative*-qualified occurrence
     /// (`$app::colors::palette` written at global scope, naming
     /// `::app::colors::palette`) finds nothing and is dropped — even when the
-    /// declaring `namespace eval` sits in the same file.  And it could not be
-    /// fixed by resolving at record time either: a qualified read may precede
+    /// declaring `namespace eval` sits in the same file.  Resolving at record
+    /// time cannot work either: a qualified read may precede
     /// its declaring `namespace eval` textually and still resolve at run time
     /// (tclsh 9.0.4 / 8.6.16: `proc p {} { return $::n::v }; namespace eval n
     /// { variable v 1 }; puts [p]` prints `1`), so the namespace tables are
@@ -1842,7 +1838,7 @@ impl Analyser {
     /// (tclsh 9.0.4 / 8.6.14: `set {$n} v; info exists {$n}` → 1 while
     /// `info exists n` → 0); normalising the `$` away collapsed them into one
     /// `VarDef`, so Find-References answered for both and a rename of `n`
-    /// rewrote the `{$n}` word (issue #1078). The array-element suffix still
+    /// rewrote the `{$n}` word. The array-element suffix still
     /// comes off — `{arr($i)}` is element `$i` of the array `arr`.
     pub fn define_var(
         &mut self,
@@ -1869,7 +1865,7 @@ impl Analyser {
             // (throwaway) root scope is a fixed global cell the whole-file
             // walk would have written into the *document's* global scope, so
             // capture it for the graft to replay there — the write-side twin
-            // of `capture_global_reads` (issue #923 audit idx 98).
+            // of `capture_global_reads`.
             if scope_path.is_empty()
                 && let Some(captured) = self.capture_global_defs.as_mut()
             {
@@ -2010,8 +2006,8 @@ impl Analyser {
         // ordinary, `$`-reachable one (`ns::client_addr`). Firing W215 on the
         // *name* here would flag the reconstruction, not a real defect —
         // skip that half of the check whenever the source word itself (not
-        // the reconstructed text) contains an unresolved substitution
-        // (issue #1316). The array-element `)` check below is unaffected: a
+        // the reconstructed text) contains an unresolved substitution.
+        // The array-element `)` check below is unaffected: a
         // dynamic index round-trips verbatim (no re-bracing), so it carries
         // no such artefact.
         let name_is_static = braced
@@ -2117,7 +2113,7 @@ impl Analyser {
 }
 
 /// Depth cap for [`walk_scopes_helper`]'s recursion over nested
-/// (namespace / proc / method) [`Scope`] children — issue #996.
+/// (namespace / proc / method) [`Scope`] children.
 /// Transitively bounded today via `analyser::commands::MAX_BODY_DEPTH`
 /// (the analyser's own recursive descent, which builds this `Scope` tree
 /// in the first place, already caps its own nesting at 256), capped here
@@ -2187,7 +2183,7 @@ pub(super) fn inner_of(source: &str, tok: Token) -> Option<(&str, u32)> {
 
 /// One collected read site: the variable word as written, where it is, and
 /// whether its braces make the content a literal name (`[set {$n}]` reads the
-/// cell called `$n`, not `n` — issue #1078).
+/// cell called `$n`, not `n`).
 pub(super) struct VarReadSite {
     pub name: String,
     pub span: Span,
@@ -2276,8 +2272,7 @@ fn collect_script_command_reads(
         }
     }
     // The substituted command's own `VarRead`-role name words — `puts [set
-    // m]` and `puts [info exists m]` read `m`, which nothing else here sees
-    // (issue #1108).
+    // m]` and `puts [info exists m]` read `m`, which nothing else here sees.
     collect_name_role_reads(cmd, registry, out);
     let cmd_name = cmd.texts.first().map_or("", String::as_str);
     let post: Vec<&str> = cmd.texts.iter().skip(1).map(String::as_str).collect();
@@ -2449,7 +2444,7 @@ mod tests {
 
     /// A proc scope resolves in its own **defining** namespace, so a
     /// qualified-name proc declared at the top level still answers `::ns1`
-    /// (issue #923 idx 85 — a purely lexical walk answered `::`).
+    /// (a purely lexical walk would answer `::`).
     #[test]
     fn command_resolution_namespace_uses_a_procs_defining_namespace() {
         let mut a = Analyser::new();
@@ -2527,7 +2522,7 @@ mod tests {
         let analysis = a.analyse(src, "tcl8.6");
         // `rename`'s own OLD argument (`puts`, line 0) is now itself a
         // recorded, correctly-resolved-to-the-still-live-builtin reference
-        // (issue #923 idx 39) — an earlier "puts" entry this test must not
+        // — an earlier "puts" entry this test must not
         // mistake for the *call* site (`puts x`, line 1) it actually means
         // to check. The call site is always the *last* "puts"-named
         // invocation in source order.
@@ -2555,7 +2550,7 @@ mod tests {
 
     // finalise_invocation_resolutions — Tcl's existence-checked two-step
     // resolution rule, applied post-walk.  Every case below is pinned
-    // against tclsh 8.6 (PR #924 review): the local-first candidate wins
+    // against tclsh 8.6: the local-first candidate wins
     // only when that command exists by the end of the file; otherwise the
     // call falls back to the global candidate.
 
@@ -2666,8 +2661,8 @@ mod tests {
         assert!(!diag_codes("set normal 1", "tcl").contains(&"W215".to_string()));
     }
 
-    // FP-STY-… (issue #1316 sweep): a namespace-qualified `set` target with
-    // a dynamic trailing segment (`set ns::$k 1`) was firing W215 —
+    // A namespace-qualified `set` target with
+    // a dynamic trailing segment (`set ns::$k 1`) must not fire W215 —
     // `word_piece`'s reconstruction re-braces an unbraced `$k` piece to
     // `${k}` when rendering the word's display text (so an adjacent literal
     // suffix can't run into it), and that reconstruction — not the source,
@@ -2698,8 +2693,8 @@ mod tests {
 
     #[test]
     fn w215_still_fires_for_static_typo_after_the_fix() {
-        // TN: the fix must not blunt the check for the genuine case it
-        // exists for — a fully static (no `$`/`[`) stray-delimiter typo.
+        // TN: the reconstruction path must not blunt the check for the genuine
+        // case it exists for — a fully static (no `$`/`[`) stray-delimiter typo.
         assert!(diag_codes("set \"a}b\" 1", "tcl").contains(&"W215".to_string()));
     }
 
@@ -2741,14 +2736,14 @@ mod tests {
 
     #[test]
     fn w215_quiet_for_backslash_continued_param_list() {
-        // Issue #743: a parameter list wrapped across lines with `\`. Tcl
+        // A parameter list wrapped across lines with `\`. Tcl
         // list-parses the braced param list, so `ddrtol\<newline>ddatol` is two
         // parameters (`ddrtol`, `ddatol`), not a single `ddrtol\` name — no
         // W215 unreachable-name warning should fire.
         let src = "proc p {a ddrtol\\\n        ddatol} { list $a $ddrtol $ddatol }";
         assert!(!diag_codes(src, "tcl").contains(&"W215".to_string()));
 
-        // The reported form: a TclOO `method` with a wrapped parameter list.
+        // A TclOO `method` with a wrapped parameter list.
         let method_src = "oo::class create C {\n  method Fdjac2 {funct ifree ddrtol\\\n      ddatol} { list $ddrtol $ddatol }\n}\n";
         assert!(!diag_codes(method_src, "tcl").contains(&"W215".to_string()));
     }
@@ -2807,7 +2802,7 @@ mod tests {
 
     #[test]
     fn configured_scope_scanners_preserve_irules_brace_boundary_and_84_literals() {
-        // Mutation proof for both recursive scope sites (#1495): the
+        // Mutation proof for both recursive scope sites: the
         // configured segmenter sees the iRules `}{` boundary as a second
         // argument, while the 8.4 config keeps `{*}` literal.
         let source = "set out [expr {$x + [set y]}] cmd {a}{b}";
@@ -2935,9 +2930,8 @@ mod tests {
         assert_eq!(paths, vec![vec![], vec![0], vec![0, 0], vec![1]]);
     }
 
-    /// Regression coverage for issue #996: `walk_scopes_helper` recurses
-    /// once per nested [`Scope`] child, with no depth cap of its own
-    /// before this fix. Transitively bounded to
+    /// Depth coverage: `walk_scopes_helper` recurses once per nested
+    /// [`Scope`] child, with no depth cap of its own. Transitively bounded to
     /// `analyser::commands::MAX_BODY_DEPTH` (256) by the analyser pass
     /// that builds the `Scope` tree today, so this is defence-in-depth /
     /// consistency with every other full-tree walker in this crate, not a
@@ -2971,7 +2965,7 @@ mod tests {
         }
     }
 
-    /// TP (issue #923 idx 65 / 75 / 78) — a namespace-qualified occurrence is
+    /// TP — a namespace-qualified occurrence is
     /// recorded with the `::`-rooted cell it names, whether it is written
     /// absolutely or relative to the enclosing namespace, so the workspace
     /// index can match it against a declaration in another document.
@@ -3158,17 +3152,16 @@ mod tests {
         );
     }
 
-    // `finalise_invocation_resolutions`'s local-vs-global candidate choice,
-    // Codex PR #1014 review comment #1 (`scope.rs:463`): the "known"
-    // predicate compared only the final deletion offset against the
-    // candidate's own establishing offset, never the call site, so a
-    // namespaced local call textually *before* a later unconditional
-    // deletion wrongly lost to the global candidate. Confirmed against
+    // `finalise_invocation_resolutions`'s local-vs-global candidate choice.
+    // A "known" predicate that compared only the final deletion offset against
+    // the candidate's own establishing offset, never the call site, would make
+    // a namespaced local call textually *before* a later unconditional
+    // deletion wrongly lose to the global candidate. Confirmed against
     // tclsh 8.6.14 throughout.
 
     #[test]
     fn local_call_before_later_deletion_resolves_local_not_global_codex_1009() {
-        // TP (the confirmed regression): `foo::caller`'s own top-level
+        // TP: `foo::caller`'s own top-level
         // invocation runs before `rename foo::bar {}`, so its `bar` call
         // must still resolve to the local `::foo::bar`, not the global
         // `::bar` — confirmed against tclsh 8.6.14 (prints "local").
@@ -3193,8 +3186,8 @@ mod tests {
 
     #[test]
     fn qualified_name_for_var_decl_finds_var_in_matching_top_level_namespace() {
-        // TP — the reverse of `lookup_var_in_namespace_finds_var_in_matching_top_level_namespace`
-        // (issue #923 idx 68): given the declaration's own span, recover the
+        // TP — the reverse of `lookup_var_in_namespace_finds_var_in_matching_top_level_namespace`:
+        // given the declaration's own span, recover the
         // qualified name an alias elsewhere would name it by.
         let mut root = Scope::new(ScopeKind::Global, "::");
         let mut ns_a = Scope::new(ScopeKind::Namespace, "::A");
@@ -3210,11 +3203,10 @@ mod tests {
 
     #[test]
     fn local_call_after_deletion_still_falls_back_to_global_issue_973() {
-        // FN guard / regression: unlike the case above, `foo::caller` is
+        // FN guard: unlike the case above, `foo::caller` is
         // only ever invoked (at the top level) *after* `rename foo::bar
         // {}` runs, so the local `bar` is genuinely gone by the time the
-        // call executes — it must still fall back to the global `::bar`
-        // (issue #973's original fix must not regress).
+        // call executes — it must still fall back to the global `::bar`.
         let mut a = Analyser::new();
         let src = "proc bar {} { return global }\nnamespace eval foo {\n    proc bar {} { return local }\n    rename foo::bar {}\n    proc caller {} { return [bar] }\n}\nfoo::caller\n";
         let r = a.analyse(src, "tcl8.6");
@@ -3278,7 +3270,7 @@ mod tests {
 
     #[test]
     fn escape_hatch_follows_a_chain_of_enclosing_definitions_issue_1015() {
-        // FP guard (issue #1015): `foo::caller` is never invoked at the top
+        // FP guard: `foo::caller` is never invoked at the top
         // level — only `foo::entry` is — but `entry` calls `caller`, which
         // calls `bar`, all before the rename, so the local `::foo::bar`
         // stays the resolution. tclsh8.6/9.0 confirm the chain runs clean.
@@ -3299,7 +3291,7 @@ mod tests {
 
     #[test]
     fn escape_hatch_terminates_on_a_never_entered_mutual_recursion_cycle_issue_1015() {
-        // TP guard (issue #1015): `foo::ping` and `foo::pong` call each
+        // TP guard: `foo::ping` and `foo::pong` call each
         // other and nothing calls either, so neither is ever reached — the
         // reachability fixpoint must terminate and leave the escape hatch
         // shut, falling the `bar` call back to the global `::bar`.
@@ -3363,7 +3355,7 @@ mod tests {
 
     #[test]
     fn qualified_name_for_var_decl_does_not_double_prefix_a_literal_qualified_name() {
-        // TP — issue #923 idx 68: `handle_set_command`/`define_var` never
+        // TP: `handle_set_command`/`define_var` never
         // re-qualify a name they're given (`normalise_var_name` only strips
         // a `$`/`${…}` wrapper and an array index), so a literal `set
         // ::tolComp val` stores `VarDef::name == "::tolComp"` verbatim, not
@@ -3396,10 +3388,10 @@ mod tests {
 
     #[test]
     fn lookup_var_by_qualified_name_finds_a_literal_qualified_top_level_set() {
-        // TP — issue #923 idx 68's exact repro shape: a plain `set
-        // ::tolComp val` at global scope stores its key verbatim
-        // (`"::tolComp"`), which the bare-tail lookup alone (`base_name ==
-        // "tolComp"`) can never match; the literal-name fallback must.
+        // TP — a plain `set ::tolComp val` at global scope stores its key
+        // verbatim (`"::tolComp"`), which the bare-tail lookup alone
+        // (`base_name == "tolComp"`) can never match; the literal-name
+        // fallback must.
         let mut root = Scope::new(ScopeKind::Global, "::");
         root.variables
             .insert("::tolComp".to_string(), var("::tolComp", span(50, 60)));
@@ -3412,9 +3404,9 @@ mod tests {
 
     #[test]
     fn lookup_var_by_qualified_name_finds_an_unqualified_top_level_set() {
-        // TP — the other half of idx 68's repro: an *unqualified* `set
-        // tolComp val` at global scope stores the bare key `"tolComp"`,
-        // found by the existing tail-based lookup with no fallback needed.
+        // TP — the other half: an *unqualified* `set tolComp val` at global
+        // scope stores the bare key `"tolComp"`, found by the tail-based
+        // lookup with no fallback needed.
         let mut root = Scope::new(ScopeKind::Global, "::");
         root.variables
             .insert("tolComp".to_string(), var("tolComp", span(50, 60)));

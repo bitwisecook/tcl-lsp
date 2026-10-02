@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Deep-analysis complexity guard (Phase 6).
+//! Deep-analysis complexity guard.
 //!
 //! ## What the guard does
 //!
@@ -102,6 +102,7 @@ fn chain_cfg(n: usize) -> Function {
         } else {
             Terminator::Return {
                 value: None,
+                value_word: None,
                 span: None,
                 expr: None,
                 braced: false,

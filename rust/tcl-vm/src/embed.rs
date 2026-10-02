@@ -19,8 +19,8 @@
 //! The embedder surface: what a Rust host needs to run small Tcl bodies at
 //! rate, register commands of its own, and bound what a body may do.
 //!
-//! Everything here is issue #1373: the gaps `SpecTcl` hook benchmarking found in
-//! the VM's boundary, closed in the VM rather than shimmed around in the
+//! This module closes gaps `SpecTcl` hook benchmarking found in
+//! the VM's boundary, in the VM rather than shimmed around in the
 //! embedder.
 //!
 //! - **Call a function without a driver script.** [`Vm::invoke_command`] is
@@ -175,8 +175,8 @@ impl Vm {
     /// Run a pre-compiled body to completion in the current frame.
     ///
     /// The invoke-by-handle path: no compilation, no `FunctionAsm` clone, and
-    /// no driver script — the three costs an embedder previously paid per
-    /// call.
+    /// no driver script — the three costs an embedder would otherwise pay
+    /// per call.
     #[must_use]
     pub fn invoke_function(&mut self, handle: &FunctionHandle) -> Completion<Value> {
         if handle.state.borrow().owner_nonce != self.owner_nonce {

@@ -100,8 +100,8 @@ const SUBCOMMANDS: &[SubCommand] = &[SubCommand {
 /// `classify_side_effects` (`tcl-compiler/src/side_effects.rs`) would
 /// reach `my` only via the conservative unknown-write *fallback* at the
 /// very end of that function — stated explicitly instead, matching
-/// `next`/`nextto` (and `timerate`, audited the same way in
-/// `registry.rs`'s `timerate_registered_with_body_and_int_hint` test).
+/// `next`/`nextto` (and `timerate`, pinned to the same explicit-entry shape
+/// by `registry.rs`'s `timerate_registered_with_body_and_int_hint` test).
 /// This entry governs only the general `my methodName ...` case:
 /// `dialect_side_effect_hints` checks a matched subcommand's own
 /// `side_effects` first, so `my variable ...` is still classified by

@@ -18,12 +18,9 @@
 
 //! `http::geturl` command.
 //!
-//! **P5 (the adversarial-module walk).** `http::geturl` carried the
-//! taint facts and no option table at all — the deep dive's "the two
-//! command-prefix callbacks that are invisible today".  The table below
-//! is read out of `geturl`'s own `set options {…}` list and its callback
-//! invocation sites in `library/http/http.tcl`, across all four bundled
-//! reference trees:
+//! The table below is read out of `geturl`'s own `set options {…}` list and
+//! its callback invocation sites in `library/http/http.tcl`, across all four
+//! bundled reference trees:
 //!
 //! | Tcl tree | shipped `http` | option delta |
 //! |---|---|---|
@@ -275,8 +272,7 @@ mod tests {
     use super::*;
     use tcl_dialect::model::SpecSurface;
 
-    /// The four callbacks and their measured appended arities — the half
-    /// of `geturl` that was invisible before P5.
+    /// The four callbacks and their measured appended arities.
     #[test]
     fn the_callbacks_carry_their_measured_appended_arity() {
         let spec = spec();

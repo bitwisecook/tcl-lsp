@@ -17,18 +17,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! `tcl::mathfunc::*` and `::tcl::mathop::*` registration is **derived**, not
-//! typed (ledger row B3).
+//! typed.
 //!
-//! Before this, the VM hand-registered 37 math-function names and listed 27
-//! operator spellings in a `macro_rules!` invocation. The hand-typed function
-//! list had gone stale by the whole TIP 745 (Tcl 9.1) C99 batch — 21 names
-//! `tcl_syntax::expr::mathfunc::dispatch_with_backend` already implemented,
-//! and that `runtime/rust` (which derives its list) already registered, but
-//! that the VM never bound as commands. `expr {cbrt(27)}` was
-//! `invalid command name "tcl::mathfunc::cbrt"` under every pin, 9.1
-//! included.
+//! A hand-typed function/operator list drifts: it can miss an entire batch
+//! like TIP 745 (Tcl 9.1)'s C99 math functions even once
+//! `tcl_syntax::expr::mathfunc::dispatch_with_backend` and `runtime/rust`
+//! (which derives its own list) already support them, silently leaving
+//! `expr {cbrt(27)}` as `invalid command name "tcl::mathfunc::cbrt"` under
+//! every pin, 9.1 included.
 //!
-//! Both lists now come from layer 1 — `mathfunc::all()` and the
+//! Both lists come from layer 1 — `mathfunc::all()` and the
 //! `mathop_shape` of `expr::operators` — so this file is the drift gate in
 //! both directions plus the availability and value evidence.
 //!
@@ -103,8 +101,8 @@ const TIP745_BATCH: &[&str] = &[
 ];
 
 /// Drift gate: every name the shared table lists is registered as a command
-/// under a 9.1 pin. A name added to `mathfunc::all()` needs no VM edit — but
-/// a regression back to a hand-typed list fails here.
+/// under a 9.1 pin. A name added to `mathfunc::all()` needs no VM edit —
+/// but reverting to a hand-typed list fails here.
 #[test]
 fn every_shared_mathfunc_name_is_registered() {
     let names: Vec<&'static str> = tcl_syntax::expr::mathfunc::all()
@@ -120,7 +118,7 @@ fn every_shared_mathfunc_name_is_registered() {
     assert!(ok, "must not error: {out}");
     assert_eq!(out, "done", "unregistered math functions");
     // FP guard on the gate itself: the table is not trivially small, and it
-    // really does carry the batch the old list missed.
+    // really does carry the TIP 745 batch.
     assert!(names.len() >= 58, "shared table shrank: {}", names.len());
     for name in TIP745_BATCH {
         assert!(names.contains(name), "{name} left the shared table");
@@ -371,4 +369,152 @@ fn tclsh_output(bin_env: &str, names: &[&str], src: &str) -> Option<String> {
         return Some(String::from_utf8_lossy(&out.stdout).trim().to_string());
     }
     None
+}
+
+/// **`int` / `wide` / `entier` hand an already-integral operand back as the
+/// operand object** (#1936).
+///
+/// C's `ExprEntierFunc` returns the argument object itself when it is already
+/// an integer, so the result keeps the operand's own string rep rather than a
+/// regenerated decimal. `tclsh9.0.4` and `tclsh8.6.18`:
+///
+/// ```text
+/// % ::tcl::mathfunc::entier 0x10
+/// 0x10
+/// % ::tcl::mathfunc::wide 0x10
+/// 16
+/// ```
+///
+/// The VM converted through the shared numeric dispatch unconditionally and
+/// answered `16` for all three. The *width* half stays release-specific and
+/// still comes from `IntWidth`: `wide` always takes C's low-64-bit window, and
+/// `int` does too until 9.0 binds it to `entier`'s unbounded conversion — a
+/// windowing conversion has to build a new integer, so only the unbounded one
+/// can preserve the object.
+///
+/// `(function, operand, want under 8.6, want under 9.0)`, every value read off
+/// the real binaries with `puts [::tcl::mathfunc::F ARG]`.
+const INT_CONVERSION_VECTORS: &[(&str, &str, &str, &str)] = &[
+    // `int` is windowed until 9.0, so only 9.0 preserves the operand.
+    ("int", "0x10", "16", "0x10"),
+    ("int", "-0x10", "-16", "-0x10"),
+    ("int", "0xFFFFFFFFFFFFFFFFFF", "-1", "0xFFFFFFFFFFFFFFFFFF"),
+    (
+        "int",
+        "12345678901234567890123",
+        "4807115922877859019",
+        "12345678901234567890123",
+    ),
+    // A decimal operand has nothing to preserve: both releases print it back.
+    ("int", "16", "16", "16"),
+    // A *float* operand is genuinely converted, on every release.
+    ("int", "3.7", "3", "3"),
+    ("int", "1e3", "1000", "1000"),
+    // `wide` windows on every release, so it never preserves the operand.
+    ("wide", "0x10", "16", "16"),
+    ("wide", "-0x10", "-16", "-16"),
+    ("wide", "0xFFFFFFFFFFFFFFFFFF", "-1", "-1"),
+    (
+        "wide",
+        "12345678901234567890123",
+        "4807115922877859019",
+        "4807115922877859019",
+    ),
+    ("wide", "3.7", "3", "3"),
+    // `entier` is unbounded on every release, so it always preserves it.
+    ("entier", "0x10", "0x10", "0x10"),
+    ("entier", "-0x10", "-0x10", "-0x10"),
+    ("entier", "0b101", "0b101", "0b101"),
+    (
+        "entier",
+        "0xFFFFFFFFFFFFFFFFFF",
+        "0xFFFFFFFFFFFFFFFFFF",
+        "0xFFFFFFFFFFFFFFFFFF",
+    ),
+    (
+        "entier",
+        "12345678901234567890123",
+        "12345678901234567890123",
+        "12345678901234567890123",
+    ),
+    ("entier", "16", "16", "16"),
+    ("entier", "3.7", "3", "3"),
+    ("entier", "1e3", "1000", "1000"),
+];
+
+fn int_conversion_script(function: &str, operand: &str) -> String {
+    format!("puts [::tcl::mathfunc::{function} {operand}]\n")
+}
+
+#[test]
+fn integer_conversions_preserve_the_operand_object() {
+    for (function, operand, want_86, want_90) in INT_CONVERSION_VECTORS {
+        let src = int_conversion_script(function, operand);
+        for (version, want) in [(TclVersion::V8_6, want_86), (TclVersion::V9_0, want_90)] {
+            let (ok, out) = run_at(version, &src);
+            assert!(ok, "[{version:?}] {function} {operand} errored: {out}");
+            assert_eq!(out, *want, "[{version:?}] {function} {operand}");
+        }
+    }
+}
+
+/// Byte-compare every vector against the real `tclsh8.6` / `tclsh9.0`, which is
+/// what keeps [`INT_CONVERSION_VECTORS`] honest.
+#[test]
+fn integer_conversion_vectors_match_real_tclsh_when_available() {
+    let mut checked = 0usize;
+    for (version, env, bin) in [
+        (TclVersion::V8_6, "TCLSH86", "tclsh8.6"),
+        (TclVersion::V9_0, "TCLSH90", "tclsh9.0"),
+    ] {
+        let mut script = String::new();
+        for (function, operand, _, _) in INT_CONVERSION_VECTORS {
+            script.push_str(&int_conversion_script(function, operand));
+        }
+        let Some(out) = tclsh_output(env, &[bin], &script) else {
+            continue;
+        };
+        let lines: Vec<&str> = out.lines().collect();
+        assert_eq!(
+            lines.len(),
+            INT_CONVERSION_VECTORS.len(),
+            "line count: {out}"
+        );
+        for ((function, operand, want_86, want_90), got) in
+            INT_CONVERSION_VECTORS.iter().zip(&lines)
+        {
+            let want = if version == TclVersion::V8_6 {
+                want_86
+            } else {
+                want_90
+            };
+            assert_eq!(got, want, "{bin}: {function} {operand}");
+            checked += 1;
+        }
+    }
+    if checked == 0 {
+        eprintln!("no system tclsh 8.6/9.0 found — pinned expectations still verified");
+    }
+}
+
+/// The preservation is visible only through the *command* form: `expr` ends
+/// with C's `INST_TRY_CVT_TO_NUMERIC`, which regenerates the canonical decimal.
+/// tclsh 8.6.18 and 9.0.4 both print `16` for every line below, so the object
+/// path must not leak a preserved rep back out through `expr`.
+#[test]
+fn expr_canonicalises_a_preserved_integer() {
+    let src = concat!(
+        "set h 0x10\n",
+        "puts [expr {entier($h)}]\n",
+        "puts [expr {int($h)}]\n",
+        "puts [expr {wide($h)}]\n",
+        "set e {entier($h)}\n",
+        "puts [expr $e]\n",
+        "puts [expr [set e]]\n",
+    );
+    for version in [TclVersion::V8_6, TclVersion::V9_0] {
+        let (ok, out) = run_at(version, src);
+        assert!(ok, "[{version:?}] errored: {out}");
+        assert_eq!(out.lines().collect::<Vec<_>>(), ["16"; 5], "[{version:?}]");
+    }
 }

@@ -16,17 +16,15 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! End-to-end coverage for the issue #954 follow-up, against the real,
-//! packaged native server.
+//! End-to-end coverage for `apply` highlighting, against the real, packaged
+//! native server.
 //!
-//! The original #954 fix (merged as part of v2.1.11, `cb10e7c90`) corrected
-//! a bare-unbraced-parameter-list highlighting bug in `apply {dir {…}}`, but
-//! the issue was reopened: the reporter's actual screenshot was a
-//! pkgIndex.tcl-style `package ifneeded name ver [list apply {dir {…}} $dir]`
-//! entry — `apply` reached *indirectly* through the `[list …]`
-//! command-quoting idiom, a case the first fix never touched. This file
-//! exercises the real reported repro end-to-end, plus the closely related
-//! shapes the general (registry-driven) fix now also covers.
+//! A bare-unbraced-parameter-list highlighting fix for `apply {dir {…}}`
+//! does not by itself cover `apply` reached *indirectly* through the
+//! `[list …]` command-quoting idiom — for example a pkgIndex.tcl-style
+//! `package ifneeded name ver [list apply {dir {…}} $dir]` entry. This file
+//! exercises that indirect-`apply` shape end-to-end, plus the closely
+//! related shapes the general (registry-driven) fix also covers.
 
 use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};
@@ -155,8 +153,8 @@ fn test_after_idle_list_quoted_apply_body_highlights() {
 }
 
 /// `package ifneeded`'s script argument, as a *literal* braced script (no
-/// `[list …]` wrapper), must also recurse — the sibling half of the fix
-/// (the argument previously carried no `ArgRole` at all).
+/// `[list …]` wrapper), must also recurse — the sibling half of the fix,
+/// since an argument with no `ArgRole` at all would not recurse.
 #[test]
 fn test_pkgindex_literal_script_highlights() {
     let mut lsp = Lsp::tcl();
@@ -188,8 +186,8 @@ fn test_plain_data_list_is_not_split_as_lambda() {
     );
 }
 
-/// Direct (non-list-quoted) `apply` regression check — the original #954
-/// fix (bare unbraced param list) must still hold.
+/// Direct (non-list-quoted) `apply` regression check — the bare unbraced
+/// param list fix must still hold.
 #[test]
 fn test_direct_apply_bare_param_still_highlights() {
     let mut lsp = Lsp::tcl();

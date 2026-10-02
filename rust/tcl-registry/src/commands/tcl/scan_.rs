@@ -219,7 +219,15 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "scan",
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
-        traits: Traits::BYTE_COMPILED | Traits::FRAME_HASH_BUILTIN,
+        // The match / conversion path is the only one that writes: a failed
+        // `regexp`, and a `scan` or `binary scan` whose input runs out, leave
+        // each remaining target's previous value in place and never create a
+        // target that did not exist. Measured identical on tclsh 8.4.20,
+        // 8.5.19, 8.6.18, 9.0.4 and 9.1b0. Without this the store feeding one
+        // looked overwritten-before-read and O109 deleted it (#2051).
+        traits: Traits::BYTE_COMPILED
+            | Traits::FRAME_HASH_BUILTIN
+            | Traits::CONDITIONAL_VARIABLE_WRITE,
         arity: Arity::at_least(2),
         // Documented return is the int conversion count (`scan str fmt
         // var ...`). The inline `scan str fmt` form (folded by `fold_scan`)
@@ -233,7 +241,7 @@ pub fn spec() -> CommandSpec {
         // `scan` writes format-dependent conversions (`%d` → int, `%s` →
         // string, `%f` → double) to its targets while returning the *count*.
         // Without parsing the format the target intreps are unknown, so they
-        // must not be typed `Int` (issue #867).
+        // must not be typed `Int`.
         var_write_typing: VarWriteTyping::Destructured,
         const_fold: Some(fold_scan),
         hover: Some(HoverSnippet {
@@ -250,7 +258,7 @@ pub fn spec() -> CommandSpec {
         arg_role_resolver_roles: &[ArgRole::ScanFormat, ArgRole::VarWrite],
         // `scan`'s conversion string is the same printf-style mini-language
         // `format` writes; `scan_arg_roles` puts `ArgRole::ScanFormat` at the
-        // word (#1185).
+        // word.
         format_string_type: Some(FormatType::Sprintf),
         ..CommandSpec::DEFAULT
     }

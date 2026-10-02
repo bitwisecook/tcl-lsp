@@ -168,9 +168,9 @@ fn append_object_configuration(
     target: &TransitionSubject,
 ) {
     // The registry retains class-wide versus per-object configuration for LSP
-    // and future dispatch-chain reasoning. This first common state partition
-    // aliases both layers deliberately: proving them disjoint would require
-    // the class/object ownership graph, which executable IR does not yet carry.
+    // and dispatch-chain reasoning. This state partition aliases both layers
+    // deliberately: proving them disjoint would require the class/object
+    // ownership graph, which executable IR does not carry.
     let region = object_dispatch_region(&ObjectDispatchTarget::Named(target.clone()));
     push_intent(intents, commit, WorldStateIntentKind::Use, region.clone());
     push_intent(intents, commit, WorldStateIntentKind::Def, region);
@@ -205,7 +205,7 @@ fn append_object_copy(
         object_dispatch_region(&ObjectDispatchTarget::Named(source.clone())),
     );
     // Object command names and private namespace identities are deliberately
-    // distinct in TclOO. Until dispatch state carries the reverse mapping,
+    // distinct in TclOO, and dispatch state carries no reverse mapping, so
     // copying reads an unknown private variable partition rather than deriving
     // one from `source`'s spelling.
     push_intent(
@@ -251,8 +251,8 @@ fn append_object_destruction(
     push_intent(intents, commit, WorldStateIntentKind::Use, dispatch.clone());
     push_intent(intents, commit, WorldStateIntentKind::Def, dispatch);
     // The private namespace identity is owned by the object rather than
-    // derived from its public command spelling. Until dispatch state carries
-    // that reverse mapping, destruction invalidates both private partitions.
+    // derived from its public command spelling, and dispatch state carries no
+    // reverse mapping, so destruction invalidates both private partitions.
     for kind in [
         WorldRegionKind::NamespaceLookup,
         WorldRegionKind::VariableStore,
@@ -456,7 +456,7 @@ fn append_interpreter_deletion(
         WorldRegion::InterpreterWildcard { interpreter: scope },
     );
     // Any surviving interpreter can retain an alias whose target was the
-    // deleted child. Reverse alias edges are not yet a state topology.
+    // deleted child, and the state topology carries no reverse alias edges.
     push_intent(
         intents,
         commit,
@@ -827,10 +827,9 @@ fn trace_region(kind: WorldRegionKind, subject: &TransitionSubject) -> WorldRegi
 fn object_dispatch_region(target: &ObjectDispatchTarget) -> WorldRegion {
     let subject = match target {
         ObjectDispatchTarget::Named(subject) => subject_scope(subject),
-        // A generated object is fresh, but the invocation facts do not yet
-        // carry a CFG-site identity.  Retain the lifecycle transition while
-        // conservatively overlapping every object until that identity is
-        // threaded through executable IR.
+        // A generated object is fresh, but the invocation facts carry no
+        // CFG-site identity for it.  The lifecycle transition is retained
+        // while conservatively overlapping every object.
         ObjectDispatchTarget::Fresh => WorldSubjectScope::Wildcard,
     };
     WorldRegion::scoped(
@@ -1980,9 +1979,9 @@ mod tests {
 
     #[test]
     fn on_ok_transition_is_not_serialised_as_an_unconditional_world_write() {
-        // `proc` declares both a legacy command-table/side-effect write and
-        // an exact OnOkOnly transition. The registry coverage contract makes
-        // the latter authoritative, so the definition appears only on the
+        // `proc` declares both a command-table side-effect write and an
+        // exact OnOkOnly transition. The registry coverage contract makes the
+        // latter authoritative, so the definition appears only on the
         // ordinary completion edge.
         let function = switch_function(&["proc", "made", "", ""], false);
         let mut planner = Planner::new(&function).expect("small CFG fits");

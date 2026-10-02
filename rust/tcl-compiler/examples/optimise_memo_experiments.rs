@@ -16,9 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Experiments to decide whether a per-procedure `optimise_unit` memo (backlog
-//! #2) is worth building.  Run: `cargo run --release -p tcl-compiler --example
-//! optimise_memo_experiments` (reads the `tmp/` corpus).
+//! Measures what a per-procedure `optimise_unit` memo could save.  Run:
+//! `cargo run --release -p tcl-compiler --example optimise_memo_experiments`
+//! (reads the `tmp/` corpus).
 //!
 //! Three measurements per file:
 //! - **E1 savings ceiling** — `optimise_unit` time (the most a per-proc memo
@@ -109,7 +109,7 @@ fn main() {
         gather(&root.join(v), &mut corpus, 400);
     }
 
-    // ---- Per-file detail for the named files ----
+    // Per-file detail for the named files.
     println!("== E1 (savings ceiling) + E3 (key cost), named files ==");
     for path in &files {
         let Ok(src) = std::fs::read_to_string(path) else {
@@ -141,7 +141,7 @@ fn main() {
         );
     }
 
-    // ---- E2 (memo hit rate) over the corpus sample ----
+    // E2 (memo hit rate) over the corpus sample.
     println!("\n== E2 (interproc stability under per-proc body edits) ==");
     files.extend(corpus);
     let mut total_edits = 0usize;

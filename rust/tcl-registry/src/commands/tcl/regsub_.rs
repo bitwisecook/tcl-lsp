@@ -66,8 +66,8 @@ fn regsub_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
         }
     };
     // The regular expression itself — the leading-option shift means a static
-    // slot cannot place it, which is why the LSP used to re-scan the options
-    // itself (issue #1185).
+    // slot cannot place it, so this resolver walks the leading options to
+    // find it.
     push(&mut roles, i, ArgRole::Pattern);
     // The replacement template, whose `\&` / `\N` backreferences are the
     // `FormatType::Regsub` mini-language.  With `-command` the same position
@@ -192,7 +192,9 @@ pub fn spec() -> CommandSpec {
         name: "regsub",
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         byte_array_effect: ByteArrayEffect::Coerces,
-        traits: Traits::BYTE_COMPILED | Traits::FRAME_HASH_BUILTIN,
+        traits: Traits::BYTE_COMPILED
+            | Traits::FRAME_HASH_BUILTIN
+            | Traits::UNCONDITIONAL_VARIABLE_WRITE,
         // Positional floor/ceiling — `exp`, `string`, `subSpec` required
         // (3), optional `varName` (4). Confirmed identical in the fetched
         // 8.4, 8.5, 8.6, 9.0, and 9.1 manpages' `regsub ?switches? exp
@@ -218,7 +220,7 @@ pub fn spec() -> CommandSpec {
         // while returning the replacement *count*.  The result is always a
         // string (not a format-/element-dependent piece like `scan`/`lassign`),
         // so type it `String` — that keeps real string-in-arithmetic shimmer
-        // diagnostics while avoiding the old bogus `Int` (issue #867).
+        // diagnostics while avoiding a bogus `Int`.
         var_write_typing: VarWriteTyping::Fixed(TclType::String),
         // A result target exists only after exp, string, and subSpec. Leading
         // switches can consume more argv words but cannot make the optional

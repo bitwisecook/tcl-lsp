@@ -16,9 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! End-to-end coverage for the diagnostics precision review: tight ranges,
-//! did-you-mean suggestions and their quick fixes, and the false-positive
-//! classes the review eliminated.  Each area carries its TP (fires), FP
+//! End-to-end coverage for diagnostics precision: tight ranges,
+//! did-you-mean suggestions and their quick fixes, and false-positive
+//! classes that must stay eliminated.  Each area carries its TP (fires), FP
 //! guard (must not fire), and — where a fix exists — the fix payload.
 
 use crate::common::{Lsp, unique_uri};
@@ -55,12 +55,12 @@ fn message_of(d: &Value) -> String {
     d["message"].as_str().unwrap_or_default().to_owned()
 }
 
-// -- W123 / rename resolution ---------------------------------------------
+// W123 / rename resolution.
 
 /// FP guard: `rename OLD NEW` binds NEW — calling the renamed name is not an
 /// unknown command. TP control: the vacated OLD name draws both W128 (the
 /// specific "renamed or deleted" hint) and W123 (the generic "unknown
-/// command" — issue #973: confirmed against tclsh 8.6.14 that `rename
+/// command" — confirmed against tclsh 8.6.14 that `rename
 /// user_args ua2` really does make a later `user_args` call fail "invalid
 /// command name", the same as any other unresolved command).
 #[test]
@@ -130,16 +130,16 @@ fn renamed_away_builtin_fires_w123_only_after_the_rename() {
     );
 }
 
-// -- Issue #1010: known-command checks gated on deletion -------------------
+// Known-command checks gated on deletion.
 //
-// Four `var_command.rs` "is this a known command" checks had no deletion
-// gate at all (the pre-#973 shape): interpolated-W123 resolution, W307
-// dynamic-dispatch suppression, dispatch-table reference synthesis, and
-// constructor object-typing. Each is confirmed against tclsh 8.6.14.
+// Four `var_command.rs` "is this a known command" checks must each gate on
+// deletion: interpolated-W123 resolution, W307 dynamic-dispatch
+// suppression, dispatch-table reference synthesis, and constructor
+// object-typing. Each is confirmed against tclsh 8.6.14.
 
 /// TP: an interpolated command head (`do${suffix}`) folding to a proc
-/// renamed away with no re-establishment must keep its W123 — this
-/// closure used to delete an already-correct W123 outright.
+/// renamed away with no re-establishment must keep its W123 — the check
+/// must not delete an already-correct W123 outright.
 #[test]
 fn interpolated_head_folding_to_a_deleted_proc_keeps_w123() {
     let mut lsp = Lsp::tcl();
@@ -214,7 +214,7 @@ fn constructor_of_a_deleted_class_does_not_draw_misleading_w308() {
     );
 }
 
-/// TP (issue #1013): the `set x [Cls new]` shape reaches the same
+/// TP: the `set x [Cls new]` shape reaches the same
 /// misleading W308 through the SSA type lattice rather than the direct
 /// constructor recognition, so it needs its own end-to-end guard.
 /// tclsh8.6/9.0 fail the constructor itself with `invalid command name
@@ -313,7 +313,7 @@ fn namespace_import_glob_suppresses_only_matching_names() {
     );
 }
 
-// -- W210 nested-read narrowing + cross-event suppression ------------------
+// W210 nested-read narrowing + cross-event suppression.
 
 /// The read-before-set squiggle sits on the `$foo` read nested inside the
 /// command substitution, not on the whole `set` command.
@@ -356,7 +356,7 @@ fn w210_silent_on_cross_event_read_but_fires_on_undefined() {
     );
 }
 
-// -- W308 method word + suggestion + fix -----------------------------------
+// W308 method word + suggestion + fix.
 
 const OO_SRC: &str = "oo::class create Animal {\n    method speak {} { return woof }\n}\nset a [Animal new]\n$a spek\n";
 
@@ -396,7 +396,7 @@ fn w308_no_far_suggestion() {
     );
 }
 
-// -- E003 surplus-argument anchoring + removal fix --------------------------
+// E003 surplus-argument anchoring + removal fix.
 
 /// The too-many-arguments squiggle covers only the surplus run — for a
 /// same-file proc resolved at flush time as much as for a registry command.
@@ -416,7 +416,7 @@ fn e003_range_covers_surplus_run_for_proc_and_builtin() {
     assert_eq!(range_of(d2), (0, 18, 0, 25));
 }
 
-// -- W124 literal anchoring --------------------------------------------------
+// W124 literal anchoring.
 
 /// The invalid-IP squiggle covers the literal itself, not the whole `set`.
 #[test]
@@ -429,7 +429,7 @@ fn w124_range_is_tight_on_the_literal() {
     assert_eq!(range_of(d), (0, 7, 0, 17));
 }
 
-// -- after: registry default-form first word ---------------------------------
+// After: registry default-form first word.
 
 /// `after <ms>` selects the default form for every Tcl integer spelling —
 /// including the radix forms the old decimal-only check rejected — while a
@@ -453,7 +453,7 @@ fn after_integer_first_word_is_not_a_subcommand() {
     );
 }
 
-// -- W120 guarded package require --------------------------------------------
+// W120 guarded package require.
 
 /// The guarded-optional-dependency idiom satisfies W120; an unguarded use
 /// still fires.
@@ -478,7 +478,7 @@ fn w120_silent_on_guarded_require_fires_without() {
     );
 }
 
-// -- TK1003 pair-aware option scan -------------------------------------------
+// TK1003 pair-aware option scan.
 
 /// The unknown-option hint anchors on the offending word with a suggestion;
 /// option *values* starting with `-` and legal unique-prefix abbreviations
@@ -506,7 +506,7 @@ fn tk1003_tight_anchor_suggestion_and_fp_guards() {
     );
 }
 
-// -- IRULE3102 single ownership ----------------------------------------------
+// IRULE3102 single ownership.
 
 /// Exactly one IRULE3102 per getter site, anchored on the getter word.
 #[test]
@@ -527,7 +527,7 @@ fn irule3102_fires_once_with_tight_anchor() {
     assert_eq!(range_of(hits[0]), (1, 11, 1, 20));
 }
 
-// -- W127 did-you-mean fix -----------------------------------------------------
+// W127 did-you-mean fix.
 
 /// The invalid-enum-value warning names the closest allowed value.
 #[test]
@@ -543,7 +543,7 @@ fn w127_suggests_closest_allowed_value() {
     );
 }
 
-// -- tclpkg manifest environment ----------------------------------------------
+// tclpkg manifest environment.
 
 /// A `tclpkg.tcl` manifest resolves its directives against the registry's
 /// whole-file environment: no unknown-command / package noise, while a
@@ -569,7 +569,7 @@ fn tclpkg_manifest_directives_resolve() {
     );
 }
 
-// -- S102 intra-iteration thunking ---------------------------------------------
+// S102 intra-iteration thunking.
 
 /// The textbook oscillation fires even though the loop-header type is
 /// consistent; the hardened single-representation loop stays silent.
@@ -597,7 +597,7 @@ fn s102_intra_iteration_oscillation_matrix() {
     );
 }
 
-// -- Review 2: tight ranges for S100/S101, W313, W110; I230 fidelity --------
+// Tight ranges for S100/S101, W313, W110; I230 fidelity.
 
 /// The S100 expression-shimmer squiggle sits on the offending operand
 /// (`$x` inside the braced expr), not on the whole `set` statement.

@@ -47,7 +47,7 @@
 //! `callback` gets only the core entry — `ooutil` does not provide that
 //! spelling, and under 8.6 the name reaches only a hand-rolled "`TclOO` Tricks"
 //! wiki helper, i.e. an ordinary user `proc` the workspace index resolves on
-//! its own (issue #923 audit, `ticklecharts` idx 51).
+//! its own (`ticklecharts` idx 51).
 //!
 //! **Scope.** Both are [`Traits::TCLOO_METHOD_CONTEXT`] *and*
 //! [`Traits::TCLOO_REQUIRES_METHOD_FRAME`], on the same evidence as `link` /
@@ -168,7 +168,7 @@ mod tests {
     use super::*;
     use tcl_dialect::model::SpecSurface;
 
-    /// The version dimension of issue #923's `ticklecharts` idx 51: a bare
+    /// The version dimension of `ticklecharts` idx 51: a bare
     /// `callback` in a method body is a genuine core command on 9.0+ and a
     /// genuinely unknown one on 8.6 (where `ticklecharts` supplies its own
     /// `proc ::oo::Helpers::callback` behind a `package vcompare` guard).

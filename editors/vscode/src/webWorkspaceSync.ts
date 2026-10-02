@@ -132,7 +132,7 @@ const NON_SOURCE_GLOBS = [
  * The first is the `workspaceContains:` activation glob, which
  * `cargo xtask gen-vscode-package` generates from
  * `tcl_registry::dialects::TCL_SOURCE_EXTENSIONS` — the very list the server
- * indexes and watches (issue #1242), already case-folded per character so it
+ * indexes and watches, already case-folded per character so it
  * matches `UPPER.TCL` on Linux too. Deriving from it rather than restating it
  * is what keeps the web host's view of "a file the server cares about"
  * identical to the server's own, with no second list to drift.

@@ -199,6 +199,37 @@ must preserve literal, template, expansion, variable, command-substitution,
 and backslash-substitution components in evaluation order. Backends must not
 independently reparse argument strings.
 
+### Compiled local-name selection
+
+The value of a static word is not sufficient to select a local-variable
+opcode. `registry_invocation::compiled_local_name_word` is the compiler's
+source-form classifier for that decision. Plain literals, braced literals, and
+quoted text without backslash processing may use a direct local slot. A bare
+word containing a backslash, even when it decodes to the same value, uses the
+stack form; variable and command substitutions, expansion, opaque words, and
+templates with backslash processing do too. For example, `{p\\x75b}` names the
+literal variable `p\\x75b`, while bare `p\\x75b` decodes before lookup and must
+not intern `pub` in a procedure's local-variable table.
+
+When an eligible word reaches an opcode emitter,
+`registry_invocation::compiled_local_name_value` supplies its evaluated
+literal value from that same source fact. Emitters must not reuse the flattened
+argument spelling: `{{zz}}` has the variable name `{zz}`, after its outer
+grouping braces are removed.
+
+The executable statement path carries `CommandTokens` to the registered
+codegen hook so it can apply that classifier. For a whole-word nested command
+substitution, `word_subst::whole_word_command_tokens` recovers that command's
+words through the canonical segmenter from the enclosing `WordExpr`; the value
+emitter may use the snapshot only after its argv values align with its existing
+compatibility parse. This lets nested `info exists` and `array exists` select
+the same local slot as their statement forms without treating a decoded bare
+escape as a literal name. A compatibility path with only flattened command
+text preserves its established generic emission; it must not recover
+provenance from string contents. `return` carries its canonical value
+`WordExpr` through its CFG terminator for the same bridge; transforms that
+rewrite that value clear the snapshot and therefore retain generic emission.
+
 A `ResolvedInvocation` retains both the original words and the registry's
 semantic resolution:
 

@@ -19,14 +19,13 @@
 //! `TclOO` dispatch resolution shared by go-to-definition, hover, and
 //! find-references.
 //!
-//! Three providers used to answer "which implementation does this `$obj m`
-//! / `my m` call reach?" three different ways: `definition.rs` walked the
-//! full method-resolution order (superclasses *and* mixins, C-faithfully),
-//! while `hover.rs` and `references.rs` each looked the method up only on
-//! the receiver's own class and gave up on a miss. The result was that a
+//! One walk answers "which implementation does this `$obj m` / `my m` call
+//! reach?" for all three.  Answering it per provider drifts: a full
+//! method-resolution order (superclasses *and* mixins, C-faithfully) in one,
+//! a lookup on the receiver's own class in the others.  The result is that a
 //! method reached through a `mixin` or a `superclass` had working
 //! go-to-definition but no hover and no references at the identical cursor
-//! position (issue #923 idx 28 / 34 / 35).
+//! position.
 //!
 //! This module owns **one** walk — [`method_dispatch_provider`] — and the
 //! three features are thin renderings of its answer, so they cannot drift
@@ -34,18 +33,17 @@
 //! linearisation: `O(chain length)`, no fixpoint.
 //!
 //! It also owns the `TclOO` **frame** classifier ([`OoFrame`]), the
-//! LSP-side half of issue #1026's scoping rule for the `oo::Helpers`
-//! family.
+//! LSP-side half of the scoping rule for the `oo::Helpers` family.
 
 use tcl_compiler::analyser::{AnalysisResult, MethodDef};
 use tcl_registry::CommandRegistry;
 
 use crate::definition::MethodBucket;
 
-/// What kind of `TclOO` frame a cursor sits in — the LSP-side half of issue
-/// #1026's scoping rule, and the one place the question is asked.
+/// What kind of `TclOO` frame a cursor sits in — the LSP-side half of the
+/// `oo::Helpers` scoping rule, and the one place the question is asked.
 ///
-/// Two facts, because real Tcl keeps them apart (Codex review of PR #1084):
+/// Two facts, because real Tcl keeps them apart:
 ///
 /// * `resolves` — the frame's namespace path reaches `::oo::Helpers` (and
 ///   the object's own namespace, home of `my`), so the family's bare

@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 // Editor-level coverage for registry-driven TclOO factory inference:
-// Tk-style unknown dispatch (#1303), unopened factory files (#1304), and a
-// metaclass name resolved from a literal proc call (#1306).
+// Tk-style unknown dispatch, unopened factory files, and a
+// metaclass name resolved from a literal proc call.
 
 import * as assert from "assert";
 import * as vscode from "vscode";

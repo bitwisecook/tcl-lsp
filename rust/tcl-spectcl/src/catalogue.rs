@@ -33,7 +33,7 @@
 
 use std::sync::LazyLock;
 
-use tcl_dialect::model::SpecSurface;
+use tcl_dialect::model::{EnvironmentRegistry, SpecSurface};
 use tcl_registry::side_effects::SideEffectTarget;
 use tcl_registry::taint::{TaintColour, TaintColourAtom};
 use tcl_registry::traits::{Trait, Traits};
@@ -66,6 +66,10 @@ pub const ARG_ROLES: &[Variant] = &[
     v("VarRead", "names a variable the command reads"),
     v("LoopVarList", "loop variable list (foreach / lmap)"),
     v("ParamList", "procedure parameter list"),
+    v(
+        "StaticVarList",
+        "procedure static-variable list (`proc name args statics body`)",
+    ),
     v("Name", "symbolic name (proc, namespace, class)"),
     v("Pattern", "glob or regex pattern"),
     v("Option", "option flag word"),
@@ -212,6 +216,13 @@ pub const PATTERN_TYPES: &[Variant] = &[
 pub const TAINT_TRANSFORM_CONDITIONS: &[Variant] = &[v(
     "MappingDeletesCrlf",
     "the call's braced mapping provably deletes every CR and LF (`string map`)",
+)];
+
+/// [`TaintNumericCoercion`] — which of a call's argument words the command
+/// reads as numbers (a T100 numeric-coercion sink).
+pub const TAINT_NUMERIC_COERCIONS: &[Variant] = &[v(
+    "IntegerModeOperands",
+    "with `-integer`, the subject and inline patterns are wide integers (`switch -integer`)",
 )];
 
 /// [`FormatType`] — the format-string language a format argument uses.
@@ -414,7 +425,7 @@ pub static TAINT_COLOURS: LazyLock<Vec<Variant>> = LazyLock::new(|| {
 /// Canonical dialect name ↔ its surface rows — the vocabulary
 /// [`DIALECTS`] and [`dialect_surface`] both read.
 ///
-/// The names are the catalogue's own dialect ids, so a draft round-trips
+/// The names are the environments' canonical ids, so a draft round-trips
 /// through the registry's vocabulary rather than a parallel spelling. The EDA
 /// shells are deliberately absent, being a base Tcl version plus
 /// package-gated command libraries rather than surfaces of their own.
@@ -435,30 +446,23 @@ const DIALECT_SURFACES: &[(&str, &[SpecSurface])] = &[
     ("sslictcl", SpecSurface::SSLICTCL),
 ];
 
-/// Labels for the bits with no profile in the dialect catalogue. `tk` is the
-/// only one: it is a library pin rather than a selectable profile, so
-/// `DialectProfile::find` never resolves it.
-const BIT_ONLY_LABELS: &[(&str, &str)] = &[("tk", "Tk")];
+/// The display name of the selectable environment `name` (`tk` included), or
+/// `name` itself when no selectable environment carries it.
+fn environment_label(name: &'static str) -> &'static str {
+    EnvironmentRegistry::compiled_selectable()
+        .iter()
+        .find(|environment| environment.id.as_str() == name)
+        .map_or(name, |environment| environment.display_name.as_ref())
+}
 
 /// Surface rows, by canonical dialect name.
 ///
-/// Labelled from the dialect catalogue, so a profile's display name is the one
-/// the studio's picker shows and renaming a dialect renames it here too.
+/// Labelled from the selectable environments, so an environment's display name
+/// is the one the studio's picker shows and renaming it renames it here too.
 pub static DIALECTS: LazyLock<Vec<Variant>> = LazyLock::new(|| {
     DIALECT_SURFACES
         .iter()
-        .map(|(name, _)| {
-            let label = crate::environment::catalogue_profile_for_dialect(name).map_or_else(
-                || {
-                    BIT_ONLY_LABELS
-                        .iter()
-                        .find(|(bit, _)| bit == name)
-                        .map_or(*name, |(_, label)| *label)
-                },
-                |profile| profile.display_name,
-            );
-            v(name, label)
-        })
+        .map(|&(name, _)| v(name, environment_label(name)))
         .collect()
 });
 
@@ -578,7 +582,7 @@ mod tests {
     use tcl_registry::patterns::{FormatType, PatternType};
     use tcl_registry::side_effects::{ConnectionSide, SideEffectTarget, StorageType};
     use tcl_registry::symbol_def::DefinedSymbolKind;
-    use tcl_registry::taint::TaintTransformCondition;
+    use tcl_registry::taint::{TaintNumericCoercion, TaintTransformCondition};
     use tcl_registry::types::TclType;
 
     /// Witness that [`ARG_ROLES`] covers every [`ArgRole`].
@@ -593,6 +597,7 @@ mod tests {
             | ArgRole::VarRead
             | ArgRole::LoopVarList
             | ArgRole::ParamList
+            | ArgRole::StaticVarList
             | ArgRole::Name
             | ArgRole::Pattern
             | ArgRole::Option
@@ -731,6 +736,11 @@ mod tests {
                 TaintTransformCondition::MappingDeletesCrlf => true,
             }
         }
+        fn numeric_coercion(k: TaintNumericCoercion) -> bool {
+            match k {
+                TaintNumericCoercion::IntegerModeOperands => true,
+            }
+        }
         fn format(k: FormatType) -> bool {
             match k {
                 FormatType::Sprintf
@@ -769,6 +779,7 @@ mod tests {
             && command_table(CommandTableEffect::DefinesProcedure)
             && pattern(PatternType::Glob)
             && transform_condition(TaintTransformCondition::MappingDeletesCrlf)
+            && numeric_coercion(TaintNumericCoercion::IntegerModeOperands)
             && format(FormatType::Sprintf)
             && form(FormKind::Default)
             && symbol(DefinedSymbolKind::Test)
@@ -932,6 +943,7 @@ mod tests {
             COMMAND_TABLE_EFFECTS,
             PATTERN_TYPES,
             TAINT_TRANSFORM_CONDITIONS,
+            TAINT_NUMERIC_COERCIONS,
             FORMAT_TYPES,
             FORM_KINDS,
             DEFINED_SYMBOL_KINDS,
@@ -1016,23 +1028,24 @@ mod tests {
         }
     }
 
+    /// Every studio dialect row names a selectable environment and carries its
+    /// display name: the rows are a surface vocabulary, so they are a subset of
+    /// the selectable set (the tool shells and `jim` have no surface rows), and
+    /// the labels are read from it.
     #[test]
-    fn dialect_labels_come_from_the_profile_catalogue() {
+    fn every_runtime_enumeration_is_the_registry() {
+        let selectable = EnvironmentRegistry::compiled_selectable();
         for entry in DIALECTS.iter() {
-            let expected = crate::environment::catalogue_profile_for_dialect(entry.key)
-                .map_or_else(
-                    || {
-                        BIT_ONLY_LABELS
-                            .iter()
-                            .find(|(bit, _)| *bit == entry.key)
-                            .unwrap_or_else(|| {
-                                panic!("{} has neither a profile nor a label", entry.key)
-                            })
-                            .1
-                    },
-                    |profile| profile.display_name,
-                );
-            assert_eq!(entry.doc, expected, "{} is mislabelled", entry.key);
+            let environment = selectable
+                .iter()
+                .find(|environment| environment.id.as_str() == entry.key)
+                .unwrap_or_else(|| panic!("{} is not a selectable environment", entry.key));
+            assert_eq!(
+                entry.doc,
+                environment.display_name.as_ref(),
+                "{} is mislabelled",
+                entry.key
+            );
         }
     }
 

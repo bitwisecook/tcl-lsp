@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Keyword-abbreviation resolution over the **real** registry tables (#1231).
+//! Keyword-abbreviation resolution over the **real** registry tables.
 //!
 //! The unit tests in `tcl_registry::abbrev` pin the algorithm against
 //! hand-written tables; these pin it against what the registry actually

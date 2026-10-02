@@ -150,8 +150,8 @@ pub(super) fn emit_class(
 /// A **computed** parameter-list word (`proc p [makeargs] {…}`,
 /// `proc q $params {…}`) records no parameters and sets
 /// [`SignatureProc::params_computed`], so the cross-file arity check abstains
-/// instead of demanding the one bogus argument the unresolved word used to
-/// look like (issue #1107). The literalness rule is the shared
+/// instead of counting the unresolved word as one bogus parameter.
+/// The literalness rule is the shared
 /// [`super::params::param_word_is_literal`], so this tier and the analyser
 /// tier cannot disagree.
 pub(super) fn handle_proc(
@@ -161,22 +161,35 @@ pub(super) fn handle_proc(
     ns_prefix: &str,
     ctx: &mut ScanCtx,
 ) {
-    if texts.len() < 4 {
+    // The name, parameter list and body words are the definer's own role
+    // data (a definer that takes a static-variable list puts the body one
+    // word later). `texts` and `argv` carry the head at 0, so each index is
+    // one past the role's index over the words after the head.
+    let words = texts
+        .first()
+        .zip(ctx.registry)
+        .and_then(|(head, registry)| {
+            let arg_words: Vec<&str> = texts[1..].iter().map(String::as_str).collect();
+            registry.procedure_definition_words(head, &arg_words)
+        })
+        .unwrap_or(tcl_registry::ProcedureWords::TCL_PROC);
+    let (name_at, params_at, body_at) = (words.name + 1, words.params + 1, words.body + 1);
+    if texts.len() <= name_at.max(params_at).max(body_at) {
         return;
     }
-    let raw_name = &texts[1];
+    let raw_name = &texts[name_at];
     let qualified = qualify(ns_prefix, raw_name);
     let simple = qualified.rsplit("::").next().unwrap_or("").to_string();
-    let name_range = argv[1].span;
-    let body_range = argv[3].span;
+    let name_range = argv[name_at].span;
+    let body_range = argv[body_at].span;
     let params_computed = !super::params::param_word_is_literal(
-        argv[2].kind,
-        single_token_word.get(2).copied().unwrap_or(true),
+        argv[params_at].kind,
+        single_token_word.get(params_at).copied().unwrap_or(true),
     );
     let params = if params_computed {
         Vec::new()
     } else {
-        parse_param_list(&texts[2], ctx.rules)
+        parse_param_list(&texts[params_at], ctx.rules)
     };
     let param_names: Vec<String> = params.iter().map(|p| p.name.clone()).collect();
     ctx.result.procs.insert(
@@ -194,7 +207,7 @@ pub(super) fn handle_proc(
         Some((parent, _)) => parent.trim_start_matches(':').to_string(),
         None => String::new(),
     };
-    let body_text = texts[3].clone();
+    let body_text = texts[body_at].clone();
     ctx.proc_bodies.push(ProcBodyInfo {
         qname: qualified,
         params: param_names,
@@ -204,12 +217,12 @@ pub(super) fn handle_proc(
     // Walk the proc body for factory-wrapper candidate calls.
     // Only braced bodies can be statically scanned; substituted
     // bodies (`$body`, `[gen_body]`) cannot be re-segmented.
-    if argv[3].kind == TokenType::Str {
-        super::walker::scan_factory_candidates(&body_text, argv[3], &body_ns, ctx);
+    if argv[body_at].kind == TokenType::Str {
+        super::walker::scan_factory_candidates(&body_text, argv[body_at], &body_ns, ctx);
     }
 }
 
-/// Handler for `tcl::OptProc NAME OPTLIST BODY` (issue #923 idx 90).
+/// Handler for `tcl::OptProc NAME OPTLIST BODY`.
 ///
 /// Mirrors [`handle_proc`] exactly except for the recorded parameter
 /// list: the `opt` package's runtime always installs a plain `args`
@@ -304,12 +317,12 @@ pub(super) fn handle_namespace_eval(
 }
 
 /// Handler for `namespace forget ?PATTERN…?` — the removal half of the
-/// import edge's lifecycle log (issue #1103).
+/// import edge's lifecycle log.
 ///
 /// The scanner-side twin of `Analyser::handle_namespace_forget_command`; see
 /// that function and
 /// [`crate::signature_scan::types::SignatureNamespaceForget`] for the
-/// semantics and the oracle. Dynamic patterns are skipped (revoking an alias
+/// semantics. Dynamic patterns are skipped (revoking an alias
 /// on a guess would silently drop real references).
 pub(super) fn handle_namespace_forget(
     texts: &[String],
@@ -376,7 +389,7 @@ pub(super) fn handle_namespace_import(
         format!("::{ns_prefix}")
     };
     // Which leading words are options, and how many are consumed, is registry
-    // data — not the `-force` string match this loop used to carry. That the
+    // data, not a `-force` string match. That the
     // option word *was* consumed is exactly "`-force` was given", since
     // `IMPORT_OPTIONS` declares one option and `max_leading_option_words`
     // caps it at one.
@@ -411,8 +424,8 @@ pub(super) fn handle_namespace_import(
 ///
 /// Records a `SignaturePackageRequire`: the optional `-exact` flag is
 /// captured on the record's `exact` field (it turns the version into
-/// the degenerate range `V-V`, which selects a different release —
-/// issue #1090), and every alternative requirement is captured when present.
+/// the degenerate range `V-V`, which selects a different release), and every
+/// alternative requirement is captured when present.
 /// The subcommand word resolves through the registry's ensemble rule,
 /// so C Tcl's accepted abbreviation (`package req Tcl`) records the
 /// requirement too.
@@ -712,6 +725,21 @@ pub(super) fn handle_itcl_class(
     emit_class(&texts[1], argv[1], argv[2], ns_prefix, result);
 }
 
+/// Record a Jim `class NAME ?BASES? VARS` as a class so `NAME new` types the
+/// receiving variable `OBJECT(NAME)`. The variable dictionary, which stands in
+/// for the body, is the last word.
+pub(super) fn handle_jim_class(
+    texts: &[String],
+    argv: &[Token],
+    ns_prefix: &str,
+    result: &mut SignatureScanResult,
+) {
+    if texts.len() < 3 || argv.len() != texts.len() {
+        return;
+    }
+    emit_class(&texts[1], argv[1], argv[argv.len() - 1], ns_prefix, result);
+}
+
 /// Record a snit type/widget/widgetadaptor as a class so its instance-creating
 /// constructor (`Name create obj` / `Name %AUTO%`) types the receiving variable
 /// `OBJECT(Name)`.  Same `DEFINER Name Body` shape as itcl.
@@ -923,7 +951,7 @@ mod tests {
 
     /// The consumed leading option word *is* `-force`, read from the
     /// registry's own `IMPORT_OPTIONS` + `max_leading_option_words` rather
-    /// than matched by name (issue #1103).
+    /// than matched by name.
     #[test]
     fn handle_namespace_import_records_the_force_flag() {
         let texts = vec![
@@ -1179,7 +1207,7 @@ mod tests {
         assert_eq!(req.version.as_deref(), Some("8.6"));
         assert_eq!(req.range, Span::new(23, 26));
         // TP — the flag is recorded, not dropped: without it the resolver
-        // reads `8.6` as `[8.6, 9)` and can pick 8.6.14 (issue #1090).
+        // reads `8.6` as `[8.6, 9)` and can pick 8.6.14.
         assert!(req.exact);
     }
 

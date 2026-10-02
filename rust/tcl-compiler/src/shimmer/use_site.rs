@@ -209,23 +209,22 @@ impl LoopFacts {
     ///
     /// This reads a statement's arguments, and it must read them by the rules
     /// the *emitting* passes use, or its answer disagrees with theirs about the
-    /// same code. Two rules were missing (issue #1851):
+    /// same code. Two rules matter:
     ///
     /// - **Nested substitutions count.** `puts [list [llength $x]]` converts
     ///   `x` to a list exactly as `llength $x` does — Tcl runs the inner
-    ///   command either way. Walking only the flat argument text saw the single
-    ///   word `[list [llength $x]]`, recorded nothing, and left `use_targets`
-    ///   short of the two distinct targets `effective_in_loop` needs, so a
-    ///   genuinely per-iteration conversion was downgraded to a one-time one.
-    ///   `use_site::check_lifted_calls` and `commit::push_lifted_reads` have
-    ///   consulted the same [`crate::word_subst::lifted_calls`] owner since
-    ///   #1826 / #1848; this was the last consumer on the flat path.
+    ///   command either way. Walking only the flat argument text sees the
+    ///   single word `[list [llength $x]]`, records nothing, and leaves
+    ///   `use_targets` short of the two distinct targets `effective_in_loop`
+    ///   needs, downgrading a genuinely per-iteration conversion to a one-time
+    ///   one. `use_site::check_lifted_calls` and `commit::push_lifted_reads`
+    ///   consult the same [`crate::word_subst::lifted_calls`] owner, and so
+    ///   does this.
     /// - **Braced words are inert.** A `Statement::Call`'s `args` are
-    ///   *de-braced*, so `lindex {$x} 0` looked like a live `$x` here even
-    ///   though Tcl substitutes nothing inside braces. #1850 gave the emitting
-    ///   passes that gate; this function was left alone because it does not
-    ///   emit, but a spurious target flips a loop-invariance judgement between
-    ///   S100 and S101 just the same.
+    ///   *de-braced*, so `lindex {$x} 0` would look like a live `$x` here even
+    ///   though Tcl substitutes nothing inside braces. This function emits
+    ///   nothing, but a spurious target flips a loop-invariance judgement
+    ///   between S100 and S101 just the same.
     ///
     /// A lifted call needs no brace gate of its own: its argument words are
     /// raw source with the braces still on, so the `$` test declines them —
@@ -381,7 +380,7 @@ fn check_invocation(
 ) {
     let arg_refs: Vec<&str> = site.args.iter().map(String::as_str).collect();
     // Positions whose brace-quoted word Tcl never substitutes: their
-    // de-braced `args` text spells a live `$x` that is not one (issue #1845).
+    // de-braced `args` text spells a live `$x` that is not one.
     let inert = inert_braced_args(ctx.registry, site.lookup_command, &arg_refs, site.tokens);
     for (i, word) in site.args.iter().enumerate() {
         if inert.contains(&i) {
@@ -511,7 +510,7 @@ fn check_argument(
     // An uncommitted (pure) value — a literal, an interpolated string, or a
     // string-producing command's result — pays nothing on its first read as
     // `expected` when it is a valid instance of it. `set fontSizes {10.0
-    // 12.0}; foreach s $fontSizes` (issue #940), `set x 5; lindex $x 0`, and
+    // 12.0}; foreach s $fontSizes`, `set x 5; lindex $x 0`, and
     // `set d {a 1 b 2}; dict for {k v} $d` are all free promotions of a pure
     // string, not shimmers — see [`is_uncommitted_first_conversion`].
     //
@@ -519,7 +518,7 @@ fn check_argument(
     // inside a loop** (`llength $l` + `dict size $l` each pass): the loop
     // entry re-joins the pure preheader path every iteration, but at runtime
     // the converters re-thunk the value on every pass after the first —
-    // oracle-verified list↔dict oscillation — so the free-first-conversion
+    // list↔dict oscillation verified on tclsh — so the free-first-conversion
     // suppression must not apply (the multi-target `LoopFacts` fact, which
     // also drives the S101 escalation).
     let multi_target_in_loop = ctx.in_loop
@@ -694,7 +693,7 @@ fn check_statement(ctx: &mut UseSiteCtx<'_>, stmt: &Statement, uses: &HashMap<Sy
             // A `[cmd …]` in one of this call's words reads its arguments
             // exactly as the same command on its own line would — Tcl runs it
             // before the outer command either way — so check it as the
-            // invocation it is (issue #1814 follow-up).
+            // invocation it is.
             check_lifted_calls(ctx, tokens.as_ref(), stmt.span(), uses);
 
             let lookup = stmt.canonical_command_or_source();
@@ -725,7 +724,7 @@ fn check_statement(ctx: &mut UseSiteCtx<'_>, stmt: &Statement, uses: &HashMap<Sy
         // `set b [lindex $x 0]` runs `lindex` before it stores anything, and
         // `set b [list [lindex $x 0]]` runs it just the same, one level down.
         // So the value word goes through the same lift as a call's words
-        // (issue #1844): one owner decides which substitutions a statement
+        // one owner decides which substitutions a statement
         // runs, and the outermost `[cmd …]` is simply its depth-zero case
         // rather than a shape this arm re-derives for itself.
         Statement::AssignValue { tokens, .. } => {
@@ -940,7 +939,7 @@ mod tests {
         assert_eq!(w.unwrap().to_type, TclType::List);
     }
 
-    /// TN (issue #940): a *pure* literal — even a number-shaped or word-shaped
+    /// TN: a *pure* literal — even a number-shaped or word-shaped
     /// one — used as a list must NOT shimmer. `set a 1; foreach b $a` and `set x
     /// 5; lindex $x 0` promote a pure string to a list for free (oracle: `set x
     /// 5` is a pure string, `lindex` parses it into a 1-element list once). The
@@ -983,7 +982,7 @@ mod tests {
         );
     }
 
-    /// Issue #1814 follow-up: a `[cmd …]` in a call argument reads its
+    /// A `[cmd …]` in a call argument reads its
     /// arguments exactly as the same command on its own line does — Tcl runs
     /// it either way.
     #[test]
@@ -1018,7 +1017,7 @@ mod tests {
         );
     }
 
-    /// Issue #1845: the braced / quoted / bare spellings of one argument
+    /// The braced / quoted / bare spellings of one argument
     /// word, pinned against each other for a command that consumes its word
     /// as **data** (`lindex`) and one that re-evaluates it **in the caller's
     /// frame** (`expr`) — the two halves of the rule, so neither can drift.
@@ -1069,7 +1068,7 @@ mod tests {
         );
     }
 
-    /// Issue #1844: the two statement kinds that carry substitutable words
+    /// The two statement kinds that carry substitutable words
     /// must agree about which commands a word runs. `puts <word>` and
     /// `set r <word>` differ only in the outer command, and neither outer
     /// command changes what Tcl evaluates inside the word — so any word that
@@ -1083,9 +1082,8 @@ mod tests {
     /// apart again.
     #[test]
     fn assign_value_lifts_the_same_substitutions_a_call_does() {
-        // (word, does its `lindex` run?) — a bare substitution, then the
-        // nesting depths the `AssignValue` arm used to lose, then the braced
-        // spelling Tcl never substitutes.
+        // (word, does its `lindex` run?) — a bare substitution, then nested
+        // depths, then the braced spelling Tcl never substitutes.
         for (word, runs) in [
             ("[lindex $x 0]", true),
             ("[list [lindex $x 0]]", true),
@@ -1118,9 +1116,9 @@ mod tests {
     }
 
     /// The lift is the *only* path into the `AssignValue` arm, so the
-    /// depth-zero substitution it used to special-case must still be reported
-    /// exactly once — a second, arm-local parse of the outermost `[cmd …]`
-    /// would double every `set b [lindex $x 0]` diagnostic.
+    /// depth-zero substitution must be reported exactly once — a second,
+    /// arm-local parse of the outermost `[cmd …]` would double every
+    /// `set b [lindex $x 0]` diagnostic.
     #[test]
     fn assign_value_substitution_is_reported_once() {
         let cu = CompilationUnit::build_for(
@@ -1177,11 +1175,11 @@ mod tests {
         );
     }
 
-    /// Issue #1844, the commit half: the same must hold when the nested
-    /// substitution sits in an assignment value. The `AssignValue` transfer
-    /// function used to walk only the outermost `[cmd …]`, so `[list […]]`
-    /// moved no state and the following `incr` was judged against the stale
-    /// `Int` — reporting nothing.
+    /// The commit half: the same must hold when the nested substitution sits
+    /// in an assignment value. An `AssignValue` transfer function that walks
+    /// only the outermost `[cmd …]` moves no state for `[list […]]`, so the
+    /// following `incr` is judged against the stale `Int` and reports
+    /// nothing.
     #[test]
     fn a_nested_conversion_in_an_assignment_is_visible_to_later_reads() {
         let cu = CompilationUnit::build_for(
@@ -1324,10 +1322,10 @@ mod tests {
         );
     }
 
-    /// TN (issue #940): a *pure* string literal in `foreach` must not shimmer —
+    /// TN: a *pure* string literal in `foreach` must not shimmer —
     /// `{a b c}` (and any well-formed list literal) is a valid list, and Tcl
     /// parses it into a list intrep once, for free (oracle: the value goes pure
-    /// → list). This is the exact false positive issue #940 reported.
+    /// → list).
     #[test]
     fn no_shimmer_for_foreach_header_with_pure_string() {
         for literal in ["{10.0 12.0 16.0 24.0}", "hello", "{}", "1"] {
@@ -1414,7 +1412,7 @@ mod tests {
         );
     }
 
-    /// Issue #1851 — a conversion performed by a *nested* `[cmd …]` is paid on
+    /// A conversion performed by a *nested* `[cmd …]` is paid on
     /// every iteration exactly as the direct spelling is, so it classifies the
     /// same way.
     ///
@@ -1454,7 +1452,7 @@ mod tests {
         }
     }
 
-    /// The brace gate the emitting passes gained in #1850, applied here too: a
+    /// The same brace gate the emitting passes apply: a
     /// braced word substitutes nothing, so it contributes no use target and
     /// cannot push a loop-invariant value over the two-target threshold.
     #[test]
@@ -1748,7 +1746,7 @@ mod tests {
         }
     }
 
-    /// Oracle-verified negatives (tclsh 8.6.14: a list subject stays `list`
+    /// Negatives verified on tclsh 8.6.14 (a list subject stays `list`
     /// through every one of these — the subject is read via its string rep
     /// only, dual-ported):
     ///
@@ -1807,9 +1805,9 @@ mod tests {
         );
     }
 
-    /// Issue #1720: `regexp -all -inline` returns the matched substrings as a
-    /// list, so iterating the result converts nothing.  The reporter's own
-    /// code, trimmed: it drew "variable 'vinfo' has int intrep but 'foreach'
+    /// `regexp -all -inline` returns the matched substrings as a
+    /// list, so iterating the result converts nothing.  A trimmed report
+    /// shape: it drew "variable 'vinfo' has int intrep but 'foreach'
     /// expects list (argument 1)".
     #[test]
     fn no_shimmer_iterating_a_regexp_inline_result() {

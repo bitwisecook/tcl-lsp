@@ -1,4 +1,4 @@
-# Issue #968: the analyser never recognised a built-in `expr` math function
+# The analyser must recognise a built-in `expr` math function
 # (`sin`, `max`, ...) as a resolvable command — only a same-named user
 # `proc ::tcl::mathfunc::<name>` override resolved. Every stock math function
 # call inside `expr` drew a spurious W123 "unknown command" hint.

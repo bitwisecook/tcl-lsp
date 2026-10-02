@@ -58,7 +58,7 @@ pub fn iapp_dialect_active(dialect: &'static tcl_dialect::DialectProfile) -> boo
 
 /// Validate an APL presentation model, optionally cross-checked against
 /// implementation variable references. Returns an empty list outside the
-/// iApp dialects (defense-in-depth) so iApp advice
+/// iApp dialects (defence-in-depth) so iApp advice
 /// never leaks into plain Tcl / iRules / EDA dialects.
 ///
 /// IAPP7001 (undefined variable) is emitted by

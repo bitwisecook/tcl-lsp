@@ -87,18 +87,17 @@ pub fn linked_editing_ranges(
     ranges.push(span_to_range(source, &line_index, proc.name_span));
 
     for inv in &analysis.command_invocations {
-        // An indirect site (M7) must never live-link: its span is not the
-        // written command name.
+        // An indirect site must never live-link: its span is not the written
+        // command name.
         if inv.indirect {
             continue;
         }
         // The call's resolved qualified name is authoritative when the analyser
         // settled one: a bare `greet` inside `namespace eval ::b { … }` nested
         // in `proc ::a::greet` resolves to `::b::greet`, so it must NOT link to
-        // `::a::greet` even though its text equals `greet` (the old OR of the
-        // name match with the resolved match wrongly linked it, corrupting the
-        // unrelated call under rename-as-you-type).  Only when no qualified name
-        // was settled do we fall back to the literal self-name match.
+        // `::a::greet` even though its text equals `greet` — linking it would
+        // corrupt the unrelated call under rename-as-you-type.  Only when no
+        // qualified name was settled is the literal self-name match used.
         let links_to_proc = match inv.resolved_qualified_name.as_deref() {
             Some(q) => q == proc.qualified_name,
             None => matches_self_call(inv.name.as_str(), proc),

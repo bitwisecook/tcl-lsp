@@ -61,7 +61,7 @@ use tcl_compiler::expr_parser::parse_expr;
 use tcl_compiler::tcl_expr_eval::{eval_tcl_expr, eval_tcl_expr_in_dialect};
 use tcl_compiler::{Env, EnvValue, TclValue, format_tcl_value};
 
-// -- helpers (mirroring `src/tcl_expr_eval.rs`'s `#[cfg(test)] mod tests`) --
+// Helpers, mirroring `src/tcl_expr_eval.rs`'s `#[cfg(test)] mod tests`.
 
 /// Fold a default-dialect expression over an empty environment.
 fn eval_str(expr: &str) -> Option<TclValue> {
@@ -78,8 +78,8 @@ fn eval_str_env(expr: &str, env: &Env) -> Option<TclValue> {
 /// `equals`/`matches_glob`/`matches_regex`/`in`/`ni`/`and`/`or`/`not`). Must
 /// use the dialect-threading evaluator, not the bare [`eval_tcl_expr`] — the
 /// word operators parse under any dialect gate, but only actually *fold*
-/// when the evaluator's own iRules dialect flag is set (issue #983/#985's
-/// defence-in-depth fix), which only [`eval_tcl_expr_in_dialect`] does.
+/// when the evaluator's own iRules dialect flag is set, as a defence-in-depth
+/// requirement, which only [`eval_tcl_expr_in_dialect`] does.
 fn eval_irules(expr: &str) -> Option<TclValue> {
     let env = Env::new();
     eval_tcl_expr_in_dialect(
@@ -969,8 +969,14 @@ fn irules_matches_glob() {
         eval_irules(r#""/api/v2/users" matches_glob "/api/*/users""#),
         Some(int(1))
     );
-    assert_eq!(eval_irules(r#""a1" matches_glob "a[0-9]""#), Some(int(1)));
-    assert_eq!(eval_irules(r#""ax" matches_glob "a[0-9]""#), Some(int(0)));
+    // A range is written braced: inside `"…"` the `[0-9]` is a command
+    // substitution, which the folder declines (#2227).
+    assert_eq!(eval_irules(r#""a1" matches_glob {a[0-9]}"#), Some(int(1)));
+    assert_eq!(eval_irules(r#""ax" matches_glob {a[0-9]}"#), Some(int(0)));
+    assert_eq!(eval_irules(r#""a1" matches_glob "a[0-9]""#), None);
+    // A braced backslash-newline folds in Tcl but not in Jim, so the folder
+    // declines it rather than compare the raw bytes (#2227, found in review).
+    assert_eq!(eval_str("{a\\\n    b} eq {a b}"), None);
     assert_eq!(
         eval_irules_env(
             r#"$uri matches_glob "/images/*""#,

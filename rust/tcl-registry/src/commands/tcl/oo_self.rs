@@ -139,8 +139,8 @@ pub fn spec() -> CommandSpec {
         //
         // The other eight are deliberately absent.  `object` and `namespace`
         // name the *receiving instance* — a fresh `::oo::ObjNN` per `new`, so
-        // never a source constant, which is why issue #1080's "`self object`
-        // folds too" framing does not survive the oracle:
+        // never a source constant, so a belief that "`self object`
+        // folds too" does not survive the oracle:
         //
         //     oo::class create ::A { method m {} { list [self] [self object] \
         //                                               [self namespace] } }
@@ -153,7 +153,7 @@ pub fn spec() -> CommandSpec {
         // `[self]`/`[self object]` used as a dispatch head (`[self] m`) is
         // TclOO's own same-object spelling — the same target `my m` reaches,
         // never an inferred type. See `CommandRegistry::is_self_receiver_call`
-        // and its consumers in `tcl-lsp-core` (issue #1322).
+        // and its consumers in `tcl-lsp-core`.
         self_receiver_words: &["object"],
         hover: Some(HoverSnippet {
             summary: "query information about the current method invocation",

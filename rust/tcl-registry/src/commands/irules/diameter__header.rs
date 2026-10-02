@@ -42,7 +42,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         name: "length",
         arity: Arity::exact(0),
         detail: "Get the message length (read-only).",
-        synopsis: "DIAMETER::header length ?value?",
+        synopsis: "DIAMETER::header length",
         pure: true,
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,

@@ -18,11 +18,9 @@
 
 //! Tcl backslash escape processing.
 //!
-//! Backslash-substitution processing:
-//! zero-copy on the fast path (no backslash in the input), a single
-//! forward scan of `char_indices` for the slow path, and a clean match
-//! table for escape dispatch. The function is callable directly from
-//! Rust and exposed via the `tcl-lsp-rust` binding crate.
+//! Zero-copy on the fast path (no backslash in the input). The slow path
+//! is a single forward scan over the bytes that copies each literal run in
+//! one piece and dispatches every escape through one match.
 
 use std::borrow::Cow;
 
@@ -514,12 +512,11 @@ pub fn backslash_escape_end(text: &str, i: usize) -> usize {
 /// at this parser seam. Every other escape consumes the backslash plus one full
 /// character.
 ///
-/// It lives beside the evaluator because it *is* the same rule.  Separate
-/// hand-rolled copies had drifted — one consumed unbounded hex digits, one
-/// never recognised `\U`, one assumed every escape was two bytes, one missed
-/// the continuation indentation — so `\x41` was tokenised as an escape `\x` plus a
-/// string `41`.  The digits (and the continuation's whitespace) belong to the
-/// escape.
+/// It lives beside the evaluator because it *is* the same rule: the digits of
+/// a `\x` / `\u` / `\U` / octal escape, and the whitespace a continuation
+/// absorbs, all belong to the escape. A hand-rolled width — a fixed two bytes,
+/// or an unbounded digit run — splits `\x41` into an escape `\x` and a string
+/// `41`.
 ///
 /// The escaped character may be multi-byte (`\é`, `\你`, `\€`), so the fallback
 /// advances by its real UTF-8 width: a fixed `+2` would slice inside the
@@ -732,8 +729,9 @@ mod release_vector_tests {
 
     #[test]
     fn split_segments_follow_the_release_widths() {
-        // `\x4142` is one six-byte escape under 8.5 and a four-byte escape plus
-        // literal `42` under 8.6 — a highlighter must colour them differently.
+        // `\x4142` is one six-byte escape under 8.4/8.5 and a four-byte escape
+        // plus a literal `42` from 8.6 — a highlighter must colour them
+        // differently.
         let pieces = |escapes| {
             super::split_backslash_escapes_in(r"a\x4142z", escapes)
                 .into_iter()
@@ -822,11 +820,11 @@ pub struct EscapeSegment {
 /// Split `text` into alternating literal runs and backslash escapes.
 ///
 /// Every highlighter that colours a Tcl string has to do this — the Tcl token
-/// walker, the APL lexer, the BIG-IP config lexer — and each had grown its own
-/// copy. They drifted: one consumed unbounded hex digits, one never recognised
-/// `\U`, one assumed every escape was two bytes, so `\x41` was tokenised as an
-/// escape `\x` plus a string `41`. One rule, one implementation, beside the
-/// [`backslash_subst`] evaluator that defines it.
+/// walker, the APL lexer, the BIG-IP config lexer — and they all share this
+/// one rule, so none of them can disagree with the [`backslash_subst`]
+/// evaluator that defines it: a hand-rolled split that assumes a fixed
+/// two-byte escape, or an unbounded hex run, cuts `\x41` into an escape `\x`
+/// and a string `41`.
 ///
 /// Segments are contiguous and cover `text` exactly; a text with no backslash
 /// yields a single literal segment (or none, when empty). Widths come from
@@ -969,7 +967,7 @@ mod jim_braced_unicode_tests {
         assert_eq!(backslash_subst_in(r"\u{ 41}", EscapeSyntax::Jim), "u{ 41}");
     }
 
-    /// The unbraced forms are untouched by the new arm.
+    /// The braced arm leaves the unbraced forms alone.
     #[test]
     fn unbraced_forms_still_decode() {
         assert_eq!(backslash_subst_in(r"A", EscapeSyntax::Jim), "A");

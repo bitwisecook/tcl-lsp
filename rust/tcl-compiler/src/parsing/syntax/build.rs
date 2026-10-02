@@ -28,7 +28,7 @@
 //! the next begins, where each word starts, what a `{*}` marker attaches
 //! to, and which comment precedes which command are all answered by
 //! [`tcl_lexer::script::group_commands`] — the single owner of Tcl command
-//! and word boundaries (issue #1786).  This module projects the owner's
+//! and word boundaries.  This module projects the owner's
 //! answers onto the token stream ([`Plan`]) and spends its own logic only
 //! on what is genuinely the compiler's: green/red CST shape, trivia
 //! attachment, start-to-start tiling, ghost-delimiter recovery, and the
@@ -300,7 +300,7 @@ impl<'a> Builder<'a> {
     fn run(mut self) -> GreenNode {
         // Source that precedes the first token is still source. The lexer skips
         // a leading byte-order mark when the file entry asks it to
-        // (`LexerConfig::leading_bom`, issue #1218), and the start-to-start
+        // (`LexerConfig::leading_bom`), and the start-to-start
         // tiling below only covers `tokens[0].start ..`, so without this the
         // tree would be three bytes short at the front and *every* offset it
         // derives would slide back by that much. Attaching the prefix as
@@ -623,7 +623,7 @@ mod tests {
 
     /// `range_end_rel` across `{*}` markers.
     ///
-    /// `{*}` is the flagged hazard of the #1786 switch-over: the marker sits
+    /// `{*}` is the hazard here: the marker sits
     /// in no word, so the "a word ended here" test that drives the command
     /// range must answer *false* at it. `range_end_rel` has no differential
     /// harness — `differential_segment` compares `SegmentedCommand`, whose

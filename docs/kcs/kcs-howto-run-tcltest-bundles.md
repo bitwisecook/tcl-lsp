@@ -64,9 +64,10 @@ TCL_LIBRARY=~/src/tcl9.0.4/library tclsh9.0 \
 make tcltest-sweep            # == cargo xtask tcltest-sweep --backend both
 ```
 
-This builds the `run_test` example `--release`, runs every stem in the
-capability ladder through both the VM and reference `tclsh` (each under a
-per-file timeout), caches the stable C results in
+This builds the `run_test` example `--release`, runs every upstream `.test`
+file through both the VM and reference `tclsh` (classified files follow the
+capability ladder and unclassified files are reported separately; each runs
+under a per-file timeout), caches the stable C results in
 `tests/baselines/tcl9-tcltest/c-tclsh.ndjson`, and regenerates the scoreboard
 `docs/design/runtime/rust-vm-tier-parity.md`. Useful flags (`cargo xtask
 tcltest-sweep …`):

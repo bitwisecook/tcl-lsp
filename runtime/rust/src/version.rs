@@ -19,12 +19,11 @@
 //! Runtime Tcl version facts shared by interpreter startup, `package`, and
 //! `tcl::build-info`.
 //!
-//! Nothing here is a constant any more (ledger row B4). This interpreter's
-//! emulated release is settable — `set_dialect_profile` / `--tcl-version` —
-//! and a build identity or a `package provide Tcl` frozen at `9.0.4` was
-//! simply wrong under every other pin, as well as being a second table that
-//! could disagree with `tcl-vm`'s. Both engines now read `tcl_dialect`'s
-//! release vocabulary.
+//! This interpreter's emulated release is settable — `set_dialect_profile` /
+//! `--tcl-version` — so a build identity or a `package provide Tcl` frozen at
+//! `9.0.4` would be wrong under every other pin, as well as being a second
+//! table that could disagree with `tcl-vm`'s. Both engines instead read
+//! `tcl_dialect`'s release vocabulary.
 
 use tcl_dialect::TclVersion;
 

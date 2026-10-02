@@ -245,8 +245,7 @@ pub enum NativeIntegerProof {
 ///
 /// Candidates are semantic `ExprNode::Binary(Add, Var, Var)` nodes already
 /// produced by registry-driven lowering; this module contains no command-name
-/// dispatch. Unsupported expression shapes are simply outside this first
-/// vertical slice.
+/// dispatch. Any other expression shape is not a candidate.
 #[must_use]
 pub fn prove_native_integer_adds(
     unit: &CompilationUnit,

@@ -19,7 +19,7 @@
  * headless Chromium, and prints a JSON report on stdout. Everything else —
  * `index.html`, `explorer-core.js`, `worker.js` — is the shipped code.
  *
- * It asserts what issues #1182 / #1183 got wrong:
+ * It asserts the following:
  *   - the WASM tab actually renders a disassembly,
  *   - the compile spinner stops,
  *   - the dialect dropdown is populated before the first result,
@@ -182,8 +182,8 @@ try {
 
   // Deliberately edit *before* the worker signals ready — the stub's module
   // load is still parked on its gate, so this is not a race. A compile owed
-  // from that window must still happen (it used to be dropped, leaving the
-  // GUI blank forever), so wait until the page has actually queued one.
+  // from that window must still happen — dropping it would leave the GUI
+  // blank forever — so wait until the page has actually queued one.
   await page.waitForFunction(
     // `pendingCompile` / `workerReady` are index.html's own module-load state.
     () => pendingCompile === true && workerReady === false,

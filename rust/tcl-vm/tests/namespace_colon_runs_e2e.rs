@@ -22,9 +22,9 @@
 //! (`TclGetNamespaceForQualName`), so `foo:::bar` names `foo::bar`, a trailing
 //! run in a *command* name denotes the `{}`-named command (`proc quux::: …`
 //! defines `::quux::`), and a trailing run in a *namespace* name is dropped
-//! (`namespace eval c::: {}` creates `::c`). The VM's old hand-rolled
-//! `rsplit("::")`/`strip_prefix("::")` sites diverged on every one of these
-//! (documented drift — `docs/design/runtime/family-b-routing.md`); resolution now
+//! (`namespace eval c::: {}` creates `::c`). A hand-rolled
+//! `rsplit("::")`/`strip_prefix("::")` site would diverge on every one of these
+//! (documented drift — `docs/design/runtime/family-b-routing.md`); resolution
 //! routes through the canonical splits (`tcl_syntax::naming`,
 //! `tcl_cmd_core::namespace`). Every expectation below is pinned against
 //! tclsh8.6 (`// tclsh8.6:` comments).
@@ -93,8 +93,8 @@ fn colon_run_call_resolves_like_double_colon() {
     assert_eq!(res, "G");
 }
 
-/// `proc` with an interior colon run defines the `::`-collapsed name (the old
-/// `rsplit_once` derived the bogus namespace `foo:` and errored).
+/// `proc` with an interior colon run defines the `::`-collapsed name (a plain
+/// `rsplit_once` would derive the bogus namespace `foo:` and error).
 #[test]
 fn proc_with_colon_run_defines_collapsed_name() {
     // tclsh8.6: defines ::foo::baz; `foo::baz` -> baz; info commands lists both.
@@ -283,7 +283,7 @@ fn proc_colon_run_into_missing_namespace_errors() {
 }
 
 /// `rename` onto a colon-run qualified target lands on (and re-homes to) the
-/// collapsed namespace — the raw target used to register an `a:::q` key.
+/// collapsed namespace — registering the raw target would use an `a:::q` key.
 #[test]
 fn rename_through_colon_run_re_homes_the_proc() {
     // tclsh8.6: `rename p6 dst6:::q` -> ::dst6::q, body runs in ::dst6.
@@ -298,7 +298,7 @@ fn rename_through_colon_run_re_homes_the_proc() {
 // Namespace-name resolution through colon runs
 
 /// `namespace exists` / `namespace parent` collapse colon runs in their
-/// argument (the old literal lookup missed `a:::b`).
+/// argument (a literal lookup would miss `a:::b`).
 #[test]
 fn namespace_exists_and_parent_collapse_runs() {
     // tclsh8.6: exists a:::b -> 1 ; parent a:::b -> ::a
@@ -381,8 +381,8 @@ fn variable_substitution_consumes_colon_runs() {
 // namespace import / forget through colon runs
 
 /// `namespace import`/`forget` split the pattern at the last separator *run*
-/// (the old `rsplit_once` produced the source namespace `src7:` — import
-/// matched nothing and forget errored `unknown namespace`).
+/// (a plain `rsplit_once` would produce the source namespace `src7:` — import
+/// would match nothing and forget would error `unknown namespace`).
 #[test]
 fn import_and_forget_collapse_runs_in_patterns() {
     // tclsh8.6: import ::src7:::im* imports imp; forget ::src7:::im* removes it.
@@ -398,8 +398,8 @@ fn import_and_forget_collapse_runs_in_patterns() {
 }
 
 /// A single-segment qualified forget pattern (`namespace forget ::x`) is a
-/// quiet no-op when no import's *origin* matches — the old split panicked on
-/// this shape (`rsplit_once("::").unwrap()` over `x`).
+/// quiet no-op when no import's *origin* matches — a plain split would panic
+/// on this shape (`rsplit_once("::").unwrap()` over `x`).
 #[test]
 fn forget_with_root_qualified_pattern_is_a_quiet_no_op() {
     // tclsh8.6: imp stays imported (its origin is ::src7::imp, not ::imp).
@@ -449,7 +449,7 @@ fn qualified_variable_names_canonicalise_runs_and_require_parent_namespaces() {
 }
 
 /// A rooted single-segment import names the global namespace, not the current
-/// namespace.  This is the VM-side regression for #1493.
+/// namespace.
 #[test]
 fn import_global_builtin_keeps_absolute_marker() {
     // tclsh8.6/9.0: the exact reproducer succeeds without an explicit export

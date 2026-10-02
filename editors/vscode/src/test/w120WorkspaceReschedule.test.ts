@@ -21,25 +21,25 @@ import * as vscode from "vscode";
 import * as path from "path";
 import { getDocUri, activate, waitForDiagnostics, scaledTimeout } from "./helper";
 
-// Issue #829, third bug: `initialized()` kicks off `scan_workspace_folders()`
+// `initialized()` kicks off `scan_workspace_folders()`
 // (which populates `workspace_index` / `package_resolver`, the inputs the
-// always-on W120/W123 cross-file diagnostic refinement reads) but used to
-// never reschedule diagnostics for already-open documents once that scan
-// completed. A document opened at the exact moment the server starts could
+// always-on W120/W123 cross-file diagnostic refinement reads). Diagnostics
+// for already-open documents must be rescheduled once that scan completes:
+// a document opened at the exact moment the server starts could otherwise
 // get its first diagnostics run computed against the still-empty workspace
 // index -- a false-positive W120 ("X requires `package require Y`") that
-// never self-corrected until the user made an edit. The fix makes
-// `initialized()`, `did_change_workspace_folders`, and
-// `did_change_watched_files` all call `reschedule_all_open_documents()`
+// would never self-correct until the user made an edit. `initialized()`,
+// `did_change_workspace_folders`, and `did_change_watched_files` all call
+// `reschedule_all_open_documents()`
 // (unconditionally -- not just for `xcDiagnostics`-enabled documents) after
 // any operation that changes `workspace_index` / `package_resolver`.
 //
 // Reproducing the *exact* startup race needs a fresh VS Code process per
 // test -- this mocha run shares one already-initialised extension host
 // across every test file, so by the time this suite runs, `initialized()`'s
-// one-time scan is long finished (see the analogous note in
-// `multiFolder/multiFolderConfig.test.ts`'s race-detection harness for
-// issue #407, which hits the same "mocha shares one process" wall and
+// one-time scan is long finished (see the analogous race-detection harness
+// in `multiFolder/multiFolderConfig.test.ts`, which hits the same "mocha
+// shares one process" wall and
 // resolves it the same way: drive the same fix through a *different*,
 // runtime-triggerable entry point into the identical code path). Here that
 // entry point is `did_change_watched_files`: creating an on-disk ancestor

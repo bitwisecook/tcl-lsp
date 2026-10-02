@@ -23,8 +23,7 @@
 //! `*.golden`. Unlike `differential_codegen.rs` — which oracles against an
 //! external emitter and silently skips when that oracle is absent — this is
 //! fully self-contained, so the byte-identity safety net for the bytecode
-//! emitter always runs. It also guards the bytecode emitter against accidental
-//! churn while the greenfield WASM backend is built alongside it.
+//! emitter always runs and guards it against accidental churn.
 //!
 //! Regenerate the goldens after an *intentional* codegen change:
 //!

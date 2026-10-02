@@ -190,8 +190,8 @@ fn fp_ds_04_untraced_unrelated_var_still_fires() {
 }
 
 // FP-DS-04 cross-scope variant: namespace-global ::w traced in one proc,
-// written in another. Fixed by folding module-wide traced ::-globals into every
-// function's suppression context (scan_module_traced_globals).
+// written in another. Module-wide traced `::`-globals are folded into every
+// function's suppression context (`scan_module_traced_globals`).
 #[test]
 fn fp_ds_04_cross_scope_namespace_global_trace() {
     // Must stay silent: the trace on ::w in proc s observes the write `set ::w 1`.
@@ -340,7 +340,7 @@ const FP_DS_08_REPRO: &str = "proc f {} { set d {}; dict with d {}; return $miss
 #[test]
 fn fp_ds_08_empty_dict_with_return_missing_fires() {
     // TP: empty literal dict; dict with unpacks no keys; return $missing fires W210.
-    // FP-DS-08: Terminator::Return arm must apply key-aware logic (D4-F3 closure).
+    // FP-DS-08: the Terminator::Return arm must apply key-aware logic.
     assert!(
         fires(FP_DS_08_REPRO, D, "W210"),
         "FP-DS-08 TP: empty dict with does not unpack 'missing'; return $missing must fire W210; emitted: {:?}",
@@ -408,17 +408,17 @@ fn fp_ds_09_interproc_mixed_callers_conservative_silent() {
 }
 
 // FP-DS-10 — reads nested inside a `dict for`/`dict map` body keep the store
-//            live (issue #833)
+//            live
 //
 // `dict for`/`dict map` run their body in the caller's frame, so the analysis
-// CFG now flattens the body into real loop blocks (like `foreach`) instead of
-// re-emitting it as an opaque barrier whose reads were recovered by a shallow
-// word scan.  That shallow scan only saw top-level `$var` / `[...]` tokens, so a
+// CFG flattens the body into real loop blocks (like `foreach`) rather than
+// re-emitting it as an opaque barrier whose reads are recovered by a shallow
+// word scan.  A shallow scan sees only top-level `$var` / `[...]` tokens, so a
 // read one brace level deep — e.g. `$x` used as the command name of `$x a $key`
-// inside an `if` — was invisible, and the feeding `set x set` looked like a dead
-// store.  The fix makes such reads first-class SSA uses.
+// inside an `if` — would be invisible and the feeding `set x set` would look
+// like a dead store.  Flattening makes such reads first-class SSA uses.
 
-// The exact issue #833 reproducer: `$x` is read as the command name of the
+// Reproducer: `$x` is read as the command name of the
 // dispatched call, nested inside `if {$value}` inside `dict for`.
 const FP_DS_10_REPRO: &str = "\
 proc demo {} {
@@ -534,9 +534,8 @@ proc demo {d} {
 
 #[test]
 fn fp_ds_10_dead_store_inside_dict_for_body_now_fires() {
-    // TP control (precision gained by the fix): a dead store *inside* the body
-    // was invisible while the body was an opaque barrier; now that the body is
-    // lowered it is a real W220.
+    // TP control: a dead store *inside* the body is a real W220 — flattening the
+    // body exposes it, where an opaque barrier would hide it.
     let src = "\
 proc demo {d} {
     dict for {k v} $d {
@@ -556,7 +555,8 @@ proc demo {d} {
 #[test]
 fn fp_ds_10_write_only_local_in_dict_for_body_still_flags() {
     // FN guard: a local written but never read inside the body must still be
-    // reported — the fix must not manufacture a phantom read that hides it.
+    // reported — the body lowering must not manufacture a phantom read that
+    // hides it.
     let src = "\
 proc demo {d} {
     dict for {k v} $d {
@@ -585,9 +585,8 @@ fn fp_ds_10_clean_dict_for_is_silent() {
 
 // FP-DS-11 — an `uplevel` body runs in another stack frame; its variable
 //            references belong to that frame, not the enclosing proc
-//            (issue #837)
 //
-// `uplevel ?level? {body}` now carries an `ArgRole::Body` on its script word
+// `uplevel ?level? {body}` carries an `ArgRole::Body` on its script word
 // (a registry-driven `arg_role_resolver`), so the body is recursed and
 // analysed like every other script body instead of being an opaque string.
 // The spec is also `BodyKind::Structural`: the body evaluates in the frame
@@ -595,7 +594,7 @@ fn fp_ds_10_clean_dict_for_is_silent() {
 // that frame — it does NOT count as a use of an enclosing-proc local of the
 // same name.  A value substituted at the enclosing level (`[list …]`, a
 // quoted body, or a plain local read) is evaluated in the enclosing frame and
-// keeps the local live, exactly as before.
+// keeps the local live.
 
 #[test]
 fn fp_ds_11_caller_frame_write_is_not_an_enclosing_dead_store() {
@@ -677,7 +676,6 @@ fn fp_ds_11_clean_uplevel_body_is_silent() {
 }
 
 // FP-DS-12 — a dynamic-name read makes every store observable
-// (issue #923 audit idx 2 and 64)
 //
 // `foreach v [info locals] { … [set $v] … }` reads every local through a name
 // no literal `$x` token spells, so neither "set but never used" (W211) nor
@@ -721,7 +719,7 @@ fn fp_ds_12_double_subst_dereference_keeps_locals_live() {
 
 #[test]
 fn fp_ds_12_single_indirect_dereference_keeps_locals_live() {
-    // The audit's second control: one level of indirection (`[set $locVar]`)
+    // Second control: one level of indirection (`[set $locVar]`)
     // reproduces the same false positives.
     let src = "\
 proc collect2 {} {
@@ -783,13 +781,13 @@ emitted: {:?}",
 }
 
 // FP-DS-13 — an unmatched `{` inside a double-quoted string does not hide
-// the `$var` read (issue #923 audit idx 64, `namespaces` corpus `pix`)
+// the `$var` read
 //
 // The dead-store read scan runs over the segmenter's already-dequoted word
-// text.  Re-lexing that text with ordinary top-level rules used to read a
+// text.  Re-lexing that text with ordinary top-level rules would read a
 // stray `{` as opening a brace-quoted (non-substituting) word, so `$ns`
-// stopped being a read and every `set ns …` feeding a multi-line
-// `puts $fp "namespace eval ::pix {\n … $ns …\n}"` looked dead.
+// would stop being a read and every `set ns …` feeding a multi-line
+// `puts $fp "namespace eval ::pix {\n … $ns …\n}"` would look dead.
 //
 // Oracle (tclsh 9.0.4 and 8.6.14, identical):
 //   set ns "ctx"; puts "{ $ns"               → `{ ctx`
@@ -842,7 +840,6 @@ emitted: {:?}",
 }
 
 // FP-DS-14 — a brace-quoted variable name does not blind the function
-// (PR #1076 review, P2)
 //
 // `{$n}` is Tcl's literal spelling for a variable *called* `$n`; nothing is
 // computed, so the dynamic-name barrier must stay clear and every diagnostic

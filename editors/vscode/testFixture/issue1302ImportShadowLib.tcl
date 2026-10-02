@@ -1,4 +1,4 @@
-# Fixture for issue #1302 (see issue1302ImportShadow.test.ts).
+# Fixture for the namespace-import shadow test (see issue1302ImportShadow.test.ts).
 #
 # `::Shadow` exports two names: one that a fresh Tcl interpreter already holds
 # as a builtin (`set`), and one it does not (`mything`).  Real Tcl refuses to

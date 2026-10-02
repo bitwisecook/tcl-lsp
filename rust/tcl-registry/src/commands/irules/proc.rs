@@ -64,7 +64,7 @@ pub const fn spec() -> CommandSpec {
             ..SideEffect::DEFAULT
         }],
         analyser_hook: Some(crate::hooks::AnalyserHookId::Proc),
-        // Declared once, by naming the stock descriptor (ledger C8).
+        // Declared once, by naming the stock descriptor.
         state_transitions: Some(crate::state_transition::command_binding::DEFINES_PROCEDURE),
         ..CommandSpec::DEFAULT
     }

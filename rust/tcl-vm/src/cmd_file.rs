@@ -149,7 +149,7 @@ fn canonical_file_sub<'a>(subs: &[&'a str], sub: &str) -> Option<&'a str> {
 /// access): `join`, `dirname`, `tail`, `extension`, `rootname`, `split`,
 /// `normalize`, `nativename`, `pathtype`, `separator`. The `/`-based path text
 /// ops are the shared `tcl_cmd_core::path` core (platform-independent, unlike
-/// the VM's old `std::path::Path` versions). Returns `None` for any other
+/// `std::path::Path`). Returns `None` for any other
 /// subcommand so the caller falls through to the filesystem-backed ops.
 fn file_path_op(vm: &mut Vm, canon: &str, rest: &[Value]) -> Option<Completion<Value>> {
     let s = |v: &Value| v.to_str().to_string();
@@ -235,7 +235,7 @@ fn cmd_file(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return c;
     }
     match canon {
-        // -- filesystem queries --
+        // Filesystem queries.
         // `readable`/`writable`/`executable` only check existence (good enough
         // for the test host where files are owned by the runner).
         "exists" | "readable" | "writable" | "executable" => {
@@ -262,7 +262,7 @@ fn cmd_file(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             [p] => file_mtime(vm.host().filesystem(), &s(p)),
             _ => err("wrong # args: should be \"file mtime name ?time?\""),
         },
-        // -- filesystem mutation --
+        // Filesystem mutation.
         "mkdir" => {
             let Some(fs) = vm.host().filesystem() else {
                 return err("can't create directory: filesystem not available");
@@ -382,10 +382,10 @@ fn normalize(p: &str, cwd: &str) -> String {
 /// starting with `-` reaches the table, so an empty word is a pattern
 /// (tclsh: `glob {}` → `.`), never a miss.
 ///
-/// Issue #1607: this loop used to *skip* an unrecognised `-word` silently, so
-/// `glob -x a` ran and `-types d` leaked its value into the pattern list.
-/// Rejecting an unknown option is a deliberate behaviour change, ruled on for
-/// that sweep; every name the table advertises is honoured below.
+/// Silently skipping an unrecognised `-word` here would let
+/// `glob -x a` run and `-types d` leak its value into the pattern list.
+/// Rejecting an unknown option is a deliberate behaviour choice; every name
+/// the table advertises is honoured below.
 const GLOB_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static> =
     tcl_cmd_core::prefix::OptionTable::abbreviating(
         "option",

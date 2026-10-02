@@ -142,14 +142,14 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         }
         // commands/procs route through the shared namespace-aware core (over the
         // `Namespaces` enumeration rungs), which gives the VM correct qualified
-        // patterns + global-scope visibility (it previously listed all keys flat).
+        // patterns + global-scope visibility.
         "commands" => ok(tcl_cmd_core::info::command_list(vm, rest.first(), false)),
         "procs" => ok(tcl_cmd_core::info::command_list(vm, rest.first(), true)),
         // vars/locals/globals route through the shared variable-listing cores
         // (namespace-aware over `Namespaces::vars_in` + the active-frame
-        // `Frames::var_names`/`in_proc`). This split `vars` from `locals` (the VM
-        // previously aliased them, so `info vars` in a proc dropped its links) and
-        // gave `info globals` the global-namespace-only filter.
+        // `Frames::var_names`/`in_proc`). This splits `vars` from `locals` (aliasing
+        // them would drop `info vars`'s links in a proc) and
+        // gives `info globals` the global-namespace-only filter.
         "vars" => ok(tcl_cmd_core::info::vars(vm, rest.first())),
         "locals" => ok(tcl_cmd_core::info::locals(vm, rest.first())),
         "globals" => ok(tcl_cmd_core::info::globals(vm, rest.first())),
@@ -323,9 +323,7 @@ mod tests {
             (TclVersion::V8_5, "8.5", "8.5.19"),
             (TclVersion::V8_6, "8.6", "8.6.18"),
             (TclVersion::V9_0, "9.0", "9.0.4"),
-            // `tclsh9.1` (the 9.1b0 reference build): `info tclversion` →
-            // `9.1`, `info patchlevel` → `9.1b0`.
-            (TclVersion::V9_1, "9.1", "9.1b0"),
+            (TclVersion::V9_1, "9.1", "9.1.0"),
         ] {
             let mut vm = Vm::new();
             vm.set_runtime_version(version);

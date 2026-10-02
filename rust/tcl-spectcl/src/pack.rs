@@ -365,7 +365,7 @@ pub(crate) fn load_sources(
     }
 
     // Cross-pack collisions, once every pack is merged — the only point where
-    // all of them are known at once (issue #1637).
+    // all of them are known at once.
     notices.extend(cross_pack_command_notices(&packs));
     notices.extend(cross_pack_extension_notices(&packs));
 
@@ -398,9 +398,9 @@ pub(crate) fn load_sources(
 /// Report every command name two *different* packs both claim.
 ///
 /// The in-pack duplicate is caught by [`merge_group`] and the shipped-command
-/// clash by [`collision_notices`]; between two packs there was nothing at all
-/// before issue #1637 — the loser was dropped by [`installs_over`] and the
-/// winner decided by pack-name sort order, in silence.
+/// clash by [`collision_notices`]; between two packs neither of those fires,
+/// so without this check the loser would be dropped by [`installs_over`] and
+/// the winner decided by pack-name sort order, in silence.
 ///
 /// This walks the packs in exactly the order [`crate::install::install_into`]
 /// does and applies the same rule, so the notice can never disagree with what
@@ -450,8 +450,8 @@ fn cross_pack_command_notices(packs: &[MergedPack]) -> Vec<PackNotice> {
     // two for Cadence — leave the Synopsys claim standing while the two
     // Cadence claims genuinely collide with each other. A single-entry map
     // compares the third claim only against the first, finds them
-    // vendor-disjoint, and reports nothing; the real collision goes unreported
-    // (found reviewing #1637). So each claim is checked against every standing
+    // vendor-disjoint, and reports nothing; the real collision goes unreported.
+    // So each claim is checked against every standing
     // claim and settles against the first it *could* collide with — which is
     // the one `install_into` would have let win, since both walk packs in the
     // same order.
@@ -550,8 +550,9 @@ fn could_collide(a: Option<&'static str>, b: Option<&'static str>) -> bool {
 /// Report every `file_extension` two different packs both claim.
 ///
 /// One owner per extension is the invariant, and [`PackSet::extension_dialects`]
-/// enforces it by dropping all but the first — silently, before issue #1637.
-/// The loser matters more here than for a command: an extension routed to the
+/// enforces it by dropping all but the first, silently — so this notice is
+/// what makes the drop visible. The loser matters more here than for a
+/// command: an extension routed to the
 /// wrong dialect mis-lexes every file of that type.
 ///
 /// Only rows carrying a `-dialect` can collide in the sense that matters, since
@@ -570,7 +571,7 @@ fn cross_pack_extension_notices(packs: &[MergedPack]) -> Vec<PackNotice> {
                 Some((prior_pack, prior_dialect)) => out.push(PackNotice {
                     // The row's *own* file, not the merged pack's first one:
                     // a logical pack can span several files, and `row.line` is
-                    // a line in this one (issue #1637 review).
+                    // a line in this one.
                     path: row.file.clone(),
                     line: row.line,
                     context: format!("file_extension {}", row.extension),
@@ -640,8 +641,8 @@ fn merge_group(
         }
         for mut row in pack.file_extensions {
             // Same reason as the command loop below: the merge is the only
-            // layer that knows which file of a multi-file pack a row came from
-            // (found reviewing #1637).
+            // layer that knows which file of a multi-file pack a row came
+            // from.
             row.file.clone_from(&file.path);
             if !merged
                 .file_extensions
@@ -677,14 +678,14 @@ fn merge_group(
         merged.surface_rosters.extend(pack.surface_rosters);
         for mut command in pack.commands {
             // The merge is the only layer that knows which file a command came
-            // from, so this is where that gets recorded (issues #1637, #1638).
+            // from, so this is where that gets recorded.
             command.file.clone_from(&file.path);
             if let Some((first_path, first_line)) = first_seen.get(command.spec.name) {
                 notices.push(PackNotice {
                     path: file.path.clone(),
                     // The *ignored* declaration's own line, not line 1. The
                     // squiggle belongs on the duplicate the author can delete,
-                    // not on the `speclib` header (issue #1638).
+                    // not on the `speclib` header.
                     line: command.line,
                     context: format!("command {}", command.spec.name),
                     message: if *first_path == file.path {

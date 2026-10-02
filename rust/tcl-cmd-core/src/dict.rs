@@ -93,7 +93,7 @@ pub fn upsert<O: ValueOps>(
 }
 
 /// Key → position index over `pairs`, so the dict build commands can upsert
-/// in O(1) instead of [`upsert`]'s O(N) linear scan (D3).
+/// in O(1) instead of [`upsert`]'s O(N) linear scan.
 fn index_of_pairs<O: ValueOps>(
     ops: &mut O,
     pairs: &[(O::Value, O::Value)],
@@ -356,17 +356,18 @@ pub fn getdef<O: ValueOps>(
     Ok(cur)
 }
 
-/// Dispatch a pure `dict` subcommand. `rest` is the args after the subcommand;
-/// `invoked` is the actual command prefix used by `info`'s arity diagnostic
-/// (either `dict info` or a separately invoked/renamed implementation command).
 /// `dict filter`'s type word, in C table order (`filters[]`, `tclDictObj.c`):
 /// `Tcl_GetIndexFromObj(…, "filterType", 0)`, so `k`/`s`/`v` abbreviate and
 /// the empty word — a prefix of all three — is `ambiguous filterType ""`.
 const FILTER_TYPES: crate::prefix::OptionTable<'static> =
     crate::prefix::OptionTable::abbreviating("filterType", &["key", "script", "value"]);
 
-/// Returns `None` for a not-yet-ported (variable-mutating) subcommand so the
-/// caller falls back to its legacy path.
+/// Dispatch a pure `dict` subcommand. `rest` is the args after the subcommand;
+/// `invoked` is the actual command prefix used by `info`'s arity diagnostic
+/// (either `dict info` or a separately invoked/renamed implementation command).
+///
+/// Returns `None` for the variable-mutating subcommands, which the caller's
+/// adapter owns.
 pub fn dispatch_canon<O: ValueOps>(
     ops: &mut O,
     invoked: &str,

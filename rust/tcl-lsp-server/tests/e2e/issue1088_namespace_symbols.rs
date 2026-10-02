@@ -16,13 +16,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Issue #1088 — namespace names as navigable symbols.
+//! Namespace names as navigable symbols.
 //!
-//! Split out of issue #923 audit idx 75's secondary claim: a namespace *name*
-//! written as an argument (`namespace children ::tomato`, `namespace exists`,
-//! `namespace delete`, `namespace upvar`, and the `namespace eval` target
-//! itself) had no definition / hover / references answer at all, even in a
-//! single file — namespaces were modelled as containers, never as symbols.
+//! A namespace *name* written as an argument (`namespace children
+//! ::tomato`, `namespace exists`, `namespace delete`, `namespace upvar`,
+//! and the `namespace eval` target itself) must have a definition / hover
+//! / references answer, even in a single file — namespaces are modelled
+//! as symbols, not only as containers.
 //!
 //! The oracle every positive case here is written against, pinned on tclsh
 //! 9.0.4 and 8.6.16 and byte-identical on both:
@@ -134,8 +134,8 @@ fn tp_references_from_the_declaration_reach_every_spelling() {
 }
 
 // TP — cross-file: the consumer document declares nothing, the declaring
-// `namespace eval` lives in a sibling.  This is the tier the qualified
-// variable work (#1086) established, applied to namespaces.
+// `namespace eval` lives in a sibling.  This is the same tier the qualified
+// variable work established, applied to namespaces.
 #[test]
 fn tp_cross_file_namespace_definition() {
     let mut lsp = Lsp::tcl();
@@ -337,7 +337,7 @@ fn fn_inscope_target_is_a_reference_not_a_declaration() {
     );
 }
 
-// Review of PR #1112 — three P2 tier-completeness findings.
+// Three tier-completeness cases.
 
 // TN (finding 1) — a namespace-name position is **definitive**: it must never
 // fall through to command resolution.  `namespace exists string` with
@@ -365,7 +365,7 @@ fn tn_command_hover_never_claims_a_namespace_word() {
 
 // TN (finding 1) — the same rule for find-references.  Asking *without*
 // declarations from a namespace's only declaring block leaves the local set
-// empty, which is exactly what used to route the query to the proc/class
+// empty, which must not route the query to the proc/class
 // workspace tier.
 #[test]
 fn tn_references_never_fall_through_to_the_proc_tier() {
@@ -383,11 +383,11 @@ fn tn_references_never_fall_through_to_the_proc_tier() {
     );
 }
 
-// TN (finding 1) — and for rename.  The namespace tier (#1114) answers the
+// TN — and for rename.  The namespace tier answers the
 // word, so a rename here moves the *namespace* and leaves the same-spelled
-// proc exactly where it is.  The failure this guards against is the original
-// one: an empty edit set falling through to the server's workspace-resolved
-// rename branch, which resolved the word as a command and rewrote the proc.
+// proc exactly where it is.  The hazard this guards against: an empty edit
+// set falling through to the server's workspace-resolved rename branch,
+// which would resolve the word as a command and rewrite the proc.
 //
 // tclsh-proof (8.6.14): a proc and a namespace may share a name — `proc
 // widget {} {return 1}` then `namespace eval widget {}` leaves `widget` -> 1
@@ -593,13 +593,14 @@ fn tp_a_braced_namespace_name_is_navigable() {
     );
 }
 
-// Issue #1246 — implicit parents at the **workspace** tier.
+// Implicit parents at the **workspace** tier.
 //
 // `namespace eval ::p::q::r {}` really creates `::p` and `::p::q`, so a
 // reference to `::p::q` answers with the covering prefix of the deeper written
-// name.  The in-document tier has done that since #1113 item 1; the server's
-// cross-document tier matched only exact qualified names, so a cell whose sole
-// creating block lived in a sibling file answered nothing at all.
+// name.  The in-document tier already does that; the server's
+// cross-document tier must match this too, not only exact qualified names,
+// or a cell whose sole creating block lives in a sibling file answers
+// nothing at all.
 //
 // tclsh-proof — 9.0.4 and 8.6.16, byte-identical:
 //   namespace eval ::p::q::r {}

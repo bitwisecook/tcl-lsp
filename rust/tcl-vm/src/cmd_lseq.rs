@@ -16,8 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `lseq` — the arithmetic-sequence generator, newly added to the VM over the
-//! shared [`tcl_cmd_core::lseq`] core. The VM had no `lseq` before; it now gets
+//! `lseq` — the arithmetic-sequence generator, over the
+//! shared [`tcl_cmd_core::lseq`] core. Supports
 //! every form (`lseq 5`, `lseq 1 to 10 by 2`, `lseq 0 0.5 by 0.1`,
 //! expression-valued arguments) over its `i64`+`double` number model — the same
 //! core the WASM runtime drives over its bignum tower.

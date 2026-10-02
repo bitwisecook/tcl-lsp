@@ -18,18 +18,9 @@
 
 //! BIG-IP object specs for the `wom` tmsh module.
 //!
-//! **Hand-maintained.** These files were originally produced by a
-//! one-time port of the pre-rewrite Python registry
-//! (`dialects/f5/bigip/registry/specs/`, still present on `main`) via a
-//! `scripts/registry-audit/gen_bigip_rust.py` generator that no longer
-//! exists — deleted along with the rest of the retired Python tooling on
-//! this branch, and the commits that ran it were squashed away in the
-//! `rust` branch's rebase-onto-main history (see issue #1404). Originally
-//! organised by the first letter of `kind`; reorganised by tmsh module
-//! name (this file's own module field, `Some("wom")`) per
-//! maintainer review on the PR that introduced the consistency gate below.
-//! There is no live generator to regenerate these from; edit them by hand,
-//! in the same shape the other module files already use.
+//! **Hand-maintained**, with no generator to produce these from — edit
+//! them directly, in the same shape the other module files use.  Organised
+//! by tmsh module name (this file's own module field, `Some("wom")`).
 //!
 //! `cargo xtask bigip-data-schema --check` enforces the internal
 //! invariants a generator would otherwise have guaranteed: every `kind`

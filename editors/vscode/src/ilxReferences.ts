@@ -18,7 +18,7 @@
 
 /**
  * Find-references from an iRulesLX extension's JavaScript back to the iRules
- * that call it (issue #1707).
+ * that call it.
  *
  * The Tcl server already answers both ends of the relation, but the JavaScript
  * end was unreachable from the editor: `.js` is not a Tcl language id, so no

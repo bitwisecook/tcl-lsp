@@ -21,10 +21,11 @@
 //! The runtime satisfies the shared state-mutation contract over its
 //! `*mut TclObj` value model, so a consumer of the `tcl-runtime-api` role
 //! traits can reach into this runtime's state with the *same* contract the
-//! bytecode VM (`tcl-vm`) satisfies over `Rc<Obj>`. All six role traits —
-//! `VarStore`, `Introspect`, `Commands`, `Traces`, `Frames`, `Namespaces` — are
-//! implemented here. `Namespaces::find_command` mints a `CommandId` that
-//! `Commands::dispatch_id` invokes (the resolve-then-invoke pairing).
+//! bytecode VM (`tcl-vm`) satisfies over `Rc<Obj>`. All seven role traits —
+//! `VarStore`, `Introspect`, `Procs`, `Commands`, `Traces`, `Frames`,
+//! `Namespaces` — are implemented here. `Namespaces::find_command` mints a
+//! `CommandId` that `Commands::dispatch_id` invokes (the resolve-then-invoke
+//! pairing).
 
 use tcl_runtime_api::{
     ArrayElementRead, ArrayTarget, CommandId, Commands, Completion, FrameId, Frames, Introspect,
@@ -166,9 +167,9 @@ impl VarStore for Interp {
 
 /// Runtime introspection backing the `info` family (`info level`/`info level N`).
 ///
-/// The handle-free role trait that fits *both* runtime models as-drafted (the
-/// reconciliation finding), so it is the first beyond `VarStore` both runtimes
-/// share. `level` is the current proc-nesting depth; `level_argv` builds a
+/// The handle-free role trait that fits *both* runtime models as drafted, so
+/// it is the first beyond `VarStore` both runtimes share. `level` is the
+/// current proc-nesting depth; `level_argv` builds a
 /// **fresh** list of the retained invoking words at an absolute level (`None`
 /// for a level with no call — the global frame). Unlike [`VarStore::get`]'s
 /// borrowed pointer, the returned `*mut TclObj` is freshly constructed (rc-0)

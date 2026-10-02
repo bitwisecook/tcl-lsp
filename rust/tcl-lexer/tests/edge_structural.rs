@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-/// Edge-case tests for the structural index — verifies behavior at boundaries.
+/// Edge-case tests for the structural index — verifies behaviour at boundaries.
 use tcl_lexer::{
     BraceIndex, BracketIndex, ExprParenIndex, ParenBalance, command_boundaries, reparse_window,
     script_is_complete,

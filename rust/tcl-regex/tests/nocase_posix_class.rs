@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! under `-nocase`, the POSIX classes `[[:upper:]]` /
+//! Under `-nocase`, the POSIX classes `[[:upper:]]` /
 //! `[[:lower:]]` must fold to *letters* (C Tcl's `CC_ALPHA`), not `alnum` —
 //! so they never match digits.
 

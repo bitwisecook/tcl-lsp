@@ -6,6 +6,7 @@
 #   - Pool definitions (members, monitors, load-balancing mode)
 #   - Data groups (internal: string, ip, integer)
 #   - Node definitions (addresses)
+#   - SNAT pool definitions (members)
 #   - iRule source (loaded into the event handler registry)
 #   - Profile types (HTTP, TCP, SSL, DNS, etc.)
 #
@@ -19,7 +20,7 @@
 
 namespace eval ::scf {
 
-    # ── Parsed configuration storage ──────────────────────────────────
+    # Parsed configuration storage
 
     # vs_path -> {destination pool profiles rules persist snat_type snatpool}
     variable virtual_servers
@@ -28,6 +29,13 @@ namespace eval ::scf {
     # pool_path -> {members {addr:port ...} monitor lb_mode}
     variable pools
     array set pools {}
+
+    # snatpool_path -> {members {addr ...}}
+    # A virtual server's `snatpool` / `source-address-translation pool`
+    # property names one of these, so the reference has something to resolve
+    # against.
+    variable snatpools
+    array set snatpools {}
 
     # dg_path -> {type "string" records {key val ...}}
     variable data_groups
@@ -45,7 +53,7 @@ namespace eval ::scf {
     variable profiles
     array set profiles {}
 
-    # ── SCF parser ────────────────────────────────────────────────────
+    # SCF parser
     #
     # Parses the brace-delimited BIG-IP config format.
 
@@ -109,7 +117,7 @@ namespace eval ::scf {
         }
     }
 
-    # ── Block extraction ──────────────────────────────────────────────
+    # Block extraction
 
     proc _extract_blocks {source} {
         set blocks [list]
@@ -180,7 +188,7 @@ namespace eval ::scf {
         return $blocks
     }
 
-    # ── Header parsing ────────────────────────────────────────────────
+    # Header parsing
 
     # Two-word types we recognise
     variable _two_word_types {
@@ -220,7 +228,7 @@ namespace eval ::scf {
         return [list $module [lindex $parts 1] [lindex $parts 2]]
     }
 
-    # ── Property parser ───────────────────────────────────────────────
+    # Property parser
 
     proc _parse_properties {body} {
         set props [list]
@@ -295,7 +303,7 @@ namespace eval ::scf {
         return $props
     }
 
-    # ── List block parser ─────────────────────────────────────────────
+    # List block parser
 
     proc _parse_list_block {braced} {
         set inner [string trim $braced]
@@ -356,7 +364,7 @@ namespace eval ::scf {
         return $items
     }
 
-    # ── Object parsers ────────────────────────────────────────────────
+    # Object parsers
 
     # Profile type classification
     variable _profile_type_map
@@ -472,12 +480,15 @@ namespace eval ::scf {
     }
 
     proc _parse_snatpool {full_path body} {
-        # Stored in pools for simplicity
+        variable snatpools
+
         set props [_parse_properties $body]
         set members [list]
         foreach {k v} $props {
             if {$k eq "members"} { set members [_parse_list_block $v] }
         }
+
+        set snatpools($full_path) [list members $members]
     }
 
     proc _parse_data_group {full_path body obj_type} {
@@ -581,7 +592,7 @@ namespace eval ::scf {
         set profiles($full_path) [list type $mapped_type subtype $subtype]
     }
 
-    # ── Resolve names ─────────────────────────────────────────────────
+    # Resolve names
 
     proc _resolve_name {name arr_name} {
         upvar 1 $arr_name arr
@@ -597,14 +608,16 @@ namespace eval ::scf {
         return ""
     }
 
-    # ── Apply a virtual server config to the test framework ───────────
+    # Apply a virtual server config to the test framework
     #
     # This is the key function: given a VS name from the SCF, it:
-    #   1. Determines the profile set
-    #   2. Registers all attached pools
-    #   3. Loads all attached iRules
-    #   4. Configures data groups referenced by the iRules
-    #   5. Sets up the orchestrator with the right profile combination
+    #   1. Resolves the profile set (inferring types from profile names where
+    #      needed) and configures the orchestrator with it
+    #   2. Configures the VIP address/port from the destination
+    #   3. Registers the VS's default pool, then every pool parsed from the
+    #      SCF, so an iRule can reference a pool outside the VS default
+    #   4. Registers every data group parsed from the SCF
+    #   5. Loads the VS's attached iRules
 
     proc apply_virtual {vs_name} {
         variable virtual_servers
@@ -778,11 +791,12 @@ namespace eval ::scf {
         return ""
     }
 
-    # ── Reset ─────────────────────────────────────────────────────────
+    # Reset
 
     proc reset {} {
         variable virtual_servers
         variable pools
+        variable snatpools
         variable data_groups
         variable nodes
         variable rules
@@ -790,13 +804,14 @@ namespace eval ::scf {
 
         array unset virtual_servers
         array unset pools
+        array unset snatpools
         array unset data_groups
         array unset nodes
         array unset rules
         array unset profiles
     }
 
-    # ── Query helpers ─────────────────────────────────────────────────
+    # Query helpers
 
     proc list_virtual_servers {} {
         variable virtual_servers
@@ -806,6 +821,11 @@ namespace eval ::scf {
     proc list_pools {} {
         variable pools
         return [array names pools]
+    }
+
+    proc list_snatpools {} {
+        variable snatpools
+        return [array names snatpools]
     }
 
     proc list_rules {} {
@@ -830,6 +850,17 @@ namespace eval ::scf {
         set resolved [_resolve_name $pool_name pools]
         if {$resolved eq ""} { return [list] }
         set info $pools($resolved)
+        foreach {k v} $info {
+            if {$k eq "members"} { return $v }
+        }
+        return [list]
+    }
+
+    proc snatpool_members {snatpool_name} {
+        variable snatpools
+        set resolved [_resolve_name $snatpool_name snatpools]
+        if {$resolved eq ""} { return [list] }
+        set info $snatpools($resolved)
         foreach {k v} $info {
             if {$k eq "members"} { return $v }
         }

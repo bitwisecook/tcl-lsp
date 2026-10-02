@@ -295,6 +295,89 @@ fn features_shimmer_xc_and_line_length() {
 }
 
 #[test]
+fn workspace_scan_max_files_section() {
+    // `[workspaceScan] max_files` is the on-disk scan's file budget
+    // (issue #2021) — the INI snake_case spelling and the editor's camelCase
+    // key both parse, and both land on the editor's JSON shape.
+    let snake = settings_from_ini("[workspaceScan]\nmax_files = 6000\n", Layer::Global);
+    assert_eq!(snake["workspaceScan"]["maxFiles"], json!(6000));
+    let camel = settings_from_ini("[workspaceScan]\nmaxFiles = 6000\n", Layer::Project);
+    assert_eq!(camel["workspaceScan"]["maxFiles"], json!(6000));
+    // A non-integer leaves the built-in default in place rather than emitting
+    // a key the apply path would have to defend against.
+    let bad = settings_from_ini("[workspaceScan]\nmax_files = lots\n", Layer::Global);
+    assert!(
+        bad.get("workspaceScan").is_none(),
+        "non-integer scan budget dropped: {bad}"
+    );
+    assert!(
+        settings_from_ini("", Layer::Global)
+            .get("workspaceScan")
+            .is_none()
+    );
+}
+
+#[test]
+fn workspace_scan_project_ini_beats_the_editor_layer() {
+    // The documented precedence for every key: the committed project
+    // `.tcl-lsp.ini` wins over what the editor sends, which wins over the
+    // user's global `config.ini`.
+    let global = settings_from_ini("[workspaceScan]\nmax_files = 100\n", Layer::Global);
+    let editor = json!({ "workspaceScan": { "maxFiles": 500 } });
+    let project = settings_from_ini("[workspaceScan]\nmax_files = 9000\n", Layer::Project);
+    let merged = merge_settings(&merge_settings(&global, &editor), &project);
+    assert_eq!(
+        merged["workspaceScan"]["maxFiles"],
+        json!(9000),
+        "project .tcl-lsp.ini wins over the editor value: {merged}"
+    );
+    // With no project file the editor layer wins over the global config.ini.
+    let no_project = merge_settings(&merge_settings(&global, &editor), &json!({}));
+    assert_eq!(no_project["workspaceScan"]["maxFiles"], json!(500));
+    // With neither, the global config.ini is what applies.
+    let global_only = merge_settings(&merge_settings(&global, &json!({})), &json!({}));
+    assert_eq!(global_only["workspaceScan"]["maxFiles"], json!(100));
+}
+
+#[test]
+fn notifications_environment_kind_section() {
+    // The INI spelling is snake_case; the editor's camelCase key is accepted
+    // so exported settings paste back unchanged.
+    let snake = settings_from_ini("[notifications]\nenvironment_kind = false\n", Layer::Global);
+    assert_eq!(snake["notifications"]["environmentKind"], json!(false));
+    let camel = settings_from_ini("[notifications]\nenvironmentKind = off\n", Layer::Project);
+    assert_eq!(camel["notifications"]["environmentKind"], json!(false));
+    let on = settings_from_ini("[notifications]\nenvironment_kind = yes\n", Layer::Global);
+    assert_eq!(on["notifications"]["environmentKind"], json!(true));
+
+    // An unparsable value or an absent section says nothing, so the built-in
+    // default stands.
+    let bad = settings_from_ini("[notifications]\nenvironment_kind = maybe\n", Layer::Global);
+    assert!(bad.get("notifications").is_none());
+    assert!(
+        settings_from_ini("[features]\nhover = false\n", Layer::Global)
+            .get("notifications")
+            .is_none()
+    );
+}
+
+#[test]
+fn notifications_editor_layer_beats_the_global_file() {
+    // The XDG file is the lowest layer: an editor that sends the key wins, and
+    // an editor that sends nothing leaves the file's value in force.
+    let global = settings_from_ini("[notifications]\nenvironment_kind = false\n", Layer::Global);
+    let editor = json!({ "notifications": { "environmentKind": true } });
+    assert_eq!(
+        merge_settings(&global, &editor)["notifications"]["environmentKind"],
+        json!(true)
+    );
+    assert_eq!(
+        merge_settings(&global, &json!({}))["notifications"]["environmentKind"],
+        json!(false)
+    );
+}
+
+#[test]
 fn signature_help_disabled_commands_section() {
     let snake = settings_from_ini(
         "[signatureHelp]\ndisabled_commands = set, incr\n",

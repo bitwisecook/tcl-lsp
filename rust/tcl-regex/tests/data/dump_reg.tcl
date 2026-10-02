@@ -2,7 +2,7 @@
 # the REAL Tcl 9 engine (the `testregexp` command, available in the `tcltest`
 # shell) as the oracle.  Run with:
 #
-#   tmp/tcl9.0.3/unix/tcltest rust/tcl-regex/tests/data/dump_reg.tcl
+#   tmp/tcl9.0.4/unix/tcltest rust/tcl-regex/tests/data/dump_reg.tcl
 #
 # We reproduce reg.test's `&` ARE/BRE expansion and its flag-string -> option
 # mapping (TestFlags), then ask the engine itself for the authoritative

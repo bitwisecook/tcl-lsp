@@ -21,8 +21,8 @@
 //! The pure list operations — those that read/build list values without touching
 //! interpreter variables. The variable-mutating members (`lappend`, `lassign`)
 //! stay per-runtime over the Family-B var store. Indices go through the shared
-//! [`crate::index`] parser, so a bad index errors faithfully (where some legacy
-//! paths silently returned empty).
+//! [`crate::index`] parser, so a malformed index spec raises `bad index` rather
+//! than quietly yielding the empty string.
 //!
 //! [`ValueOps`]: tcl_syntax::value::ValueOps
 

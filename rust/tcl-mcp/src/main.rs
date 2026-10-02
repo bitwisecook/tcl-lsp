@@ -29,12 +29,12 @@ use rmcp::ServiceExt;
 use rmcp::handler::server::ServerHandler;
 use rmcp::model::{
     CacheScope, CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, ErrorData,
-    ListToolsResult, PaginatedRequestParams, ProtocolVersion, ServerCapabilities, ServerInfo, Tool,
+    ListToolsResult, PaginatedRequestParams, ProtocolVersion, ServerCapabilities, ServerConfig,
+    Tool,
 };
 use rmcp::service::{RequestContext, RoleServer};
 use rmcp::transport::stdio;
 use serde_json::{Value, json};
-use tcl_dialect::DialectProfile;
 
 mod bigip;
 mod datagroup;
@@ -53,8 +53,8 @@ mod xc;
 struct TclMcp;
 
 impl ServerHandler for TclMcp {
-    fn get_info(&self) -> ServerInfo {
-        let mut info = ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+    fn get_info(&self) -> ServerConfig {
+        let mut info = ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_instructions(instructions());
         // Keep a stable server identity so existing MCP clients see no change.
         "tcl-lsp".clone_into(&mut info.server_info.name);
@@ -109,16 +109,17 @@ impl ServerHandler for TclMcp {
     }
 }
 
-/// The server blurb clients show before any tool call — the dialect families
-/// named from [`DialectProfile::all`] (compact `short_name` labels) so a new
-/// profile advertises itself here without an edit.
+/// The server blurb clients show before any tool call — the selectable
+/// environments named by their compact `short_name` labels, read from the live
+/// registry so a new environment advertises itself here without an edit.
 fn instructions() -> String {
-    let families: Vec<&str> = DialectProfile::all()
+    let selectable = tcl_registry::model::selectable_environments();
+    let families: Vec<&str> = selectable
         .iter()
-        .map(|profile| profile.short_name)
+        .map(|environment| environment.short_name.as_ref())
         .collect();
     format!(
-        "Static analysis of every catalogued Tcl dialect ({}): graphs, dataflow/SSA, \
+        "Static analysis of every selectable Tcl dialect ({}): graphs, dataflow/SSA, \
          refactors, optimiser, WASM, dialect detection — served natively over the Rust engine.",
         families.join(", ")
     )
@@ -142,7 +143,7 @@ fn tool_list_result(tools: Vec<Tool>, supports_cache_hints: bool) -> ListToolsRe
 /// generous: the analyser's and CFG builder's depth-capped recursions
 /// (256 levels) need more stack than Tokio's 2 MiB worker-thread default
 /// provides, and MCP tool handlers run analysis the same way the LSP
-/// server does (issue #996).
+/// server does.
 const WORKER_STACK_SIZE: usize = 64 * 1024 * 1024;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -162,13 +163,15 @@ async fn serve() -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(test)]
 mod protocol_tests {
     use super::*;
+    use tcl_dialect::model::EnvironmentRegistry;
 
     #[test]
-    fn instructions_name_every_catalogued_dialect_family() {
+    fn instructions_name_every_selectable_environment() {
         let text = instructions();
-        for profile in DialectProfile::all() {
-            assert!(text.contains(profile.short_name), "{text}");
+        for environment in EnvironmentRegistry::compiled_selectable() {
+            assert!(text.contains(environment.short_name.as_ref()), "{text}");
         }
+        assert!(text.contains("Jim"), "{text}");
     }
 
     #[test]

@@ -94,7 +94,7 @@ fn scan_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         let Some(value) = v else { break };
         let name = obj_bytes(var);
         // `arr(a)` writes the array *element*, not a literal scalar named
-        // `arr(a)` (issue #1577) — the same `split_array_ref` +
+        // `arr(a)` — the same `split_array_ref` +
         // `var_set`/`var_set_elem` routing `set` uses, so this doesn't
         // hand-roll a second name parser.
         let (base, elem) = crate::frame::split_array_ref(&name);

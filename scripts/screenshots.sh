@@ -138,7 +138,8 @@ mkdir -p "$OUTPUT_DIR"
 rm -f "$OUTPUT_DIR"/.done "$OUTPUT_DIR"/.shell-ready "$OUTPUT_DIR"/.ai-started "$OUTPUT_DIR"/.ai-success "$OUTPUT_DIR"/.ai-done \
       "$OUTPUT_DIR"/.vscode-main-pid "$OUTPUT_DIR"/.vscode-ext-host-pid \
       "$OUTPUT_DIR"/*.ready "$OUTPUT_DIR"/*.captured
-# Scene 06 was removed in favour of a single side-by-side formatting shot.
+# Scene 06 is now a single side-by-side formatting shot; delete any leftover
+# before-file from an older run.
 rm -f "$OUTPUT_DIR"/06-formatting-before.png
 
 export SCREENSHOT_OUTPUT_DIR="$OUTPUT_DIR"

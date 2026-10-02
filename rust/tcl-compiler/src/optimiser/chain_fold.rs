@@ -73,14 +73,14 @@ use super::{Optimisation, PassContext};
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     // A dynamic variable-trace target (`trace add variable $n …`) means
     // *every* name is potentially traced, so no intermediate write is
-    // provably unobserved anywhere in the module (issue #1377).
+    // provably unobserved anywhere in the module.
     if cu.ir_module.has_dynamic_variable_trace {
         return;
     }
     let mut cross = ctx.cross_event_vars.clone();
     // The whole-module trace fact stores the canonical (`::`-stripped)
     // spelling, so it also protects a chain whose target is spelled
-    // unqualified while the trace names `::var` (issue #1377) — the same
+    // unqualified while the trace names `::var` — the same
     // fact SCCP and O102 already consult.
     cross.extend(cu.ir_module.traced_variables.iter().cloned());
     // `ctx.registry` is always set by the `optimise*` entry points; a bare
@@ -99,7 +99,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         let fu = cu.procedures.get(qname);
         // A computed variable name (`set $name …`) can write the accumulator
         // mid-chain under a spelling `classify_write` cannot see, so the
-        // whole function abstains (issue #1374).
+        // whole function abstains.
         if fu.is_some_and(FunctionUnit::dynamic_barrier_blocks_value_motion) {
             continue;
         }
@@ -221,11 +221,58 @@ fn write_var(w: &Write) -> &str {
     }
 }
 
+/// Which of the chain's three head words the module still leaves denoting
+/// their builtin ([`crate::command_binding::ModuleCommandMutations::trusts`]).
+///
+/// Each arm of [`classify_write`] *is* that command's write semantics, so it
+/// may only run while the name still denotes it. With
+/// `proc append {varName args} {return ZZZ}` in scope, `append s foo` calls
+/// that proc and never touches `s` — tclsh 8.6.18 / 9.0.4 return the empty
+/// string for `set s ""; append s foo; append s bar; return $s`, where the
+/// ungated fold answered `foobar`. Same defect family as #2164.
+#[derive(Clone, Copy)]
+struct ChainHeadTrust {
+    set: bool,
+    append: bool,
+    lappend: bool,
+}
+
+impl ChainHeadTrust {
+    /// Keyed on the **named-subject** half of the trust fact, not the whole
+    /// of [`ModuleCommandMutations::trusts`].
+    ///
+    /// The hazard this gate exists for is a shadowing `proc append` (or a
+    /// rename or alias onto the name), which is exactly what
+    /// `observed_binding_is_the_builtin` answers. `trusts` additionally folds
+    /// in the `dynamic` unbounded top, which a single unresolved command head
+    /// anywhere in the module raises — and that declined a legitimate
+    /// `append` chain in `samples/optimiser/input.tcl`, which shadows
+    /// nothing.
+    ///
+    /// Two reasons that is the wrong stance here. This pass had **no** trust
+    /// gate at all before, so under `dynamic` it folded unconditionally; the
+    /// named half is still strictly tighter than that. And the shared value
+    /// lattice — which feeds O100's rewrites — already uses the named half,
+    /// so gating this one harder leaves the two disagreeing about the same
+    /// question, which is the defect #2164 was about.
+    ///
+    /// The residual that leaves under a computed rename is #2168, and it
+    /// applies to both alike.
+    fn of(mutations: &crate::command_binding::ModuleCommandMutations) -> Self {
+        Self {
+            set: mutations.observed_binding_is_the_builtin("set"),
+            append: mutations.observed_binding_is_the_builtin("append"),
+            lappend: mutations.observed_binding_is_the_builtin("lappend"),
+        }
+    }
+}
+
 /// Classify `stmt` as a static write, or `None` for anything else
-/// (dynamic operand, other command, control flow).
-fn classify_write(stmt: &Statement) -> Option<Write> {
+/// (dynamic operand, other command, control flow, or a head the module no
+/// longer leaves denoting its builtin).
+fn classify_write(stmt: &Statement, trust: ChainHeadTrust) -> Option<Write> {
     match stmt {
-        Statement::AssignConst { name, value, .. } => Some(Write::Set {
+        Statement::AssignConst { name, value, .. } if trust.set => Some(Write::Set {
             var: normalise_var_name(name).to_owned(),
             value: value.clone(),
         }),
@@ -238,7 +285,7 @@ fn classify_write(stmt: &Statement) -> Option<Write> {
             value_needs_backsubst,
             tokens,
             ..
-        } => {
+        } if trust.set => {
             if *value_needs_backsubst {
                 return None;
             }
@@ -280,16 +327,16 @@ fn classify_write(stmt: &Statement) -> Option<Write> {
                 values.push(val.clone());
             }
             match command.as_str() {
-                "set" if values.len() == 1 => Some(Write::Set {
+                "set" if trust.set && values.len() == 1 => Some(Write::Set {
                     var,
                     value: values.into_iter().next().unwrap(),
                 }),
-                "append" if !values.is_empty() => Some(Write::Append {
+                "append" if trust.append && !values.is_empty() => Some(Write::Append {
                     var,
                     word: var_word,
                     pieces: values,
                 }),
-                "lappend" if !values.is_empty() => Some(Write::Lappend {
+                "lappend" if trust.lappend && !values.is_empty() => Some(Write::Lappend {
                     var,
                     word: var_word,
                     elements: values,
@@ -310,7 +357,8 @@ fn try_fold_chain_at(
     start: usize,
     protected: &HashSet<String>,
 ) -> Option<usize> {
-    let Write::Set { var, value } = classify_write(&stmts[start])? else {
+    let trust = ChainHeadTrust::of(&ctx.command_mutations);
+    let Write::Set { var, value } = classify_write(&stmts[start], trust)? else {
         return None;
     };
 
@@ -321,7 +369,7 @@ fn try_fold_chain_at(
 
     let mut j = start + 1;
     while j < stmts.len() {
-        match classify_write(&stmts[j]) {
+        match classify_write(&stmts[j], trust) {
             Some(Write::Append {
                 var: v,
                 word,
@@ -467,9 +515,9 @@ mod tests {
         out
     }
 
-    /// Regression coverage for issue #996: `fold_script` recurses once per
+    /// `fold_script` recurses once per
     /// nested `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch` body,
-    /// with no depth cap of its own before this fix. Transitively bounded
+    /// so it needs a depth cap of its own. Transitively bounded
     /// to `MAX_LOWER_NEST_DEPTH` (256) by the lowering pass today, so this
     /// is defence-in-depth / consistency with every other full-tree walker
     /// in this crate, not a currently-reproducible crash. 1000 levels of
@@ -637,7 +685,7 @@ mod tests {
         );
     }
 
-    /// Issue #1374 — a computed variable name between the writes can hit the
+    /// A computed variable name between the writes can hit the
     /// accumulator under a spelling `classify_write` cannot see (`f acc`
     /// returns `zzz b` in tclsh; the fold's `a b` would be a miscompile), so
     /// the whole proc abstains from O104 / O130.
@@ -652,7 +700,7 @@ mod tests {
         );
     }
 
-    /// Issue #1377 — a write trace observes every intermediate store. The
+    /// A write trace observes every intermediate store. The
     /// module fact records the trace target `::acc` canonically as `acc`, so
     /// the unqualified chain over `acc` must be protected too.
     #[test]
@@ -665,7 +713,7 @@ mod tests {
         );
     }
 
-    /// Issue #1377 — a dynamic trace target (`trace add variable $n …`)
+    /// A dynamic trace target (`trace add variable $n …`)
     /// makes every name potentially traced, so no chain folds at all.
     #[test]
     fn dynamic_trace_target_blocks_chain_fold() {

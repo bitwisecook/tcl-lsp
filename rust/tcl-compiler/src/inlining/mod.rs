@@ -96,7 +96,7 @@ pub const SMALL_BODY_THRESHOLD: usize = 5;
 
 /// Depth cap shared by every `Script`/`Statement`-tree recursion in this
 /// module (`tally_calls`, `has_irreturn_in_unsafe_scope`,
-/// `walk_local_writes`) — issue #996.
+/// `walk_local_writes`).
 ///
 /// Transitively bounded today via `crate::lowering`'s
 /// `MAX_LOWER_NEST_DEPTH` (every `Script` this module walks is built by
@@ -1633,6 +1633,7 @@ fn splice_v3(
             wrapped.push(Statement::Return {
                 span,
                 value: Some(format!("${result_var}")),
+                value_word: None,
                 expr: None,
                 command_binding: None,
                 braced: false,

@@ -132,6 +132,54 @@ mod tests {
         assert!(orch.contains("_fakecmp_addr_parts"));
     }
 
+    /// The "missing file" guidance every framework file prints has to name a
+    /// command that exists. Python was retired from this repository, so the
+    /// old `python -m tooling.irule_test.codegen_*` lines named nothing at
+    /// all. `cargo xtask gen-irule-test-data` is the real generator and it
+    /// writes only `_event_data.tcl` and `_mock_stubs.tcl` — no generator
+    /// produces `_registry_data.tcl`, which is hand-maintained (see
+    /// `docs/design/contracts/irule-test-framework.md` § *Decision rules*),
+    /// so its message must say "restore it", not offer a regeneration
+    /// command.
+    #[test]
+    fn missing_file_guidance_names_a_real_command() {
+        let bundled = |name: &str| {
+            let Some((_, src)) = BUNDLE.iter().find(|(n, _)| *n == name) else {
+                panic!("{name} bundled")
+            };
+            *src
+        };
+        for (name, src) in BUNDLE {
+            assert!(
+                !src.contains("python"),
+                "{name} still points at a retired Python entry point"
+            );
+        }
+        let orch = bundled("orchestrator.tcl");
+        assert!(
+            orch.contains(
+                "Missing generated file _event_data.tcl -- run: cargo xtask gen-irule-test-data"
+            ),
+            "orchestrator.tcl must name the real generator: {}",
+            orch.lines()
+                .find(|l| l.contains("Missing generated file"))
+                .unwrap_or("<no message>")
+        );
+        let shim = bundled("tmm_shim.tcl");
+        let message = shim
+            .lines()
+            .find(|l| l.contains("_registry_data.tcl") && l.contains("error"))
+            .unwrap_or("<no message>");
+        assert!(
+            message.contains("hand-maintained"),
+            "tmm_shim.tcl must say _registry_data.tcl is hand-maintained: {message}"
+        );
+        assert!(
+            !message.contains("run:"),
+            "tmm_shim.tcl must not offer a regeneration command for a hand-maintained file: {message}"
+        );
+    }
+
     /// The simulator is a deliberate non-Rust loader carve-out. Keep its
     /// header recogniser narrow and explicitly tied to the canonical Rust
     /// boundary owner; this fails when either side is silently changed.

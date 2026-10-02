@@ -142,8 +142,8 @@ pub(crate) fn split_list(s: &str) -> Option<Vec<String>> {
 /// `[dict keys {a 1 # 2}]` folded to `a {#}` where both tclsh oracles print
 /// `a #`, and likewise for `list`, `lrange`, `lreverse`, `lrepeat`, `split`
 /// and `dict create`/`values`/`merge`. Same elements, different *string* — and
-/// a fold bakes the string into the program (issues #1439 / #1608; found by
-/// the `dict_canonicalisation_parity` gate).
+/// a fold bakes the string into the program — caught by
+/// the `dict_canonicalisation_parity` gate.
 pub(crate) fn list_join<S: AsRef<str>>(elems: &[S]) -> String {
     tcl_syntax::list::join_list(elems)
 }
@@ -354,12 +354,11 @@ pub(crate) fn fold_lrange(args: &[&str]) -> Option<String> {
 /// The rule is not restated here — it is
 /// [`tcl_syntax::value::canonical_dict_slots`], the same function the runtime
 /// seam [`tcl_syntax::value::ValueOps::dict_pairs`] and the compiler's
-/// `fold_dict_create_cmd` bind. That centralisation is the point of issue
-/// #1608: three hand-written copies of this walk plus one place it had been
-/// *missed* is what let these folders feed six `dict` folders first-match
-/// semantics, so `[dict get {a 1 a 2} a]` folded to `1` where both tclsh
-/// oracles say `2` — an "optimisation" that changed program results (issues
-/// #1427 / #1591). This layer keeps only what is local to it: how a malformed
+/// `fold_dict_create_cmd` bind. That centralisation matters: hand-written
+/// copies of this walk risk drifting from the six `dict` folders' shared
+/// first-match semantics, so `[dict get {a 1 a 2} a]` could fold to `1`
+/// where both tclsh oracles say `2` — an "optimisation" that changes
+/// program results. This layer keeps only what is local to it: how a malformed
 /// dict is reported (a declined fold, not an error).
 fn parse_dict(s: &str) -> Option<Vec<(String, String)>> {
     let elems = split_list(s)?;
@@ -446,7 +445,7 @@ pub(crate) fn fold_dict_values(args: &[&str]) -> Option<String> {
 /// `Tcl_DictObjPut` over `DictCreateCmd`'s argument walk.
 ///
 /// The walk is [`tcl_syntax::value::canonical_dict_slots`]'s, not a second
-/// copy of it (issue #1608): `DictCreateCmd` puts its arguments into a fresh
+/// copy of it: `DictCreateCmd` puts its arguments into a fresh
 /// dict pairwise, which is the same rule `SetDictFromAny` applies to a list
 /// rep, so the same function answers for both.
 pub(crate) fn fold_dict_create(args: &[&str]) -> Option<String> {
@@ -565,7 +564,7 @@ mod tests {
         }
     }
 
-    /// Issue #1427's third site: these registry const-folds decode a dict
+    /// These registry const-folds decode a dict
     /// **string** and must canonicalise duplicate keys exactly as the runtime
     /// does, or the O129 folds change program results.
     ///
@@ -656,8 +655,7 @@ mod tests {
     /// A leading `#` is comment-unsafe only in **list position 0**
     /// (`Tcl_Merge` passes `TCL_DONT_QUOTE_HASH` for every later element), so
     /// the folds that re-render a list must not quote it everywhere. Each row
-    /// is the byte-exact output of `tclsh8.6.16` and `tclsh9.0.4`, which agree
-    /// (issues #1439 / #1608).
+    /// is the byte-exact output of `tclsh8.6.16` and `tclsh9.0.4`, which agree.
     #[test]
     fn folded_lists_quote_a_leading_hash_only_in_position_zero() {
         assert_eq!(fold_list(&["a", "#"]).as_deref(), Some("a #"));
@@ -709,8 +707,8 @@ mod tests {
 
     #[test]
     fn index_folds_match_tclsh_oracle() {
-        // Now that `parse_index` shares the runtime grammar, the optimiser folds
-        // the arithmetic and radix index forms it previously declined. Expected
+        // The optimiser folds the arithmetic and radix index forms through
+        // `parse_index`'s shared runtime grammar. Expected
         // results captured from real tclsh over `{a b c d e}` (end = 4).
         assert_eq!(fold_lindex(&["a b c d e", "1+1"]).as_deref(), Some("c"));
         assert_eq!(fold_lindex(&["a b c d e", "3-1"]).as_deref(), Some("c"));

@@ -35,7 +35,7 @@ use super::types::ParamDef;
 /// Whether a routine's parameter-list **word** is *literal* — data Tcl passes
 /// through untouched — rather than **computed** from a run-time value.
 ///
-/// This is the one predicate every tier shares (issue #1107): the analyser,
+/// This is the one predicate every tier shares: the analyser,
 /// the signature scanner, and the LSP's cursor classifier all decide
 /// "literal parameter list?" here, so they cannot drift apart about what a
 /// quoted or braced word means.
@@ -57,8 +57,8 @@ use super::types::ParamDef;
 /// proc s {a {b 1}} { … }    ;# literal
 /// ```
 ///
-/// `proc r "m n" {…}` is the case the position classifier used to get wrong:
-/// a substitution-free quoted word really does declare `m` and `n`.
+/// `proc r "m n" {…}` is the case a position classifier is most likely to get
+/// wrong: a substitution-free quoted word really does declare `m` and `n`.
 #[must_use]
 pub fn param_word_is_literal(kind: tcl_lexer::TokenType, single_token_word: bool) -> bool {
     single_token_word && matches!(kind, tcl_lexer::TokenType::Str | tcl_lexer::TokenType::Esc)
@@ -68,10 +68,10 @@ pub fn param_word_is_literal(kind: tcl_lexer::TokenType, single_token_word: bool
 /// source text**, for a consumer that holds source rather than a segmented
 /// command (the LSP's cursor-position classifier).
 ///
-/// Rather than re-deriving the rule with a character scan — which is how the
-/// position classifier came to call the substitution-free quoted list
-/// `proc r "m n" {…}` computed, contradicting both the oracle and the
-/// analyser — this lexes `word` and applies the *same* token test. A word
+/// Rather than re-deriving the rule with a character scan — which calls the
+/// substitution-free quoted list `proc r "m n" {…}` computed, contradicting
+/// both tclsh and the analyser — this lexes `word` and applies the *same*
+/// token test. A word
 /// that does not lex at all (a stray delimiter mid-edit) is treated as
 /// computed: nothing about it can be trusted as a declaration.
 ///
@@ -127,7 +127,7 @@ pub fn parse_param_list(param_str: &str, rules: WordValueRules) -> Vec<ParamDef>
     // already collapsed to a space before Tcl list-parses the list. The list
     // grammar treats a backslash as escaping the next byte, so the collapse
     // must run first — otherwise `a b\<newline>c` would parse as the two-word
-    // element `b c` instead of the two params `b`, `c` (issue #743). JimTcl
+    // element `b c` instead of the two params `b`, `c`. JimTcl
     // keeps the bytes, and `rules` is what knows which.
     let collapsed = rules.collapse_braced_word(param_str);
     // Top-level split: each element is one parameter *spec*.
@@ -205,7 +205,7 @@ pub fn bind_proc_formals(
 ///
 /// `rules` supply the document dialect's brace `\<newline>` axis for the
 /// pre-pass.  The *split* stays strict deliberately: this is the
-/// runtime-validity oracle behind E006, and a lenient list parse would report
+/// runtime-validity check behind E006, and a lenient list parse would report
 /// a malformed declaration as well-formed.
 pub fn parse_param_list_strict(
     param_str: &str,
@@ -319,7 +319,7 @@ fn parse_param_list_lenient(param_str: &str) -> Vec<ParamDef> {
 ///
 /// This exists so go-to-definition / references / rename on a formal parameter
 /// resolve to the parameter *name* in the declaration, not the proc name or the
-/// whole method body (issue #727).
+/// whole method body.
 #[must_use]
 pub fn param_name_spans(raw: &str, base: u32) -> Vec<tcl_lexer::Span> {
     let bytes = raw.as_bytes();
@@ -433,7 +433,7 @@ fn is_whitespace_byte(b: u8) -> bool {
 /// parsing — which is how a `proc` / method parameter list is split — a
 /// backslash-newline collapses to element-separating whitespace, so a long
 /// parameter list wrapped across lines with `\` yields distinct parameters
-/// (`{a b\<newline>c}` → `a`, `b`, `c`), not a bogus `b\` name (issue #743).
+/// (`{a b\<newline>c}` → `a`, `b`, `c`), not a bogus `b\` name.
 /// Every other backslash escape keeps the following byte inside the element
 /// (see [`scan_bare_word`]).
 #[inline]
@@ -514,9 +514,9 @@ fn split_first_whitespace(s: &str) -> Option<(&str, &str)> {
 mod tests {
     use super::*;
 
-    /// Issue #1107 — the two views of the literalness rule (from a lexed
-    /// token, and from raw source text) must agree on every shape, or the
-    /// analyser and the LSP's cursor classifier drift apart again.
+    /// The two views of the literalness rule (from a lexed token, and from
+    /// raw source text) must agree on every shape, or the analyser and the
+    /// LSP's cursor classifier drift apart.
     #[test]
     fn literalness_views_agree_and_match_the_oracle() {
         // (word, literal?) — verified on tclsh 9.0.4 / 8.6.16.
@@ -659,7 +659,7 @@ mod tests {
 
     #[test]
     fn backslash_newline_continuation_splits_params() {
-        // Issue #743: a long parameter list wrapped with `\` at end-of-line.
+        // A long parameter list wrapped with `\` at end-of-line.
         // Tcl list parsing treats the backslash-newline as element-separating
         // whitespace, so the last name on the wrapped line is `ddrtol`, not
         // `ddrtol\`.

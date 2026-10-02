@@ -173,8 +173,8 @@ pub fn spec() -> CommandSpec {
         // Three positional arguments total (sourceObject required,
         // targetObject and targetNamespace each optional), matching the
         // synopsis below in every version that has this command (8.6,
-        // 9.0, 9.1) — a prior `Arity::new(1, 2)` wrongly rejected the
-        // fully-qualified `oo::copy $src $dst $ns` form.
+        // 9.0, 9.1): anything narrower would reject the fully-qualified
+        // `oo::copy $src $dst $ns` form.
         arity: Arity::new(1, 3),
         return_type: Some(TclType::String),
         // `oo::copy sourceObject targetObject` binds targetObject as the

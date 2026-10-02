@@ -86,7 +86,7 @@
 // arithmetic (`2+1`) are therefore a "bad index" parse error against
 // Tcl 8.4 — a syntax restriction, not merely a TIP-505 append-clamp
 // gap — matching the precedent already in `lindex.rs`/`lrange.rs`'s
-// hover text, which this file's hover snippet previously omitted.
+// hover text.
 // `tcl-cmd-core::index` has no per-dialect branch, so — as in those
 // two sibling files — it models the 8.5+ grammar unconditionally and
 // the 8.4 restriction is documentation-only here.

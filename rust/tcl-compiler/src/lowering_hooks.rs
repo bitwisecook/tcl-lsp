@@ -91,7 +91,7 @@ impl LoweringCommand<'_> {
     ///
     /// Braces suppress every substitution, so such a word's content is a
     /// *literal* variable name where the command's role says a name goes:
-    /// `unset {$n}` destroys the variable called `$n`, not `n` (issue #1078).
+    /// `unset {$n}` destroys the variable called `$n`, not `n`.
     /// The de-braced `args` text cannot show that; the word's own token kind
     /// can — `arg_kinds` is arg-indexed, `single_token_word` word-indexed
     /// (index 0 is the command word).  Mirrors
@@ -107,7 +107,7 @@ impl LoweringCommand<'_> {
     /// two shapes whose value is the text exactly as spelled.
     ///
     /// The hook-view sibling of the lowering's own `seg_word_is_static_literal`
-    /// body gate (issue #1375): a word built from several tokens (`x$y`,
+    /// body gate: a word built from several tokens (`x$y`,
     /// `a($i)`, or — under a grammar with no `{*}` expansion — `{*}$n`) still
     /// reports a literal *representative* kind while its value is computed at
     /// run time, so the single-token flag is the half that carries the answer.
@@ -349,7 +349,7 @@ fn lower_set(
     // above cannot see it: only the word's representative token is consulted,
     // so under a grammar with no `{*}` expansion (8.4, iRules) `set {*}$n 1`
     // reads as a `Str` word while its value is the literal `*` welded to
-    // whatever `$n` holds (issue #1484). Every assignment shape below is a
+    // whatever `$n` holds. Every assignment shape below is a
     // *static* store — `AssignConst` / `AssignValue` / `AssignExpr` names are
     // static by contract and `dynamic_names::scan_statement` never inspects
     // them — so a computed name must stay a generic `Call`, the form
@@ -937,7 +937,7 @@ mod tests {
         m.top_level.statements[0].clone()
     }
 
-    /// Issue #1484 — a computed name may not wear a static-assign shape.
+    /// A computed name may not wear a static-assign shape.
     ///
     /// Under a grammar with no `{*}` expansion the word `{*}$n` is the literal
     /// `*` welded to `$n`, whose *representative* token is the braced `{*}` —
@@ -984,8 +984,8 @@ mod tests {
         }
     }
 
-    /// Under 9.0 `{*}$n` is a real expansion, which `has_expansion` has always
-    /// rejected — the #1484 gate must not be what decides this case.
+    /// Under 9.0 `{*}$n` is a real expansion, which `has_expansion` rejects —
+    /// the expansionless-name gate must not be what decides this case.
     #[test]
     fn lower_set_leaves_the_expanded_name_word_on_its_existing_path() {
         for dialect in ["tcl9.0", "tcl8.6"] {

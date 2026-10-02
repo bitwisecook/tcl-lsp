@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Issue #1362 — `$obj configure` on an `oo::configurable` class reported
+//! `$obj configure` on an `oo::configurable` class reported
 //! `Unknown method 'configure' on class '::UnifiedTest'; did you mean
 //! 'configure'?`.
 //!

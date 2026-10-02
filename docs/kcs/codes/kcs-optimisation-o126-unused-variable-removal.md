@@ -39,6 +39,7 @@ proc handle {} {
 ## Safety conditions
 
 - Skipped when the `set` command's right-hand side has [side effects](../../GLOSSARY.md#side-effects) that must be preserved.
+- Skipped when evaluating the right-hand side could raise an error, because deleting the statement would drop the error. A value that reads a variable is kept unless every variable it reads is definitely set here (a parameter, or assigned on every path), and an `expr` or `incr` value is kept unless it folds to a constant. So `set y $x` with `x` unset, `set y [expr {$v + 1}]` with `v` a parameter, and `set y [expr {1/0}]` all stay.
 - Skipped when the variable has a [trace](../../GLOSSARY.md#trace) attached.
 - Skipped when the variable could be read via `upvar`, `uplevel`, or other dynamic access.
 - Skipped at the top level of a file, where another file or an interactive session can still read the variable.

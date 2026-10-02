@@ -74,9 +74,8 @@ fn irules_documented_examples_do_not_violate_their_own_event_contract() {
         let Some(example) = spec.hover.as_ref().map(|hover| hover.examples) else {
             continue;
         };
-        // IRULE1001 is event-scoped. Examples without a `when` block say
-        // nothing about that contract, and are intentionally outside this
-        // invariant.
+        // IRULE1001 is event-scoped. An example without a `when` block says
+        // nothing about that contract, so it is skipped.
         if !example.contains("when ") {
             continue;
         }

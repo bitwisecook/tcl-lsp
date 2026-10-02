@@ -17,13 +17,13 @@ jobs:
       # rust-toolchain.toml pins the channel (stable); the action installs it
       # and wires up the Swatinem cache (registry + target dir).
       - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
 
       # `make vm-test` runs `cargo test` for the bytecode VM crates
-      # (tcl-bytecode + tcl-runtime-api + tcl-vm). Python was retired, so there
-      # is no `uv sync`/pyproject.toml step, and the target is `vm-test` (not the
-      # non-existent `test-vm`).
+      # (tcl-bytecode + tcl-runtime-api + tcl-vm). No Python is involved, so
+      # no `uv sync`/pyproject.toml step is needed; the target is `vm-test`
+      # (not `test-vm`).
       - name: Run bytecode VM crate tests
         run: make vm-test

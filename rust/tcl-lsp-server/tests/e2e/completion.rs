@@ -61,8 +61,6 @@ fn doc_text(item: &Value) -> String {
     }
 }
 
-// -- TestCommandCompletion -----------------------------------------------
-
 #[test]
 fn empty_line_returns_commands() {
     let mut lsp = Lsp::tcl();
@@ -114,8 +112,6 @@ fn builtin_command_has_documentation() {
         "doc: {dt:?}"
     );
 }
-
-// -- TestVariableCompletion ----------------------------------------------
 
 #[test]
 fn dollar_triggers_vars() {
@@ -330,8 +326,6 @@ fn dollar_completion_tolerates_cursor_past_eol() {
     assert!(labels(&mut lsp, &uri, 1, 100).contains(&"$greeting".to_owned()));
 }
 
-// -- TestArrayElementCompletion ------------------------------------------
-
 #[test]
 fn array_element_completion_offers_known_indices() {
     let mut lsp = Lsp::tcl();
@@ -364,8 +358,6 @@ fn array_element_completion_consumes_existing_close_paren() {
     assert_eq!(edit["range"]["end"]["character"], 15);
     assert_eq!(edit["newText"], "$arr(name)");
 }
-
-// -- TestSubcommandCompletion --------------------------------------------
 
 #[test]
 fn string_subcommands() {
@@ -415,8 +407,6 @@ fn namespace_subcommands() {
         assert!(ls.contains(expected), "missing {expected:?} in {ls:?}");
     }
 }
-
-// -- TestSwitchCompletion ------------------------------------------------
 
 #[test]
 fn regexp_switches() {
@@ -526,8 +516,6 @@ fn switch_text_edit_with_longer_partial() {
     assert_eq!(edit["newText"], "-nocase");
 }
 
-// -- TestScopeBindingCompletion ------------------------------------------
-
 #[test]
 fn dollar_global_var_from_namespace_offers_qualified() {
     let mut lsp = Lsp::tcl();
@@ -626,8 +614,6 @@ fn dollar_completion_uplevel_one_abstains_from_proc_scope() {
     );
 }
 
-// -- TestArrayReadOnlyIndices --------------------------------------------
-
 #[test]
 fn array_element_completion_picks_up_read_only_indices() {
     let mut lsp = Lsp::tcl();
@@ -639,7 +625,6 @@ fn array_element_completion_picks_up_read_only_indices() {
     assert!(ls.contains(&"$arr(role)".to_owned()));
 }
 
-// -- TestFuzzyFallback -----------------------------------------------------
 // The fuzzy fallback only runs when the prefix filter yields nothing, so
 // every test here pairs a typo case with the byte-identity guarantee that
 // prefix responses never change (see `string_to_prefix_list_is_unchanged`).
@@ -901,10 +886,10 @@ fn uplevel_with_level_word_does_not_corrupt_sibling_scopes() {
     assert!(ls.contains(&"$sx".to_owned()), "scan write missing: {ls:?}");
 }
 
-// -- expr math functions (issue #974 defect 2) ---------------------------
+// expr math functions.
 
 /// Inside an `expr` expression argument the bare math functions are offered —
-/// before this the position surfaced only same-prefixed procs.
+/// a naive prefix match would surface only same-prefixed procs.
 #[test]
 fn math_functions_complete_inside_expr_974() {
     let mut lsp = Lsp::tcl();

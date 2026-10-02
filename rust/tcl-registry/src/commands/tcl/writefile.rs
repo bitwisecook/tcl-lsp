@@ -18,7 +18,7 @@
 
 //! `writeFile` — write contents to a text or binary file (Tcl 9.0+, TIP 670).
 //
-// VERIFIED: `writeFile` is documented in library.n's FILE ACCESS HELPERS
+// `writeFile` is documented in library.n's FILE ACCESS HELPERS
 // section in the Tcl 9.0 and 9.1 TclCmd manual trees, with byte-identical
 // synopsis and description text in both (`writeFile filename
 // ?text|binary? contents`; TIP 670 landed in 9.0 and picked up no

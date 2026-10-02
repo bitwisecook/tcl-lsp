@@ -26,9 +26,8 @@
 //!
 //! `pgo` (profile-guided branch-reorder suggestions) is deliberately absent
 //! from the `irule` command surface — see the module doc on
-//! `f5-cli/src/commands/irule.rs` and issue #1315 — so
-//! `pgo_is_not_a_known_subcommand` pins that it is genuinely gone rather
-//! than silently reappearing.
+//! `f5-cli/src/commands/irule.rs` — so `pgo_is_not_a_known_subcommand`
+//! pins that it is genuinely gone rather than silently reappearing.
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -70,11 +69,11 @@ fn extract_rejects_standalone_irule() {
     );
 }
 
-/// Issue #1625: `.irules` is the long spelling the dialect catalogue owns and
-/// every editor registers, but this command's three suffix lists were
-/// hand-written with only `.irul` and `.irule` — so `foo.irules` was not
-/// recognised as a standalone iRule, and `extract` cheerfully tried to parse
-/// one as a BIG-IP configuration instead of refusing it.
+/// `.irules` is the long spelling the dialect catalogue owns and every
+/// editor registers, so this command's three suffix lists must recognise it
+/// too, alongside `.irul` and `.irule`: `foo.irules` must be recognised as a
+/// standalone iRule rather than have `extract` try to parse it as a BIG-IP
+/// configuration instead.
 #[test]
 fn extract_rejects_the_long_irules_spelling_too() {
     let (code, _out, stderr) = run(&[
@@ -111,11 +110,12 @@ const GHOST_SEPARATOR_IRULE: &str =
 
 #[test]
 fn format_resolves_the_irules_profile_for_its_dialect() {
-    // Issue #1465: the formatter used to start from `FormatterConfig::default()`
-    // and never see `--dialect`, so `f5 irule format` — the primary non-editor
-    // entry point for formatting iRules — tokenised them with the Tcl 9 lexer
-    // and left `}{` unsplit. The resolved profile now carries the lexer
-    // grammar, so the default dialect (f5-irules) splits it.
+    // `f5 irule format` — the primary non-editor entry point for formatting
+    // iRules — must resolve the lexer grammar from the dialect, not just
+    // `FormatterConfig::default()`: a formatter that never saw `--dialect`
+    // would tokenise with the Tcl 9 lexer and leave `}{` unsplit, whereas
+    // the resolved profile carries the lexer grammar, so the default
+    // dialect (f5-irules) splits it.
     let (code, out, stderr) = run(&["irule", "format", "--source", GHOST_SEPARATOR_IRULE]);
     assert_eq!(code, 0, "stderr: {stderr}");
     assert!(out.contains("} {"), "stdout: {out}");
@@ -255,11 +255,9 @@ fn help_works_for_all_subs() {
     }
 }
 
-/// `pgo` was advertised in `--help` with a description but always exited 2
-/// (issue #1315) — a stub dressed up as a real verb. It is now genuinely
-/// absent from the command surface: clap rejects it as an unknown
-/// subcommand (exit 2, "unrecognized subcommand"), not the old bespoke
-/// "not yet implemented" deferral text.
+/// `pgo` is absent from the command surface: clap rejects it as an unknown
+/// subcommand (exit 2, "unrecognized subcommand"), rather than being
+/// advertised in `--help` as a stub that always exits 2.
 #[test]
 fn pgo_is_not_a_known_subcommand() {
     let (code, _out, stderr) = run(&["irule", "pgo", "--help"]);
@@ -285,12 +283,12 @@ fn pgo_not_listed_in_irule_help() {
     );
 }
 
-// Native-stack safety (issue #996) — `irule minify` calls straight into
+// Native-stack safety — `irule minify` calls straight into
 // `tcl_lsp_core::minify`, which recurses into `tcl_compiler::analyser`
-// (`Analyser::analyse`), on caller-supplied `.irule` file content. Before
-// this fix, `f5_cli::run` had no stack-size guard at all (unlike
-// `tcl-lsp-server`/`tcl-mcp`/the `tcl` CLI), so deeply nested iRule input
-// crashed the process with an uncatchable SIGABRT.
+// (`Analyser::analyse`), on caller-supplied `.irule` file content. Without a
+// stack-size guard in `f5_cli::run` (matching `tcl-lsp-server`/`tcl-mcp`/the
+// `tcl` CLI), deeply nested iRule input would crash the process with an
+// uncatchable SIGABRT.
 
 /// `irule minify --aggressive` on a deeply nested iRule (well past the
 /// analyser's `MAX_BODY_DEPTH` of 256) must exit cleanly — with a real

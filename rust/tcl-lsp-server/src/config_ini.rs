@@ -55,15 +55,15 @@ impl Layer {
 }
 
 /// One parsed INI section: its name and ordered `(key, raw_value)` pairs.
-struct Section {
-    name: String,
-    entries: Vec<(String, String)>,
+pub(crate) struct Section {
+    pub(crate) name: String,
+    pub(crate) entries: Vec<(String, String)>,
 }
 
 /// Parse INI `content` into ordered sections, joining `configparser`-style
 /// indented continuation lines with `\n`. Comment lines (`#` / `;`) and blank
 /// lines are skipped; keys before any section header are ignored.
-fn parse_ini(content: &str) -> Vec<Section> {
+pub(crate) fn parse_ini(content: &str) -> Vec<Section> {
     let mut sections: Vec<Section> = Vec::new();
     for raw_line in content.lines() {
         let line = raw_line.trim_end();
@@ -271,9 +271,49 @@ pub fn settings_from_ini(content: &str, layer: Layer) -> Value {
         out.insert("style".to_owned(), Value::Object(style));
     }
 
+    insert_workspace_scan(&sections, &mut out);
+
+    insert_notifications(&sections, &mut out);
+
     insert_iruleslx(&sections, &mut out);
 
     Value::Object(out)
+}
+
+/// `[workspaceScan]` — the on-disk workspace scan's file budget.
+///
+/// `max_files` bounds how many Tcl files the start-up scan reads and indexes
+/// across every workspace folder, so a pathologically large tree cannot stall
+/// start-up. Open documents are indexed regardless of it. Accepts the INI
+/// `snake_case` spelling and the editor's camelCase key, so exported settings
+/// paste back unchanged (the same courtesy `[signatureHelp]` extends).
+fn insert_workspace_scan(sections: &[Section], out: &mut Map<String, Value>) {
+    if let Some(max) = section_value(sections, "workspaceScan", "max_files")
+        .or_else(|| section_value(sections, "workspaceScan", "maxFiles"))
+        .and_then(|v| v.trim().parse::<u64>().ok())
+    {
+        let mut scan = Map::new();
+        scan.insert("maxFiles".to_owned(), Value::from(max));
+        out.insert("workspaceScan".to_owned(), Value::Object(scan));
+    }
+}
+
+/// `[notifications]` — which one-time messages the server may send.
+///
+/// `environment_kind` switches off the explanation shown the first time a tool
+/// environment (Vivado, Quartus, …) is in use. It is the file form of the
+/// editor setting `tclLsp.notifications.environmentKind`, for editors that have
+/// no settings UI; the camelCase spelling is accepted too, so exported settings
+/// paste back unchanged.
+fn insert_notifications(sections: &[Section], out: &mut Map<String, Value>) {
+    if let Some(flag) = section_value(sections, "notifications", "environment_kind")
+        .or_else(|| section_value(sections, "notifications", "environmentKind"))
+        .and_then(parse_bool)
+    {
+        let mut notifications = Map::new();
+        notifications.insert("environmentKind".to_owned(), Value::Bool(flag));
+        out.insert("notifications".to_owned(), Value::Object(notifications));
+    }
 }
 
 /// `[packages]` / `[packages.provides]` — how the modelled interpreter loads

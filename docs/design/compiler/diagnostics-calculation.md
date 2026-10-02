@@ -52,6 +52,21 @@ Related optimisation edits share a `group` id (`Optimisation::group`), carried
 in the diagnostic's `data`, so the client applies a group's edits as one code
 action.
 
+A group's edits are **all-or-nothing**, so a grouped diagnostic never carries
+the single-edit payload an ungrouped one does. Its `data` is
+`{group, edits: [{replacement, startOffset, endOffset}, …]}` — every member's
+edit, on every member's diagnostic — and the flat `replacement` /
+`startOffset` / `endOffset` triple is absent. A client that does not
+understand `edits` therefore finds no auto-apply payload, which is the safe
+way to fail: applying one member alone corrupts the program. O127's pair is
+an inline of the whole assignment at the use site plus a delete of the
+original, and the delete carries an empty replacement, so publishing per
+member offered only the inline — which runs the assignment twice (#2149).
+
+A group that loses a member to a `# noqa` or a per-code toggle can no longer
+be applied whole, so its survivors are published as advice with no payload at
+all rather than as a partial edit.
+
 ## Decision rule
 
 - A diagnostic computed from tokens, the CST, or the per-file analyser is in

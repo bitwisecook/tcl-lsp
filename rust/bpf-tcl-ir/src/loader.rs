@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The loader and link lifecycle (issue #1204).
+//! The loader and link lifecycle.
 //!
 //! A deployment moves through an explicit state machine —
 //! `plan → load → (test-run) → attach → status → detach` — with atomic
@@ -38,8 +38,8 @@
 //! `<deployment>` is the caller's deployment name. The loader **only** removes
 //! resources whose pin path is under its own `PIN_ROOT/<deployment>/` prefix and
 //! whose recorded owner label matches — it refuses to replace or delete a pin
-//! owned by anything else (issue #1204: "refuse to replace unrelated
-//! links/pins", "remove only resources owned by the deployment"). A `load` that
+//! owned by anything else, or to remove any resource not owned by the
+//! deployment. A `load` that
 //! fails partway cleans up every resource it created before returning, so a
 //! failed deployment leaves no orphan maps, programs, links, or pins.
 

@@ -56,17 +56,16 @@ pub fn def_range_map(ssa: &SsaFunction) -> HashMap<ValueKey, Span> {
 /// Return the best available `Span` for a phi node.
 ///
 /// Phi nodes are synthetic — they don't correspond to a single source
-/// statement.  We approximate their location in this priority order:
+/// statement.  Their location is approximated in this priority order:
 ///
-/// 1. Any incoming version that appears in `def_map`.
-/// 2. The first statement of any block in the SSA function.
-/// 3. A zero span `{ start: 0, end: 0 }`.
+/// 1. The earliest span among the incoming versions present in `def_map`.
+/// 2. The earliest first-statement span across the function's blocks.
+/// 3. `Span::new(0, 0)`.
 #[must_use]
 pub(crate) fn phi_span(phi: &Phi, ssa: &SsaFunction, def_map: &HashMap<ValueKey, Span>) -> Span {
     // `phi.incoming` is a `HashMap`, so a "first match in iteration order" pick
-    // would make the warning's anchor vary run-to-run (and between the offset-0
-    // memo build and the whole-module build — the latent nondeterminism the
-    // `compiler_check_corpus` guard catches).  Choose deterministically: the
+    // would make the warning's anchor vary run-to-run, and between the offset-0
+    // memo build and the whole-module build.  Choose deterministically: the
     // earliest (smallest) incoming def span.
     let earliest = phi
         .incoming

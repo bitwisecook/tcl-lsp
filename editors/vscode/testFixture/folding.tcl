@@ -14,7 +14,7 @@ namespace eval ::myns {
     }
 }
 
-# A backslash-continued command (issue #541) folds as one logical line.
+# A backslash-continued command folds as one logical line.
 MyLongCommand $argument1 \
               $argument2 \
               $argument3

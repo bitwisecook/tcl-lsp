@@ -32,7 +32,7 @@
 //! `wasm32-unknown-unknown` is `unsupported.rs`'s `panic!("time not implemented
 //! on this platform")`, and a wasm panic aborts (the module traps on
 //! `unreachable`) rather than unwinding, so every lock and refcount the aborted
-//! call held stays held. Issue #1661 is exactly that: the first bundled
+//! call held stays held. This happened for real: the first bundled
 //! `.tclspec` to declare hook bodies (`specs/upf.tclspec`) made the language
 //! server build a hook host in the browser, `Vm::set_wall_clock_budget` read
 //! the native clock to arm its 250 ms budget, and the trap that followed

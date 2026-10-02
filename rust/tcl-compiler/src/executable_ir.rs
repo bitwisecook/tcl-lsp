@@ -217,10 +217,10 @@ pub struct GenericInvoke {
 ///
 /// `descriptor` is the registry-owned semantic identity that authorised the
 /// lowering.  It deliberately carries no command spelling, command binding,
-/// or dispatch proof: the legacy source IR no longer retains those facts, and
-/// manufacturing them here would be unsound in the presence of aliases,
+/// or dispatch proof: the compatibility source IR does not retain those facts,
+/// and manufacturing them here would be unsound in the presence of aliases,
 /// namespaces, or `rename`.  `statement` is retained as an exact executable
-/// payload until all consumers have migrated off the compatibility IR.
+/// payload for consumers still reading the compatibility IR.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoweredOperation {
     /// Completion produced by executing the operation.
@@ -2105,7 +2105,7 @@ pub enum SourceCompatibilityDecline {
         /// Position in the source script.
         statement_index: usize,
     },
-    /// Historical token arrays did not agree with the source statement.
+    /// The compatibility token arrays did not agree with the source statement.
     InconsistentCommandTokens {
         /// Position in the source script.
         statement_index: usize,
@@ -3449,13 +3449,20 @@ fn structured_region_projection(
 /// prefix; `on` names a code directly. The selector spelling is decoded by the
 /// registry's completion-code table, never by a local keyword match.
 fn try_handler_code(handler: &crate::ir::TryHandler) -> Option<CompletionCode> {
+    try_handler_code_in(handler, tcl_syntax::number::Numbers::of_profile(None))
+}
+
+/// [`try_handler_code`] with the numeral grammar of a specific dialect: a
+/// numeric selector's spelling is release-dependent (`on 010` is code 8 in
+/// Tcl 8.x, 10 in 9.0).
+pub(crate) fn try_handler_code_in(
+    handler: &crate::ir::TryHandler,
+    numbers: tcl_syntax::number::Numbers,
+) -> Option<CompletionCode> {
     if handler.trap_pattern.is_some() || handler.kind == "trap" {
         return Some(CompletionCode::Error);
     }
-    tcl_registry::completion::completion_code_selector(
-        &handler.match_arg,
-        tcl_syntax::number::Numbers::of_profile(None),
-    )
+    tcl_registry::completion::completion_code_selector(&handler.match_arg, numbers)
 }
 
 /// Project the exact cell and completion footprint of an already-lowered

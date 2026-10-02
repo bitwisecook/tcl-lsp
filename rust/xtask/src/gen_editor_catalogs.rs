@@ -1,5 +1,4 @@
-//! Generate the VS Code iRules-event catalog JSON from the Rust event registry
-//! — the native successor to `scripts/codegen/catalogs.py`.
+//! Generate the VS Code iRules-event catalog JSON from the Rust event registry.
 //!
 //! One checked-in artifact is a pure projection of `tcl-registry`:
 //! `editors/vscode/src/generated/iruleEvents.json`, with event descriptions

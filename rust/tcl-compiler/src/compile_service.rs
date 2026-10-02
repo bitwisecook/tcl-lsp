@@ -40,8 +40,8 @@ use tcl_dialect::DialectProfile;
 use tcl_lexer::LexerConfig;
 use tcl_registry::CommandRegistry;
 use tcl_runtime_api::{
-    CompileError, CompileService, ProcedureCompileTarget, ProcedureDispatch, ScriptCommandPlan,
-    ScriptCompileTarget,
+    CompileError, CompileService, FatalTail, ProcedureCompileTarget, ProcedureDispatch,
+    ScriptCommandPlan, ScriptCompileTarget,
 };
 
 enum RegistryTarget {
@@ -316,9 +316,14 @@ impl CompileService for BytecodeCompileService {
             LexerConfig::from_grammar(profile.grammar),
         );
         match segmented.fatal_tail {
-            Some((start, message)) => ScriptCommandPlan {
+            Some((start, message, delimiter_offset)) => ScriptCommandPlan {
                 complete_prefix_len: start,
-                fatal_tail: Some(CompileError(message)),
+                // `command_at_time_script_with_config` truncates the command
+                // list at the cut, so this is exactly the prefix's command
+                // count — zero when the *first* command is the malformed one,
+                // however much leading whitespace or comment `start` spans.
+                complete_prefix_commands: segmented.commands.len(),
+                fatal_tail: Some(fatal_tail_frame(source, start, message, delimiter_offset)),
             },
             None => ScriptCommandPlan::complete(source.len()),
         }
@@ -338,6 +343,90 @@ impl CompileService for BytecodeCompileService {
             LexerConfig::from_grammar(profile.grammar),
             profile,
         )
+    }
+}
+
+/// Build the malformed tail's error with the context C's `while executing`
+/// frame quotes.
+///
+/// C reports a parse failure through
+/// `Tcl_LogCommandInfo(interp, script, parsePtr->commandStart,
+/// parsePtr->term + 1 - parsePtr->commandStart)`, so the quoted text runs from
+/// the command's first byte **through the character that opened the
+/// unterminated construct**, inclusive — not to the end of the source. The two
+/// differ whenever anything follows that character:
+///
+/// | source | C quotes |
+/// |---|---|
+/// | `set x "` | `set x "` |
+/// | `set x "abc\ndef` | `set x "` |
+/// | `set x [foo bar` | `set x [` |
+///
+/// The term is checked against the message before it is trusted: the byte it
+/// points at must be the one that opens the construct the message names. Where
+/// a failure sits inside a `[…]` the cut owner reports it at the bracket,
+/// because the word-part decomposition carries no extent for the inner
+/// construct — so `set x [list "oops]` yields `missing "` with the term on the
+/// `[`. That pair cannot be C's, and rather than quote `set x [` where C
+/// quotes `set x [list "`, this drops the text and the caller logs the bare
+/// message, which is what it did before the frame existed. A wrong frame that
+/// looks right is worse than none.
+/// Whether the byte at `term` opens the construct `message` names.
+///
+/// C's term for an unterminated construct is the character that opened it, so
+/// the pair is self-checking. A message C reports *in place* — the
+/// `extra characters after …` family — constrains nothing, and is accepted.
+fn term_opens_the_named_construct(source: &str, term: usize, message: &str) -> bool {
+    let opener = match message {
+        tcl_lexer::word_parts::MISSING_QUOTE => b'"',
+        tcl_lexer::word_parts::MISSING_CLOSE_BRACE => b'{',
+        tcl_lexer::word_parts::MISSING_CLOSE_BRACKET => b'[',
+        _ => return true,
+    };
+    source.as_bytes().get(term) == Some(&opener)
+}
+
+fn fatal_tail_frame(
+    source: &str,
+    start: usize,
+    message: String,
+    delimiter_offset: Option<u32>,
+) -> FatalTail {
+    let end = delimiter_offset
+        .map(|offset| offset as usize)
+        .filter(|offset| *offset >= start)
+        .filter(|offset| term_opens_the_named_construct(source, *offset, &message))
+        // Through the delimiter, not up to it; a multi-byte character there
+        // would otherwise be cut mid-sequence.
+        .map(|offset| {
+            let mut end = (offset + 1).min(source.len());
+            while end < source.len() && !source.is_char_boundary(end) {
+                end += 1;
+            }
+            end
+        });
+    // No trustworthy term, so no frame: the end of the source is a guess that
+    // is only ever *coincidentally* right (when the construct opens on the
+    // last byte). The caller then logs the bare message, which is what it did
+    // before the frame existed.
+    let Some(end) = end else {
+        return FatalTail::message_only(message);
+    };
+    let command_text = source.get(start..end).unwrap_or_default().to_owned();
+    let line = u32::try_from(
+        source
+            .get(..start)
+            .unwrap_or_default()
+            .bytes()
+            .filter(|b| *b == b'\n')
+            .count()
+            + 1,
+    )
+    .unwrap_or(u32::MAX);
+    FatalTail {
+        message,
+        command_text,
+        line,
     }
 }
 
@@ -521,9 +610,9 @@ mod tests {
 
     #[test]
     fn procedure_target_matches_static_proc_across_profiles_and_dispatches() {
-        // Keep the cases together: each exercises module state that a
-        // procedure-target lowering used to assemble separately from a static
-        // `proc` body (procedure frame/LVT, namespace resolution, nested and
+        // Keep the cases together: each exercises module state a
+        // procedure-target lowering must assemble the same way a static
+        // `proc` body does (procedure frame/LVT, namespace resolution, nested and
         // const-materialised procedures, command aliases and rename, and
         // namespace directives).
         let body = "namespace import ::source::*\n\
@@ -848,7 +937,9 @@ mod tests {
         let old = service.script_command_plan_for_profile(source, tcl84);
         assert_eq!(&source[..old.complete_prefix_len], "set side 1; ");
         assert_eq!(
-            old.fatal_tail.expect("8.4 rejects expansion syntax").0,
+            old.fatal_tail
+                .expect("8.4 rejects expansion syntax")
+                .message,
             "extra characters after close-brace"
         );
 

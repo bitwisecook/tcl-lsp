@@ -247,7 +247,7 @@ impl<'a> KeywordTable<'a> {
     /// full word — reported as `None` so callers cannot accidentally shorten
     /// it).
     ///
-    /// This is what an emitter (the minifier, #1230) asks for. It respects
+    /// This is what an emitter (the minifier) asks for. It respects
     /// `min_abbrev` and never returns a prefix that another keyword also
     /// matches.
     #[must_use]

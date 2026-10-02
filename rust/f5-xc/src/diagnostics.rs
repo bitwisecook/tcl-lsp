@@ -21,6 +21,7 @@
 //! Walks the same IR as the translator (via [`translate_irule`]) but
 //! produces ranged [`XcDiagnostic`]s for the LSP diagnostics pipeline.
 
+use tcl_core_types::DiagCode;
 use tcl_lexer::LineIndex;
 
 use crate::model::TranslationItem;
@@ -60,8 +61,11 @@ pub struct Range {
 /// `Diagnostic`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct XcDiagnostic {
-    /// XC-series code (e.g. `"XC100"`).
-    pub code: String,
+    /// XC-series code (e.g. [`DiagCode::Xc100`]). A typed [`DiagCode`], so
+    /// the lift can read the code's published metadata — its section, its
+    /// description and its LSP `DiagnosticTag` — instead of re-parsing a
+    /// string that was never in the catalogue.
+    pub code: DiagCode,
     /// Human-readable message (`xc_description`, plus `note` after `—`).
     pub message: String,
     /// Severity (by code prefix).
@@ -71,9 +75,10 @@ pub struct XcDiagnostic {
 }
 
 /// Severity from a diagnostic-code prefix: `XC1xx` → Hint,
-/// `XC2xx`/`XC3xx` → Info (default Info).
-fn severity_for_code(code: &str) -> XcSeverity {
-    if code.starts_with("XC1") {
+/// `XC2xx`/`XC3xx` → Info (default Info). Keyed off the code's published
+/// spelling ([`DiagCode::as_str`]) rather than a parallel per-code table.
+fn severity_for_code(code: DiagCode) -> XcSeverity {
+    if code.as_str().starts_with("XC1") {
         XcSeverity::Hint
     } else {
         // XC2 / XC3 (and any other) → Info (the default).
@@ -83,17 +88,14 @@ fn severity_for_code(code: &str) -> XcSeverity {
 
 /// Convert a [`TranslationItem`] to an [`XcDiagnostic`], resolving its byte
 /// span to line/UTF-16-column positions via `line_index` / `source`.
-/// Returns `None` when the item carries no range or no code.
+/// Returns `None` when the item carries no range.
 fn item_to_diagnostic(
     item: &TranslationItem,
     line_index: &LineIndex,
     source: &str,
 ) -> Option<XcDiagnostic> {
     let span = item.irule_range?;
-    if item.diagnostic_code.is_empty() {
-        return None;
-    }
-    let severity = severity_for_code(&item.diagnostic_code);
+    let severity = severity_for_code(item.diagnostic_code);
     let mut message = item.xc_description.clone();
     if !item.note.is_empty() {
         message.push_str(" — ");
@@ -102,7 +104,7 @@ fn item_to_diagnostic(
     let start = line_index.position_at_utf16(span.start(), source);
     let end = line_index.position_at_utf16(span.end(), source);
     Some(XcDiagnostic {
-        code: item.diagnostic_code.clone(),
+        code: item.diagnostic_code,
         message,
         severity,
         range: Range {

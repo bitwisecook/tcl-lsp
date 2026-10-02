@@ -55,10 +55,10 @@
     }, { passive: false });
   })();
 
-  // --- theme toggle: auto -> light -> dark, remembered in localStorage ------
+  // Theme toggle: auto -> light -> dark, remembered in localStorage.
   // Each click MUST look like it did something. The three modes are auto /
   // light / dark, but on a light-preference OS "auto" and "light" render the
-  // same, so cycling between them used to feel like a dead button. Give every
+  // same, so cycling between them would otherwise feel like a dead button. Give every
   // state a distinct glyph + label so the click is always visibly acknowledged,
   // even when the two light-looking modes are visually identical.
   var root = document.documentElement;

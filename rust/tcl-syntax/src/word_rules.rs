@@ -29,8 +29,9 @@
 //! the taint walker and the signature scanner each called the unconditional
 //! collapse; `list_parse` reached nothing at all while the VM's list
 //! conversions called the strict splitter. Three consumers, three answers to a
-//! question the dialect owns — the shape [`tcl_registry::CommandSpec::return_type_for_call`]
-//! was introduced to end for per-call result types (issue #1720). A consumer
+//! question the dialect owns — the same shape
+//! [`tcl_registry::CommandSpec::return_type_for_call`] ends for per-call
+//! result types. A consumer
 //! that needs either axis takes a `WordValueRules` and asks it; it does not
 //! reach for [`crate::list::split_list`] or
 //! [`crate::backslash::collapse_brace_continuations_str`] directly and decide
@@ -57,8 +58,8 @@ pub struct WordValueRules {
 
 impl Default for WordValueRules {
     /// Every build of the Tcl core: fold the continuation, raise on malformed
-    /// list text. A caller with no dialect in hand gets C Tcl, which is what
-    /// the unconditional helpers used to do unconditionally.
+    /// list text. A caller with no dialect in hand gets C Tcl, matching what
+    /// the unconditional call sites do regardless of dialect.
     fn default() -> Self {
         Self::TCL
     }

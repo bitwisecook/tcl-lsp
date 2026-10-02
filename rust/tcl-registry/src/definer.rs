@@ -148,7 +148,7 @@ pub struct RetractionWords<'a> {
 
 /// One operation on a `TclOO` **slot** — the list-valued definition words
 /// (`filter`, `superclass`, `mixin`, `variable`) that are `oo::Slot`
-/// instances in real Tcl rather than plain assignments (issue #1169).
+/// instances in real Tcl rather than plain assignments.
 ///
 /// A slot call's first argument may name the operation explicitly
 /// (`filter -set x`, `mixin -append M`); a bare word list uses the slot's
@@ -267,7 +267,7 @@ impl SlotOp {
 }
 
 /// The slot behaviour of a list-valued member word: its default operation
-/// and whether the slot deduplicates on append (issue #1169).
+/// and whether the slot deduplicates on append.
 ///
 /// Defaults pinned against C Tcl — identical in 9.0.4 (`slots[]` in
 /// `tclOODefineCmds.c`) and 8.6.16 (`tclOO.c`'s embedded
@@ -307,7 +307,7 @@ impl SlotSpec {
     /// Fold one slot call into `current` — the single definition of what
     /// each operation does to the slot's list, shared by every consumer so
     /// the instance `filters`, class-object `class_filters`, `superclass`,
-    /// `mixin`, and `variable` channels cannot diverge (issue #1169).
+    /// `mixin`, and `variable` channels cannot diverge.
     ///
     /// An unrecognised leading operation word leaves the slot unchanged
     /// (see [`Self::split_call`]).
@@ -527,7 +527,7 @@ pub struct MemberSpec {
     /// first.
     pub retraction: Option<MemberRetraction>,
     /// The slot behaviour of this member word, or `None` when it is not a
-    /// slot (issue #1169).
+    /// slot.
     ///
     /// A slot member's word list is **not** an assignment: `filter a` then
     /// `filter b` leaves both filters live (`-append` default), while
@@ -879,6 +879,19 @@ pub enum DefinerFamily {
     Snit,
     /// [incr Tcl] `itcl::class` (and the bare `class` alias).
     Itcl,
+    /// Jim Tcl's `class NAME ?BASES? {vars}` (`oo.tcl`, shipped with every
+    /// `jimsh`).
+    ///
+    /// The class body is a dictionary of the instance variables and their
+    /// initial values, not a script of member declarations, so the definer
+    /// declares no `Body` word. Members arrive afterwards, as
+    /// `NAME method M ARGS BODY` or as a raw `proc {NAME M} ARGS BODY`: a
+    /// member is stored as the two-word command `{NAME M}`, and an object is a
+    /// command that dispatches to whichever `{NAME word}` exists — so the
+    /// member set is open at run time ([`DefinitionBodyGrammar::dynamic_method_dispatch`]).
+    /// The grammar's `members` name the class-command calls that declare one
+    /// ([`Self::members_are_two_word_commands`]).
+    JimClass,
     /// `SpecTcl` — the `.tclspec` spec-pack DSL's own declaration bodies
     /// (`speclib … { … }`, `command … { … }`, `hover { … }`, …).
     ///
@@ -931,15 +944,29 @@ impl DefinerFamily {
     /// predicate instead of maintaining their own family lists.
     #[must_use]
     pub const fn manufactures_runtime_commands(self) -> bool {
-        matches!(self, Self::TclOo | Self::Snit | Self::Itcl)
+        matches!(self, Self::TclOo | Self::Snit | Self::Itcl | Self::JimClass)
+    }
+
+    /// Whether a class of this family stores each member as the two-word
+    /// command `{CLASS member}`, so that a `proc` named by that two-element
+    /// list is also a member of the class. Jim's `oo.tcl` builds every method,
+    /// and every built-in the class command answers to, this way.
+    #[must_use]
+    pub const fn members_are_two_word_commands(self) -> bool {
+        matches!(self, Self::JimClass)
     }
 
     /// Registry-owned current-namespace policy for executable member bodies.
+    ///
+    /// `JimClass` reports [`MemberCurrentNamespace::DefinedEntity`] although
+    /// Jim's `class` creates no namespace and a method's `namespace current` is
+    /// the caller's: no receiver selects a namespace at run time, and the class
+    /// is the one static name a body can be attributed to.
     #[must_use]
     pub const fn member_current_namespace(self) -> MemberCurrentNamespace {
         match self {
             Self::TclOo => MemberCurrentNamespace::RuntimeReceiver,
-            Self::Snit | Self::Itcl | Self::SpecTcl | Self::SslicTcl => {
+            Self::Snit | Self::Itcl | Self::JimClass | Self::SpecTcl | Self::SslicTcl => {
                 MemberCurrentNamespace::DefinedEntity
             }
         }
@@ -974,7 +1001,7 @@ pub struct DefinitionBodyGrammar {
     /// This is the data half of [`crate::Traits::TclooMethodContext`]: that
     /// trait says *which words* only resolve in such a frame, this says
     /// *where* a frame looks.  Consumed by the analyser's invocation
-    /// candidate-list finalisation (issue #1137), so no consumer spells
+    /// candidate-list finalisation, so no consumer spells
     /// `::oo::Helpers` itself.
     pub member_body_namespace_path: &'static [&'static str],
 
@@ -1020,7 +1047,7 @@ pub struct DefinitionBodyGrammar {
     /// instance-namespace alias, so registering it globally would make a
     /// user's own `proc install` look like a built-in everywhere.  A consumer
     /// resolves the layout facts (today: [`MemberBodyCommand::binds_handle`])
-    /// from here, so no walker spells the keyword — issue #1185.  Empty for a
+    /// from here, so no walker spells the keyword.  Empty for a
     /// family that injects no such commands.
     pub member_body_commands: &'static [MemberBodyCommand],
 
@@ -1054,10 +1081,9 @@ pub struct DefinitionBodyGrammar {
     /// The methods of this family's **class command** that manufacture an
     /// instance — `TclOO`'s `create` / `new` / `createWithNamespace`.
     ///
-    /// The registry half of "is `X create Name Body` a class creation?".  The
-    /// analyser used to carry those three keywords as a literal `matches!`,
-    /// so a family manufacturing under a different word could not be added
-    /// without editing the walker (issue #1303).  Empty for a family whose
+    /// The registry half of "is `X create Name Body` a class creation?", so a
+    /// family manufacturing under a different word can be added without
+    /// hardcoding another keyword into the walker.  Empty for a family whose
     /// class command manufactures only through
     /// [`Self::bare_word_construction`] or a
     /// [`CommandSpec::creates_instance_at`](crate::spec::CommandSpec::creates_instance_at)
@@ -1099,8 +1125,8 @@ pub struct DefinitionBodyGrammar {
     /// `<ReadProp-name>` / `<WriteProp-name>` accessors and no `cget` at all,
     /// and this workspace's own VM implements the same single method
     /// (`tcl-vm/src/cmd_oo.rs`). A `cget` on a configurable object is a
-    /// genuine unknown-method error, so a consumer must not accept it (issue
-    /// #1362). snit and [incr Tcl] *do* give every instance `configure` /
+    /// genuine unknown-method error, so a consumer must not accept it. snit
+    /// and [incr Tcl] *do* give every instance `configure` /
     /// `cget`, but those are family built-ins and live in
     /// [`Self::builtin_object_methods`], not here.
     ///
@@ -1405,6 +1431,7 @@ impl DefinitionBodyGrammar {
             // "exported" a declaration-only family has.
             DefinerFamily::Snit
             | DefinerFamily::Itcl
+            | DefinerFamily::JimClass
             | DefinerFamily::SpecTcl
             | DefinerFamily::SslicTcl => true,
         }
@@ -1513,8 +1540,8 @@ const TCLOO_MEMBERS: &[MemberSpec] = &[
     MemberSpec::all_vars("variable").slot_spec(SlotOp::Append, true),
     // Reference-only members: they declare nothing and recurse nothing, but
     // their arguments *name* an entity defined elsewhere — a class or a method
-    // — so they are references, not free strings.  All three are slots
-    // (issue #1169); the defaults are pinned against C Tcl (`slots[]` in
+    // — so they are references, not free strings.  All three are slots;
+    // the defaults are pinned against C Tcl (`slots[]` in
     // 9.0.4's tclOODefineCmds.c, the `--default-operation` forwards in
     // 8.6.16's tclOO.c — identical): `superclass` / `mixin` replace,
     // `filter` appends.
@@ -1928,7 +1955,7 @@ pub const SNIT_WIDGET_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     members: SNIT_MEMBERS,
     implicit_vars: &["self", "selfns", "type", "options", "win", "hull"],
     // Same as SNIT_GRAMMAR: snit resolves member-body barewords through its
-    // own generated type namespace, not an implicit helper path (#1137's
+    // own generated type namespace, not an implicit helper path (the
     // `::oo::Helpers` fact is TclOO-only).
     member_body_namespace_path: &[],
     // snit(n): "Every snit type has the following type methods: create,
@@ -2133,8 +2160,8 @@ const SPECTCL_PACK_MEMBERS: &[MemberSpec] = &[
 /// and a `subcommand` block is lexically identical to a `command` block, so
 /// splitting would buy nothing a loader does not already have to check.
 const SPECTCL_COMMAND_MEMBERS: &[MemberSpec] = &[
-    // --- nested blocks (each also a `CommandSpec` carrying the inner
-    //     grammar, so recursing into one switches vocabulary) --------------
+    // Nested blocks: each also a `CommandSpec` carrying the inner grammar,
+    // so recursing into one switches vocabulary.
     MemberSpec::flat("subcommand", SPECTCL_NAMED_BLOCK_ROLES),
     MemberSpec::flat("hover", BODY0_ROLES),
     // `values NAME { … }` is deliberately absent: the memo makes the shared
@@ -2157,7 +2184,7 @@ const SPECTCL_COMMAND_MEMBERS: &[MemberSpec] = &[
     // paints as a keyword (`Traits::LANGUAGE_KEYWORD`) and its block still
     // switches grammars (`CommandSpec::definition_body`), so nothing is lost
     // but the wrong answer.
-    // --- hook bodies: a proc-shaped `{words ctx} { … }` pair -------------
+    // Hook bodies: a proc-shaped `{words ctx} { … }` pair.
     MemberSpec::flat("arg_role_resolver", SPECTCL_HOOK_ROLES),
     MemberSpec::flat("command_prefix_resolver", SPECTCL_HOOK_ROLES),
     MemberSpec::flat("const_fold", SPECTCL_HOOK_ROLES),
@@ -2166,8 +2193,8 @@ const SPECTCL_COMMAND_MEMBERS: &[MemberSpec] = &[
     MemberSpec::flat("context_gate", SPECTCL_HOOK_ROLES),
     MemberSpec::flat("literal_argument_validator", SPECTCL_HOOK_ROLES),
     MemberSpec::flat("clause_shape_check", SPECTCL_HOOK_ROLES),
-    // --- row statements (the singular-row rule: a field holding a list of
-    //     rows gets a singular statement, never a nested block) -----------
+    // Row statements, under the singular-row rule: a field holding a list
+    // of rows gets a singular statement, never a nested block.
     MemberSpec::keyword_only("arg"),
     MemberSpec::keyword_only("option"),
     MemberSpec::keyword_only("option_conflict"),
@@ -2186,7 +2213,7 @@ const SPECTCL_COMMAND_MEMBERS: &[MemberSpec] = &[
     MemberSpec::keyword_only("byte_array_payload"),
     MemberSpec::keyword_only("deprecation_fix"),
     MemberSpec::keyword_only("event_handler_priority"),
-    // --- scalar property words -------------------------------------------
+    // Scalar property words.
     MemberSpec::keyword_only("traits"),
     MemberSpec::keyword_only("dialects"),
     MemberSpec::keyword_only("arity"),
@@ -2224,6 +2251,7 @@ const SPECTCL_COMMAND_MEMBERS: &[MemberSpec] = &[
     MemberSpec::keyword_only("taint_log_sink"),
     MemberSpec::keyword_only("taint_network_sink_args"),
     MemberSpec::keyword_only("taint_code_sink_args"),
+    MemberSpec::keyword_only("taint_numeric_coercion"),
     MemberSpec::keyword_only("taint_interp_eval_subcommands"),
     MemberSpec::keyword_only("taint_source"),
     MemberSpec::keyword_only("taint_transform"),
@@ -2248,7 +2276,7 @@ const SPECTCL_COMMAND_MEMBERS: &[MemberSpec] = &[
     MemberSpec::keyword_only("creates_instance_at"),
     MemberSpec::keyword_only("defines_command_at"),
     MemberSpec::keyword_only("implementation_namespace"),
-    // --- `SubCommand`-only keys ------------------------------------------
+    // `SubCommand`-only keys.
     MemberSpec::keyword_only("pure"),
     MemberSpec::keyword_only("mutator"),
     MemberSpec::keyword_only("min_abbrev"),
@@ -2470,7 +2498,7 @@ pub const SPECTCL_GRAMMARS: &[&DefinitionBodyGrammar] = &[
     &SPECTCL_OBJECT_CLASS_GRAMMAR,
 ];
 
-// SslicTcl — the `.sslictcl` TLS-assurance declaration DSL (#1543).
+// SslicTcl — the `.sslictcl` TLS-assurance declaration DSL.
 //
 // Every block statement's member table is exactly the row vocabulary of that
 // block, and a *nested* block (`hsts`, `anchor`, `check`, `grade`) appears
@@ -2710,6 +2738,7 @@ mod tests {
             DefinerFamily::TclOo,
             DefinerFamily::Snit,
             DefinerFamily::Itcl,
+            DefinerFamily::JimClass,
         ] {
             assert!(family.manufactures_runtime_commands());
         }
@@ -2718,7 +2747,24 @@ mod tests {
         }
     }
 
-    /// Issue #1169: the four `TclOO` slot members carry their C-pinned
+    /// Only Jim's `oo.tcl` stores a member as a two-word command; the other
+    /// class systems keep members in their own tables, so a `proc` whose name
+    /// is a two-element list is never a member of theirs.
+    #[test]
+    fn only_a_jim_class_stores_its_members_as_two_word_commands() {
+        assert!(DefinerFamily::JimClass.members_are_two_word_commands());
+        for family in [
+            DefinerFamily::TclOo,
+            DefinerFamily::Snit,
+            DefinerFamily::Itcl,
+            DefinerFamily::SpecTcl,
+            DefinerFamily::SslicTcl,
+        ] {
+            assert!(!family.members_are_two_word_commands());
+        }
+    }
+
+    /// The four `TclOO` slot members carry their C-pinned
     /// default operations (`slots[]` in 9.0.4's tclOODefineCmds.c; identical
     /// forwards in 8.6.16's tclOO.c): `filter`/`variable` append,
     /// `superclass`/`mixin` replace — and only `variable` deduplicates

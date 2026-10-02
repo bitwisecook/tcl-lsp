@@ -60,7 +60,7 @@ fn cond_bool(vm: &mut Vm, cond: &Value) -> Result<bool, Completion<Value>> {
 /// completion is returned so the caller can act on `break`/`continue`/`return`.
 ///
 /// Native-stack safety net — see `interp::CONTROL_FALLBACK_DEPTH_LIMIT`'s
-/// doc comment (issue #996). Every runtime-fallback body in this module
+/// doc comment. Every runtime-fallback body in this module
 /// (`if`/`while`/`for`/`foreach`/`lmap`) funnels through here, so guarding
 /// this one entry point covers all of them.
 fn eval_body(vm: &mut Vm, body: &Value) -> Completion<Value> {
@@ -249,7 +249,7 @@ fn cmd_lmap(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// actual iteration to the explicit stack via `vm.pending.each_loop`
 /// (`crate::exec::EachLoopReq`/`Frame::each_loop`), so each iteration's body
 /// runs as a yieldable child script frame instead of through
-/// `Vm::eval_source`'s nested drive — issue #1311: a value-consumed `lmap`
+/// `Vm::eval_source`'s nested drive. A value-consumed `lmap`
 /// (`set r [lmap x {1 2} { yield $x }]`) reaches this fallback via generic
 /// command dispatch (the compiler's inline `LMAP_COLLECT` loop only lowers a
 /// bare-statement `lmap`), and needs the same yieldability.

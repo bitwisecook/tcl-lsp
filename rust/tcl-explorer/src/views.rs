@@ -331,8 +331,8 @@ pub fn tree_view_ids() -> impl Iterator<Item = &'static str> {
 /// Renderer-agnostic severity classification.
 ///
 /// The string value is what each renderer (CLI ANSI, GUI CSS class) keys
-/// off.; order matches the severity-enum
-/// declaration so `meta.severities` lists `[error, warning, info]`.
+/// off. Declaration order is the rendering order, so `meta.severities`
+/// lists `[error, warning, info]`.
 ///
 /// This is the explorer's three-level *view* vocabulary, distinct from the
 /// diagnostic severity in `tcl-core-types`: it carries only the levels a

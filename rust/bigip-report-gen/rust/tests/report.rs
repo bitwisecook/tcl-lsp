@@ -25,11 +25,11 @@
 //! # Why the model-shape assertions share one test
 //!
 //! [`model`] extracts two gzip'd `.ucs` archives and re-derives the whole
-//! estate model. Nine tests used to assert nine independent facts about that
-//! one value, and because nextest runs **one process per test**, no
-//! `LazyLock`/`OnceLock` fixture can amortise the work across them — each
-//! process paid the extraction again, 4-8 s apiece for ~120 s of a suite that
-//! has one fixture in it.
+//! estate model. Asserting each independent fact about that one value as
+//! its own test would be expensive: because nextest runs **one process per
+//! test**, no `LazyLock`/`OnceLock` fixture can amortise the work across
+//! them — each process would pay the extraction again, 4-8 s apiece for
+//! ~120 s of a suite that has one fixture in it.
 //!
 //! [`the_estate_model_has_the_shape_the_report_renders_from`] therefore derives
 //! the model once and calls each of the shape checks below in turn. They stay

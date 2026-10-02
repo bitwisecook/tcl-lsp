@@ -75,7 +75,7 @@ fn has_inline_binding(stmts: &[Statement]) -> bool {
     })
 }
 
-/// Regression coverage for issue #996: `tally_calls`,
+/// `tally_calls`,
 /// `has_irreturn_in_unsafe_scope`, and `walk_local_writes` each recurse
 /// once per nested `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch`/
 /// `Block`/`UpFrame` body, with no depth cap of their own before this

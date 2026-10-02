@@ -41,8 +41,7 @@ use crate::types::{StackFrame, StepMode, StopEvent, StopReason, Variable, Variab
 
 /// Stack budget for the dedicated worker thread [`VmBackend::record`] runs
 /// compilation on. Matches `WORKER_STACK_SIZE` in `tcl-lsp-server`'s
-/// `main.rs` — see that constant's doc comment for the full rationale
-/// (issue #996).
+/// `main.rs` — see that constant's doc comment for the full rationale.
 const RECORD_STACK_SIZE: usize = 64 * 1024 * 1024;
 
 /// Errors a backend can surface.
@@ -135,8 +134,8 @@ pub trait DebugBackend {
 
 /// The `CompileService` the VM uses to compile the script and any runtime
 /// `eval` / command substitution: the real Rust compiler pipeline, built from
-/// the one resolved [`DialectProfile`] the debugger VM emulates (issue #1462)
-/// so the compiler's grammar and registry match the runtime release.
+/// the one resolved [`DialectProfile`] the debugger VM emulates, so the
+/// compiler's grammar and registry match the runtime release.
 type Svc = BytecodeCompileService;
 
 /// The native record-and-replay VM backend.
@@ -161,7 +160,7 @@ impl VmBackend {
     fn record(source: &str) -> Result<Vec<DebugSnapshot>, DebugError> {
         // `Svc::compile` runs the same `lower_to_ir`/`build_cfg_codegen`
         // recursive-descent chain that crashed `tcl-lsp-server` on deeply
-        // nested input (issue #996) — its depth cap bounds the frame
+        // nested input — its depth cap bounds the frame
         // *count* but not the stack the OS/ambient thread happens to
         // provide. Run it on a dedicated big-stack thread rather than
         // whatever `launch` was called on (this CLI's main thread, or a
@@ -180,15 +179,13 @@ impl VmBackend {
     /// so [`Self::record`] can run it on a dedicated big-stack thread; see
     /// that function's doc comment.
     fn record_on_this_thread(source: &str) -> Result<Vec<DebugSnapshot>, DebugError> {
-        // The debugger VM runs the plain-Tcl 9.0 environment (dialect-profile
-        // model §5.4); it is resolved once, through the one ingress seam,
-        // and drives both the runtime release and the compiler's
-        // grammar/registry (issue #1462).
+        // The debugger VM runs the plain-Tcl 9.0 environment; it is resolved
+        // once, through the one ingress seam, and drives both the runtime
+        // release and the compiler's grammar/registry.
         //
-        // P1: ledger row B11's other half — letting the debugger record
-        // under a non-plain-Tcl environment — is a payload change (the DAP
-        // surface has no dialect input yet), not a refactor, so the fixed
-        // `tcl9.0` ingress stays and only its resolution moves.
+        // Recording under a non-plain-Tcl environment would need the DAP
+        // surface to accept a dialect input, which it does not yet, so the
+        // fixed `tcl9.0` ingress stays and only its resolution moves.
         let profile = tcl_registry::model::resolve_environment("tcl9.0").unit_profile();
         let module = Svc::for_profile(profile)
             .compile(source)
@@ -384,14 +381,14 @@ mod tests {
         assert_eq!(stop.line, 1);
     }
 
-    /// Regression test for issue #996 in this binary specifically: `launch`
+    /// Regression test for this binary specifically: `launch`
     /// compiles caller-supplied source through the same
     /// `lower_to_ir`/`build_cfg_codegen` recursive-descent chain that
-    /// crashed `tcl-lsp-server`. Before `record` ran this on its own
-    /// [`RECORD_STACK_SIZE`] thread, this reliably overflowed the stack
-    /// `cargo test` gives each `#[test]` (~2 MiB, same default that made
-    /// the original crash reproducible) — 400 levels is comfortably past
-    /// the 130-140 level range that crashed the unfixed binary.
+    /// crashed `tcl-lsp-server`. Without `record` running this on its own
+    /// [`RECORD_STACK_SIZE`] thread, this would reliably overflow the stack
+    /// `cargo test` gives each `#[test]` (~2 MiB) — 400 levels is
+    /// comfortably past the 130-140 level range that crashes on that
+    /// default stack.
     ///
     /// Asserts only that `launch` returns rather than aborting the process:
     /// 400 levels is also past `MAX_LOWER_DEPTH` (256), so lowering's own
