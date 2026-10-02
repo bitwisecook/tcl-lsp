@@ -4414,6 +4414,130 @@ fn the_options_dictionary_starts_with_the_code_and_level_the_route_states() {
     }
 }
 
+/// Programs whose `catch`, or `try`, runs a script that is not brace-quoted
+/// text, in a substitution, with what tclsh prints and the first release that
+/// has the command: a quoted word that substitutes nothing, a script held in a
+/// variable, a quoted word that substitutes, one with an escape, one that
+/// writes what the script reads, a `catch` in a `catch`, a condition, and a
+/// `try` body.
+const UNBRACED_SCRIPT_PROGRAMS: &[(&str, &str, &str)] = &[
+    (
+        "set x 1\nset c [catch \"incr x\"]\nif {$x == 2} {puts two} else {puts other}\n",
+        "two\n",
+        "8.4",
+    ),
+    (
+        "set x 1\nset c [catch \"incr x; set y 2\" m]\nif {$x == 2} {puts two} else {puts other}\n",
+        "two\n",
+        "8.4",
+    ),
+    (
+        "proc p {} {\n    set x 1\n    set c [catch \"incr x\"]\n    \
+         if {$x == 2} {return two} else {return other}\n}\nputs [p]\n",
+        "two\n",
+        "8.4",
+    ),
+    (
+        "set x 1\nset s {incr x}\nset c [catch $s]\nif {$x == 2} {puts two} else {puts other}\n",
+        "two\n",
+        "8.4",
+    ),
+    (
+        "proc p {} {\n    set x 1\n    set s {incr x}\n    set c [catch $s]\n    \
+         if {$x == 2} {return two} else {return other}\n}\nputs [p]\n",
+        "two\n",
+        "8.4",
+    ),
+    (
+        "proc p {} {\n    set x 1\n    set v x\n    set c [catch \"incr $v\"]\n    \
+         if {$x == 2} {return two} else {return other}\n}\nputs [p]\n",
+        "two\n",
+        "8.4",
+    ),
+    (
+        "proc p {} {\n    set x 1\n    set c [catch \"incr x\\n\"]\n    \
+         if {$x == 2} {return two} else {return other}\n}\nputs [p]\n",
+        "two\n",
+        "8.4",
+    ),
+    (
+        "proc p {} {\n    set x 1\n    set c [catch \"catch {incr x}\"]\n    \
+         if {$x == 2} {return two} else {return other}\n}\nputs [p]\n",
+        "two\n",
+        "8.4",
+    ),
+    (
+        "proc p {} {\n    set x 1\n    set s {incr x}\n    if {[catch $s]} {puts bad}\n    \
+         if {$x == 2} {return two} else {return other}\n}\nputs [p]\n",
+        "two\n",
+        "8.4",
+    ),
+    (
+        "proc p {} {\n    set x 1\n    if {[catch \"incr x\"]} {puts bad}\n    \
+         if {$x == 2} {return two} else {return other}\n}\nputs [p]\n",
+        "two\n",
+        "8.4",
+    ),
+    (
+        "proc p {} {\n    set a 1\n    set b 1\n    set c [catch \"incr a; incr b\"]\n    \
+         return \"$a$b\"\n}\nputs [p]\n",
+        "22\n",
+        "8.4",
+    ),
+    (
+        "set x 5\nset s {puts $x}\nset c [catch $s]\nputs $c\n",
+        "5\n0\n",
+        "8.4",
+    ),
+    (
+        "proc p {} {\n    set x 1\n    set r [try \"incr x\" on error {} {}]\n    \
+         if {$x == 2} {return two} else {return other}\n}\nputs [p]\n",
+        "two\n",
+        "8.6",
+    ),
+    (
+        "proc p {} {\n    set x 1\n    set s {incr x}\n    set r [try $s on error {} {}]\n    \
+         if {$x == 2} {return two} else {return other}\n}\nputs [p]\n",
+        "two\n",
+        "8.6",
+    ),
+];
+
+/// A script a substitution runs in this frame, once, whatever it completes
+/// with, is the statement's effect wherever its text is known: a quoted word
+/// that substitutes nothing is read as the brace-quoted one is, and a script
+/// that is run-time data — held in a variable, substituted, escaped, expanded
+/// — may write any name, so nothing after the statement is decided on a value
+/// from before it, as after the statement form's barrier. Each program prints
+/// what tclsh prints, before and after the optimiser; no diagnostic decides
+/// its condition as tclsh does not, and the store a script reads stays.
+#[test]
+fn a_quoted_or_computed_script_is_the_statements_effect() {
+    for &(source, expected, first) in UNBRACED_SCRIPT_PROGRAMS {
+        prints_under_releases_from(source, expected, first);
+        let dialects: &[&str] = if first == "8.4" {
+            &DIALECTS
+        } else {
+            &["tcl8.6", "tcl9.0"]
+        };
+        for &dialect in dialects {
+            assert!(
+                condition_claims(source, dialect)
+                    .iter()
+                    .all(|claimed| *claimed),
+                "{dialect}: a condition is decided as tclsh does not:\n{source}"
+            );
+        }
+    }
+    let reads = "set x 5\nset s {puts $x}\nset c [catch $s]\nputs $c\n";
+    for dialect in DIALECTS {
+        assert!(
+            !removes_store(reads, dialect, "set x 5"),
+            "{dialect}: the script reads x"
+        );
+    }
+}
+
 /// The rows of the `catch` code table that read nothing the program has not
 /// set: the script, the code `catch` returns for it and what its result
 /// variable holds, the same under tclsh 8.4 to 9.1. `return -code 5 custom`

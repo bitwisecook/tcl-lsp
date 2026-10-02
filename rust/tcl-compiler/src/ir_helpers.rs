@@ -1142,7 +1142,8 @@ pub(crate) struct EvaluatedCommandSubstitutions {
     /// which is where the variable reads of that word sit: no command word of
     /// [`Self::in_frame_commands`] holds them.
     pub in_frame_texts: Vec<String>,
-    /// A malformed fragment or recursion-limit hit prevented complete recovery.
+    /// A malformed fragment, a recursion-limit hit, or a protected script that
+    /// is run-time data (`[catch $script]`) prevented complete recovery.
     pub opaque: bool,
 }
 
@@ -1262,9 +1263,12 @@ fn walk_text(
 /// statement's: `set c [catch {incr x}]` writes `x`, and an `if` that reads
 /// it was folded on the value `x` held before (#2231). Its commands are
 /// descended, and their own protected scripts and expression words with
-/// them. Every other body is left: it may run zero or many times, in
-/// another frame, or bind names of its own, which a flat command list cannot
-/// represent.
+/// them, where the script is known text: brace-quoted, or a quoted or bare
+/// word that substitutes nothing (`[catch "incr x"]`). A script that is
+/// run-time data (`[catch $script]`) is unreadable, and the walk is marked
+/// [`EvaluatedCommandSubstitutions::opaque`]. Every other body is left: it
+/// may run zero or many times, in another frame, or bind names of its own,
+/// which a flat command list cannot represent.
 fn walk_in_frame_words(
     words: &[CommandWord],
     config: LexerConfig,
@@ -1342,20 +1346,29 @@ fn walk_in_frame_words(
         let Some(source_index) = index.checked_sub(shift) else {
             continue;
         };
-        // A script that substitutes is not known text.
-        let Some(word) = words
-            .get(source_index + 1)
-            .filter(|word| word.braced_literal)
-        else {
+        let Some(word) = words.get(source_index + 1) else {
             continue;
         };
-        out.in_frame_texts.push(word.text.clone());
-        let recovered = tokenise_command_words(&word.text, config);
+        // The script is the text of a brace-quoted word, or of a quoted or
+        // bare word that substitutes nothing and has no escape to read. A word
+        // that substitutes, or is expanded, is run-time data: the script may
+        // write any name, so the walk is incomplete.
+        let script = if word.braced_literal {
+            Some(word.text.as_str())
+        } else {
+            word.literal().filter(|_| !word.raw.contains('\\'))
+        };
+        let Some(script) = script else {
+            out.opaque = true;
+            continue;
+        };
+        out.in_frame_texts.push(script.to_owned());
+        let recovered = tokenise_command_words(script, config);
         for inner in &recovered {
             walk_in_frame_words(inner, config, registry, heads, depth + 1, out);
         }
         out.in_frame_commands.extend(recovered);
-        walk_text(&word.text, config, registry, heads, depth + 1, true, out);
+        walk_text(script, config, registry, heads, depth + 1, true, out);
     }
 }
 
@@ -1864,9 +1877,11 @@ mod tests {
 
     /// The script a `catch` protects, and the body of a `try`, run once in the
     /// frame the substitution is written in, so their commands are the
-    /// statement's: `[catch {incr x}]` writes `x`. Nothing else is descended
-    /// by a command's name — a handler, a `finally`, an `if` arm, a loop body,
-    /// an `eval` — and a script that is not brace-quoted is not known text.
+    /// statement's: `[catch {incr x}]` writes `x`, and so does `[catch "incr
+    /// x"]`, whose word substitutes nothing. Nothing else is descended by a
+    /// command's name — a handler, a `finally`, an `if` arm, a loop body, an
+    /// `eval` — and a script that is run-time data is not known text: the walk
+    /// is incomplete.
     #[test]
     fn a_protected_script_is_descended_and_no_other_body_is() {
         let one = recovered("[catch {incr x}]");
@@ -1888,14 +1903,18 @@ mod tests {
         assert_eq!(heads(&body_only.in_frame_commands), ["incr"]);
         assert_eq!(body_only.in_frame_texts, ["incr x"]);
 
+        let quoted = recovered("[catch \"incr x; set y 2\"]");
+        assert_eq!(heads(&quoted.in_frame_commands), ["incr", "set"]);
+        assert_eq!(quoted.in_frame_texts, ["incr x; set y 2"]);
+        assert!(!quoted.opaque);
+        let nested_quoted = recovered("[catch \"catch {incr x}\"]");
+        assert_eq!(heads(&nested_quoted.in_frame_commands), ["catch", "incr"]);
+
         for other in [
             "[if {1} {incr x}]",
             "[eval {incr x}]",
             "[foreach v {1} {incr x}]",
             "[while {1} {incr x}]",
-            "[catch \"incr x\"]",
-            "[catch $script]",
-            "[catch [list incr x]]",
         ] {
             let embedded = recovered(other);
             assert!(
@@ -1903,10 +1922,31 @@ mod tests {
                     && embedded
                         .in_frame_texts
                         .iter()
-                        .all(|text| !text.contains("incr")),
+                        .all(|text| !text.contains("incr"))
+                    && !embedded.opaque,
                 "{other}"
             );
         }
+        for computed in [
+            "[catch $script]",
+            "[catch [list incr x]]",
+            "[catch \"incr $name\"]",
+            "[catch \"incr x\\n\"]",
+            "[catch {*}$script]",
+            "[try $script on error {} {}]",
+        ] {
+            let embedded = recovered(computed);
+            assert!(
+                embedded.opaque
+                    && !heads(&embedded.in_frame_commands).contains(&"incr")
+                    && embedded
+                        .in_frame_texts
+                        .iter()
+                        .all(|text| !text.contains("incr")),
+                "{computed}"
+            );
+        }
+        assert!(!recovered("[catch {incr x}]").opaque);
     }
 
     #[test]
