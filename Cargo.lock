@@ -4342,6 +4342,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-engine-wasm"
+version = "0.1.0"
+dependencies = [
+ "tcl-engine-api",
+ "tcl-registry",
+ "tcl-runtime-api",
+ "tcl-syntax",
+ "wasmtime",
+]
+
+[[package]]
 name = "tcl-explorer"
 version = "0.1.0"
 dependencies = [

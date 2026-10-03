@@ -67,7 +67,9 @@ The rest of the model follows from what packs and hooks are:
 
 **Containment stops where fuel stops.** A hook body is bytecode with a
 command budget, a wall-clock cap, and a value-size cap. C code has none of
-those: the shim cannot stop a C loop or bound a C allocation. What it does
+those: the shim cannot stop a C loop or bound a C allocation. (Compiled for
+`wasm32` and run under wasmtime, it can be stopped:
+[c-extension-abi.md](c-extension-abi.md) § 12.1.) What the shim does
 contain:
 
 - **Rust panics at the boundary.** Every exported function runs under

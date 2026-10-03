@@ -75,6 +75,7 @@ pub mod event_facts;
 pub mod events;
 pub mod expr_surface;
 pub mod extension_default;
+pub mod extension_host;
 pub mod f5;
 pub mod forms;
 pub mod frame_effect;

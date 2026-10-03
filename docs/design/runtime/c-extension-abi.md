@@ -237,7 +237,7 @@ module**. A loader in the runtime/host loads it at runtime:
 
 The runtime then dispatches as in §4.6. It needs a `wasmtime`-class host loader
 plus a runtime cdylib exporting memory and a growable, exported
-`__indirect_function_table`.
+`__indirect_function_table`; `rust/tcl-engine-wasm` is that loader (§12.1).
 
 **Linker flags that matter.** The main module must export its table
 (`--export-table`) and make it growable (`--growable-table`); the side module is
@@ -478,3 +478,43 @@ command, and when the call returns for one that deletes itself, so its
 the deletion itself). `Tcl_DeleteCommand` is `rename name {}`.
 `runtime/rust/tests/extension_commands.rs` holds this natively with extensions
 written against the C ABI in Rust.
+
+### 12.1 Model B, hosted
+
+`rust/tcl-engine-wasm` is the §5.2 loader, and the runtime compiled to
+`wasm32-wasip1` is an engine of the extension interface under it (`WasmEngine`).
+An extension built for the runtime as a side module — `clang
+--target=wasm32-wasip1 -fPIC -DTCL_HOST_WASM` against `runtime/rust/include/tcl.h`,
+then `wasm-ld --experimental-pic -shared --no-entry --import-memory
+--import-table`, with wasi-libc's `libc.a` for what it uses of the C library — is
+loaded as `load` would load it. The host reads `dylink.0`'s `MEM_INFO` by hand,
+reserves the module's data in the runtime's heap (`tcl_codegen_call_frame_alloc`),
+grows the runtime's exported table for its functions, gives it a 64 KiB stack of
+its own, resolves each `env.Tcl_*` import to the runtime's export, applies the
+relocations and the constructors, and calls `PREFIX_Init` with the interpreter. A
+module that names libraries to load first (`NEEDED`), imports a `GOT.*` entry,
+calls a function the runtime does not export, or defines no `PREFIX_Init` is
+refused, the refusal naming it.
+
+The host drives the interpreter through the runtime's `tcl_engine_*` exports
+(`runtime/rust/src/engine_abi.rs`), which do across the module boundary what the
+native engine does in process: the command and value-size limits, the
+confinement, the whitelist, the pinned release, a unit's procedure, a package
+provided, and a host command's `return` and error. What the interpreter's counts
+cannot see is the host's to bound. Fuel stands in for the command count in a C
+command's own loop and in a loop that dispatches nothing; the epoch keeps the
+wall clock, since every WASI clock reads zero; and the memory's growth is capped
+by the value-size budget. Every WASI function either module imports is a stub
+that answers the same on every run: the clock reads zero, randomness is zeros,
+there is no environment, no argument and no preopened directory, output is
+swallowed, and `proc_exit` ends the evaluation. So nothing of the machine reaches
+an answer. A trap leaves an instance unusable, and the engine rebuilds it from
+what was set up on it.
+
+`rust/tcl-engine-wasm/tests/under_wasm.rs` builds `pkga.c` this way, holds it
+under fuel to the vectors `tclsh9.0` answered (`rust/tcl-cshim/tests/vectors/pkga.rs`),
+and runs the cases the native runtime engine is held to
+(`runtime/rust/tests/common/engine_cases.rs`) on the WASM engine. The registry's
+extension seam (`tcl_registry::extension_host`) is what an analysis binds: a
+thread with no host installed declines every evaluation as `Transient`, so the
+language server, which never links wasmtime, declines.

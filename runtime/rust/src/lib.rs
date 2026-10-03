@@ -120,6 +120,7 @@ pub mod dict;
 pub mod embedded_stdlib;
 #[cfg(feature = "engine")]
 pub mod engine;
+pub mod engine_abi;
 pub mod ensemble;
 mod environment;
 #[cfg(have_tommath)]

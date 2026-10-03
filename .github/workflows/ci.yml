@@ -1174,6 +1174,9 @@ jobs:
   #                     `rust-tests-shard`'s workspace run too, so `wasm_real_link.rs`
   #                     also executes there — without the toolchain, where it
   #                     skips loudly by naming what is missing.
+  #                     It also runs the WASM engine's suite
+  #                     (`tcl-engine-wasm`), which is out of rust-tests-shard
+  #                     for the reason `tcl-fuzz` is.
   #   lsp-server-wasm   the real wasm-bindgen LSP server, driven through a
   #                     scripted JSON-RPC session under Node.  Path-filtered
   #                     to the browser server's local dependency closure.
@@ -1416,9 +1419,9 @@ jobs:
           if [ "$ALREADY_GREEN" = "true" ]; then
             echo "tree already green on its PR run — building test binaries (cache warmth) without re-running them"
             if [ "$RUST_TESTS_RUNNER" = tank ]; then
-              bash scripts/dev/persistent-cargo-target.sh with-lock "$CARGO_TARGET_DIR" cargo nextest run --no-run --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --all-features
+              bash scripts/dev/persistent-cargo-target.sh with-lock "$CARGO_TARGET_DIR" cargo nextest run --no-run --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --exclude tcl-engine-wasm --all-features
             else
-              cargo nextest run --no-run --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --all-features
+              cargo nextest run --no-run --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --exclude tcl-engine-wasm --all-features
             fi
             exit 0
           fi
@@ -1910,6 +1913,18 @@ jobs:
         env:
           TCL_REQUIRE_WASM_LINK: '1'
         run: cargo test -p tcl-compiler --test wasm_real_link --test wasm_tiers -- --test-threads=1
+
+      # The runtime compiled to wasm32 as an engine (`tcl-engine-wasm`): the
+      # test extension built as a side module and evaluated under wasmtime with
+      # fuel, and the cases the native runtime engine is held to. Its tests
+      # return early without the toolchain, so this is where they run; the
+      # crate is out of rust-tests-shard so wasmtime and cranelift stay out of
+      # the main partition's build graph.
+      - name: cargo test -p tcl-engine-wasm (toolchain required)
+        if: needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
+        env:
+          TCL_REQUIRE_WASM_LINK: '1'
+        run: cargo test -p tcl-engine-wasm
 
       # The language server's wasip1 arm (rt.rs `mod wasi`) has no in-tree
       # consumer until the WASI transport crate lands, so nothing else in CI
