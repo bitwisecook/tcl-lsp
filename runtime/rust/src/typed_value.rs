@@ -87,6 +87,36 @@ pub(crate) fn wide_int(obj: *mut TclObj) -> Result<i64, TypedError> {
     read_wide_int(obj)
 }
 
+/// Read `obj` as C Tcl reads a 64-bit `long` (`Tcl_GetLongFromObj` on an LP64
+/// host): a wide integer, or an integer past the wide range that is not
+/// negative and fits 64 bits unsigned, taken modulo 2^64 as C's `(long)` of an
+/// `unsigned long` takes it, so `18446744073709551615` reads -1. Past 64 bits,
+/// or below the wide range, it is the overflow [`wide_int`] reports.
+pub(crate) fn wide_int_modulo_unsigned(obj: *mut TclObj) -> Result<i64, TypedError> {
+    match wide_int(obj) {
+        Err(error) if error.code == b"ARITH IOVERFLOW" => unsigned_past_wide(obj).ok_or(error),
+        read => read,
+    }
+}
+
+/// The bits of `obj`'s integer spelling as an `i64`, when the value is past the
+/// wide range, not negative, and fits 64 bits unsigned.
+fn unsigned_past_wide(obj: *mut TclObj) -> Option<i64> {
+    let bytes = obj::bytes_of(obj);
+    let text = core::str::from_utf8(&bytes).ok()?;
+    match tcl_syntax::number::parse_whole(text)? {
+        tcl_syntax::number::Number::Big {
+            negative: false,
+            radix,
+            digits,
+        } => u64::from_str_radix(&digits, radix as u32)
+            .ok()
+            // C's `(long)` of an `unsigned long`: the same 64 bits.
+            .map(|value| value as i64),
+        _ => None,
+    }
+}
+
 /// Read `obj` as a Tcl double — `Tcl_GetDoubleFromObj`. An integer or bignum
 /// widens; `NaN` is a value here (the boolean context is where it is an error).
 pub(crate) fn double(obj: *mut TclObj) -> Result<f64, TypedError> {

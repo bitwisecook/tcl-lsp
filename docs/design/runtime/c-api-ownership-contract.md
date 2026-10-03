@@ -177,8 +177,8 @@ mutate `internalRep`/`bytes` but **not** the logical value, so a `borrowed`
 |---|---|---|---|---|
 | `Tcl_GetString` | `objPtr` `borrowed` | `char* borrowed-rep` | `no-error` | Forces the string rep; valid until the obj is modified/freed. |
 | `Tcl_GetStringFromObj` | `objPtr` `borrowed` | `char* borrowed-rep` | `no-error` | As above + writes length out. |
-| `Tcl_GetIntFromObj` | `objPtr` `borrowed` | `status` | `sets-result` | Shimmers to int; on failure sets `expected integer…`. An integer in the unsigned 32-bit range is truncated, as C Tcl does; past it, `integer value too large to represent` with `ARITH IOVERFLOW` and the message. |
-| `Tcl_GetLongFromObj` | `objPtr` `borrowed` | `status` | `sets-result` | As `Tcl_GetIntFromObj` where `long` is 32 bits (`wasm32`); any wide integer where it is 64. |
+| `Tcl_GetIntFromObj` | `objPtr` `borrowed` | `status` | `sets-result` | Shimmers to int; on failure sets `expected integer…`. Reads a `long` as `Tcl_GetLongFromObj` does and takes `INT_MIN` to `UINT_MAX` of it on every host, an unsigned value truncated, as C Tcl does; past it, `integer value too large to represent` with `ARITH IOVERFLOW` and the message. |
+| `Tcl_GetLongFromObj` | `objPtr` `borrowed` | `status` | `sets-result` | `LONG_MIN` to `ULONG_MAX`, truncated, where `long` is 32 bits (`wasm32`); any wide integer where it is 64, and an integer past the wide range that fits 64 bits unsigned taken modulo 2^64, as C Tcl takes it (`18446744073709551615` reads -1). |
 | `Tcl_GetWideIntFromObj` | `objPtr` `borrowed` | `status` | `sets-result` | |
 | `Tcl_GetDoubleFromObj` | `objPtr` `borrowed` | `status` | `sets-result` | |
 | `Tcl_GetBooleanFromObj` | `objPtr` `borrowed` | `status` | `sets-result` | |

@@ -82,6 +82,7 @@ pub mod frame_effect;
 pub mod handle_binding;
 pub mod hooks;
 pub mod hover;
+pub mod implementation_hash;
 pub mod intrinsic;
 pub mod invocation_words;
 pub mod irules_policy;

@@ -22,10 +22,10 @@
 //! An extension is a side module (the WebAssembly tool conventions' dynamic
 //! linking). It imports the runtime's memory and function table, three globals
 //! saying where its data, its functions and its stack are, and the C API it
-//! calls, which are the runtime's own exports. Loading one reserves its data in
-//! the runtime's heap, grows the table for its functions, gives it a stack of
-//! its own, applies its relocations, and runs its entry point with the
-//! interpreter, as `load` does.
+//! calls, which are the runtime's own exports; it may import no other export of
+//! the runtime. Loading one reserves its data in the runtime's heap, grows the
+//! table for its functions, gives it a stack of its own, applies its
+//! relocations, and runs its entry point with the interpreter, as `load` does.
 
 use std::any::Any;
 use std::rc::Rc;
@@ -204,6 +204,19 @@ pub(crate) struct Limits {
     pub(crate) value_bytes: Option<u64>,
 }
 
+impl Limits {
+    /// These limits with the fuel a fresh instance's first evaluation has beside
+    /// its commands' ([`crate::FIRST_USE_FUEL`]).
+    pub(crate) fn with_first_use(self) -> Self {
+        Self {
+            fuel: self
+                .fuel
+                .map(|fuel| fuel.saturating_add(crate::FIRST_USE_FUEL)),
+            ..self
+        }
+    }
+}
+
 /// One instance of the runtime and its interpreter.
 pub(crate) struct Session {
     pub(crate) store: Store<HostState>,
@@ -274,6 +287,11 @@ impl Session {
                 ("env", "__table_base") => self.global(table_base, Mutability::Const)?.into(),
                 ("env", "__stack_pointer") => {
                     self.global(stack + SIDE_STACK, Mutability::Var)?.into()
+                }
+                ("env", name) if !in_c_api(name) => {
+                    return Err(Failure::Refused(format!(
+                        "the extension imports `{name}`, which is not the runtime's C API"
+                    )));
                 }
                 ("env", name) => match self.exports.instance.get_export(&mut self.store, name) {
                     Some(item @ Extern::Func(_)) => item,
@@ -418,6 +436,16 @@ impl Session {
             message,
             code: Some(text),
         })
+    }
+
+    /// Lift an evaluation's limits once it has ended, so what is set up on the
+    /// instance between evaluations (a command defined, an extension loaded)
+    /// runs under none: no fuel left over, no deadline already passed, no cap.
+    pub(crate) fn disarm(&mut self) {
+        // Fuel is on, so setting it cannot fail.
+        let _ = self.store.set_fuel(u64::MAX);
+        self.store.set_epoch_deadline(u64::MAX / 2);
+        self.store.data_mut().cap.limit = None;
     }
 
     /// Arm the limits of one evaluation.
@@ -633,6 +661,16 @@ impl Session {
             Err(Failure::Refused(format!("no release `{profile}` to pin")))
         }
     }
+}
+
+/// Whether `name` is one of the runtime's C API functions, the only exports an
+/// extension may import: the header's WASM leg declares them (`Tcl_*`), and its
+/// macros and inline functions call `TclHost_*` and `TclFreeObj`. Its other
+/// exports — the compiled code's ABI, `tcl_eval`, the engine's own
+/// `tcl_engine_*` — would let an extension evaluate a script, store a variable
+/// or lift its own budget.
+fn in_c_api(name: &str) -> bool {
+    name.starts_with("Tcl_") || name.starts_with("TclHost_") || name == "TclFreeObj"
 }
 
 /// Why a session call did not answer.

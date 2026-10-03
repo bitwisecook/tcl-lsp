@@ -262,10 +262,11 @@ pub unsafe extern "C" fn Tcl_DuplicateObj(objPtr: *mut TclObj) -> *mut TclObj {
 // objects: the typed reads, each leaving C Tcl's error in `interp` when it is
 // given one
 
-/// `Tcl_GetIntFromObj` — the value as a C `int`. As in C Tcl, an integer within
-/// the unsigned 32-bit range is truncated rather than refused, and on a target
-/// whose `long` is 32 bits (`wasm32`) the range is `long`'s: from `LONG_MIN` to
-/// `ULONG_MAX`.
+/// `Tcl_GetIntFromObj` — the value as a C `int`. C Tcl reads a `long` first, as
+/// [`Tcl_GetLongFromObj`] does, and takes `INT_MIN` to `UINT_MAX` of it on every
+/// host, an unsigned value truncated rather than refused. So on an LP64 host an
+/// integer past the wide range that the `long` read takes modulo 2^64 is an `int`
+/// when what it reads is in range: `18446744073709551615` is -1.
 ///
 /// # Safety
 /// `interp` must be null or live; `objPtr` live; `intPtr` writable.
@@ -275,27 +276,22 @@ pub unsafe extern "C" fn Tcl_GetIntFromObj(
     objPtr: *mut TclObj,
     intPtr: *mut c_int,
 ) -> c_int {
-    let wide = match typed_value::wide_int(objPtr) {
+    let long = match long_value(objPtr) {
         // SAFETY: forwarded per this fn's contract.
         Err(error) => return unsafe { typed_error(interp, &error) },
-        Ok(wide) => wide,
+        Ok(long) => long,
     };
-    let lowest = if core::mem::size_of::<c_long>() == 4 {
-        TclWideInt::from(i32::MIN)
-    } else {
-        -TclWideInt::from(u32::MAX)
-    };
-    if !(lowest..=TclWideInt::from(u32::MAX)).contains(&wide) {
+    if !(TclWideInt::from(i32::MIN)..=TclWideInt::from(u32::MAX)).contains(&long) {
         // SAFETY: forwarded per this fn's contract.
         return unsafe { overflow(interp) };
     }
     // SAFETY: the caller guarantees a writable `int`.
-    unsafe { intPtr.write(wrap_to_i32(wide)) };
+    unsafe { intPtr.write(wrap_to_i32(long)) };
     TCL_OK
 }
 
-/// `Tcl_GetLongFromObj` — the value as a C `long`: on a 32-bit `long` the range
-/// [`Tcl_GetIntFromObj`] takes there, on a 64-bit one any wide integer.
+/// `Tcl_GetLongFromObj` — the value as a C `long`, read as C Tcl reads one on
+/// this host ([`long_value`]).
 ///
 /// # Safety
 /// `interp` must be null or live; `objPtr` live; `longPtr` writable.
@@ -305,23 +301,42 @@ pub unsafe extern "C" fn Tcl_GetLongFromObj(
     objPtr: *mut TclObj,
     longPtr: *mut c_long,
 ) -> c_int {
-    let wide = match typed_value::wide_int(objPtr) {
+    let long = match long_value(objPtr) {
         // SAFETY: forwarded per this fn's contract.
         Err(error) => return unsafe { typed_error(interp, &error) },
-        Ok(wide) => wide,
+        Ok(long) => long,
     };
     if core::mem::size_of::<c_long>() == 4 {
-        if !(TclWideInt::from(i32::MIN)..=TclWideInt::from(u32::MAX)).contains(&wide) {
-            // SAFETY: forwarded per this fn's contract.
-            return unsafe { overflow(interp) };
-        }
         // SAFETY: the caller guarantees a writable `long`, 32 bits wide here.
-        unsafe { longPtr.cast::<i32>().write(wrap_to_i32(wide)) };
+        unsafe { longPtr.cast::<i32>().write(wrap_to_i32(long)) };
     } else {
         // SAFETY: the caller guarantees a writable `long`, 64 bits wide here.
-        unsafe { longPtr.cast::<i64>().write(wide) };
+        unsafe { longPtr.cast::<i64>().write(long) };
     }
     TCL_OK
+}
+
+/// What C Tcl's `Tcl_GetLongFromObj` reads, as a wide integer for the caller
+/// to narrow. Where `long` is 32 bits (`wasm32`), an integer from `LONG_MIN` to
+/// `ULONG_MAX`, which the caller truncates. Where it is 64 bits, any wide
+/// integer, and an integer past the wide range that fits 64 bits unsigned, taken
+/// modulo 2^64 as C's `(long)` of an `unsigned long` takes it:
+/// `18446744073709551615` reads -1 and `0x8000000000000000` reads `LONG_MIN`.
+/// Anything else is C's `ARITH IOVERFLOW`.
+fn long_value(objPtr: *mut TclObj) -> Result<TclWideInt, TypedError> {
+    if core::mem::size_of::<c_long>() == 4 {
+        let wide = typed_value::wide_int(objPtr)?;
+        if (TclWideInt::from(i32::MIN)..=TclWideInt::from(u32::MAX)).contains(&wide) {
+            Ok(wide)
+        } else {
+            Err(TypedError {
+                message: OVERFLOW_MESSAGE.to_vec(),
+                code: OVERFLOW_CODE,
+            })
+        }
+    } else {
+        typed_value::wide_int_modulo_unsigned(objPtr)
+    }
 }
 
 /// `Tcl_GetWideIntFromObj` — the value as a `Tcl_WideInt`.

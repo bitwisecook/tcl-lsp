@@ -69,10 +69,14 @@ const EPOCH_TICK: Duration = Duration::from_millis(5);
 /// fuel.
 pub const FUEL_PER_COMMAND: u64 = 2_000_000;
 
-/// Fuel every evaluation has beside its commands' for what the runtime builds
-/// the first time it is used in an instance: the command tables of the release
-/// it runs, about 700 million instructions in a debug build. No count sees
-/// that work, and it is not the body's.
+/// Fuel an instance's first evaluation has beside its commands' for what the
+/// runtime builds the first time it is used: the command tables of the release
+/// it runs, about 700 million instructions in a debug build. No count sees that
+/// work, and it is not the body's. A [`WasmEngine`] grants it once per instance,
+/// to the first evaluation after the instance is built or rebuilt, so a later
+/// evaluation that is the first to use the tables pays for them from its own
+/// fuel; [`WasmExtensionHost`], whose every evaluation is on a fresh instance,
+/// grants it to each.
 pub const FIRST_USE_FUEL: u64 = 2_000_000_000;
 
 /// The bytes the memory may grow by for each byte of the value-size budget,
@@ -223,6 +227,9 @@ pub struct WasmEngine {
     host_commands: Vec<String>,
     unit_commands: Vec<String>,
     spent: Option<u64>,
+    /// Whether the instance has yet to run an evaluation, which then has the
+    /// first-use fuel ([`FIRST_USE_FUEL`]).
+    first_use: bool,
 }
 
 impl WasmEngine {
@@ -243,6 +250,7 @@ impl WasmEngine {
             host_commands: Vec::new(),
             unit_commands: Vec::new(),
             spent: None,
+            first_use: true,
         })
     }
 
@@ -270,6 +278,7 @@ impl WasmEngine {
                 replay(&mut session, setup).map_err(Failure::into_engine_error)?;
             }
             self.session = Some(session);
+            self.first_use = true;
         }
         Ok(self.session.as_mut().expect("built above"))
     }
@@ -441,10 +450,15 @@ impl Engine for WasmEngine {
                 code: None,
             });
         }
-        let limits = limits_of(self.budget);
         let texts: Vec<String> = arguments.iter().map(host_call::text_of).collect();
         let mut words: Vec<&[u8]> = vec![handle.procedure.as_bytes()];
         words.extend(texts.iter().map(String::as_bytes));
+        self.session()?;
+        let limits = if std::mem::replace(&mut self.first_use, false) {
+            limits_of(self.budget).with_first_use()
+        } else {
+            limits_of(self.budget)
+        };
         let session = self.session()?;
         let answer = session
             .arm(limits)
@@ -458,6 +472,9 @@ impl Engine for WasmEngine {
         // What a door set up stays set up however the evaluation ended, as it
         // does natively, so an instance rebuilt after a trap has it too.
         self.keep_defined();
+        if let Some(session) = self.session.as_mut() {
+            session.disarm();
+        }
         let result = match answer {
             Ok((_, Some(kind))) => Err(EngineError::BudgetExceeded(kind)),
             Ok((completion, None)) => completion_value(&completion),
@@ -535,12 +552,9 @@ fn error_code(options: &[u8]) -> Option<String> {
 /// The limits an evaluation under `budget` runs with.
 fn limits_of(budget: Budget) -> Limits {
     Limits {
-        fuel: budget.commands.map(|commands| {
-            commands
-                .saturating_add(1)
-                .saturating_mul(FUEL_PER_COMMAND)
-                .saturating_add(FIRST_USE_FUEL)
-        }),
+        fuel: budget
+            .commands
+            .map(|commands| commands.saturating_add(1).saturating_mul(FUEL_PER_COMMAND)),
         ticks: budget.wall_clock.map(ticks),
         growth: budget.max_value_bytes.map(|bytes| {
             bytes

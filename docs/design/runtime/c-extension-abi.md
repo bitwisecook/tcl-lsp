@@ -490,11 +490,14 @@ then `wasm-ld --experimental-pic -shared --no-entry --import-memory
 loaded as `load` would load it. The host reads `dylink.0`'s `MEM_INFO` by hand,
 reserves the module's data in the runtime's heap (`tcl_codegen_call_frame_alloc`),
 grows the runtime's exported table for its functions, gives it a 64 KiB stack of
-its own, resolves each `env.Tcl_*` import to the runtime's export, applies the
-relocations and the constructors, and calls `PREFIX_Init` with the interpreter. A
-module that names libraries to load first (`NEEDED`), imports a `GOT.*` entry,
-calls a function the runtime does not export, or defines no `PREFIX_Init` is
-refused, the refusal naming it.
+its own, resolves each import of the C API (`env.Tcl_*`, and the `env.TclHost_*`
+and `env.TclFreeObj` the header's macros and inline functions call) to the
+runtime's export, applies the relocations and the constructors, and calls
+`PREFIX_Init` with the interpreter. An import of any other runtime export is
+refused, so an extension reaches the interpreter only through the C API, which
+has no eval or variable door. A module that names libraries to load first
+(`NEEDED`), imports a `GOT.*` entry, calls a function the runtime does not
+export, or defines no `PREFIX_Init` is refused, the refusal naming it.
 
 The host drives the interpreter through the runtime's `tcl_engine_*` exports
 (`runtime/rust/src/engine_abi.rs`), which do across the module boundary what the

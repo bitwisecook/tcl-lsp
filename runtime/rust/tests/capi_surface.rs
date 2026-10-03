@@ -307,6 +307,12 @@ fn an_appended_result_that_is_not_the_interpreter_s_own_string_is_copied() {
     );
 }
 
+/// C Tcl's answer to an integer its read cannot represent.
+const OVERFLOW: &str =
+    "1 {integer value too large to represent} {ARITH IOVERFLOW {integer value too large to represent}}";
+
+/// Each row is C Tcl 9.0.4's own answer, from a program linked with its library
+/// on an LP64 host, and on a 32-bit `long` its source's (`tclObj.c`).
 #[test]
 fn the_reads_take_c_tcl_s_ranges_and_report_its_errors() {
     let mut interp = Interp::new();
@@ -314,15 +320,9 @@ fn the_reads_take_c_tcl_s_ranges_and_report_its_errors() {
     let mut cases = vec![
         ("int 4294967295", "0 -1"),
         ("int 2147483648", "0 -2147483648"),
-        (
-            "int 4294967296",
-            "1 {integer value too large to represent} {ARITH IOVERFLOW {integer value too large to represent}}",
-        ),
+        ("int 4294967296", OVERFLOW),
         ("int 0x10", "0 16"),
-        (
-            "wide 99999999999999999999",
-            "1 {integer value too large to represent} {ARITH IOVERFLOW {integer value too large to represent}}",
-        ),
+        ("wide 99999999999999999999", OVERFLOW),
         (
             "double NaN",
             "1 {floating point value is Not a Number} {TCL VALUE DOUBLE NAN}",
@@ -335,14 +335,35 @@ fn the_reads_take_c_tcl_s_ranges_and_report_its_errors() {
         "wide [expr {1.5}]",
         "1 {expected integer but got \"1.5\"} {TCL VALUE INTEGER}",
     ));
+    // C Tcl takes `INT_MIN` to `UINT_MAX` for an `int` on every host.
+    for call in ["int -2147483649", "int -3000000000", "int -4294967295"] {
+        cases.push((call, OVERFLOW));
+    }
+    cases.push(("int -2147483648", "0 -2147483648"));
     if core::mem::size_of::<c_long>() == 8 {
-        cases.push(("int -4294967295", "0 1"));
-        cases.push(("long 9223372036854775807", "0 9223372036854775807"));
+        // A 64-bit `long` is any wide integer, and an integer past the wide
+        // range that fits 64 bits unsigned is taken modulo 2^64, as C converts
+        // it; the `int` read takes what that `long` reads.
+        cases.extend([
+            ("long -4294967295", "0 -4294967295"),
+            ("long 9223372036854775807", "0 9223372036854775807"),
+            ("long 9223372036854775808", "0 -9223372036854775808"),
+            ("long 0x8000000000000000", "0 -9223372036854775808"),
+            ("long 18446744073709551615", "0 -1"),
+            ("long 18446744073709551616", OVERFLOW),
+            ("long -9223372036854775809", OVERFLOW),
+            ("int 18446744073709551615", "0 -1"),
+            ("int 18446744071562067968", "0 -2147483648"),
+            ("int 18446744071562067967", OVERFLOW),
+            ("int 9223372036854775808", OVERFLOW),
+        ]);
     } else {
-        cases.push((
-            "long 4294967296",
-            "1 {integer value too large to represent} {ARITH IOVERFLOW {integer value too large to represent}}",
-        ));
+        cases.extend([
+            ("long 4294967295", "0 -1"),
+            ("long 4294967296", OVERFLOW),
+            ("long -2147483649", OVERFLOW),
+            ("long 18446744073709551615", OVERFLOW),
+        ]);
     }
     for (call, wanted) in cases {
         let probe = format!(

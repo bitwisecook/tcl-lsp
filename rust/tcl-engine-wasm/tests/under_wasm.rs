@@ -605,6 +605,106 @@ fn a_side_module_runs_on_a_stack_of_its_own() {
     );
 }
 
+/// An extension reaches the interpreter only through the runtime's C API: an
+/// import of any other runtime export (the compiled code's ABI, `tcl_eval`, the
+/// engine's own `tcl_engine_*`) is refused, and the C API has no eval or
+/// variable door to import, so an extension's command can neither run a script
+/// nor store a variable, nor lift its own budget.
+#[test]
+fn an_extension_reaches_the_runtime_only_through_its_c_api() {
+    let Some(built) = built() else {
+        eprintln!("SKIPPING an_extension_reaches_the_runtime_only_through_its_c_api");
+        return;
+    };
+    let mut engine = WasmEngine::new(&built.runtime).expect("an instance");
+    for (index, (name, why)) in [
+        ("tcl_eval", "which is not the runtime's C API"),
+        ("tcl_engine_set_limits", "which is not the runtime's C API"),
+        ("tcl_codegen_var_set", "which is not the runtime's C API"),
+        ("Tcl_EvalObjEx", "which the runtime does not export"),
+        ("Tcl_GetVar2Ex", "which the runtime does not export"),
+        ("Tcl_ObjSetVar2", "which the runtime does not export"),
+        ("Tcl_UnsetVar2", "which the runtime does not export"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let source = format!(
+            "extern int {name}(void);\nint Door_Init(void *interp) {{ return {name}(); }}\n"
+        );
+        let module = side_module(&written(&format!("door{index}.c"), &source), "Door");
+        let door = built
+            .runtime
+            .extension(&module, "Door")
+            .expect("a side module");
+        let refused = engine.load_extension(&door);
+        assert!(
+            matches!(&refused, Err(EngineError::Crashed(message))
+                if message.contains(name) && message.contains(why)),
+            "{name}: {refused:?}"
+        );
+    }
+}
+
+/// The first-use fuel is an instance's first evaluation's: a later evaluation
+/// that is the first to build the release's command tables pays for them from
+/// its own fuel, and an instance rebuilt after a trap grants it again.
+#[test]
+fn the_first_use_fuel_is_an_instance_s_first_evaluation_s() {
+    let Some(built) = built() else {
+        eprintln!("SKIPPING the_first_use_fuel_is_an_instance_s_first_evaluation_s");
+        return;
+    };
+    let budget = Budget::of_commands(5);
+    let mut first = WasmEngine::new(&built.runtime).expect("an instance");
+    first.set_budget(budget).expect("budgets");
+    assert_eq!(run(&mut first, "string length abc"), Ok("3".to_owned()));
+
+    let mut later = WasmEngine::new(&built.runtime).expect("an instance");
+    later.set_budget(budget).expect("budgets");
+    assert_eq!(run(&mut later, "return 1"), Ok("1".to_owned()));
+    assert_eq!(
+        run(&mut later, "string length abc"),
+        Err(EngineError::BudgetExceeded(BudgetKind::Commands)),
+        "the tables are built on the second evaluation's own fuel"
+    );
+    assert_eq!(
+        run(&mut later, "string length abc"),
+        Ok("3".to_owned()),
+        "the instance rebuilt after the trap grants the first-use fuel again"
+    );
+}
+
+/// What is set up between evaluations runs under none of their limits: a
+/// deadline the last evaluation armed has long passed when the next command is
+/// defined and the next extension loaded.
+#[test]
+fn what_is_set_up_between_evaluations_is_under_no_budget() {
+    let Some(built) = built() else {
+        eprintln!("SKIPPING what_is_set_up_between_evaluations_is_under_no_budget");
+        return;
+    };
+    let mut engine = WasmEngine::new(&built.runtime).expect("an instance");
+    engine
+        .set_budget(Budget::of_commands(100_000).with_wall_clock(Duration::from_millis(30)))
+        .expect("budgets");
+    assert_eq!(run(&mut engine, "return 1"), Ok("1".to_owned()));
+    std::thread::sleep(Duration::from_millis(100));
+    engine
+        .define_command("echo", Rc::new(Echo))
+        .expect("defines");
+    let pkga = built
+        .runtime
+        .extension(&built.pkga, "Pkga")
+        .expect("pkga is a side module");
+    engine.load_extension(&pkga).expect("Pkga_Init runs");
+    engine.set_budget(Budget::default()).expect("no budget");
+    assert_eq!(
+        run(&mut engine, "return [echo [pkga_calc add 1 2]]"),
+        Ok("3".to_owned())
+    );
+}
+
 /// `text` split into its words at each space.
 fn words(text: &str) -> Vec<String> {
     text.split(' ').map(str::to_owned).collect()
