@@ -58,7 +58,7 @@ use tcl_lexer::TokenType;
 
 use tcl_registry::CommandRegistry;
 
-use crate::cfg::Function as CfgFunction;
+use crate::cfg::{Function as CfgFunction, Terminator};
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::def_use::DefKind;
 use crate::depth_guard::{MAX_BRACKET_TEXT_DEPTH, MAX_EXPR_NODE_DEPTH};
@@ -518,6 +518,7 @@ fn deep_analysis_available(fu: &FunctionUnit) -> bool {
 
 fn emit_unreachable(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
     let unreachable = unreachable_blocks(&fu.cfg, &fu.sccp);
+    let live = live_spans(&fu.cfg, &unreachable);
     // cfg_order is deterministic (RPO + trailing unreachables).
     for block_id in cfg_order(&fu.cfg) {
         if !unreachable.contains(&block_id) {
@@ -536,6 +537,14 @@ fn emit_unreachable(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
             if span.is_empty() {
                 continue;
             }
+            // A statement whose span holds code that runs is not dead code
+            // of its own: the binding of a `try` handler's variables carries
+            // the span of the whole `try`, and a handler that never runs —
+            // one an earlier handler pre-empts, or a `-` handler — leaves the
+            // `try` that does.
+            if encloses_live_code(stmt.span(), &live) {
+                continue;
+            }
             ctx.report(Optimisation::new(
                 DiagCode::O107,
                 "Eliminate unreachable dead code",
@@ -544,6 +553,39 @@ fn emit_unreachable(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
             ));
         }
     }
+}
+
+/// The spans of what the reachable blocks run — their statements and their
+/// terminators — sorted by where they start.
+fn live_spans(
+    cfg: &CfgFunction,
+    unreachable: &HashSet<crate::cfg::BlockId>,
+) -> Vec<tcl_lexer::Span> {
+    let mut spans: Vec<tcl_lexer::Span> = cfg
+        .blocks
+        .iter()
+        .filter(|(id, _)| !unreachable.contains(*id))
+        .flat_map(|(_, block)| {
+            block
+                .statements
+                .iter()
+                .map(Statement::span)
+                .chain(block.terminator.as_ref().and_then(Terminator::span))
+        })
+        .filter(|span| !span.is_empty())
+        .collect();
+    spans.sort_unstable_by_key(|span| (span.start(), span.end()));
+    spans
+}
+
+/// Whether `span` holds the whole of one of the `live` spans (sorted by
+/// start).
+fn encloses_live_code(span: tcl_lexer::Span, live: &[tcl_lexer::Span]) -> bool {
+    let first = live.partition_point(|other| other.start() < span.start());
+    live[first..]
+        .iter()
+        .take_while(|other| other.start() < span.end())
+        .any(|other| other.end() <= span.end())
 }
 
 /// Return the set of block ids SCCP determined unreachable

@@ -29,7 +29,7 @@
 use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_lexer::{Span, TokenType};
 use tcl_registry::hooks::LoweringHookId;
 use tcl_registry::model::ingress::static_context_for;
@@ -283,6 +283,31 @@ pub(crate) struct CfgBuilder<'a> {
     split_script: bool,
     /// The blocks a split script ends a statement in other than its last.
     split_blocks: Vec<String>,
+    /// The subset of [`Self::exception_edges`] that resume a `break` /
+    /// `continue` after a `finally` clause: `(the clause's last block, jump
+    /// target)`. An enclosing `try … finally` reroutes them through its own
+    /// clause, as it does the jumps its own body makes.
+    finally_jump_edges: Vec<(String, String)>,
+    /// Blocks a plain `return` with a value that cannot substitute ends:
+    /// they complete with `TCL_RETURN`, which a `try` handler may select.
+    plain_return_blocks: FxHashSet<String>,
+    /// Blocks that intercept *every* completion reaching them by an exception
+    /// edge: a `catch`'s end block, and the end block of a `try` whose
+    /// `finally` routes every exit through it. A `try` handler is not one —
+    /// it selects only some codes.
+    total_interceptors: FxHashSet<String>,
+    /// The body block of the `try` whose handler edges are being recorded:
+    /// the one block of its body that nothing inside the construct runs
+    /// before, so the only one whose completion can be known exactly.
+    try_entry: Option<String>,
+    /// Blocks one of their `try`'s unconditional handlers catches whole: an
+    /// enclosing construct must not route them past that handler.
+    handler_caught: FxHashSet<String>,
+    /// Last blocks of `finally` clauses that both fall through and resume an
+    /// unwinding exit (a `return` or an error) once the clause is done. The
+    /// fall-through `Goto` stands only for normal completion, so an enclosing
+    /// construct treats such a block as an exit of its own.
+    unwinding_tails: FxHashSet<String>,
     /// When `true`, record [`Self::exception_edges`] in `lower_try`.  Off for
     /// codegen builds so the default bytecode is unchanged.
     faithful_exceptions: bool,
@@ -446,6 +471,12 @@ impl<'a> CfgBuilder<'a> {
             catch_ends: Vec::new(),
             split_script: false,
             split_blocks: Vec::new(),
+            finally_jump_edges: Vec::new(),
+            plain_return_blocks: FxHashSet::default(),
+            total_interceptors: FxHashSet::default(),
+            try_entry: None,
+            handler_caught: FxHashSet::default(),
+            unwinding_tails: FxHashSet::default(),
             faithful_exceptions: false,
             plain_command_dispatch: false,
             registry,
@@ -1822,6 +1853,11 @@ impl<'a> CfgBuilder<'a> {
             .into_iter()
             .map(|(k, ln)| (self.bid(&k), ln))
             .collect();
+        self.finally_jump_edges.clear();
+        self.plain_return_blocks.clear();
+        self.total_interceptors.clear();
+        self.handler_caught.clear();
+        self.unwinding_tails.clear();
         func.exception_edges = std::mem::take(&mut self.exception_edges)
             .into_iter()
             .map(|(from, to)| (self.bid(&from), self.bid(&to)))
@@ -2026,6 +2062,19 @@ impl<'a> CfgBuilder<'a> {
                 binding: binding.clone(),
             });
         }
+        // No value, a braced one, or a literal word: nothing can raise before
+        // the `return` itself completes with `TCL_RETURN`.
+        if value.is_none()
+            || *braced
+            || matches!(
+                value_word,
+                Some(
+                    crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. }
+                )
+            )
+        {
+            self.plain_return_blocks.insert(current.to_owned());
+        }
         self.block_mut(current).terminator = Some(Terminator::Return {
             value: value.clone(),
             value_word: value_word.clone(),
@@ -2181,10 +2230,11 @@ impl<'a> CfgBuilder<'a> {
 
     fn lower_script_inner(&mut self, script: &Script, block_name: &str) -> Option<String> {
         let mut current = block_name.to_owned();
-        // True once the *main* (reachable) path has hit an unconditional
-        // terminator — everything after is dead code captured in orphan
-        // blocks, and the script does not fall through to its caller.
-        let mut main_terminated = false;
+        // The block the *main* (reachable) path ends in once it hits an
+        // unconditional terminator — everything after is dead code captured
+        // in orphan blocks, and the script does not fall through to its
+        // caller — with the number of throw points recorded by then.
+        let mut main_terminal: Option<(String, usize)> = None;
         // The request is for this script alone, not for those it holds.
         let split = std::mem::take(&mut self.split_script);
 
@@ -2201,7 +2251,10 @@ impl<'a> CfgBuilder<'a> {
             // block with no incoming edge (rather than dropping them) so
             // SCCP marks it unreachable and O107 can flag the dead code.
             if self.block_mut(&current).terminator.is_some() {
-                main_terminated = true;
+                if main_terminal.is_none() {
+                    let throws = self.throw_blocks.as_ref().map_or(0, Vec::len);
+                    main_terminal = Some((current.clone(), throws));
+                }
                 current = self.new_block("unreachable");
             }
 
@@ -2224,11 +2277,23 @@ impl<'a> CfgBuilder<'a> {
         // `error`/`throw`.  Nested control-flow lowerings still signal "no
         // continuation" by returning `None` (propagated through this loop's
         // `?` / explicit-`None` arms).
-        let terminated = main_terminated || self.block_mut(&current).terminator.is_some();
-        self.last_terminal_block = if terminated {
-            Some(current.clone())
-        } else {
-            None
+        // The script leaves where its main path ends, not in the dead code
+        // after it, and the dead code holds no throw point: a `try` handler is
+        // thrown to from there, so in `try {return r3; set y 1} on return {}
+        // {…}` the handler's source is the block of `return r3`, never the
+        // orphan block of `set y 1`, which no path reaches.
+        self.last_terminal_block = match main_terminal {
+            Some((block, throws)) => {
+                if let Some(blocks) = self.throw_blocks.as_mut() {
+                    blocks.truncate(throws);
+                }
+                Some(block)
+            }
+            None => self
+                .block_mut(&current)
+                .terminator
+                .is_some()
+                .then(|| current.clone()),
         };
         Some(current)
     }
@@ -3324,6 +3389,81 @@ pub(crate) enum Completion {
     LoopJump,
     /// `return` / `error` / `throw` / `exit` / `tailcall` — leaves the proc.
     ProcExit,
+}
+
+/// Whether `stmt` certainly ends the interpreter, running no enclosing
+/// `finally`: a process-terminating command (`Traits::TERMINATES_PROCESS`,
+/// e.g. `exit`) that nothing can stop from running.
+///
+/// [`Completion`] folds `exit` into `ProcExit` with `return` and `error`,
+/// which is right for what follows the statement and wrong for an enclosing
+/// `finally`: a `return` runs it, an `exit` does not (tclsh 8.6.18 and 9.0.4:
+/// `try {exit 7} finally {puts FINALLY}` prints nothing).
+///
+/// "Nothing can stop it" is the whole difficulty, and review found it three
+/// ways: an earlier statement may `return`; the command's own words may throw
+/// before it runs (`exit [error boom]` runs the clause); and so may a literal
+/// word it rejects (`exit abc` raises "expected integer"; `exit 09` does in
+/// 8.x). The same holds for an `if` condition or a `switch` subject in front
+/// of an all-`exit` body — `switch -glob $nosuch {…}` throws on the unset
+/// variable. So this accepts only the command itself, with every word
+/// literal and a status the registry says it accepts, and an enclosing
+/// construct is never looked through. Missing a real exit
+/// costs an O107; accepting a false one rewrote a live program.
+fn always_exits_process(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    resolve: &dyn Fn(&str) -> Option<crate::ir_helpers::ResolvedEmbeddedHead>,
+) -> bool {
+    exact_statement_completion(stmt, registry, resolve)
+        == Some(tcl_registry::registry::ExactInvocationCompletion::ProcessExit)
+}
+
+/// The completion `stmt` certainly produces, when the registry can say:
+/// every word literal, the call resolved by the command-binding owner to one
+/// registry-backed target, and that target's alias prefix joined to the
+/// written words before the registry classifies the composed invocation.
+///
+/// Every word must be literal because a substituted one runs first and may
+/// throw. The words must be *all* the words: `interp alias {} bye {} exit abc`
+/// — or the same alias named `::foo::exit` and called as `exit` inside
+/// `::foo` — raises "expected integer" (found in review). Whether a literal
+/// is a status the command accepts is the registry's release-aware answer:
+/// `exit 09` is an invalid octal in 8.x but status 9 in 9.0.
+pub(super) fn exact_statement_completion(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    resolve: &dyn Fn(&str) -> Option<crate::ir_helpers::ResolvedEmbeddedHead>,
+) -> Option<tcl_registry::registry::ExactInvocationCompletion> {
+    let (Statement::Call {
+        command, tokens, ..
+    }
+    | Statement::Barrier {
+        command, tokens, ..
+    }) = stmt
+    else {
+        return None;
+    };
+    let written = tokens.as_ref().and_then(|tokens| {
+        tokens
+            .word_exprs
+            .iter()
+            .skip(1)
+            .map(|word| match word {
+                crate::ir::WordExpr::Literal { text, .. }
+                | crate::ir::WordExpr::BracedLiteral { text, .. } => Some(text.as_str()),
+                _ => None,
+            })
+            .collect::<Option<Vec<&str>>>()
+    })?;
+    let target = resolve(command)?;
+    let words: Vec<&str> = target
+        .prepended
+        .iter()
+        .map(String::as_str)
+        .chain(written)
+        .collect();
+    registry.exact_invocation_completion(&target.command, &words, None)
 }
 
 /// `(must-defines, completion)` for a single statement.

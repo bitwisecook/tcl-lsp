@@ -31,6 +31,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use tcl_core_types::Code as CompletionCode;
 use tcl_registry::hooks::LoweringHookId;
 use tcl_registry::model::semantic::SemanticContext;
+use tcl_registry::value_transfer::completion::HandlerChain;
 use tcl_registry::{CommandRegistry, SemanticOperationId};
 
 use crate::expr_ast::ExprNode;
@@ -3447,14 +3448,12 @@ fn structured_region_projection(
 ///
 /// A handler selecting by `-errorcode` prefix (`trap`) always selects
 /// `TCL_ERROR` and narrows it further by the prefix; one selecting by
-/// completion code (`on`) names a code directly. The selector spelling is
-/// decoded by the registry's completion-code table, never by a local keyword
+/// completion code (`on`) names a code directly. The registry's handler chain
+/// decodes the selector ([`HandlerChain::selected`]), never a local keyword
 /// match.
 fn try_handler_code(handler: &crate::ir::TryHandler) -> Option<CompletionCode> {
-    if handler.kind == crate::ir::HandlerMatch::ErrorCodePrefix {
-        return Some(CompletionCode::Error);
-    }
-    tcl_registry::completion::completion_code_selector(
+    HandlerChain::selected(
+        handler.kind,
         &handler.match_arg,
         tcl_syntax::number::Numbers::of_profile(None),
     )

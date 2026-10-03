@@ -36,7 +36,11 @@ under `rust/tcl-compiler/src/optimiser/`, with GVN in `src/gvn.rs`.
   cell, so its completion is not total. O107 removes the blocks applied
   reachability drops: a flattened `switch`'s dead arm, whose blocks the
   dispatch chain gives it, and never an opaque form's, whose arms have no
-  blocks (I231 reports both).
+  blocks (I231 reports both). It leaves a statement of a dead block whose span
+  holds code that runs: the binding of a `try` handler's variables carries the
+  span of the whole `try`, so a handler that never runs loses its script and
+  the `try` stays ([cfg-construction.md](cfg-construction.md) § *Exception
+  edges*).
   `structure_elimination.rs` removes the compound statements the solver's
   facts decide (O112): an `if`, `while` or `for` condition on the shared
   expression route over the propagated environment, and a `switch` from the

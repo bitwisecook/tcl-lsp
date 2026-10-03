@@ -5621,3 +5621,399 @@ fn a_body_that_ends_in_an_error_may_have_failed_at_its_start() {
     }
     prints_under_releases_from(source, "no\nyes\n", "8.6");
 }
+
+/// The ways a `try` body or one of its handlers leaves, each with a `finally`
+/// clause that sets the global `g`: what a procedure runs and why the clause
+/// is reached.
+const FINALLY_PATHS: [(&str, &str); 13] = [
+    ("an error", "try {error boom} finally {set g 1}"),
+    ("a throw", "try {throw {A B} boom} finally {set g 1}"),
+    ("a return", "try {return early} finally {set g 1}"),
+    (
+        "a break out of a loop",
+        "while 1 { try {break} finally {set g 1} }",
+    ),
+    (
+        "an error in a loop",
+        "foreach i {1 2} { try {error boom} finally {set g 1} }",
+    ),
+    (
+        "every branch of an if leaving",
+        "try {if {[info exists ::c]} {return ok} else {error boom}} finally {set g 1}",
+    ),
+    (
+        "every arm of a switch leaving",
+        "try {switch [info exists ::c] {1 {return ok} default {error boom}}} finally {set g 1}",
+    ),
+    ("a tailcall", "try {tailcall list} finally {set g 1}"),
+    (
+        "a handler's return",
+        "try {error boom} on error {} {return handled} finally {set g 1}",
+    ),
+    (
+        "a handler's error",
+        "try {error boom} on error {} {error again} finally {set g 1}",
+    ),
+    (
+        "a handler's break",
+        "foreach i {1 2} { try {error boom} on error {} {break} finally {set g 1} }",
+    ),
+    (
+        "an exit that rejects its status",
+        "try {exit abc} finally {set g 1}",
+    ),
+    (
+        "an error only a trap might take",
+        "try {error boom} trap {NOT MATCHING} {} {exit 0} finally {set g 1}",
+    ),
+];
+
+/// A `finally` clause runs however the `try` body or a handler leaves, so its
+/// body is live on every path (#2142). Each statement of [`FINALLY_PATHS`] sets
+/// the global `g` in its clause, and `catch {p}; puts $g` prints `1` under
+/// tclsh 8.6 to 9.1 before and after the optimiser, which had emptied the
+/// clause and printed `0`; so does a `return $x` whose substitution only a
+/// handler that exits may take, and a handler that exits once its variable is
+/// bound, where a write trace refuses the binding. In a procedure, `set f 0;
+/// try {error boom} finally {set f 1}; return $f` reads no unset `f`: the body
+/// always raises, so the `return` never runs and both stores are dead — W220
+/// is a true positive on each — and once a `catch` lets the `return` run, the
+/// clause's store is the one it reads. The issue's two programs that must keep
+/// firing still do: a handler that may not run binds nothing (W210), and a
+/// handler's store the clause overwrites is dead (W220).
+#[test]
+fn try_finally_runs_on_every_path() {
+    let mut sources: Vec<(String, &str)> = FINALLY_PATHS
+        .iter()
+        .map(|(why, statement)| {
+            (
+                format!(
+                    "set g 0\nproc p {{}} {{\n    global g\n    {statement}\n}}\ncatch {{p}}\nputs $g\n"
+                ),
+                *why,
+            )
+        })
+        .collect();
+    sources.push((
+        "set g 0\nproc p {x} {\n    global g\n    try {return $x} on error {} {exit 0} finally {set g 1}\n}\np 5\nputs $g\n".to_owned(),
+        "a return a handler takes only the substitution's error of",
+    ));
+    sources.push((
+        "set g 0\nproc tr args {error TRACE}\nproc p {} {\n    global g\n    trace add variable msg write tr\n    try {error boom} on error msg {exit 0} finally {set g 1}\n}\ncatch p\nputs $g\n".to_owned(),
+        "a handler whose binding a trace refuses before its exit",
+    ));
+    for (source, why) in &sources {
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let (rewritten, _) = optimised(source, dialect);
+            assert!(
+                rewritten.contains("set g 1"),
+                "{why}: {dialect}: the clause runs on this path\n{rewritten}"
+            );
+        }
+        prints_under_releases_from(source, "1\n", "8.6");
+    }
+
+    let issue =
+        "proc p {} {\n    set f 0\n    try {error boom} finally {set f 1}\n    return $f\n}\n";
+    let caught = "proc p {} {\n    set f 0\n    catch {try {error boom} finally {set f 1}}\n    return $f\n}\nputs [p]\n";
+    let unbound =
+        "proc q {c} {\n    try {if {$c} {error boom}} on error {} {set g 1}\n    return $g\n}\n";
+    let overwritten = "proc p {} {\n    try {error boom} on error {} {set f 2} finally {set f 1}\n    return $f\n}\n";
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        assert!(
+            !reports(issue, dialect, DiagCode::W210),
+            "{dialect}: the clause binds `f` before any read\n{issue}"
+        );
+        assert!(
+            reports(issue, dialect, DiagCode::W220),
+            "{dialect}: the `return` never runs, so both stores are dead\n{issue}"
+        );
+        assert!(
+            !reports(caught, dialect, DiagCode::W210),
+            "{dialect}\n{caught}"
+        );
+        let (rewritten, _) = optimised(caught, dialect);
+        assert!(
+            rewritten.contains("set f 1"),
+            "{dialect}: the clause's store is read\n{rewritten}"
+        );
+        assert!(
+            reports(unbound, dialect, DiagCode::W210),
+            "{dialect}: a handler that may not run binds nothing\n{unbound}"
+        );
+        assert!(
+            reports(overwritten, dialect, DiagCode::W220),
+            "{dialect}: the clause overwrites the handler's store\n{overwritten}"
+        );
+    }
+    prints_under_releases_from(caught, "1\n", "8.6");
+}
+
+/// A `try`'s handlers are read once, by the registry's handler chain, and the
+/// control-flow graph wires the edges it names. The first match runs, so a
+/// handler an earlier unconditional one pre-empts runs nothing — a `-` handler
+/// pre-empts like any other, a `trap` never does; a `-` handler runs its
+/// owner's script, which a match reaches with the group's names bound; and a
+/// `break` the first matching handler selects goes to that handler, not to its
+/// loop. Each program prints what tclsh 8.6 to 9.1 print, before and after the
+/// optimiser, and reads no unset name (no W210).
+#[test]
+fn try_handlers_run_as_the_registry_chain_reads_them() {
+    let programs = [
+        (
+            "proc p {} {\n    try {error boom} on error {} {set x 1} on error {} {return} finally {puts $x}\n}\np\n",
+            "1\n",
+        ),
+        (
+            "proc p {} {\n    set x 1\n    try {error boom} on error {} - on ok {} {} on error {} {unset x; return} finally {puts $x}\n}\np\n",
+            "1\n",
+        ),
+        (
+            "proc p {} {\n    set x 0\n    try {error boom} on error {} - on ok {} {set x 1} finally {}\n    return $x\n}\nputs [p]\n",
+            "1\n",
+        ),
+        (
+            "proc p {} {\n    try {error boom} on error {} - on ok {} {set x 1} finally {puts $x}\n}\np\n",
+            "1\n",
+        ),
+        (
+            "proc q {} {\n    try {error boom} on error {m} - on ok {} {return \"caught $m\"}\n    return after\n}\nputs [q]\n",
+            "caught boom\n",
+        ),
+        (
+            "proc s {} {\n    try {error boom} trap {X} {} {return T} on error {} {return E}\n}\nputs [s]\n",
+            "E\n",
+        ),
+        (
+            "proc p {} {\n    while 1 {\n        try {break} on break {} {set x 1} finally {}\n        break\n    }\n    puts $x\n}\np\n",
+            "1\n",
+        ),
+        (
+            "proc p {} {\n    while 1 {\n        try {break} on break {} {set x 1}\n        break\n    }\n    puts $x\n}\np\n",
+            "1\n",
+        ),
+    ];
+    for (source, printed) in programs {
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            assert!(
+                !reports(source, dialect, DiagCode::W210),
+                "{dialect}: every path into the read binds it\n{source}"
+            );
+        }
+        prints_under_releases_from(source, printed, "8.6");
+    }
+}
+
+/// A handler's selector is read with the target's numerals: `on 010` takes
+/// code 8 up to 8.6 and code 10 from 9.0. A body that completes with code 8
+/// reaches the handler under 8.6, so its store stays and `catch p; puts $g`
+/// prints `1`; from 9.0 nothing takes the code, the handler never runs, its
+/// store is dead and the program prints `0`. Each release prints the same
+/// before and after the optimiser under its own dialect.
+#[test]
+fn a_handler_selector_reads_the_targets_numerals() {
+    let source = "set g 0\nproc p {} {\n    global g\n    try {return -level 0 -code 8 boom} on 010 {} {set g 1} finally {}\n}\ncatch p\nputs $g\n";
+    let (under_8_6, _) = optimised(source, "tcl8.6");
+    assert!(
+        under_8_6.contains("set g 1"),
+        "8.6 reads `010` as 8: the handler runs\n{under_8_6}"
+    );
+    let (under_9_0, _) = optimised(source, "tcl9.0");
+    assert!(
+        !under_9_0.contains("set g 1"),
+        "9.0 reads `010` as 10: the handler never runs\n{under_9_0}"
+    );
+    for (series, tclsh) in releases_on_path() {
+        if series < "8.6" {
+            continue;
+        }
+        let printed = if series == "8.6" { "1\n" } else { "0\n" };
+        let (rewritten, _) = optimised(source, &dialect_of(series));
+        for program in [source, rewritten.as_str()] {
+            assert_eq!(
+                run_script(&tclsh, program),
+                Some((true, printed.to_owned())),
+                "tclsh{series}:\n{program}"
+            );
+        }
+    }
+}
+
+/// A handler that never runs — one an earlier handler pre-empts, a `-`
+/// handler whose script is its owner's, one the body's completion is known
+/// to miss, and one whose only way in is a normal completion the body never
+/// makes — leaves the `try` that does run. The binding of a handler's
+/// variables carries the span of the whole `try`, and the optimiser had
+/// deleted it with the dead handler: the `try` vanished, with the handler
+/// that runs and the `break` of its body. Each program prints what tclsh 8.6
+/// to 9.1 print before and after the optimiser, and the `try` stays.
+#[test]
+fn a_handler_that_never_runs_keeps_its_try() {
+    let programs = [
+        (
+            "proc p {} {\n    try {error boom} on error {} {puts first} on 1 {m} {puts second}\n    puts after\n}\np\n",
+            "first\nafter\n",
+            "try {error boom}",
+        ),
+        (
+            "proc p {} {\n    try {error boom} on error {m} - on ok {} {puts \"caught $m\"}\n    puts after\n}\np\n",
+            "caught boom\nafter\n",
+            "try {error boom}",
+        ),
+        (
+            "proc p {} {\n    foreach i {1 2} {\n        puts $i\n        try {break} on error {m} {puts caught}\n        puts after\n    }\n    puts done\n}\np\n",
+            "1\ndone\n",
+            "try {break}",
+        ),
+        (
+            "proc p {} {\n    try {\n        try {error a} finally {}\n        puts unreached\n    } on ok {m} {puts ok} on error {} {puts caught}\n    puts after\n}\np\n",
+            "caught\nafter\n",
+            "try {error a}",
+        ),
+    ];
+    for (source, printed, kept) in programs {
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let (rewritten, _) = optimised(source, dialect);
+            assert!(
+                rewritten.contains(kept),
+                "{dialect}: the `try` stays\n{rewritten}"
+            );
+        }
+        prints_under_releases_from(source, printed, "8.6");
+    }
+}
+
+/// What the `finally` clause resumes once it is done. A `try` that never
+/// completes normally does not fall through its clause: after `try {break} on
+/// error {} {} finally {}` in a loop, `set x 1` never runs and the read after
+/// the loop is of an unset `x` (W210, a true positive: tclsh fails there), and
+/// after `try {return early} on error {} {} finally {}` the code that follows
+/// is dead (O107). A clause that itself transfers control keeps its transfer:
+/// its `break` overrides a pending `return`, so the code after the loop runs.
+/// A `return` an inner `try … finally` intercepts reaches the outer clause
+/// through the inner one, so the name the inner clause binds is bound; an
+/// inner handler that catches an error runs before the outer clause; a `break`
+/// leaves through both clauses in order; and a `return` that passes an inner
+/// clause resumes past the code after the inner `try`, where the outer clause
+/// may read an unset name (W210, a true positive). Each program prints what
+/// tclsh 8.6 to 9.1 print before and after the optimiser.
+#[test]
+fn a_finally_resumes_what_it_interrupted() {
+    let never_completes = "proc p {} {\n    while 1 {\n        try {break} on error {} {} finally {}\n        set x 1\n    }\n    puts $x\n}\n";
+    let returns = "proc p {} {\n    try {return early} on error {} {} finally {}\n    set x 1\n    return $x\n}\nputs [p]\n";
+    let resumes_past = "proc p {c} {\n    try { try {if {$c} {return}} finally {}; set x 1 } finally {puts $x}\n}\np 0\n";
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        assert!(
+            reports(never_completes, dialect, DiagCode::W210),
+            "{dialect}: `set x 1` never runs\n{never_completes}"
+        );
+        assert!(
+            rewrites_of(returns, dialect)
+                .iter()
+                .any(|rewrite| rewrite.code == DiagCode::O107),
+            "{dialect}: the code after the `try` is dead\n{returns}"
+        );
+        assert!(
+            reports(resumes_past, dialect, DiagCode::W210),
+            "{dialect}: the outer clause may read `x` unset\n{resumes_past}"
+        );
+        assert!(
+            !rewrites_of(resumes_past, dialect)
+                .iter()
+                .any(|rewrite| rewrite.code == DiagCode::O102),
+            "{dialect}: `x` has no single reaching definition\n{resumes_past}"
+        );
+    }
+    prints_under_releases_from(returns, "early\n", "8.6");
+    prints_under_releases_from(resumes_past, "1\n", "8.6");
+
+    let programs = [
+        (
+            "proc p {} {\n    while 1 { try {return early} finally {break} }\n    set x 1\n    return \"after $x\"\n}\nputs [p]\n",
+            "after 1\n",
+        ),
+        (
+            "proc p {} {\n    try { try {return ok} finally {set x 1} } finally {puts $x}\n}\np\n",
+            "1\n",
+        ),
+        (
+            "proc p {} {\n    try {try {error boom} on error {} {set x 1; return} finally {set y 1}} finally {puts $x; puts $y}\n}\np\n",
+            "1\n1\n",
+        ),
+        (
+            "proc p {} {\n    set x 0\n    while 1 {\n        try { try {unset x; break} finally {set y 1} } finally {set x 5}\n    }\n    return $x\n}\nputs [p]\n",
+            "5\n",
+        ),
+        (
+            "proc p {} {\n    set x 0\n    while {$x < 3} {\n        try {unset x; continue} finally {set x 5}\n    }\n    return $x\n}\nputs [p]\n",
+            "5\n",
+        ),
+    ];
+    for (source, printed) in programs {
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            assert!(
+                !reports(source, dialect, DiagCode::W210),
+                "{dialect}: every path into the read binds it\n{source}"
+            );
+        }
+        prints_under_releases_from(source, printed, "8.6");
+    }
+}
+
+/// A process exit runs no `finally`: in `try {exit 7} finally {set g 1}` the
+/// clause is never entered, so its store is dead code (O107), where a
+/// `return` or an error would have run it.
+#[test]
+fn an_exit_runs_no_finally() {
+    for body in ["exit", "exit 7"] {
+        let source =
+            format!("proc p {{}} {{\n    global g\n    try {{{body}}} finally {{set g 1}}\n}}\n");
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            assert!(
+                rewrites_of(&source, dialect)
+                    .iter()
+                    .any(|rewrite| rewrite.code == DiagCode::O107),
+                "{dialect}: the clause is never entered\n{source}"
+            );
+        }
+    }
+}
+
+/// A body that leaves before its last statement is thrown to from where it
+/// leaves, not from the dead code after it: the handler of `try {return r3;
+/// set v 8} on return {} {puts t8}` runs, where its only edge had come from
+/// the dead `set v 8` and the optimiser deleted the handler's body and the code
+/// after the `try`; a dead `error` after the `return` is no throw point that
+/// takes the `return`'s place; and a `break` caught by `on break` binds the
+/// handler's store on each pass. Each program prints what tclsh 8.6 to 9.1
+/// print, before and after the optimiser, and reads no unset name.
+#[test]
+fn a_handler_is_thrown_to_from_where_the_body_leaves() {
+    let programs = [
+        (
+            "proc p {} {\n    try {return r3; set v 8} on return {} {puts t8}\n    return done\n}\nputs [p]\n",
+            "t8\ndone\n",
+        ),
+        (
+            "proc p {} {\n    set x 1\n    try {set x 5; return r3; set y 1} on return {} {puts \"h $x\"}\n    puts $x\n}\np\n",
+            "h 5\n5\n",
+        ),
+        (
+            "proc p {} {\n    try {return r3; error dead} on return {} {puts t8}\n    return done\n}\nputs [p]\n",
+            "t8\ndone\n",
+        ),
+        (
+            "proc p {} {\n    foreach i {1 2} {\n        try {break; set y 1} on break {} {set x $i}\n    }\n    puts $x\n}\np\n",
+            "2\n",
+        ),
+    ];
+    for (source, printed) in programs {
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            assert!(
+                !reports(source, dialect, DiagCode::W210),
+                "{dialect}: every path into the read binds it\n{source}"
+            );
+        }
+        prints_under_releases_from(source, printed, "8.6");
+    }
+}
