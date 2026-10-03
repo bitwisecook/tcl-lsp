@@ -14,6 +14,7 @@
 @exclude	f5-cli
 @exclude	tcl-lsp-server
 @exclude	tcl-fuzz
+@exclude	tcl-engine-wasm
 1	tcl-compiler	lib	tcl-compiler	tcl_compiler
 2	bigip-report-gen-rust	lib	bigip-report-gen-rust	bigip_report_gen_rust
 2	bpf-tcl-codegen	lib	bpf-tcl-codegen	bpf_tcl_codegen

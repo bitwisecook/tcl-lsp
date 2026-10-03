@@ -194,6 +194,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-engine-api"
+version = "0.1.0"
+
+[[package]]
 name = "tcl-host-native"
 version = "0.1.0"
 dependencies = [
@@ -246,6 +250,7 @@ dependencies = [
  "tcl-cmd-core",
  "tcl-core-types",
  "tcl-dialect",
+ "tcl-engine-api",
  "tcl-host-native",
  "tcl-lexer",
  "tcl-platform",

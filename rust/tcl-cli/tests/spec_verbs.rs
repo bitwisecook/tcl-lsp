@@ -1439,21 +1439,40 @@ fn spec_test_stops_a_package_that_does_not_finish_in_time() {
 
 // ───────────────── describing a C extension: `tcl spec import` ─────────────────
 
-/// The directory holding the C test extension `pkga.c`.
+/// The directory of the shim's C test extensions: `pkga.c`, entered at
+/// `Pkga_Init`, and `doors.c`, entered at `Doors_Init` (and `layout.c`, which
+/// defines no entry point). Two extensions, so describing one names its entry
+/// point.
 fn pkga_source_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../tcl-cshim/tests/c")
 }
 
-/// `--c-source` reads the real test extension: its five commands and its
-/// package, each a row at the conservative default for a command native code
-/// registers, `host-native`, with the arity its usage message states and the
-/// provenance `c-scan` beside the evidence.
+/// `--c-source` reads the real test extension `pkga`, named by its entry point
+/// in a directory that holds another: its five commands and its package, each
+/// a row at the conservative default for a command native code registers,
+/// `host-native`, with the arity its usage message states and the provenance
+/// `c-scan` beside the evidence, and none of the other extension's commands.
 #[test]
 fn spec_import_describes_a_c_extension_from_its_source() {
     let dir = pkga_source_dir();
-    let (stdout, stderr, code) = run(&["spec", "import", "--c-source", &dir.to_string_lossy()]);
+    let (stdout, stderr, code) = run(&[
+        "spec",
+        "import",
+        "--c-source",
+        &dir.to_string_lossy(),
+        "--entry",
+        "Pkga",
+    ]);
     assert_eq!(code, 0, "stdout: {stdout}\nstderr: {stderr}");
     assert!(stdout.contains("speclib pkga"), "{stdout}");
+    assert!(
+        !stdout.contains("doors_"),
+        "the other extension's commands are not pkga's:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("c-scan: the extension entered at Pkga_Init (pkga.c:303)"),
+        "the pack says which entry point it describes:\n{stdout}"
+    );
     for name in [
         "pkga_calc",
         "pkga_count",
@@ -1486,6 +1505,51 @@ fn spec_import_describes_a_c_extension_from_its_source() {
     );
     assert!(
         stderr.contains("pkga: 5 command(s) described (5 from the C source, 0 from the probe)"),
+        "{stderr}"
+    );
+}
+
+/// A source directory holding several extensions is several descriptions, one
+/// per entry point: with none named the import describes nothing and says which
+/// entry points there are, rather than describe one of them, or a mixture, as
+/// though it were the whole (negative); naming the other describes its own
+/// commands and package; and a prefix the sources do not define is refused
+/// with the ones they do.
+#[test]
+fn spec_import_describes_one_extension_per_entry_point() {
+    let dir = pkga_source_dir();
+    let dir = dir.to_string_lossy();
+    let (stdout, stderr, code) = run(&["spec", "import", "--c-source", &dir]);
+    assert_ne!(code, 0, "stdout: {stdout}");
+    assert!(stdout.is_empty(), "nothing is described:\n{stdout}");
+    assert!(
+        stderr.contains(
+            "the sources hold 2 extensions, one per entry point: Doors_Init (doors.c:261), \
+             Pkga_Init (pkga.c:303); describe one at a time with --entry PREFIX"
+        ),
+        "{stderr}"
+    );
+
+    let (stdout, stderr, code) = run(&["spec", "import", "--c-source", &dir, "--entry", "Doors"]);
+    assert_eq!(code, 0, "stdout: {stdout}\nstderr: {stderr}");
+    assert!(stdout.contains("speclib doors"), "{stdout}");
+    assert!(!stdout.contains("pkga_"), "{stdout}");
+    assert!(
+        command_block(&stdout, "doors_eval").contains("required_package doors"),
+        "{stdout}"
+    );
+    assert!(
+        stderr.contains("doors: 11 command(s) described (11 from the C source, 0 from the probe)"),
+        "{stderr}"
+    );
+
+    let (_stdout, stderr, code) = run(&["spec", "import", "--c-source", &dir, "--entry", "Nosuch"]);
+    assert_ne!(code, 0);
+    assert!(
+        stderr.contains(
+            "--entry Nosuch: the sources define no Nosuch_Init; their entry points are \
+             Doors_Init (doors.c:261), Pkga_Init (pkga.c:303)"
+        ),
         "{stderr}"
     );
 }
@@ -1804,6 +1868,8 @@ fn spec_import_names_the_pack_by_the_package_flag() {
         "import",
         "--c-source",
         &dir.to_string_lossy(),
+        "--entry",
+        "Pkga",
         "--package",
         "renamed",
     ]);

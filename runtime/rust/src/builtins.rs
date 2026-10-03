@@ -178,12 +178,15 @@ pub(crate) fn var_error(interp: &mut Interp, name: &[u8], e: VarError) -> Code {
             .unwrap_or_default();
         return interp.var_trace_error(name, b"write", &reason);
     }
+    if e == VarError::Confined {
+        return interp.confined_store_error(name);
+    }
     let verb = match e {
         VarError::IsArray => &b"\": variable is array"[..],
         VarError::IsScalar => &b"\": variable isn't array"[..],
         VarError::NoSuchNamespace => &b"\": parent namespace doesn't exist"[..],
         VarError::IsConstant => &b"\": variable is a constant"[..],
-        VarError::TraceError => unreachable!("handled above"),
+        VarError::TraceError | VarError::Confined => unreachable!("handled above"),
     };
     let mut msg = b"can't set \"".to_vec();
     msg.extend_from_slice(name);
@@ -479,7 +482,7 @@ fn exit_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// ?-options dict? ?result?` — complete with `-code` after unwinding `-level`
 /// proc/source boundaries (`Tcl_ReturnObjCmd`). A `-options` dict (as produced
 /// by `catch`) seeds the options; explicit flags override it.
-fn ret(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+pub(crate) fn ret(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     fn set_carried(options: &mut Vec<(Vec<u8>, Vec<u8>)>, key: &[u8], value: &[u8]) {
         if let Some((_, current)) = options.iter_mut().find(|(candidate, _)| candidate == key) {
             *current = value.to_vec();

@@ -563,7 +563,9 @@ macro, the same for the shim and the native leg, and `layout.c` and the test
 extension compile for `wasm32-wasip1`, the test extension against the WASM leg
 alone, which declares every function it calls, and against both legs at once.
 The runtime's own test loads the test extension, compiled for the host against
-the WASM leg, through those exports, and holds it to the shared vectors. What the
+the WASM leg, through those exports, and holds it to the shared vectors, and
+`rust/tcl-engine-wasm` loads it compiled for `wasm32`, as a side module, into the
+runtime under wasmtime and holds it to the same vectors. What the
 leg does not have: the ownership categories of
 [../runtime/c-api-ownership-contract.md](../runtime/c-api-ownership-contract.md)
 encoded per export (the gate asks for each export's row), the `GOT.mem` /
@@ -2245,11 +2247,16 @@ struct ArtefactIdentityManifest {
   through `tcl_runtime_identity`, which every linked runtime exports, and the
   link harness refuses a module whose ABI version or intrinsic-table hash
   disagrees with it before anything is composed.
-- **The WASM runtime implements the engine interface**, so the hook host and
-  the shim can target it and a body can be tested on two engines. The VM
-  shipped to WASM (`rust/tcl-vm-wasm`) is a second WASM engine with a
-  browser host, no filesystem, and the fallback profile, and needs the same
-  statements.
+- **The runtime implements the engine interface**, natively
+  (`runtime/rust/src/engine.rs`, behind its `engine` feature) and compiled to
+  `wasm32` under wasmtime (`rust/tcl-engine-wasm`), so the hook host runs on it
+  and a body is tested on two engines: every family in
+  `rust/tcl-spec-hooks/tests/families_e2e.rs` runs on the VM's engine and the
+  runtime's, and the runtime's two forms are held to the same cases from one
+  copy (`runtime/rust/tests/common/engine_cases.rs`). The VM shipped to WASM
+  (`rust/tcl-vm-wasm`) is not an engine of its own: its browser host evaluates
+  through its one `eval` entry, and the VM is an engine natively
+  (`tcl-engine-tclvm`).
 - **Pack bodies are in-memory text and need no filesystem.** A package source
   reaches the compiler as text the loader read at load, so no compile reads a
   file. The VM's `source`, which loads the library that defines the command at
@@ -2479,7 +2486,11 @@ flowchart LR
   (`Loaded::declared_surface`). A row carries `c-scan`, `probe` or both, and a
   note naming the line each proposal was read at. A stub's purity and mutation
   flags are workspace-authored facts honoured as declared under the third ruling,
-  and a declared fact narrows the default axis by axis.
+  and a declared fact narrows the default axis by axis. One description is one
+  extension: sources that define several entry points (`PREFIX_Init`) are
+  described one at a time, by naming the entry point (`--entry PREFIX`), each
+  with the registrations in the functions its entry point reaches by name, across
+  files, and with none named they are refused with the list of entry points.
 - **Run** natively through `rust/tcl-cshim` under a host opt-in `load`
   (`StaticExtensions`): Tcl 9's `load` for static libraries, over a table of
   the entry points the host has linked in and vouched for, registered on an
@@ -2489,8 +2500,10 @@ flowchart LR
   database, as `package provide` puts it there, and the library is listed for
   `info loaded`, so an unchanged `package ifneeded … {load …}` is satisfied and a
   second `package require` runs nothing. Under WASM the same authored header
-  serves: the registration seam is built, and `make check-c-extension-wasm`
-  compiles the test extensions for `wasm32` against it.
+  serves: the registration seam is built, `make check-c-extension-wasm`
+  compiles the test extensions for `wasm32` against it, and
+  `rust/tcl-engine-wasm` loads an extension built against it into the runtime
+  as a side module (link model B) under wasmtime.
 - **Evaluate through a C command never natively**, because C code cannot
   be fuel-limited and undefined behaviour is uncontained. Under WASM, fuel
   and memory give containment; eligibility comes from a declared route on
@@ -2499,7 +2512,16 @@ flowchart LR
   arguments are stubbed per extension side module, never denied on the
   merged instance, because the runtime itself needs randomness and output;
   the memo key includes the extension artefact hash; and a per-extension
-  differential vector against the real shell gates shipping.
+  differential vector against the real shell gates shipping. The host side is
+  built: `rust/tcl-engine-wasm` evaluates one command of an extension on a fresh
+  instance with the extension loaded, under fuel, the epoch and a cap on the
+  memory's growth, its WASI imports stubbed per module, behind the registry's
+  seam (`tcl_registry::extension_host`), which names an extension by its
+  artefact's content hash, takes exact words and an `ImplementationBudget`, and
+  declines every evaluation as `Transient` on a thread with no host installed,
+  so the language server, which never links wasmtime, declines. The
+  eligibility, the memo key and the vector's gate are the declared-implementation
+  route's, which does not bind the seam.
 
 ## Build order
 

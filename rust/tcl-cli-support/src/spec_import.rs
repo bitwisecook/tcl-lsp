@@ -745,10 +745,14 @@ mod tests {
     }
 
     fn described(text: &str) -> ExtensionImport {
-        tcl_spec_studio::infer::import_c_sources(&[SourceFile {
-            name: "x.c".to_owned(),
-            text: text.to_owned(),
-        }])
+        tcl_spec_studio::infer::import_c_sources(
+            &[SourceFile {
+                name: "x.c".to_owned(),
+                text: text.to_owned(),
+            }],
+            None,
+        )
+        .expect("one extension")
     }
 
     #[test]

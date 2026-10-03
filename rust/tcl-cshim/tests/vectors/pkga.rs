@@ -20,8 +20,9 @@
 // under `catch` in `tclsh9.0` with the same `pkga.c` built against Tcl 9.0.4's
 // own `tcl.h` loaded, and the code, result and `$errorCode` it gave. Included
 // by every host's test of the extension (`tests/pkga_e2e.rs` here, the WASM
-// runtime's `tests/pkga_extension.rs`, and the real link in `tcl-compiler`), so
-// each is held to the same bytes.
+// runtime's `tests/pkga_extension.rs`, and the runtime under wasmtime in
+// `rust/tcl-engine-wasm`'s `tests/under_wasm.rs`), so each is held to the same
+// bytes.
 
 /// `(script, code, result, errorCode)` as `tclsh9.0` reported them.
 const CASES: &[(&str, i64, &str, &str)] = &[

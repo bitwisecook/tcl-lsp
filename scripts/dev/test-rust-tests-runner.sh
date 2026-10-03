@@ -295,7 +295,7 @@ END {
     need(nextest >= 0, "Rust shards must retain the broad nextest step")
     contains(shard_job ".steps." nextest ".run", "if [ \"$RUST_TESTS_RUNNER\" = tank ]; then", "nextest must branch on the actual per-shard runner mode")
     contains(shard_job ".steps." nextest ".run", "rust-test-binary-shard.sh run \"$SHARD\" $extra", "nextest must use the reviewed binary-aware selection")
-    contains(shard_job ".steps." nextest ".run", "cargo nextest run --no-run --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --all-features", "already-green must warm the complete root workspace")
+    contains(shard_job ".steps." nextest ".run", "cargo nextest run --no-run --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --exclude tcl-engine-wasm --all-features", "already-green must warm the complete root workspace")
     contains(shard_job ".steps." nextest ".run", "persistent-cargo-target.sh with-lock", "Tank nextest must hold the persistent target lock")
     need(index(values[shard_job ".steps." nextest ".if"], "matrix.shard == '\''1/5'\''") != 0, "already-green warm compilation must be restricted to shard 1")
     shard_upload = step(shard_job, "name", "Upload selected shard listing")

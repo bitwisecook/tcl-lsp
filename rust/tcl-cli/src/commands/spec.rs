@@ -720,7 +720,7 @@ pub fn run_import(args: &SpecImportArgs) -> anyhow::Result<u8> {
 /// the package manager's policy as `tcl spec test` is.
 fn run_extension_import(args: &SpecImportArgs) -> anyhow::Result<u8> {
     use tcl_cli_support::spec_import::{C_EXTENSIONS, collect_c_sources, render_extension_import};
-    use tcl_spec_studio::infer::{ExtensionImport, import_c_sources};
+    use tcl_spec_studio::infer::{ExtensionImport, UnchosenExtension, import_c_sources};
 
     let mut origins = Vec::new();
     let mut import = ExtensionImport::default();
@@ -750,7 +750,26 @@ fn run_extension_import(args: &SpecImportArgs) -> anyhow::Result<u8> {
             }
             files.extend(found);
         }
-        import = import_c_sources(&files);
+        import = match import_c_sources(&files, args.entry.as_deref()) {
+            Ok(import) => import,
+            Err(UnchosenExtension::Several(entries)) => bail!(
+                "--c-source: the sources hold {} extensions, one per entry point: {}; describe \
+                 one at a time with --entry PREFIX (--entry {})",
+                entries.len(),
+                listed(&entries),
+                entries[0].prefix
+            ),
+            Err(UnchosenExtension::NotDefined { prefix, defined }) if defined.is_empty() => {
+                bail!("--entry {prefix}: the sources define no entry point, and no {prefix}_Init")
+            }
+            Err(UnchosenExtension::NotDefined { prefix, defined }) => bail!(
+                "--entry {prefix}: the sources define no {prefix}_Init; their entry points are {}",
+                listed(&defined)
+            ),
+        };
+        if let Some(entry) = &import.entry {
+            origins.push(format!("c-scan: the extension entered at {entry}"));
+        }
     }
     if let Some(package) = &args.probe {
         let Some(report) = probe_package(args, package)? else {
@@ -772,6 +791,16 @@ fn run_extension_import(args: &SpecImportArgs) -> anyhow::Result<u8> {
     }
     summarise_extension(&import, &pack.package);
     Ok(0)
+}
+
+/// Entry points as a list a person reads: `Doors_Init (doors.c:261), Pkga_Init
+/// (pkga.c:303)`.
+fn listed(entries: &[tcl_spec_studio::infer::ExtensionEntry]) -> String {
+    entries
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// Require `package` in a sandboxed shell and report the commands it added.

@@ -2729,6 +2729,9 @@ RUNTIME_RUST_DIR := $(ROOT)runtime/rust
 # same trap issue #1542 documents for the real link. `ensure-tcl90-reference`
 # fetches the tree; if it is genuinely absent the build's own warning is the
 # loud part, so the variable is only exported when the directory exists.
+#
+# `--features engine` builds the runtime's engine of the extension interface
+# (`src/engine.rs`) and runs its tests (`tests/engine.rs`) beside the rest.
 runtime-rust-test: ## Run the Rust runtime port's cargo test (leak round-trip + unit/parse/eval suite)
 	@set -eu; \
 	tommath="$${TCL_TOMMATH_DIR:-$(ROOT)tmp/tcl9.0.4/libtommath}"; \
@@ -2738,7 +2741,7 @@ runtime-rust-test: ## Run the Rust runtime port's cargo test (leak round-trip + 
 		echo "         Fetch it with: make ensure-tcl90-reference"; \
 		tommath=""; \
 	fi; \
-	cd $(RUNTIME_RUST_DIR) && TCL_TOMMATH_DIR="$$tommath" cargo test --locked
+	cd $(RUNTIME_RUST_DIR) && TCL_TOMMATH_DIR="$$tommath" cargo test --locked --features engine
 
 # The companion no-bignum gate. `runtime-rust-test` above exists precisely
 # because CI's own fetch step means the standalone suite ALWAYS builds with
@@ -2781,7 +2784,7 @@ runtime-rust-test-no-tommath: ## Run the Rust runtime port's cargo test with lib
 	cd $(RUNTIME_RUST_DIR) && cargo test --locked
 
 runtime-rust-lint: ## Rust runtime port: cargo fmt --check + locked clippy -D warnings
-	cd $(RUNTIME_RUST_DIR) && cargo fmt --check && cargo clippy --locked --all-targets -- $(CLIPPY_LINT_FLAGS)
+	cd $(RUNTIME_RUST_DIR) && cargo fmt --check && cargo clippy --locked --all-targets --features engine -- $(CLIPPY_LINT_FLAGS)
 
 zed-query-check: ## Validate the generated Zed highlight queries against the pinned tree-sitter grammar
 	cd $(ROOT)rust/zed-query-check && cargo test

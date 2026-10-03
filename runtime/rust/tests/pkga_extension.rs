@@ -108,12 +108,18 @@ fn diverges(script: &str) -> bool {
     DIVERGENCES.iter().any(|row| row.0 == script)
 }
 
+/// Whether `script` calls `expr`, which a runtime built without the numeric
+/// tower does not have.
+fn needs_the_numeric_tower(script: &str) -> bool {
+    !cfg!(have_tommath) && script.contains("expr")
+}
+
 #[test]
 fn every_vector_answers_what_c_tcl_answers() {
     let mut interp = loaded();
     let mut differ = Vec::new();
     for &(script, code, result, error_code) in CASES {
-        if diverges(script) {
+        if diverges(script) || needs_the_numeric_tower(script) {
             continue;
         }
         let wanted = (code, result.to_owned(), error_code.to_owned());

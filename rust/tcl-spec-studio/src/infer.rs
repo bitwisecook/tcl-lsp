@@ -66,11 +66,12 @@ mod c_scan;
 mod extension;
 
 pub use c_scan::{
-    CBlindSpot, CDeclaredCommand, CEvidence, CName, CPackage, CScan, CUsage, scan_c_source,
+    CBlindSpot, CDeclaredCommand, CEntryPoint, CEvidence, CName, CPackage, CScan, CUsage,
+    scan_c_source,
 };
 pub use extension::{
-    DynamicRegistration, ExtensionCommand, ExtensionImport, ExtensionSource, ProbeReport,
-    import_c_sources,
+    DynamicRegistration, ExtensionCommand, ExtensionEntry, ExtensionImport, ExtensionSource,
+    ProbeReport, UnchosenExtension, import_c_sources,
 };
 
 /// One file of an imported package.

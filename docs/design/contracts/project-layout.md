@@ -17,7 +17,7 @@ up to the binaries, and is enforced by cargo's own dependency graph.
 | `tcl-compiler` | Tcl pipeline — IR, lowering, CFG, SSA, passes, optimiser, codegen, WASM emitter, compiler-internal analyses (taint, var-escape, interprocedural). |
 | `tcl-registry` | Command / dialect registry (per-command specs, arity, subcommands, arg-roles) + canonical dialect detection. |
 | `tcl-bytecode`, `tcl-runtime-api`, `tcl-cmd-core`, `tcl-vm`, `tcl-vm-cli` | Bytecode model, runtime API, per-command runtime, the bytecode VM, and its `tclvm` CLI. |
-| `tcl-engine-api`, `tcl-engine-tclvm`, `tcl-cshim` | The engine-neutral Tcl extension interface, the `tcl-vm` engine behind it, and the C Tcl extension shim over it. |
+| `tcl-engine-api`, `tcl-engine-tclvm`, `tcl-engine-wasm`, `tcl-cshim` | The engine-neutral Tcl extension interface, the `tcl-vm` engine behind it, the runtime compiled to `wasm32` as an engine under wasmtime (with the C extensions built for it), and the C Tcl extension shim over it. |
 | `tcl-spectcl`, `tcl-spec-hooks`, `tcl-spec-studio` | SpecTcl runtime pack support (`.tclspec` loader, pack discovery, compiled-pack cache, registry insertion), the sandboxed hook host, and the spec-studio field schema / draft model / renderers behind the web UI. |
 | `tcl-regex` | Tcl regex engine port. |
 | `tcl-bigip`, `tcl-bigip-io`, `tcl-bigip-query`, `tcl-f5mku`, `bigip-report-gen` | F5 BIG-IP object model + config parser, config I/O, the `f5 query` DSL engine, the `f5mku` SecureVault envelope, and the standalone HTML estate report generator. |
