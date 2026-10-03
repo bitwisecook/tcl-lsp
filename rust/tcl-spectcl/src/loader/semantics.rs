@@ -46,8 +46,6 @@
 //! already-closed catalogues of their own — `NativeEvalId::ALL` and
 //! `LanguageProfileId::ALL` (`tcl.expr`, `bpf.expr`) — not `SCOPE::FIELD` ids.
 
-use std::hash::{Hash as _, Hasher as _};
-
 use tcl_registry::hover::OptionSpec;
 use tcl_registry::pack_hooks::{
     EVALUATE_NATIVE, FACTS_NATIVE, HookInput, HookInputs, SEMANTICS_NATIVE,
@@ -725,16 +723,13 @@ fn read_implementation(stmt: &Stmt, log: &mut Log) -> Option<Implementation> {
         );
         return None;
     }
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    params.hash(&mut hasher);
-    text.hash(&mut hasher);
     Some(Implementation {
         capability: EvaluatorCapability {
             identity: ImplementationIdentity {
                 // The pack names itself when the host plan binds the body.
                 pack: "",
                 id: leak_str(id),
-                content_hash: hasher.finish(),
+                content_hash: tcl_registry::implementation_hash::content_hash(&(&params, &text)),
             },
             host,
             // The body runs pinned to the call's release, so no axis needs

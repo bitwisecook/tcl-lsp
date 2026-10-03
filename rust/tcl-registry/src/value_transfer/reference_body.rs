@@ -51,7 +51,6 @@
 
 use std::collections::{HashMap, HashSet};
 use std::fmt;
-use std::hash::{Hash, Hasher};
 use std::sync::{Mutex, OnceLock, PoisonError};
 
 use tcl_lexer::script::{CommandSpan, WordKind, group_commands};
@@ -838,9 +837,6 @@ fn declared_for(command: &str, hook: &ReferenceHook) -> &'static DeclaredSemanti
     if let Some(done) = memo.get(&key) {
         return done;
     }
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    hook.params.hash(&mut hasher);
-    hook.body.hash(&mut hasher);
     let inputs: Vec<DeclaredInput> = (0..hook.params.len())
         .map(|index| DeclaredInput::Operand {
             index,
@@ -850,7 +846,7 @@ fn declared_for(command: &str, hook: &ReferenceHook) -> &'static DeclaredSemanti
     let identity = ImplementationIdentity {
         pack: "",
         id: Box::leak(format!("{}.reference", command.trim_start_matches("::")).into_boxed_str()),
-        content_hash: hasher.finish(),
+        content_hash: crate::implementation_hash::content_hash(&(&hook.params, &hook.body)),
     };
     let capability = EvaluatorCapability {
         identity,

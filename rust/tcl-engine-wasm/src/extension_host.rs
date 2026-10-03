@@ -80,10 +80,13 @@ impl WasmExtensionHost {
         }
     }
 
-    /// A fresh instance armed with the host's own budget.
+    /// A fresh instance armed with the host's own budget, the first-use fuel
+    /// included.
     fn session(&self) -> Result<Session, DeclineReason> {
         let mut session = Session::new(&self.runtime).map_err(|_| DeclineReason::Transient)?;
-        session.arm(limits_of(self.budget)).map_err(decline)?;
+        session
+            .arm(limits_of(self.budget).with_first_use())
+            .map_err(decline)?;
         Ok(session)
     }
 }
@@ -125,7 +128,14 @@ impl ExtensionHost for WasmExtensionHost {
         let mut session = self.session()?;
         session.load(&extension).map_err(decline)?;
         let budget = narrowed(self.budget, *budget);
-        session.arm(limits_of(budget)).map_err(decline)?;
+        // Each evaluation is a fresh instance's first, so it has the first-use
+        // fuel. It has no whitelist and no confinement: the extension reaches the
+        // interpreter only through the C API, which declares no eval or variable
+        // door (and the loader refuses the runtime's other exports), and the
+        // instance is this evaluation's alone.
+        session
+            .arm(limits_of(budget).with_first_use())
+            .map_err(decline)?;
         let words: Vec<&[u8]> = words.iter().map(String::as_bytes).collect();
         let completion = session.evaluate(&words).map_err(decline)?;
         if let Some(kind) = session.exceeded().map_err(decline)? {

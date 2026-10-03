@@ -34,7 +34,6 @@
 //! values, under an [`ImplementationBudget`].
 
 use std::cell::RefCell;
-use std::hash::{DefaultHasher, Hash, Hasher};
 use std::rc::Rc;
 
 use crate::value_transfer::{DeclineReason, ImplementationBudget};
@@ -142,13 +141,15 @@ pub fn evaluate_extension(
     })
 }
 
-/// The content hash an extension artefact is named by: its bytes, hashed as an
-/// implementation's identity is (`ImplementationIdentity::content_hash`).
+/// The content hash an extension artefact is named by: its bytes, through the
+/// hasher every implementation's content goes through
+/// ([`crate::implementation_hash::content_hash`]), so two artefacts that differ
+/// in a byte are two extensions. It is the same rule as an implementation
+/// identity's `content_hash`, not yet the same identity: the extension
+/// evaluation route and the shipped implementation's attestation bind the two.
 #[must_use]
 pub fn artefact_hash(artefact: &[u8]) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    artefact.hash(&mut hasher);
-    hasher.finish()
+    crate::implementation_hash::content_hash(artefact)
 }
 
 #[cfg(test)]
