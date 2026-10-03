@@ -2,6 +2,7 @@
 # `cargo nextest archive -p tcl-lsp-server --all-features`. The contract test
 # re-derives this list from the locked workspace graph, so a new local path
 # dependency cannot silently skip the archive and its three consumers.
+runtime/rust
 rust/f5-xc
 rust/tcl-bigip
 rust/tcl-bigip-query
