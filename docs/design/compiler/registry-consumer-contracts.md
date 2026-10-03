@@ -240,6 +240,23 @@ slices proceed without deciding anything here.
 > (`Interp::enable_static_extensions`); `tclvm --static-extensions` does so
 > for the shim's test extension.
 >
+> One authored header serves both hosts. `runtime/rust/include/tcl.h` has a
+> native leg, which the shim (`rust/tcl-cshim`) exports, and a WASM leg, which
+> the runtime's `capi.rs` exports, and `make check-c-extension-wasm` holds each
+> leg to its host. The engine interface carries the completion a host command
+> answers (`HostOutcome`, `CompletionCode`, and a `Return`'s options) and opens
+> doors onto the frame that called it (`CommandRegistrar::variable`,
+> `set_variable`, `unset_variable`, `eval_in_invocation`), through which the
+> shim's `Tcl_GetVar2Ex`, `Tcl_ObjSetVar2`, `Tcl_UnsetVar2` and `Tcl_EvalObjEx`
+> act. The runtime is an engine of that interface
+> (`tcl_runtime::engine::RuntimeEngine`, its `engine` feature) and, compiled to
+> `wasm32`, under wasmtime (`tcl_engine_wasm::WasmEngine`), where a C extension
+> built for it as a side module is evaluated under fuel, the epoch and a cap on
+> the memory's growth, every WASI import stubbed. The registry's extension seam
+> (`tcl_registry::extension_host`: `ExtensionHost`, `LoadedExtension`,
+> `artefact_hash`) is what an extension's evaluation calls, and it declines as
+> `Transient` on a thread with no host.
+>
 > The rest of the vocabulary is not built, and names nothing in the
 > workspace: the `ShippedImplementation` claim and `IdentityKind`.
 >

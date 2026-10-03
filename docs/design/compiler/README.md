@@ -131,9 +131,15 @@ User-facing compiler troubleshooting and how-tos live in
   stamp's ordered windows, selected at the release a call is resolved at and
   declined to plain dispatch where the point does not settle one), a vendor
   environment's evaluation point read through an evidence gate, and the package
-  floors a surface query carries, **built**; the rest — rung 4's shipped
+  floors a surface query carries, **built**; the extension legs — the
+  conservative default for an extension's command, an extension described from
+  its C source, a probe and the shim's report, the host's opt-in `load`, one
+  authored header with a native and a WASM leg and its CI gate, the engine
+  interface's completion and variable doors, and the runtime as an engine,
+  natively and under wasmtime, with a C extension evaluated under fuel behind
+  the registry's extension seam — **built**; the rest — rung 4's shipped
   implementation and the identity kind codegen chooses from the backing, and
-  the C-extension follow-ons — **not built**.
+  the extension evaluation route that binds the seam — **not built**.
 - [value-transfers-review.md](value-transfers-review.md) — review of those
   proposals against registry-owned specialisation, with shared expression
   and regexp evaluation, analysis/diagnostic separation, correctness findings,

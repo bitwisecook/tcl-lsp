@@ -124,7 +124,7 @@ checkpoint compiling.
   unit, the memoised unit, `tcl opt` and the registry's routes) have landed; the
   slices after them are planned item by item in the tracking document's §
   *Plan for slices 2–13*.
-- [consumer-contracts.md](consumer-contracts.md) — steps 1 to 9 of
+- [consumer-contracts.md](consumer-contracts.md) — steps 1 to 10 of
   [registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
   § *Build order*: step 1 (the four rulings taken as decided, and the
   documents whose stated rule they replace repaired), step 2 (the
@@ -185,9 +185,20 @@ checkpoint compiling.
   reference toolchain or a measured-fork note stands behind it, so the versioned
   folds answer as Tcl 8.4 under iRules, iApps and tmsh; and package version
   windows, a surface query carrying the floor each package's context
-  guarantees) have landed, item by item in the tracking document's
-  § *Step 2 — progress* (with the review's fixes applied after it), § *Step 3 —
-  progress*, § *Step 4 — progress*, § *Step 5 — progress*, § *Step 6 —
-  progress*, § *Step 7 — progress*, § *Step 8 — progress* and § *Step 9 —
-  progress*, planned in its § *Plan for steps 2–10*. Step 10 (the extension
-  legs) is next.
+  guarantees) and step 10 (the extension legs — the conservative default for a
+  command a native extension registers, stated once and declared by a stub's
+  `-extension`; an extension described from a scan of its C source, a sandboxed
+  probe and the shim's loaded report, one description per entry point; the
+  host's opt-in `load` over the entry points it linked in; one authored `tcl.h`
+  with a native leg the shim exports and a WASM leg the runtime exports, held to
+  both by a CI gate, and `Tcl_CreateObjCommand` dispatching from compiled WASM
+  code; the engine interface's completion and variable doors; and the runtime as
+  an engine, natively and compiled to `wasm32` under wasmtime, where a C
+  extension built for it is evaluated with fuel behind the registry's extension
+  seam) have landed, item by item in the tracking document's § *Step 2 —
+  progress* (with the review's fixes applied after it), § *Step 3 — progress*,
+  § *Step 4 — progress*, § *Step 5 — progress*, § *Step 6 — progress*, § *Step 7
+  — progress*, § *Step 8 — progress*, § *Step 9 — progress* and § *Step 10 —
+  progress*, planned in its § *Plan for steps 2–10*. Step 10 is the build
+  order's last; the extension evaluation route that binds the seam is the
+  value-transfer lane's.
