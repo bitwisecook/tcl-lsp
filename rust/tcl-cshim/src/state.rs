@@ -30,7 +30,7 @@ use std::collections::BTreeMap;
 use std::ffi::{c_int, c_void};
 use std::rc::{Rc, Weak};
 
-use tcl_engine_api::{CommandRegistrar, EngineError};
+use tcl_engine_api::{CommandRegistrar, EngineError, Value};
 
 use crate::obj::{Obj, ObjRef, TclError};
 
@@ -94,6 +94,10 @@ pub struct InterpState {
     retained: RefCell<Vec<ObjRef>>,
     /// The error C cannot swallow: a budget the engine enforces or a crash.
     fatal: RefCell<Option<EngineError>>,
+    /// The options of the `return` the last evaluation ended in, which C Tcl keeps
+    /// in the interpreter until the next evaluation or `Tcl_ResetResult`: what a
+    /// command that answers `TCL_RETURN` returns with.
+    return_options: RefCell<Option<Value>>,
 }
 
 /// The engine's door as one command's invocation holds it, for
@@ -160,6 +164,7 @@ impl InterpState {
             door: Cell::new(std::ptr::null_mut()),
             retained: RefCell::new(Vec::new()),
             fatal: RefCell::new(None),
+            return_options: RefCell::new(None),
         }
     }
 
@@ -327,10 +332,22 @@ impl InterpState {
         self.set_result_text(&text);
     }
 
-    /// Clear the result and the error code — `Tcl_ResetResult`.
+    /// Clear the result, the error code and the options of a pending `return` —
+    /// `Tcl_ResetResult`.
     pub fn reset_result(&self) {
         self.set_result_text("");
         *self.error_code.borrow_mut() = None;
+        *self.return_options.borrow_mut() = None;
+    }
+
+    /// Keep the options of the `return` an evaluation ended in, or none.
+    pub(crate) fn set_return_options(&self, options: Option<Value>) {
+        *self.return_options.borrow_mut() = options;
+    }
+
+    /// Take the options of the pending `return`, if an evaluation left any.
+    pub(crate) fn take_return_options(&self) -> Option<Value> {
+        self.return_options.borrow_mut().take()
     }
 
     /// Set the `-errorcode` — `Tcl_SetObjErrorCode`.

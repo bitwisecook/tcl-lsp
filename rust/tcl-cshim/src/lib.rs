@@ -247,6 +247,12 @@ impl HostCommand for ShimCommand {
         // enclosing loop ends or goes on, a code of the command's own reaches
         // the `catch` that reports it.
         match CompletionCode::from_int(code) {
+            // A `TCL_RETURN` keeps the options of the `return` the last
+            // evaluation ended in, as C Tcl's interpreter does.
+            Some(CompletionCode::Return) => Ok(HostOutcome::returning(
+                result.get().to_value(),
+                self.state.take_return_options().unwrap_or(Value::Empty),
+            )),
             Some(code) => Ok(HostOutcome::completing(code, result.get().to_value())),
             None => Err(EngineError::Script {
                 message: result.get().text(),
@@ -693,6 +699,8 @@ mod tests {
     #[derive(Default)]
     struct TwinEngine {
         log: Vec<String>,
+        /// What an evaluation answers; a budget when none is set.
+        eval: Option<HostOutcome>,
     }
 
     impl Engine for TwinEngine {
@@ -743,7 +751,7 @@ mod tests {
 
         fn eval_in_invocation(&mut self, script: &str) -> Result<HostOutcome, EngineError> {
             self.log.push(format!("eval {script}"));
-            Err(EngineError::BudgetExceeded(
+            self.eval.clone().ok_or(EngineError::BudgetExceeded(
                 tcl_engine_api::BudgetKind::Commands,
             ))
         }
@@ -808,6 +816,127 @@ mod tests {
             let _ = ffi::tcl_eval_obj_ex(interp, script, 0);
         }
         ffi::TCL_OK
+    }
+
+    /// `evalret script ?code?` — evaluates `script` and answers the code it had, or
+    /// `code` when one is given.
+    unsafe extern "C" fn evalret(
+        _client_data: *mut c_void,
+        interp: *mut InterpState,
+        word_count: c_int,
+        words: *const *mut Obj,
+    ) -> c_int {
+        // SAFETY: the shim passes a live interpreter and `word_count` live
+        // objects.
+        unsafe {
+            let evaluated = ffi::tcl_eval_obj_ex(interp, *words.add(1), 0);
+            let mut code = evaluated;
+            if word_count == 3 {
+                ffi::tcl_get_int_from_obj(interp, *words.add(2), &raw mut code);
+            }
+            code
+        }
+    }
+
+    unsafe extern "C" fn evalret_init(interp: *mut InterpState) -> c_int {
+        // SAFETY: the shim passes a live interpreter.
+        unsafe {
+            ffi::tcl_create_obj_command(
+                interp,
+                c"evalret".as_ptr(),
+                evalret,
+                std::ptr::null_mut(),
+                None,
+            );
+        }
+        ffi::TCL_OK
+    }
+
+    fn evaluating(answer: HostOutcome) -> (Interp<TwinEngine>, Rc<dyn HostCommand>) {
+        let mut interp = Interp::new(TwinEngine {
+            eval: Some(answer),
+            ..TwinEngine::default()
+        });
+        // SAFETY: `evalret_init` is written against the shim's own exports.
+        unsafe { interp.load_static(evalret_init) }.expect("loads");
+        // The engine here has no command table, so the command is the one the
+        // state holds, run through the door of the engine in hand.
+        let command: Rc<dyn HostCommand> = Rc::new(super::ShimCommand {
+            state: Rc::clone(&interp.state),
+            name: "evalret".to_owned(),
+        });
+        (interp, command)
+    }
+
+    #[test]
+    fn a_tcl_return_carries_the_options_of_the_return_the_last_evaluation_ended_in() {
+        let options = Value::string("-code 1 -level 1 -errorcode {X Y}");
+        let (mut interp, command) = evaluating(HostOutcome::returning(
+            Value::string("msg"),
+            options.clone(),
+        ));
+        let outcome = command
+            .invoke_with_registrar(
+                &mut EngineDoor(interp.engine_mut()),
+                &[Value::string("return -code error -errorcode {X Y} msg")],
+            )
+            .expect("completes");
+        assert_eq!(outcome.code, CompletionCode::Return);
+        assert_eq!(outcome.value.as_str(), Some("msg"));
+        assert_eq!(outcome.options.as_str(), options.as_str());
+
+        let next = command
+            .invoke_with_registrar(
+                &mut EngineDoor(interp.engine_mut()),
+                &[Value::string("again")],
+            )
+            .expect("completes");
+        assert_eq!(
+            next.options.as_str(),
+            options.as_str(),
+            "each call evaluates and so has its own"
+        );
+    }
+
+    #[test]
+    fn a_code_that_is_not_a_return_carries_no_options_whatever_the_evaluation_left() {
+        let (mut interp, command) = evaluating(HostOutcome::returning(
+            Value::string("msg"),
+            Value::string("-code 1 -level 1"),
+        ));
+        for (code, expected) in [
+            (ffi::TCL_OK, CompletionCode::Ok),
+            (ffi::TCL_BREAK, CompletionCode::Break),
+            (7, CompletionCode::Other(7)),
+        ] {
+            let outcome = command
+                .invoke_with_registrar(
+                    &mut EngineDoor(interp.engine_mut()),
+                    &[Value::string("script"), Value::Int(i64::from(code))],
+                )
+                .expect("completes");
+            assert_eq!(outcome.code, expected);
+            assert!(outcome.options.is_empty(), "{:?}", outcome.options);
+        }
+    }
+
+    #[test]
+    fn an_evaluation_that_did_not_end_in_a_return_leaves_no_options_for_a_later_one() {
+        let (mut interp, command) = evaluating(HostOutcome::ok(Value::string("v")));
+        let outcome = command
+            .invoke_with_registrar(
+                &mut EngineDoor(interp.engine_mut()),
+                &[
+                    Value::string("script"),
+                    Value::Int(i64::from(ffi::TCL_RETURN)),
+                ],
+            )
+            .expect("completes");
+        assert_eq!(outcome.code, CompletionCode::Return);
+        assert!(
+            outcome.options.is_empty(),
+            "a return of the command's own is a plain one"
+        );
     }
 
     #[test]

@@ -46,9 +46,11 @@ unsafe extern "C" fn doors_init(interp: *mut InterpState) -> c_int {
     unsafe { Doors_Init(interp.cast::<c_void>()) }
 }
 
-const COMMANDS: [&str; 9] = [
+const COMMANDS: [&str; 11] = [
     "doors_eval",
     "doors_eval_direct",
+    "doors_eval_reset",
+    "doors_eval_twice",
     "doors_get",
     "doors_global_set",
     "doors_keep",
@@ -330,6 +332,132 @@ const CASES: &[(&str, i64, &str, &str)] = &[
     ("doors_try {error e}; info exists ::errorInfo", 0, "1", ""),
     ("doors_try {doors_eval {error deep}}", 0, "1 deep", ""),
     ("doors_try {doors_try {error inner}}", 0, "0 {1 inner}", ""),
+    (
+        "doors_eval {return -code error -errorcode {X Y} msg}",
+        2,
+        "msg",
+        "X Y",
+    ),
+    (
+        "proc p {} {doors_eval {return -code error -errorcode {X Y} boom}; return nope}; list [catch {p} m o] $m [dict get $o -errorcode]",
+        0,
+        "1 boom {X Y}",
+        "",
+    ),
+    (
+        "proc p {} {doors_eval {return -code error boom}; return nope}; list [catch {p} m o] $m [dict get $o -errorcode]",
+        0,
+        "1 boom NONE",
+        "",
+    ),
+    (
+        "set i 0; foreach x {a b c} {incr i; proc p {} {doors_eval {return -code break}}; p; incr i 100}; set i",
+        0,
+        "1",
+        "",
+    ),
+    (
+        "set i 0; foreach x {a b c} {incr i; proc p {} {doors_eval {return -code continue}}; p; incr i 100}; set i",
+        0,
+        "3",
+        "",
+    ),
+    (
+        "proc inner {} {doors_eval {return -level 2 deep}; return nope}; proc outer {} {inner; return nope2}; outer",
+        0,
+        "deep",
+        "",
+    ),
+    (
+        "proc inner {} {doors_eval {return -level 3 deep}; return nope}; proc mid {} {inner; return nope2}; proc outer {} {mid; return nope3}; outer",
+        0,
+        "deep",
+        "",
+    ),
+    (
+        "proc p {} {doors_eval {return -code 5 z}}; list [catch {p} m] $m",
+        0,
+        "5 z",
+        "",
+    ),
+    (
+        "proc p {} {doors_eval {return -code return z}}; list [catch {p} m] $m",
+        0,
+        "2 z",
+        "",
+    ),
+    (
+        "proc q {} {p}; proc p {} {doors_eval {return -code error -level 2 {two levels}}; return nope}; list [catch {q} m o] $m [dict get $o -level] [dict get $o -code]",
+        0,
+        "1 {two levels} 0 1",
+        "",
+    ),
+    (
+        "proc p {} {doors_eval {return -code break}; return nope}; list [catch {p} m o] $m [dict get $o -code]",
+        0,
+        "3 {} 3",
+        "",
+    ),
+    (
+        "proc p {} {doors_eval {doors_eval {return -code error -errorcode {X Y} deepmsg}}}; list [catch {p} m o] $m [dict get $o -errorcode]",
+        0,
+        "1 deepmsg {X Y}",
+        "",
+    ),
+    (
+        "proc p {} {doors_eval {return -code error -errorcode {X Y} first}; doors_eval {set ok 1}}; p",
+        1,
+        "first",
+        "X Y",
+    ),
+    (
+        "doors_eval {return -code error -errorinfo {my info} msg}",
+        2,
+        "msg",
+        "NONE",
+    ),
+    (
+        "doors_try {return -code error -errorcode {X Y} msg}",
+        0,
+        "2 msg",
+        "",
+    ),
+    (
+        "proc p {} {doors_try {return -code error -errorcode {X Y} msg}}; p",
+        0,
+        "2 msg",
+        "",
+    ),
+    (
+        "proc p {} {doors_eval_twice {return -code error first} {return second}; return nope}; list [catch {p} m o] $m",
+        0,
+        "0 second",
+        "",
+    ),
+    (
+        "proc p {} {doors_eval_twice {return -code error first} {set ok 1}; return nope}; list [catch {p} m o] $m",
+        0,
+        "0 nope",
+        "",
+    ),
+    (
+        "proc p {} {doors_eval_reset {return -code error -errorcode {X Y} boom}; return nope}; list [catch {p} m o] $m",
+        0,
+        "0 {}",
+        "",
+    ),
+    (
+        "doors_eval_reset {return -code error -errorcode {X Y} boom}",
+        2,
+        "",
+        "",
+    ),
+    (
+        "doors_eval_twice {return -code error first} {return -code error -errorcode {P Q} second}",
+        2,
+        "second",
+        "P Q",
+    ),
 ];
 
 /// Where this host's error code is not C Tcl's, and why: the script, its code and
@@ -408,14 +536,6 @@ const DIVERGENCES: &[(&str, i64, &str, &str, &str, &str)] = &[
         "TCL LOOKUP VARNAME nosuch",
         "NONE",
         "the VM's `set` of a variable that is not there raises no `-errorcode`",
-    ),
-    (
-        "doors_eval {return -code error -errorcode {X Y} msg}",
-        2,
-        "msg",
-        "X Y",
-        "",
-        "a `TCL_RETURN` crosses the engine interface with its value alone, so the options of the `return` that raised it (`-code`, `-level`, `-errorcode`) are not carried",
     ),
 ];
 

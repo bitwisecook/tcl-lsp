@@ -42,6 +42,34 @@ impl HostCommand for Completes {
     }
 }
 
+/// `hretopts options value` — answers `value` as a `Return` with the options a
+/// `return` would have raised it with.
+struct ReturnsWith;
+
+impl HostCommand for ReturnsWith {
+    fn invoke(&self, arguments: &[Value]) -> Result<HostOutcome, EngineError> {
+        let word = |index: usize| arguments.get(index).and_then(Value::as_str).unwrap_or("");
+        Ok(HostOutcome::returning(
+            Value::string(word(1)),
+            Value::string(word(0)),
+        ))
+    }
+}
+
+/// A command that completes with `code` and options a code but a return has no
+/// use for, which a user key shows if the engine hands them on.
+struct Stray(CompletionCode);
+
+impl HostCommand for Stray {
+    fn invoke(&self, _arguments: &[Value]) -> Result<HostOutcome, EngineError> {
+        Ok(HostOutcome {
+            value: Value::Empty,
+            code: self.0,
+            options: Value::string("-code 1 -level 1 -foo bar"),
+        })
+    }
+}
+
 /// What a door command does with the door it is given.
 #[derive(Clone, Copy)]
 enum Door {
@@ -95,7 +123,7 @@ impl HostCommand for Door {
 
 fn engine() -> TclVmEngine {
     let mut engine = TclVmEngine::new();
-    let commands: [(&str, Rc<dyn HostCommand>); 12] = [
+    let commands: [(&str, Rc<dyn HostCommand>); 15] = [
         ("hbreak", Rc::new(Completes(CompletionCode::Break, ""))),
         (
             "hcontinue",
@@ -114,6 +142,9 @@ fn engine() -> TclVmEngine {
         ("hevalerr", Rc::new(Door::EvalReport)),
         ("hprovide", Rc::new(Door::Provide)),
         ("hloaded", Rc::new(Door::Loaded)),
+        ("hretopts", Rc::new(ReturnsWith)),
+        ("hstray", Rc::new(Stray(CompletionCode::Break))),
+        ("hstrayok", Rc::new(Stray(CompletionCode::Ok))),
     ];
     for (name, command) in commands {
         engine.define_command(name, command).expect("registers");
@@ -173,6 +204,81 @@ fn a_host_command_completes_with_the_code_it_answers() {
         ),
         Ok("303".to_owned()),
         "a normal completion leaves the loop alone"
+    );
+}
+
+#[test]
+fn a_host_command_returns_with_the_options_it_answers() {
+    let mut engine = engine();
+    assert_eq!(
+        run(
+            &mut engine,
+            "proc p {} {hretopts {-code 1 -level 1 -errorcode {X Y}} boom; return nope}; \
+             list [catch {p} m o] $m [dict get $o -errorcode]"
+        ),
+        Ok("1 boom {X Y}".to_owned()),
+        "a `-code error` is the error the procedure fails with, and its code"
+    );
+    assert_eq!(
+        run(
+            &mut engine,
+            "set i 0; proc q {} {hretopts {-code 3 -level 1} {}}; \
+             foreach x {a b c} { incr i; q; incr i 100 }; set i"
+        ),
+        Ok("1".to_owned()),
+        "a `-code break` ends the loop the procedure is called in"
+    );
+    assert_eq!(
+        run(
+            &mut engine,
+            "set i 0; proc q {} {hretopts {-code 4 -level 1} {}}; \
+             foreach x {a b c} { incr i; q; incr i 100 }; set i"
+        ),
+        Ok("3".to_owned()),
+        "and a `-code continue` goes on to the next iteration"
+    );
+    assert_eq!(
+        run(
+            &mut engine,
+            "proc inner {} {hretopts {-code 0 -level 2} deep; return nope}; \
+             proc outer {} {inner; return nope2}; outer"
+        ),
+        Ok("deep".to_owned()),
+        "a `-level 2` returns from the caller of the procedure too"
+    );
+    assert_eq!(
+        run(
+            &mut engine,
+            "proc p {} {hretopts {-code 5 -level 1} z}; list [catch {p} m] $m"
+        ),
+        Ok("5 z".to_owned()),
+        "a code of its own reaches the `catch`"
+    );
+    assert_eq!(
+        run(&mut engine, "hretopts {} plain; return nope"),
+        Ok("plain".to_owned()),
+        "a return with no options is a plain one-level return"
+    );
+}
+
+#[test]
+fn options_a_code_other_than_return_has_no_use_for_are_not_passed_on() {
+    let mut engine = engine();
+    assert_eq!(
+        run(
+            &mut engine,
+            "set i 0; foreach x {a b c} { incr i; hstray; incr i 100 }; set i"
+        ),
+        Ok("1".to_owned()),
+        "a break with options of a return is still a break"
+    );
+    assert_eq!(
+        run(
+            &mut engine,
+            "list [catch {hstrayok} m o] [dict exists $o -foo]"
+        ),
+        Ok("0 0".to_owned()),
+        "and a normal completion's options are its own, not the ones handed in"
     );
 }
 
@@ -292,6 +398,43 @@ fn a_host_command_evaluates_a_script_in_the_calling_frame() {
         run(&mut engine, "heval {heval {set deep 1}}"),
         Ok("1".to_owned()),
         "a script can call a command that evaluates one"
+    );
+}
+
+#[test]
+fn a_script_that_returns_with_options_gives_the_command_a_return_with_them() {
+    let mut engine = engine();
+    assert_eq!(
+        run(
+            &mut engine,
+            "proc p {} {heval {return -code error -errorcode {X Y} boom}; return nope}; \
+             list [catch {p} m o] $m [dict get $o -errorcode]"
+        ),
+        Ok("1 boom {X Y}".to_owned()),
+        "the procedure fails as the script's `return -code error` says"
+    );
+    assert_eq!(
+        run(
+            &mut engine,
+            "set i 0; proc q {} {heval {return -code break}}; \
+             foreach x {a b c} { incr i; q; incr i 100 }; set i"
+        ),
+        Ok("1".to_owned()),
+        "and ends the loop for `-code break`"
+    );
+    assert_eq!(
+        run(
+            &mut engine,
+            "proc inner {} {heval {return -level 2 deep}; return nope}; \
+             proc outer {} {inner; return nope2}; outer"
+        ),
+        Ok("deep".to_owned()),
+        "and one level further for `-level 2`"
+    );
+    assert_eq!(
+        run(&mut engine, "heval {return plain}; return nope"),
+        Ok("plain".to_owned()),
+        "a plain `return` is still a plain one"
     );
 }
 
@@ -443,6 +586,24 @@ fn an_embedder_reads_writes_and_evaluates_through_the_engine_itself() {
             .expect("a break is an outcome")
             .code,
         CompletionCode::Break
+    );
+    let returned = engine
+        .eval_in_invocation("return -code error -errorcode {X Y} msg")
+        .expect("a return is an outcome");
+    assert_eq!(returned.code, CompletionCode::Return);
+    assert_eq!(returned.value.as_str(), Some("msg"));
+    let options = returned.options.as_str().unwrap_or_default().to_owned();
+    assert!(
+        options.contains("-code 1") && options.contains("-errorcode {X Y}"),
+        "the options of the return come with it: {options}"
+    );
+    assert!(
+        engine
+            .eval_in_invocation("break")
+            .expect("a break")
+            .options
+            .is_empty(),
+        "and only a return has any"
     );
     assert!(
         matches!(

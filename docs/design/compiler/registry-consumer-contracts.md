@@ -2460,8 +2460,9 @@ flowchart LR
   narrow it axis by axis, a stated effect replacing the effect axes and none
   of the others ([../contracts/dialect-stubs.md](../contracts/dialect-stubs.md)
   § *Extension commands*). The engine interface carries the completion
-  code the host command returned (`HostOutcome`, `CompletionCode`), so a hosted
-  extension exercises the default.
+  code the host command returned (`HostOutcome`, `CompletionCode`), and for a
+  `TCL_RETURN` the options of the `return` behind it, so a hosted extension
+  exercises the default.
 - **Describe from three sources**, each with its own provenance, none of them
   narrowing the default: a mechanical scan of C source
   (`rust/tcl-spec-studio/src/infer/c_scan.rs`; `tcl spec import --c-source`),

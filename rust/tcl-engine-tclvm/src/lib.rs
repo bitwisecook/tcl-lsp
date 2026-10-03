@@ -209,10 +209,12 @@ fn evaluate(vm: &mut Vm, script: &str) -> Result<HostOutcome, EngineError> {
         }
         Code::Other(other) => CompletionCode::Other(other),
     };
-    Ok(HostOutcome::completing(
-        code,
-        from_vm_value(&completion.result),
-    ))
+    let value = from_vm_value(&completion.result);
+    Ok(if code == CompletionCode::Return {
+        HostOutcome::returning(value, from_vm_value(&completion.options))
+    } else {
+        HostOutcome::completing(code, value)
+    })
 }
 
 /// The error a failed completion is, with the `-errorcode` its options carry and
@@ -259,6 +261,17 @@ fn budget_message(kind: BudgetKind) -> &'static str {
 /// The VM's code for a host command's [`CompletionCode`].
 fn to_vm_code(code: CompletionCode) -> Code {
     Code::from_int(code.as_int())
+}
+
+/// The options a host command's completion carries to the VM: those of the
+/// `return` behind a `Return`, which the calling procedure's boundary reads, and
+/// none for any other code.
+fn completion_options(outcome: &HostOutcome) -> tcl_vm::Value {
+    if outcome.code == CompletionCode::Return {
+        to_vm_value(&outcome.options)
+    } else {
+        tcl_vm::Value::string(String::new())
+    }
 }
 
 fn define_host_command(
@@ -315,7 +328,7 @@ impl NativeCommand for HostCommandShim {
             Ok(outcome) => Completion::new(
                 to_vm_code(outcome.code),
                 to_vm_value(&outcome.value),
-                tcl_vm::Value::string(String::new()),
+                completion_options(&outcome),
             ),
             // A script error crosses as the Tcl error it is: the message
             // verbatim, and its `-errorcode` in the completion's options so

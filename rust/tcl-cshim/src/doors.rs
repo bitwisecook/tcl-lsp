@@ -54,7 +54,7 @@
 
 use std::ffi::c_int;
 
-use tcl_engine_api::{CommandRegistrar, EngineError};
+use tcl_engine_api::{CommandRegistrar, CompletionCode, EngineError};
 
 use crate::ffi::{TCL_ERROR, TCL_EVAL_DIRECT, TCL_GLOBAL_ONLY, TCL_LEAVE_ERR_MSG, TCL_OK};
 use crate::obj::{Obj, ObjRef, TclError};
@@ -315,9 +315,13 @@ pub(crate) fn evaluate(state: &InterpState, script: &Obj, flags: c_int) -> c_int
     match attempt {
         Ok(outcome) => {
             state.set_result(ObjRef::new(Obj::from_value(&outcome.value)));
+            state.set_return_options(
+                (outcome.code == CompletionCode::Return).then_some(outcome.options),
+            );
             outcome.code.as_int()
         }
         Err(error) => {
+            state.set_return_options(None);
             state.set_error(&error);
             TCL_ERROR
         }
@@ -885,6 +889,73 @@ mod tests {
         assert_eq!(evaluate(&state, &script, 0), TCL_ERROR);
         assert_eq!(state.result().get().text(), "boom");
         assert_eq!(state.error_code_text().as_deref(), Some("A B"));
+    }
+
+    #[test]
+    fn an_evaluation_keeps_the_options_of_the_return_it_ended_in_until_the_next_one() {
+        let state = InterpState::new();
+        let mut fake = Fake::new();
+        let script = Obj::from_text("body");
+        let options = Value::string("-code 1 -level 1 -errorcode {X Y}");
+        fake.eval = Ok(HostOutcome::returning(
+            Value::string("msg"),
+            options.clone(),
+        ));
+        let mut door = DoorRef::new(&mut fake);
+        let _open = state.open_door(&mut door);
+
+        assert_eq!(evaluate(&state, &script, 0), 2);
+        assert_eq!(
+            state.take_return_options().as_ref().and_then(Value::as_str),
+            options.as_str(),
+            "a return's options are the interpreter's until taken"
+        );
+        assert!(state.take_return_options().is_none(), "and taken once");
+
+        assert_eq!(evaluate(&state, &script, 0), 2);
+        state.reset_result();
+        assert!(
+            state.take_return_options().is_none(),
+            "`Tcl_ResetResult` resets them, as it resets the return level and code"
+        );
+
+        assert_eq!(evaluate(&state, &script, 0), 2);
+        state.set_result_text("a result set by hand");
+        assert!(
+            state.take_return_options().is_some(),
+            "a result set does not"
+        );
+    }
+
+    #[test]
+    fn an_evaluation_that_is_not_a_return_or_that_fails_clears_the_options() {
+        let script = Obj::from_text("body");
+        for (answer, code) in [
+            (Ok(HostOutcome::ok(Value::string("v"))), TCL_OK),
+            (
+                Ok(HostOutcome::completing(CompletionCode::Break, Value::Empty)),
+                3,
+            ),
+            (
+                Err(EngineError::Script {
+                    message: "boom".to_owned(),
+                    code: None,
+                }),
+                TCL_ERROR,
+            ),
+        ] {
+            let state = InterpState::new();
+            state.set_return_options(Some(Value::string("-code 1 -level 1")));
+            let mut fake = Fake::new();
+            fake.eval = answer;
+            let mut door = DoorRef::new(&mut fake);
+            let _open = state.open_door(&mut door);
+            assert_eq!(evaluate(&state, &script, 0), code);
+            assert!(
+                state.take_return_options().is_none(),
+                "{code}: the later evaluation replaced what the first left"
+            );
+        }
     }
 
     unsafe extern "C" fn nothing(
