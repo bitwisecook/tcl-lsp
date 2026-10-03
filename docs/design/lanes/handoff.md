@@ -10,13 +10,13 @@ says where each lane stands, what is queued, and how the work is run.
 
 | Lane | Tracking document | Landed | In flight | Remaining |
 |---|---|---|---|---|
-| Value transfers | [value-transfers.md](value-transfers.md) | slices 1, 2, 3, 4, 5, 8, 6 (reviewed, reworked in three rounds, re-checked "land as is") and 9 (`f06639de`); slice 10 item 3 complete: items 1, 2, 3a to 3e and 3d's remainder (`ddb53a10`, `b9ab4993`, `7ee77e66`, `6f86956d`, `07633485`, `e0675133`, `22be2fd0`, `aa0cc76e`) with the SpecTcl catalogue fix `1d3a937f`; item 4 complete (`513196e5` the reconciliation note, `596a5d86` the registry's handler chain and `try`'s protocol, `2ebf9756` the CFG half carrying `rust`'s #2230 change and reading the chain, with two `try` lowering defects fixed on the way) | item 5 (the prefix rule in the faithful-exceptions build: a `try` body split per statement as item 2 did for `catch`) on the running implementer, then items 6 to 9 and the slice's landing commit | the rest of slice 10, then the fable review of slices 9 and 10 together with its fixes; then slices 11, 12, 7a, 13, 7, in that order |
-| Consumer contracts | [consumer-contracts.md](consumer-contracts.md) | steps 1 to 9, each reviewed with fixes landed (the step 8 rework and step 9 review's fixes are `16e3a5a0`, `1b870f36`, `cdc7307a`); step 10 items 1 to 4 and item 5's first part (`69f5211b` the extension default, `ca5cc729` an extension described from three sources, `75b750df` the host load bridge, `141d30f0`, `2d570cf7` and `ecc1e4e2` one header for two hosts with its C-extension WASM gate, `599e7ac3`, `fb1c1dfe`, `0a562616` and `bfbac02f` the engine's completion, variable and package doors with the shim's side, its second test extension and the return options crossing the door; `56515003` item 6's first part, the WASM runtime grown to a real extension's C API surface) | a tcl-cli `spec import` test the second test extension broke (its fix is the next commit), then item 6's remaining parts (the runtime's own engine implementation, evaluation under in-process wasmtime with fuel, the WASM host side of the extension evaluation route behind a plain interface) and the step 10 landing commit | the step 10 review with its fixes |
+| Value transfers | [value-transfers.md](value-transfers.md) | slices 1, 2, 3, 4, 5, 8, 6 (reviewed, reworked in three rounds, re-checked "land as is") and 9 (`f06639de`); slice 10 item 3 complete: items 1, 2, 3a to 3e and 3d's remainder (`ddb53a10`, `b9ab4993`, `7ee77e66`, `6f86956d`, `07633485`, `e0675133`, `22be2fd0`, `aa0cc76e`) with the SpecTcl catalogue fix `1d3a937f`; item 4 complete (`513196e5` the reconciliation note, `596a5d86` the registry's handler chain and `try`'s protocol, `2ebf9756` the CFG half carrying `rust`'s #2230 change and reading the chain, with two `try` lowering defects fixed on the way); item 5 complete (`2e4cf3b9`: the prefix rule in the faithful-exceptions build, a `try` body split per statement with every split point wired to its handlers and `finally`, closing D225's open case; 1033 programs differential-clean on tclsh 8.6, 9.0 and 9.1 apart from the pre-existing O125 and O126 defects) | item 6 (loops absorb `break` and `continue`) next on the implementer, then items 7 to 9 and the slice's landing commit | the rest of slice 10, then the fable review of slices 9 and 10 together with its fixes; then slices 11, 12, 7a, 13, 7, in that order |
+| Consumer contracts | [consumer-contracts.md](consumer-contracts.md) | steps 1 to 9, each reviewed with fixes landed (the step 8 rework and step 9 review's fixes are `16e3a5a0`, `1b870f36`, `cdc7307a`); step 10 items 1 to 5 and item 6's first three parts (`69f5211b` the extension default, `ca5cc729` an extension described from three sources, `75b750df` the host load bridge, `141d30f0`, `2d570cf7` and `ecc1e4e2` one header for two hosts with its C-extension WASM gate, `599e7ac3`, `fb1c1dfe`, `0a562616` and `bfbac02f` the engine's completion, variable and package doors with the shim's side, its second test extension and the return options crossing the door; `56515003` the WASM runtime grown to a real extension's C API surface; `3d3956fd` `tcl spec import` describing one entry point at a time; `a3ce8d4c` the runtime as an engine with its own limits and confinement, every family run on both engines; `4f7d977a` the runtime compiled to `wasm32-wasip1` as an engine under in-process wasmtime in the new crate `rust/tcl-engine-wasm`, with the registry's extension-host seam) | item 6's part 3 mutation run (each mutant recompiles the runtime under cranelift, so it takes about two hours), then the item's final commit and the step 10 landing commit | the step 10 review with its fixes |
 | Diagnostic policy | (landed; see the design page `docs/design/compiler/diagnostic-policy.md`) | complete | | |
 
 Branch heads at the last rewrite of this page: the main branch at the
 commit that rewrites this page, above the merge of `cc-step5` at
-`56515003` and `2ebf9756` (slice 10 item 4b); `cc-step5` at `56515003`,
+`4f7d977a` and `2e4cf3b9` (slice 10 item 5); `cc-step5` at `4f7d977a`,
 containing the main branch up to `513196e5`. `cc-step5` is
 merged into the main branch, gated and pushed after every one of its
 commits, so nothing of either lane stays off GitHub for longer than one
@@ -24,19 +24,20 @@ gate cycle.
 
 ## Queued on the running implementers
 
-- Value transfers: slice 10 items 5 to 9, then the landing commit. Item 4
+- Value transfers: slice 10 items 6 to 9, then the landing commit. Item 4
   (`try`) was shaped to reconcile with `rust`'s PR #2230
   (the try/finally reachability fix for #2142, absent from this branch's
   base) at the upstream merge: one implementation per fact, with a
   "reconciling with #2230" paragraph in the lane doc naming the files and
   facts the merge has to settle. The slice 9 review runs together with
   slice 10's once slice 10 lands.
-- Consumer contracts: the tcl-cli test fix, item 6's remaining parts and
-  the step 10 landing commit, each its own green commit, then the fable
+- Consumer contracts: item 6's mutation run and final commit, then the
+  step 10 landing commit, each its own green commit, then the fable
   review of step 10 and its fixes. The extension evaluation route's
   vocabulary (`HostKind::WasmExtension`, the `extension FILE PREFIX` row,
   the artefact hash in the memo key) is value-transfer slice 7's to add
-  (its item VT7.11); item 6 builds the host side behind a plain interface.
+  (its item VT7.11); item 6 built the host side behind the registry's
+  `ExtensionHost` seam, which slice 7 binds.
 
 ## After the lanes
 
@@ -74,12 +75,14 @@ gate cycle.
   keeping a long-lived draft. `make rust-check` compiles but does not run
   tests, so each lane runs its crates' suites before every commit; the
   value-transfer suites include `tcl-spectcl`, whose catalogue tables
-  mirror the registry's id tables.
+  mirror the registry's id tables, and both lanes' suites include
+  `tcl-cli`. `cargo test -p <crate>` stops at the first failing test
+  binary, so a failure hides the binaries after it until it is fixed.
 - Each landed slice or step gets a fable review in a gate worktree; its
   findings land as "review fixes" commits (blocking ones before the next
   item), and pre-existing defects found in passing become GitHub issues
   (#2253 to #2272, #2291 to #2297, #2299 to #2303, #2305 to #2316, #2323
-  to #2328, #2330 to #2335, #2337 to #2345 so far), never fixes on this
+  to #2328, #2330 to #2335, #2337 to #2349 so far), never fixes on this
   branch.
 - Implementers ran on sonnet until the account's weekly sonnet limit was
   reached on 2 October (it resets on 6 October, 16:00 UTC) and run on opus
@@ -100,7 +103,11 @@ gate cycle.
   executables over 20 to 30 MB and duplicate rlibs under
   `target/debug/deps` are deleted after each run, never while that tree's
   implementer is running; a gate worktree's `target/` can be removed
-  whenever it is idle.
+  whenever it is idle; the extracted registry sources under
+  `~/.cargo/registry/src` can be removed whenever no dependency is
+  compiling, since cargo re-extracts them from its crate cache. The
+  consumer-contract tree holds several rlib variants of the large crates
+  (one per feature set it builds), which is inherent to its feature matrix.
 - Each agent keeps its scripts in a private directory under the scratchpad
   (two agents once collided on a shared `gates.sh`), and nothing is run with
   a gate worktree as its working directory except the gate itself.
