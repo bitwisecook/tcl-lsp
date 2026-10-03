@@ -200,6 +200,16 @@ pub fn list_elements(obj: *mut TclObj) -> Result<Vec<*mut TclObj>, ListError> {
     Ok(unsafe { list_ref(obj) }.elems.clone())
 }
 
+/// `Tcl_ListObjGetElements`'s view: the list's own element array and its
+/// length, after shimmering a string to a list. The array belongs to the list
+/// and is good until the list changes or is freed.
+pub(crate) fn elements_raw(obj: *mut TclObj) -> Result<(*mut *mut TclObj, usize), ListError> {
+    ensure_list(obj)?;
+    // SAFETY: list rep guaranteed; the pointer stays the list's own.
+    let list = unsafe { list_mut(obj) };
+    Ok((list.elems.as_mut_ptr(), list.elems.len()))
+}
+
 /// `Tcl_ListObjAppendElement` — append `elem` (retained) in place and invalidate
 /// the string rep.
 ///

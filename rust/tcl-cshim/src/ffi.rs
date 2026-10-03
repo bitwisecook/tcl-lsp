@@ -810,7 +810,7 @@ pub unsafe extern "C" fn tcl_reset_result(interp_ptr: *mut InterpState) {
 /// # Safety
 ///
 /// `interp` live; `result` NULL or terminated.
-#[unsafe(export_name = "TclShim_SetResultString")]
+#[unsafe(export_name = "TclHost_SetResultString")]
 pub unsafe extern "C" fn tclshim_set_result_string(
     interp_ptr: *mut InterpState,
     result: *const c_char,
@@ -828,7 +828,7 @@ pub unsafe extern "C" fn tclshim_set_result_string(
 /// # Safety
 ///
 /// `interp` live; `piece` NULL or terminated.
-#[unsafe(export_name = "TclShim_AppendResultString")]
+#[unsafe(export_name = "TclHost_AppendResultString")]
 pub unsafe extern "C" fn tclshim_append_result_string(
     interp_ptr: *mut InterpState,
     piece: *const c_char,

@@ -176,34 +176,41 @@ fn provide(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result_bytes(&v);
             Code::Ok
         }
-        4 => {
-            let name = obj_bytes(argv[2]);
-            let version = obj_bytes(argv[3]);
-            if !valid_version(&version, interp.runtime_version()) {
-                return invalid_version(interp, &version);
-            }
-            let existing = interp.packages.borrow().provided.get(&name).cloned();
-            if let Some(existing) = existing {
-                if compare_versions(&existing, &version, interp.runtime_version())
-                    != core::cmp::Ordering::Equal
-                {
-                    let mut message = b"conflicting versions provided for package \"".to_vec();
-                    message.extend_from_slice(&name);
-                    message.extend_from_slice(b"\": ");
-                    message.extend_from_slice(&existing);
-                    message.extend_from_slice(b", then ");
-                    message.extend_from_slice(&version);
-                    return interp.error_with_code(&message, b"TCL PACKAGE VERSIONCONFLICT");
-                }
-                interp.set_result_bytes(b"");
-                return Code::Ok;
-            }
-            interp.packages.borrow_mut().provided.insert(name, version);
-            interp.set_result_bytes(b"");
-            Code::Ok
-        }
+        4 => provide_package(interp, &obj_bytes(argv[2]), &obj_bytes(argv[3])),
         _ => interp.wrong_args(b"package provide name ?version?"),
     }
+}
+
+/// `package provide name version`, and `Tcl_PkgProvideEx`: the version is
+/// validated for the release the interpreter emulates, and one already provided
+/// at another version is refused with Tcl's error.
+pub(crate) fn provide_package(interp: &mut Interp, name: &[u8], version: &[u8]) -> Code {
+    if !valid_version(version, interp.runtime_version()) {
+        return invalid_version(interp, version);
+    }
+    let existing = interp.packages.borrow().provided.get(name).cloned();
+    if let Some(existing) = existing {
+        if compare_versions(&existing, version, interp.runtime_version())
+            != core::cmp::Ordering::Equal
+        {
+            let mut message = b"conflicting versions provided for package \"".to_vec();
+            message.extend_from_slice(name);
+            message.extend_from_slice(b"\": ");
+            message.extend_from_slice(&existing);
+            message.extend_from_slice(b", then ");
+            message.extend_from_slice(version);
+            return interp.error_with_code(&message, b"TCL PACKAGE VERSIONCONFLICT");
+        }
+        interp.set_result_bytes(b"");
+        return Code::Ok;
+    }
+    interp
+        .packages
+        .borrow_mut()
+        .provided
+        .insert(name.to_vec(), version.to_vec());
+    interp.set_result_bytes(b"");
+    Code::Ok
 }
 
 /// `package require ?-exact? name ?requirement ...?`.

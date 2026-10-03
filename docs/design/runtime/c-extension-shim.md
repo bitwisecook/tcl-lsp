@@ -408,7 +408,7 @@ Three header conventions carry the C-side mangling:
 - **Variadics are inline C.** Stable Rust cannot define a C variadic, so
   `Tcl_AppendResult`, `Tcl_SetErrorCode`, and `Tcl_SetResult` are
   `static inline` functions in the header that fan out into fixed-arity
-  exports (`TclShim_AppendResultString`, `TclShim_SetResultString`, and the
+  exports (`TclHost_AppendResultString`, `TclHost_SetResultString`, and the
   ordinary `Tcl_SetObjErrorCode`). `Tcl_SetResult` resolves the freeing
   convention there too: the string is always copied, `TCL_DYNAMIC` is freed
   with the C allocator, any other procedure is called.
@@ -490,8 +490,10 @@ The header is held to the shim from the other side by
 `make check-c-extension-wasm` ([c-extension-abi.md](c-extension-abi.md) § 7):
 every function the native leg declares is one `src/ffi.rs` exports and every
 function it exports is declared, and `pkga.c`, `doors.c` and `layout.c` compile for
-`wasm32` against the header, `pkga.c` and `doors.c` against both legs at once
-and each refused by the WASM leg alone.
+`wasm32` against the header: `pkga.c` against the WASM leg alone and against both
+legs at once, and `doors.c` against both legs at once and refused by the WASM leg
+alone. The vectors are kept in `tests/vectors/pkga.rs`, which the WASM runtime's
+own test of `pkga.c` includes as well.
 
 ## Out of scope
 

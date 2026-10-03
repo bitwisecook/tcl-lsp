@@ -9,9 +9,11 @@ code, with no per-extension shim.
 > describes is only partly shipped. The authored `tcl.h` is
 > `runtime/rust/include/tcl.h`: it declares the subset each of its two hosts
 > implements (§ 7), and there is no authored `tclOO.h` or `tclTomMath.h`.
-> `runtime/rust/src/capi.rs` exports the runtime's half of that subset — object
-> construction and reading, `TclFreeObj`, the interpreter result and command
-> registration — and the rest of the C API is not exported. Derive anything
+> `runtime/rust/src/capi.rs` exports the runtime's half of that subset — command
+> registration, object construction and copying, the scalar reads and the
+> option-table lookup, lists, `TclFreeObj`, the interpreter's result and error
+> state, the package call and two UTF-8 helpers — and the rest of the C API is
+> not exported. Derive anything
 > else from this document. The per-function ownership and error-path
 > categories live in
 > [`c-api-ownership-contract.md`](c-api-ownership-contract.md).
@@ -298,18 +300,22 @@ checks a source against the header and names no host, since none implements the
 union. `rust/tcl-cshim/tests/pkga_e2e.rs`'s expectations, captured against
 Tcl 9.0.4's own `tcl.h`, are the shared conformance vectors.
 
-Both legs declare command registration (`Tcl_CreateObjCommand`,
-`Tcl_DeleteCommand`), `Tcl_NewStringObj` / `Tcl_NewWideIntObj` /
-`Tcl_NewBooleanObj` / `Tcl_NewDoubleObj`, `Tcl_GetString`,
-`Tcl_GetStringFromObj`, `Tcl_SetObjResult`, `Tcl_GetObjResult` and `TclFreeObj`,
-with the `Tcl_Obj` layout of § 4.2 and the reference-count macros over it. The
-WASM leg adds `Tcl_NewObj`; the native leg adds the scalar and list accessors,
-the error state, `Tcl_AppendResult` and its siblings, the package call, the
-calls that read, write and unset a variable of the caller's frame and evaluate a
-script there (`Tcl_GetVar2Ex`, `Tcl_ObjSetVar2`, `Tcl_UnsetVar2`,
-`Tcl_EvalObjEx`) and the two UTF-8 helpers the shim implements. A source built
-with `-DTCL_MAJOR_VERSION=8` sees `Tcl_Size` as `int`, as an 8.x source does,
-with inline wrappers for the functions that write a size through a pointer.
+Both legs declare what the test extension `tests/c/pkga.c` calls: command
+registration (`Tcl_CreateObjCommand`, `Tcl_DeleteCommand`), object construction
+and copying, the scalar reads (`Tcl_GetIntFromObj` and its siblings) and the
+option-table lookup (`Tcl_GetIndexFromObjStruct`, and `Tcl_GetIndexFromObj` as
+its macro), the three list calls, the interpreter's result and error state
+(`Tcl_SetObjResult`, `Tcl_GetObjResult`, `Tcl_ResetResult`, `Tcl_WrongNumArgs`,
+`Tcl_SetObjErrorCode`, and `Tcl_SetResult`, `Tcl_AppendResult` and
+`Tcl_SetErrorCode` as inline functions over two fixed-arity exports,
+`TclHost_SetResultString` and `TclHost_AppendResultString`), the package call,
+the two UTF-8 helpers and `TclFreeObj`, with the `Tcl_Obj` layout of § 4.2 and
+the reference-count macros over it. The WASM leg adds `Tcl_NewObj`; the native
+leg adds the calls that read, write and unset a variable of the caller's frame
+and evaluate a script there (`Tcl_GetVar2Ex`, `Tcl_ObjSetVar2`, `Tcl_UnsetVar2`,
+`Tcl_EvalObjEx`). A source built with `-DTCL_MAJOR_VERSION=8` sees `Tcl_Size` as
+`int`, as an 8.x source does, with inline wrappers for the functions that write a
+size through a pointer.
 
 `make check-c-extension-wasm` (`scripts/check_c_extension_wasm.py`, part of
 `xtask-check`) holds the header to its two hosts. Offline, it reads each leg's
@@ -320,15 +326,19 @@ against the WASM leg, and the `export_name` functions of
 `Tcl_DecrRefCount` stands for an export without being declared. With wasi-sdk's
 `clang` it compiles for `wasm32-wasip1`: `tests/c/layout.c`, whose static
 assertions are the 24-byte `Tcl_Obj` layout; the shim's test extensions
-`tests/c/pkga.c`, against both legs at once and as an 8.x source, and
-`tests/c/doors.c`, against both legs at once; and the leg a compile with no host
-named gets, on a wasm32 target and on one that is not. Four of those compiles
-are negatives and must be refused: `pkga.c` and `doors.c` against the WASM leg
-alone, which each call functions only the shim implements, and each default
-leg's call to a function only the other declares. Without wasi-sdk the compiles
-are skipped, unless `TCL_REQUIRE_WASM_LINK` is set, as it is in the CI job that
-installs the toolchain. Neither extension is linked with the runtime: the WASM
-leg declares what the runtime exports, which is less than `pkga.c` calls.
+`tests/c/pkga.c`, against the WASM leg alone and against both legs at once, each
+also as an 8.x source, and `tests/c/doors.c`, against both legs at once; and the
+leg a compile with no host named gets, on a wasm32 target and on one that is not.
+Three of those compiles are negatives and must be refused: `doors.c` against the
+WASM leg alone, which calls the frame functions only the shim implements, and
+each default leg's call to a function only the other declares. Without wasi-sdk
+the compiles are skipped, unless `TCL_REQUIRE_WASM_LINK` is set, as it is in the
+CI job that installs the toolchain. The runtime's own test,
+`runtime/rust/tests/pkga_extension.rs`, compiles `pkga.c` for the host against
+the WASM leg, loads it through the runtime's exports and holds it to the
+conformance vectors; two of them differ, because the runtime keeps a NUL inside
+a value as one byte where C Tcl keeps it as `C0 80`, so C code that reads such a
+value as a C string stops at it.
 
 Source of truth for "what the API surface must cover": the 25-extension survey.
 **~85–90% of real extensions are public-`tcl.h`-only.**
