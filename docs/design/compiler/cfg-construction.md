@@ -155,7 +155,8 @@ break / continue targets through `switch_jump` blocks.
 **`try` / `catch`** (`lower_try_dispatch` → `lower_try`) — the body,
 handlers, and `finally` clause are lowered into `try_body`,
 `try_handler`, `try_ok`, `try_finally`, `try_after_finally`, and `try_end`
-blocks.  A `catch` in a procedure whose script is straight-line statements
+blocks, and in analysis builds the body into a `try_step` block per statement
+(§ *Exception edges*).  A `catch` in a procedure whose script is straight-line statements
 and whose result and options words are plain local names is lowered into
 `catch_body`, `catch_step` and `catch_end` blocks (`lower_catch`): in analysis
 builds each statement ends a block that an exception edge leaves for the end
@@ -309,6 +310,36 @@ The edges are not added without a `finally`:
 there the tail really is unreachable on those paths, because the exception
 resumes unwinding past it.
 
+Any command of a `try` body may fail, at any depth, and what the body has
+stored when it does is what a handler or the `finally` clause runs over.  So in
+an analysis build the body is a protected region whose scripts split into a
+block per statement (`try_step` blocks), as a flattened `catch` body's do: the
+body's own statements and those of every script it holds — an `if` or
+`switch` arm, a loop body, a handler or the `finally` of a nested `try` — save
+a nested `try` or `catch` body, which is a region of its own.  The exit of a
+block a split ends is a point a throw may leave from, for two reasons: a
+statement of the block may leave after its own stores, with any code, and the
+next statement may fail before it stores.  No edge is recorded where neither
+can happen: a literal assignment raises before it stores if it raises at all,
+and a `catch` or a `try` with a `finally` runs a clause of its own before a
+failure inside it leaves.  Each live handler group takes the points (a literal
+assignment's error only where some member may take an error), and the
+`finally` clause takes them
+where no handler certainly takes the failure (`HandlerChain::first_taking`) —
+any command but a literal assignment may complete with any code — together with
+a region entry from the block before the body, unless the body's first
+statement completes from the state before it or runs a clause of its own.
+Without these, `try {set x 2; foo; set x 3} finally {puts $x}` printed `3` once
+optimised where tclsh prints `2` when `foo` raises.  A nested `try` with no
+`finally` hands its body's points to the region around it, since a completion
+none of its handlers takes leaves from where the body left.  A statement that
+completes with its code from the state before it — a `return`, a `break` or
+`continue` a loop takes, an `error` or `exit`, with words that substitute
+nothing — stays in the block before it, and the body's first statements are
+read as one run when a handler is matched against their exact completion
+(`entry_run_statements`), so `set z 0; error boom` is still an error an `on
+error` handler takes whole.  The codegen build splits nothing.
+
 A handler's variables are bound by a statement at the top of its block that
 defines them, and since the IR keeps no span for the variable list, the
 statement carries the span of the whole `try`.  A handler that never runs — one
@@ -341,8 +372,9 @@ block is `entry_1`).  The prefixes are:
 - `foreach_header`, `foreach_body`, `foreach_latch`, `foreach_end`
 - `switch_next`, `switch_arm_body`, `switch_default`, `switch_end`,
   `switch_cont`, `switch_jump`, `switch_jump_dead`
-- `try_body`, `try_handler`, `try_ok`, `try_finally`,
+- `try_body`, `try_step`, `try_handler`, `try_ok`, `try_finally`,
   `try_after_finally`, `try_end`
+- `catch_body`, `catch_step`, `catch_end`
 
 ### Worked example — `set x 1; if {$x} { set y 10 }`
 

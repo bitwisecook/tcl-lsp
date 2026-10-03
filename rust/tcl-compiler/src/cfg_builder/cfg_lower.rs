@@ -982,7 +982,7 @@ impl CfgBuilder<'_> {
         (chain, group): (&HandlerChain, &[usize]),
         (handler_block, block_name, body_block): (&str, &str, &str),
         body_tail: Option<&str>,
-        body_throw_blocks: &[String],
+        (body_throw_blocks, split_points): (&[String], &[super::SplitPoint]),
         body_terminal: Option<&str>,
     ) {
         if !self.faithful_exceptions || group.is_empty() {
@@ -1033,6 +1033,9 @@ impl CfgBuilder<'_> {
             for src in throw_sources {
                 self.exception_edges.push((src, handler_block.to_owned()));
             }
+            self.push_split_failure_edges(handler_block, split_points, |code| {
+                group.iter().any(|&member| !chain.misses(member, code))
+            });
         } else {
             self.exception_edges
                 .push((block_name.to_owned(), handler_block.to_owned()));
@@ -1061,6 +1064,109 @@ impl CfgBuilder<'_> {
                         .push((tb.clone(), handler_block.to_owned()));
                 }
             }
+            self.push_split_failure_edges(handler_block, split_points, |code| {
+                group.iter().any(|&member| !chain.misses(member, code))
+            });
+        }
+    }
+
+    /// Record an exception edge into `target` from each point a throw may
+    /// leave the body from for it, where the edge is not there already. The
+    /// state at the point is the one a statement before it completes with when
+    /// it leaves abnormally after its own stores, with any code, and the one
+    /// the next statement fails with when it fails before it stores — an error
+    /// alone from a literal assignment, for which `takes` says whether the
+    /// target may take it. A codegen build records none.
+    fn push_split_failure_edges(
+        &mut self,
+        target: &str,
+        points: &[super::SplitPoint],
+        takes: impl Fn(tcl_core_types::Code) -> bool,
+    ) {
+        if !self.faithful_exceptions {
+            return;
+        }
+        for point in points {
+            if !point.after_stores && !point.next_fails_for(&takes) {
+                continue;
+            }
+            let edge = (point.block.clone(), target.to_owned());
+            if !self.exception_edges.contains(&edge) {
+                self.exception_edges.push(edge);
+            }
+        }
+    }
+
+    /// Record the ways a failure of the body reaches the `finally` clause when
+    /// no handler takes it: from each point a throw may leave the body from,
+    /// and from the block before the body, an edge that opens where the body's
+    /// first command can fail before it stores (a region entry). A command
+    /// may fail with any code and no handler takes every code, so a handler
+    /// stands in for a point only where the failure is an error a handler
+    /// certainly takes ([`HandlerChain::first_taking`]). A first statement
+    /// that completes with its code from the state before it — `error boom`,
+    /// `exit 7` — leaves by its own block, which the clause is wired from
+    /// already, and one that runs a clause of its own first leaves through it.
+    /// Without these edges the clause ran over the state the body ends in
+    /// alone: `try {set x 2; foo; set x 3} finally {puts $x}` printed `3`
+    /// once optimised where tclsh prints `2` when `foo` raises.
+    fn push_finally_failure_edges(
+        &mut self,
+        (end_block, chain): (&str, &HandlerChain),
+        (block_name, body_block, first): (&str, &str, Option<&Statement>),
+        points: &[super::SplitPoint],
+    ) {
+        if !self.faithful_exceptions {
+            return;
+        }
+        let escapes = |code| chain.first_taking(code).is_none();
+        let entry = (block_name.to_owned(), end_block.to_owned());
+        let first_fails = first.is_some_and(|first| {
+            !self.leaves_from_the_state_before(first)
+                && match super::NextFailure::of(first) {
+                    super::NextFailure::Intercepted => false,
+                    super::NextFailure::Error => escapes(tcl_core_types::Code::Error),
+                    super::NextFailure::Any => true,
+                }
+        });
+        if first_fails && !self.exception_edges.contains(&entry) {
+            self.exception_edges.push(entry);
+            self.region_entries.push((
+                block_name.to_owned(),
+                end_block.to_owned(),
+                body_block.to_owned(),
+            ));
+        }
+        self.push_split_failure_edges(end_block, points, escapes);
+    }
+
+    /// Hand the ways the body of a `try` with no `finally` can leave to the
+    /// region around it: a completion none of its handlers takes leaves the
+    /// `try` from where the body left, so each of the body's points is a way
+    /// out of the enclosing body too. A `try` with a `finally` runs it first,
+    /// and the clause's own blocks are the enclosing region's.
+    fn escape_to_the_region_around(
+        &mut self,
+        points: &[super::SplitPoint],
+        throw_blocks: &[String],
+        ends: [Option<&str>; 2],
+    ) {
+        if !self.split_region.is_some_and(super::SplitRegion::nested) {
+            return;
+        }
+        let ways_out = throw_blocks
+            .iter()
+            .map(String::as_str)
+            .chain(ends.into_iter().flatten())
+            .map(|block| super::SplitPoint::any(block.to_owned()));
+        for point in points.iter().cloned().chain(ways_out) {
+            if !self
+                .split_points
+                .iter()
+                .any(|known| known.block == point.block)
+            {
+                self.split_points.push(point);
+            }
         }
     }
 
@@ -1075,12 +1181,11 @@ impl CfgBuilder<'_> {
     /// the `return` alone in `if_end`, but `$c` may raise first, and a failure
     /// in an earlier block has no edge of its own — the terminal block carries
     /// it (found in review). So only `entry`, the construct's own first block,
-    /// qualifies.
+    /// qualifies — with the steps an analysis build splits the construct's
+    /// first statements into after it, whose statements are read as one run
+    /// ([`Self::entry_run_statements`]).
     fn block_completion_code(&self, block: &str, entry: &str) -> Option<tcl_core_types::Code> {
-        if block != entry {
-            return None;
-        }
-        let statements = &self.blocks.get(block)?.statements;
+        let statements = self.entry_run_statements(block, entry)?;
         if self.plain_return_blocks.contains(block) {
             return statements
                 .is_empty()
@@ -1103,6 +1208,25 @@ impl CfgBuilder<'_> {
         });
         (before.is_empty() || (code == tcl_core_types::Code::Error && only_errors_before))
             .then_some(code)
+    }
+
+    /// The statements of `block` and of the blocks before it on the straight
+    /// run of split steps that begins at `entry`, in order: the construct's
+    /// first statements, which an analysis build gives a block each. `None`
+    /// when `block` is not on that run — a compound statement ends it, so in
+    /// `if {$c} {}; return ok` the `return` is past a block `$c` may raise in.
+    fn entry_run_statements(&self, block: &str, entry: &str) -> Option<Vec<&Statement>> {
+        let mut run = vec![block];
+        let mut at = block;
+        while at != entry {
+            at = self.split_parent.get(at)?;
+            run.push(at);
+        }
+        let mut statements = Vec::new();
+        for name in run.iter().rev() {
+            statements.extend(self.blocks.get(*name)?.statements.iter());
+        }
+        Some(statements)
     }
 
     /// The completion code of whatever ended `block`, when it is known: a
@@ -1338,12 +1462,80 @@ impl CfgBuilder<'_> {
         (targets, unwinds)
     }
 
+    /// Lower the body of the `try` `stmt` from `body_block` and send a body that
+    /// falls through on to `post_body`, returning what its handlers and its
+    /// `finally` clause are wired from. With no `finally`, the body's points
+    /// are ways out of the region around it too.
+    fn lower_try_body(&mut self, stmt: &Statement, body_block: &str, post_body: &str) -> TryBody {
+        let Statement::Try {
+            body,
+            body_span,
+            finally_body,
+            ..
+        } = stmt
+        else {
+            unreachable!("lower_try_body called with non-Try");
+        };
+        // Install a fresh throw-block list around the body so on-error edges
+        // are sourced from each explicit `error`/`throw` point (where the
+        // body's prior defs are live), not the pre-`try` block. Restore the
+        // outer list afterwards so a nested `try`'s throws aren't attributed
+        // to this handler.
+        let outer_throw_blocks = self.throw_blocks.take();
+        self.throw_blocks = Some(Vec::new());
+        // Any command of the body, at any depth, may fail, and what the body
+        // has stored when it does is what a handler or the `finally` clause
+        // runs over: in an analysis build each statement of the body and of
+        // the scripts it holds ends a block an exception edge leaves from.
+        let outer_region = std::mem::replace(
+            &mut self.split_region,
+            self.faithful_exceptions.then_some(super::SplitRegion::Try),
+        );
+        let outer_split_points = std::mem::take(&mut self.split_points);
+        let raw_body_tail = self.lower_script(body, body_block);
+        // Capture the body's terminating block *before* the handler bodies are
+        // lowered below (each overwrites `last_terminal_block`).  Used to source
+        // an on-error edge from a body that ended without an explicit
+        // `error`/`throw` (a bare `return`).
+        let body_terminal = self.last_terminal_block.take();
+        let split_points = std::mem::replace(&mut self.split_points, outer_split_points);
+        self.split_region = outer_region;
+        let body_throw_blocks = self.throw_blocks.take().unwrap_or_default();
+        self.throw_blocks = outer_throw_blocks;
+        // `lower_script` now always returns the resting block, so distinguish
+        // *normal fall-through* from a
+        // terminated body via `body_terminal` (set iff the body did not fall
+        // through — the former `body_tail.is_none()` signal). A terminated body
+        // must not edge to `post_body`, and the handler's on-error edge must be
+        // sourced from the throw block(s), not the pre-`try` block.
+        let body_tail = if body_terminal.is_none() {
+            raw_body_tail
+        } else {
+            None
+        };
+        if let Some(tail) = &body_tail {
+            self.ensure_goto(tail, post_body, Some(*body_span));
+        }
+        if finally_body.is_none() {
+            self.escape_to_the_region_around(
+                &split_points,
+                &body_throw_blocks,
+                [body_terminal.as_deref(), body_tail.as_deref()],
+            );
+        }
+        TryBody {
+            body_tail,
+            body_terminal,
+            body_throw_blocks,
+            split_points,
+        }
+    }
+
     /// Flatten `Statement::Try` into body → handlers → finally → end CFG.
     pub(super) fn lower_try(&mut self, stmt: &Statement, block_name: &str) -> String {
         let Statement::Try {
             span,
             body,
-            body_span,
             handlers,
             finally_body,
             finally_span,
@@ -1366,36 +1558,13 @@ impl CfgBuilder<'_> {
             self.new_block("try_ok")
         };
 
-        // Install a fresh throw-block list around the body so on-error edges
-        // are sourced from each explicit `error`/`throw` point (where the
-        // body's prior defs are live), not the pre-`try` block. Restore the
-        // outer list afterwards so a nested `try`'s throws aren't attributed
-        // to this handler.
-        let outer_throw_blocks = self.throw_blocks.take();
-        self.throw_blocks = Some(Vec::new());
         let first_body_id = self.block_ids.len();
-        let raw_body_tail = self.lower_script(body, &body_block);
-        // Capture the body's terminating block *before* the handler bodies are
-        // lowered below (each overwrites `last_terminal_block`).  Used to source
-        // an on-error edge from a body that ended without an explicit
-        // `error`/`throw` (a bare `return`).
-        let body_terminal = self.last_terminal_block.take();
-        let body_throw_blocks = self.throw_blocks.take().unwrap_or_default();
-        self.throw_blocks = outer_throw_blocks;
-        // `lower_script` now always returns the resting block, so distinguish
-        // *normal fall-through* from a
-        // terminated body via `body_terminal` (set iff the body did not fall
-        // through — the former `body_tail.is_none()` signal). A terminated body
-        // must not edge to `post_body`, and the handler's on-error edge must be
-        // sourced from the throw block(s), not the pre-`try` block.
-        let body_tail = if body_terminal.is_none() {
-            raw_body_tail
-        } else {
-            None
-        };
-        if let Some(tail) = &body_tail {
-            self.ensure_goto(tail, &post_body, Some(*body_span));
-        }
+        let TryBody {
+            body_tail,
+            body_terminal,
+            body_throw_blocks,
+            split_points,
+        } = self.lower_try_body(stmt, &body_block, &post_body);
 
         // A `-` (fallthrough) handler shares the next non-`-` handler's body.
         // Tcl binds the *matching* handler's variables when running that shared
@@ -1424,7 +1593,7 @@ impl CfgBuilder<'_> {
                 (&chain, &live_group),
                 (&handler_block, block_name, &body_block),
                 body_tail.as_deref(),
-                &body_throw_blocks,
+                (&body_throw_blocks, &split_points),
                 body_terminal.as_deref(),
             );
 
@@ -1437,8 +1606,11 @@ impl CfgBuilder<'_> {
         }
 
         self.try_entry = outer_entry;
-        if self.caught_by_handler(&body_block, &body_block, &chain, &handler_blocks) {
-            self.handler_caught.insert(body_block.clone());
+        // A split body's last step, where it leaves in a straight line, is the
+        // block a handler may catch whole.
+        let run_end = body_terminal.clone().unwrap_or_else(|| body_block.clone());
+        if self.caught_by_handler(&run_end, &body_block, &chain, &handler_blocks) {
+            self.handler_caught.insert(run_end);
         }
         // Success path reaches end.
         if !handlers.is_empty() {
@@ -1472,6 +1644,11 @@ impl CfgBuilder<'_> {
             first_body_id,
             &chain,
             &handler_blocks,
+        );
+        self.push_finally_failure_edges(
+            (&end_block, &chain),
+            (block_name, &body_block, body.statements.first()),
+            &split_points,
         );
         self.finish_try_finally(
             fb,
@@ -1855,9 +2032,15 @@ impl CfgBuilder<'_> {
         // Any command of the body may fail, and what the body has stored when
         // it does is the handler's state, so in an analysis build each
         // statement ends a block an exception edge leaves from.
-        self.split_script = self.faithful_exceptions;
+        let outer_region = std::mem::replace(
+            &mut self.split_region,
+            self.faithful_exceptions
+                .then_some(super::SplitRegion::Catch),
+        );
+        let outer_split_points = std::mem::take(&mut self.split_points);
         let raw_body_tail = self.lower_script(body, &body_block);
-        let split_blocks = std::mem::take(&mut self.split_blocks);
+        let split_points = std::mem::replace(&mut self.split_points, outer_split_points);
+        self.split_region = outer_region;
         let body_terminal = self.last_terminal_block.take();
         let body_throw_blocks = self.throw_blocks.take().unwrap_or_default();
         self.throw_blocks = outer_throw_blocks;
@@ -1889,7 +2072,7 @@ impl CfgBuilder<'_> {
         // this from `ensure_goto(block_name, &handler_block, …)`; a `catch`
         // has no handler block to edge to, so it is recorded here.
         let mut throw_sources: Vec<String> = vec![block_name.to_owned()];
-        throw_sources.extend(split_blocks);
+        throw_sources.extend(split_points.into_iter().map(|point| point.block));
         for tb in &body_throw_blocks {
             if !throw_sources.contains(tb) {
                 throw_sources.push(tb.clone());
@@ -1992,6 +2175,19 @@ impl CfgBuilder<'_> {
             foreach_groups: None,
         });
     }
+}
+
+/// What lowering a `try` body leaves for its handlers and its `finally`
+/// clause to be wired from.
+struct TryBody {
+    /// The block the body rests in, when it falls through.
+    body_tail: Option<String>,
+    /// The block the body ended in, when it did not fall through.
+    body_terminal: Option<String>,
+    /// The blocks an explicit `error` or `throw` of the body ends.
+    body_throw_blocks: Vec<String>,
+    /// The points a throw may leave the body from, in an analysis build.
+    split_points: Vec<super::SplitPoint>,
 }
 
 /// The names a `try` handler binds at the top of its block.

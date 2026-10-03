@@ -5408,6 +5408,16 @@ impl PrefixProgram {
         )
     }
 
+    /// The program with a store after its body in the `try` (8.6 on): the
+    /// body's statements are a block each, the handler is thrown to from the
+    /// state the failing command leaves, and the store after it never runs.
+    fn with_a_store_after_in_the_try(&self) -> String {
+        format!(
+            "proc p {{}} {{\n{}\ntry {{{}; set w 0}} on error {{m}} {{}}\n{}\n}}\np\n",
+            self.before, self.body, self.after
+        )
+    }
+
     /// What the analysis of `function` claims of `fact`: that it holds, a
     /// different value or binding, or nothing.
     fn claim(fact: &PrefixFact, function: &tcl_compiler::compilation_unit::FunctionUnit) -> Claim {
@@ -5471,7 +5481,10 @@ enum Claim {
 /// may-definitions, and a `catch` in a procedure with a one-block body is
 /// lowered into blocks — and in the faithful-exceptions build, which gives a
 /// `try` handler blocks and exception edges: an error after `k` stores leaves
-/// those `k` and nothing else, so the handler is thrown to with them. Each
+/// those `k` and nothing else, so the handler is thrown to with them, and so
+/// it is where a store after the body in the `try` splits it into blocks: the
+/// state before the failing command reaches the handler only where that
+/// command can fail before it stores. Each
 /// program prints what tclsh 8.4 to 9.1 print, before and after `tcl opt`, in
 /// every shape. Where a body's blocks are the analysis's own, what it proves
 /// is exact: the place written before the error holds the value it was given
@@ -5480,10 +5493,11 @@ enum Claim {
 #[test]
 fn the_prefix_rule_holds_in_both_builds() {
     for program in &PREFIX_PROGRAMS {
-        let (top, in_proc, handled) = (
+        let (top, in_proc, handled, split) = (
             program.at_the_top_level(),
             program.in_a_procedure(),
             program.with_a_handler(),
+            program.with_a_store_after_in_the_try(),
         );
         prints_under_releases_from(&top, program.printed, program.first);
         prints_under_releases_from(&in_proc, program.printed, program.first);
@@ -5493,11 +5507,12 @@ fn the_prefix_rule_holds_in_both_builds() {
             program.first
         };
         prints_under_releases_from(&handled, program.printed, handler_first);
+        prints_under_releases_from(&split, program.printed, handler_first);
 
         for dialect in ["tcl8.6", "tcl9.0"] {
             for fact in program.flattened {
                 // The body's blocks are the analysis's own: it proves the fact.
-                for source in [&in_proc, &handled] {
+                for source in [&in_proc, &handled, &split] {
                     let unit = unit_of(source, dialect);
                     let function = unit.procedures.get("::p").expect("the procedure");
                     assert_eq!(
@@ -6016,4 +6031,231 @@ fn a_handler_is_thrown_to_from_where_the_body_leaves() {
         }
         prints_under_releases_from(source, printed, "8.6");
     }
+}
+
+/// The ways a `try` body, or a script it holds, fails between two stores, each
+/// with what tclsh 8.6 to 9.1 print and the store a failure leaves, which is
+/// no dead store. `foo` raises with no argument and with `2`, and `p 1` sets
+/// `x` to 1 before the statement, so each program prints the value stored
+/// before the failure where the store after it would have given another.
+const BETWEEN_TWO_STORES: [(&str, &str, &str, &str); 16] = [
+    (
+        "a handler",
+        "try {set x 2; foo; set x 3} on error {} {puts $x}",
+        "2\n",
+        "set x 2",
+    ),
+    (
+        "a finally clause no handler stands in for",
+        "try {set x 2; foo; set x 3} finally {puts $x}",
+        "2\n",
+        "set x 2",
+    ),
+    (
+        "a finally clause, where the first command fails before it stores",
+        "try {set x [foo]; set x 3} finally {puts $x}",
+        "1\n",
+        "set x 1",
+    ),
+    (
+        "a handler and the clause after it",
+        "try {set x 2; foo; set x 3} on error {} {puts \"h $x\"} finally {puts \"f $x\"}",
+        "h 2\nf 2\n",
+        "set x 2",
+    ),
+    (
+        "a body that cannot fall through",
+        "try {set x 2; foo; set x 3; error boom} on error {} {puts $x}",
+        "2\n",
+        "set x 2",
+    ),
+    (
+        "an arm of an if",
+        "try {if {$c} {set x 2; foo; set x 3}} on error {} {puts $x}",
+        "2\n",
+        "set x 2",
+    ),
+    (
+        "an arm, with the clause",
+        "try {if {$c} {set x 2; foo; set x 3}} finally {puts $x}",
+        "2\n",
+        "set x 2",
+    ),
+    (
+        "a loop body",
+        "try {foreach i {1 2} {set x $i; foo $i; set x 9}} on error {} {puts $x}",
+        "2\n",
+        "set x $i",
+    ),
+    (
+        "a for loop",
+        "try {for {set i 0} {$i < 3} {incr i} {set x $i; foo $i}} on error {} {puts $x}",
+        "2\n",
+        "set x $i",
+    ),
+    (
+        "an arm of a switch",
+        "try {switch $c {1 {set x 2; foo; set x 3} default {set x 4}}} on error {} {puts $x}",
+        "2\n",
+        "set x 2",
+    ),
+    (
+        "a nested try no handler of which takes the error",
+        "try {try {set x 2; foo; set x 3} on break {} {}} on error {} {puts $x}",
+        "2\n",
+        "set x 2",
+    ),
+    (
+        "a nested try with no handler",
+        "try {try {set x 2; foo; set x 3}} on error {} {puts $x}",
+        "2\n",
+        "set x 2",
+    ),
+    (
+        "a handler of a nested try",
+        "try {try {error a} on error {} {set x 2; foo; set x 3}} on error {} {puts $x}",
+        "2\n",
+        "set x 2",
+    ),
+    (
+        "the clause of a nested try",
+        "try {try {error a} finally {set x 2; foo; set x 3}} on error {} {puts $x}",
+        "2\n",
+        "set x 2",
+    ),
+    (
+        "a trap",
+        "try {set x 2; foo; set x 3} trap {} {} {puts $x}",
+        "2\n",
+        "set x 2",
+    ),
+    (
+        "a handler a `-` handler hands its match to",
+        "try {set x 2; foo; set x 3} on error {m} - on ok {} {puts $x}",
+        "2\n",
+        "set x 2",
+    ),
+];
+
+/// A command of a `try` body may fail wherever it stands, at any depth, and a
+/// handler or the `finally` clause is thrown to with what the body has stored
+/// by then. Each statement of [`BETWEEN_TWO_STORES`] stores 2, calls `foo`,
+/// which raises, and stores another value: the handler or clause prints 2
+/// under tclsh 8.6 to 9.1, before and after the optimiser, and `set x 2` is
+/// no dead store. The optimiser had deleted it and forwarded the store after
+/// the failure: `try {set x 2; foo; set x 3} finally {puts $x}` became `puts
+/// 3`, and `set x 1; try {set x 2; foo; set x 1} on error {} {}; puts $x`
+/// printed `1`, since the handler and the clause were thrown to from the
+/// state before the body and at its end alone.
+#[test]
+fn a_try_body_is_thrown_to_from_between_its_stores() {
+    for (why, statement, printed, kept) in BETWEEN_TWO_STORES {
+        let source = format!(
+            "proc foo {{args}} {{if {{$args eq {{}} || [lindex $args 0] == 2}} {{error x}}}}\nproc p {{c}} {{\n    set x 1\n    {statement}\n}}\ncatch {{p 1}}\n"
+        );
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let (rewritten, _) = optimised(&source, dialect);
+            assert!(
+                rewritten.contains(kept),
+                "{why}: {dialect}: `{kept}`, the store a failure leaves, stays\n{rewritten}"
+            );
+        }
+        prints_under_releases_from(&source, printed, "8.6");
+    }
+    let issue = "proc foo {} {error x}\nproc p {} {\n    set x 1\n    try {set x 2; foo; set x 1} on error {} {}\n    puts $x\n}\np\n";
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        let held = last_value(issue, dialect, "::p", "x");
+        assert!(
+            !matches!(held, LatticeValue::Const(ConstValue::Int(1))),
+            "{dialect}: the handler may see 2, not a constant 1: {held:?}"
+        );
+    }
+    prints_under_releases_from(issue, "2\n", "8.6");
+}
+
+/// The blocks a `try` body is split into keep what the handlers and the clause
+/// were proved of it as one block. A statement that completes with its code
+/// from the state before it stays with the statement before it, and the first
+/// statements of the body read as one run: `set z 0; error boom` and `set a 1;
+/// set b 2; error boom` are an error an `on error` handler takes whole, so the
+/// clause around a nested `try` sees the name that handler binds (no W210).
+/// The clause is thrown to the state before a statement only where that
+/// failure escapes the handlers: a literal assignment raises an error alone,
+/// which an `on error` handler takes, and which an `on break` handler does not
+/// see at all, so a `break` it takes is still forwarded the value stored
+/// before it. And a statement that leaves after its own
+/// stores is thrown from the state it leaves, where the next command raises
+/// only after a store: `upfoo` writes `x` and raises before `lassign` runs, so
+/// the handler sees `a` still `old`, and where a `catch` follows it, which
+/// runs its own script first, so that the `on break` handler sees what a
+/// `return -code break` left. Each program prints what tclsh 8.6 to 9.1
+/// print, before and after the optimiser.
+#[test]
+fn a_split_try_body_keeps_what_its_handlers_were_proved() {
+    let programs = [
+        (
+            "proc p {} {\n    try { try {set z 0; error boom} on error {} {set x 1; return} finally {} } finally {puts $x}\n}\np\n",
+            "1\n",
+        ),
+        (
+            "proc p {} {\n    try { try {set a 1; set b 2; error boom} on error {} {set x 1; return} finally {} } finally {puts $x}\n}\np\n",
+            "1\n",
+        ),
+        (
+            "proc p {} {\n    try { try {set {[} 0; error boom} on error {} {set x 1; return} finally {} } finally {puts $x}\n}\np\n",
+            "1\n",
+        ),
+        (
+            "proc p {} {\n    try {set z 0; set y 1} on error {} {set y 2} finally {puts $y}\n}\np\n",
+            "1\n",
+        ),
+    ];
+    for (source, printed) in programs {
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            assert!(
+                !reports(source, dialect, DiagCode::W210),
+                "{dialect}: every path into the read binds it\n{source}"
+            );
+        }
+        prints_under_releases_from(source, printed, "8.6");
+    }
+    // A literal assignment raises an error if it fails at all, which an `on
+    // break` handler does not take: the handler sees `y` at 2 alone, and the
+    // optimiser forwards it, as it did before the body was split.
+    let breaks = "proc p {} {\n    foreach i {1} {\n        try {set y 1; set y 2; break} on break {} {puts $y}\n    }\n}\np\n";
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        let (rewritten, _) = optimised(breaks, dialect);
+        assert!(
+            rewritten.contains("puts 2"),
+            "{dialect}: the handler sees `y` at 2\n{rewritten}"
+        );
+    }
+    prints_under_releases_from(breaks, "2\n", "8.6");
+    let after_stores = "proc upfoo {} {upvar x x; set x 5; error boom}\nproc p {} {\n    array set b {k v}\n    set a old\n    try {upfoo; lassign {new second} a b} on error {} {puts $a}\n}\np\n";
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        let (rewritten, _) = optimised(after_stores, dialect);
+        assert!(
+            rewritten.contains("puts $a"),
+            "{dialect}: `a` is old or new where the handler runs\n{rewritten}"
+        );
+    }
+    prints_under_releases_from(after_stores, "old\n", "8.6");
+
+    // `upfoo` writes `x` and breaks; the `catch` after it runs its own script
+    // first, so only the statement's own stores make its block a point, and
+    // the `on break` handler sees `x` at 5, not the 1 before and after it.
+    let breaks_after_stores = "proc upfoo {} {upvar x x; set x 5; return -code break}\nproc p {} {\n    set x 1\n    try {upfoo; catch {set y 1}; set x 1} on break {} {puts $x}\n}\np\n";
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        let (rewritten, _) = optimised(breaks_after_stores, dialect);
+        assert!(
+            rewritten.contains("puts $x"),
+            "{dialect}: `x` is 1 or 5 where the handler runs\n{rewritten}"
+        );
+        let held = last_value(breaks_after_stores, dialect, "::p", "x");
+        assert!(
+            !matches!(held, LatticeValue::Const(ConstValue::Int(1))),
+            "{dialect}: the handler may see 5, not a constant 1: {held:?}"
+        );
+    }
+    prints_under_releases_from(breaks_after_stores, "5\n", "8.6");
 }

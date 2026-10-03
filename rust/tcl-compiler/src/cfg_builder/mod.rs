@@ -276,13 +276,18 @@ pub(crate) struct CfgBuilder<'a> {
     /// block that ends it and the `catch` written as a call
     /// ([`crate::cfg::Function::catch_ends`]).
     catch_ends: Vec<(String, String, Statement)>,
-    /// Whether the next script lowered gives each statement a block of its
-    /// own, so every point at which a flattened `catch` body can fail ends a
-    /// block an exception edge leaves from; the script's inner blocks are
+    /// The protected region being lowered in an analysis build — a flattened
+    /// `catch` body or a `try` body — whose scripts give each statement a
+    /// block of its own, so every point at which the body can fail ends a
+    /// block an exception edge leaves from; the region's inner blocks are
     /// collected in [`Self::split_blocks`].
-    split_script: bool,
-    /// The blocks a split script ends a statement in other than its last.
-    split_blocks: Vec<String>,
+    split_region: Option<SplitRegion>,
+    /// The points a throw may leave the region from: the blocks its scripts
+    /// end a statement in other than their last.
+    split_points: Vec<SplitPoint>,
+    /// For each block a split began, the block the statement before it ended
+    /// in: a region's first statements are the run from its first block.
+    split_parent: FxHashMap<String, String>,
     /// The subset of [`Self::exception_edges`] that resume a `break` /
     /// `continue` after a `finally` clause: `(the clause's last block, jump
     /// target)`. An enclosing `try … finally` reroutes them through its own
@@ -469,8 +474,9 @@ impl<'a> CfgBuilder<'a> {
             exception_edges: Vec::new(),
             region_entries: Vec::new(),
             catch_ends: Vec::new(),
-            split_script: false,
-            split_blocks: Vec::new(),
+            split_region: None,
+            split_points: Vec::new(),
+            split_parent: FxHashMap::default(),
             finally_jump_edges: Vec::new(),
             plain_return_blocks: FxHashSet::default(),
             total_interceptors: FxHashSet::default(),
@@ -1705,6 +1711,70 @@ impl<'a> CfgBuilder<'a> {
         true
     }
 
+    /// Whether `stmt` ends the block it is lowered into and leaves from the
+    /// state before it: a `return`, a `break` or `continue` a loop takes, or a
+    /// command that terminates the block (`error`, `throw`, `exit`, and in an
+    /// analysis build `tailcall`), each with words that substitute nothing, so
+    /// it stores nothing and cannot fail before it completes with its code. A
+    /// split region keeps such a statement in the block before it: the block's
+    /// exit is the state the statement leaves from, and the block's statements
+    /// are the run whose exact completion a handler is matched against
+    /// (`set z 0; error boom` completes with an error whichever command raises).
+    fn leaves_from_the_state_before(&self, stmt: &Statement) -> bool {
+        let literal = |word: &crate::ir::WordExpr| {
+            matches!(
+                word,
+                crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. }
+            )
+        };
+        match stmt {
+            Statement::Return {
+                value,
+                value_word,
+                braced,
+                ..
+            } => value.is_none() || *braced || value_word.as_ref().is_some_and(literal),
+            Statement::Call {
+                command,
+                canonical_command,
+                tokens,
+                ..
+            } => {
+                if self.plain_command_dispatch
+                    || !tokens
+                        .as_ref()
+                        .is_some_and(|tokens| tokens.word_exprs.iter().all(literal))
+                {
+                    return false;
+                }
+                let canon = canonical_command.as_deref().unwrap_or(command);
+                let jumps = !self.loop_stack.is_empty()
+                    && (self.command_classes.is_loop_break_command(command)
+                        || self.command_classes.is_loop_continue_command(command));
+                jumps
+                    || self.command_classes.is_block_terminating_command(canon)
+                    || (self.faithful_exceptions && self.command_classes.is_tailcall_command(canon))
+            }
+            _ => false,
+        }
+    }
+
+    /// The point a split ends at `ended`, where `next` is the statement after
+    /// it: a statement of `ended` may leave after its own stores, unless each
+    /// is a literal assignment, which raises before it stores if it raises at
+    /// all — a block with no statement joins paths that may — and `next` may
+    /// fail before it stores ([`NextFailure::of`]).
+    fn split_point(&self, ended: String, next: &Statement) -> SplitPoint {
+        let after_stores = self.blocks.get(&ended).is_none_or(|block| {
+            block.statements.is_empty() || !block.statements.iter().all(is_literal_assignment)
+        });
+        SplitPoint {
+            block: ended,
+            after_stores,
+            next: NextFailure::of(next),
+        }
+    }
+
     /// Push a non-control-flow statement into `current` (after upvar
     /// invalidation), promoting `error` / `throw` / `exit` (and, in analysis
     /// builds, `tailcall`) to a `Return` terminator so any following statements
@@ -1855,6 +1925,7 @@ impl<'a> CfgBuilder<'a> {
             .collect();
         self.finally_jump_edges.clear();
         self.plain_return_blocks.clear();
+        self.split_parent.clear();
         self.total_interceptors.clear();
         self.handler_caught.clear();
         self.unwinding_tails.clear();
@@ -2235,16 +2306,28 @@ impl<'a> CfgBuilder<'a> {
         // in orphan blocks, and the script does not fall through to its
         // caller — with the number of throw points recorded by then.
         let mut main_terminal: Option<(String, usize)> = None;
-        // The request is for this script alone, not for those it holds.
-        let split = std::mem::take(&mut self.split_script);
+        // A `catch` body's request is for this script alone, not for those it
+        // holds; a `try` body's holds for every script inside it.
+        let split = match self.split_region {
+            Some(region) if region.nested() => Some(region),
+            _ => self.split_region.take(),
+        };
 
         for (index, stmt) in script.statements.iter().enumerate() {
-            if split && index > 0 && self.block_mut(&current).terminator.is_none() {
-                let next = self.new_block("catch_step");
+            if let Some(region) = split
+                && index > 0
+                && self.block_mut(&current).terminator.is_none()
+                && !(region.selective() && self.leaves_from_the_state_before(stmt))
+            {
+                let next = self.new_block(region.step());
                 self.copy_command_boundary(block_name, &next);
                 self.ensure_goto(&current, &next, Some(stmt.span()));
-                self.split_blocks
-                    .push(std::mem::replace(&mut current, next));
+                self.split_parent.insert(next.clone(), current.clone());
+                let ended = std::mem::replace(&mut current, next);
+                let point = self.split_point(ended, stmt);
+                if !region.selective() || point.may_leave() {
+                    self.split_points.push(point);
+                }
             }
             // If the current block is already terminated, subsequent
             // statements are dead code.  Route them into a fresh orphan
@@ -3389,6 +3472,126 @@ pub(crate) enum Completion {
     LoopJump,
     /// `return` / `error` / `throw` / `exit` / `tailcall` — leaves the proc.
     ProcExit,
+}
+
+/// How a protected region's scripts split their statements into blocks in an
+/// analysis build, so that every point at which the region can fail ends a
+/// block an exception edge leaves from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum SplitRegion {
+    /// A flattened `catch` body: each of its straight-line statements, every
+    /// block a split ends a point the end block is thrown to from.
+    Catch,
+    /// A `try` body: each statement of it and of every script it holds, save
+    /// a nested `try` or `catch` body, which is a region of its own.
+    Try,
+}
+
+impl SplitRegion {
+    /// The prefix the blocks a split begins are named with.
+    pub(super) const fn step(self) -> &'static str {
+        match self {
+            Self::Catch => "catch_step",
+            Self::Try => "try_step",
+        }
+    }
+
+    /// Whether the scripts the region's statements hold — an `if` arm, a loop
+    /// body, a handler of a nested `try` — split too. A flattened `catch` body
+    /// is straight-line statements and holds none.
+    pub(super) const fn nested(self) -> bool {
+        matches!(self, Self::Try)
+    }
+
+    /// Whether a statement that leaves from the state before it stays in the
+    /// block before it ([`CfgBuilder::leaves_from_the_state_before`]), and a
+    /// block a split ends is a point a throw leaves from only where one may
+    /// ([`CfgBuilder::a_throw_may_leave_from`]): a `try`'s handlers select by
+    /// completion, so an edge one cannot take is a path that never runs.
+    pub(super) const fn selective(self) -> bool {
+        matches!(self, Self::Try)
+    }
+}
+
+/// A point a throw may leave a protected region from: the exit of a block a
+/// split ends.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct SplitPoint {
+    /// The block whose exit the point is.
+    pub(super) block: String,
+    /// Whether a statement of the block may leave after its own stores, with
+    /// any code.
+    pub(super) after_stores: bool,
+    /// How the statement after the block fails before it stores.
+    pub(super) next: NextFailure,
+}
+
+impl SplitPoint {
+    /// A point anything may leave from: a body's tail, a throw point, or a
+    /// point of a nested body that hands its ways out to the region around it.
+    pub(super) fn any(block: String) -> Self {
+        Self {
+            block,
+            after_stores: true,
+            next: NextFailure::Any,
+        }
+    }
+
+    /// Whether a throw may leave from the point at all.
+    pub(super) fn may_leave(&self) -> bool {
+        self.after_stores || self.next != NextFailure::Intercepted
+    }
+
+    /// Whether the statement after the point may fail before it stores with
+    /// a code a target takes when `takes` says so.
+    pub(super) fn next_fails_for(&self, takes: impl Fn(tcl_core_types::Code) -> bool) -> bool {
+        match self.next {
+            NextFailure::Intercepted => false,
+            NextFailure::Error => takes(tcl_core_types::Code::Error),
+            NextFailure::Any => true,
+        }
+    }
+}
+
+/// How a statement fails before it stores, for the state before it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum NextFailure {
+    /// It runs a clause of its own first — a `catch`, which takes every
+    /// completion of its script, or a `try` with a `finally`, whose clause is
+    /// the way out of it — so nothing leaves from the state before it.
+    Intercepted,
+    /// It raises an error if it fails at all: a literal assignment.
+    Error,
+    /// It may complete with any code.
+    Any,
+}
+
+impl NextFailure {
+    /// How `stmt` fails before it stores.
+    pub(super) fn of(stmt: &Statement) -> Self {
+        if matches!(
+            stmt,
+            Statement::Catch { .. }
+                | Statement::Try {
+                    finally_body: Some(_),
+                    ..
+                }
+        ) {
+            Self::Intercepted
+        } else if is_literal_assignment(stmt) {
+            Self::Error
+        } else {
+            Self::Any
+        }
+    }
+}
+
+/// Whether `stmt` assigns a literal to a name that substitutes nothing: it
+/// completes normally or raises `TCL_ERROR` (the name is an array, a write
+/// trace fails), never another code, and it raises before it stores.
+pub(super) fn is_literal_assignment(stmt: &Statement) -> bool {
+    matches!(stmt, Statement::AssignConst { name, name_braced, .. }
+        if *name_braced || !name.contains('['))
 }
 
 /// Whether `stmt` certainly ends the interpreter, running no enclosing
