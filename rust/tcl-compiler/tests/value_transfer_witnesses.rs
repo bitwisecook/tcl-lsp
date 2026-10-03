@@ -5617,6 +5617,126 @@ fn a_certain_error_outside_a_handler_claims_nothing() {
     }
 }
 
+/// A store in a `catch` body is taken as run only where its place is proved
+/// to take it. Tcl raises on a scalar store into an array and on an element
+/// store into a scalar, and `catch` observes the error, so where the analysis
+/// does not prove a variable's kind the script's completion is not exact and
+/// the `catch` is left unevaluated. The kind is read from before the body in
+/// every form: at the statement in the value form, before the marker that
+/// states what the body may write in the statement form, and at the exit of
+/// the block before a flattened body. The route had taken `set y 1` over a `y`
+/// that may be an array as run, so `p 1` printed `zero`, and at the top level
+/// the marker had made the array `b` either kind, so the program printed
+/// `empty`, where tclsh prints `c=1` and `error`. Where the kind is proved, the
+/// `catch` is still evaluated in each form, and the body's own earlier store
+/// decides the kind a later one needs.
+#[test]
+fn a_catch_body_store_is_run_only_where_its_place_is_proved_to_take_it() {
+    let value_form = "proc p {n} {\n    if {$n} {array set y {a 1}}\n    set c [catch {set y 1}]\n    if {$c == 0} {return zero}\n    return \"c=$c\"\n}\nputs [p 1]\nputs [p 0]\n";
+    let flattened = "proc p {n} {\n    if {$n} {array set y {a 1}}\n    catch {set y 1} m\n    if {$m eq \"1\"} {return one}\n    return other\n}\nputs [p 1]\nputs [p 0]\n";
+    let top_level = "set a old\narray set b {k keep}\ncatch {lassign {new second} a b} m2\nif {$m2 eq \"\"} {puts empty} else {puts error}\nputs $a\n";
+    for dialect in DIALECTS {
+        assert_ne!(
+            last_value(value_form, dialect, "::p", "c"),
+            LatticeValue::Const(ConstValue::Int(0)),
+            "{dialect}: `y` may be an array"
+        );
+        let held = last_value(flattened, dialect, "::p", "m");
+        assert!(
+            !matches!(held, LatticeValue::Const(_)),
+            "{dialect}: `y` may be an array: {held:?}"
+        );
+        assert_ne!(
+            top_value_at(&unit_of(top_level, dialect), "m2", 1),
+            Some(text("")),
+            "{dialect}: `b` is an array"
+        );
+    }
+    prints_under_every_release(value_form, "c=1\nzero\n");
+    prints_under_every_release(flattened, "other\none\n");
+    prints_under_releases_from(top_level, "error\nnew\n", "8.5");
+
+    // The value form: the code each body completes with, where the kinds
+    // its stores need are proved (`Some`) or not (`None`), and what tclsh
+    // prints for it. An element store needs an array or nothing, which an
+    // earlier element store of the body proves; a scalar store after one
+    // raises.
+    let value_forms = [
+        ("set y 1", Some(0), "0"),
+        ("set y(a) 1; set y(b) 2", Some(0), "0"),
+        ("set y(a) 1; set y 2", None, "1"),
+    ];
+    for (body, code, printed) in value_forms {
+        let source = format!(
+            "proc p {{}} {{\n    set c [catch {{{body}}} m]\n    return $c\n}}\nputs [p]\n"
+        );
+        for dialect in DIALECTS {
+            let held = value_at(&unit_of(&source, dialect), "::p", "c", 1);
+            match code {
+                Some(code) => assert_eq!(
+                    held,
+                    Some(LatticeValue::Const(ConstValue::Int(code))),
+                    "{dialect}: {body}"
+                ),
+                None => assert!(
+                    !matches!(held, Some(LatticeValue::Const(_))),
+                    "{dialect}: {body}: {held:?}"
+                ),
+            }
+        }
+        prints_under_every_release(&source, &format!("{printed}\n"));
+    }
+    let into_an_array = "proc p {} {\n    array set y {k v}\n    set c [catch {set y(a) 1} m]\n    return $c\n}\nputs [p]\n";
+    let flattened_proved = "proc p {} {\n    catch {set v 1} r\n    return $r\n}\nputs [p]\n";
+    let top_proved = "set w 0\ncatch {set v 1; set w 2} r\nif {[info exists v]} {puts yes} else {puts no}\nputs \"$r $w\"\n";
+    for dialect in DIALECTS {
+        assert_eq!(
+            value_at(&unit_of(into_an_array, dialect), "::p", "c", 1),
+            Some(LatticeValue::Const(ConstValue::Int(0))),
+            "{dialect}"
+        );
+        assert_eq!(
+            last_value(flattened_proved, dialect, "::p", "r"),
+            LatticeValue::Const(ConstValue::Int(1)),
+            "{dialect}"
+        );
+        assert_eq!(
+            top_value_at(&unit_of(top_proved, dialect), "r", 1),
+            Some(LatticeValue::Const(ConstValue::Int(2))),
+            "{dialect}"
+        );
+    }
+    prints_under_every_release(into_an_array, "0\n");
+    prints_under_every_release(flattened_proved, "1\n");
+    prints_under_every_release(top_proved, "yes\n2 2\n");
+
+    // The body's own earlier store decides the kind a later one needs: a
+    // scalar then an element store raises, and an element then a scalar one.
+    let scalar_then_element =
+        "proc p {} {\n    catch {set y 1; set y(a) 2} m\n    return \"$m $y\"\n}\nputs [p]\n";
+    let element_then_scalar = "catch {set y(a) 1; set y 2} m\nputs \"$m [array exists y]\"\n";
+    for dialect in DIALECTS {
+        let held = last_value(scalar_then_element, dialect, "::p", "m");
+        assert!(
+            !matches!(held, LatticeValue::Const(_)),
+            "{dialect}: `y` is a scalar: {held:?}"
+        );
+        let held = top_value_at(&unit_of(element_then_scalar, dialect), "m", 1);
+        assert!(
+            !matches!(held, Some(LatticeValue::Const(_))),
+            "{dialect}: `y` is an array: {held:?}"
+        );
+    }
+    prints_under_every_release(
+        scalar_then_element,
+        "can't set \"y(a)\": variable isn't array 1\n",
+    );
+    prints_under_every_release(
+        element_then_scalar,
+        "can't set \"y\": variable is array 1\n",
+    );
+}
+
 /// A `try` body that cannot fall through is thrown to from the point it
 /// raises at, and its first command may fail before it stores anything, with
 /// the state the body entered with: after `try {set x [expr {1 / $d}]; error

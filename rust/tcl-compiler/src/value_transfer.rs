@@ -540,6 +540,12 @@ pub(crate) struct LatticeDriver<'a> {
     /// The function's flattened `catch` regions, by the name of the block that
     /// ends each ([`crate::cfg::Function::catch_ends`]).
     catch_ends: RefCell<HashMap<String, CatchEndRecord>>,
+    /// The existence rung where the scripts of the statement being evaluated
+    /// start, when it is not the point the statement stands at: before the
+    /// marker that states what a statement's scripts may write, and at the
+    /// exit of the block before a flattened `catch` body. An existence read
+    /// while it is set answers from it ([`Self::existence_fact`]).
+    body_entry: RefCell<Option<Vec<Existence>>>,
 }
 
 /// The lattice value of one member-wise evaluation: the constant `pick`
@@ -1042,6 +1048,7 @@ impl<'a> LatticeDriver<'a> {
             existence_external: RefCell::new(Vec::new()),
             existence_initial_global: trace.existence.is_some_and(|entry| entry.initial_global),
             catch_ends: RefCell::new(HashMap::new()),
+            body_entry: RefCell::new(None),
         }
     }
 
@@ -1196,6 +1203,23 @@ impl<'a> LatticeDriver<'a> {
             .and_then(|state| state.get(symbol.0 as usize).copied())
     }
 
+    /// The existence state at the current point, copied, when the run
+    /// computes existence.
+    pub(crate) fn existence_state(&self) -> Option<Vec<Existence>> {
+        self.existence.borrow().clone()
+    }
+
+    /// The existence state the scripts of the statement about to be
+    /// evaluated start from ([`LatticeDriver::body_entry`]), held while the
+    /// returned scope lives: dropping it clears the state, so no read after
+    /// the statement answers from it.
+    pub(crate) fn body_entry_scope(&self, state: Option<Vec<Existence>>) -> BodyEntryScope<'_> {
+        *self.body_entry.borrow_mut() = state;
+        BodyEntryScope {
+            entry: &self.body_entry,
+        }
+    }
+
     /// Advance `symbol`'s fact at the current point by `step`, returning
     /// the fact afterwards.
     pub(crate) fn existence_step(&self, symbol: Symbol, step: ExistenceStep) -> Option<Existence> {
@@ -1217,11 +1241,15 @@ impl<'a> LatticeDriver<'a> {
 
     /// The existence fact the place `name` holds at the current point, as
     /// an input view: `Unavailable` when the run computes none, or the name
-    /// is no symbol of the function.
+    /// is no symbol of the function. Where the statement's scripts start from
+    /// another state ([`LatticeDriver::body_entry`]) the fact is that state's.
     fn existence_fact(&self, ssa: &SsaFunction, name: &str) -> FactView {
         ssa.var_symbol(name)
             .or_else(|| self.existence_places.borrow().get(name).copied())
-            .and_then(|symbol| self.existence_now(symbol))
+            .and_then(|symbol| match self.body_entry.borrow().as_ref() {
+                Some(state) => state.get(symbol.0 as usize).copied(),
+                None => self.existence_now(symbol),
+            })
             .map_or(
                 FactView::Top(DeclineReason::Unavailable(self.context.tier)),
                 |fact| FactView::Domain(DomainFact::Existence(fact)),
@@ -1260,15 +1288,17 @@ impl<'a> LatticeDriver<'a> {
     /// statement that ends its region defines. That statement stands where the
     /// body's flow has joined and has no words, so the `catch` the analysis
     /// build kept beside it is evaluated as the statement form is, over the
-    /// state before the body: the body's own statements are in the flow, so
-    /// what the script wrote is not applied again, and a script that reads
-    /// what it writes finds it as it was. `None` for every other statement.
+    /// state before the body — the versions the block before the body exits
+    /// with, and the existence `exit_of` gives for that block: the body's own
+    /// statements are in the flow, so what the script wrote is not applied
+    /// again, and a script that reads what it writes finds it as it was.
+    /// `None` for every other statement.
     pub(crate) fn evaluate_catch_end<S: std::hash::BuildHasher>(
         &self,
-        block: &crate::ssa::SsaBlock,
-        index: usize,
+        (block, index): (&crate::ssa::SsaBlock, usize),
         values: &HashMap<ValueKey, LatticeValue, S>,
         ssa: &SsaFunction,
+        exit_of: impl FnOnce(crate::cfg::BlockId) -> Option<Vec<Existence>>,
     ) -> Option<DefValues> {
         if index != 0 {
             return None;
@@ -1288,6 +1318,9 @@ impl<'a> LatticeDriver<'a> {
             quoted_uses: HashSet::new(),
             name_only_uses: HashSet::new(),
         };
+        // The script runs over the existence the block before the body
+        // leaves, as it does over that block's versions.
+        let _entry = self.body_entry_scope(exit_of(entry));
         self.explaining(Some(shadow.statement.span()));
         let answer = self.evaluate_call(&shadow, values, ssa, &before);
         self.explaining(None);
@@ -3169,7 +3202,11 @@ impl<'a> LatticeDriver<'a> {
     /// empty one for a script with no command. A command that declines, a
     /// value that is not exact and a script that does not parse decline the
     /// whole: the completion of a script is the first of its commands that
-    /// does not complete normally, and each must be known to be past.
+    /// does not complete normally, and each must be known to be past. So must
+    /// each store a command made: a route takes a store the analysis does not
+    /// prove failing as the normal completion's, which a statement's normal
+    /// path may, but a script whose completion is observed declines where a
+    /// store's place is not proven to take it ([`proved_stores`]).
     ///
     /// An error a command's own word raises is not read here: that command
     /// declines, and the flag a statement's word raising sets is the
@@ -3218,6 +3255,7 @@ impl<'a> LatticeDriver<'a> {
             ) else {
                 return EvalAnswer::Declined(DeclineReason::Unsupported);
             };
+            let before = state.writes.len();
             let InvocationOutcome {
                 completion: ended,
                 result: value,
@@ -3226,6 +3264,9 @@ impl<'a> LatticeDriver<'a> {
                 Ok(outcome) => outcome,
                 Err(answer) => return answer,
             };
+            if let Err(answer) = proved_stores(&state.writes, before, from) {
+                return answer;
+            }
             match ended {
                 CompletionOutcome::Normal => result = value,
                 CompletionOutcome::Error {
@@ -5288,6 +5329,100 @@ fn element_place(base: &PlaceRef, key: &str) -> Result<PlaceRef, DeclineReason> 
             key: key.to_owned(),
         },
     })
+}
+
+/// The existence state a statement's scripts start from, set on the driver
+/// while this lives ([`LatticeDriver::body_entry_scope`]).
+pub(crate) struct BodyEntryScope<'d> {
+    entry: &'d RefCell<Option<Vec<Existence>>>,
+}
+
+impl Drop for BodyEntryScope<'_> {
+    fn drop(&mut self) {
+        *self.entry.borrow_mut() = None;
+    }
+}
+
+/// What a variable holds, as a store into it needs to know.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Held {
+    /// No binding.
+    Nothing,
+    /// A scalar.
+    Scalar,
+    /// An array.
+    Array,
+}
+
+/// Whether each store a protected script's state took from `from_index` on is
+/// one its place certainly takes, given the state's writes before it and the
+/// fact before the script ([`held_before`]): a scalar store into a variable
+/// that holds nothing or a scalar, an element store into one that holds
+/// nothing or an array. Tcl raises on any other, so where the analysis does
+/// not prove the variable's kind the store may fail and the script's
+/// completion is not exact.
+fn proved_stores<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+    writes: &[(PlaceRef, StoreOutcome)],
+    from_index: usize,
+    from: &LatticeInputs<'_, S1, S2>,
+) -> Result<(), EvalAnswer> {
+    for at in from_index..writes.len() {
+        let (place, store) = &writes[at];
+        if matches!(store, StoreOutcome::Preserve { .. }) {
+            continue;
+        }
+        let held = held_before(place.base(), &writes[..at], from)?;
+        let takes = if place.is_element() {
+            held != Held::Scalar
+        } else {
+            held != Held::Array
+        };
+        if !takes {
+            return Err(EvalAnswer::Declined(DeclineReason::NotExact));
+        }
+    }
+    Ok(())
+}
+
+/// What the variable `name` holds after `earlier`, a protected script's writes
+/// so far: the last of them that reaches it decides — a scalar write a scalar,
+/// an element write an array — and with none, the fact before the script.
+/// A write that may have happened, and a kind no fact proves, decline.
+fn held_before<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+    name: &str,
+    earlier: &[(PlaceRef, StoreOutcome)],
+    from: &LatticeInputs<'_, S1, S2>,
+) -> Result<Held, EvalAnswer> {
+    let unproven = || Err(EvalAnswer::Declined(DeclineReason::NotExact));
+    for (place, store) in earlier.iter().rev() {
+        if place.base() != name || matches!(store, StoreOutcome::Preserve { .. }) {
+            continue;
+        }
+        return match store {
+            StoreOutcome::Unbind { .. } if !place.is_element() => Ok(Held::Nothing),
+            StoreOutcome::Write { .. }
+            | StoreOutcome::WriteElement { .. }
+            | StoreOutcome::WriteUnavailable { .. } => Ok(if place.is_element() {
+                Held::Array
+            } else {
+                Held::Scalar
+            }),
+            _ => unproven(),
+        };
+    }
+    match from.prior_store(&PlaceRef::scalar(name), FactDomain::Existence) {
+        FactView::Domain(DomainFact::Existence(Existence::Unbound)) => Ok(Held::Nothing),
+        FactView::Domain(DomainFact::Existence(Existence::Bound(BindingKind::Scalar))) => {
+            Ok(Held::Scalar)
+        }
+        FactView::Domain(DomainFact::Existence(Existence::Bound(BindingKind::Array))) => {
+            Ok(Held::Array)
+        }
+        FactView::Pending | FactView::Domain(DomainFact::Existence(Existence::Pending)) => {
+            Err(EvalAnswer::Pending)
+        }
+        _ => unproven(),
+    }
 }
 
 /// A place for a normalised name.

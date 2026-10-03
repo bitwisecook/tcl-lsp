@@ -2224,12 +2224,21 @@ and runs `finally` on every path, so `catch {try {error a} finally {set f
 **What stays opaque, and why.** A body is evaluated concretely only when
 it is closed — every statement has a declared route, no barrier, no world
 effect, exact inputs — which is what `catch {expr {1/0}}` and `catch
-{incr absent}` are. Otherwise the body's facts are the tier's: in the
-default build the body is one call whose defs are `MayWrite`, whose
-result variable is a `Write` of an unavailable value, and whose inside is
-`Unavailable`; in the faithful-exceptions build each statement transfers
-as usual and every handler's entry state is the join of its throw
-sources' prefix states. Opaque in every build: an error raised inside an
+{incr absent}` are, and only when every store it makes lands on a place
+proved to take it. A route takes a store the analysis does not prove
+failing as its normal completion's, which is right for a statement's
+normal path, but `catch` observes the completion: Tcl raises on a scalar
+store into an array and an element store into a scalar, so a store whose
+place may hold the other kind leaves the body unevaluated. The kind is
+read as it stood before the body — at the statement for `[catch {…}]`,
+before the may-definitions of the body's writes for the statement form,
+and at the exit of the block before a body lowered into blocks — and
+after the body's own earlier writes. Otherwise the body's facts are the
+tier's: in the default build the body is one call whose defs are
+`MayWrite`, whose result variable is a `Write` of an unavailable value,
+and whose inside is `Unavailable`; in the faithful-exceptions build each
+statement transfers as usual and every handler's entry state is the join
+of its throw sources' prefix states. Opaque in every build: an error raised inside an
 invocation with `CompletionCodeDomain::Any` (every target of that
 invocation is `MayWrite` on the error edge), traces that run during the
 body, the text of `errorInfo`, a computed `-code`, and `bgerror`. The

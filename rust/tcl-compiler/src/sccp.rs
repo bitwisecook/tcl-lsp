@@ -2426,6 +2426,10 @@ fn sccp_process_statements(
 ) -> StatementsRun {
     let (mut changed, mut prepared) = (false, None);
     let mut exit = BlockExit::NORMAL;
+    // The existence a marker for what a statement's scripts may write finds,
+    // which is where those scripts start: the statement after the marker is
+    // evaluated over it.
+    let mut before_marker = None;
     for (index, stmt_ssa) in ssa_block.statements.iter().enumerate() {
         // A statement after one that certainly raises never runs: its
         // definitions keep what their places held.
@@ -2441,6 +2445,10 @@ fn sccp_process_statements(
         if let Some(at) = existence.as_deref_mut() {
             at.record_reads(index, stmt_ssa, driver);
         }
+        let scripts_start = before_marker.take();
+        if crate::ssa::is_arm_writes_marker(&stmt_ssa.statement) {
+            before_marker = driver.existence_state();
+        }
         if matches!(
             stmt_ssa.statement,
             Statement::Barrier { .. } | Statement::UpFrame { .. }
@@ -2452,10 +2460,15 @@ fn sccp_process_statements(
             );
             continue;
         }
+        let _entry = driver.body_entry_scope(scripts_start);
         // The statement is evaluated once, when a definition first needs
         // it: a call's ordered stores give each definition its own value.
         let mut evaluated = driver
-            .evaluate_catch_end(ssa_block, index, values, ssa)
+            .evaluate_catch_end((ssa_block, index), values, ssa, |entry| {
+                existence
+                    .as_deref()
+                    .and_then(|at| at.run.exits.get(&entry).cloned())
+            })
             .or_else(|| pair_answer(&mut prepared, (ssa_block, index), values, (ssa, driver)));
         // Where a throw leaves from, whether the statement raises is part of
         // what it does, so it is evaluated whatever its definitions need.
