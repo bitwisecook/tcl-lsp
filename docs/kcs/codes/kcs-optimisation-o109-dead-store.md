@@ -43,6 +43,7 @@ read by [O102](kcs-optimisation-o102-load-forwarding.md).
 - Skipped when the variable could be observed externally (e.g. via `upvar` or `trace`).
 - Skipped when an existence check or an unset observes the stored value — `info exists v`, `array exists v`, `unset v` or `array unset v`, whether it is a command of its own, a condition, or a `[…]` substitution inside another command — because removing the store changes the check's answer or makes the `unset` fail.
 - Skipped when a statement reads the variable beside a write its own `[…]` substitutions make. In `puts [expr {$x + [set x 10]}]` the first `$x` runs before the nested `set` overwrites `x`, so the store ahead of the statement still feeds it; a statement that only overwrites the variable (`puts [set x 2]`) does not keep it.
+- Skipped ahead of a `catch` or `try` body unless every path through the body overwrites the variable. A command can stop part-way: `lassign {new second} a b` assigns `a`, then raises if `b` is an array, so `set b old` before it stays when `a` may be an array, while `set a old` goes when the body is a `try` and `b` is an array, because `a` is overwritten on both paths.
 
 
 ## How to disable

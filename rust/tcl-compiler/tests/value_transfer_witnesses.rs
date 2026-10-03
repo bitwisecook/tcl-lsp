@@ -5911,6 +5911,95 @@ fn a_loop_absorbs_break_and_continue() {
     }
 }
 
+/// A store ahead of a write that may stop part-way is dead only where every
+/// path through the body overwrites it. `lassign` assigns its targets in
+/// order and raises at the first it cannot write, so a store into a target it
+/// reaches before the one that may fail is overwritten on every path, and a
+/// store into a target after it is not. O109 keeps `set b old` ahead of
+/// `lassign {new second} a b` where `a` may be or is an array, which leaves
+/// `b` old, keeps `set c old` ahead of `lassign {x y z} a b c` where `b` is an
+/// array, in a `try` and in `[catch {…}]`, since the command that raised
+/// preserved `c`, and deletes `set a old` ahead of `lassign {new second} a b`
+/// in a `try` where
+/// `b` is an array: the body's first command certainly raises after it stores
+/// `a`, so the solver leaves the edge from the block before the body to the
+/// handler closed, and no handler reads `old`. Every program prints what
+/// tclsh 8.5 (8.6 for `try`) to 9.1 prints before and after `tcl opt`.
+#[test]
+fn o109_refuses_the_store_ahead_of_a_partial_lassign() {
+    let kept = [
+        (
+            "proc p {c} {\n    if {$c} {array set a {k v}}\n    set b old\n    catch {lassign {new second} a b}\n    return $b\n}\nputs [p 0]\nputs [p 1]\n",
+            "second\nold\n",
+            "8.5",
+        ),
+        (
+            "proc p {} {\n    array set a {k v}\n    set b old\n    try {lassign {new second} a b} on error {} {}\n    return $b\n}\nputs [p]\n",
+            "old\n",
+            "8.6",
+        ),
+        (
+            "proc p {c} {\n    if {$c} {array set a {k v}}\n    set b old\n    try {lassign {new second} a b} on error {} {}\n    return $b\n}\nputs [p 0]\nputs [p 1]\n",
+            "second\nold\n",
+            "8.6",
+        ),
+        (
+            "proc p {} {\n    array set b {k v}\n    set c old\n    try {lassign {x y z} a b c} on error {} {}\n    return [list $c [info exists a]]\n}\nputs [p]\n",
+            "old 1\n",
+            "8.6",
+        ),
+        (
+            "proc p {} {\n    array set b {k v}\n    set c old\n    set r [catch {lassign {x y z} a b c} m]\n    if {[info exists c]} {lappend r $c}\n    return $r\n}\nputs [p]\n",
+            "1 old\n",
+            "8.5",
+        ),
+    ];
+    for (source, printed, first) in kept {
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            // The store stays while its variable is read: a read the
+            // optimiser forwards `old` into reads no store.
+            let (rewritten, rewrites) = optimised(source, dialect);
+            let kept = ["b", "c"].iter().all(|name| {
+                !source.contains(&format!("set {name} old"))
+                    || rewritten.contains(&format!("set {name} old"))
+                    || !rewritten.contains(&format!("${name}"))
+            });
+            assert!(
+                kept,
+                "{dialect}: the store `lassign` may never reach stays\n{rewritten}\n{rewrites:#?}"
+            );
+        }
+        prints_under_releases_from(source, printed, first);
+    }
+    // Deleted: a store every path overwrites, and one a raise preserved where
+    // nothing reads what it preserved.
+    let deleted = [
+        (
+            "proc p {} {\n    set a old\n    array set b {k keep}\n    try {lassign {new second} a b} on error {m} {}\n    return $a\n}\nputs [p]\n",
+            "set a old",
+            "new\n",
+        ),
+        (
+            "proc p {} {\n    array set b {k v}\n    set c old\n    try {lassign {x y z} a b c} on error {} {}\n    return done\n}\nputs [p]\n",
+            "set c old",
+            "done\n",
+        ),
+    ];
+    for (source, store, printed) in deleted {
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let (rewritten, rewrites) = optimised(source, dialect);
+            assert!(
+                !rewritten.contains(store)
+                    && rewrites
+                        .iter()
+                        .any(|rewrite| matches!(rewrite.code, DiagCode::O109 | DiagCode::O126)),
+                "{dialect}: `{store}` is dead\n{rewritten}\n{rewrites:#?}"
+            );
+        }
+        prints_under_releases_from(source, printed, "8.6");
+    }
+}
+
 /// A `try` body that cannot fall through is thrown to from the point it
 /// raises at, and its first command may fail before it stores anything, with
 /// the state the body entered with: after `try {set x [expr {1 / $d}]; error

@@ -2263,14 +2263,19 @@ promote to `Return` terminators through `TERMINATES_BLOCK`, and a decided
 `switch` arm that ends in one keeps that promotion.
 
 Consumers: the CFG builder's exception edges, the solver's per-path
-publication, the existence rung, W210 in handlers, O109 (today `tcl opt
---profile full` deletes `set a old` ahead of `catch {lassign {new second}
-a b} msg`, the #2051 shape through `catch`), and the Explorer's per-path
-view. Tests: `try_finally_creates_finally_block` and `try_with_handler`
-in `cfg_lower.rs` pin the faithful shape; the nine witnesses above and
-the `catch` code table are the fixed additions. Migration: slice 10,
-sequenced after slices 5, 8, and 9, whose exit criteria are the prefix
-rule through both builds and the O109 refusal.
+publication, the existence rung, W210 in handlers, O109, and the
+Explorer's per-path view. O109 removes a store ahead of a command that may
+stop part-way only where every path through the body overwrites it: a
+handler reads the state before the body only over the edge from the block
+before it, which the solver leaves closed where the body's first command
+certainly raises after a store, so `set a old` ahead of `try {lassign {new
+second} a b} on error {} {}` goes where `b` is an array — `lassign`
+writes `a` before it fails on `b` — and `set b old` ahead of the same body
+stays where `a` may be an array. Tests: `try_finally_creates_finally_block`
+and `try_with_handler` in `cfg_lower.rs` pin the faithful shape; the nine
+witnesses above, the `catch` code table and
+`o109_refuses_the_store_ahead_of_a_partial_lassign` are the fixed
+additions.
 
 ### Predicate refinement
 

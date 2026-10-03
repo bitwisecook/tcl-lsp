@@ -25,9 +25,11 @@
 //! - **O108** — transitively dead code. A side-effect-free def
 //!   whose every consumer was already eliminated (the ADCE
 //!   fixpoint on top of O109 / O126).
-//! - **O109** — dead stores (an SSA def whose chain is empty and
+//! - **O109** — dead stores (an SSA def with no use that can run and
 //!   whose variable has at least one later definition — the
-//!   write is overwritten before any read).
+//!   write is overwritten before any read; a φ's read over the edge
+//!   from the block before a `catch` or `try` body counts only where
+//!   the solver opens that edge, [`has_running_use`]).
 //! - **O126** — unused variable assignments (an SSA def whose
 //!   chain is empty and is the only / last def of that variable
 //!   — the value is never read). Skipped at the top level (the
@@ -698,7 +700,7 @@ fn emit_dead_stores_and_unused(
     let mut entries: Vec<DseEntry> = Vec::new();
 
     for chain in fu.def_use.chains.values() {
-        if !chain.is_dead() || chain.definition.kind != DefKind::Statement {
+        if has_running_use(fu, chain) || chain.definition.kind != DefKind::Statement {
             continue;
         }
         let Some(def_block) = fu.cfg.block_id(&chain.definition.block) else {
@@ -822,6 +824,75 @@ fn store_is_seen_elsewhere(
         || fu.ssa.name_is_observed_by_unseen_call(var, *version)
 }
 
+/// Whether `chain` has a use that can run. A use is a read of the value, save
+/// one a φ takes over the edge from the block before a `catch` or `try` body
+/// that the solver left closed: that edge carries the state before the body
+/// to the handler only where the body's first command can fail before it
+/// stores, and the solver opens it unless the command certainly raises after
+/// a store (the prefix rule), so a store the command overwrites on every path
+/// is read by no handler. Every other edge counts whether or not it runs. A
+/// store a later definition preserves is read wherever that definition is
+/// ([`preserved_and_read`]).
+fn has_running_use(fu: &FunctionUnit, chain: &crate::def_use::DefUseChain) -> bool {
+    preserved_and_read(fu, chain)
+        || chain.uses.iter().any(|site| {
+            site.kind != crate::def_use::UseKind::PhiIncoming || !over_a_closed_entry(fu, site)
+        })
+}
+
+/// Whether a definition that left `chain`'s place as it was — a command that
+/// raised before it reached the place, or whose outcome preserves it — is
+/// read. Such a definition holds the store before it, though no use links
+/// them: `lassign {x y z} a b c` raising at an array `b` leaves `c` as it was,
+/// in a `try` body and in `[catch {…}]` alike, so `set c old` before it is
+/// what a later read of `c` sees.
+fn preserved_and_read(fu: &FunctionUnit, chain: &crate::def_use::DefUseChain) -> bool {
+    let Some(symbol) = fu.ssa.var_symbol(&chain.key.0) else {
+        return false;
+    };
+    fu.sccp.preserved.iter().any(|(&(var, version), &prior)| {
+        var == symbol
+            && prior == chain.key.1
+            && fu
+                .def_use
+                .chain_for(&chain.key.0, version)
+                .is_some_and(|keeper| !keeper.is_dead())
+    })
+}
+
+/// Whether the φ-incoming `site` arrives only over region entries the solver
+/// left closed ([`has_running_use`]): every edge from its predecessor into a
+/// block whose φ takes the value is the edge from the block before a body to
+/// its handler, and none of them is executable.
+fn over_a_closed_entry(fu: &FunctionUnit, site: &crate::def_use::UseSite) -> bool {
+    let (Some(pred), Some(symbol)) = (
+        fu.cfg.block_id(&site.block),
+        fu.ssa.var_symbol(&site.variable),
+    ) else {
+        return false;
+    };
+    let targets: Vec<crate::cfg::BlockId> = fu
+        .ssa
+        .blocks
+        .iter()
+        .filter(|(_, block)| {
+            block
+                .phis
+                .iter()
+                .any(|phi| phi.name == symbol && phi.version == site.phi_version)
+        })
+        .map(|(&target, _)| target)
+        .collect();
+    !targets.is_empty()
+        && targets.iter().all(|&target| {
+            fu.cfg
+                .region_entries
+                .iter()
+                .any(|entry| entry.source == pred && entry.handler == target)
+                && !fu.sccp.executable_edges.contains(&(pred, target))
+        })
+}
+
 /// Classify one dead def-use chain as O109 (dead store) or O126 (unused
 /// variable), or `None` when it must not be reported. Extracted from
 /// [`emit_dead_stores_and_unused`].
@@ -836,7 +907,7 @@ fn dead_chain_code(
         .def_use
         .chains
         .iter()
-        .any(|(k, c)| k.0 == *var && k.1 != chain.key.1 && !c.is_dead());
+        .any(|(k, c)| k.0 == *var && k.1 != chain.key.1 && has_running_use(fu, c));
     if any_other_live {
         // Dead store — overwritten before read (another version has live
         // consumers). This fires regardless of textual mentions: a later
