@@ -221,7 +221,9 @@ Proc inference sees nothing from a compiled extension (`.c`/`.cpp` with
   each fact was read at. A registration whose name is computed is listed as
   dynamic and not given a name; a call to the TclOO C API or a C-built ensemble
   is listed as a call the scan cannot read, and the commands behind it are not in
-  the pack.
+  the pack. One pack is one extension: a directory whose sources define several
+  entry points (`Foo_Init`, `Bar_Init`) is refused with the list of them, and
+  `--entry Foo` describes the registrations in the functions `Foo_Init` reaches.
 - `tcl spec import --probe PACKAGE` requires the package in a real shell, under
   the package manager's policy (it runs the package: `tcl pkg trust PACKAGE`
   first), and lists the commands it added. Those rows have the provenance

@@ -2479,7 +2479,11 @@ flowchart LR
   (`Loaded::declared_surface`). A row carries `c-scan`, `probe` or both, and a
   note naming the line each proposal was read at. A stub's purity and mutation
   flags are workspace-authored facts honoured as declared under the third ruling,
-  and a declared fact narrows the default axis by axis.
+  and a declared fact narrows the default axis by axis. One description is one
+  extension: sources that define several entry points (`PREFIX_Init`) are
+  described one at a time, by naming the entry point (`--entry PREFIX`), each
+  with the registrations in the functions its entry point reaches by name, across
+  files, and with none named they are refused with the list of entry points.
 - **Run** natively through `rust/tcl-cshim` under a host opt-in `load`
   (`StaticExtensions`): Tcl 9's `load` for static libraries, over a table of
   the entry points the host has linked in and vouched for, registered on an

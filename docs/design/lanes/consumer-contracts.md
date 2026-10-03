@@ -8228,6 +8228,29 @@ everything else in this lane is independent of both.
   the runtime does not meet; it is reported, not fixed here, and the test pins
   each answer and asserts it is not C Tcl's, so a fix turns it red. The CI
   classifier for the runtime's job lists the two shim files the runtime now reads.
+- **D10.44** One description is one extension, and a source directory that holds
+  several is described one entry point at a time. `tcl spec import --c-source`
+  merged every file under the directory into one pack, named by the first package
+  it found. The shim's test directory has held two extensions since CC10.5
+  (`pkga.c`, entered at `Pkga_Init`, and `doors.c`, at `Doors_Init`, beside
+  `layout.c`, which has none), so the import over it described `doors` with
+  `pkga`'s commands mixed in, warned only that `pkga` was provided as well, and
+  the CLI's test of `pkga` failed. An extension is what `load` enters through one
+  `PREFIX_Init`, so the scan now records each entry point (a function defined as
+  `PREFIX_Init` or `PREFIX_SafeInit` whose prefix opens with a capital, the two
+  being one extension), the function each registration, package and unreadable
+  call is made in, and every name each function's body mentions. With several
+  entry points and none named the import refuses and lists them with file and
+  line; `--entry PREFIX` describes one, with what lies in the functions its entry
+  point reaches by those names, across files: a helper it calls, a command
+  procedure it registers, which may register more. A registration in a function
+  no entry point reaches is left out with a warning, since nothing says whose it
+  is. Sources with one entry point or none are described whole, as before. One
+  pack per entry point written by one run was rejected: a pack is one library, so
+  several in one output would be several `speclib` blocks where a reader expects
+  one, and naming the entry point keeps one run one pack. The CLI's tests name
+  `--entry Pkga` for the test extension and state the refusal and `--entry
+  Doors`.
 
 
 ### Open questions for the owner

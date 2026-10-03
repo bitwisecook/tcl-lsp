@@ -785,6 +785,14 @@ pub struct SpecImportArgs {
     )]
     pub c_source: Vec<PathBuf>,
 
+    /// The extension to describe when the `--c-source` sources hold several:
+    /// the prefix its entry point is named by, `PREFIX_Init` (`--entry Pkga`).
+    /// The description is then the commands, packages and unreadable calls in
+    /// the functions that entry point reaches. Sources that define more than one
+    /// entry point are refused without it, with the list of them.
+    #[arg(long = "entry", value_name = "PREFIX", requires = "c_source")]
+    pub entry: Option<String>,
+
     /// Describe an extension by requiring PACKAGE in a real shell and listing
     /// the commands it adds. The package runs, so it is held to the package
     /// manager's policy (`[build] allow-build-scripts` and `tcl pkg trust`),

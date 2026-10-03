@@ -40,6 +40,13 @@
 //!   the scan never narrows the conservative default for a command; it
 //!   reports what it saw.
 //!
+//! - **Entry points**: each function defined as `PREFIX_Init` (or
+//!   `PREFIX_SafeInit`), the procedure `load` calls, so a directory holding
+//!   several extensions can say which commands each one registers. Each call
+//!   above records the function whose body holds it, and each function the
+//!   names its body mentions, which is what ties a registration to the entry
+//!   points that reach it ([`CScan::references`]).
+//!
 //! It is blind, by declaration, to methods registered through the `TclOO` C API
 //! and to ensembles built in C: the calls that do either are reported as
 //! [`CBlindSpot`]s so the commands behind them are not mistaken for absent.
@@ -200,6 +207,8 @@ pub struct CDeclaredCommand {
     /// The C function registered, when the argument names one defined in the
     /// same text.
     pub procedure: Option<String>,
+    /// The function whose body makes the registration.
+    pub function: Option<String>,
     /// The usage messages the procedure raises, in source order.
     pub usage: Vec<CUsage>,
     /// The subcommand names of the option tables the procedure reads, in
@@ -218,6 +227,8 @@ pub struct CPackage {
     pub version: CName,
     /// The line of the call.
     pub line: usize,
+    /// The function whose body makes the call.
+    pub function: Option<String>,
 }
 
 /// A call the scan cannot read the effect of.
@@ -228,6 +239,20 @@ pub struct CBlindSpot {
     /// What it registers through, in words.
     pub through: &'static str,
     /// The line of the call.
+    pub line: usize,
+    /// The function whose body makes the call.
+    pub function: Option<String>,
+}
+
+/// An extension's entry point: a function defined as `PREFIX_Init` or
+/// `PREFIX_SafeInit`, which `load` calls for the library it loads.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CEntryPoint {
+    /// The prefix `load` names the extension by (`Pkga`).
+    pub prefix: String,
+    /// The function (`Pkga_Init`).
+    pub function: String,
+    /// The line it is defined at.
     pub line: usize,
 }
 
@@ -240,6 +265,13 @@ pub struct CScan {
     pub packages: Vec<CPackage>,
     /// The calls the scan is blind to.
     pub blind: Vec<CBlindSpot>,
+    /// The entry points the text defines, in source order.
+    pub entry_points: Vec<CEntryPoint>,
+    /// Each function the text defines, with every name its body mentions: the
+    /// functions it calls, and those it hands on by name (a command
+    /// procedure it registers, a callback). An entry point reaches a function
+    /// it names, and whatever that one names, across files.
+    pub references: BTreeMap<String, BTreeSet<String>>,
 }
 
 /// Scan `text`, one C source file, for the commands it registers.
@@ -250,6 +282,12 @@ pub fn scan_c_source(text: &str) -> CScan {
     let functions = functions(tokens);
     let tables = tables(tokens, &lexed.macros);
     let mut scan = CScan::default();
+    let enclosing = |index: usize| {
+        functions
+            .iter()
+            .find(|(_, body)| body.contains(&index))
+            .map(|(name, _)| name.clone())
+    };
     for index in 0..tokens.len() {
         let Tok::Ident(api) = &tokens[index].tok else {
             continue;
@@ -260,23 +298,65 @@ pub fn scan_c_source(text: &str) -> CScan {
                 api: api.clone(),
                 through,
                 line,
+                function: enclosing(index),
             });
         }
         let Some((args, _)) = call_arguments(tokens, index + 1) else {
             continue;
         };
         if REGISTRARS.contains(&api.as_str()) && args.len() >= 3 {
-            scan.commands
-                .push(registration(api, line, &args, &lexed, &functions, &tables));
+            let mut command = registration(api, line, &args, &lexed, &functions, &tables);
+            command.function = enclosing(index);
+            scan.commands.push(command);
         } else if PROVIDERS.contains(&api.as_str()) && args.len() >= 3 {
             scan.packages.push(CPackage {
                 name: name_of(args[1], &lexed.macros),
                 version: name_of(args[2], &lexed.macros),
                 line,
+                function: enclosing(index),
             });
         }
     }
+    for (name, body) in &functions {
+        let named = tokens[body.clone()]
+            .iter()
+            .filter_map(|token| match &token.tok {
+                Tok::Ident(name) => Some(name.clone()),
+                _ => None,
+            })
+            .collect();
+        scan.references.insert(name.clone(), named);
+        if let Some(prefix) = entry_prefix(name) {
+            // The line of the name, which is the token before the parameter
+            // list that precedes the body's opening brace.
+            let line = tokens[..body.start]
+                .iter()
+                .rev()
+                .find(|token| matches!(&token.tok, Tok::Ident(defined) if defined == name))
+                .map_or(0, |token| token.line);
+            scan.entry_points.push(CEntryPoint {
+                prefix: prefix.to_owned(),
+                function: name.clone(),
+                line,
+            });
+        }
+    }
+    scan.entry_points.sort_by_key(|entry| entry.line);
     scan
+}
+
+/// The prefix of an entry point's name — `Pkga` of `Pkga_Init` or
+/// `Pkga_SafeInit` — when `name` is one: a prefix that opens with a capital,
+/// as the one `load` builds the procedure name from does.
+fn entry_prefix(name: &str) -> Option<&str> {
+    let prefix = name
+        .strip_suffix("_SafeInit")
+        .or_else(|| name.strip_suffix("_Init"))?;
+    prefix
+        .chars()
+        .next()
+        .is_some_and(|first| first.is_ascii_uppercase())
+        .then_some(prefix)
 }
 
 /// The registration `api(interp, NAME, PROC, ...)` at `line`.
@@ -294,6 +374,7 @@ fn registration(
         api: api.to_owned(),
         line,
         procedure: procedure.clone(),
+        function: None,
         usage: Vec::new(),
         subcommands: Vec::new(),
         evidence: CEvidence::default(),
@@ -907,6 +988,42 @@ mod tests {
     /// the one call that changes the command table. The negative: a
     /// registration whose name is computed is a row marked dynamic, never an
     /// invented name, and the rows around it are unchanged.
+    /// The scan names each entry point with the line of its name, and each
+    /// registration, package and unreadable call with the function that makes
+    /// it; a function whose prefix does not open with a capital is not an entry
+    /// point (negative), and what each function's body names is recorded.
+    #[test]
+    fn the_scan_names_entry_points_and_the_function_each_call_is_in() {
+        let scan = scan_c_source(
+            "int\nPkga_Init(Tcl_Interp *interp)\n{\n    Tcl_PkgProvide(interp, \"pkga\", \"1.0\");\n    \
+             Tcl_CreateObjCommand(interp, \"x\", X, 0, 0);\n    Tcl_NewMethod(interp, c, n, 1, &t, 0);\n    \
+             return Helper(interp);\n}\nint my_Init(Tcl_Interp *interp) { return 0; }\n\
+             int Pkga_SafeInit(Tcl_Interp *interp) { return Pkga_Init(interp); }\n",
+        );
+        assert_eq!(
+            scan.entry_points,
+            [
+                CEntryPoint {
+                    prefix: "Pkga".to_owned(),
+                    function: "Pkga_Init".to_owned(),
+                    line: 2,
+                },
+                CEntryPoint {
+                    prefix: "Pkga".to_owned(),
+                    function: "Pkga_SafeInit".to_owned(),
+                    line: 10,
+                },
+            ]
+        );
+        let init = Some("Pkga_Init".to_owned());
+        assert_eq!(scan.commands[0].function, init);
+        assert_eq!(scan.packages[0].function, init);
+        assert_eq!(scan.blind[0].function, init);
+        assert!(scan.references["Pkga_Init"].contains("Helper"));
+        assert!(scan.references["Pkga_SafeInit"].contains("Pkga_Init"));
+        assert!(scan.references.contains_key("my_Init"));
+    }
+
     #[test]
     fn the_scan_finds_pkga_s_commands_and_provide() {
         let text = include_str!("../../../tcl-cshim/tests/c/pkga.c");

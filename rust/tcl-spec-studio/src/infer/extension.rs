@@ -30,8 +30,15 @@
 //! or [`ExtensionSource::Probe`] (the commands a sandboxed `package require`
 //! added to a real shell), or both, so a reviewer can tell what is read from
 //! what is observed and overrule either.
+//!
+//! One description is one extension: the commands one entry point's library
+//! registers. Sources that define several entry points (`Pkga_Init` in one
+//! file, `Doors_Init` in another) are several extensions, and are described one
+//! at a time, by naming the entry point ([`import_c_sources`]); each then has
+//! the registrations its entry point reaches, by the functions it names and
+//! those they name in turn.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::{Value, json};
 use tcl_registry::CommandSpec;
@@ -115,6 +122,8 @@ pub struct ExtensionImport {
     pub blind: Vec<String>,
     /// What the sources said that does not agree or does not read.
     pub warnings: Vec<String>,
+    /// The entry point the description is of, when one was named.
+    pub entry: Option<ExtensionEntry>,
 }
 
 impl ExtensionImport {
@@ -140,6 +149,12 @@ impl ExtensionImport {
             })).collect::<Vec<_>>(),
             "blind": self.blind.clone(),
             "warnings": self.warnings.clone(),
+            "entry": self.entry.as_ref().map(|entry| json!({
+                "prefix": entry.prefix,
+                "function": entry.function,
+                "file": entry.file,
+                "line": entry.line,
+            })),
         })
     }
 
@@ -177,15 +192,86 @@ impl ExtensionImport {
     }
 }
 
-/// Describe the commands the C sources in `files` register, from a scan of
-/// each.
-#[must_use]
-pub fn import_c_sources(files: &[SourceFile]) -> ExtensionImport {
+/// An extension's entry point in the sources: the prefix `load` names it by,
+/// and where its `PREFIX_Init` is defined (or its `PREFIX_SafeInit`, when that
+/// is the only one).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExtensionEntry {
+    /// The prefix (`Pkga`).
+    pub prefix: String,
+    /// The entry point's function (`Pkga_Init`).
+    pub function: String,
+    /// The file it is defined in.
+    pub file: String,
+    /// The line of its definition.
+    pub line: usize,
+}
+
+impl std::fmt::Display for ExtensionEntry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} ({}:{})", self.function, self.file, self.line)
+    }
+}
+
+/// Why the sources were not described: they define several extensions and
+/// none was named, or the one named is not among them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum UnchosenExtension {
+    /// Several entry points, in file and line order.
+    Several(Vec<ExtensionEntry>),
+    /// The prefix named, and the entry points the sources do define.
+    NotDefined {
+        /// The prefix named.
+        prefix: String,
+        /// The entry points defined, in file and line order.
+        defined: Vec<ExtensionEntry>,
+    },
+}
+
+/// Describe the commands an extension registers, from a scan of the C sources
+/// in `files`.
+///
+/// With `entry` `None`, the sources must hold one extension: every
+/// registration in them is described when they define one entry point or none,
+/// and [`UnchosenExtension::Several`] lists the entry points when they define
+/// more. With `entry` the prefix of one (`Pkga`), the description is that
+/// extension's: the registrations, packages and unreadable calls in the
+/// functions its entry point reaches, by the names each function's body
+/// mentions, across the files. A registration no entry point reaches is left
+/// out with a warning, since nothing in the sources says whose it is.
+///
+/// # Errors
+///
+/// [`UnchosenExtension`] when the sources are not one extension's and `entry`
+/// does not choose one of theirs.
+pub fn import_c_sources(
+    files: &[SourceFile],
+    entry: Option<&str>,
+) -> Result<ExtensionImport, UnchosenExtension> {
     let mut import = ExtensionImport::default();
     let scans: Vec<(&SourceFile, CScan)> = files
         .iter()
         .map(|file| (file, scan_c_source(&file.text)))
         .collect();
+    let entries = entry_points(&scans);
+    let scans = match entry {
+        None if entries.len() > 1 => return Err(UnchosenExtension::Several(entries)),
+        None => scans,
+        Some(prefix) => {
+            let Some(chosen) = entries.iter().find(|known| known.prefix == prefix) else {
+                return Err(UnchosenExtension::NotDefined {
+                    prefix: prefix.to_owned(),
+                    defined: entries,
+                });
+            };
+            import.entry = Some(chosen.clone());
+            let scope = Scope::of(&scans, &entries, prefix);
+            scans
+                .into_iter()
+                .map(|(file, scan)| (file, scope.narrow(file, scan, &mut import.warnings)))
+                .collect()
+        }
+    };
     choose_package(&mut import, &scans);
     for (file, scan) in &scans {
         for blind in &scan.blind {
@@ -204,7 +290,120 @@ pub fn import_c_sources(files: &[SourceFile]) -> ExtensionImport {
         }
     }
     import.commands.sort_by(|a, b| a.name.cmp(&b.name));
-    import
+    Ok(import)
+}
+
+/// The entry points the sources define, one per prefix (its `PREFIX_Init`
+/// rather than its `PREFIX_SafeInit`), in file and line order.
+fn entry_points(scans: &[(&SourceFile, CScan)]) -> Vec<ExtensionEntry> {
+    let mut entries: Vec<ExtensionEntry> = Vec::new();
+    for (file, scan) in scans {
+        for point in &scan.entry_points {
+            let entry = ExtensionEntry {
+                prefix: point.prefix.clone(),
+                function: point.function.clone(),
+                file: file.name.clone(),
+                line: point.line,
+            };
+            match entries
+                .iter_mut()
+                .find(|known| known.prefix == point.prefix)
+            {
+                Some(known) if known.function.ends_with("_SafeInit") => *known = entry,
+                Some(_) => {}
+                None => entries.push(entry),
+            }
+        }
+    }
+    entries
+}
+
+/// The functions one entry point reaches, and those any entry point reaches.
+struct Scope {
+    prefix: String,
+    chosen: BTreeSet<String>,
+    any: BTreeSet<String>,
+}
+
+impl Scope {
+    /// The scope of the extension `prefix` among `entries`.
+    fn of(scans: &[(&SourceFile, CScan)], entries: &[ExtensionEntry], prefix: &str) -> Self {
+        let mut references: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
+        for (_, scan) in scans {
+            for (function, named) in &scan.references {
+                references
+                    .entry(function)
+                    .or_default()
+                    .extend(named.iter().map(String::as_str));
+            }
+        }
+        let reach = |prefix: &str| {
+            let mut reached: BTreeSet<String> = BTreeSet::new();
+            let mut pending: Vec<String> = [format!("{prefix}_Init"), format!("{prefix}_SafeInit")]
+                .into_iter()
+                .filter(|function| references.contains_key(function.as_str()))
+                .collect();
+            while let Some(function) = pending.pop() {
+                if !reached.insert(function.clone()) {
+                    continue;
+                }
+                if let Some(named) = references.get(function.as_str()) {
+                    pending.extend(
+                        named
+                            .iter()
+                            .filter(|name| references.contains_key(*name))
+                            .map(|name| (*name).to_owned()),
+                    );
+                }
+            }
+            reached
+        };
+        Self {
+            prefix: prefix.to_owned(),
+            chosen: reach(prefix),
+            any: entries
+                .iter()
+                .flat_map(|entry| reach(&entry.prefix))
+                .collect(),
+        }
+    }
+
+    /// Whether the extension's entry point reaches `function`.
+    fn reaches(&self, function: Option<&String>) -> bool {
+        function.is_some_and(|function| self.chosen.contains(function))
+    }
+
+    /// `scan` with only what the extension's entry point reaches, and a warning
+    /// for each registration no entry point reaches.
+    fn narrow(&self, file: &SourceFile, mut scan: CScan, warnings: &mut Vec<String>) -> CScan {
+        for command in &scan.commands {
+            let reached = command
+                .function
+                .as_ref()
+                .is_some_and(|function| self.any.contains(function));
+            if !reached {
+                warnings.push(format!(
+                    "c-scan: {}:{}: `{}` is registered {}, which no entry point reaches, so the \
+                     pack for `{}` leaves it out",
+                    file.name,
+                    command.line,
+                    expression_of(&command.name),
+                    command
+                        .function
+                        .as_ref()
+                        .map_or_else(|| "outside a function".to_owned(), |f| format!("in `{f}`")),
+                    self.prefix
+                ));
+            }
+        }
+        scan.commands
+            .retain(|command| self.reaches(command.function.as_ref()));
+        scan.packages
+            .retain(|package| self.reaches(package.function.as_ref()));
+        scan.blind
+            .retain(|blind| self.reaches(blind.function.as_ref()));
+        scan
+    }
 }
 
 /// The package the sources provide: the first literal one, with a warning for
@@ -216,6 +415,7 @@ fn choose_package(import: &mut ExtensionImport, scans: &[(&SourceFile, CScan)]) 
                 name,
                 version,
                 line,
+                ..
             } = package;
             let CName::Literal(name) = name else {
                 import.warnings.push(format!(
@@ -491,10 +691,14 @@ mod tests {
     /// where each came from.
     #[test]
     fn pkga_is_described_at_the_default_fact_with_its_proposals() {
-        let import = import_c_sources(&[file(
-            "pkga.c",
-            include_str!("../../../tcl-cshim/tests/c/pkga.c"),
-        )]);
+        let import = import_c_sources(
+            &[file(
+                "pkga.c",
+                include_str!("../../../tcl-cshim/tests/c/pkga.c"),
+            )],
+            None,
+        )
+        .expect("one extension");
         assert_eq!(import.package.as_deref(), Some("pkga"));
         assert_eq!(import.version.as_deref(), Some("1.0"));
         assert!(import.dynamic.is_empty() && import.warnings.is_empty());
@@ -563,11 +767,15 @@ mod tests {
 
     #[test]
     fn a_computed_registration_is_a_dynamic_row_and_names_no_command() {
-        let import = import_c_sources(&[file(
-            "factory.c",
-            "int F(void *d, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {\n\
+        let import = import_c_sources(
+            &[file(
+                "factory.c",
+                "int F(void *d, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {\n\
              Tcl_CreateObjCommand(interp, Tcl_GetString(objv[1]), P, NULL, NULL);\n return 0; }\n",
-        )]);
+            )],
+            None,
+        )
+        .expect("one extension");
         assert!(import.commands.is_empty());
         assert_eq!(
             import.dynamic,
@@ -588,7 +796,8 @@ mod tests {
         let mut import = import_c_sources(&[file(
             "x.c",
             r#"int Init(Tcl_Interp *i) { Tcl_CreateObjCommand(i, "::x::cmd", P, 0, 0); return 0; }"#,
-        )]);
+        )], None)
+        .expect("one extension");
         import.merge_probe(&ProbeReport {
             package: "x".to_owned(),
             version: None,
@@ -628,14 +837,18 @@ mod tests {
 
     #[test]
     fn a_probe_adds_its_source_to_a_known_row_and_a_row_for_a_new_name() {
-        let mut import = import_c_sources(&[file(
-            "x.c",
-            r#"int Init(Tcl_Interp *interp) {
+        let mut import = import_c_sources(
+            &[file(
+                "x.c",
+                r#"int Init(Tcl_Interp *interp) {
                    Tcl_PkgProvide(interp, "x", "1.0");
                    Tcl_CreateObjCommand(interp, "x_known", P, NULL, NULL);
                    return 0;
                }"#,
-        )]);
+            )],
+            None,
+        )
+        .expect("one extension");
         import.merge_probe(&ProbeReport {
             package: "x".to_owned(),
             version: Some("1.0".to_owned()),
@@ -665,10 +878,14 @@ mod tests {
 
     #[test]
     fn a_probe_of_another_package_than_the_source_provides_is_a_warning() {
-        let mut import = import_c_sources(&[file(
-            "x.c",
-            r#"int Init(Tcl_Interp *i) { Tcl_PkgProvide(i, "x", "1.0"); return 0; }"#,
-        )]);
+        let mut import = import_c_sources(
+            &[file(
+                "x.c",
+                r#"int Init(Tcl_Interp *i) { Tcl_PkgProvide(i, "x", "1.0"); return 0; }"#,
+            )],
+            None,
+        )
+        .expect("one extension");
         import.merge_probe(&ProbeReport {
             package: "y".to_owned(),
             ..ProbeReport::default()
@@ -681,11 +898,15 @@ mod tests {
     }
     #[test]
     fn a_second_registration_of_a_name_is_a_note_and_no_second_row() {
-        let import = import_c_sources(&[file(
-            "x.c",
-            "int Init(Tcl_Interp *i) {\n Tcl_CreateObjCommand(i, \"dup\", P, 0, 0);\n \
+        let import = import_c_sources(
+            &[file(
+                "x.c",
+                "int Init(Tcl_Interp *i) {\n Tcl_CreateObjCommand(i, \"dup\", P, 0, 0);\n \
              Tcl_CreateCommand(i, \"dup\", Q, 0, 0);\n return 0; }",
-        )]);
+            )],
+            None,
+        )
+        .expect("one extension");
         assert_eq!(import.commands.len(), 1);
         assert!(
             import.commands[0]
@@ -699,12 +920,16 @@ mod tests {
 
     #[test]
     fn a_second_provided_package_and_an_unreadable_version_are_warnings() {
-        let import = import_c_sources(&[file(
-            "x.c",
-            "int Init(Tcl_Interp *i) {\n Tcl_PkgProvide(i, \"first\", VERSION);\n \
+        let import = import_c_sources(
+            &[file(
+                "x.c",
+                "int Init(Tcl_Interp *i) {\n Tcl_PkgProvide(i, \"first\", VERSION);\n \
              Tcl_PkgProvide(i, \"second\", \"2.0\");\n Tcl_PkgProvide(i, names[0], \"3.0\");\n \
              return 0; }",
-        )]);
+            )],
+            None,
+        )
+        .expect("one extension");
         assert_eq!(import.package.as_deref(), Some("first"));
         assert_eq!(import.version, None);
         let said = |part: &str| import.warnings.iter().any(|w| w.contains(part));
@@ -727,9 +952,10 @@ mod tests {
 
     #[test]
     fn subcommands_alone_propose_at_least_one_argument() {
-        let import = import_c_sources(&[file(
-            "x.c",
-            r#"
+        let import = import_c_sources(
+            &[file(
+                "x.c",
+                r#"
             static const char *const subs[] = { "a", "b", NULL };
             static int P(void *d, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
                 Tcl_GetIndexFromObj(interp, objv[1], subs, "sub", 0, &i);
@@ -737,23 +963,30 @@ mod tests {
             }
             int Init(Tcl_Interp *interp) { Tcl_CreateObjCommand(interp, "ext", P, 0, 0); return 0; }
             "#,
-        )]);
+            )],
+            None,
+        )
+        .expect("one extension");
         assert_eq!(import.commands[0].draft["arity"]["min"], json!(1));
         assert_eq!(import.commands[0].draft["arity"]["max"], Value::Null);
     }
 
     #[test]
     fn a_usage_that_repeats_a_subcommand_word_is_a_note_and_proposes_no_arity() {
-        let import = import_c_sources(&[file(
-            "x.c",
-            r#"
+        let import = import_c_sources(
+            &[file(
+                "x.c",
+                r#"
             static int P(void *d, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
                 Tcl_WrongNumArgs(interp, 2, objv, "n m");
                 return 0;
             }
             int Init(Tcl_Interp *interp) { Tcl_CreateObjCommand(interp, "ext", P, 0, 0); return 0; }
             "#,
-        )]);
+            )],
+            None,
+        )
+        .expect("one extension");
         let default = draft::from_command_spec(&CommandSpec::extension_default(""));
         assert_eq!(import.commands[0].draft["arity"], default["arity"]);
         assert!(
@@ -791,9 +1024,10 @@ mod tests {
 
     #[test]
     fn what_a_procedure_calls_is_noted_by_axis() {
-        let import = import_c_sources(&[file(
-            "x.c",
-            r#"
+        let import = import_c_sources(
+            &[file(
+                "x.c",
+                r#"
             static int P(void *d, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
                 Tcl_EvalObjEx(interp, objv[1], 0);
                 Tcl_ObjSetVar2(interp, objv[2], NULL, objv[3], 0);
@@ -801,7 +1035,10 @@ mod tests {
             }
             int Init(Tcl_Interp *interp) { Tcl_CreateObjCommand(interp, "ext", P, 0, 0); return 0; }
             "#,
-        )]);
+            )],
+            None,
+        )
+        .expect("one extension");
         let notes = &import.commands[0].notes;
         assert!(
             notes
@@ -822,5 +1059,168 @@ mod tests {
                 .any(|n| n.contains("every axis stays at the extension default")),
             "{notes:?}"
         );
+    }
+
+    /// The directory of the shim's test extensions holds two, each with its
+    /// own entry point: described with neither named, the import lists both
+    /// rather than describe one of them or a mixture of the two (negative);
+    /// with one named, it describes that one's commands and package and none
+    /// of the other's; and a prefix the sources do not define is refused with
+    /// the ones they do.
+    #[test]
+    fn two_entry_points_are_two_extensions_described_one_at_a_time() {
+        let files = [
+            file(
+                "doors.c",
+                include_str!("../../../tcl-cshim/tests/c/doors.c"),
+            ),
+            file(
+                "layout.c",
+                include_str!("../../../tcl-cshim/tests/c/layout.c"),
+            ),
+            file("pkga.c", include_str!("../../../tcl-cshim/tests/c/pkga.c")),
+        ];
+        let Err(UnchosenExtension::Several(entries)) = import_c_sources(&files, None) else {
+            panic!("two entry points are two extensions");
+        };
+        let listed: Vec<String> = entries.iter().map(ToString::to_string).collect();
+        assert_eq!(
+            listed,
+            ["Doors_Init (doors.c:261)", "Pkga_Init (pkga.c:303)"]
+        );
+
+        let pkga = import_c_sources(&files, Some("Pkga")).expect("Pkga is defined");
+        assert_eq!(pkga.package.as_deref(), Some("pkga"));
+        let names: Vec<&str> = pkga.commands.iter().map(|row| row.name.as_str()).collect();
+        assert_eq!(
+            names,
+            [
+                "pkga_calc",
+                "pkga_count",
+                "pkga_eq",
+                "pkga_forget",
+                "pkga_quote"
+            ]
+        );
+        assert!(pkga.warnings.is_empty(), "{:?}", pkga.warnings);
+        assert_eq!(pkga.entry.as_ref().map(|entry| entry.line), Some(303));
+
+        let doors = import_c_sources(&files, Some("Doors")).expect("Doors is defined");
+        assert_eq!(doors.package.as_deref(), Some("doors"));
+        assert!(
+            doors
+                .commands
+                .iter()
+                .all(|row| row.name.starts_with("doors_")),
+            "only doors' own commands"
+        );
+        assert_eq!(doors.commands.len(), 11);
+        for row in &doors.commands {
+            assert_eq!(
+                row.draft["required_package"],
+                json!("doors"),
+                "{}",
+                row.name
+            );
+        }
+
+        let Err(UnchosenExtension::NotDefined { prefix, defined }) =
+            import_c_sources(&files, Some("Nosuch"))
+        else {
+            panic!("an undefined prefix is refused");
+        };
+        assert_eq!(prefix, "Nosuch");
+        assert_eq!(defined, entries);
+    }
+
+    /// An entry point owns the registrations of the functions it names, and of
+    /// the functions those name, across files: a helper in another file that
+    /// registers a command, and the command procedures an entry point registers,
+    /// which can register commands of their own. A registration no entry point
+    /// reaches is left out with a warning (negative), and a `PREFIX_SafeInit`
+    /// beside a `PREFIX_Init` is the same extension, not a second one.
+    #[test]
+    fn an_entry_point_owns_what_the_functions_it_names_register() {
+        let files = [
+            file(
+                "ext.c",
+                r#"
+                int Ext_Init(Tcl_Interp *interp) {
+                    Tcl_PkgProvide(interp, "ext", "2.0");
+                    Ext_Register(interp);
+                    Tcl_CreateObjCommand(interp, "ext_make", ExtMakeCmd, 0, 0);
+                    return 0;
+                }
+                int Ext_SafeInit(Tcl_Interp *interp) { return Ext_Init(interp); }
+                static int ExtMakeCmd(void *d, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+                    Tcl_CreateObjCommand(interp, "ext_made", ExtMakeCmd, 0, 0);
+                    return 0;
+                }
+                "#,
+            ),
+            file(
+                "register.c",
+                r#"
+                void Ext_Register(Tcl_Interp *interp) {
+                    Tcl_CreateObjCommand(interp, "ext_helped", P, 0, 0);
+                }
+                void Orphan(Tcl_Interp *interp) {
+                    Tcl_CreateObjCommand(interp, "lost", P, 0, 0);
+                }
+                "#,
+            ),
+            file(
+                "other.c",
+                r#"
+                int Other_Init(Tcl_Interp *interp) {
+                    Tcl_PkgProvide(interp, "other", "1.0");
+                    Tcl_CreateObjCommand(interp, "other_cmd", P, 0, 0);
+                    Tcl_NewMethod(interp, c, n, 1, &t, 0);
+                    return 0;
+                }
+                "#,
+            ),
+        ];
+        let Err(UnchosenExtension::Several(entries)) = import_c_sources(&files, None) else {
+            panic!("two prefixes are two extensions");
+        };
+        let functions: Vec<&str> = entries
+            .iter()
+            .map(|entry| entry.function.as_str())
+            .collect();
+        assert_eq!(
+            functions,
+            ["Ext_Init", "Other_Init"],
+            "the safe entry is Ext's"
+        );
+
+        let ext = import_c_sources(&files, Some("Ext")).expect("Ext is defined");
+        assert_eq!(ext.package.as_deref(), Some("ext"));
+        let names: Vec<&str> = ext.commands.iter().map(|row| row.name.as_str()).collect();
+        assert_eq!(names, ["ext_helped", "ext_made", "ext_make"]);
+        assert_eq!(ext.warnings.len(), 1, "{:?}", ext.warnings);
+        assert!(
+            ext.warnings[0].contains(
+                "register.c:6: `lost` is registered in `Orphan`, which no \
+                                      entry point reaches, so the pack for `Ext` leaves it out"
+            ),
+            "{:?}",
+            ext.warnings
+        );
+
+        assert!(
+            ext.blind.is_empty(),
+            "the other's unreadable call is the other's"
+        );
+
+        let other = import_c_sources(&files, Some("Other")).expect("Other is defined");
+        let names: Vec<&str> = other.commands.iter().map(|row| row.name.as_str()).collect();
+        assert_eq!(names, ["other_cmd"]);
+        assert_eq!(other.package.as_deref(), Some("other"));
+        assert_eq!(other.blind.len(), 1, "{:?}", other.blind);
+
+        let one = import_c_sources(&files[..1], None).expect("one prefix is one extension");
+        assert_eq!(one.package.as_deref(), Some("ext"));
+        assert!(one.entry.is_none(), "nothing was chosen");
     }
 }

@@ -42,6 +42,13 @@ it does.
    usage message of each command's own procedure, and the `Tcl_GetIndexFromObj`
    table it reads for subcommands. `--c-source` may be repeated. Every row has
    the provenance `c-scan` and the file and line each fact was read at.
+
+   One pack describes one extension, the commands one entry point registers. If
+   the directory holds more than one (a `Foo_Init` in one file and a `Bar_Init`
+   in another), the import lists them and stops; name the one to describe with
+   `--entry Foo`, and the pack has the registrations in the functions `Foo_Init`
+   reaches by name, whatever file they are in. A registration in a function no
+   entry point names is left out, with a warning saying where it is.
 2. **Or, or as well, probe a real shell.** `tcl spec import --probe PACKAGE`
    requires the package in a `tclsh` and lists the commands it added to any
    namespace; `--tclsh PATH` names the shell. That runs the package's own code, so
