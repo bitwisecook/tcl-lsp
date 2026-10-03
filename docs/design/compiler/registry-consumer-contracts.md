@@ -560,14 +560,15 @@ header declares when it compiles. `make check-c-extension-wasm`
 job that has wasi-sdk) holds the header to both legs: every function the WASM
 leg declares is a runtime export and every C-API export is declared or a header
 macro, the same for the shim and the native leg, and `layout.c` and the test
-extension compile for `wasm32-wasip1`, the test extension against both legs at
-once and refused by the WASM leg alone. What the leg does not have: the ownership
-categories of
+extension compile for `wasm32-wasip1`, the test extension against the WASM leg
+alone, which declares every function it calls, and against both legs at once.
+The runtime's own test loads the test extension, compiled for the host against
+the WASM leg, through those exports, and holds it to the shared vectors. What the
+leg does not have: the ownership categories of
 [../runtime/c-api-ownership-contract.md](../runtime/c-api-ownership-contract.md)
-encoded per export and gated, the `GOT.mem` / `GOT.func` list wired for
-the address-of-runtime-symbol pattern, and the functions the test extension
-calls beyond what the leg declares, without which it compiles against both legs
-at once and is not linked with the runtime. The engine
+encoded per export (the gate asks for each export's row), the `GOT.mem` /
+`GOT.func` list wired for the address-of-runtime-symbol pattern, and the calls
+into the caller's frame the native leg has. The engine
 interface carries the completion code a host command answers (`HostOutcome`),
 so a hosted extension exercises the conservative default this page states for
 it.
@@ -2460,8 +2461,9 @@ flowchart LR
   narrow it axis by axis, a stated effect replacing the effect axes and none
   of the others ([../contracts/dialect-stubs.md](../contracts/dialect-stubs.md)
   § *Extension commands*). The engine interface carries the completion
-  code the host command returned (`HostOutcome`, `CompletionCode`), so a hosted
-  extension exercises the default.
+  code the host command returned (`HostOutcome`, `CompletionCode`), and for a
+  `TCL_RETURN` the options of the `return` behind it, so a hosted extension
+  exercises the default.
 - **Describe from three sources**, each with its own provenance, none of them
   narrowing the default: a mechanical scan of C source
   (`rust/tcl-spec-studio/src/infer/c_scan.rs`; `tcl spec import --c-source`),

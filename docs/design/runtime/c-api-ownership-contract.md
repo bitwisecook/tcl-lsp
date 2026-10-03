@@ -150,7 +150,9 @@ no per-call error channel, hence `no-error` for constructors.
 |---|---|---|---|---|
 | `Tcl_NewObj` | n/a | `fresh_zero` | `no-error` | Empty string obj, rc=0. |
 | `Tcl_NewStringObj` | n/a | `fresh_zero` | `no-error` | Copies the bytes (length −1 ⇒ `strlen`). |
-| `Tcl_NewWideIntObj` | n/a | `fresh_zero` | `no-error` | `Tcl_NewIntObj` is a macro over this. |
+| `Tcl_NewWideIntObj` | n/a | `fresh_zero` | `no-error` | Tcl 9's own header makes `Tcl_NewIntObj` and `Tcl_NewLongObj` macros over this; the authored header declares them as functions. |
+| `Tcl_NewIntObj` | n/a | `fresh_zero` | `no-error` | An integer object from a C `int`. |
+| `Tcl_NewLongObj` | n/a | `fresh_zero` | `no-error` | An integer object from a C `long`: 32 bits on `wasm32`, 64 on an LP64 host. |
 | `Tcl_NewDoubleObj` | n/a | `fresh_zero` | `no-error` | |
 | `Tcl_NewBooleanObj` | n/a | `fresh_zero` | `no-error` | |
 | `Tcl_NewListObj` | `objv[]` `borrowed→stored` | `fresh_zero` | `no-error` | Retains each element into the new list. |
@@ -175,10 +177,12 @@ mutate `internalRep`/`bytes` but **not** the logical value, so a `borrowed`
 |---|---|---|---|---|
 | `Tcl_GetString` | `objPtr` `borrowed` | `char* borrowed-rep` | `no-error` | Forces the string rep; valid until the obj is modified/freed. |
 | `Tcl_GetStringFromObj` | `objPtr` `borrowed` | `char* borrowed-rep` | `no-error` | As above + writes length out. |
-| `Tcl_GetIntFromObj` | `objPtr` `borrowed` | `status` | `sets-result` | Shimmers to int; on failure sets `expected integer…`. |
+| `Tcl_GetIntFromObj` | `objPtr` `borrowed` | `status` | `sets-result` | Shimmers to int; on failure sets `expected integer…`. An integer in the unsigned 32-bit range is truncated, as C Tcl does; past it, `integer value too large to represent` with `ARITH IOVERFLOW` and the message. |
+| `Tcl_GetLongFromObj` | `objPtr` `borrowed` | `status` | `sets-result` | As `Tcl_GetIntFromObj` where `long` is 32 bits (`wasm32`); any wide integer where it is 64. |
 | `Tcl_GetWideIntFromObj` | `objPtr` `borrowed` | `status` | `sets-result` | |
 | `Tcl_GetDoubleFromObj` | `objPtr` `borrowed` | `status` | `sets-result` | |
 | `Tcl_GetBooleanFromObj` | `objPtr` `borrowed` | `status` | `sets-result` | |
+| `Tcl_GetIndexFromObjStruct` | `objPtr` `borrowed` | `status` | `sets-result` | Resolves the word against a NULL-terminated table by unique prefix (`TCL_EXACT` asks for an exact match); on failure `bad`/`ambiguous … must be …` with `TCL LOOKUP INDEX`. Keeps the matched entry on the word's internal rep, unless `TCL_INDEX_TEMP_TABLE`, so `Tcl_WrongNumArgs` spells an abbreviation in full; the table must outlive the word. `Tcl_GetIndexFromObj` is a macro over this. |
 | `Tcl_GetBignumFromObj` | `objPtr` `borrowed` | `status` | `sets-result` | Writes an `mp_int` through `void* value` (caller-owned, caller `mp_clear`s). |
 | `Tcl_NumUtfChars` | n/a | `Tcl_Size` | `no-error` | Pure reader over a `char*`. |
 | `Tcl_UtfNcmp` | n/a | `int` | `no-error` | Pure reader. |
@@ -189,6 +193,7 @@ mutate `internalRep`/`bytes` but **not** the logical value, so a `borrowed`
 |---|---|---|---|---|
 | `Tcl_ListObjAppendElement` | `listPtr` `borrowed` (mutated), `objPtr` `borrowed→stored` | `status` | `sets-result` | Retains `objPtr` into the list; `listPtr` must be unshared to mutate in place (else shimmers/dup). |
 | `Tcl_ListObjGetElements` | `listPtr` `borrowed` | `status` (out: `Tcl_Obj*** objvPtr`) | `sets-result` | Returned array + its element handles are `borrowed` (owned by the list); valid until the list is modified. |
+| `Tcl_ListObjLength` | `listPtr` `borrowed` | `status` (out: `Tcl_Size* lengthPtr`) | `sets-result` | Shimmers a string to a list; a string that is not one is the list parser's error. |
 
 ### `Tcl_ObjType` registration
 
@@ -203,8 +208,12 @@ mutate `internalRep`/`bytes` but **not** the logical value, so a `borrowed`
 |---|---|---|---|---|
 | `Tcl_SetObjResult` | `resultObjPtr` `borrowed→stored` | `void` | `no-error` | Interp **retains** the obj (+1) and releases the prior result. A `fresh_zero` obj thereby becomes interp-owned with no explicit refcount call. |
 | `Tcl_GetObjResult` | n/a | `Tcl_Obj* borrowed` | `no-error` | The interp's current result; valid until the next result-changing call; `Tcl_IncrRefCount` to keep. |
-| `Tcl_WrongNumArgs` | `objv[]` `borrowed` | `void` | `sets-result` | Builds and sets the `wrong # args` message. |
-| `Tcl_AppendResult` | n/a (varargs `char*`) | `void` | `no-error` | Appends strings to the (string) result; NULL-terminated varargs. |
+| `Tcl_ResetResult` | n/a | `void` | `no-error` | An empty result, and no error or pending `return` in flight. |
+| `Tcl_WrongNumArgs` | `objv[]` `borrowed` | `void` | `sets-result` | Builds and sets the `wrong # args` message, `-errorcode TCL WRONGARGS`. |
+| `Tcl_SetObjErrorCode` | `errorObjPtr` `borrowed→stored` | `void` | `no-error` | The `-errorcode` of the error the command returns. The runtime keeps the code's text, so a `fresh_zero` code object is freed by the call, as storing and dropping it would. `Tcl_SetErrorCode` is an inline function over this in the header. |
+| `Tcl_AppendResult` | n/a (varargs `char*`) | `void` | `no-error` | Appends strings to the (string) result; NULL-terminated varargs. An inline function in the header over `TclHost_AppendResultString`. |
+| `TclHost_AppendResultString` | n/a | `void` | `no-error` | The fixed-arity export behind the header's inline `Tcl_AppendResult`: one piece. |
+| `TclHost_SetResultString` | n/a | `void` | `no-error` | The fixed-arity export behind the header's inline `Tcl_SetResult`: a copy of the string; the inline function resolves the freeing convention. |
 | `Tcl_GetErrorLine` | n/a | `int` | `no-error` | Reader. |
 
 ### Eval

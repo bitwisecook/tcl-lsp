@@ -973,6 +973,11 @@ pub struct InterpState {
     pub(crate) traces: RefCell<crate::cmd_trace::TraceTable>,
     /// The error stack-trace accumulator (PC-4).
     exc: RefCell<ExceptionState>,
+    /// How many errors the C API has stated ([`Interp::c_api_error`],
+    /// `Tcl_SetObjErrorCode`, a refused `Tcl_PkgProvideEx`), so a C command that
+    /// returns `TCL_ERROR` without stating one is told apart from one that did
+    /// ([`Interp::invoke_obj_cmd`]).
+    c_api_errors: Cell<u64>,
     /// `iPtr->errorLine`: the 1-based source line of the innermost command
     /// logged into the error trace, within its own script. Unlike the
     /// accumulating [`ExceptionState`], this is **persistent** interp state — it
@@ -1448,6 +1453,7 @@ impl Interp {
             return_options: RefCell::new(Vec::new()),
             traces: RefCell::new(crate::cmd_trace::TraceTable::default()),
             exc: RefCell::new(ExceptionState::default()),
+            c_api_errors: Cell::new(0),
             error_line: Cell::new(1),
             children: RefCell::new(std::collections::BTreeMap::new()),
             interp_counter: Cell::new(0),
@@ -6065,6 +6071,62 @@ impl Interp {
         self.result.get()
     }
 
+    /// `Tcl_ResetResult`: an empty result, no error in flight (the next one
+    /// starts its own `errorInfo`, `-errorcode` and error stack) and no pending
+    /// `return`, so its level and code are the defaults again.
+    pub(crate) fn reset_result(&mut self) {
+        self.set_result_bytes(b"");
+        *self.exc.borrow_mut() = ExceptionState::default();
+        self.mark_error_stack_reset();
+        self.set_return_state(1, Code::Ok);
+        self.clear_return_options();
+    }
+
+    /// An error a C API call reports: `message` as the result and, when given,
+    /// `code` as its `-errorcode` (`NONE` otherwise), starting a new error.
+    pub(crate) fn c_api_error(&mut self, message: &[u8], code: Option<&[u8]>) {
+        self.set_result_bytes(message);
+        *self.exc.borrow_mut() = ExceptionState {
+            info: None,
+            code: code.map(<[u8]>::to_vec).unwrap_or_default(),
+            code_explicit: code.is_some(),
+            already_logged: false,
+        };
+        self.c_api_errors.set(self.c_api_errors.get() + 1);
+    }
+
+    /// `Tcl_SetObjErrorCode`: `code` is the `-errorcode` of the error the running
+    /// C command is about to return, whatever its result.
+    pub(crate) fn set_c_error_code(&mut self, code: &[u8]) {
+        *self.exc.borrow_mut() = ExceptionState {
+            info: None,
+            code: code.to_vec(),
+            code_explicit: true,
+            already_logged: false,
+        };
+        self.c_api_errors.set(self.c_api_errors.get() + 1);
+    }
+
+    /// Note that a C API call left an error the interpreter already holds (a
+    /// command's own, such as `package provide`'s), as [`Self::c_api_error`]
+    /// would have.
+    pub(crate) fn note_c_api_error(&self) {
+        self.c_api_errors.set(self.c_api_errors.get() + 1);
+    }
+
+    /// `Tcl_AppendResult`'s one piece: the result grows by `piece`, in place when
+    /// it is a plain string nothing else holds.
+    pub(crate) fn append_result_bytes(&mut self, piece: &[u8]) {
+        let current = self.result.get();
+        if obj::is_plain_string(current) && !obj::is_shared(current) {
+            obj::string_append_inplace(current, piece);
+            return;
+        }
+        let mut bytes = obj_bytes(current);
+        bytes.extend_from_slice(piece);
+        self.set_result_bytes(&bytes);
+    }
+
     /// The current result's string bytes (copied).
     pub fn result_bytes(&self) -> Vec<u8> {
         obj_bytes(self.result.get())
@@ -8072,6 +8134,7 @@ impl Interp {
             self.set_result_bytes(b"too many arguments for a C command");
             return Code::Error;
         };
+        let stated = self.c_api_errors.get();
         // SAFETY: the extension registered this procedure and client data
         // together; `self` stays borrowed for the call, so the pointer is live
         // for as long as the procedure may use it, and `argv` holds `objc` live
@@ -8084,7 +8147,14 @@ impl Interp {
                 argv.as_ptr(),
             )
         };
-        Code::from_int(code)
+        let code = Code::from_int(code);
+        // C Tcl starts every command with no error in flight, so an error the
+        // procedure returned without stating a code through the C API is
+        // `NONE`, whatever error came before it.
+        if code == Code::Error && self.c_api_errors.get() == stated {
+            *self.exc.borrow_mut() = ExceptionState::default();
+        }
+        code
     }
 
     /// `Tcl_CreateObjCommand`: bind `name` (qualified or relative to the current

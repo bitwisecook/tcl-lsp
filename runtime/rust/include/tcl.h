@@ -225,39 +225,19 @@ EXTERN Tcl_Command Tcl_CreateObjCommand(Tcl_Interp *interp, const char *cmdName,
 	Tcl_ObjCmdProc *proc, void *clientData, Tcl_CmdDeleteProc *deleteProc);
 EXTERN int Tcl_DeleteCommand(Tcl_Interp *interp, const char *cmdName);
 
-/* Objects: construction. */
+/* Objects: construction and copying. */
 EXTERN Tcl_Obj *Tcl_NewStringObj(const char *bytes, TclHost_Size length);
+EXTERN Tcl_Obj *Tcl_NewIntObj(int intValue);
+EXTERN Tcl_Obj *Tcl_NewLongObj(long longValue);
 EXTERN Tcl_Obj *Tcl_NewWideIntObj(Tcl_WideInt wideValue);
 EXTERN Tcl_Obj *Tcl_NewBooleanObj(int intValue);
 EXTERN Tcl_Obj *Tcl_NewDoubleObj(double doubleValue);
-
-/* Objects: reading. */
-EXTERN char *Tcl_GetString(Tcl_Obj *objPtr);
-EXTERN char *Tcl_GetStringFromObj(Tcl_Obj *objPtr, TclHost_Size *lengthPtr);
-
-/* The interpreter result. */
-EXTERN void Tcl_SetObjResult(Tcl_Interp *interp, Tcl_Obj *resultObjPtr);
-EXTERN Tcl_Obj *Tcl_GetObjResult(Tcl_Interp *interp);
-
-#if defined(TCL_HOST_WASM)
-/*
- * Implemented by the runtime alone.
- */
-EXTERN Tcl_Obj *Tcl_NewObj(void);
-#endif /* TCL_HOST_WASM */
-
-#if defined(TCL_HOST_NATIVE)
-/*
- * Implemented by the shim alone.
- */
-
-/* Objects: construction and copying. */
-EXTERN Tcl_Obj *Tcl_NewIntObj(int intValue);
-EXTERN Tcl_Obj *Tcl_NewLongObj(long longValue);
 EXTERN Tcl_Obj *Tcl_NewListObj(TclHost_Size objc, Tcl_Obj *const objv[]);
 EXTERN Tcl_Obj *Tcl_DuplicateObj(Tcl_Obj *objPtr);
 
 /* Objects: reading. */
+EXTERN char *Tcl_GetString(Tcl_Obj *objPtr);
+EXTERN char *Tcl_GetStringFromObj(Tcl_Obj *objPtr, TclHost_Size *lengthPtr);
 EXTERN int Tcl_GetIntFromObj(Tcl_Interp *interp, Tcl_Obj *objPtr, int *intPtr);
 EXTERN int Tcl_GetLongFromObj(Tcl_Interp *interp, Tcl_Obj *objPtr, long *longPtr);
 EXTERN int Tcl_GetWideIntFromObj(Tcl_Interp *interp, Tcl_Obj *objPtr,
@@ -277,37 +257,20 @@ EXTERN int Tcl_ListObjGetElements(Tcl_Interp *interp, Tcl_Obj *listPtr,
 EXTERN int Tcl_ListObjLength(Tcl_Interp *interp, Tcl_Obj *listPtr,
 	TclHost_Size *lengthPtr);
 
-/* The interpreter's error state. */
+/* The interpreter result and error state. */
+EXTERN void Tcl_SetObjResult(Tcl_Interp *interp, Tcl_Obj *resultObjPtr);
+EXTERN Tcl_Obj *Tcl_GetObjResult(Tcl_Interp *interp);
 EXTERN void Tcl_ResetResult(Tcl_Interp *interp);
 EXTERN void Tcl_WrongNumArgs(Tcl_Interp *interp, TclHost_Size objc,
 	Tcl_Obj *const objv[], const char *message);
 EXTERN void Tcl_SetObjErrorCode(Tcl_Interp *interp, Tcl_Obj *errorObjPtr);
 /* Fixed-arity exports behind the variadic inline functions below. */
-EXTERN void TclShim_SetResultString(Tcl_Interp *interp, const char *result);
-EXTERN void TclShim_AppendResultString(Tcl_Interp *interp, const char *piece);
+EXTERN void TclHost_SetResultString(Tcl_Interp *interp, const char *result);
+EXTERN void TclHost_AppendResultString(Tcl_Interp *interp, const char *piece);
 
 /* Packages. */
 EXTERN int Tcl_PkgProvideEx(Tcl_Interp *interp, const char *name,
 	const char *version, const void *clientData);
-
-/*
- * Variables of the frame that called the running command, and evaluation
- * there. Only the flags the shim honours are defined, so a source naming
- * another does not compile. An object read is good until the command returns,
- * however the variable changes meanwhile; an object passed in is held for as
- * long as the command runs, so one with a count of zero is consumed.
- */
-#define TCL_GLOBAL_ONLY		1
-#define TCL_LEAVE_ERR_MSG	0x200
-#define TCL_EVAL_DIRECT		0x040000
-
-EXTERN Tcl_Obj *Tcl_GetVar2Ex(Tcl_Interp *interp, const char *part1,
-	const char *part2, int flags);
-EXTERN Tcl_Obj *Tcl_ObjSetVar2(Tcl_Interp *interp, Tcl_Obj *part1Ptr,
-	Tcl_Obj *part2Ptr, Tcl_Obj *newValuePtr, int flags);
-EXTERN int Tcl_UnsetVar2(Tcl_Interp *interp, const char *part1,
-	const char *part2, int flags);
-EXTERN int Tcl_EvalObjEx(Tcl_Interp *interp, Tcl_Obj *objPtr, int flags);
 
 /* UTF-8 helpers the canonical test extensions lean on. */
 EXTERN TclHost_Size Tcl_NumUtfChars(const char *src, TclHost_Size length);
@@ -327,7 +290,7 @@ Tcl_AppendResult(Tcl_Interp *interp, ...)
 
     va_start(ap, interp);
     while ((piece = va_arg(ap, const char *)) != NULL) {
-	TclShim_AppendResultString(interp, piece);
+	TclHost_AppendResultString(interp, piece);
     }
     va_end(ap);
 }
@@ -356,7 +319,7 @@ Tcl_SetErrorCode(Tcl_Interp *interp, ...)
 static inline void
 Tcl_SetResult(Tcl_Interp *interp, char *result, Tcl_FreeProc *freeProc)
 {
-    TclShim_SetResultString(interp, result);
+    TclHost_SetResultString(interp, result);
     if (freeProc == TCL_DYNAMIC) {
 	free(result);
     } else if (freeProc != TCL_STATIC && freeProc != TCL_VOLATILE) {
@@ -378,6 +341,34 @@ Tcl_SetResult(Tcl_Interp *interp, char *result, Tcl_FreeProc *freeProc)
 #define Tcl_GetIndexFromObj(interp, objPtr, tablePtr, msg, flags, indexPtr) \
 	Tcl_GetIndexFromObjStruct((interp), (objPtr), (tablePtr), sizeof(char *), \
 	    (msg), (flags), (indexPtr))
+
+#if defined(TCL_HOST_WASM)
+/*
+ * Implemented by the runtime alone.
+ */
+EXTERN Tcl_Obj *Tcl_NewObj(void);
+#endif /* TCL_HOST_WASM */
+
+#if defined(TCL_HOST_NATIVE)
+/*
+ * Implemented by the shim alone: the variables of the frame that called the
+ * running command, and evaluation there. Only the flags the shim honours are
+ * defined, so a source naming another does not compile. An object read is good
+ * until the command returns, however the variable changes meanwhile; an object
+ * passed in is held for as long as the command runs, so one with a count of
+ * zero is consumed.
+ */
+#define TCL_GLOBAL_ONLY		1
+#define TCL_LEAVE_ERR_MSG	0x200
+#define TCL_EVAL_DIRECT		0x040000
+
+EXTERN Tcl_Obj *Tcl_GetVar2Ex(Tcl_Interp *interp, const char *part1,
+	const char *part2, int flags);
+EXTERN Tcl_Obj *Tcl_ObjSetVar2(Tcl_Interp *interp, Tcl_Obj *part1Ptr,
+	Tcl_Obj *part2Ptr, Tcl_Obj *newValuePtr, int flags);
+EXTERN int Tcl_UnsetVar2(Tcl_Interp *interp, const char *part1,
+	const char *part2, int flags);
+EXTERN int Tcl_EvalObjEx(Tcl_Interp *interp, Tcl_Obj *objPtr, int flags);
 #endif /* TCL_HOST_NATIVE */
 
 #if TCL_MAJOR_VERSION < 9
@@ -399,9 +390,6 @@ TclHost8_GetStringFromObj(Tcl_Obj *objPtr, int *lengthPtr)
     return bytes;
 }
 
-#   define Tcl_GetStringFromObj TclHost8_GetStringFromObj
-
-#   if defined(TCL_HOST_NATIVE)
 static inline int
 TclHost8_ListObjGetElements(Tcl_Interp *interp, Tcl_Obj *listPtr, int *objcPtr,
 	Tcl_Obj ***objvPtr)
@@ -427,9 +415,9 @@ TclHost8_ListObjLength(Tcl_Interp *interp, Tcl_Obj *listPtr, int *lengthPtr)
     return code;
 }
 
-#	define Tcl_ListObjGetElements TclHost8_ListObjGetElements
-#	define Tcl_ListObjLength TclHost8_ListObjLength
-#   endif /* TCL_HOST_NATIVE */
+#   define Tcl_GetStringFromObj TclHost8_GetStringFromObj
+#   define Tcl_ListObjGetElements TclHost8_ListObjGetElements
+#   define Tcl_ListObjLength TclHost8_ListObjLength
 #endif /* TCL_MAJOR_VERSION < 9 */
 
 #ifdef __cplusplus

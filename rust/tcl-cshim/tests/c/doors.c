@@ -189,6 +189,45 @@ Doors_TryObjCmd(void *dummy, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]
 }
 
 /*
+ * doors_eval_twice first second: Tcl_EvalObjEx twice, answering the code of the
+ * second, so what the interpreter holds of the first is the second's to replace.
+ */
+static int
+Doors_EvalTwiceObjCmd(void *dummy, Tcl_Interp *interp, int objc,
+	Tcl_Obj *const objv[])
+{
+    (void)dummy;
+
+    if (objc != 3) {
+	Tcl_WrongNumArgs(interp, 1, objv, "first second");
+	return TCL_ERROR;
+    }
+    (void)Tcl_EvalObjEx(interp, objv[1], 0);
+    return Tcl_EvalObjEx(interp, objv[2], 0);
+}
+
+/*
+ * doors_eval_reset script: Tcl_EvalObjEx, then Tcl_ResetResult, answering the
+ * code of the evaluation: what a reset takes from the interpreter is the result
+ * and the options of the return the script ended in.
+ */
+static int
+Doors_EvalResetObjCmd(void *dummy, Tcl_Interp *interp, int objc,
+	Tcl_Obj *const objv[])
+{
+    int code;
+    (void)dummy;
+
+    if (objc != 2) {
+	Tcl_WrongNumArgs(interp, 1, objv, "script");
+	return TCL_ERROR;
+    }
+    code = Tcl_EvalObjEx(interp, objv[1], 0);
+    Tcl_ResetResult(interp);
+    return code;
+}
+
+/*
  * doors_keep name: reads a variable, takes its own reference to the value, unsets
  * the variable and answers the value it still holds, as a command must that keeps
  * a value past a call that can free it.
@@ -242,5 +281,9 @@ Doors_Init(Tcl_Interp *interp)
 	    NULL, NULL);
     Tcl_CreateObjCommand(interp, "doors_try", Doors_TryObjCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "doors_keep", Doors_KeepObjCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "doors_eval_twice", Doors_EvalTwiceObjCmd, NULL,
+	    NULL);
+    Tcl_CreateObjCommand(interp, "doors_eval_reset", Doors_EvalResetObjCmd, NULL,
+	    NULL);
     return Tcl_PkgProvide(interp, "doors", "1.0");
 }

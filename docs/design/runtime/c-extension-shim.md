@@ -179,7 +179,10 @@ goes on, and where there is no loop the engine reports what Tcl reports,
 `invoked "break" outside of a loop`); `TCL_ERROR` to `EngineError::Script {
 message, code }` with the result text and the error code the C code set; and
 any other value to a code of the command's own (`CompletionCode::Other`), which
-reaches the `catch` that reports it.
+reaches the `catch` that reports it. A `TCL_RETURN` carries the options of the
+`return` the last `Tcl_EvalObjEx` ended in (§ *The doors*), so the procedure that
+called the command ends as C Tcl's does; one the command answers with no
+evaluation behind it is a plain return.
 
 Command-table changes made *during* an invocation — a factory command
 calling `Tcl_CreateObjCommand`, or `Tcl_DeleteCommand` on a sibling — are
@@ -209,8 +212,11 @@ Engine-neutral pieces, and nothing that is an interp pointer or a result slot:
 - **`HostOutcome` and `CompletionCode`** — what a host command answers: its
   value, and `Ok`, `Return`, `Break`, `Continue` or `Other(n)`, the codes a C
   command's `TCL_OK`, `TCL_RETURN`, `TCL_BREAK`, `TCL_CONTINUE` and any other
-  integer are. An error is the `Err` of the call. The tclvm engine answers each
-  as the VM's own code, so a `Break` ends the loop the command is in.
+  integer are, and for a `Return` the options of the `return` behind it (`-code`,
+  `-level`, `-errorcode`, `-errorinfo`), as a Tcl dictionary. An error is the `Err`
+  of the call. The tclvm engine answers each as the VM's own code, so a `Break`
+  ends the loop the command is in, and hands the VM a `Return`'s options as the
+  completion's, which the calling procedure's boundary reads.
 - **`CommandRegistrar` and `HostCommand::invoke_with_registrar`** — the door of
   the engine, opened to a host command for the duration of its invocation:
   `define_command` and `remove_command`, which buy factories (a command that
@@ -289,14 +295,20 @@ everything but the call.
   it and returned by the entry point before it registers anything, as C Tcl's
   does. An engine with no such door, or no door open, leaves the package to the
   shim's own record (`Interp::provided_packages`).
+- **Return options.** A script a C command evaluates may end in a `return`:
+  `Tcl_EvalObjEx` answers `TCL_RETURN`, and the options of that `return` (`-code`,
+  `-level`, `-errorcode`, `-errorinfo`) are the interpreter's until the next
+  evaluation or `Tcl_ResetResult`, as they are in C Tcl. The shim keeps them
+  (`InterpState`), and a command that answers `TCL_RETURN` returns with them, so
+  the procedure that called it ends as they say: an error for `-code error`, with
+  its `-errorcode`; a break for `-code break`; a return from its caller too for
+  `-level 2`. A `TCL_RETURN` the command answers with no evaluation behind it is a
+  plain one-level return, and every other code carries none.
 - **What it does not report.** The value stored is the value given: a write trace
-  that rewrites it is not reported back. A `TCL_RETURN` crosses with its value
-  alone, so the options of the `return` that raised it (`-code`, `-level`,
-  `-errorcode`) are not carried, and a C command that evaluates `return -code error
-  msg` and answers `TCL_RETURN` returns normally where C Tcl's procedure would fail.
-  The `-errorcode` of a variable error is the engine's own, and the VM's is
-  `NONE` for a variable that is not there where C Tcl's is `TCL LOOKUP VARNAME x`
-  (`tests/doors_e2e.rs` records each difference beside the vectors that agree).
+  that rewrites it is not reported back. The `-errorcode` of a variable error is
+  the engine's own, and the VM's is `NONE` for a variable that is not there where
+  C Tcl's is `TCL LOOKUP VARNAME x` (`tests/doors_e2e.rs` records each difference
+  beside the vectors that agree).
 
 ## The host's `load`
 
@@ -396,7 +408,7 @@ Three header conventions carry the C-side mangling:
 - **Variadics are inline C.** Stable Rust cannot define a C variadic, so
   `Tcl_AppendResult`, `Tcl_SetErrorCode`, and `Tcl_SetResult` are
   `static inline` functions in the header that fan out into fixed-arity
-  exports (`TclShim_AppendResultString`, `TclShim_SetResultString`, and the
+  exports (`TclHost_AppendResultString`, `TclHost_SetResultString`, and the
   ordinary `Tcl_SetObjErrorCode`). `Tcl_SetResult` resolves the freeing
   convention there too: the string is always copied, `TCL_DYNAMIC` is freed
   with the C allocator, any other procedure is called.
@@ -449,8 +461,10 @@ documentation.
 call (`doors_get`, `doors_set`, `doors_unset`, `doors_eval`, and the variants that
 pass `TCL_GLOBAL_ONLY`, no flags or `TCL_EVAL_DIRECT`), `doors_try`, which answers
 the code and result a script gave and so swallows its error, `doors_keep`, which
-holds a value past the call that unsets its variable, and an entry point that
-sets a global through the door. `tests/doors_e2e.rs` holds a table of scripts
+holds a value past the call that unsets its variable, `doors_eval_twice` and
+`doors_eval_reset`, which evaluate a second script or reset the result after the
+first, for the options a `return` leaves in the interpreter, and an entry point
+that sets a global through the door. `tests/doors_e2e.rs` holds a table of scripts
 whose code, result and `-errorcode` were captured the same way, from `doors.c`
 built against Tcl 9.0.4's own `tcl.h` and run in `tclsh9.0` at the global level
 under `catch`, and a second table of the cases where the engine's `-errorcode` is
@@ -476,8 +490,10 @@ The header is held to the shim from the other side by
 `make check-c-extension-wasm` ([c-extension-abi.md](c-extension-abi.md) § 7):
 every function the native leg declares is one `src/ffi.rs` exports and every
 function it exports is declared, and `pkga.c`, `doors.c` and `layout.c` compile for
-`wasm32` against the header, `pkga.c` and `doors.c` against both legs at once
-and each refused by the WASM leg alone.
+`wasm32` against the header: `pkga.c` against the WASM leg alone and against both
+legs at once, and `doors.c` against both legs at once and refused by the WASM leg
+alone. The vectors are kept in `tests/vectors/pkga.rs`, which the WASM runtime's
+own test of `pkga.c` includes as well.
 
 ## Out of scope
 

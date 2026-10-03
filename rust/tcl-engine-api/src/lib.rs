@@ -101,7 +101,8 @@ pub enum CompletionCode {
     /// `TCL_OK`: the command's value is its result.
     #[default]
     Ok,
-    /// `TCL_RETURN`: the calling procedure returns, with the command's value.
+    /// `TCL_RETURN`: the calling procedure returns, with the command's value and
+    /// the options of the `return` behind it ([`HostOutcome::options`]).
     Return,
     /// `TCL_BREAK`.
     Break,
@@ -142,13 +143,21 @@ impl CompletionCode {
     }
 }
 
-/// What a host command answers: its value and how it completed.
+/// What a host command answers: its value, how it completed and, for a
+/// `Return`, the options of the `return` behind it.
 #[derive(Debug, Clone)]
 pub struct HostOutcome {
     /// The result.
     pub value: Value,
     /// How the command completed.
     pub code: CompletionCode,
+    /// The options of the `return` that raised a [`CompletionCode::Return`], as a
+    /// Tcl dictionary: `-code`, `-level`, and what a `return -code error` carries
+    /// (`-errorcode`, `-errorinfo`). Empty for every other code, and for a
+    /// `Return` that is the command's own and plain. The calling procedure ends as
+    /// the options say, as it does in C Tcl: an error for `-code error`, a break
+    /// for `-code break`, a return from its caller too for `-level 2`.
+    pub options: Value,
 }
 
 impl HostOutcome {
@@ -158,10 +167,24 @@ impl HostOutcome {
         Self::completing(CompletionCode::Ok, value)
     }
 
-    /// A completion with `code` and `value`.
+    /// A completion with `code` and `value`, and no options.
     #[must_use]
     pub fn completing(code: CompletionCode, value: Value) -> Self {
-        Self { value, code }
+        Self {
+            value,
+            code,
+            options: Value::Empty,
+        }
+    }
+
+    /// A `Return` with `value` and the `options` of the `return` that raised it.
+    #[must_use]
+    pub fn returning(value: Value, options: Value) -> Self {
+        Self {
+            value,
+            code: CompletionCode::Return,
+            options,
+        }
     }
 }
 
@@ -682,6 +705,21 @@ mod tests {
             None,
             "an error is the Err of a call, not a completion"
         );
+    }
+
+    #[test]
+    fn only_a_return_carries_options() {
+        let plain = HostOutcome::ok(Value::string("v"));
+        assert!(plain.options.is_empty(), "{:?}", plain.options);
+        let broke = HostOutcome::completing(CompletionCode::Break, Value::Empty);
+        assert!(broke.options.is_empty());
+        let options = Value::string("-code 1 -level 1 -errorcode {X Y}");
+        let returned = HostOutcome::returning(Value::string("msg"), options.clone());
+        assert_eq!(returned.code, CompletionCode::Return);
+        assert_eq!(returned.value.as_str(), Some("msg"));
+        assert_eq!(returned.options.as_str(), options.as_str());
+        let converted = HostOutcome::from(Value::Int(3));
+        assert!(converted.options.is_empty());
     }
 
     #[test]

@@ -16,7 +16,8 @@
 #
 # The case list below is the runtime's LOCAL PACKAGE CLOSURE (the crate itself
 # plus every path dependency `cargo metadata` resolves for it), its external
-# Tcl 9 smoke corpus, and the lane's build inputs — not a guess.
+# Tcl 9 smoke corpus, the test extension it compiles from the shim's tests,
+# and the lane's build inputs — not a guess.
 # `scripts/dev/test-runtime-rust-paths.sh` re-derives that closure from cargo
 # and fails if this list has drifted either way, so a new path dependency
 # cannot silently stop triggering the job, and an over-broad entry cannot
@@ -38,6 +39,12 @@ case "$PATH_TO_CLASSIFY" in
         ;;
     # External golden inputs executed by runtime/rust/tests/tcl9_smoke.rs.
     samples/tcl9_smoke/*.tcl | samples/tcl9_smoke/*.expected)
+        exit 0
+        ;;
+    # The test extension runtime/rust/build.rs compiles and links into
+    # runtime/rust/tests/pkga_extension.rs, and the vectors that test shares
+    # with the shim's own.
+    rust/tcl-cshim/tests/c/pkga.c | rust/tcl-cshim/tests/vectors/pkga.rs)
         exit 0
         ;;
     # Its resolved path-dependency closure. Keep in sync with

@@ -38,14 +38,14 @@ Two checks:
 * **The header compiles for wasm32.** With wasi-sdk's `clang`
   (`$WASI_SDK_PATH`, else `/opt/wasi-sdk`): `tests/c/layout.c`, whose static
   assertions are the 24-byte `Tcl_Obj` layout, under the WASM leg and under the
-  target's default; the shim's test extension `pkga.c` under both legs named at
-  once (the union, which checks the source against the header on an ILP32
-  target and names no host), and again as an 8.x source
-  (`-DTCL_MAJOR_VERSION=8`), and `doors.c`, the one that reads, writes and
-  evaluates in its caller's frame, under both legs; and, as the negatives,
-  `pkga.c` and `doors.c` under the WASM leg alone, which must be refused because
-  each calls functions only the shim implements. Without wasi-sdk this half is
-  skipped with a note, unless
+  target's default; the shim's test extension `pkga.c` under the WASM leg alone,
+  which declares everything it calls, and under both legs named at once (the
+  union, which checks the source against the header on an ILP32 target and
+  names no host), each again as an 8.x source (`-DTCL_MAJOR_VERSION=8`); and
+  `doors.c`, the one that reads, writes and evaluates in its caller's frame,
+  under both legs, with, as the negative, `doors.c` under the WASM leg alone,
+  which must be refused because it calls functions only the shim implements.
+  Without wasi-sdk this half is skipped with a note, unless
   `TCL_REQUIRE_WASM_LINK` is set, as it is in the CI job that installs the
   toolchain, where a missing compiler is a failure.
 
@@ -297,11 +297,12 @@ def compile_c(
 #: A call only the WASM leg declares, and one only the native leg does: what
 #: shows which leg a compile with no host named got.
 WASM_ONLY = "Tcl_NewObj"
-NATIVE_ONLY = "Tcl_NewIntObj"
+NATIVE_ONLY = "Tcl_EvalObjEx"
 _PROBES = {
     WASM_ONLY: f"#include <tcl.h>\nTcl_Obj *probe(void) {{ return {WASM_ONLY}(); }}\n",
     NATIVE_ONLY: (
-        f"#include <tcl.h>\nTcl_Obj *probe(void) {{ return {NATIVE_ONLY}(1); }}\n"
+        "#include <tcl.h>\nint probe(Tcl_Interp *interp, Tcl_Obj *script) "
+        f"{{ return {NATIVE_ONLY}(interp, script, 0); }}\n"
     ),
 }
 #: Without `__wasm__` the target is not wasm32 as far as the header can tell.
@@ -327,6 +328,19 @@ def check_compiles(sdk: Path, native_only: set[str]) -> list[str]:
             (),
             (),
             "the layout is the same whichever leg the target defaults to",
+        ),
+        (
+            pkga,
+            ("TCL_HOST_WASM",),
+            (),
+            "the WASM leg declares every function the test extension calls, so "
+            "it compiles against the runtime's leg alone",
+        ),
+        (
+            pkga,
+            ("TCL_HOST_WASM", "TCL_MAJOR_VERSION=8"),
+            (),
+            "the test extension compiles as an 8.x source against the WASM leg",
         ),
         (
             pkga,
@@ -362,14 +376,6 @@ def check_compiles(sdk: Path, native_only: set[str]) -> list[str]:
     )
     # (source, defines, undefines, what it shows, the functions it is refused for)
     refused = (
-        (
-            pkga,
-            ("TCL_HOST_WASM",),
-            (),
-            "the WASM leg declares only what the runtime exports, and the test "
-            "extension calls functions only the shim implements",
-            native_only,
-        ),
         (
             doors,
             ("TCL_HOST_WASM",),
@@ -613,8 +619,8 @@ def _self_test_the_shipped_header_has_the_two_legs_it_documents(tmp: Path) -> No
     wasm, native = set(legs["wasm"][0]), set(legs["native"][0])
     assert WASM_ONLY in wasm and WASM_ONLY not in native
     assert NATIVE_ONLY in native and NATIVE_ONLY not in wasm
-    assert "Tcl_GetIntFromObj" in native and "Tcl_GetIntFromObj" not in wasm
-    assert {"Tcl_CreateObjCommand", "TclFreeObj"} <= wasm & native
+    assert "Tcl_GetVar2Ex" in native and "Tcl_GetVar2Ex" not in wasm
+    assert {"Tcl_CreateObjCommand", "TclFreeObj", "Tcl_GetIntFromObj"} <= wasm & native
     assert "Tcl_DecrRefCount" in legs["wasm"][1], "the refcount operations are macros"
 
 

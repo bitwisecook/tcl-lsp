@@ -78,8 +78,12 @@ API_PREFIXES = ("Tcl_", "mp_")
 
 #: Real C API functions whose names carry neither prefix, because `tcl.h`
 #: spells them so: the reference-count macros an extension compiles in call
-#: `TclFreeObj`, so the runtime must export it and give it a row.
-API_UNPREFIXED = frozenset({"TclFreeObj"})
+#: `TclFreeObj`, and the header's inline `Tcl_SetResult` and `Tcl_AppendResult`
+#: call the two `TclHost_` exports, so the runtime must export each and give it
+#: a row.
+API_UNPREFIXED = frozenset(
+    {"TclFreeObj", "TclHost_SetResultString", "TclHost_AppendResultString"}
+)
 
 #: `capi.rs` exports matching these are known-internal and never expected to
 #: carry a contract row. Listed explicitly (rather than just "doesn't start
