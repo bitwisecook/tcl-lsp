@@ -531,6 +531,144 @@ fn the_bundled_extension_loads_through_a_command_a_host_registers_itself() {
     assert_eq!(answer.as_str(), Some("5"));
 }
 
+/// The unchanged `ifneeded` script a `pkgIndex.tcl` writes for a library with a
+/// plain `load`: the entry point provides the package, so `package require`
+/// finds it, and a second `package require` is satisfied from the package
+/// database without the entry point running again. The expected answers are
+/// `tclsh9.0`'s for the same `pkga.c` built against Tcl 9.0.4's own `tcl.h`: both
+/// requires answer `1.0`, `pkga_forget` answers 1 and deletes `pkga_count`, and
+/// that command stays deleted because a second run of the entry point would have
+/// created it again; `info loaded` lists the library under the file `load` was
+/// given.
+#[test]
+fn a_package_whose_ifneeded_script_is_a_plain_load_is_required_twice() {
+    let mut interp = bridged();
+    let extension = interp
+        .eval("info sharedlibextension")
+        .expect("the extension")
+        .as_str()
+        .unwrap_or_default()
+        .to_owned();
+    interp
+        .eval(
+            "package ifneeded pkga 1.0 \
+             [list load [file join /opt/pkga libpkga[info sharedlibextension]] Pkga]",
+        )
+        .expect("registers the ifneeded script");
+    assert_eq!(
+        catching(&mut interp, "package provide pkga"),
+        (0, String::new(), String::new()),
+        "nothing provides it before the first require"
+    );
+
+    let listed = format!("{{/opt/pkga/libpkga{extension} Pkga}}");
+    assert_eq!(
+        catching(&mut interp, "package require pkga"),
+        (0, "1.0".into(), String::new()),
+        "the first require runs the load, and the entry point provides the package"
+    );
+    assert_eq!(
+        catching(&mut interp, "package provide pkga"),
+        (0, "1.0".into(), String::new())
+    );
+    assert_eq!(
+        catching(&mut interp, "info loaded"),
+        (0, listed.clone(), String::new())
+    );
+
+    let gone = (
+        1,
+        "invalid command name \"pkga_count\"".to_owned(),
+        "TCL LOOKUP COMMAND pkga_count".to_owned(),
+    );
+    assert_eq!(
+        catching(&mut interp, "pkga_forget"),
+        (0, "1".into(), String::new())
+    );
+    assert_eq!(catching(&mut interp, "pkga_count"), gone);
+
+    assert_eq!(
+        catching(&mut interp, "package require pkga"),
+        (0, "1.0".into(), String::new()),
+        "the second is satisfied from the package database"
+    );
+    assert_eq!(
+        catching(&mut interp, "pkga_count"),
+        gone,
+        "the entry point did not run again, or it would have created the command"
+    );
+    assert_eq!(
+        catching(&mut interp, "info loaded"),
+        (0, listed, String::new()),
+        "and the library is listed once"
+    );
+}
+
+/// The negative of the require above: an `ifneeded` script whose `load` the
+/// host's table refuses leaves `package require` an error that carries the
+/// load's, as it does in C Tcl, where the error is the file's `couldn't load
+/// file "…": …`; nothing is provided and nothing is listed as loaded.
+#[test]
+fn an_ifneeded_script_whose_load_the_table_refuses_leaves_the_require_an_error() {
+    let mut interp = bridged();
+    interp
+        .eval("package ifneeded pkgz 1.0 {load /opt/pkgz/libpkgz.so Pkgz}")
+        .expect("registers the ifneeded script");
+    let (code, message, _) = catching(&mut interp, "package require pkgz");
+    assert_eq!(code, 1);
+    assert!(
+        message.starts_with("couldn't load file \"/opt/pkgz/libpkgz.so\": "),
+        "{message}"
+    );
+    assert_eq!(
+        catching(&mut interp, "package provide pkgz"),
+        (0, String::new(), String::new())
+    );
+    assert_eq!(
+        catching(&mut interp, "info loaded"),
+        (0, String::new(), String::new())
+    );
+}
+
+/// What `tclsh9.0` does when the package is already provided at another version:
+/// the entry point's `Tcl_PkgProvide` fails with the package command's own error,
+/// the entry point returns it before it creates a command, and `load` fails with
+/// it, so nothing the extension would have defined exists.
+#[test]
+fn a_package_provided_at_another_version_fails_the_entry_point_before_it_registers_anything() {
+    let mut interp = bridged();
+    interp
+        .eval("package provide pkga 2.0")
+        .expect("provides another version");
+    let conflict = (
+        1,
+        "conflicting versions provided for package \"pkga\": 2.0, then 1.0".to_owned(),
+        "TCL PACKAGE VERSIONCONFLICT".to_owned(),
+    );
+    assert_eq!(
+        catching(&mut interp, "load /opt/pkga/libpkga.so Pkga"),
+        conflict
+    );
+    assert_eq!(
+        catching(&mut interp, "pkga_eq a a"),
+        (
+            1,
+            "invalid command name \"pkga_eq\"".into(),
+            "TCL LOOKUP COMMAND pkga_eq".into()
+        ),
+        "the entry point returned before it created a command"
+    );
+    assert_eq!(
+        catching(&mut interp, "package provide pkga"),
+        (0, "2.0".into(), String::new())
+    );
+    assert_eq!(
+        catching(&mut interp, "load /opt/pkga/libpkga.so Pkga"),
+        conflict,
+        "the load was not marked done, so a later one runs the entry point again"
+    );
+}
+
 #[test]
 fn client_data_and_delete_procs_work_across_calls() {
     let mut interp = loaded();

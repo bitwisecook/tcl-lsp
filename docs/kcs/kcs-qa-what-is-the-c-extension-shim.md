@@ -44,8 +44,11 @@ the C code itself does.
 
 The shim covers the argument-handling core: registration, the object and list
 API, the integer, double, boolean, and index conversions, and the result and
-error-code API. Channels, the event loop, threads, `Tcl_Eval`, and binary
-compatibility with a real `libtcl` are out of scope. The full subset, the
+error-code API, and a command can read, write and unset the variables of the
+frame that called it and evaluate a script there (`Tcl_GetVar2Ex`,
+`Tcl_ObjSetVar2`, `Tcl_UnsetVar2`, `Tcl_EvalObjEx`). Channels, the event loop,
+threads, the rest of the `Tcl_Eval` family, and binary compatibility with a real
+`libtcl` are out of scope. The full subset, the
 value-marshalling rules, and the trust model are in the
 [design doc](../design/runtime/c-extension-shim.md).
 

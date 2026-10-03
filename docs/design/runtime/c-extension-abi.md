@@ -301,13 +301,15 @@ Tcl 9.0.4's own `tcl.h`, are the shared conformance vectors.
 Both legs declare command registration (`Tcl_CreateObjCommand`,
 `Tcl_DeleteCommand`), `Tcl_NewStringObj` / `Tcl_NewWideIntObj` /
 `Tcl_NewBooleanObj` / `Tcl_NewDoubleObj`, `Tcl_GetString`,
-`Tcl_GetStringFromObj`, `Tcl_SetObjResult`, `Tcl_GetObjResult` and
-`TclFreeObj`, with the `Tcl_Obj` layout of § 4.2 and the reference-count macros
-over it. The WASM leg adds `Tcl_NewObj`; the native leg adds the scalar and list
-accessors, the error state, `Tcl_AppendResult` and its siblings, the package
-call and the two UTF-8 helpers the shim implements. A source built with
-`-DTCL_MAJOR_VERSION=8` sees `Tcl_Size` as `int`, as an 8.x source does, with
-inline wrappers for the functions that write a size through a pointer.
+`Tcl_GetStringFromObj`, `Tcl_SetObjResult`, `Tcl_GetObjResult` and `TclFreeObj`,
+with the `Tcl_Obj` layout of § 4.2 and the reference-count macros over it. The
+WASM leg adds `Tcl_NewObj`; the native leg adds the scalar and list accessors,
+the error state, `Tcl_AppendResult` and its siblings, the package call, the
+calls that read, write and unset a variable of the caller's frame and evaluate a
+script there (`Tcl_GetVar2Ex`, `Tcl_ObjSetVar2`, `Tcl_UnsetVar2`,
+`Tcl_EvalObjEx`) and the two UTF-8 helpers the shim implements. A source built
+with `-DTCL_MAJOR_VERSION=8` sees `Tcl_Size` as `int`, as an 8.x source does,
+with inline wrappers for the functions that write a size through a pointer.
 
 `make check-c-extension-wasm` (`scripts/check_c_extension_wasm.py`, part of
 `xtask-check`) holds the header to its two hosts. Offline, it reads each leg's
@@ -317,15 +319,16 @@ against the WASM leg, and the `export_name` functions of
 `rust/tcl-cshim/src/ffi.rs` against the native leg; a header macro such as
 `Tcl_DecrRefCount` stands for an export without being declared. With wasi-sdk's
 `clang` it compiles for `wasm32-wasip1`: `tests/c/layout.c`, whose static
-assertions are the 24-byte `Tcl_Obj` layout; the shim's test extension
-`tests/c/pkga.c` against both legs at once and as an 8.x source; and the leg a
-compile with no host named gets, on a wasm32 target and on one that is not. Two
-of those compiles are negatives and must be refused: `pkga.c` against the WASM
-leg alone, which calls functions only the shim implements, and each default
+assertions are the 24-byte `Tcl_Obj` layout; the shim's test extensions
+`tests/c/pkga.c`, against both legs at once and as an 8.x source, and
+`tests/c/doors.c`, against both legs at once; and the leg a compile with no host
+named gets, on a wasm32 target and on one that is not. Four of those compiles
+are negatives and must be refused: `pkga.c` and `doors.c` against the WASM leg
+alone, which each call functions only the shim implements, and each default
 leg's call to a function only the other declares. Without wasi-sdk the compiles
 are skipped, unless `TCL_REQUIRE_WASM_LINK` is set, as it is in the CI job that
-installs the toolchain. `pkga.c` is not linked with the runtime: the WASM leg
-declares what the runtime exports, which is less than `pkga.c` calls.
+installs the toolchain. Neither extension is linked with the runtime: the WASM
+leg declares what the runtime exports, which is less than `pkga.c` calls.
 
 Source of truth for "what the API surface must cover": the 25-extension survey.
 **~85–90% of real extensions are public-`tcl.h`-only.**

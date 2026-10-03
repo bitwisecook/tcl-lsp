@@ -155,13 +155,14 @@ the target.
 `Tcl_Interp *` C code sees is the pointer to that state, and the state is
 what the C API reads and writes through it: the result slot, the error
 code, the command table, the provided packages. The engine is never behind
-the pointer — the C side has no way to reach it, and no API here evaluates a
-script from C.
+the pointer: the C side reaches it only through the door an invocation opens
+(§ *The doors*).
 
 `Interp::load_static(init)` calls `<Pkg>_Init(Tcl_Interp *)`. During the
 call, `Tcl_CreateObjCommand` records a `CommandEntry` (name, procedure,
 client data, delete procedure) in the state and queues a `Created` change;
-`Tcl_PkgProvideEx` records `(name, version)`. On `TCL_OK` the queued changes
+`Tcl_PkgProvideEx` records `(name, version)` and, with the engine's door open,
+provides it to the engine's package database too (§ *The doors*). On `TCL_OK` the queued changes
 are applied to the engine by `Interp::sync`: each created command becomes a
 `ShimCommand` — a `HostCommand` holding the state and the name — registered
 through `Engine::define_command`, the same door the hook host's emitter
@@ -231,6 +232,72 @@ Engine-neutral pieces, and nothing that is an interp pointer or a result slot:
   failed unit's `-errorcode` as the `code` of the error. A budget the host
   command's own evaluation outran stays the budget the invocation reports.
 
+## The doors
+
+`Tcl_GetVar2Ex`, `Tcl_ObjSetVar2`, `Tcl_UnsetVar2` and `Tcl_EvalObjEx` act on the
+frame that called the running command (`rust/tcl-cshim/src/doors.rs`). The
+engine is not behind the `Tcl_Interp *`, so the shim reaches it the one way it
+can, through the engine's door: `ShimCommand::invoke_with_registrar` holds the
+registrar it was given for the length of the C procedure, and `run_init` does the
+same for an entry point, so an `Init` reads and writes the frame that loaded it.
+The state keeps a pointer to the reference the invoking function holds and never
+a reference of its own, and a scope closes it: a command that evaluates a script
+that calls a command opens a door for the inner one and has the outer one back
+when it returns, and while a call through a door runs that door is closed to
+everything but the call.
+
+- **Names.** The door takes one name, spelt as `set` spells it. An array element
+  given as two parts is composed (`a` and `k` are `a(k)`); a name
+  `TCL_GLOBAL_ONLY` asks for is rooted (`x` is `::x`), and the engine's message
+  gives the name back as the C code spelt it; a name Tcl reads as an element
+  (`a(k)`) beside an index is Tcl's `can't set "a(k)(j)": variable isn't array`
+  with `TCL VALUE VARNAME`; and an array whose own name contains a parenthesis,
+  which Tcl takes literally and one name cannot say, is refused.
+- **Flags.** Only the flags the header defines are honoured: `TCL_GLOBAL_ONLY`
+  and `TCL_LEAVE_ERR_MSG` for a variable call, and `TCL_EVAL_DIRECT`, a hint to
+  Tcl's compiler that changes nothing here, for an evaluation. A source cannot
+  name another, and one passed by number is refused with an error that names the
+  bits, so it fails where it asked and does not run as if it had been heard.
+  `TCL_NAMESPACE_ONLY`, `TCL_APPEND_VALUE`, `TCL_LIST_ELEMENT` and
+  `TCL_EVAL_GLOBAL` are not implemented.
+- **Errors.** A miss is the engine's own Tcl error. Its message and `-errorcode`
+  go in the interpreter's result when the call asked for it
+  (`TCL_LEAVE_ERR_MSG`, which an evaluation always has) and nothing is touched
+  when it did not, as in Tcl. A failed evaluation leaves `$errorCode` and
+  `$errorInfo` as a caught error would (`Vm::publish_caught_error`), so a C command
+  that swallows the failure and goes on leaves the globals a script reads. The
+  errors C cannot swallow are a budget the engine enforces and a crash: the call
+  fails like any other, the error is kept (`InterpState::set_fatal`), every later
+  call fails at once without reaching the engine, and the command that is running
+  fails with it whatever it returns, so a C command that catches what a script
+  raised cannot run on past the fuel. With no door open (an engine that invokes a
+  command without one) each call is a Tcl error and never an empty answer, and a
+  door the engine lacks is its own `Unsupported`.
+- **Objects.** What `Tcl_GetVar2Ex` answers is a new object, kept until the
+  command returns, so the pointer stays good through later calls that change or
+  unset the variable. An object passed in (the value of `Tcl_ObjSetVar2`, the
+  script of `Tcl_EvalObjEx`) is held as a reference for the call, so one with a
+  count of zero is consumed as it is in Tcl: freed when the store fails, and when
+  the command returns when it succeeded. `Tcl_ObjSetVar2` answers the object it
+  was given, not a copy, and the value reaches the engine typed (an integer
+  object is an integer).
+- **Packages.** `Tcl_PkgProvideEx` goes through the same door before the shim
+  records the package: the engine's package database takes it as `package
+  provide` does, so a version in conflict with the one provided is the engine's
+  own error (`conflicting versions provided for package "pkga": 2.0, then 1.0`,
+  `TCL PACKAGE VERSIONCONFLICT`), left in the result as `Tcl_PkgProvideEx` leaves
+  it and returned by the entry point before it registers anything, as C Tcl's
+  does. An engine with no such door, or no door open, leaves the package to the
+  shim's own record (`Interp::provided_packages`).
+- **What it does not report.** The value stored is the value given: a write trace
+  that rewrites it is not reported back. A `TCL_RETURN` crosses with its value
+  alone, so the options of the `return` that raised it (`-code`, `-level`,
+  `-errorcode`) are not carried, and a C command that evaluates `return -code error
+  msg` and answers `TCL_RETURN` returns normally where C Tcl's procedure would fail.
+  The `-errorcode` of a variable error is the engine's own, and the VM's is
+  `NONE` for a variable that is not there where C Tcl's is `TCL LOOKUP VARNAME x`
+  (`tests/doors_e2e.rs` records each difference beside the vectors that agree).
+
 ## The host's `load`
 
 The shim is linked, not loaded against a stub table, so there is no shared
@@ -279,13 +346,17 @@ table as a host command.
   file "F": …`, with the reason a table has to give). A failing entry point's
   result and error code are the `load`'s own, and the prefix is not marked
   loaded, so a later `load` runs the entry point again.
-- **What it does not do.** It records the packages an entry point provides in
-  the shim's state (`Interp::provided_packages`), not in the engine's package
-  database: the door an engine opens to a host command registers commands and
-  nothing else. A script that wants `package require` to find the extension
-  says `package provide` itself after the `load`; an unchanged
-  `package ifneeded … {load …}` loads the commands and then fails with
-  `attempt to provide package … failed: no version of package … provided`.
+- **What it tells the engine.** The packages an entry point provides reach the
+  engine's package database as it provides them (§ *The doors*), so an unchanged
+  `package ifneeded pkga 1.0 [list load [file join $dir libpkga[info
+  sharedlibextension]] Pkga]` is satisfied by `package require pkga` once the
+  entry point has run, and a second `package require` is satisfied from the
+  database and runs nothing. A successful load also tells the engine the library
+  (`library_loaded`), once per prefix and under the file `load` was given (empty
+  for a static library), which is what `info loaded` lists. An engine with
+  neither door is told nothing and the load is unaffected. A failed entry point
+  lists nothing; C Tcl lists the library in the process-wide `info loaded` and
+  not in `info loaded {}`, and one interpreter has only the second.
 - **`tclvm --static-extensions`.** The `tcl-vm-cli` crate's `static-extensions`
   feature links the shim's bundled extension, the way a `tclsh` test build
   links `Tcltest`, and the flag registers `load` over it on the VM; without the
@@ -317,7 +388,8 @@ compile:
 | lists | `Tcl_ListObjAppendElement`, `Tcl_ListObjGetElements`, `Tcl_ListObjLength` |
 | result | `Tcl_SetObjResult`, `Tcl_GetObjResult`, `Tcl_ResetResult`, `Tcl_SetResult`, `Tcl_AppendResult`, `Tcl_WrongNumArgs`, `Tcl_SetErrorCode`, `Tcl_SetObjErrorCode` |
 | UTF-8 | `Tcl_NumUtfChars`, `Tcl_UtfNcmp` |
-| definitions | `Tcl_Interp` (opaque), `Tcl_Obj` (the declared layout), `Tcl_Command`, `Tcl_ObjCmdProc`, `Tcl_CmdDeleteProc`, `Tcl_FreeProc`, `ClientData`, `Tcl_WideInt`, `Tcl_Size` / `TCL_SIZE_MAX` / `TCL_INDEX_NONE`, the `TCL_OK` … `TCL_CONTINUE` codes, `TCL_STATIC` / `TCL_VOLATILE` / `TCL_DYNAMIC`, `TCL_EXACT` / `TCL_NULL_OK` / `TCL_INDEX_TEMP_TABLE` |
+| the caller's frame | `Tcl_GetVar2Ex`, `Tcl_ObjSetVar2`, `Tcl_UnsetVar2`, `Tcl_EvalObjEx`, through the door of the running command |
+| definitions | `Tcl_Interp` (opaque), `Tcl_Obj` (the declared layout), `Tcl_Command`, `Tcl_ObjCmdProc`, `Tcl_CmdDeleteProc`, `Tcl_FreeProc`, `ClientData`, `Tcl_WideInt`, `Tcl_Size` / `TCL_SIZE_MAX` / `TCL_INDEX_NONE`, the `TCL_OK` … `TCL_CONTINUE` codes, `TCL_STATIC` / `TCL_VOLATILE` / `TCL_DYNAMIC`, `TCL_EXACT` / `TCL_NULL_OK` / `TCL_INDEX_TEMP_TABLE`, `TCL_GLOBAL_ONLY` / `TCL_LEAVE_ERR_MSG` / `TCL_EVAL_DIRECT` |
 
 Three header conventions carry the C-side mangling:
 
@@ -349,11 +421,11 @@ Three header conventions carry the C-side mangling:
   offsets and run the macros against it.
 
 An extension that needs string building (`Tcl_AppendToObj`,
-`Tcl_ObjPrintf`, `Tcl_NewByteArrayObj`), the dict API, variables
-(`Tcl_SetVar2Ex`, `Tcl_ObjSetVar2`) or evaluation (`Tcl_EvalObjEx`) is
-outside the implemented subset: the engine interface has no variable door
-and no in-invocation eval door. A declaration outside the subset is absent
-from the shim's leg of the header rather than present and unimplemented.
+`Tcl_ObjPrintf`, `Tcl_NewByteArrayObj`), the dict API, or a variable or
+evaluation call beyond the four above (`Tcl_SetVar2Ex`, `Tcl_GetVar`,
+`Tcl_Eval`, `Tcl_EvalEx`) is outside the implemented subset. A declaration
+outside the subset is absent from the shim's leg of the header rather than
+present and unimplemented.
 
 ## Testing
 
@@ -373,6 +445,17 @@ messages, error codes, number formatting, list quoting, and prefix
 resolution are asserted byte-for-byte against C Tcl, not against the
 documentation.
 
+`tests/c/doors.c` is a second test extension for the doors: one command for each
+call (`doors_get`, `doors_set`, `doors_unset`, `doors_eval`, and the variants that
+pass `TCL_GLOBAL_ONLY`, no flags or `TCL_EVAL_DIRECT`), `doors_try`, which answers
+the code and result a script gave and so swallows its error, `doors_keep`, which
+holds a value past the call that unsets its variable, and an entry point that
+sets a global through the door. `tests/doors_e2e.rs` holds a table of scripts
+whose code, result and `-errorcode` were captured the same way, from `doors.c`
+built against Tcl 9.0.4's own `tcl.h` and run in `tclsh9.0` at the global level
+under `catch`, and a second table of the cases where the engine's `-errorcode` is
+not C Tcl's, each with the reason.
+
 The registration and marshalling story is also tested with an extension
 defined in Rust through the same exports (`src/lib.rs` and `src/load.rs`
 tests, and the trust-posture proof in `tests/sandbox_isolation.rs`), so every
@@ -380,23 +463,29 @@ platform, Windows included, runs it. The host's `load` runs the same vectors:
 `the_same_vectors_run_through_the_host_load_bridge` loads the extension from a
 script and then holds every case above to its bytes, and
 `load_through_the_host_bridge_defines_the_commands` holds the commands, the
-refusal of a prefix the table lacks, and the single load. The smoke tier has
+refusal of a prefix the table lacks, and the single load. Three more hold the
+package flow: an unchanged `ifneeded` script that is a plain `load`, required
+twice, and a package already provided at another version, which fails the entry
+point before it registers anything, each against `tclsh9.0`'s answers for the same
+`pkga.c` built against Tcl 9.0.4's own `tcl.h`; and the same `ifneeded` script when
+the table refuses the load, which leaves `package require` the load's own
+`couldn't load file "…": …`, as in C Tcl. The smoke tier has
 one test in each file.
 
 The header is held to the shim from the other side by
 `make check-c-extension-wasm` ([c-extension-abi.md](c-extension-abi.md) § 7):
 every function the native leg declares is one `src/ffi.rs` exports and every
-function it exports is declared, and `pkga.c` and `layout.c` compile for
-`wasm32` against the header, `pkga.c` against both legs at once and refused by
-the WASM leg alone.
+function it exports is declared, and `pkga.c`, `doors.c` and `layout.c` compile for
+`wasm32` against the header, `pkga.c` and `doors.c` against both legs at once
+and each refused by the WASM leg alone.
 
 ## Out of scope
 
 Not shimmed, and so absent from the shim's leg of the header:
 `Tcl_Channel` and the I/O API; the event loop and notifier
 (`Tcl_DoOneEvent`, `Tcl_CreateFileHandler`, timers); threads
-(`Tcl_CreateThread`, mutexes, thread-specific data); and `Tcl_Eval*` (an
-interface question first, see above). What the authored header covers
+(`Tcl_CreateThread`, mutexes, thread-specific data); and the `Tcl_Eval*` and
+variable calls beyond the four the subset has. What the authored header covers
 across both hosts is its own scope list, [c-extension-abi.md](c-extension-abi.md)
 § 7. **Stubs-table binary compatibility** with real `libtcl` builds is out
 of scope for both legs — the shim is linked, not loaded against a stub
@@ -407,12 +496,14 @@ existing `.so`/`.dll`.
 
 - `runtime/rust/include/tcl.h` — the header; the shim is its `TCL_HOST_NATIVE`
   leg.
-- `rust/tcl-cshim/src/{ffi,obj,state,lib,load}.rs` — the shim; `load.rs` is
-  the host's `load`.
-- `rust/tcl-cshim/tests/c/pkga.c`, `tests/c/layout.c`, `tests/pkga_e2e.rs`,
+- `rust/tcl-cshim/src/{ffi,obj,state,doors,lib,load}.rs` — the shim; `doors.rs`
+  is the caller's frame, `load.rs` the host's `load`.
+- `rust/tcl-cshim/tests/c/pkga.c`, `tests/c/doors.c`, `tests/c/layout.c`,
+  `tests/pkga_e2e.rs`, `tests/doors_e2e.rs`, `tests/completion.rs`,
   `tests/factory.rs`, `tests/sandbox_isolation.rs` — the tests.
-- `rust/tcl-engine-api/src/lib.rs` — `Engine::remove_command`.
-- `rust/tcl-engine-tclvm/src/lib.rs` — the error mapping, `remove_command`
-  and `register_host_command`.
+- `rust/tcl-engine-api/src/lib.rs` — `HostOutcome`, `CompletionCode`, the
+  registration door's methods and their `Engine` twins, `Engine::remove_command`.
+- `rust/tcl-engine-tclvm/src/lib.rs` — the error mapping, the doors,
+  `remove_command` and `register_host_command`.
 - `rust/tcl-vm-cli/src/main.rs` — `--static-extensions`.
 - KCS: [What is the C extension shim and when should I use it?](../../kcs/kcs-qa-what-is-the-c-extension-shim.md).

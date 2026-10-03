@@ -37,6 +37,9 @@
 //!   [`Vm::unset_variable`] do what `set` and `unset` do in the current frame,
 //!   element names and traces included; [`Vm::get_var`], [`Vm::set_var`] and
 //!   [`Vm::unset_var`] are the scalar-only forms beneath them.
+//! - **Take an error as the host's own.** [`Vm::publish_caught_error`] leaves
+//!   `$errorInfo` and `$errorCode` as a `catch` would, for a host command that
+//!   evaluated a script and swallowed what it raised.
 //! - **Restrict the command table.** [`Vm::retain_commands`] reduces a fresh VM
 //!   to a closed whitelist, which is how a sandbox is built out of a normal
 //!   interpreter rather than a second one.
@@ -49,9 +52,9 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use tcl_runtime_api::{Completion, ScriptCompileTarget};
+use tcl_runtime_api::{Code, Completion, ScriptCompileTarget};
 
-use crate::command::{Command, NativeCommand};
+use crate::command::{Command, NativeCommand, opt_get, resolved_error_code};
 use crate::error::TclError;
 use crate::interp::Vm;
 use crate::value::Value;
@@ -310,6 +313,25 @@ impl Vm {
     /// (`can't unset "x": no such variable`).
     pub fn unset_variable(&mut self, name: &str) -> Result<(), Completion<Value>> {
         self.unset_one(name, true)
+    }
+
+    /// Publish `$errorInfo` and `$errorCode` for `completion`, an error a host
+    /// command took as its own: one that evaluated a script and swallowed its
+    /// failure leaves them as a `catch` of the script would have, so what the
+    /// script raised is what the next command reads. A completion that is not an
+    /// error publishes nothing, and nothing is published while stores are
+    /// confined to the activation.
+    pub fn publish_caught_error(&mut self, completion: &Completion<Value>) {
+        if completion.code != Code::Error {
+            return;
+        }
+        let options = self.completion_options_snapshot(completion);
+        let info = opt_get(&options, "-errorinfo").map_or_else(
+            || completion.result.to_str().to_string(),
+            |value| value.to_str().to_string(),
+        );
+        let _ = self.take_error_info();
+        self.publish_error(&info, &resolved_error_code(completion));
     }
 
     /// Every command name currently registered, sorted.

@@ -504,7 +504,7 @@ catalogue fields.
 code loaded only through `Interp::load_static` or a host's `load` — and
 compiles against the authored header, so one extension source compiles for
 both legs. The shim has no header of its own: `Tcl_Obj` has the ABI's
-declared layout (§ 4.2) and is never opaque, and the shim's 32 exported
+declared layout (§ 4.2) and is never opaque, and the shim's 36 exported
 symbols are the subset of the authored header its native leg declares, with
 every unimplemented declaration absent. The standing rules are unchanged by
 this: extensions are recompiled, never binary-loaded; no pack word loads
@@ -512,7 +512,8 @@ native code; a shimmed command is not a `-native` hook.
 
 **Rationale, from the two documents and the exports.** Coverage decides
 it. The shim's header is honest by rule and therefore small — an extension
-needing string building, the dict API, variables, or `Tcl_EvalObjEx` does
+needing string building, the dict API, or a variable or evaluation call beyond
+`Tcl_GetVar2Ex`, `Tcl_ObjSetVar2`, `Tcl_UnsetVar2` and `Tcl_EvalObjEx` does
 not compile against it — while the ABI is held to a measured corpus of
 nine `dltest` extensions from the Tcl 9.0.4 source tree plus two synthetic
 probes, and its one relocation surprise is bounded: four GOT entries for
@@ -538,9 +539,9 @@ header, and its § *Out of scope* list is the header's own scope list;
 the native leg beside the WASM one. The shim's `Tcl_Size` switch is the
 authored header's (`TCL_MAJOR_VERSION=8`). Code predicates:
 `rust/tcl-cshim/src/obj.rs` publishes the `Tcl_Obj` layout instead of
-keeping it opaque; the engine interface's variable door and in-invocation
-eval door, which the shim document names as missing, are what
-`Tcl_ObjSetVar2` and `Tcl_EvalObjEx` need;
+keeping it opaque; `rust/tcl-cshim/src/doors.rs` implements `Tcl_GetVar2Ex`,
+`Tcl_ObjSetVar2`, `Tcl_UnsetVar2` and `Tcl_EvalObjEx` over the engine interface's
+variable door and in-invocation eval door;
 `rust/tcl-cshim/tests/pkga_e2e.rs`'s byte-for-byte expectations, captured
 against Tcl 9.0.4's own `tcl.h`, are the shared conformance vectors for
 both legs.
@@ -2482,11 +2483,12 @@ flowchart LR
   the entry points the host has linked in and vouched for, registered on an
   engine only by the host, so no pack word reaches it and a hook engine has
   none; the file name is a label, the prefix names the entry, and a prefix
-  loads once. It records a provided package in the shim and not in the engine's
-  package database. Under WASM the same authored header serves once the seam in
-  the fourth ruling's order is closed, with the syntax-only
-  `wasm32-wasi` check the shim document mentions turned into a CI gate that
-  compiles the test extension.
+  loads once. A package an entry point provides reaches the engine's package
+  database, as `package provide` puts it there, and the library is listed for
+  `info loaded`, so an unchanged `package ifneeded … {load …}` is satisfied and a
+  second `package require` runs nothing. Under WASM the same authored header
+  serves: the registration seam is built, and `make check-c-extension-wasm`
+  compiles the test extensions for `wasm32` against it.
 - **Evaluate through a C command never natively**, because C code cannot
   be fuel-limited and undefined behaviour is uncontained. Under WASM, fuel
   and memory give containment; eligibility comes from a declared route on

@@ -173,6 +173,20 @@ fn evaluate(vm: &mut Vm, script: &str) -> Result<HostOutcome, EngineError> {
     let completion = match vm.eval_source(script) {
         Ok(completion) => completion,
         Err(error) => {
+            let options = error
+                .error_code
+                .as_deref()
+                .map_or_else(tcl_vm::Value::empty, |code| {
+                    tcl_vm::Value::list(vec![
+                        tcl_vm::Value::string("-errorcode"),
+                        tcl_vm::Value::string(code),
+                    ])
+                });
+            vm.publish_caught_error(&Completion::new(
+                Code::Error,
+                tcl_vm::Value::string(error.message.as_str()),
+                options,
+            ));
             return Err(EngineError::Script {
                 message: error.message,
                 code: error.error_code,
@@ -184,7 +198,15 @@ fn evaluate(vm: &mut Vm, script: &str) -> Result<HostOutcome, EngineError> {
         Code::Return => CompletionCode::Return,
         Code::Break => CompletionCode::Break,
         Code::Continue => CompletionCode::Continue,
-        Code::Error => return Err(script_error(&completion)),
+        Code::Error => {
+            let failure = script_error(&completion);
+            if matches!(failure, EngineError::Script { .. }) {
+                // The host command takes the error as its own, so `$errorCode`
+                // and `$errorInfo` are what a `catch` of the script would leave.
+                vm.publish_caught_error(&completion);
+            }
+            return Err(failure);
+        }
         Code::Other(other) => CompletionCode::Other(other),
     };
     Ok(HostOutcome::completing(

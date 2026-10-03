@@ -50,8 +50,9 @@
  * inline wrappers for the functions that write a size through a pointer.
  *
  * Not declared, because no host implements it: channels, the event loop,
- * threads, Tcl_Eval*, variables, the dict API, object types and the stub
- * tables. See docs/design/runtime/c-extension-shim.md and c-extension-abi.md.
+ * threads, the other Tcl_Eval* and variable functions, the dict API, object
+ * types and the stub tables. See docs/design/runtime/c-extension-shim.md and
+ * c-extension-abi.md.
  */
 
 #ifndef TCL_H
@@ -288,6 +289,25 @@ EXTERN void TclShim_AppendResultString(Tcl_Interp *interp, const char *piece);
 /* Packages. */
 EXTERN int Tcl_PkgProvideEx(Tcl_Interp *interp, const char *name,
 	const char *version, const void *clientData);
+
+/*
+ * Variables of the frame that called the running command, and evaluation
+ * there. Only the flags the shim honours are defined, so a source naming
+ * another does not compile. An object read is good until the command returns,
+ * however the variable changes meanwhile; an object passed in is held for as
+ * long as the command runs, so one with a count of zero is consumed.
+ */
+#define TCL_GLOBAL_ONLY		1
+#define TCL_LEAVE_ERR_MSG	0x200
+#define TCL_EVAL_DIRECT		0x040000
+
+EXTERN Tcl_Obj *Tcl_GetVar2Ex(Tcl_Interp *interp, const char *part1,
+	const char *part2, int flags);
+EXTERN Tcl_Obj *Tcl_ObjSetVar2(Tcl_Interp *interp, Tcl_Obj *part1Ptr,
+	Tcl_Obj *part2Ptr, Tcl_Obj *newValuePtr, int flags);
+EXTERN int Tcl_UnsetVar2(Tcl_Interp *interp, const char *part1,
+	const char *part2, int flags);
+EXTERN int Tcl_EvalObjEx(Tcl_Interp *interp, Tcl_Obj *objPtr, int flags);
 
 /* UTF-8 helpers the canonical test extensions lean on. */
 EXTERN TclHost_Size Tcl_NumUtfChars(const char *src, TclHost_Size length);
