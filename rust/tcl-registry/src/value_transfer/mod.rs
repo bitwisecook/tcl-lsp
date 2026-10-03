@@ -88,6 +88,7 @@ pub use inputs::{
     ResolvedInvocationView, TargetId, ValueIdentity, WordPart, WordStructure, WrittenPlace,
     written_in,
 };
+pub use iteration::{LOOP_ABSORBED, LoopResult, LoopStep};
 pub use lift::{LiftedAnswer, PinnedInputs, evaluate_lifted, finite_inputs};
 pub use literal::{LiteralInputs, evaluate_literal};
 pub use route::{

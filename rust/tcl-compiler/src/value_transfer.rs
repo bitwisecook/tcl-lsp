@@ -48,12 +48,13 @@ use tcl_registry::value_transfer::{
     AnalysisContext, AnalysisInputs, AnalysisTier, BinderName, BindingIdentity, BindingKind,
     BodyRegion, Budget, BudgetLimit, CaseArms, CommandSemantics, CompletionOutcome, DeclineReason,
     DependencyEvidence, DomainFact, EvalAnswer, EvalRoute, EvaluationState, EvaluatorOwner,
-    ExactValue, ExactValueOrUnavailable, Existence, ExistenceOutcome, FactBounds, FactDomain,
-    FactView, InvocationLayout, InvocationOutcome, IterableKind, LanguageProfileId, LiftedAnswer,
-    NestedPolicy, NumericValue, OperandId, OperandView, PlaceKind, PlaceRef, PlanAnswer,
-    RepresentationEvidence, ResolvedInvocationView, RouteIdentity, SelectionFact, StoreOutcome,
-    TargetId, TransferAnswer, TypeFacts, ValueIdentity, ValueShape, WordPart, WordStructure,
-    WrittenPlace, evaluate_lifted, validate_outcome, written_in,
+    ExactValue, ExactValueOrUnavailable, Existence, ExistenceOutcome, ExitRule, FactBounds,
+    FactDomain, FactView, InvocationLayout, InvocationOutcome, IterableKind, IterationPlan,
+    LanguageProfileId, LiftedAnswer, LoopStep, NestedPolicy, NumericValue, OperandId, OperandView,
+    PlaceKind, PlaceRef, PlanAnswer, RepresentationEvidence, ResolvedInvocationView, RouteIdentity,
+    SelectionFact, StoreOutcome, TargetId, TargetSemantics, TransferAnswer, TypeFacts,
+    ValueIdentity, ValueShape, WordPart, WordStructure, WrittenPlace, evaluate_lifted,
+    validate_outcome, written_in,
 };
 use tcl_registry::{
     ArgRole, CommandRegistry, FrameLevel, InvocationWord, InvocationWordKind, InvocationWords,
@@ -2962,6 +2963,21 @@ impl<'a> LatticeDriver<'a> {
         self.run_command(seg, lattice, under)
     }
 
+    /// A segmented command's arguments as the resolver and an evaluator read
+    /// them, each cooked from its token.
+    fn cooked_args<'s>(&self, seg: &'s crate::segmenter::SegmentedCommand) -> Vec<ArgWord<'s>> {
+        seg.arg_tokens()
+            .iter()
+            .zip(seg.arg_single_token())
+            .zip(seg.args())
+            .map(|((token, &single), text)| {
+                // A quoted-opening token counts its `"` as a delimiter byte.
+                let quoted = token.kind == TokenType::Esc && token.content_offset > 0;
+                ArgWord::of_token(text, (token.kind, quoted), single, &self.lexer_config)
+            })
+            .collect()
+    }
+
     /// One segmented command resolved against the registry and evaluated on
     /// its declared route, `prior` being the writes made ahead of it.
     fn run_command<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
@@ -2981,17 +2997,7 @@ impl<'a> LatticeDriver<'a> {
                 rebound: true,
             });
         }
-        let cooked: Vec<ArgWord<'_>> = seg
-            .arg_tokens()
-            .iter()
-            .zip(seg.arg_single_token())
-            .zip(seg.args())
-            .map(|((token, &single), text)| {
-                // A quoted-opening token counts its `"` as a delimiter byte.
-                let quoted = token.kind == TokenType::Esc && token.content_offset > 0;
-                ArgWord::of_token(text, (token.kind, quoted), single, &self.lexer_config)
-            })
-            .collect();
+        let cooked = self.cooked_args(seg);
         let texts: Vec<&str> = cooked.iter().map(|arg| arg.text.as_ref()).collect();
         let words: Vec<InvocationWord<'_>> = cooked.iter().map(ArgWord::word).collect();
         let resolved = self.resolve(head, &words)?;
@@ -3206,7 +3212,8 @@ impl<'a> LatticeDriver<'a> {
     /// each store a command made: a route takes a store the analysis does not
     /// prove failing as the normal completion's, which a statement's normal
     /// path may, but a script whose completion is observed declines where a
-    /// store's place is not proven to take it ([`proved_stores`]).
+    /// store's place is not proven to take it ([`proved_stores`]). A command
+    /// whose plan iterates runs as its plan says ([`Self::protected_loop`]).
     ///
     /// An error a command's own word raises is not read here: that command
     /// declines, and the flag a statement's word raising sets is the
@@ -3238,31 +3245,36 @@ impl<'a> LatticeDriver<'a> {
         let mut result = ExactValueOrUnavailable::exact_text("");
         let mut completion = CompletionOutcome::Normal;
         for seg in commands {
+            // The command's own text: a head the source writes as the
+            // command's name, which a `;` may follow (`break;`).
             let at = usize::try_from(seg.span.start()).unwrap_or(usize::MAX);
-            if script.get(at..).map(|rest| split_head(rest).0) != Some(seg.name()) {
+            let end = usize::try_from(seg.span.end()).unwrap_or(usize::MAX);
+            if script.get(at..end).map(|text| split_head(text).0) != Some(seg.name()) {
                 return EvalAnswer::Declined(DeclineReason::Unsupported);
             }
-            let prior: Vec<(PlaceRef, StoreOutcome)> = from
-                .prior_writes
-                .iter()
-                .chain(&state.writes)
-                .cloned()
-                .collect();
-            let Some(run) = self.run_command(
-                seg,
-                (from.uses, from.values, from.ssa),
-                (prior, NestedPolicy::LocalWrites),
-            ) else {
-                return EvalAnswer::Declined(DeclineReason::Unsupported);
-            };
             let before = state.writes.len();
-            let InvocationOutcome {
-                completion: ended,
-                result: value,
-                ..
-            } = *match self.settle(run, state) {
-                Ok(outcome) => outcome,
-                Err(answer) => return answer,
+            let (ended, value) = match self.protected_loop(seg, state, from) {
+                Some(Ok(ran)) => ran,
+                Some(Err(answer)) => return answer,
+                None => {
+                    let prior: Vec<(PlaceRef, StoreOutcome)> = from
+                        .prior_writes
+                        .iter()
+                        .chain(&state.writes)
+                        .cloned()
+                        .collect();
+                    let Some(run) = self.run_command(
+                        seg,
+                        (from.uses, from.values, from.ssa),
+                        (prior, NestedPolicy::LocalWrites),
+                    ) else {
+                        return EvalAnswer::Declined(DeclineReason::Unsupported);
+                    };
+                    match self.settle(run, state) {
+                        Ok(outcome) => (outcome.completion, outcome.result),
+                        Err(answer) => return answer,
+                    }
+                }
             };
             if let Err(answer) = proved_stores(&state.writes, before, from) {
                 return answer;
@@ -3295,6 +3307,193 @@ impl<'a> LatticeDriver<'a> {
             types: TypeFacts::default(),
             evidence: DependencyEvidence::default(),
         }))
+    }
+
+    /// A command of a protected script whose plan iterates — `foreach`,
+    /// `lmap`, a pack's loop — run as its plan says ([`Self::run_loop`]), with
+    /// its head's binding recorded in the state's evidence: the loop's
+    /// completion and result. `None` for a command no iteration plan
+    /// describes, which runs as any command does, and for one whose words are
+    /// not text the source spells: a word's own writes run before the loop,
+    /// and the runner orders none of them.
+    fn protected_loop<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+        &self,
+        seg: &crate::segmenter::SegmentedCommand,
+        state: &mut EvaluationState,
+        from: &LatticeInputs<'_, S1, S2>,
+    ) -> Option<Result<(CompletionOutcome, ExactValueOrUnavailable), EvalAnswer>> {
+        let head = seg.name();
+        if !self.trusted(head) {
+            return None;
+        }
+        let cooked = self.cooked_args(seg);
+        if !cooked.iter().all(|arg| {
+            matches!(
+                arg.source,
+                OperandSource::BracedLiteral
+                    | OperandSource::Literal
+                    | OperandSource::QuotedLiteral
+            )
+        }) {
+            return None;
+        }
+        let texts: Vec<&str> = cooked.iter().map(|arg| arg.text.as_ref()).collect();
+        let words: Vec<InvocationWord<'_>> = cooked.iter().map(ArgWord::word).collect();
+        let resolved = self.resolve(head, &words)?;
+        let semantics = resolved.semantics.value.semantics()?;
+        let inputs = LatticeInputs {
+            driver: self,
+            prior_writes: from
+                .prior_writes
+                .iter()
+                .chain(&state.writes)
+                .cloned()
+                .collect(),
+            words: Words::Independent,
+            view: view_of(&resolved, &texts, &words, InvocationLayout::Source),
+            uses: from.uses,
+            values: from.values,
+            ssa: from.ssa,
+            sources: cooked.iter().map(|arg| arg.source).collect(),
+        };
+        let PlanAnswer::Iterate(plan) = semantics.structure(&inputs) else {
+            return None;
+        };
+        record_binding(
+            &mut state.evidence,
+            binding_of(head, resolved.canonical_command),
+        );
+        let depth = self.nesting.get();
+        if depth >= Budget::EVALUATION_DEPTH {
+            return Some(Err(EvalAnswer::Declined(DeclineReason::Budget(
+                BudgetLimit::Depth,
+            ))));
+        }
+        self.nesting.set(depth + 1);
+        let ran = self.run_loop(&plan, &inputs, state, from);
+        self.nesting.set(depth);
+        Some(ran)
+    }
+
+    /// The loop `plan` describes over `inputs`, its iterations run in
+    /// `state`: each binder written in order, padded with the empty string
+    /// past the list's end, then the body as a protected script, whose
+    /// completion the plan's rule reads ([`IterationPlan::step`]) — the next
+    /// iteration, the loop's end, or the loop's own completion — and the
+    /// loop's result is what its result rule makes of what the iterations
+    /// yielded ([`LoopResult::of`](tcl_registry::value_transfer::LoopResult::of)).
+    /// No iteration binds nothing. Each iteration is charged to the
+    /// evaluation's budget by the length of its body.
+    ///
+    /// A plan the runner cannot follow declines: an iterable that is not a
+    /// list the analysis knows exactly, a body that is not brace-quoted text
+    /// run in the current frame, a binder that is not a scalar place the
+    /// state owns, an exit other than the iterable's exhaustion, and binders
+    /// bound on the zero-iteration path. A binder is a scalar store, taken
+    /// where the script's stores are ([`held_before`]): one the analysis
+    /// proves an array raises an error after the writes before it, with its
+    /// message and `-errorcode` unproven, and one whose kind it does not
+    /// prove declines.
+    fn run_loop<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+        &self,
+        plan: &IterationPlan,
+        inputs: &LatticeInputs<'_, S1, S2>,
+        state: &mut EvaluationState,
+        from: &LatticeInputs<'_, S1, S2>,
+    ) -> Result<(CompletionOutcome, ExactValueOrUnavailable), EvalAnswer> {
+        let declined = |reason| Err(EvalAnswer::Declined(reason));
+        let (Some(body), IterableKind::List(list), ExitRule::Exhaustion, false) = (
+            &plan.body,
+            &plan.iterable,
+            plan.exit,
+            plan.zero_iterations_bind,
+        ) else {
+            return declined(DeclineReason::Unsupported);
+        };
+        if body.frame != FrameLevel::Relative(0) || plan.binders.is_empty() {
+            return declined(DeclineReason::Unsupported);
+        }
+        let places = plan
+            .binders
+            .iter()
+            .map(|binder| self.binder_place(binder, inputs))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(EvalAnswer::Declined)?;
+        let text = match inputs.operand(*list, FactDomain::ExactValue) {
+            FactView::Exact(value, _) => value.as_str().map_err(EvalAnswer::Declined)?.to_owned(),
+            FactView::Pending => return Err(EvalAnswer::Pending),
+            FactView::Top(reason) => return declined(reason),
+            FactView::Finite(..) | FactView::Domain(_) => return declined(DeclineReason::NotExact),
+        };
+        // A list that does not parse is the command's error, which the
+        // runner does not word.
+        let Ok(items) = self.policy.word_rules.split_list(&text) else {
+            return declined(DeclineReason::Unsupported);
+        };
+        let script = inputs.body(body.body).map_err(EvalAnswer::Declined)?.script;
+        let mut budget = self.budget();
+        let cost = u64::try_from(script.len()).unwrap_or(u64::MAX).max(1);
+        let mut yielded = Vec::new();
+        for iteration in 0..items.len().div_ceil(places.len()) {
+            budget.charge_work(cost).map_err(EvalAnswer::Declined)?;
+            for (at, place) in places.iter().enumerate() {
+                // A binder takes its element as any store of the script does
+                // ([`held_before`]): a proven array raises there.
+                if held_before(place.base(), &state.writes, from)? == Held::Array {
+                    return Ok((
+                        CompletionOutcome::error_unproven(state.writes.len()),
+                        ExactValueOrUnavailable::unproven_string(),
+                    ));
+                }
+                let value = items
+                    .get(iteration * places.len() + at)
+                    .map_or("", AsRef::as_ref);
+                state.writes.push((
+                    place.clone(),
+                    StoreOutcome::Write {
+                        target: TargetId(OperandId(0)),
+                        value: ExactValue::from_literal(value),
+                    },
+                ));
+            }
+            let ran = match self.protected_script(&script, state, from) {
+                EvalAnswer::Evaluated(ran) => ran,
+                other => return Err(other),
+            };
+            match plan.step(&ran.completion) {
+                LoopStep::Next => yielded.push(ran.result),
+                LoopStep::Skip => {}
+                LoopStep::Exit => break,
+                LoopStep::Leave => return Ok((ran.completion, ran.result)),
+            }
+        }
+        let target = TargetSemantics::of(self.context.profile);
+        Ok((CompletionOutcome::Normal, plan.result.of(&yielded, &target)))
+    }
+
+    /// The place a loop's binder names: a scalar the state owns, named by
+    /// the plan or by an operand. A qualified name, an element and a place
+    /// the state cannot own (traced or escaping) are refused.
+    fn binder_place<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+        &self,
+        binder: &tcl_registry::value_transfer::Binder,
+        inputs: &LatticeInputs<'_, S1, S2>,
+    ) -> Result<PlaceRef, DeclineReason> {
+        if binder.kind != BindingKind::Scalar {
+            return Err(DeclineReason::Unsupported);
+        }
+        let place = match &binder.name {
+            BinderName::Declared(name) if !name.contains("::") => place_named(name),
+            BinderName::Declared(_) => return Err(DeclineReason::Unsupported),
+            BinderName::Operand(id) => inputs.place(*id)?,
+        };
+        if place.is_element() || place.name.contains("::") {
+            return Err(DeclineReason::Unsupported);
+        }
+        if !self.state_owns(&place) {
+            return Err(DeclineReason::StatefulNested);
+        }
+        Ok(place)
     }
 
     /// What a command run for `state` leaves in it: its binding and every

@@ -5737,6 +5737,180 @@ fn a_catch_body_store_is_run_only_where_its_place_is_proved_to_take_it() {
     );
 }
 
+/// The loops a `catch` body holds, each in the statement form in a procedure:
+/// the body of the loop, a command after the loop in the same script, what
+/// tclsh 8.4 to 9.1 leave in the result variable, and the first release with
+/// what the body uses. A loop absorbs its body's `break` and `continue`, so
+/// the script goes on past the loop; every other completion is the loop's
+/// own, so the script ends there with it.
+const LOOP_BODIES: [(&str, &str, &str, &str); 12] = [
+    (
+        "foreach x {1 2 3} {set y $x; break}",
+        "set z $y",
+        "1",
+        "8.4",
+    ),
+    (
+        "foreach x {1 2 3} {set y $x; continue; set y no}",
+        "set z $y",
+        "3",
+        "8.4",
+    ),
+    (
+        "foreach x {1 2} {set y $x; error boom}",
+        "set z done",
+        "boom",
+        "8.4",
+    ),
+    (
+        "foreach x {1 2} {set y $x; return r}",
+        "set z done",
+        "r",
+        "8.4",
+    ),
+    (
+        "foreach x {1 2} {foreach y {a b} {break}; set z $x}",
+        "set w $z",
+        "2",
+        "8.4",
+    ),
+    (
+        "set z none; foreach x {} {set z ran}",
+        "set z",
+        "none",
+        "8.4",
+    ),
+    ("foreach x {1 2} {set x}", "", "", "8.4"),
+    (
+        "foreach {a b} {1 2 3} {set z \"$a:$b\"}",
+        "set z",
+        "3:",
+        "8.4",
+    ),
+    ("lmap x {1 2 3 4} {set x}", "", "1 2 3 4", "8.6"),
+    ("lmap x {1 2 3} {set y $x; continue}", "", "", "8.6"),
+    ("lmap x {1 2 3} {set y $x; break}", "", "", "8.6"),
+    (
+        "foreach x {1 2 3} {set y $x; break;}",
+        "set z $y",
+        "1",
+        "8.4",
+    ),
+];
+
+/// A loop in a `catch` body runs as its iteration plan says
+/// (`IterationPlan::step`, `LoopResult::of`): `break` ends the loop and
+/// `continue` the iteration, each absorbed, and an error, a `return`, a code of
+/// the body's own and a `break` at level 1, which the loop sees as a
+/// `return`, leave it. `foreach` yields the empty string and `lmap` the
+/// results of the iterations that completed normally. The loop's variables
+/// are stores of the script, taken where their kind is proved: an array
+/// raises after the stores before it, and a variable of unproven kind, like a
+/// list the analysis does not know, leaves the `catch` unevaluated. Each
+/// program prints what tclsh prints before and after `tcl opt`.
+#[test]
+fn a_loop_absorbs_break_and_continue() {
+    for (body, after, held, first) in LOOP_BODIES {
+        let script = if after.is_empty() {
+            body.to_owned()
+        } else {
+            format!("{body}; {after}")
+        };
+        let source = format!(
+            "proc p {{}} {{\n    catch {{{script}}} m\n    return \"<$m>\"\n}}\nputs [p]\n"
+        );
+        let dialects: &[&str] = if first == "8.6" {
+            &["tcl8.6", "tcl9.0"]
+        } else {
+            &DIALECTS
+        };
+        for dialect in dialects {
+            assert_eq!(
+                lattice_text(last_value(&source, dialect, "::p", "m")).as_deref(),
+                Some(held),
+                "{dialect}: {script}"
+            );
+        }
+        prints_under_releases_from(&source, &format!("<{held}>\n"), first);
+    }
+
+    // The value form, the loop variable also set where the script starts, so
+    // it is among what the statement writes: the code and the message.
+    let value_forms = [
+        ("foreach x {1 2} {break}", 0, "", "0 {}", "8.4"),
+        ("foreach x {1 2} {error boom}", 1, "boom", "1 boom", "8.4"),
+        (
+            "foreach x {1 2} {return -code break b}",
+            2,
+            "b",
+            "2 b",
+            "8.4",
+        ),
+        (
+            "foreach x {1 2} {return -level 0 -code 5 v}",
+            5,
+            "v",
+            "5 v",
+            "8.5",
+        ),
+    ];
+    for (body, code, held, printed, first) in value_forms {
+        let source = format!(
+            "proc p {{}} {{\n    set c [catch {{set x 0; {body}}} m]\n    return [list $c $m]\n}}\nputs [p]\n"
+        );
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let unit = unit_of(&source, dialect);
+            assert_eq!(
+                value_at(&unit, "::p", "c", 1),
+                Some(LatticeValue::Const(ConstValue::Int(code))),
+                "{dialect}: {body}"
+            );
+            assert_eq!(
+                value_at(&unit, "::p", "m", 1)
+                    .and_then(lattice_text)
+                    .as_deref(),
+                Some(held),
+                "{dialect}: {body}"
+            );
+        }
+        prints_under_releases_from(&source, &format!("{printed}\n"), first);
+    }
+
+    // A loop variable the script proved an array raises there, after the
+    // variables bound before it: the code is 1 and `a` is `new`.
+    let raises = "proc p {} {\n    set c [catch {set a old; set b(k) keep; foreach {a b} {new second} {set inside 1}} m]\n    return [list $c $a [info exists inside]]\n}\nputs [p]\n";
+    for dialect in DIALECTS {
+        let unit = unit_of(raises, dialect);
+        assert_eq!(
+            value_at(&unit, "::p", "c", 1),
+            Some(LatticeValue::Const(ConstValue::Int(1))),
+            "{dialect}"
+        );
+        assert_eq!(
+            last_value(raises, dialect, "::p", "a"),
+            text("new"),
+            "{dialect}"
+        );
+    }
+    prints_under_every_release(raises, "1 new 0\n");
+
+    // What leaves the `catch` unevaluated, and the variable that raises: an
+    // unknown list, a loop variable that may be an array, and one that is.
+    let undecided = [
+        "proc p {l} {\n    catch {foreach x $l {break}; set z done} m\n    return [string equal $m done]\n}\nputs [p {1 2}]\n",
+        "proc p {n} {\n    if {$n} {array set x {a 1}}\n    catch {foreach x {1 2} {break}; set z done} m\n    return [string equal $m done]\n}\nputs [p 1]\nputs [p 0]\n",
+        "proc p {} {\n    array set b {k keep}\n    set a old\n    catch {foreach {a b} {new second} {set inside 1}; set z done} m\n    return \"[string equal $m done] $a [info exists inside]\"\n}\nputs [p]\n",
+    ];
+    let printed = ["1\n", "0\n1\n", "0 new 0\n"];
+    for (source, printed) in undecided.into_iter().zip(printed) {
+        for dialect in DIALECTS {
+            let held = last_value(source, dialect, "::p", "m");
+            assert_ne!(held, text("done"), "{dialect}:\n{source}");
+        }
+        prints_under_every_release(source, printed);
+    }
+}
+
 /// A `try` body that cannot fall through is thrown to from the point it
 /// raises at, and its first command may fail before it stores anything, with
 /// the state the body entered with: after `try {set x [expr {1 / $d}]; error

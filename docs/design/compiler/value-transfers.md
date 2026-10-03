@@ -515,7 +515,16 @@ struct IterationPlan {
     /// Whether the binders stay unbound on the zero-iteration path
     /// (`foreach x {} {}` leaves `x` unbound in every release).
     zero_iterations_bind: bool,
+    /// What the loop does with each completion of its body
+    /// (`IterationPlan::step`: go on, end the iteration, end the loop, or
+    /// leave with the body's completion).
     completion: CompletionProtocol,
+    /// What the loop yields when it completes normally: the empty string
+    /// (`foreach`), the results of the iterations that completed normally
+    /// (`lmap`: one ending in `continue` contributes nothing, and `break`
+    /// ends the collection with what was collected), or a result the
+    /// declaration does not state (a pack's loop).
+    result: LoopResult,
 }
 
 /// The abstract transfer for one domain. Produced by `transfer`;
@@ -2233,7 +2242,13 @@ place may hold the other kind leaves the body unevaluated. The kind is
 read as it stood before the body — at the statement for `[catch {…}]`,
 before the may-definitions of the body's writes for the statement form,
 and at the exit of the block before a body lowered into blocks — and
-after the body's own earlier writes. Otherwise the body's facts are the
+after the body's own earlier writes. A loop in a closed body runs as its
+iteration plan says, over a list the analysis knows exactly: its variables
+are stores of the script, bound in order and padded past the list's end, its
+body runs per iteration, the plan's rule reads each completion of the body —
+`break` ends the loop and `continue` the iteration, and any other completion,
+`return -code break` among them, leaves it — and the plan's result rule gives
+its value. Otherwise the body's facts are the
 tier's: in the default build the body is one call whose defs are
 `MayWrite`, whose result variable is a `Write` of an unavailable value,
 and whose inside is `Unavailable`; in the faithful-exceptions build each

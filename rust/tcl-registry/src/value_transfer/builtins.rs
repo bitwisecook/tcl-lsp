@@ -1125,14 +1125,6 @@ impl CommandSemantics for MayWriteSemantics {
     }
 }
 
-/// The completion codes `foreachLine`'s loop body absorbs, as `foreach`'s
-/// does (TIP 670's reference implementation is a `foreach`-shaped `while`
-/// over `gets`).
-const FOREACH_LINE_ABSORBED: &[crate::completion::CompletionCode] = &[
-    crate::completion::CompletionCode::Break,
-    crate::completion::CompletionCode::Continue,
-];
-
 /// `foreachLine varName filename body`: the same loop shape `foreach`
 /// declares, over the file `filename` names rather than a Tcl list — a
 /// source no route reads (TIP 670). The structured lowering (`tcl-compiler`'s
@@ -1188,7 +1180,11 @@ impl CommandSemantics for ForeachLineSemantics {
             }),
             exit: ExitRule::Exhaustion,
             zero_iterations_bind: false,
-            completion: CompletionProtocol::Absorb(FOREACH_LINE_ABSORBED),
+            // Its body absorbs what `foreach`'s does (TIP 670's reference
+            // implementation is a `foreach`-shaped `while` over `gets`), and
+            // it yields the empty string.
+            completion: CompletionProtocol::Absorb(super::iteration::LOOP_ABSORBED),
+            result: super::iteration::LoopResult::Empty,
         })
     }
 }

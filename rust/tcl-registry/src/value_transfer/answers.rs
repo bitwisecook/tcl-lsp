@@ -37,6 +37,7 @@ use crate::world_effect::EffectFootprint;
 use super::context::BindingIdentity;
 use super::decline::DeclineReason;
 use super::inputs::{BodyRegion, OperandId, PlaceRef, TargetId};
+use super::iteration::LoopResult;
 use super::route::EvalRoute;
 
 /// The structural plan for one invocation. Produced by
@@ -203,8 +204,11 @@ pub struct IterationPlan {
     pub exit: ExitRule,
     /// Whether the binders are bound on the zero-iteration path.
     pub zero_iterations_bind: bool,
-    /// How the body's completion becomes the command's.
+    /// How the body's completion becomes the command's
+    /// ([`IterationPlan::step`]).
     pub completion: CompletionProtocol,
+    /// What the loop yields when it completes normally.
+    pub result: LoopResult,
 }
 
 /// How a `try` handler's pattern word selects it.
@@ -234,7 +238,8 @@ pub struct HandlerPlan {
 pub enum CompletionProtocol {
     /// The body's completion is the command's.
     TclBody,
-    /// Loop bodies: the listed codes are absorbed, the rest pass.
+    /// Loop bodies: the listed codes are absorbed, the rest pass
+    /// ([`IterationPlan::step`]).
     Absorb(&'static [CompletionCode]),
     /// `catch`: every completion is absorbed.
     CatchAll {

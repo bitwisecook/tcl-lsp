@@ -29,7 +29,6 @@
 //! scope does, so a declaration reads the same whether its command is
 //! spelled `tenant::label NAME` or `tenant label NAME`.
 
-use crate::completion::CompletionCode;
 use crate::invocation_words::InvocationWordKind;
 use crate::pack_hooks::{self, EvaluationAnswer, HookAnswer, HookCall, HookSlot, HookWord};
 use crate::types::TclType;
@@ -45,10 +44,8 @@ use super::const_ops::{ConstOps, TargetSemantics};
 use super::context::Budget;
 use super::decline::{Axis, DeclineReason, NoRouteReason};
 use super::inputs::{AnalysisInputs, FactDomain, InvocationLayout, OperandId, PlaceRef, TargetId};
+use super::iteration::{LOOP_ABSORBED, LoopResult};
 use super::route::{ContextDependency, DeclaredInput, EvalRoute, EvaluatorCapability};
-
-/// The completion codes a declared loop body absorbs.
-const LOOP_ABSORBED: &[CompletionCode] = &[CompletionCode::Break, CompletionCode::Continue];
 
 /// One effect a `semantics { effects {…} }` row declares.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -578,6 +575,7 @@ impl DeclaredSemantics {
                 exit: ExitRule::Exhaustion,
                 zero_iterations_bind: iteration.zero_iterations_bind,
                 completion,
+                result: LoopResult::Unstated,
             }),
             InvocationLayout::Source => PlanAnswer::Iterate(IterationPlan {
                 binders: vec![Binder {
@@ -592,6 +590,7 @@ impl DeclaredSemantics {
                 exit: ExitRule::Exhaustion,
                 zero_iterations_bind: iteration.zero_iterations_bind,
                 completion,
+                result: LoopResult::Unstated,
             }),
         }
     }

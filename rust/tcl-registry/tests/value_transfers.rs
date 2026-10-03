@@ -4494,7 +4494,8 @@ fn an_odd_array_set_list_is_the_commands_error() {
 /// The loops' source layout answers an iteration plan: one binder
 /// per name of the var-list word, padded past the list's end, over the one
 /// list, the body in the caller's frame with `break` and `continue`
-/// absorbed, and nothing bound on the zero-iteration path. Several var-list
+/// absorbed, nothing bound on the zero-iteration path, and the empty string
+/// (`foreach`) or the body's results (`lmap`) as the result. Several var-list
 /// and list pairs are several iterables, which one plan does not describe;
 /// a var-list the analysis does not know names no binders; an empty one is
 /// the command's error.
@@ -4503,9 +4504,13 @@ fn the_source_layout_answers_an_iteration_plan() {
     use tcl_registry::FrameLevel;
     use tcl_registry::value_transfer::{
         Binder, BinderName, BindingKind, BodyPlan, CompletionProtocol, ExitRule, IterationPlan,
+        LoopResult,
     };
     let reg = CommandRegistry::build_default();
-    for name in ["foreach", "lmap"] {
+    for (name, result) in [
+        ("foreach", LoopResult::Empty),
+        ("lmap", LoopResult::Collected),
+    ] {
         let resolved = resolve_semantics(reg.get(name).expect(name), None, None);
         let semantics = resolved.semantics().expect("declared");
         let words = |var_list| {
@@ -4541,6 +4546,7 @@ fn the_source_layout_answers_an_iteration_plan() {
                     tcl_registry::completion::CompletionCode::Break,
                     tcl_registry::completion::CompletionCode::Continue,
                 ]),
+                result,
             },
             "{name}"
         );
