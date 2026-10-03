@@ -61,8 +61,8 @@ const DIVERGENCES: &[(&str, i64, &str, &str)] = &[
 ];
 
 /// An extension that reads the clock, randomness and the environment through
-/// WASI itself, and one that ends the process: what it answers is what the host
-/// hands every module.
+/// WASI itself, ends the process, and fills most of its stack: what it answers
+/// is what the host hands every module.
 const PROBE: &str = r#"
 #include <tcl.h>
 
@@ -104,11 +104,26 @@ Exit(void *clientData, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
     return TCL_OK;
 }
 
+static char marker[64] = "the probe's data, intact";
+
+static int
+Stack(void *clientData, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
+{
+    volatile char frame[49152];
+    int i;
+    for (i = 0; i < (int) sizeof(frame); i++) {
+        frame[i] = (char) i;
+    }
+    Tcl_SetObjResult(interp, Tcl_NewStringObj(marker, -1));
+    return frame[0] == 0 ? TCL_OK : TCL_ERROR;
+}
+
 int
 Probe_Init(Tcl_Interp *interp)
 {
     Tcl_CreateObjCommand(interp, "probe_ambient", Ambient, NULL, NULL);
     Tcl_CreateObjCommand(interp, "probe_exit", Exit, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "probe_stack", Stack, NULL, NULL);
     return TCL_OK;
 }
 "#;
@@ -448,7 +463,11 @@ fn what_was_set_up_survives_a_trap() {
     run(&mut engine, "maker").expect("the door defines and removes");
     engine.provide_package("kept", "1.0").expect("provides");
     engine
-        .restrict_commands(&["return", "while", "set", "info", "llength", "package"])
+        .restrict_commands(&[
+            "return", "while", "set", "info", "llength", "package",
+            // Allowed, so only the removal replayed can keep it gone.
+            "doomed",
+        ])
         .expect("restricts");
     engine.confine_stores().expect("confines");
     engine
@@ -556,6 +575,33 @@ fn the_wasm_engine_refuses_what_it_cannot_load() {
     assert_eq!(
         run(&mut engine, "return [expr {010 + 0}]"),
         Ok("8".to_owned())
+    );
+}
+
+/// A side module runs on a stack of its own: a command whose frame fills most
+/// of it leaves the module's data, which the host placed just below it, and the
+/// runtime's heap as they were.
+#[test]
+fn a_side_module_runs_on_a_stack_of_its_own() {
+    let Some(built) = built() else {
+        eprintln!("SKIPPING a_side_module_runs_on_a_stack_of_its_own");
+        return;
+    };
+    let mut engine = WasmEngine::new(&built.runtime).expect("an instance");
+    let probe = built
+        .runtime
+        .extension(&built.probe, "Probe")
+        .expect("a side module");
+    engine.load_extension(&probe).expect("Probe_Init runs");
+    for _ in 0..2 {
+        assert_eq!(
+            run(&mut engine, "return [probe_stack]"),
+            Ok("the probe's data, intact".to_owned())
+        );
+    }
+    assert_eq!(
+        run(&mut engine, "return [string repeat ab 3]"),
+        Ok("ababab".to_owned())
     );
 }
 
