@@ -4590,6 +4590,7 @@ dependencies = [
  "tcl-cmd-core",
  "tcl-core-types",
  "tcl-dialect",
+ "tcl-engine-api",
  "tcl-host-native",
  "tcl-lexer",
  "tcl-platform",
@@ -4624,6 +4625,7 @@ dependencies = [
  "tcl-engine-api",
  "tcl-engine-tclvm",
  "tcl-registry",
+ "tcl-runtime",
  "tcl-vm",
 ]
 

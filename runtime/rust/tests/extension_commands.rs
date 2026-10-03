@@ -217,7 +217,7 @@ fn the_completion_code_a_procedure_answers_is_the_commands_completion() {
     assert_eq!(
         run(
             &mut interp,
-            "set n 0; while {1} { incr n; brk; incr n 100 }; set n"
+            "set n 0; foreach i {1 2 3} { incr n; brk; incr n 100 }; set n"
         ),
         (Code::Ok, "1".to_owned()),
         "a TCL_BREAK ends the loop it is in"

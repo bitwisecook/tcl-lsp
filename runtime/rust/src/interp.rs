@@ -1130,6 +1130,12 @@ pub struct InterpState {
     /// `interp limit` configuration. The `time` limit is enforced by the loop
     /// commands; `commands` is stored for query/set only.
     limits: RefCell<LimitSet>,
+    /// The limits an embedder hosting this interpreter as an engine sets on one
+    /// evaluation, and where the running one stands ([`crate::budget`]).
+    pub(crate) budget: RefCell<crate::budget::Budget>,
+    /// Whether every store must land in the running procedure's own frame
+    /// ([`Interp::confine_stores`]).
+    stores_confined: Cell<bool>,
     /// Free-running counter that throttles wall-clock polling for the `time`
     /// limit (see [`Interp::limit_check_tick`]).
     #[cfg(have_tommath)]
@@ -1485,6 +1491,8 @@ impl Interp {
             result: Cell::new(result),
             cmd_arena: RefCell::new(CmdArena::default()),
             limits: RefCell::new(LimitSet::default()),
+            budget: RefCell::new(crate::budget::Budget::default()),
+            stores_confined: Cell::new(false),
             #[cfg(have_tommath)]
             limit_tick: Cell::new(0),
             debug_frame: Cell::new(false),
@@ -3863,6 +3871,9 @@ impl Interp {
         obj: *mut TclObj,
         level: usize,
     ) -> Result<(), VarError> {
+        if self.store_escapes_at(name, level) {
+            return Err(VarError::Confined);
+        }
         crate::vars::set_at(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
@@ -3880,6 +3891,9 @@ impl Interp {
         obj: *mut TclObj,
         level: usize,
     ) -> Result<(), VarError> {
+        if self.store_escapes_at(name, level) {
+            return Err(VarError::Confined);
+        }
         crate::vars::set_elem_at(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
@@ -3934,6 +3948,9 @@ impl Interp {
 
     /// `set name value` — the cell takes a **+1** on `obj`.
     pub(crate) fn var_set(&mut self, name: &[u8], obj: *mut TclObj) -> Result<(), VarError> {
+        if self.store_escapes(name) {
+            return Err(VarError::Confined);
+        }
         crate::vars::set(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
@@ -3960,6 +3977,9 @@ impl Interp {
         key: &[u8],
         obj: *mut TclObj,
     ) -> Result<(), VarError> {
+        if self.store_escapes(name) {
+            return Err(VarError::Confined);
+        }
         crate::vars::set_elem(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
@@ -4036,6 +4056,9 @@ impl Interp {
     /// otherwise bypass the store-time constant check.
     pub(crate) fn const_write_check(&mut self, name: &[u8]) -> Option<Code> {
         let (base, elem) = crate::frame::split_array_ref(name);
+        if self.store_escapes(&base) {
+            return Some(self.confined_store_error(name));
+        }
         if elem.is_none() && self.is_constant(&base) {
             let mut m = b"can't set \"".to_vec();
             m.extend_from_slice(name);
@@ -4043,6 +4066,113 @@ impl Interp {
             return Some(self.set_error(&m));
         }
         None
+    }
+
+    /// Confine every later store to the running procedure's own frame, and
+    /// remove the globals the host seeded (`::env`, `::tcl_platform` and the
+    /// library paths), so an evaluation reads nothing of the machine it runs
+    /// on and leaves nothing behind for the next one to read.
+    ///
+    /// A store is refused, as a Tcl error raised before anything is written,
+    /// when it would land anywhere else: at the global level, in a namespace
+    /// (a qualified name, `variable`, `namespace eval`), in another frame
+    /// (`uplevel`), or through a link a local holds to a variable outside the
+    /// frame (`global`, `upvar`). So is a draw from the `rand()` generator,
+    /// whose seed every evaluation shares. Reads are unaffected, and an error
+    /// is not published to `::errorInfo` and `::errorCode`, which are globals.
+    pub fn confine_stores(&mut self) {
+        self.stores_confined.set(true);
+        for name in tcl_platform::bootstrap::HOST_ARRAYS
+            .iter()
+            .chain(tcl_platform::bootstrap::HOST_PATH_GLOBALS)
+        {
+            self.var_unset_at(format!("::{name}").as_bytes(), 0);
+        }
+    }
+
+    /// Whether stores are confined ([`Self::confine_stores`]).
+    #[must_use]
+    pub fn stores_confined(&self) -> bool {
+        self.stores_confined.get()
+    }
+
+    /// Whether a store to `name` from the current frame must be refused:
+    /// stores are confined and it would land outside the running procedure's
+    /// own frame.
+    fn store_escapes(&self, name: &[u8]) -> bool {
+        self.stores_confined.get()
+            && !crate::vars::lands_in_own_frame(
+                &self.frames.borrow(),
+                &self.namespaces.borrow(),
+                self.current_ns.get(),
+                name,
+            )
+    }
+
+    /// [`Self::store_escapes`] for a store resolved as if `level` were active.
+    fn store_escapes_at(&self, name: &[u8], level: usize) -> bool {
+        self.stores_confined.get()
+            && !crate::vars::lands_in_own_frame_at(
+                &self.frames.borrow(),
+                &self.namespaces.borrow(),
+                name,
+                level,
+            )
+    }
+
+    /// The error a confined store to `name` is refused with — the bytecode
+    /// VM's words and code.
+    pub(crate) fn confined_store_error(&mut self, name: &[u8]) -> Code {
+        let mut message = b"can't set \"".to_vec();
+        message.extend_from_slice(name);
+        message.extend_from_slice(b"\": stores are confined to the activation");
+        self.error_with_code(&message, b"TCL WRITE VARNAME")
+    }
+
+    /// The error a draw from the `rand()` generator is refused with while
+    /// stores are confined, or `None` when they are not. The math functions
+    /// need the numeric tower, so without it there is no generator to refuse.
+    #[cfg(have_tommath)]
+    pub(crate) fn confined_generator_error(&mut self, function: &[u8]) -> Option<Code> {
+        if !self.stores_confined.get() {
+            return None;
+        }
+        let mut message = b"can't call \"".to_vec();
+        message.extend_from_slice(function);
+        message.extend_from_slice(
+            b"\": stores are confined to the activation and the generator's seed is not",
+        );
+        Some(self.error(&message))
+    }
+
+    /// Delete every command, in every namespace, whose unrooted name (`set`,
+    /// `tcl::mathfunc::abs`) `keep` refuses: the whitelist an engine confines
+    /// a body to. A command `keep` names keeps its own binding; nothing is
+    /// renamed or replaced.
+    pub fn retain_commands(&mut self, keep: &dyn Fn(&str) -> bool) {
+        let mut refused: Vec<Vec<u8>> = Vec::new();
+        {
+            let namespaces = self.namespaces.borrow();
+            let mut pending = vec![crate::namespace::GLOBAL];
+            while let Some(ns) = pending.pop() {
+                let qualified = namespaces.qualified_name(ns);
+                let mut prefix = qualified.clone();
+                if qualified != b"::" {
+                    prefix.extend_from_slice(b"::");
+                }
+                for name in namespaces.command_names(ns) {
+                    let mut full = prefix.clone();
+                    full.extend_from_slice(name);
+                    if !keep(&String::from_utf8_lossy(&full[2..])) {
+                        refused.push(full);
+                    }
+                }
+                pending.extend(namespaces.children(ns));
+            }
+        }
+        for name in refused {
+            self.delete_command(&name);
+        }
     }
 
     /// Whether `name` resolves to a `const` scalar.
@@ -7788,6 +7918,11 @@ impl Interp {
         // the prior result here cannot invalidate an argument.
         self.set_result_bytes(b"");
         self.cmd_count.set(self.cmd_count.get() + 1);
+        // An embedder's limits are charged here, where every command passes:
+        // past one, the command fails instead of running.
+        if let Some(code) = self.charge_dispatch() {
+            return code;
+        }
         // Fast path: nothing is registered, so nothing can fire. Being inside a
         // trace callback is *not* a reason to skip: C's
         // `TclCheckExecutionTraces` never consults `INTERP_TRACE_IN_PROGRESS`,
@@ -9400,6 +9535,9 @@ impl Interp {
     /// no-op when no time limit is set.
     #[cfg(have_tommath)]
     pub(crate) fn limit_check_tick(&mut self) -> Option<Code> {
+        if let Some(code) = self.charge_tick() {
+            return Some(code);
+        }
         if !self.has_time_limit() {
             return None;
         }

@@ -51,9 +51,9 @@ case "$PATH_TO_CLASSIFY" in
     # `cargo metadata --manifest-path runtime/rust/Cargo.toml`; the companion
     # test script is the gate that keeps it honest.
     rust/tcl-cmd-core/* | rust/tcl-core-types/* | rust/tcl-dialect/* | \
-    rust/tcl-host-native/* | rust/tcl-lexer/* | rust/tcl-platform/* | \
-    rust/tcl-regex/* | rust/tcl-registry/* | rust/tcl-runtime-api/* | \
-    rust/tcl-syntax/* | rust/tcl-test-support/*)
+    rust/tcl-engine-api/* | rust/tcl-host-native/* | rust/tcl-lexer/* | \
+    rust/tcl-platform/* | rust/tcl-regex/* | rust/tcl-registry/* | \
+    rust/tcl-runtime-api/* | rust/tcl-syntax/* | rust/tcl-test-support/*)
         exit 0
         ;;
     # Build inputs and the gate's own definition: a toolchain bump, a lockfile

@@ -93,6 +93,11 @@ pub(crate) fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
     // `rand`/`srand` carry PRNG state on the interp, so they bypass the pure
     // shared dispatch (C's `ExprRandFunc`/`ExprSrandFunc`).
+    if matches!(lname.as_str(), "rand" | "srand") {
+        if let Some(code) = interp.confined_generator_error(lname.as_bytes()) {
+            return code;
+        }
+    }
     match lname.as_str() {
         "rand" => {
             interp.set_result(obj::new_double_obj(interp.rand_next()));

@@ -28,7 +28,7 @@
 //!   C-Tcl shim (tcl-cshim)          <- consumer 2: C extensions behind it
 //!  --------------- this crate ---------------
 //!   tcl-vm engine  (tcl-engine-tclvm)
-//!   Tcl->WASM codegen runtime engine (later)
+//!   runtime engine (runtime/rust, its `engine` feature)
 //! ```
 //!
 //! Three rules govern it, and they are the ones the design states:

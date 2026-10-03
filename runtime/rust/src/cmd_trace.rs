@@ -369,6 +369,7 @@ fn trace_var_error(interp: &mut Interp, name: &[u8], error: VarError) -> Code {
         VarError::NoSuchNamespace => b"parent namespace doesn't exist".as_slice(),
         VarError::IsConstant => b"variable is a constant".as_slice(),
         VarError::TraceError => b"trace callback failed".as_slice(),
+        VarError::Confined => b"stores are confined to the activation".as_slice(),
     };
     let mut message = b"can't trace \"".to_vec();
     message.extend_from_slice(name);

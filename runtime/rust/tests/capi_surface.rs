@@ -324,15 +324,17 @@ fn the_reads_take_c_tcl_s_ranges_and_report_its_errors() {
             "1 {integer value too large to represent} {ARITH IOVERFLOW {integer value too large to represent}}",
         ),
         (
-            "wide [expr {1.5}]",
-            "1 {expected integer but got \"1.5\"} {TCL VALUE INTEGER}",
-        ),
-        (
             "double NaN",
             "1 {floating point value is Not a Number} {TCL VALUE DOUBLE NAN}",
         ),
         ("double 0x10", "0 16"),
     ];
+    // A double made by `expr`, which needs the numeric tower.
+    #[cfg(have_tommath)]
+    cases.push((
+        "wide [expr {1.5}]",
+        "1 {expected integer but got \"1.5\"} {TCL VALUE INTEGER}",
+    ));
     if core::mem::size_of::<c_long>() == 8 {
         cases.push(("int -4294967295", "0 1"));
         cases.push(("long 9223372036854775807", "0 9223372036854775807"));
@@ -344,7 +346,7 @@ fn the_reads_take_c_tcl_s_ranges_and_report_its_errors() {
     }
     for (call, wanted) in cases {
         let probe = format!(
-            "set c [catch {{read {call}}} m]; if {{$c}} {{list $c $m $::errorCode}} else {{list $c $m}}"
+            "set c [catch {{read {call}}} m]; switch -- $c {{0 {{list $c $m}} default {{list $c $m $::errorCode}}}}"
         );
         assert_eq!(
             run(&mut interp, &probe),
