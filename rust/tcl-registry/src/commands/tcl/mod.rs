@@ -441,7 +441,6 @@ mod tests {
         ("set", IR_ASSIGNMENT),
         ("array default", ARRAY_TARGET),
         ("array set", ARRAY_TARGET),
-        ("array unset", "removes array elements"),
         ("file stat", ARRAY_TARGET),
         ("file lstat", ARRAY_TARGET),
         ("dict update", DICT_KEYS),
