@@ -1555,9 +1555,24 @@ fn walk_in_frame_words(
         walk_text(&word.text, &expression_context, depth + 1, reach, out);
     }
 
+    walk_protected_scripts(words, (lookup, &args, shift), context, depth, out);
+}
+
+/// Descend the scripts the call `words` runs as protected — the ones its
+/// clause plan places at [`tcl_registry::ClauseTiming::Protected`], the body
+/// of a `catch` or a `try` — where each is known text ([`walk_in_frame_words`]
+/// says which). `callee` is the command the call reaches, its argv after any
+/// words an alias prepends, and how many those are.
+fn walk_protected_scripts(
+    words: &[CommandWord],
+    (lookup, args, shift): (&str, &[&str], usize),
+    context: &SubstitutionWalkContext<'_>,
+    depth: u32,
+    out: &mut EvaluatedCommandSubstitutions,
+) {
     let protected: Vec<usize> = context
         .registry
-        .clause_plan(lookup, &args)
+        .clause_plan(lookup, args)
         .map(|plan| {
             plan.clauses
                 .iter()

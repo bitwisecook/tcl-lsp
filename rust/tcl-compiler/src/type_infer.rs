@@ -1455,6 +1455,34 @@ fn foreach_var_lattice(container_shape: Option<&TypeShape>, nvars: usize, j: usi
     }
 }
 
+/// The types the fresh versions a registry boundary gives the names live
+/// after it start with, in the blocks that run: overdefined, since the code
+/// the boundary's invocation reaches may rebind each — unless the function is
+/// the narrow straight-line case whose factories no handler can reach
+/// ([`has_only_caller_safe_factories`]), where they keep the lineage's types.
+fn registry_clobber_types<S: std::hash::BuildHasher>(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    sccp: &SccpResult,
+    registry: &CommandRegistry,
+    known_classes: &HashSet<String, S>,
+) -> HashMap<ValueKey, TypeLattice> {
+    let mut types = HashMap::new();
+    if has_only_caller_safe_factories(cfg, registry, known_classes) {
+        return types;
+    }
+    for (block, markers) in &ssa.value_clobbers {
+        if sccp.executable_blocks.contains(block) {
+            for versions in markers.values() {
+                for (&symbol, &(_, fresh)) in versions {
+                    types.insert((symbol, fresh), TypeLattice::overdefined());
+                }
+            }
+        }
+    }
+    types
+}
+
 /// Run type propagation over one SSA function.
 ///
 /// Returns a map from `(variable_name, ssa_version)` to inferred
@@ -1525,19 +1553,7 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
         numbers: numbers_of(registry),
     };
 
-    let mut types: HashMap<ValueKey, TypeLattice> = HashMap::new();
-    let caller_safe_factories = has_only_caller_safe_factories(cfg, registry, known_classes);
-    for (block, markers) in &ssa.value_clobbers {
-        if sccp.executable_blocks.contains(block) {
-            for versions in markers.values() {
-                for (&symbol, &(_, fresh)) in versions {
-                    if !caller_safe_factories {
-                        types.insert((symbol, fresh), TypeLattice::overdefined());
-                    }
-                }
-            }
-        }
-    }
+    let mut types = registry_clobber_types(cfg, ssa, sccp, registry, known_classes);
     let mut changed = true;
     while changed {
         changed = false;
