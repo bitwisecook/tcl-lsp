@@ -115,12 +115,12 @@ const KNOWN_UNBACKED: &[(&str, &str)] = &[
         "standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name`",
     ),
     (
-        "tcl::zipfs",
-        "ZIP virtual filesystem — no runtime implementation yet; pre-existing gap, unrelated to issue #923",
-    ),
-    (
         "tcl::unsupported::grapheme",
         "Tcl 9.1.0 grapheme-cluster ensemble; needs UAX #29 segmentation tables not yet in runtime/rust",
+    ),
+    (
+        "tcl::zipfs",
+        "ZIP virtual filesystem — no runtime implementation yet; pre-existing gap, unrelated to issue #923",
     ),
     (
         "timer",
