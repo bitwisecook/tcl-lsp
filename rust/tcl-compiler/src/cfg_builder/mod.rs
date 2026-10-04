@@ -1796,11 +1796,27 @@ impl<'a> CfgBuilder<'a> {
         if self.plain_command_dispatch {
             return false;
         }
-        let Statement::Call { command, span, .. } = stmt else {
+        let Statement::Call {
+            command,
+            canonical_command,
+            span,
+            tokens,
+            ..
+        } = stmt
+        else {
             return false;
         };
-        let is_break = self.command_classes.is_loop_break_command(command);
-        if !is_break && !self.command_classes.is_loop_continue_command(command) {
+        let own_level = self.command_classes.return_at_own_level(
+            command,
+            canonical_command.as_deref(),
+            tokens.as_ref(),
+        );
+        let is_break = self.command_classes.is_loop_break_command(command)
+            || own_level == Some(OwnLevelReturn::Breaks);
+        if !is_break
+            && !self.command_classes.is_loop_continue_command(command)
+            && own_level != Some(OwnLevelReturn::Continues)
+        {
             return false;
         }
         let Some((brk, cont)) = self.loop_stack.last().cloned() else {
@@ -1853,10 +1869,20 @@ impl<'a> CfgBuilder<'a> {
                     return false;
                 }
                 let canon = canonical_command.as_deref().unwrap_or(command);
+                let own_level = self.command_classes.return_at_own_level(
+                    command,
+                    canonical_command.as_deref(),
+                    tokens.as_ref(),
+                );
                 let jumps = !self.loop_stack.is_empty()
                     && (self.command_classes.is_loop_break_command(command)
-                        || self.command_classes.is_loop_continue_command(command));
+                        || self.command_classes.is_loop_continue_command(command)
+                        || matches!(
+                            own_level,
+                            Some(OwnLevelReturn::Breaks | OwnLevelReturn::Continues)
+                        ));
                 jumps
+                    || own_level == Some(OwnLevelReturn::Raises)
                     || self.command_classes.is_block_terminating_command(canon)
                     || (self.faithful_exceptions && self.command_classes.is_tailcall_command(canon))
             }
@@ -1895,30 +1921,41 @@ impl<'a> CfgBuilder<'a> {
             command,
             canonical_command,
             span,
+            tokens,
             ..
         }
         | Statement::Barrier {
             command,
             canonical_command,
             span,
+            tokens,
             ..
         } = stmt
             && self.block_mut(current).terminator.is_none()
         {
             let canon = canonical_command.as_deref().unwrap_or(command);
+            // A `return` that raises at its own level (`-code error`, or
+            // options the release rejects) is a throw as `error` is.
+            let raises = matches!(stmt, Statement::Call { .. })
+                && self.command_classes.return_at_own_level(
+                    command,
+                    canonical_command.as_deref(),
+                    tokens.as_ref(),
+                ) == Some(OwnLevelReturn::Raises);
             // `tailcall` (Tcl 8.6+, FP-RBS-13) replaces the current frame and
             // never returns here, so it ends straight-line flow exactly like
             // `error`/`exit`.  Promote it only in analysis builds
             // (`faithful_exceptions`) so the codegen / non-faithful CFG shape
             // stays byte-identical — codegen leaves the call as a fall-through.
-            let exits_proc = self.command_classes.is_block_terminating_command(canon)
+            let exits_proc = raises
+                || self.command_classes.is_block_terminating_command(canon)
                 || (self.faithful_exceptions && self.command_classes.is_tailcall_command(canon));
             if exits_proc {
                 // A catchable `error` / `throw` (not `exit` / `tailcall`, which
                 // leave the process / pop the frame) is a throw point: record
                 // the current block so an enclosing `try`'s on-error edge can be
                 // sourced from here, where the body's prior defs are live.
-                if self.command_classes.is_catchable_throw(canon)
+                if (raises || self.command_classes.is_catchable_throw(canon))
                     && let Some(blocks) = self.throw_blocks.as_mut()
                 {
                     blocks.push(current.to_owned());
@@ -3556,12 +3593,80 @@ struct CfgCommandClasses {
     /// analysis. Classification stays trait-driven without rebuilding five
     /// complete name sets for every compilation unit.
     semantics: Arc<EffectiveRegistrySemantics>,
+    /// The profile the registry serves, whose release reads `return`'s
+    /// options ([`Self::return_at_own_level`]).
+    profile: Option<&'static tcl_dialect::DialectProfile>,
+}
+
+/// What a call to `return` that completes at its own level does to the flow
+/// around it ([`CfgCommandClasses::return_at_own_level`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OwnLevelReturn {
+    /// It raises, as `error` does: `-code error`, or options the release
+    /// rejects (8.4 has no `-level`).
+    Raises,
+    /// It leaves the loop around it, as `break` does.
+    Breaks,
+    /// It starts the loop's next iteration, as `continue` does.
+    Continues,
 }
 
 impl CfgCommandClasses {
     fn from_registry(registry: &CommandRegistry) -> Self {
         Self {
             semantics: registry.effective_semantics(),
+            profile: registry.profile(),
+        }
+    }
+
+    /// What a call to `return` completes with at its own level, as the
+    /// registry decodes its words
+    /// ([`tcl_registry::value_transfer::completion::decode_return_words`]).
+    /// The lowering keeps a `return` that leaves the procedure, or whose
+    /// completion is not known, as the `return with options` barrier, and
+    /// makes a call of one that completes where it stands. A normal
+    /// completion is a plain statement, and gives `None`, as a call to any
+    /// other command does.
+    fn return_at_own_level(
+        &self,
+        command: &str,
+        canonical_command: Option<&str>,
+        tokens: Option<&CommandTokens>,
+    ) -> Option<OwnLevelReturn> {
+        use tcl_registry::completion::CompletionCode;
+        use tcl_registry::value_transfer::completion::{ReturnCompletion, ReturnDecoding};
+        let canon = canonical_command.unwrap_or(command);
+        let facts = self.semantics.command(canon.trim_start_matches(':'))?;
+        if facts.lowering_hook() != Some(LoweringHookId::Return) {
+            return None;
+        }
+        let words: Vec<_> = tokens?
+            .word_exprs
+            .iter()
+            .skip(1)
+            .map(crate::registry_invocation::invocation_word)
+            .collect();
+        match tcl_registry::value_transfer::completion::decode_return_words(
+            self.profile,
+            tcl_registry::InvocationArguments::structured(&words),
+        ) {
+            ReturnDecoding::Rejects
+            | ReturnDecoding::Completes(ReturnCompletion {
+                level: 0,
+                code: CompletionCode::Error,
+                ..
+            }) => Some(OwnLevelReturn::Raises),
+            ReturnDecoding::Completes(ReturnCompletion {
+                level: 0,
+                code: CompletionCode::Break,
+                ..
+            }) => Some(OwnLevelReturn::Breaks),
+            ReturnDecoding::Completes(ReturnCompletion {
+                level: 0,
+                code: CompletionCode::Continue,
+                ..
+            }) => Some(OwnLevelReturn::Continues),
+            ReturnDecoding::Completes(_) | ReturnDecoding::Unknown(_) => None,
         }
     }
 
@@ -3896,17 +4001,27 @@ fn flow_facts_stmt_with_classes(
             command,
             canonical_command,
             defs,
+            tokens,
             ..
         } => {
             let canon = canonical_command.as_deref().unwrap_or(command);
             let bare = canon.trim_start_matches(':');
+            let own_level = command_classes.return_at_own_level(
+                command,
+                canonical_command.as_deref(),
+                tokens.as_ref(),
+            );
             let completion = if command_classes.is_loop_break_command(bare)
                 || command_classes.is_loop_continue_command(bare)
-            {
+                || matches!(
+                    own_level,
+                    Some(OwnLevelReturn::Breaks | OwnLevelReturn::Continues)
+                ) {
                 // A loop jump leaves to the enclosing loop's target — it still
                 // reaches the code after that loop, just without later defs.
                 Completion::LoopJump
-            } else if command_classes.is_block_terminating_command(canon)
+            } else if own_level == Some(OwnLevelReturn::Raises)
+                || command_classes.is_block_terminating_command(canon)
                 || command_classes.is_tailcall_command(canon)
             {
                 Completion::ProcExit
@@ -4064,15 +4179,25 @@ fn escaping_loop_jumps_with_classes(
             Statement::Call {
                 command,
                 canonical_command,
+                tokens,
                 ..
             } => {
                 let bare = canonical_command
                     .as_deref()
                     .unwrap_or(command)
                     .trim_start_matches(':');
-                if command_classes.is_loop_break_command(bare) {
+                let own_level = command_classes.return_at_own_level(
+                    command,
+                    canonical_command.as_deref(),
+                    tokens.as_ref(),
+                );
+                if command_classes.is_loop_break_command(bare)
+                    || own_level == Some(OwnLevelReturn::Breaks)
+                {
                     can_break = true;
-                } else if command_classes.is_loop_continue_command(bare) {
+                } else if command_classes.is_loop_continue_command(bare)
+                    || own_level == Some(OwnLevelReturn::Continues)
+                {
                     can_continue = true;
                 }
             }

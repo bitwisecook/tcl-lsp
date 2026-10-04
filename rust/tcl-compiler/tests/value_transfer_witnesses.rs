@@ -6281,6 +6281,108 @@ fn a_raising_store_is_never_dead() {
     }
 }
 
+/// One program of [`a_level_zero_return_completes_where_it_stands`].
+struct LevelZeroReturn {
+    source: &'static str,
+    /// Statements a level-0 `return` leaves to run, which `tcl opt` keeps.
+    kept: &'static [&'static str],
+    /// Statements after a level-0 jump or error, which never run and O107
+    /// removes.
+    gone: &'static [&'static str],
+    printed: &'static str,
+    /// The first release that runs it.
+    first: &'static str,
+}
+
+/// The programs of [`a_level_zero_return_completes_where_it_stands`].
+const LEVEL_ZERO_RETURNS: [LevelZeroReturn; 5] = [
+    LevelZeroReturn {
+        source: "proc p {} {return -level 0 -code ok x; puts \"after in p\"; return done}\nputs [p]\nreturn -level 0 -code ok top\nputs \"after at top\"\n",
+        kept: &["puts \"after in p\"", "puts \"after at top\""],
+        gone: &[],
+        printed: "after in p\ndone\nafter at top\n",
+        first: "8.5",
+    },
+    LevelZeroReturn {
+        source: "try {return -level 0 -code 0 x} on ok {v} {puts \"ok $v\"}\ntry {return -level 0 -code 2 x} on return {v} {puts \"ret $v\"}\n",
+        kept: &["puts \"ok $v\"", "puts \"ret $v\""],
+        gone: &[],
+        printed: "ok x\nret x\n",
+        first: "8.6",
+    },
+    LevelZeroReturn {
+        source: "proc p {} {\n    set n 0\n    foreach i {1 2 3 4} {\n        if {$i == 2} {return -level 0 -code continue}\n        if {$i == 4} {return -level 0 -code break}\n        incr n\n    }\n    return $n\n}\nputs [p]\n",
+        kept: &["incr n"],
+        gone: &[],
+        printed: "2\n",
+        first: "8.5",
+    },
+    LevelZeroReturn {
+        source: "proc e {} {\n    return -level 0 -code error -errorcode {A B} boom\n    set z 1\n    puts never\n}\nputs [catch e m]\nputs $m\nputs $::errorCode\n",
+        kept: &[],
+        gone: &["puts never"],
+        printed: "1\nboom\nA B\n",
+        first: "8.5",
+    },
+    LevelZeroReturn {
+        source: "proc p {} {\n    foreach i {1 2 3} {\n        return -level 0 -code break\n        set xb 1\n    }\n    foreach i {1 2} {\n        return -level 0 -code continue\n        set yc 1\n    }\n    return [list [info exists xb] [info exists yc]]\n}\nputs [p]\nproc q {} {\n    catch {return -level 0 -code error e; set xe 1}\n    return [info exists xe]\n}\nputs [q]\n",
+        kept: &["return [list [info exists xb] [info exists yc]]"],
+        gone: &["set xb 1", "set yc 1"],
+        printed: "0 0\n0\n",
+        first: "8.5",
+    },
+];
+
+/// A `return` at level 0 completes where it stands, with its code (#2357):
+/// `ok` runs on to the next statement, `error` raises, and `break` or
+/// `continue` leaves the loop around it. One decoding of `return`'s options,
+/// the registry's, answers the lowering, the CFG and the solver alike, and
+/// read a level-0 `return` as the procedure's exit no longer: O107 deleted
+/// the statements after `return -level 0 -code ok x` in a procedure and at
+/// the top level, and the `try` handlers its code selects. In a procedure, at
+/// the top level, in a loop and under `try`, each program prints what tclsh
+/// prints before and after `tcl opt`, from the first release with `-level`,
+/// and what follows a level-0 jump or error in its block never runs, which
+/// O107 removes. Under 8.4, which reads three options, `-level` is rejected,
+/// and `catch` reports it.
+#[test]
+fn a_level_zero_return_completes_where_it_stands() {
+    for program in &LEVEL_ZERO_RETURNS {
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let (rewritten, rewrites) = optimised(program.source, dialect);
+            for statement in program.kept {
+                assert!(
+                    rewritten.contains(statement),
+                    "{dialect}: `{statement}` runs after a level-0 return\n{rewritten}\n{rewrites:#?}"
+                );
+            }
+            for statement in program.gone {
+                assert!(
+                    !rewritten.contains(statement),
+                    "{dialect}: `{statement}` never runs after a level-0 jump or error\n{rewritten}\n{rewrites:#?}"
+                );
+            }
+        }
+        prints_under_releases_from(program.source, program.printed, program.first);
+    }
+    let rejected = "proc p {} {catch {return -level 0 -code ok x} m; return $m}\nputs [p]\n";
+    for (series, tclsh) in releases_on_path() {
+        let printed = if series == "8.4" {
+            "bad option \"-level\": must be -code, -errorcode, or -errorinfo\n"
+        } else {
+            "x\n"
+        };
+        let (rewritten, _) = optimised(rejected, &dialect_of(series));
+        for program in [rejected, rewritten.as_str()] {
+            assert_eq!(
+                run_script(&tclsh, program),
+                Some((true, printed.to_owned())),
+                "tclsh{series}:\n{program}"
+            );
+        }
+    }
+}
+
 /// A `try` body that cannot fall through is thrown to from the point it
 /// raises at, and its first command may fail before it stores anything, with
 /// the state the body entered with: after `try {set x [expr {1 / $d}]; error

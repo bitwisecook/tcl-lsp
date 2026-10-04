@@ -6397,55 +6397,107 @@ fn return_completes_with_its_code_and_level() {
         );
     }
 
-    // `-level` is read only where the target has it.
-    for dialect in [Some("tcl8.4"), None] {
-        let answer = completed("return", None, &[w("-level"), w("0")], &[], dialect);
-        assert!(
-            matches!(
-                answer,
-                EvalAnswer::Declined(
-                    DeclineReason::Unsupported | DeclineReason::ReleaseAmbiguous(_)
-                )
-            ),
-            "{dialect:?}: {answer:?}"
-        );
-    }
+    // 8.4 reads three options and rejects `-level` ("bad option "-level":
+    // must be -code, -errorcode, or -errorinfo"), an error the route does not
+    // word; a target that names no release leaves it to the release.
+    assert_eq!(
+        raised(&completed(
+            "return",
+            None,
+            &[w("-level"), w("0")],
+            &[],
+            Some("tcl8.4")
+        )),
+        Some((0, None, None))
+    );
     assert!(matches!(
         completed("return", None, &[w("-level"), w("0")], &[], None),
         EvalAnswer::Declined(DeclineReason::ReleaseAmbiguous(_))
     ));
 }
 
-/// What `return` does not read declines: an option beyond `-code` and
-/// `-level` (8.5 keeps any pair in the options dictionary, 8.4 refuses it),
-/// a code or level not spelled the one way every release reads it (`-code
-/// 010` is 8 before 9.0 and 10 from it), and a word that is not exact. A
-/// result the analysis does not prove leaves the completion certain, and a
-/// word not yet reached leaves the answer pending.
+/// `return` reads its options as the release does (tclsh 8.6 and 9.0,
+/// measured through `catch`): from 8.5 any pair is kept in the options
+/// dictionary and changes nothing (`return a b` is 2 with the empty result),
+/// `-errorcode` beside `-code error` leaves the completion pending a level, a
+/// code or level is read with the release's numerals (`-code 010` is 8 in 8.6
+/// and 10 from 9.0, `0x5` and `+5` are 5, `2147483648` wraps to
+/// `-2147483648`, `-level 01` is 1), and a code or level the release rejects
+/// is the error it raises, which the route does not word. `-options`, whose
+/// dictionary the route does not merge, declines; so does a word that is not
+/// exact. A result the analysis does not prove leaves the completion certain,
+/// and a word not yet reached leaves the answer pending.
 #[test]
-fn return_declines_what_every_release_does_not_read_alike() {
+fn return_reads_its_options_as_the_release_does() {
     let w = word;
-    let declines = |words: &[(&str, bool)]| {
-        completed("return", None, words, &[], Some("tcl8.6"))
-            == EvalAnswer::Declined(DeclineReason::Unsupported)
-    };
-    assert!(declines(&[
-        w("-errorcode"),
-        w("A"),
-        w("-code"),
-        w("error"),
-        w("m")
-    ]));
-    assert!(declines(&[w("-options"), w("{-code 1}"), w("m")]));
-    assert!(declines(&[w("a"), w("b")]));
-    assert!(declines(&[w("-foo"), w("bar")]));
-    assert!(declines(&[w("-code"), w("notacode"), w("x")]));
-    assert!(declines(&[w("-code"), w("010"), w("x")]));
-    assert!(declines(&[w("-code"), w("0x5"), w("x")]));
-    assert!(declines(&[w("-code"), w("+5"), w("x")]));
-    assert!(declines(&[w("-code"), w("2147483648"), w("x")]));
-    assert!(declines(&[w("-level"), w("-1"), w("x")]));
-    assert!(declines(&[w("-level"), w("01"), w("x")]));
+    let text = |text: &str| Some(text.to_owned());
+    for (dialect, octal) in [(Some("tcl8.6"), 8), (Some("tcl9.0"), 10)] {
+        let run = |words: &[(&str, bool)]| completed("return", None, words, &[], dialect);
+        let seen = |words: &[(&str, bool)]| code_completion(&run(words));
+        for (words, code, result) in [
+            (
+                &[w("-errorcode"), w("A"), w("-code"), w("error"), w("m")][..],
+                1,
+                "m",
+            ),
+            (&[w("a"), w("b")][..], 0, ""),
+            (&[w("-foo"), w("bar")][..], 0, ""),
+            (&[w("-code"), w("010"), w("x")][..], octal, "x"),
+            (&[w("-code"), w("0x5"), w("x")][..], 5, "x"),
+            (&[w("-code"), w("+5"), w("x")][..], 5, "x"),
+            (
+                &[w("-code"), w("2147483648"), w("x")][..],
+                -2_147_483_648,
+                "x",
+            ),
+            (&[w("-level"), w("01"), w("x")][..], 0, "x"),
+        ] {
+            assert_eq!(
+                seen(words),
+                Some((2, code, 1, text(result))),
+                "{dialect:?}: {words:?}"
+            );
+        }
+        for words in [
+            &[w("-code"), w("notacode"), w("x")][..],
+            &[w("-level"), w("-1"), w("x")][..],
+        ] {
+            assert_eq!(
+                raised(&run(words)),
+                Some((0, None, None)),
+                "{dialect:?}: {words:?}"
+            );
+        }
+        assert_eq!(
+            run(&[w("-options"), w("{-code 1}"), w("m")]),
+            EvalAnswer::Declined(DeclineReason::Unsupported)
+        );
+        // `-code return` is `ok` one level further out: `catch {return -code
+        // return x} m o` leaves `o` holding `-code 0 -level 2`.
+        assert_eq!(
+            seen(&[w("-code"), w("return"), w("x")]),
+            Some((2, 0, 2, text("x")))
+        );
+        // From 8.5 an `-errorcode` that is no list is rejected ("bad
+        // -errorcode value: expected a list").
+        assert_eq!(
+            raised(&run(&[w("-errorcode"), w("a {b"), w("x")])),
+            Some((0, None, None))
+        );
+        // At level 0 the error carries the `-errorcode` given.
+        assert_eq!(
+            raised(&run(&[
+                w("-level"),
+                w("0"),
+                w("-code"),
+                w("error"),
+                w("-errorcode"),
+                w("A B"),
+                w("msg")
+            ])),
+            Some((0, text("msg"), text("A B")))
+        );
+    }
 
     let reg = CommandRegistry::build_default();
     let semantics = resolve_semantics(reg.get("return").expect("return"), None, None);

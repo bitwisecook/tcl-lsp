@@ -23,15 +23,16 @@
 //! command's, and the handler chain of `try`, whose facts every consumer of
 //! the handler list reads from [`HandlerChain`].
 
-use tcl_dialect::TclVersion;
 use tcl_dialect::model::SpecSurface;
-use tcl_syntax::number::Numbers;
+use tcl_dialect::{DialectProfile, TclVersion};
+use tcl_syntax::number::{Number, NumberSyntax, Numbers};
+use tcl_syntax::word_rules::WordValueRules;
 
 use crate::arg_role::ArgRole;
 use crate::clause_grammar::{ClauseGrammarSpec, ClausePlan, ClauseRowId};
 use crate::completion::{CompletionCode, CompletionCodeDomain, completion_code_selector};
 use crate::frame_effect::FrameLevel;
-use crate::invocation_words::InvocationWordKind;
+use crate::invocation_words::{InvocationArguments, InvocationWord, InvocationWordKind};
 use crate::types::TclType;
 
 use super::CommandSemantics;
@@ -219,21 +220,247 @@ impl CommandSemantics for ContinueSemantics {
     }
 }
 
-/// `return ?-code code? ?-level level? ?result?`: the completion its options
-/// give, after no store. The options are read as Tcl reads them: while two
-/// words remain the first names an option and the second is its value, and
-/// a last word on its own is the result, whatever it starts with. `-code`
-/// is one of the five names or an integer and the default is `ok`; `-level`
-/// is a non-negative integer from 8.5, default 1. At a positive level the
-/// completion is the pending one a procedure or `catch` consumes
-/// ([`CompletionOutcome::Code`]); at level 0 it is the code itself — a
-/// normal completion for `ok`, the error for `error`.
+/// One word of a `return` invocation, as the decoding of its options reads
+/// it ([`decode_return`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReturnWord<'w> {
+    /// A word whose value is this text.
+    Text(&'w str),
+    /// A computed word whose value cannot begin with `-`, so it names none of
+    /// the options a release reads.
+    NotAnOption,
+    /// A computed word.
+    Unknown,
+}
+
+/// Why [`decode_return`] gives no answer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReturnUnknown {
+    /// A word the decoding reads is computed.
+    Word,
+    /// `-options` merges a dictionary, which the decoding does not read.
+    Options,
+    /// The target's release is not named, and the releases read the words
+    /// differently: 8.4 reads three options and rejects any other, 8.5 keeps
+    /// any pair; or a numeral the release's integer conversion reads its own
+    /// way.
+    Release,
+}
+
+/// The completion a `return` whose options are accepted gives.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReturnCompletion {
+    /// The code the completion carries once `level` frames are left. `-code
+    /// return` is `ok` one level further out, as every release reads it
+    /// (`catch {return -code return x} m o` leaves `o` `-code 0 -level 2`).
+    pub code: CompletionCode,
+    /// How many frames the completion climbs: 0 is the command's own
+    /// completion. 8.4 has no `-level`, so it is 1 there.
+    pub level: u32,
+    /// The index of the result word, `None` for the empty result.
+    pub result: Option<usize>,
+    /// The index of the last `-errorcode` value word.
+    pub error_code: Option<usize>,
+}
+
+impl ReturnCompletion {
+    /// The code the command itself completes with: its own at level 0, and
+    /// `TCL_RETURN` while a level remains to climb.
+    #[must_use]
+    pub fn own_code(self) -> CompletionCode {
+        if self.level == 0 {
+            self.code
+        } else {
+            CompletionCode::Return
+        }
+    }
+}
+
+/// What a `return` completes with, read from its words ([`decode_return`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReturnDecoding {
+    /// The release accepts the options, and the command completes so.
+    Completes(ReturnCompletion),
+    /// The release rejects an option or its value: the command raises
+    /// `TCL_ERROR` before it returns.
+    Rejects,
+    /// What the command completes with is not known.
+    Unknown(ReturnUnknown),
+}
+
+/// `return`'s `count` words after its name, read as the release `profile`
+/// runs reads them (`Tcl_ReturnObjCmd` and `TclMergeReturnOptions`, 8.4 to
+/// 9.1): the one decoding of `return`'s options, which the lowering, the CFG,
+/// the registry's completion queries and the solver's route all read.
 ///
-/// An option the route does not read (`-errorcode`, `-errorinfo`,
-/// `-errorstack`, `-options`, and from 8.5 any other pair, which the
-/// options dictionary keeps), a code or level that is not spelled in
-/// canonical decimal (`010` is 8 before 9.0 and 10 from it), a word that is
-/// not exact, and `-level` where the target is not proven to have it
+/// While two words remain the first names an option and the second is its
+/// value, and a last word on its own is the result, whatever it starts with
+/// (`return -code` returns the text `-code`). `-code` takes one of the five
+/// names or an integer, `-errorinfo` any value, and `-errorcode` a list from
+/// 8.5 (8.4 takes any text); any other name is rejected by 8.4. From 8.5
+/// `-level` takes a non-negative integer, `-options` merges a dictionary,
+/// `-errorstack` takes a list of even length from 8.6, and any other pair is
+/// kept in the options dictionary, which changes nothing here. A later pair
+/// replaces an earlier one. Integers are read with the release's numeral
+/// grammar and its 32-bit conversion (`010` is 8 in 8.x and 10 from 9.0).
+/// Where the target names no release, only the readings every release
+/// shares are answered.
+pub fn decode_return<'w>(
+    profile: Option<&'static DialectProfile>,
+    count: usize,
+    word: impl Fn(usize) -> ReturnWord<'w>,
+) -> ReturnDecoding {
+    let target = TargetSemantics::of(profile);
+    let numbers = target.numerals.map_or(Numbers::Unknown, Numbers::Target);
+    // Whether the release keeps any pair in a dictionary (8.5 on) or reads
+    // three options and rejects the rest (8.4); `None` where it is unnamed.
+    let dictionary = target.release.map(|release| release >= TclVersion::V8_5);
+    let result = (count % 2 == 1).then(|| count - 1);
+    let mut completion = ReturnCompletion {
+        code: CompletionCode::Ok,
+        level: 1,
+        result,
+        error_code: None,
+    };
+    for at in (0..count - usize::from(result.is_some())).step_by(2) {
+        let name = match word(at) {
+            ReturnWord::Text(name) => name,
+            ReturnWord::NotAnOption => match dictionary {
+                Some(true) => continue,
+                Some(false) => return ReturnDecoding::Rejects,
+                None => return ReturnDecoding::Unknown(ReturnUnknown::Release),
+            },
+            ReturnWord::Unknown => return ReturnDecoding::Unknown(ReturnUnknown::Word),
+        };
+        let value = word(at + 1);
+        let read = match name {
+            "-code" => read_code(value, numbers).map(|code| completion.code = code),
+            "-errorinfo" => Ok(()),
+            "-errorcode" => {
+                completion.error_code = Some(at + 1);
+                match dictionary {
+                    Some(false) => Ok(()),
+                    _ => read_list(value, dictionary, |_| true),
+                }
+            }
+            _ if dictionary == Some(false) => Err(ReturnDecoding::Rejects),
+            _ if dictionary.is_none() => Err(ReturnDecoding::Unknown(ReturnUnknown::Release)),
+            "-level" => read_level(value, numbers).map(|level| completion.level = level),
+            "-options" => Err(ReturnDecoding::Unknown(ReturnUnknown::Options)),
+            "-errorstack"
+                if target
+                    .release
+                    .is_some_and(|release| release >= TclVersion::V8_6) =>
+            {
+                read_list(value, dictionary, |elements| elements % 2 == 0)
+            }
+            _ => Ok(()),
+        };
+        if let Err(decoding) = read {
+            return decoding;
+        }
+    }
+    if completion.code == CompletionCode::Return {
+        completion.code = CompletionCode::Ok;
+        completion.level = completion.level.saturating_add(1);
+    }
+    ReturnDecoding::Completes(completion)
+}
+
+/// A `-code` value: one of the five names or an integer the release's
+/// conversion reads.
+fn read_code(value: ReturnWord<'_>, numbers: Numbers) -> Result<CompletionCode, ReturnDecoding> {
+    let ReturnWord::Text(text) = value else {
+        return Err(ReturnDecoding::Unknown(ReturnUnknown::Word));
+    };
+    completion_code_selector(text, numbers).ok_or_else(|| not_an_integer(text, numbers))
+}
+
+/// A `-level` value: an integer the release's conversion reads as
+/// non-negative.
+fn read_level(value: ReturnWord<'_>, numbers: Numbers) -> Result<u32, ReturnDecoding> {
+    let ReturnWord::Text(text) = value else {
+        return Err(ReturnDecoding::Unknown(ReturnUnknown::Word));
+    };
+    match crate::completion::canonical_completion_code(text, numbers) {
+        Some(level) => u32::try_from(level).map_err(|_| ReturnDecoding::Rejects),
+        None => Err(not_an_integer(text, numbers)),
+    }
+}
+
+/// The answer for an option value the conversion did not read: an integer
+/// spelling a release reads its own way, or one past the conversion's range,
+/// is left to the release, and anything else is rejected.
+fn not_an_integer(text: &str, numbers: Numbers) -> ReturnDecoding {
+    let integer = |syntax: NumberSyntax| {
+        matches!(
+            Numbers::Target(syntax).parse_whole(text),
+            Some(Number::Int(_) | Number::Big { .. })
+        )
+    };
+    if numbers
+        .syntax()
+        .map_or_else(|| NumberSyntax::any(integer), integer)
+    {
+        ReturnDecoding::Unknown(ReturnUnknown::Release)
+    } else {
+        ReturnDecoding::Rejects
+    }
+}
+
+/// [`decode_return`] over an invocation's words: a literal is its text — save,
+/// in the literal compatibility view, one spelled as a substitution
+/// (`$code`), which may hold any value — a substituted word that cannot begin
+/// with `-` names no option, and any other word is unknown. A word an
+/// expansion contributes leaves the count unknown.
+#[must_use]
+pub fn decode_return_words(
+    profile: Option<&'static DialectProfile>,
+    args: InvocationArguments<'_>,
+) -> ReturnDecoding {
+    let Some(count) = args.exact_argv_len() else {
+        return ReturnDecoding::Unknown(ReturnUnknown::Word);
+    };
+    decode_return(profile, count, |at| match args.get(at) {
+        Some(InvocationWord::Literal(text))
+            if args.is_source_aware() || !tcl_syntax::naming::is_dynamic_word(text) =>
+        {
+            ReturnWord::Text(text)
+        }
+        Some(InvocationWord::DynamicNonOption) => ReturnWord::NotAnOption,
+        _ => ReturnWord::Unknown,
+    })
+}
+
+/// A value 8.5 on requires to be a list whose element count `fits`: a
+/// release that requires it rejects any other, and an unnamed release may.
+fn read_list(
+    value: ReturnWord<'_>,
+    dictionary: Option<bool>,
+    fits: impl Fn(usize) -> bool,
+) -> Result<(), ReturnDecoding> {
+    let ReturnWord::Text(text) = value else {
+        return Err(ReturnDecoding::Unknown(ReturnUnknown::Word));
+    };
+    match WordValueRules::TCL.split_list(text) {
+        Ok(elements) if fits(elements.len()) => Ok(()),
+        _ if dictionary == Some(true) => Err(ReturnDecoding::Rejects),
+        _ => Err(ReturnDecoding::Unknown(ReturnUnknown::Release)),
+    }
+}
+
+/// `return ?option value ...? ?result?`: the completion its options give,
+/// after no store, as [`decode_return`] reads them — the decoding the
+/// lowering, the CFG and the registry's completion queries read too. At a
+/// positive level the completion is the pending one a procedure or `catch`
+/// consumes ([`CompletionOutcome::Code`]); at level 0 it is the code itself —
+/// a normal completion for `ok`, the error for `error`, carrying the
+/// `-errorcode` word where one is given. Options the release rejects are an
+/// error whose message the route does not word.
+///
+/// A word the solver has not reached makes the answer pending. An option
+/// word that is not exact, `-options`, whose dictionary the decoding does not
+/// merge, and a reading that depends on a release the target does not name
 /// decline. The result is exact where its word is, and unproven otherwise.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ReturnSemantics;
@@ -242,81 +469,43 @@ pub struct ReturnSemantics;
 pub static RETURN: ReturnSemantics = ReturnSemantics;
 
 impl ReturnSemantics {
-    /// A `-code` value: one of the five names, or an integer spelled the
-    /// one way every release reads it.
-    fn code(word: &str) -> Option<CompletionCode> {
-        match word {
-            "ok" => Some(CompletionCode::Ok),
-            "error" => Some(CompletionCode::Error),
-            "return" => Some(CompletionCode::Return),
-            "break" => Some(CompletionCode::Break),
-            "continue" => Some(CompletionCode::Continue),
-            number => number
-                .parse::<i32>()
-                .ok()
-                .filter(|parsed| parsed.to_string() == number)
-                .map(CompletionCode::from_int),
-        }
-    }
-
-    /// A `-level` value: a non-negative integer spelled the one way every
-    /// release reads it.
-    fn level(word: &str) -> Option<u32> {
-        word.parse::<u32>()
-            .ok()
-            .filter(|parsed| parsed.to_string() == word)
-    }
-
-    /// The text of the word at `at`, which an option name or value must
-    /// have: a word the solver has not reached makes the answer pending.
-    fn text(input: &dyn AnalysisInputs, at: usize) -> Result<String, EvalAnswer> {
-        match input.operand(OperandId(at), FactDomain::ExactValue) {
-            FactView::Exact(value, _) => value
-                .as_str()
-                .map(str::to_owned)
-                .map_err(EvalAnswer::Declined),
-            FactView::Pending => Err(EvalAnswer::Pending),
-            FactView::Finite(..) => Err(EvalAnswer::Declined(DeclineReason::CorrelatedSets)),
-            FactView::Domain(_) | FactView::Top(_) => {
-                Err(EvalAnswer::Declined(DeclineReason::NotExact))
-            }
-        }
-    }
-
     fn evaluate_return(input: &dyn AnalysisInputs) -> EvalAnswer {
         let count = input.invocation().operands.len();
-        let has_result = count % 2 == 1;
-        let (mut code, mut level) = (CompletionCode::Ok, 1_u32);
-        for name_at in (0..count - usize::from(has_result)).step_by(2) {
-            let (name, value) = match (Self::text(input, name_at), Self::text(input, name_at + 1)) {
-                (Ok(name), Ok(value)) => (name, value),
-                (Err(answer), _) | (_, Err(answer)) => return answer,
-            };
-            match name.as_str() {
-                "-code" => {
-                    let Some(chosen) = Self::code(&value) else {
-                        return EvalAnswer::Declined(DeclineReason::Unsupported);
-                    };
-                    code = chosen;
-                }
-                "-level" => {
-                    match TargetSemantics::of(input.context().profile).release {
-                        Some(release) if release >= TclVersion::V8_5 => {}
-                        Some(_) => return EvalAnswer::Declined(DeclineReason::Unsupported),
-                        None => {
-                            return EvalAnswer::Declined(unavailable(SpecSurface::TCL85_PLUS));
-                        }
-                    }
-                    let Some(chosen) = Self::level(&value) else {
-                        return EvalAnswer::Declined(DeclineReason::Unsupported);
-                    };
-                    level = chosen;
-                }
-                _ => return EvalAnswer::Declined(DeclineReason::Unsupported),
-            }
+        // The option words, which the decoding reads: every word before a
+        // lone last one.
+        let mut options = Vec::with_capacity(count);
+        for at in 0..count - count % 2 {
+            options.push(match input.operand(OperandId(at), FactDomain::ExactValue) {
+                FactView::Exact(value, _) => value.as_str().ok().map(str::to_owned),
+                FactView::Pending => return EvalAnswer::Pending,
+                FactView::Finite(..) => return EvalAnswer::Declined(DeclineReason::CorrelatedSets),
+                FactView::Domain(_) | FactView::Top(_) => None,
+            });
         }
-        let result = if has_result {
-            match input.operand(OperandId(count - 1), FactDomain::ExactValue) {
+        let text = |at: usize| options.get(at).and_then(Option::as_deref);
+        let returned = match decode_return(input.context().profile, count, |at| {
+            text(at).map_or(ReturnWord::Unknown, ReturnWord::Text)
+        }) {
+            ReturnDecoding::Completes(returned) => returned,
+            ReturnDecoding::Rejects => {
+                return completed(
+                    NativeEvalId::ReturnComplete,
+                    CompletionOutcome::error_unproven(0),
+                    ExactValueOrUnavailable::unproven_string(),
+                );
+            }
+            ReturnDecoding::Unknown(ReturnUnknown::Word) => {
+                return EvalAnswer::Declined(DeclineReason::NotExact);
+            }
+            ReturnDecoding::Unknown(ReturnUnknown::Options) => {
+                return EvalAnswer::Declined(DeclineReason::Unsupported);
+            }
+            ReturnDecoding::Unknown(ReturnUnknown::Release) => {
+                return EvalAnswer::Declined(unavailable(SpecSurface::TCL85_PLUS));
+            }
+        };
+        let result = match returned.result {
+            Some(at) => match input.operand(OperandId(at), FactDomain::ExactValue) {
                 FactView::Exact(value, _) => ExactValueOrUnavailable::Exact(value),
                 FactView::Pending => return EvalAnswer::Pending,
                 FactView::Finite(..) => {
@@ -325,18 +514,24 @@ impl ReturnSemantics {
                 FactView::Domain(_) | FactView::Top(_) => {
                     ExactValueOrUnavailable::unproven_string()
                 }
-            }
-        } else {
-            ExactValueOrUnavailable::exact_text("")
+            },
+            None => ExactValueOrUnavailable::exact_text(""),
         };
-        let completion = match (level, code) {
+        let completion = match (returned.level, returned.code) {
             (0, CompletionCode::Ok) => CompletionOutcome::Normal,
             (0, CompletionCode::Error) => CompletionOutcome::Error {
                 written: 0,
                 message: result.clone(),
-                error_code: ExactValueOrUnavailable::exact_text("NONE"),
+                error_code: returned.error_code.map_or_else(
+                    || ExactValueOrUnavailable::exact_text("NONE"),
+                    |at| {
+                        text(at).map_or_else(ExactValueOrUnavailable::unproven_string, |code| {
+                            ExactValueOrUnavailable::exact_text(code)
+                        })
+                    },
+                ),
             },
-            _ => CompletionOutcome::Code {
+            (level, code) => CompletionOutcome::Code {
                 code,
                 level,
                 result: result.clone(),

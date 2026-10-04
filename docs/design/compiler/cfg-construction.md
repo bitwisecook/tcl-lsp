@@ -170,6 +170,23 @@ the result the `catch` stores.  Every other `catch` is emitted as an opaque
 `Statement::Call` with `defs` covering the body's writes plus the result and
 options variables.
 
+**`return`** (`try_lower_return`) — `return ?value?` lowers to
+`Statement::Return`, which ends its block with a `Return` terminator. A
+`return` with options lowers as the registry decodes them
+(`CommandRegistry::return_completion`, the one reading of `return`'s options
+that the solver's route and the completion queries share): while two words
+remain they are an option and its value, and a last word on its own is the
+result, whatever it starts with. One that completes at its own level is a
+call the builder reads through the same decoding: with `-level 0 -code ok` the
+block runs on; with `-level 0 -code error`, or options the release rejects (8.4
+has no `-level`), the block ends as it does at `error`, a throw point; with
+`-level 0 -code break` or `continue` it jumps to the enclosing loop's targets
+as `break` and `continue` do. Any other — a positive level, which leaves the
+procedure (`TCL_RETURN`), a code above `continue`, or a word the decoding
+cannot read — is the `return with options` `Statement::Barrier`, which in
+analysis builds ends its block with a `Return` terminator, as the `return
+with expansion` barrier of a `{*}`-expanded `return` does.
+
 ### Exception edges
 
 The single-successor terminator cannot express a throw, so analysis

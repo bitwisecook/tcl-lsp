@@ -62,6 +62,13 @@ return $x
   {set g 1}` the store is removed, and in `try {exit abc} finally {set g 1}`,
   where `exit` rejects its status and raises, it is not.
 
+- A `return` at level 0 completes where it stands rather than leaving the
+  procedure: `return -level 0 -code ok x` runs on to the next statement,
+  `-code break` and `-code continue` leave the loop around it, and `-code
+  error` raises, so the code after it stays wherever its code says it runs
+  (`proc p {} {return -level 0 -code ok x; puts after}` prints `after`).
+  Tcl 8.4 has no `-level`, and raises on it.
+
 - A `try` handler that can never run loses its own script, never the `try`
   around it. Tcl runs the first handler whose selector matches, so the second
   `on error` below never runs:

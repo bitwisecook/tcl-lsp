@@ -54,6 +54,7 @@ use crate::stamp_window::StampSelection;
 use crate::state_transition::{StateTransition, StateTransitions, TransitionSubject};
 use crate::traits::Traits;
 use crate::types::VarWriteTyping;
+use crate::value_transfer::completion::ReturnDecoding;
 use crate::{InvocationArguments, InvocationWords};
 use tcl_dialect::model::Family;
 use tcl_dialect::model::PackageFloor;
@@ -223,21 +224,6 @@ pub enum InvocationCompletionKnowledge {
     Dynamic,
 }
 
-/// Parse the literal option subset of `return` that fixes the completion code
-/// visible to an enclosing `try`.  With the default `-level 1`, `return`
-/// itself propagates `TCL_RETURN` even when its eventual procedure result is
-/// configured as `-code error`; `-level 0` exposes that configured code to the
-/// immediately enclosing script instead.
-/// The literal-return parser distinguishes an invocation whose outcome is
-/// genuinely runtime-dependent from one Tcl will reject before it can return.
-/// The latter is still a precise `TCL_ERROR`, so an enclosing `try on error`
-/// must receive it.
-enum ExactReturnCompletion {
-    Completion(crate::completion::CompletionCode),
-    StaticError,
-    Dynamic,
-}
-
 /// Parse `exit ?returnCode?` after its descriptor has established the exact
 /// one-word-or-omitted shape.  Tcl 8.x passes its argument through
 /// `Tcl_GetIntFromObj`, which accepts `-UINT_MAX..=UINT_MAX` before the C cast;
@@ -287,107 +273,6 @@ fn exact_process_exit_completion(
             None => ExactProcessExitCompletion::Dynamic,
         },
     }
-}
-
-fn exact_return_completion(
-    args: crate::invocation_words::InvocationArguments<'_>,
-    numbers: tcl_syntax::number::Numbers,
-) -> ExactReturnCompletion {
-    use crate::completion::CompletionCode;
-
-    let mut i = 0usize;
-    let mut code = CompletionCode::Ok;
-    let mut level = 1_i64;
-    while let Some(word) = args.literal_at(i) {
-        match word {
-            "-code" => {
-                let Some(value) = args.literal_at(i + 1) else {
-                    if args.get(i + 1).is_some() {
-                        return ExactReturnCompletion::Dynamic;
-                    }
-                    // `return` accepts one trailing result word.  Tcl only
-                    // treats `-code` as an option when another argv word can
-                    // supply its value, so a lone `return -code` returns the
-                    // literal result `-code` with the default TCL_RETURN.
-                    break;
-                };
-                code = match value {
-                    "ok" | "0" => CompletionCode::Ok,
-                    "error" | "1" => CompletionCode::Error,
-                    "return" | "2" => CompletionCode::Return,
-                    "break" | "3" => CompletionCode::Break,
-                    "continue" | "4" => CompletionCode::Continue,
-                    value => match crate::completion::canonical_completion_code(value, numbers) {
-                        Some(value) => CompletionCode::from_int(value),
-                        None if !args.is_source_aware()
-                            && tcl_syntax::naming::is_dynamic_word(value) =>
-                        {
-                            return ExactReturnCompletion::Dynamic;
-                        }
-                        None => return ExactReturnCompletion::StaticError,
-                    },
-                };
-                i += 2;
-            }
-            "-level" => {
-                let Some(value) = args.literal_at(i + 1) else {
-                    if args.get(i + 1).is_some() {
-                        return ExactReturnCompletion::Dynamic;
-                    }
-                    break;
-                };
-                level = match numbers.parse_wide(value) {
-                    Some(value) if value >= 0 => value,
-                    None if !args.is_source_aware()
-                        && tcl_syntax::naming::is_dynamic_word(value) =>
-                    {
-                        return ExactReturnCompletion::Dynamic;
-                    }
-                    _ => return ExactReturnCompletion::StaticError,
-                };
-                i += 2;
-            }
-            // These options do not alter the code, but `-options` may carry
-            // a code/level override so remains deliberately opaque.
-            "-options" => {
-                if args.get(i + 1).is_none() {
-                    break;
-                }
-                return ExactReturnCompletion::Dynamic;
-            }
-            // Return options are an extensible key/value dictionary.  An
-            // unrecognised literal option cannot alter `-code`/`-level`, so
-            // retain the concrete completion rather than dropping a valid
-            // custom pair such as `-foo bar`.
-            _ if word.starts_with('-') => {
-                if args.get(i + 1).is_none() {
-                    break;
-                }
-                i += 2;
-            }
-            _ => break,
-        }
-    }
-    // A non-literal word followed by another word may evaluate to an
-    // extensible return option (for example `$option` -> `-code`). It is not
-    // sound to classify the same source shape as the literal two-result-word
-    // arity error.
-    if args.get(i).is_some() && args.literal_at(i).is_none() && args.get(i + 1).is_some() {
-        return ExactReturnCompletion::Dynamic;
-    }
-    // `return` accepts one result word after its options; additional words are
-    // an arity error, so no exact runtime completion is promised.
-    if args
-        .exact_argv_len()
-        .is_some_and(|len| len.saturating_sub(i) > 1)
-    {
-        return ExactReturnCompletion::StaticError;
-    }
-    ExactReturnCompletion::Completion(if level == 0 {
-        code
-    } else {
-        CompletionCode::Return
-    })
 }
 
 fn parse_try_completion_selector(
@@ -4279,65 +4164,24 @@ impl CommandRegistry {
             return InvocationCompletion::Unknown;
         }
         if resolved.lowering_hook == Some(LoweringHookId::Return) {
-            let mut i = 0usize;
-            let mut code = Some(true);
-            let mut level = Some(1_i64);
-            while let Some(word) = args.get(i).copied() {
-                match word {
-                    "--" => {
-                        i += 1;
-                        break;
+            // A normal completion at level 0 runs on, one a level up is the
+            // procedure's result, and any other code, a deeper level or
+            // options the release rejects ends the path.
+            return match self.return_completion(InvocationArguments::literals(args)) {
+                ReturnDecoding::Completes(returned)
+                    if returned.code == crate::completion::CompletionCode::Ok =>
+                {
+                    match returned.level {
+                        0 => InvocationCompletion::FallsThrough,
+                        1 => InvocationCompletion::ReturnsResult(returned.result),
+                        _ => InvocationCompletion::Terminates,
                     }
-                    "-code" => {
-                        let Some(value) = args.get(i + 1).copied() else {
-                            break;
-                        };
-                        code = match value {
-                            "ok" | "0" => Some(true),
-                            "error" | "return" | "break" | "continue" | "1" | "2" | "3" | "4" => {
-                                Some(false)
-                            }
-                            value if value.parse::<i64>().is_ok() => Some(false),
-                            _ => None,
-                        };
-                        i += 2;
-                    }
-                    "-level" => {
-                        let Some(value) = args.get(i + 1).copied() else {
-                            break;
-                        };
-                        level = value.parse::<i64>().ok().filter(|value| *value >= 0);
-                        i += 2;
-                    }
-                    "-options" | "-errorcode" | "-errorinfo" | "-errorstack" => {
-                        if args.get(i + 1).is_none() {
-                            break;
-                        }
-                        return InvocationCompletion::Unknown;
-                    }
-                    _ if word.starts_with('-') => {
-                        if args.get(i + 1).is_none() {
-                            break;
-                        }
-                        return InvocationCompletion::Unknown;
-                    }
-                    _ => break,
                 }
-            }
-            if args.len().saturating_sub(i) > 1 {
-                return InvocationCompletion::Unknown;
-            }
-            if code == Some(false) {
-                return InvocationCompletion::Terminates;
-            }
-            if code.is_none() || level.is_none() {
-                return InvocationCompletion::Unknown;
-            }
-            if level == Some(0) {
-                return InvocationCompletion::FallsThrough;
-            }
-            let result = (i < args.len()).then_some(i);
-            return InvocationCompletion::ReturnsResult(result);
+                ReturnDecoding::Completes(_) | ReturnDecoding::Rejects => {
+                    InvocationCompletion::Terminates
+                }
+                ReturnDecoding::Unknown(_) => InvocationCompletion::Unknown,
+            };
         }
 
         let traits =
@@ -4352,6 +4196,16 @@ impl CommandRegistry {
         } else {
             InvocationCompletion::FallsThrough
         }
+    }
+
+    /// What a `return` with `args` completes with, decoded as this
+    /// registry's release reads its options
+    /// ([`crate::value_transfer::completion::decode_return_words`]): the one
+    /// reading of `return`'s options the lowering, the CFG, the solver's
+    /// route and the completion queries here share.
+    #[must_use]
+    pub fn return_completion(&self, args: InvocationArguments<'_>) -> ReturnDecoding {
+        crate::value_transfer::completion::decode_return_words(self.profile(), args)
     }
 
     /// Return an exact Tcl completion code (or process exit) for a concrete,
@@ -4407,18 +4261,14 @@ impl CommandRegistry {
             ));
         }
         if resolved.lowering_hook == Some(LoweringHookId::Return) {
-            let profile = self.profile()?;
-            return match exact_return_completion(
-                args,
-                tcl_syntax::number::Numbers::of_profile(Some(profile)),
-            ) {
-                ExactReturnCompletion::Completion(code) => {
-                    Some(ExactInvocationCompletion::Tcl(code))
+            return match self.return_completion(args) {
+                ReturnDecoding::Completes(returned) => {
+                    Some(ExactInvocationCompletion::Tcl(returned.own_code()))
                 }
-                ExactReturnCompletion::StaticError => Some(ExactInvocationCompletion::Tcl(
+                ReturnDecoding::Rejects => Some(ExactInvocationCompletion::Tcl(
                     crate::completion::CompletionCode::Error,
                 )),
-                ExactReturnCompletion::Dynamic => None,
+                ReturnDecoding::Unknown(_) => None,
             };
         }
         let descriptor = resolved
@@ -13220,7 +13070,7 @@ mod tests {
 
     #[test]
     fn invocation_completion_is_registry_owned() {
-        let reg = CommandRegistry::build_default();
+        let reg = crate::model::ingress::static_context_for("tcl8.6").commands();
         assert_eq!(
             reg.invocation_completion("return", &["-code", "error", "$w"], None,),
             InvocationCompletion::Terminates
@@ -13235,28 +13085,42 @@ mod tests {
             "a trailing option-shaped word is return's result, not a missing option value"
         );
         assert_eq!(
+            reg.invocation_completion("return", &["--", "x"], None),
+            InvocationCompletion::ReturnsResult(None),
+            "`--` is no end of options: `return -- x` is the pair `-- x` and the empty result"
+        );
+        assert_eq!(
             reg.invocation_completion("return", &["-level", "0", "$w"], None,),
             InvocationCompletion::FallsThrough
         );
         for args in [
             &["-level", "0", "-code", "error", "$w"][..],
             &["-code", "error", "-level", "0", "$w"][..],
+            &["-level", "2", "$w"][..],
+            &["-level", "-1", "$w"][..],
         ] {
             assert_eq!(
                 reg.invocation_completion("return", args, None),
-                InvocationCompletion::Terminates
+                InvocationCompletion::Terminates,
+                "{args:?}"
             );
         }
-        for args in [
-            &["-level", "$dynamic", "$w"][..],
-            &["-level", "-1", "$w"][..],
-            &["$w", "extra"][..],
-        ] {
+        for args in [&["-level", "$dynamic", "$w"][..], &["$w", "extra"][..]] {
             assert_eq!(
                 reg.invocation_completion("return", args, None),
                 InvocationCompletion::Unknown
             );
         }
+        // A registry that names no release answers only what every release
+        // reads alike: 8.4 rejects `-level`, which 8.5 reads.
+        assert_eq!(
+            CommandRegistry::build_default().invocation_completion(
+                "return",
+                &["-level", "0", "$w"],
+                None
+            ),
+            InvocationCompletion::Unknown
+        );
         assert_eq!(
             reg.invocation_completion("not-a-command", &[], None),
             InvocationCompletion::Unknown
@@ -13462,14 +13326,12 @@ mod tests {
                 );
             }
             // Once a following word exists, the same spellings are options;
-            // malformed option values and an extra result remain TCL_ERROR.
+            // malformed option values remain TCL_ERROR.
             for args in [
                 &["-code", "bogus", "payload"][..],
                 &["-level", "-1", "payload"][..],
                 &["-code", "-level"][..],
                 &["-level", "-code"][..],
-                &["payload", "extra"][..],
-                &["-level", "0", "-code", "-2147483649", "payload"][..],
             ] {
                 assert_eq!(
                     reg.exact_invocation_completion("return", args, None),
@@ -13477,6 +13339,25 @@ mod tests {
                     "{dialect}: {args:?}"
                 );
             }
+            // Two words are an option and its value, whatever the first
+            // spells, which the options dictionary keeps: `proc p {} {return
+            // payload extra}` returns the empty string (tclsh 8.6, 9.0).
+            assert_eq!(
+                reg.exact_invocation_completion("return", &["payload", "extra"], None),
+                Some(ExactInvocationCompletion::Tcl(CompletionCode::Return)),
+                "{dialect}"
+            );
+            // Past `INT_MIN` the conversion's range is the release's own:
+            // 8.6 wraps `-2147483649` to 2147483647 and 9.0 rejects it.
+            assert_eq!(
+                reg.exact_invocation_completion(
+                    "return",
+                    &["-level", "0", "-code", "-2147483649", "payload"],
+                    None,
+                ),
+                None,
+                "{dialect}"
+            );
         }
     }
 

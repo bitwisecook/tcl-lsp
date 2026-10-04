@@ -2261,6 +2261,26 @@ release: the expression has no value, and its completion is exact. `try`
 and runs `finally` on every path, so `catch {try {error a} finally {set f
 1}}` is `1` with `f` equal to `1`.
 
+**What `return` completes with.** One decoding reads `return`'s words
+(`decode_return` in the registry's `value_transfer::completion`), and the
+lowering, the CFG builder, the route and the registry's completion queries
+(`CommandRegistry::return_completion`, `exact_invocation_completion`,
+`invocation_completion`) all read it. While two words remain they are an
+option and its value, and a last word on its own is the result, whatever it
+starts with (`return -code` returns `-code`). 8.4 reads `-code`, `-errorinfo`
+and `-errorcode` and rejects any other name; from 8.5 any pair is kept in the
+options dictionary, `-level` takes a non-negative integer, `-options` merges a
+dictionary (which the decoding does not read) and `-errorcode` must be a list,
+and from 8.6 `-errorstack` must be a list of even length. Integers are read
+with the release's numerals and its 32-bit conversion (`-code 010` is 8 before
+9.0 and 10 from it). `-code return` is `ok` one level further out, as every
+release reads it (`catch {return -code return x} m o` leaves `o` holding
+`-code 0 -level 2`). At level 0 the code is the command's own completion:
+`ok` runs on, `error` raises with the `-errorcode` given or `NONE`, and
+`break` and `continue` leave the loop around it; above level 0 the command
+completes with `TCL_RETURN`. Options the release rejects raise. A target that
+names no release is answered only where every release reads the words alike.
+
 **What stays opaque, and why.** A body is evaluated concretely only when
 it is closed — every statement has a declared route, no barrier, no world
 effect, exact inputs — which is what `catch {expr {1/0}}` and `catch
