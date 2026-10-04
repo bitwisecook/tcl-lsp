@@ -317,6 +317,12 @@ pub struct SccpResult {
     /// version's value and exists exactly when it does, so a read of one
     /// whose prior version is unset is a read before set.
     pub preserved: HashMap<ValueKey, crate::ssa::Version>,
+    /// The statements the solver proved certainly raise where a handler is
+    /// thrown to, as `(block, index)` (`DefValues::Raised`): such a
+    /// statement's definitions hold what the stores that ran left, and the
+    /// statement's effect is the raise itself, so no consumer may take it for
+    /// a store that evaluated cleanly.
+    pub raised: HashSet<(BlockId, usize)>,
     /// Each executable `subst` call's template-word plan, in source order —
     /// what W102, the template folders, extract-proc and the dynamic-name
     /// barrier read instead of walking the template themselves.
@@ -985,6 +991,7 @@ impl SweepContext<'_> {
             ssa_block,
             self.ssa,
             StatementInputs {
+                block: bn,
                 escaping: self.escaping,
                 has_dynamic_variable_trace: self.has_dynamic_variable_trace,
                 clobbers: self.ssa.value_clobbers.get(&bn),
@@ -2405,13 +2412,14 @@ fn record_phi_folded_types(
     }
 }
 
-/// What [`sccp_process_statements`] reads beside the block: the names that
-/// escape the function, whether a dynamic variable trace may fire, and the
-/// fresh versions each marker for a call to code the module cannot see in the
-/// block gives the names live after it
+/// What [`sccp_process_statements`] reads beside the block: the block's id,
+/// the names that escape the function, whether a dynamic variable trace may
+/// fire, and the fresh versions each marker for a call to code the module
+/// cannot see in the block gives the names live after it
 /// ([`crate::ssa::SsaFunction::value_clobbers`]).
 #[derive(Clone, Copy)]
 struct StatementInputs<'a> {
+    block: BlockId,
     escaping: &'a HashSet<String>,
     has_dynamic_variable_trace: bool,
     clobbers: Option<&'a crate::ssa::BlockValueClobbers>,
@@ -2432,6 +2440,7 @@ fn sccp_process_statements(
     mut existence: Option<&mut ExistenceAt<'_>>,
 ) -> StatementsRun {
     let StatementInputs {
+        block,
         escaping,
         has_dynamic_variable_trace,
         clobbers,
@@ -2503,6 +2512,7 @@ fn sccp_process_statements(
             };
         }
         let raised = raised_writes(evaluated.as_ref());
+        driver.record_raised((block, index), raised.is_some());
         let site = StatementSite {
             block: ssa_block,
             index,
@@ -4534,6 +4544,7 @@ mod tests {
                 &block,
                 &ssa,
                 StatementInputs {
+                    block: BlockId(0),
                     escaping: &escaping,
                     has_dynamic_variable_trace: false,
                     clobbers: None,

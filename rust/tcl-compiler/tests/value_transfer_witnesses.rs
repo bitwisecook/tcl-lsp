@@ -6150,6 +6150,137 @@ fn a_store_ahead_of_a_write_that_may_not_run_stays() {
     }
 }
 
+/// The programs of [`a_raising_store_is_never_dead`]: each source, the raising
+/// store it keeps, what it prints and the first release that runs it.
+const RAISING_STORES: [(&str, &str, &str, &str); 16] = [
+    (
+        "proc p {} {\n    set x 1\n    catch {set x [expr {1/0}]; set y 2} m\n    return [list $m [info exists y]]\n}\nputs [p]\n",
+        "set x [expr {1/0}]",
+        "{divide by zero} 0\n",
+        "8.4",
+    ),
+    (
+        "proc p {} {\n    set x 1\n    catch {set x [lindex {a b} 1.5]; set y 2} m\n    return [info exists y]\n}\nputs [p]\n",
+        "set x [lindex {a b} 1.5]",
+        "0\n",
+        "8.4",
+    ),
+    (
+        "proc p {} {\n    set x 1\n    catch {set x [lindex {a b} 1.5]; set y 2}\n    return [info exists y]\n}\nputs [p]\n",
+        "set x [lindex {a b} 1.5]",
+        "0\n",
+        "8.4",
+    ),
+    (
+        "proc p {} {\n    set x abc\n    catch {incr x; set y 2} m\n    return [list [info exists y] $x]\n}\nputs [p]\n",
+        "incr x",
+        "0 abc\n",
+        "8.4",
+    ),
+    (
+        "proc p {} {\n    set a 1\n    catch {unset a b; set y 2} m\n    return [list [info exists y] [info exists a]]\n}\nputs [p]\n",
+        "unset a b",
+        "0 0\n",
+        "8.4",
+    ),
+    (
+        "proc p {} {\n    set x 1\n    set c [catch {foreach i {1 2 3} {set x [lindex {a b} 1.5]; set y 2}}]\n    return [list $c [info exists y]]\n}\nputs [p]\n",
+        "set x [lindex {a b} 1.5]",
+        "1 0\n",
+        "8.4",
+    ),
+    (
+        "proc p {} {\n    set x 1\n    try {set x [lindex {a b} 1.5]; set y 2} on error {m} {return [info exists y]}\n    return none\n}\nputs [p]\n",
+        "set x [lindex {a b} 1.5]",
+        "0\n",
+        "8.6",
+    ),
+    (
+        "proc p {} {\n    set x 1\n    try {set x [expr {1/0}]; set y 2} finally {puts \"fin [info exists y]\"}\n}\ncatch {p} m\nputs $m\n",
+        "set x [expr {1/0}]",
+        "fin 0\ndivide by zero\n",
+        "8.6",
+    ),
+    (
+        "proc p {} {\n    set x [format %d abc]\n    return 1\n}\nputs [catch {p}]\n",
+        "set x [format %d abc]",
+        "1\n",
+        "8.4",
+    ),
+    (
+        "proc p {} {\n    set x 1\n    try {set x [lindex {a b} 1.5]; set y 2} finally {puts \"fin [info exists y]\"}\n}\nputs [catch {p}]\n",
+        "set x [lindex {a b} 1.5]",
+        "fin 0\n1\n",
+        "8.6",
+    ),
+    (
+        "proc p {} {\n    set x 1\n    catch {set x [string range abc 1 x]; set y 2} m\n    return [info exists y]\n}\nputs [p]\n",
+        "set x [string range abc 1 x]",
+        "0\n",
+        "8.4",
+    ),
+    (
+        "proc p {} {\n    set a old; set c old; array set b {k v}\n    catch {scan {1 2 3} {%d %d %d} a b c; set y 2} m\n    return [list [info exists y] $a $c]\n}\nputs [p]\n",
+        "scan {1 2 3} {%d %d %d} a b c",
+        "0 1 3\n",
+        "8.4",
+    ),
+    (
+        "proc p {} {\n    set a old; set c old; array set b {k v}\n    catch {lassign {1 2 3} a b c; set y 2} m\n    return [list [info exists y] $a $c]\n}\nputs [p]\n",
+        "lassign {1 2 3} a b c",
+        "0 1 old\n",
+        "8.5",
+    ),
+    (
+        "proc q {x} {\n    catch {set x [expr {1/0}]; set y 2} m\n    puts $x\n    puts [list $m [info exists y]]\n}\nq 5\n",
+        "set x [expr {1/0}]",
+        "5\n{divide by zero} 0\n",
+        "8.4",
+    ),
+    (
+        "proc p {i} {\n    set a(k) 1\n    catch {set a($i) [expr {1/0}]; set y 2} m\n    return [list $m [info exists y]]\n}\nputs [p j]\n",
+        "set a($i) [expr {1/0}]",
+        "{divide by zero} 0\n",
+        "8.4",
+    ),
+    (
+        "proc add {a b} {\n    expr {$a + $b}\n}\nproc f {} {\n    set unused [add x 1]\n    puts done\n}\nputs [catch f]\n",
+        "set unused [add x 1]",
+        "1\n",
+        "8.4",
+    ),
+];
+
+/// A store whose value raises is never dead, and the solver's proof that it
+/// raises is no proof that it evaluated cleanly. Inside a `catch` or `try`
+/// body the raise is the store's effect: `set x [expr {1/0}]` ahead of `set
+/// y 2` stops the body there, so `y` is never set, though nothing reads the
+/// `x` it would have stored and the solver gives that definition the value
+/// `x` held before it. The same holds for a command substitution that raises
+/// on its own words (`[lindex {a b} 1.5]`, `[string range abc 1 x]`), an
+/// `incr` of a value that is no integer, an `unset` of an absent name, a
+/// `scan` or `lassign` that stops at an array, a value-position `catch` over
+/// a loop, a store to a parameter whose constant argument is propagated past
+/// it, and a store to an element whose key is not known, and a command
+/// substitution that raises outside any body stops the procedure (#2346's
+/// arm: `set x [format %d abc]` unread, and a call to a pure procedure that
+/// raises, `set unused [add x 1]`). Every program prints what tclsh
+/// prints before and after `tcl opt`, from the first release that has its
+/// commands, and keeps its raising store.
+#[test]
+fn a_raising_store_is_never_dead() {
+    for (source, store, printed, first) in RAISING_STORES {
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let (rewritten, rewrites) = optimised(source, dialect);
+            assert!(
+                rewritten.contains(store),
+                "{dialect}: `{store}` raises and stays\n{rewritten}\n{rewrites:#?}"
+            );
+        }
+        prints_under_releases_from(source, printed, first);
+    }
+}
+
 /// A `try` body that cannot fall through is thrown to from the point it
 /// raises at, and its first command may fail before it stores anything, with
 /// the state the body entered with: after `try {set x [expr {1 / $d}]; error

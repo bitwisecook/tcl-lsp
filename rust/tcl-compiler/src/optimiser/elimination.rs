@@ -297,15 +297,22 @@ fn assignment_safe_to_delete_with_effect(stmt: &Statement, effect: EffectCtx<'_>
 /// place under 8.4. O109, O126 and O108 deleted those statements and let the
 /// program run on (#2249). The proof:
 ///
+/// * a statement the solver proved raises where a handler is thrown to
+///   ([`crate::sccp::SccpResult::raised`]) never qualifies: its effect is
+///   the raise, and the handler runs on without its later statements;
 /// * a literal (`AssignConst`) cannot raise;
-/// * a value SCCP folds to a constant evaluated cleanly: SCCP declines on an
-///   evaluation error and reads an undefined, traced or escaping name as
-///   overdefined, so a `Const` for the def is a clean evaluation;
-/// * otherwise a word value (`AssignValue`) qualifies when the existence rung
-///   holds every variable it reads bound as a scalar where the statement
-///   reads it ([`crate::sccp::SccpResult::existence_before`]). An `expr`
-///   value needs the SCCP proof, since its operators can raise on a bound
-///   operand;
+/// * a value SCCP folds to a constant evaluated cleanly qualifies: SCCP reads
+///   an undefined, traced or escaping name as overdefined, and a definition
+///   a raise left holding the value before it is preserved
+///   ([`crate::sccp::SccpResult::preserved`]), which is no clean evaluation;
+/// * otherwise a word value (`AssignValue`) with no command substitution
+///   qualifies when the existence rung holds every variable it reads bound
+///   as a scalar where the statement reads it
+///   ([`crate::sccp::SccpResult::existence_before`]). A command substitution
+///   may raise on its own words whatever they read (`[lindex {a b} 1.5]`), a
+///   call to a procedure included, pure or not (purity says the call changes
+///   nothing, not that it completes), and an `expr` value's operators on a
+///   bound operand, so either needs the clean fold;
 /// * an `incr` qualifies when its amount is an integer literal and its place
 ///   is a scalar that holds an integer wherever it is bound, and is bound
 ///   where the statement reads it unless every release the profile names
@@ -361,24 +368,31 @@ impl<'a> RaiseProof<'a> {
         stmt: &Statement,
         def: &(String, u32),
     ) -> bool {
+        if self.fu.sccp.raised.contains(&(block, idx)) {
+            return false;
+        }
         let folded = || {
             self.fu.ssa.var_symbol(&def.0).is_some_and(|sym| {
-                matches!(
-                    self.fu.sccp.values.get(&(sym, def.1)),
-                    Some(
-                        crate::analyses::LatticeValue::Const(_)
-                            | crate::analyses::LatticeValue::ConstSet(_)
+                !self.fu.sccp.preserved.contains_key(&(sym, def.1))
+                    && matches!(
+                        self.fu.sccp.values.get(&(sym, def.1)),
+                        Some(
+                            crate::analyses::LatticeValue::Const(_)
+                                | crate::analyses::LatticeValue::ConstSet(_)
+                        )
                     )
-                )
             })
         };
         match stmt {
             Statement::AssignConst { .. } => true,
             // An element read (`$a(k)`, `$a($i)`) raises when its base is a
-            // scalar or lacks the element, which the reads' existence
-            // cannot show.
+            // scalar or lacks the element, and a command substitution on its
+            // own words, neither of which the reads' existence can show.
             Statement::AssignValue { value, .. } => {
-                folded() || (!has_element_substitution(value) && self.reads_are_set(block, idx))
+                folded()
+                    || (!has_element_substitution(value)
+                        && !has_command_substitution(value)
+                        && self.reads_are_set(block, idx))
             }
             Statement::Incr {
                 name,
@@ -507,6 +521,22 @@ impl<'a> RaiseProof<'a> {
             .get(&block)
             .and_then(|b| b.statements.get(idx))
     }
+}
+
+/// Whether a word runs a command substitution: an unescaped `[`. A bracket
+/// inside a braced part of the word is text, which a false positive only
+/// treats as a command and so keeps a store.
+fn has_command_substitution(word: &str) -> bool {
+    let bytes = word.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'\\' => i += 2,
+            b'[' => return true,
+            _ => i += 1,
+        }
+    }
+    false
 }
 
 /// Whether a word substitutes an array element: an unescaped `$name(`, or
@@ -2552,16 +2582,20 @@ mod tests {
     }
 
     #[test]
-    fn o126_fires_for_pure_user_proc_rhs() {
-        // A user proc proven pure by interproc analysis has no
-        // observable side effect, so `set unused [::pure]` folds.
+    fn o126_keeps_a_pure_user_proc_rhs() {
+        // A user proc proven pure by interproc analysis has no observable
+        // side effect, but purity is no proof that the call completes
+        // (`proc add {a b} {expr {$a + $b}}` raises for `add x 1`), and a
+        // store whose value raises is never dead: `set unused [::pure]`
+        // stays, its call folded to the constant instead.
         let opts = crate::optimiser::optimise(
             "proc ::pure {} { return 1 }\nproc ::f {} { set unused [::pure]; return 1 }",
             &registry(),
         );
         assert!(
-            opts.iter().any(|o| o.code == DiagCode::O126),
-            "pure-proc RHS should fold to O126, got {opts:?}",
+            opts.iter().all(|o| o.code != DiagCode::O126)
+                && opts.iter().any(|o| o.code == DiagCode::O103),
+            "pure-proc RHS should fold by O103 and keep its store, got {opts:?}",
         );
     }
 

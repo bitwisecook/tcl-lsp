@@ -32,7 +32,11 @@ under `rust/tcl-compiler/src/optimiser/`, with GVN in `src/gvn.rs`.
   statement still feeds it), and an unbind statement is never removed. A
   store whose value can raise stays too (#2249): a read of a variable the
   existence rung does not hold `Bound(Scalar)` where the statement reads it,
-  an element read, an `expr` that does not fold, and an `incr` unless its
+  an element read, an `expr` or a command substitution that does not fold
+  cleanly — a definition a raise preserved is no clean fold, and a call to a
+  procedure, however pure, is not one either — a statement the
+  solver proves raises where a handler is thrown to (`SccpResult::raised`),
+  whose effect is the raise, and an `incr` unless its
   amount is a literal integer, its place holds an integer wherever it is
   bound, and the place is bound where the statement reads it or every
   release the target profile spans creates an absent cell (8.5 onwards).

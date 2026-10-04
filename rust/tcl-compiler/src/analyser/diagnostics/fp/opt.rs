@@ -314,18 +314,28 @@ fn fp_opt_06_o100_does_not_propagate_past_cmd_sub_write() {
     );
 }
 
-// FP-OPT-07 — O126 extends to pure user-proc RHS via interproc purity
+// FP-OPT-07 — a pure user proc's call is folded, not deleted: purity says the
+// call changes nothing, not that it completes, and a store whose value raises
+// is never dead. `add x 1` raises "can't use non-numeric string as operand of
+// +" under tclsh 8.4 to 9.1, so O126 deleting `set unused [add x 1]` let the
+// procedure run on; `add 1 2` completes, and O103 folds it to `3`.
 
 const FP_OPT_07_REPRO: &str =
     "proc add {a b} { expr {$a + $b} }\nproc f {} { set unused [add 1 2]; puts done }";
 
 #[test]
-fn fp_opt_07_pure_user_proc_rhs_is_deleted() {
-    // TP: pure user-proc RHS in unused assignment must fire O126.
+fn fp_opt_07_pure_user_proc_rhs_is_folded_not_deleted() {
     assert!(
-        opt_fires(FP_OPT_07_REPRO, D, "O126"),
-        "FP-OPT-07 TP: pure user-proc RHS must allow O126 deletion; rewrites={:?}",
+        opt_fires(FP_OPT_07_REPRO, D, "O103") && !opt_fires(FP_OPT_07_REPRO, D, "O126"),
+        "FP-OPT-07: a pure user proc's call folds to its constant and its store stays; rewrites={:?}",
         opt_rewrites(FP_OPT_07_REPRO, D)
+    );
+    let raising =
+        "proc add {a b} { expr {$a + $b} }\nproc f {} { set unused [add x 1]; puts done }";
+    assert!(
+        !opt_fires(raising, D, "O126"),
+        "FP-OPT-07: `add x 1` raises, so its store is not dead; rewrites={:?}",
+        opt_rewrites(raising, D)
     );
 }
 
@@ -479,11 +489,12 @@ fn fp_opt_11_non_numeric_literal_still_rewrites() {
 
 #[test]
 fn fp_opt_12_pure_user_proc_via_my_dispatch_handled_at_word_level() {
-    // TP: pure user-proc `set unused [pure_helper]` must fire O126.
+    // A pure user proc's call is folded to its constant (O103), and its
+    // store stays: purity is no proof that the call completes (FP-OPT-07).
     let src = "proc pure_helper {} { return 42 }\nproc m {} {\n    set unused [pure_helper]\n    puts done\n}\n";
     assert!(
-        opt_fires(src, D, "O126"),
-        "FP-OPT-12: pure-user-proc RHS in unused assign must fire O126; rewrites={:?}",
+        opt_fires(src, D, "O103") && !opt_fires(src, D, "O126"),
+        "FP-OPT-12: a pure user proc's call folds and its store stays; rewrites={:?}",
         opt_rewrites(src, D)
     );
 }

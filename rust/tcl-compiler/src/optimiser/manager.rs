@@ -525,6 +525,16 @@ fn couple_const_dead_store_chain(
     let def_block = fu.cfg.blocks.get(&def_block_id)?;
     let def_idx = usize::try_from(chain.definition.statement_index).ok()?;
     let def_stmt = def_block.statements.get(def_idx)?;
+    // A statement the solver proved raises keeps its raise, and a definition
+    // a raise preserved holds the value before it, not one the statement
+    // computed: neither is a constant store to remove.
+    let preserved = fu
+        .ssa
+        .var_symbol(var)
+        .is_some_and(|symbol| fu.sccp.preserved.contains_key(&(symbol, chain.key.1)));
+    if preserved || fu.sccp.raised.contains(&(def_block_id, def_idx)) {
+        return None;
+    }
     // The def must be a const-foldable scalar assignment whose inlined
     // value carries no substitution metacharacters. Two shapes qualify:
     //

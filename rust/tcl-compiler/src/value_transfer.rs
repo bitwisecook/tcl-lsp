@@ -514,6 +514,9 @@ pub(crate) struct LatticeDriver<'a> {
     /// The definitions the last evaluation of their statement preserved,
     /// with the version each preserved ([`crate::sccp::SccpResult::preserved`]).
     preserved: RefCell<HashMap<ValueKey, Version>>,
+    /// The statements whose last evaluation certainly raised where a handler
+    /// is thrown to ([`crate::sccp::SccpResult::raised`]).
+    raised: RefCell<HashSet<(crate::cfg::BlockId, usize)>>,
     /// The run's route-entry counts so far.
     tally: Cell<RouteTally>,
     /// The run's request budget: every evaluation of this run charges
@@ -1041,6 +1044,7 @@ impl<'a> LatticeDriver<'a> {
             explanations: RefCell::new(BTreeMap::new()),
             folded: RefCell::new(HashMap::new()),
             preserved: RefCell::new(HashMap::new()),
+            raised: RefCell::new(HashSet::new()),
             tally: Cell::new(RouteTally::default()),
             request: RefCell::new(request),
             iteration: RefCell::new(iteration),
@@ -1180,6 +1184,23 @@ impl<'a> LatticeDriver<'a> {
     /// Every preserved definition the run holds at its end.
     pub(crate) fn take_preserved(&self) -> HashMap<ValueKey, Version> {
         std::mem::take(&mut *self.preserved.borrow_mut())
+    }
+
+    /// Record whether the latest evaluation of the statement at `site`, a
+    /// `(block, index)`, certainly raised where a handler is thrown to; the
+    /// settled sweep's answer stays, as for [`Self::record_preserved`].
+    pub(crate) fn record_raised(&self, site: (crate::cfg::BlockId, usize), raised: bool) {
+        let mut set = self.raised.borrow_mut();
+        if raised {
+            set.insert(site);
+        } else {
+            set.remove(&site);
+        }
+    }
+
+    /// Every statement the run's last sweep proved raises.
+    pub(crate) fn take_raised(&self) -> HashSet<(crate::cfg::BlockId, usize)> {
+        std::mem::take(&mut *self.raised.borrow_mut())
     }
 
     /// Position the existence rung at a block's entry: `state` holds one
@@ -1650,6 +1671,7 @@ impl<'a> LatticeDriver<'a> {
             route_tally: self.take_route_tally(),
             folded_types: self.take_folded_types(),
             preserved: self.take_preserved(),
+            raised: self.take_raised(),
             ..crate::sccp::SccpResult::default()
         }
     }
