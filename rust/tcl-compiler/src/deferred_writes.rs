@@ -39,9 +39,12 @@
 //!
 //! A callback word that is one `[…]` substitution of a command the registry
 //! states builds a command prefix (`after 100 [list tick $n]`, `-command [list
-//! set done 1]`) is read as the command it builds, and a callback spelled as
-//! several words, which the registry names no position for (`after 100 set
-//! done 1`), is read as the one script they concatenate into.
+//! set done 1]`) is read as the command it builds, and so is a command prefix
+//! the registry places at a word that more words follow (`interp alias {} safe
+//! {} string length` runs `string length` with the caller's words appended).
+//! A callback spelled as several words, which the registry names no position
+//! for (`after 100 set done 1`), is read as the one script they concatenate
+//! into.
 //!
 //! A callback the scan cannot read may write any variable, as a trace on a
 //! computed name may ([`DeferredWrites::any`]): a word the run time computes
@@ -292,8 +295,16 @@ impl Scan<'_> {
             &spellings,
             self.registry.own_surface_query(),
         );
+        let prefixes = self.registry.command_prefixes(head, &spellings);
         for &index in &indices {
+            let rest = args.get(index + 1..).unwrap_or_default();
+            let builds_command = !rest.is_empty()
+                && prefixes.iter().any(|&(at, _)| at == index)
+                && !self.is_option_value(head, &spellings, index);
             match args.get(index) {
+                Some(Arg::Literal(text)) if builds_command => {
+                    self.prefix_command(text, rest, depth);
+                }
                 Some(Arg::Literal(text)) => self.script(text, depth),
                 Some(Arg::Substitution(inner)) => self.command_prefix(inner, depth),
                 Some(Arg::Dynamic) => self.out.any = true,
@@ -369,6 +380,37 @@ impl Scan<'_> {
         }
     }
 
+    /// A command prefix at a word that more words follow: Tcl runs the command
+    /// those words make, with the caller's own words appended (`interp alias {}
+    /// safe {} string length` makes `safe x` the call `string length x`), so the
+    /// first is its command and the rest are its words, read as
+    /// [`Self::command_prefix`] reads the command a `[list …]` word builds.
+    fn prefix_command(&mut self, head: &str, rest: &[Arg], depth: u32) {
+        if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
+            self.out.any = true;
+            return;
+        }
+        self.invocation(head, rest, depth);
+    }
+
+    /// Whether word `index` of `head`'s invocation is the value of one of its
+    /// options (`-command {.t yview} -orient vertical`), a prefix that is one
+    /// word whatever follows it.
+    fn is_option_value(&self, head: &str, spellings: &[&str], index: usize) -> bool {
+        let Some(option) = index.checked_sub(1).and_then(|at| spellings.get(at)) else {
+            return false;
+        };
+        let Some(call) =
+            self.registry
+                .resolve_call(head, spellings, self.registry.own_surface_query())
+        else {
+            return false;
+        };
+        let options = call.sub.map_or(call.spec.options, |sub| sub.options);
+        tcl_registry::spec::resolve_option_prefix(options, option)
+            .is_some_and(tcl_registry::hover::OptionSpec::takes_value)
+    }
+
     /// A callback word that is `[cmd …]` holds the command `cmd` builds when the
     /// registry states it builds a command prefix (`[list tick $n]`): the
     /// words after `cmd` are that command.
@@ -424,8 +466,8 @@ impl Scan<'_> {
             self.out.any = true;
             return;
         };
-        self.procedure(head);
         if words.iter().skip(1).any(|word| word.expanded) {
+            self.procedure(head);
             // Which word is which is unknown, so any variable may be written.
             self.out.any = true;
             return;
@@ -435,9 +477,16 @@ impl Scan<'_> {
             .skip(1)
             .map(|word| self.substitution_word(word).unwrap_or(Arg::Dynamic))
             .collect();
-        let spellings = spellings_of(&args);
+        self.invocation(head, &args, depth);
+    }
+
+    /// The names the command `head args` writes, destroys or binds, and the
+    /// scripts its words carry.
+    fn invocation(&mut self, head: &str, args: &[Arg], depth: u32) {
+        self.procedure(head);
+        let spellings = spellings_of(args);
         let inputs: Vec<InvocationWord<'_>> = args.iter().map(Arg::registry_word).collect();
-        self.variable_targets(head, &args, &spellings, &inputs);
+        self.variable_targets(head, args, &spellings, &inputs);
         self.aliases(head, &inputs);
         // A definition's body runs in a frame of its own, whose plain names
         // are its locals; anything else in this script runs where it does, and
@@ -446,7 +495,7 @@ impl Scan<'_> {
             self.registry
                 .invocation_traits(head, &spellings, self.registry.own_surface_query());
         if !invocation.contains(Traits::BODY_RUNS_IN_OWN_FRAME) {
-            let stored = self.callbacks(head, &args, depth + 1);
+            let stored = self.callbacks(head, args, depth + 1);
             for index in self
                 .registry
                 .arg_indices_for_role(head, &spellings, ArgRole::Body)
@@ -808,6 +857,24 @@ mod tests {
         ] {
             assert!(writes(source).is_clear(), "{source}: {:?}", writes(source));
         }
+    }
+
+    /// An alias stores the command its target word and the words after it
+    /// make, read as that one command, however the target is spelled:
+    /// `string length` writes nothing and `set done 1` writes `done`. A target
+    /// word with nothing after it is read as the script it is, and `string`
+    /// alone selects no subcommand, so it may write anything.
+    #[test]
+    fn an_alias_target_and_the_words_after_it_are_one_command() {
+        for source in [
+            "interp alias {} safe {} string length",
+            "interp alias {} safe {} ::string length",
+            "interp alias {} count {} llength",
+        ] {
+            assert!(writes(source).is_clear(), "{source}: {:?}", writes(source));
+        }
+        assert_eq!(names("interp alias {} fin {} set done 1"), ["done"]);
+        assert!(writes("interp alias {} safe {} string").any);
     }
 
     /// A callback that writes a name it computes may change any variable.

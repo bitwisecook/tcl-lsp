@@ -5072,6 +5072,35 @@ fn a_write_a_callback_the_scan_could_not_read_makes_is_never_folded_away() {
     }
 }
 
+/// An alias's target word and the words after it are the one command a call
+/// to the alias runs, so an alias to `string length` stores no callback that
+/// writes a variable, however `string` is spelled: the top-level branch on `x`
+/// is decided and folded, and tclsh 8.4 to 9.1 print `kept` before and after
+/// the optimiser. Read alone, the target word is `string` with no subcommand,
+/// a script that may write any variable, and the branch was left undecided.
+#[test]
+fn an_alias_to_a_command_that_writes_nothing_leaves_its_branch_decided() {
+    for target in ["string length", "::string length"] {
+        let source = format!(
+            "interp alias {{}} safe {{}} {target}\nset x 5\nsafe {{set x 6}}\n\
+             if {{$x == 5}} {{puts kept}} else {{puts changed}}\n"
+        );
+        for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "tcl"] {
+            let unit = unit_of(&source, dialect);
+            assert!(
+                !unit.top_level.sccp.constant_branches.is_empty(),
+                "{dialect}: {source}"
+            );
+            let (rewritten, rewrites) = optimised(&source, dialect);
+            assert!(
+                !rewritten.contains("changed"),
+                "{dialect}: {source}\n{rewritten}\n{rewrites:#?}"
+            );
+        }
+        prints_under_every_release(&source, "kept\n");
+    }
+}
+
 /// A braced arm list is a list: a bare or quoted element's escapes collapse
 /// under the release's grammar, and before 8.6 a `\x` takes every hex digit
 /// that follows and keeps the last two, so `a\x41b` is not `aAb` there. tclsh
