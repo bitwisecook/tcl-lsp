@@ -25,6 +25,9 @@ names are the executable truth.
   (or an explicit `CC_wasm32_unknown_unknown`) and compiles a tiny C object for
   the exact target before Cargo starts. An executable named `clang` that fails
   that probe is reported as missing by `ensure-test-deps.sh --check`.
+  The output witnesses compare programs under each of tclsh 8.4 to 9.1 they
+  find and report the rest as skipped; set `TCL_LSP_REQUIRE_TCLSH` (`1` for
+  all five, or the releases, `8.6,9.0`) to make a missing one fail the test.
 
 ## Remote agent sessions
 

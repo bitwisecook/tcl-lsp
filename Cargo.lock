@@ -4217,6 +4217,7 @@ dependencies = [
  "tcl-spec-studio",
  "tcl-spectcl",
  "tcl-syntax",
+ "tcl-test-support",
  "tcl-version",
  "zip",
 ]
@@ -4272,6 +4273,7 @@ dependencies = [
  "tcl-runtime-api",
  "tcl-spectcl",
  "tcl-syntax",
+ "tcl-test-support",
  "temp-env",
  "thiserror 2.0.21",
  "unicode-general-category",
@@ -4592,6 +4594,7 @@ dependencies = [
  "tcl-runtime-api",
  "tcl-spectcl",
  "tcl-syntax",
+ "tcl-test-support",
 ]
 
 [[package]]

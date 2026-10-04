@@ -54,6 +54,10 @@ num-traits = "0.2"
 workspace = true
 
 [dev-dependencies]
+# The shared reference-interpreter lookup the output witnesses compare
+# under (`witness_tclsh`), which fails a test whose release
+# `TCL_LSP_REQUIRE_TCLSH` requires and reports any other it skips.
+tcl-test-support = { path = "../tcl-test-support" }
 temp-env = "0.3"
 rayon = "1"
 # A dev-dependency cycle (`tcl-spectcl` depends on this crate), which Cargo

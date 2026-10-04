@@ -311,6 +311,100 @@ pub fn available_tclshs() -> Vec<Tclsh> {
     interpreters
 }
 
+/// The variable that makes an output witness's missing reference interpreter
+/// a failure ([`witness_tclsh`]): the releases it requires, comma-separated
+/// (`9.0`, `8.6,9.0`), or any value naming none of them (`1`) for every
+/// release. Unset, a missing release is reported and skipped.
+pub const REQUIRE_TCLSH: &str = "TCL_LSP_REQUIRE_TCLSH";
+
+/// The reference interpreter an output witness compares a program under for
+/// `version`, as [`locate_tclsh`] finds it: the release's override variable
+/// (`TCL_LSP_TCLSH90`) when it is set, and otherwise `tclsh9.0` on `PATH`,
+/// at the exact pinned patchlevel.
+///
+/// A release with none fails the calling test when [`REQUIRE_TCLSH`]
+/// requires it. Otherwise the test reports it, once per test and release, on
+/// the process's standard error past the test harness's capture, so a run
+/// that compared under fewer releases says so rather than passing as if it
+/// had compared under all of them.
+///
+/// # Panics
+///
+/// When [`REQUIRE_TCLSH`] requires `version` and no interpreter for it is
+/// found, and when an override variable names no usable interpreter of the
+/// release, which [`locate_tclsh`] treats as a broken promise.
+#[must_use]
+pub fn witness_tclsh(version: TclVersion) -> Option<Tclsh> {
+    let test = std::thread::current()
+        .name()
+        .unwrap_or("an output witness")
+        .to_owned();
+    match located(version) {
+        Ok(Some(interpreter)) => Some(interpreter),
+        Ok(None) => {
+            let release = version.version_string();
+            assert!(
+                !requires_release(version),
+                "{test}: no tclsh{release} (set {} or put tclsh{release} on PATH), and {REQUIRE_TCLSH} requires it",
+                release_location(version).binary_env
+            );
+            report_skipped(&test, release);
+            None
+        }
+        Err(error) => panic!("{test}: {error}"),
+    }
+}
+
+/// [`locate_tclsh`], asked once per release in a test process.
+fn located(version: TclVersion) -> Result<Option<Tclsh>, String> {
+    type Located = std::collections::BTreeMap<TclVersion, Result<Option<Tclsh>, String>>;
+    static LOCATED: std::sync::OnceLock<std::sync::Mutex<Located>> = std::sync::OnceLock::new();
+    let mut located = LOCATED
+        .get_or_init(Default::default)
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    located
+        .entry(version)
+        .or_insert_with(|| locate_tclsh(version).map_err(|error| error.to_string()))
+        .clone()
+}
+
+/// Whether [`REQUIRE_TCLSH`] requires the release `version`.
+fn requires_release(version: TclVersion) -> bool {
+    requires(std::env::var(REQUIRE_TCLSH).ok().as_deref(), version)
+}
+
+/// Whether a [`REQUIRE_TCLSH`] value `required` requires `version`: the
+/// releases it names, or every release when it names none.
+fn requires(required: Option<&str>, version: TclVersion) -> bool {
+    required.is_some_and(|required| {
+        let named: Vec<TclVersion> = required
+            .split(',')
+            .filter_map(|release| TclVersion::from_version_string(release.trim()))
+            .collect();
+        named.is_empty() || named.contains(&version)
+    })
+}
+
+/// Write, once per test and release, that `test` compared nothing under
+/// `release`: straight to the standard error stream, which the test harness
+/// does not capture, so a passing run shows it.
+fn report_skipped(test: &str, release: &str) {
+    static REPORTED: std::sync::Mutex<Vec<(String, String)>> = std::sync::Mutex::new(Vec::new());
+    let key = (test.to_owned(), release.to_owned());
+    let mut reported = REPORTED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if reported.contains(&key) {
+        return;
+    }
+    reported.push(key);
+    let _ = writeln!(
+        std::io::stderr().lock(),
+        "{test}: skipped Tcl {release}, which has no reference interpreter (set {REQUIRE_TCLSH} to require it)"
+    );
+}
+
 /// Run a Tcl script through a reference interpreter and preserve its raw byte
 /// channels and exit code.
 pub fn run_script(tclsh: &Path, script: &[u8]) -> Result<ScriptOutcome, OracleError> {
@@ -546,13 +640,25 @@ fn which_on_path(name: &str) -> Option<PathBuf> {
 mod tests {
     use super::{
         OracleError, locate_source_tree, patchlevel_from_header, reference_patchlevel,
-        reference_source_tag, upstream_test_definition, validate_reference_source_tree,
+        reference_source_tag, requires, upstream_test_definition, validate_reference_source_tree,
         validate_source_tree,
     };
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::process::Command;
     use tcl_dialect::TclVersion;
+
+    /// `TCL_LSP_REQUIRE_TCLSH` names the releases it requires, or every
+    /// release when it names none; unset, it requires none.
+    #[test]
+    fn the_required_releases_are_the_ones_named() {
+        assert!(!requires(None, TclVersion::V9_0));
+        assert!(requires(Some("9.0"), TclVersion::V9_0));
+        assert!(!requires(Some("9.0"), TclVersion::V8_4));
+        assert!(requires(Some("8.6, 9.0"), TclVersion::V8_6));
+        assert!(requires(Some("1"), TclVersion::V8_4));
+        assert!(requires(Some(""), TclVersion::V9_1));
+    }
 
     const SOURCE_ENV_CHILD: &str = "TCL_TEST_SUPPORT_SOURCE_ENV_CHILD";
 

@@ -1388,6 +1388,9 @@ jobs:
       # interpreter is available. Provision the shared Tcl 9.0 gold-standard
       # lane through the same tool entry point SpecTcl uses; distro Tcl and a
       # stale system tclsh9.0 must never decide which oracle CI exercises.
+      # The output witnesses (`tcl_test_support::witness_tclsh`) compare under
+      # every release they find and report the rest as skipped; requiring the
+      # one installed here makes a missing 9.0 a failure, not a silent pass.
       - name: Install exact Tcl 9.0 reference interpreter
         if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
         env:
@@ -1398,6 +1401,7 @@ jobs:
           tcl_reference_load_toolchains "$PWD"
           tclsh="$(tcl_reference_resolve_tclsh 9.0)"
           printf 'TCL_LSP_TCLSH90=%s\n' "$tclsh" >> "$GITHUB_ENV"
+          printf 'TCL_LSP_REQUIRE_TCLSH=9.0\n' >> "$GITHUB_ENV"
 
       # --no-fail-fast: report every failure, not just the first.
       # Skipped entirely for docs-only changes and already-green tags;

@@ -82,26 +82,19 @@ fn run_script(tclsh: &str, script: &str) -> Option<(bool, String)> {
     ))
 }
 
-/// A `tclsh<series>` on `PATH` whose patchlevel starts with `series`.
-fn find_tclsh(series: &str) -> Option<String> {
-    let command = format!("tclsh{series}");
-    match run_script(&command, "puts -nonewline [info patchlevel]") {
-        Some((true, level)) if level.starts_with(series) => Some(command),
-        _ => None,
-    }
-}
-
-/// Every release on `PATH` with its interpreter, oldest first; reports on
-/// stderr when none is installed.
+/// Every release with its reference interpreter, oldest first, as the shared
+/// oracle lookup finds it ([`tcl_test_support::witness_tclsh`]): a release
+/// with none fails the test where `TCL_LSP_REQUIRE_TCLSH` requires it, and
+/// is reported as skipped otherwise.
 fn releases_on_path() -> Vec<(&'static str, String)> {
-    let found: Vec<(&'static str, String)> = RELEASES
+    RELEASES
         .iter()
-        .filter_map(|&series| find_tclsh(series).map(|tclsh| (series, tclsh)))
-        .collect();
-    if found.is_empty() {
-        eprintln!("no tclsh on PATH: the output witnesses were not run");
-    }
-    found
+        .filter_map(|&series| {
+            let version = tcl_dialect::TclVersion::from_version_string(series)?;
+            let tclsh = tcl_test_support::witness_tclsh(version)?;
+            Some((series, tclsh.path.to_string_lossy().into_owned()))
+        })
+        .collect()
 }
 
 /// The dialect profile name a release is analysed under.
@@ -1475,9 +1468,7 @@ fn expression_witnesses_match_every_release_on_path() {
         ("", "expr {min(1,2)}"),
         ("", "expr {ABS(-2)}"),
     ];
-    let mut releases = 0usize;
     for (series, tclsh) in releases_on_path() {
-        releases += 1;
         let dialect = dialect_of(series);
         let mut answered = 0usize;
         for (prelude, expr_call) in cases {
@@ -1516,9 +1507,6 @@ fn expression_witnesses_match_every_release_on_path() {
             "tclsh{series}: the fold answered only {answered} of {} cases",
             cases.len()
         );
-    }
-    if releases == 0 {
-        eprintln!("no tclsh on PATH: expression_witnesses_match_every_release_on_path ran nothing");
     }
 }
 

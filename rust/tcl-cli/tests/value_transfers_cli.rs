@@ -562,25 +562,21 @@ fn run_tclsh(tclsh: &str, script: &str) -> Option<(bool, String)> {
     ))
 }
 
-/// Every release from `first` on that has a `tclsh<series>` on `PATH` whose
-/// patchlevel starts with the series, oldest first; reports on stderr when
-/// none is installed.
+/// Every release from `first` on with its reference interpreter, oldest
+/// first, as the shared oracle lookup finds it
+/// ([`tcl_test_support::witness_tclsh`]): a release with none fails the test
+/// where `TCL_LSP_REQUIRE_TCLSH` requires it, and is reported as skipped
+/// otherwise.
 fn tclshs_from(first: &str) -> Vec<(&'static str, String)> {
-    let found: Vec<(&'static str, String)> = RELEASES
+    RELEASES
         .iter()
         .filter(|&&series| series >= first)
         .filter_map(|&series| {
-            let command = format!("tclsh{series}");
-            match run_tclsh(&command, "puts -nonewline [info patchlevel]") {
-                Some((true, level)) if level.starts_with(series) => Some((series, command)),
-                _ => None,
-            }
+            let version = tcl_dialect::TclVersion::from_version_string(series)?;
+            let tclsh = tcl_test_support::witness_tclsh(version)?;
+            Some((series, tclsh.path.to_string_lossy().into_owned()))
         })
-        .collect();
-    if found.is_empty() {
-        eprintln!("no tclsh on PATH: the output witnesses were not run");
-    }
-    found
+        .collect()
 }
 
 /// Program (4): a `switch` over the string two appends build, whose `baz`

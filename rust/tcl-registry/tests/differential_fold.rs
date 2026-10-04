@@ -39,8 +39,10 @@
 //! number classes, the full `format` flag/width/precision matrix, and `scan`
 //! — now folds and is verified here.
 //!
-//! Skips cleanly (the test passes trivially) when no `tclsh9.0` is on `PATH`,
-//! the same as the harness's skip contract.
+//! A release with no reference interpreter fails the test where
+//! `TCL_LSP_REQUIRE_TCLSH` requires it, and is reported as skipped otherwise
+//! ([`tcl_test_support::witness_tclsh`]): a run never passes as if it had
+//! compared under a release it did not.
 
 use std::io::Write;
 use std::process::{Command, Stdio};
@@ -68,24 +70,13 @@ fn run_tcl(tclsh: &str, script: &str) -> Option<(bool, String)> {
     ))
 }
 
-/// Locate a `tclsh<series>` (or a bare `tclsh` reporting that series'
-/// patchlevel) on `PATH` — e.g. `find_tclsh("9.")` for any 9.x,
-/// `find_tclsh("8.6")` for the 8.6 reference.
+/// The reference interpreter for the release `series` (`"8.6"`, `"9.0"`), as
+/// the shared oracle lookup finds it ([`tcl_test_support::witness_tclsh`]): a
+/// release with none fails the test where `TCL_LSP_REQUIRE_TCLSH` requires
+/// it, and is reported as skipped otherwise.
 fn find_tclsh(series: &str) -> Option<String> {
-    let versioned = format!("tclsh{}", series.trim_end_matches('.'));
-    for cand in [versioned.as_str(), "tclsh"] {
-        if let Some((true, out)) = run_tcl(cand, "puts -nonewline [info patchlevel]")
-            && out.starts_with(series)
-        {
-            return Some(cand.to_string());
-        }
-    }
-    None
-}
-
-/// Locate a `tclsh9.0` (or a `tclsh` reporting a `9.x` patchlevel) on `PATH`.
-fn find_tclsh9() -> Option<String> {
-    find_tclsh("9.")
+    let version = tcl_dialect::TclVersion::from_version_string(series)?;
+    tcl_test_support::witness_tclsh(version).map(|tclsh| tclsh.path.to_string_lossy().into_owned())
 }
 
 /// The value `tclsh` computes for `[cmd]`, or `None` if tclsh raises (in
@@ -367,8 +358,7 @@ const NAMESPACE_STRING_OPS: &[Case] = &[
 
 #[test]
 fn registry_folds_match_tcl9() {
-    let Some(tclsh) = find_tclsh9() else {
-        eprintln!("skipping registry_folds_match_tcl9: no tclsh9.0 on PATH");
+    let Some(tclsh) = find_tclsh("9.0") else {
         return;
     };
     let reg = CommandRegistry::build_default();
@@ -389,11 +379,10 @@ fn registry_folds_match_tcl9() {
 /// `tail` are registered as *version-invariant* folds, which is only sound if
 /// 8.6 and 9.0 agree on every row — this is the test that pins it, so a future
 /// divergence turns into a failure here rather than a wrong fold under an 8.6
-/// dialect.  Skips cleanly when no 8.6 interpreter is installed.
+/// dialect.
 #[test]
 fn namespace_string_op_folds_match_tcl86() {
     let Some(tclsh) = find_tclsh("8.6") else {
-        eprintln!("skipping namespace_string_op_folds_match_tcl86: no tclsh8.6 on PATH");
         return;
     };
     let reg = CommandRegistry::build_default();
@@ -510,8 +499,7 @@ const FORMATS: &[Case] = &[
 
 #[test]
 fn format_folds_match_tcl9() {
-    let Some(tclsh) = find_tclsh9() else {
-        eprintln!("skipping format_folds_match_tcl9: no tclsh9.0 on PATH");
+    let Some(tclsh) = find_tclsh("9.0") else {
         return;
     };
     let reg = CommandRegistry::build_default();
@@ -537,7 +525,6 @@ fn versioned_folds_under_irules_match_tclsh84() {
         ("format", None, &["%x", "-1"]),
     ];
     let Some(tclsh) = find_tclsh("8.4") else {
-        eprintln!("skipping versioned_folds_under_irules_match_tclsh84: no tclsh8.4 on PATH");
         return;
     };
     let reg = CommandRegistry::build_default();
@@ -627,7 +614,6 @@ fn format_witnesses_match_every_release_on_path() {
         ("format", None, &["%#o", "8"]),
         ("format", None, &["%#d", "5"]),
     ];
-    let mut releases = 0usize;
     let profiles = tcl_dialect::TclVersion::ALL
         .map(|version| (version, version.dialect_profile_name()))
         .into_iter()
@@ -636,7 +622,6 @@ fn format_witnesses_match_every_release_on_path() {
         let Some(tclsh) = find_tclsh(version.version_string()) else {
             continue;
         };
-        releases += 1;
         let reg = tcl_registry::model::ingress::static_context_for(dialect).commands();
         let profile = tcl_dialect::DialectProfile::find(dialect);
         let semantics = resolve_semantics(reg.get("format").expect("format"), None, None);
@@ -667,9 +652,6 @@ fn format_witnesses_match_every_release_on_path() {
             "tclsh{} ({dialect}): the route answered only {answered} cases",
             version.version_string()
         );
-    }
-    if releases == 0 {
-        eprintln!("no tclsh on PATH: format_witnesses_match_every_release_on_path ran nothing");
     }
 }
 
@@ -810,12 +792,10 @@ fn keyed_update_route(
 /// finds no route at all.
 #[test]
 fn keyed_update_witnesses_match_every_release_on_path() {
-    let mut releases = 0usize;
     for version in tcl_dialect::TclVersion::ALL {
         let Some(tclsh) = find_tclsh(version.version_string()) else {
             continue;
         };
-        releases += 1;
         let dialect = version.dialect_profile_name();
         let reg = tcl_registry::model::ingress::static_context_for(dialect).commands();
         let profile = tcl_dialect::DialectProfile::find(dialect);
@@ -891,9 +871,6 @@ fn keyed_update_witnesses_match_every_release_on_path() {
             version.version_string()
         );
     }
-    if releases == 0 {
-        eprintln!("no tclsh on PATH: the keyed-update witnesses were not exercised");
-    }
 }
 
 /// The storage-outcome witnesses of the direct route, per release found on
@@ -906,12 +883,10 @@ fn keyed_update_witnesses_match_every_release_on_path() {
 #[test]
 fn storage_outcome_witnesses_match_every_release_on_path() {
     let reg = CommandRegistry::build_default();
-    let mut releases = 0usize;
     for version in tcl_dialect::TclVersion::ALL {
         let Some(tclsh) = find_tclsh(version.version_string()) else {
             continue;
         };
-        releases += 1;
         let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name());
         let cases: &[(&str, &str, &[&str])] = &[
             ("incr", "5", &[]),
@@ -976,9 +951,6 @@ fn storage_outcome_witnesses_match_every_release_on_path() {
             version.version_string()
         );
         check_range_witnesses(&tclsh, &reg, version);
-    }
-    if releases == 0 {
-        eprintln!("no tclsh on PATH: the storage-outcome witnesses were not exercised");
     }
 }
 
@@ -1191,12 +1163,10 @@ fn regexp_witnesses_match_every_release_on_path() {
     // The first five witnesses, which every release answers.
     const REQUIRED: [usize; 5] = [0, 1, 2, 3, 4];
     let reg = CommandRegistry::build_default();
-    let mut releases = 0usize;
     for version in tcl_dialect::TclVersion::ALL {
         let Some(tclsh) = find_tclsh(version.version_string()) else {
             continue;
         };
-        releases += 1;
         let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name());
         let mut agreed = 0usize;
         for (index, &witness) in REGEX_WITNESSES.iter().enumerate() {
@@ -1235,9 +1205,6 @@ fn regexp_witnesses_match_every_release_on_path() {
             "tclsh{}: only {agreed} witnesses agreed",
             version.version_string()
         );
-    }
-    if releases == 0 {
-        eprintln!("no tclsh on PATH: the regexp owner's witnesses were not exercised");
     }
 }
 
@@ -1493,12 +1460,10 @@ const SCAN_COUNT_WITNESSES: &[StorageWitness] = &[
 #[test]
 fn destructuring_witnesses_match_every_release_on_path() {
     let reg = CommandRegistry::build_default();
-    let mut releases = 0usize;
     for version in tcl_dialect::TclVersion::ALL {
         let Some(tclsh) = find_tclsh(version.version_string()) else {
             continue;
         };
-        releases += 1;
         let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name());
         let mut agreed = 0usize;
         let witnesses = DESTRUCTURE_WITNESSES.iter().chain(SCAN_COUNT_WITNESSES);
@@ -1534,9 +1499,6 @@ fn destructuring_witnesses_match_every_release_on_path() {
             "tclsh{}: only {agreed} witnesses agreed",
             version.version_string()
         );
-    }
-    if releases == 0 {
-        eprintln!("no tclsh on PATH: the destructuring witnesses were not exercised");
     }
 }
 
@@ -1668,12 +1630,10 @@ fn binary_format_witnesses_match_every_release_on_path() {
     /// The witnesses every release packs alike, which the route must answer.
     const SHARED: usize = 25;
     let reg = CommandRegistry::build_default();
-    let mut releases = 0usize;
     for version in tcl_dialect::TclVersion::ALL {
         let Some(tclsh) = find_tclsh(version.version_string()) else {
             continue;
         };
-        releases += 1;
         let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name());
         for (index, &witness) in BINARY_FORMAT_WITNESSES.iter().enumerate() {
             let want = binary_format_oracle(&tclsh, witness);
@@ -1699,9 +1659,6 @@ fn binary_format_witnesses_match_every_release_on_path() {
             }
         }
     }
-    if releases == 0 {
-        eprintln!("no tclsh on PATH: the binary format witnesses were not exercised");
-    }
 }
 
 /// `dict with`'s key projection against the real `tclsh`, from 8.5,
@@ -1725,7 +1682,6 @@ fn dict_with_binds_the_keys_tclsh_binds() {
     let spec = reg.get("dict").expect("dict");
     let semantics = resolve_semantics(spec, Some(spec.subcommand("with").expect("with")), None);
     let semantics = semantics.semantics().expect("the dict with plan");
-    let mut releases = 0usize;
     for version in tcl_dialect::TclVersion::ALL {
         if version < tcl_dialect::TclVersion::V8_5 {
             continue;
@@ -1733,7 +1689,6 @@ fn dict_with_binds_the_keys_tclsh_binds() {
         let Some(tclsh) = find_tclsh(version.version_string()) else {
             continue;
         };
-        releases += 1;
         let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name());
         for &(dict, path) in DICTS {
             let mut words = vec!["d"];
@@ -1783,9 +1738,6 @@ fn dict_with_binds_the_keys_tclsh_binds() {
             "tclsh{}",
             version.version_string()
         );
-    }
-    if releases == 0 {
-        eprintln!("no tclsh on PATH: dict_with_binds_the_keys_tclsh_binds ran nothing");
     }
 }
 
@@ -2034,12 +1986,10 @@ fn template_witnesses_match_every_release_on_path() {
     let reg = CommandRegistry::build_default();
     let semantics = resolve_semantics(reg.get("subst").expect("subst"), None, None);
     let semantics = semantics.semantics().expect("the template plan");
-    let mut releases = 0usize;
     for version in tcl_dialect::TclVersion::ALL {
         let Some(tclsh) = find_tclsh(version.version_string()) else {
             continue;
         };
-        releases += 1;
         let profile = version.dialect_profile_name();
         for &(switches, template) in WITNESSES {
             let plan = semantics.structure(&TemplateInputs::new(switches, template, profile));
@@ -2074,9 +2024,6 @@ fn template_witnesses_match_every_release_on_path() {
                 assert_eq!(rebuilt, printed, "{label}: rebuilt from {plan:?}");
             }
         }
-    }
-    if releases == 0 {
-        eprintln!("no tclsh on PATH: template_witnesses_match_every_release_on_path ran nothing");
     }
 }
 
@@ -2326,12 +2273,10 @@ fn switch_witnesses_match_every_release_on_path() {
     // The plan's witnesses, which every release that runs them answers.
     const REQUIRED: [usize; 5] = [0, 1, 2, 3, 4];
     let reg = CommandRegistry::build_default();
-    let mut releases = 0usize;
     for version in tcl_dialect::TclVersion::ALL {
         let Some(tclsh) = find_tclsh(version.version_string()) else {
             continue;
         };
-        releases += 1;
         let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name());
         let mut agreed = 0usize;
         for (index, &witness) in SWITCH_WITNESSES.iter().enumerate() {
@@ -2370,9 +2315,6 @@ fn switch_witnesses_match_every_release_on_path() {
             "tclsh{}: only {agreed} witnesses agreed",
             version.version_string()
         );
-    }
-    if releases == 0 {
-        eprintln!("no tclsh on PATH: the selection witnesses were not exercised");
     }
 }
 
@@ -2462,12 +2404,10 @@ fn a_quoted_fallthrough_body_reads_two_ways_on_91() {
         )
     };
     let at_top = |body: &str| format!("puts [switch -glob -- a a {body} b {{set _ B}}]\n");
-    let mut releases = 0usize;
     for (series, quoted_in_proc) in [("8.6", "B"), ("9.0", "B"), ("9.1", "error")] {
         let Some(tclsh) = find_tclsh(series) else {
             continue;
         };
-        releases += 1;
         for (body, in_proc_prints) in [("\"-\"", quoted_in_proc), ("-", "B")] {
             assert_eq!(
                 run_tcl_file(&tclsh, &in_proc(body)),
@@ -2480,9 +2420,6 @@ fn a_quoted_fallthrough_body_reads_two_ways_on_91() {
                 "tclsh{series}: {body} at the top level"
             );
         }
-    }
-    if releases == 0 {
-        eprintln!("no tclsh on PATH: the two 9.1 paths were not compared");
     }
 }
 
@@ -2617,7 +2554,6 @@ fn case_oracle(tclsh: &str, witness: CaseWitness) -> Option<String> {
 #[test]
 fn case_witnesses_match_every_release_on_path() {
     let reg = CommandRegistry::build_default();
-    let mut releases = 0usize;
     for (series, dialect) in [
         ("8.4", "tcl8.4"),
         ("8.5", "tcl8.5"),
@@ -2627,7 +2563,6 @@ fn case_witnesses_match_every_release_on_path() {
         let Some(tclsh) = find_tclsh(series) else {
             continue;
         };
-        releases += 1;
         let profile = tcl_dialect::DialectProfile::find(dialect);
         assert!(profile.is_some(), "{dialect}");
         for (index, &witness) in CASE_WITNESSES.iter().enumerate() {
@@ -2659,9 +2594,6 @@ fn case_witnesses_match_every_release_on_path() {
                 "tclsh{series} has no case"
             );
         }
-    }
-    if releases == 0 {
-        eprintln!("no tclsh on PATH: the case witnesses were not exercised");
     }
 }
 
@@ -2919,12 +2851,10 @@ fn the_seven_ordered_state_witnesses() {
             1,
         ),
     ];
-    let mut releases = 0usize;
     for version in tcl_dialect::TclVersion::ALL {
         let Some(tclsh) = find_tclsh(version.version_string()) else {
             continue;
         };
-        releases += 1;
         let dialect = version.dialect_profile_name();
         let reg = tcl_registry::model::ingress::static_context_for(dialect).commands();
         let profile = tcl_dialect::DialectProfile::find(dialect);
@@ -2954,9 +2884,6 @@ fn the_seven_ordered_state_witnesses() {
             assert_eq!(probe.read("x"), Ok(after.parse().unwrap()), "{at}: x");
             assert_eq!(probe.state.writes.len(), writes, "{at}: the writes made");
         }
-    }
-    if releases == 0 {
-        eprintln!("no tclsh on PATH: the ordered-state witnesses were not exercised");
     }
 }
 
@@ -3129,12 +3056,10 @@ fn the_prefix_rule_over_the_routes_matches_every_release_on_path() {
         ("scan", &["1 2", "%d %d", "a", "b"], &["a"], "8.4"),
         ("unset", &["p", "nosuch", "q"], &[], "8.4"),
     ];
-    let mut releases = 0usize;
     for version in tcl_dialect::TclVersion::ALL {
         let Some(tclsh) = find_tclsh(version.version_string()) else {
             continue;
         };
-        releases += 1;
         let dialect = version.dialect_profile_name();
         let reg = tcl_registry::model::ingress::static_context_for(dialect).commands();
         let profile = tcl_dialect::DialectProfile::find(dialect);
@@ -3160,8 +3085,5 @@ fn the_prefix_rule_over_the_routes_matches_every_release_on_path() {
             }
             assert_eq!(held, oracle, "{at}: what each place holds");
         }
-    }
-    if releases == 0 {
-        eprintln!("no tclsh on PATH: the prefix witnesses were not exercised");
     }
 }

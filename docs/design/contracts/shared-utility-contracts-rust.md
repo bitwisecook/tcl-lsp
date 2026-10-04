@@ -66,7 +66,7 @@ entry point, or gate moves without this contract being updated.
 | constant evaluation and value transfers | `rust/tcl-registry/src/value_transfer/mod.rs`; `rust/tcl-registry/src/value_transfer/declaration.rs`; `rust/tcl-registry/src/value_transfer/route.rs`; `rust/tcl-registry/src/value_transfer/const_ops.rs`; `rust/tcl-registry/src/value_transfer/cell_write.rs`; `rust/tcl-registry/src/value_transfer/keyed_update.rs`; `rust/tcl-compiler/src/value_transfer.rs` | `CommandSemantics`; `SemanticsDeclaration`; `resolve_semantics`; `ResolvedSemantics`; `EvalRoute`; `NativeEvalId`; `ConstOps`; `CellWriteSemantics`; `KeyedUpdateSemantics`; `AnalysisContextKey` | the resolved invocation's binding, selected form, and target profile, carried in one analysis context; a route declares the release axes it needs | `xtask-value-transfers` |
 | command vocabulary outside the registry | `rust/tcl-registry/src/registry.rs`; `rust/tcl-registry/src/clause_grammar.rs`; `rust/tcl-registry/src/definer.rs`; `rust/tcl-registry/src/special_vars.rs` | `CommandRegistry`; `clause_keywords`; `DefinitionBodyGrammar`; `SPECIAL_VARS` | per dialect surface: the vocabulary is every word the registry declares across every loadable dialect and the shipped `.tclspec` packs | `xtask-registry-axes` |
 | dialect / release facts | `rust/tcl-dialect/src/profile.rs`; `rust/tcl-dialect/src/grammar.rs`; `rust/tcl-dialect/src/version.rs`; `rust/tcl-dialect/data/reference-toolchains.tsv` | `DialectProfile`; `LexerGrammar`; `TclVersion`; `TclVersion::patchlevel`; `TclVersion::reference_source_tag`; `TclVersion::has_error_stack`; `find` | the resolved dialect/release axis plus exact pinned reference patchlevel/source tag | `xtask-editor-extensions` |
-| C Tcl conformance oracles | `rust/tcl-test-support/src/lib.rs` | `reference_patchlevel`; `reference_source_tag`; `locate_tclsh`; `available_tclshs`; `run_script`; `locate_source_tree`; `Tclsh`; `TclSourceTree`; `ScriptOutcome` | exact interpreter/source agreement and provenance for the selected release line | none |
+| C Tcl conformance oracles | `rust/tcl-test-support/src/lib.rs` | `reference_patchlevel`; `reference_source_tag`; `locate_tclsh`; `available_tclshs`; `witness_tclsh`; `REQUIRE_TCLSH`; `run_script`; `locate_source_tree`; `Tclsh`; `TclSourceTree`; `ScriptOutcome` | exact interpreter/source agreement and provenance for the selected release line; an output witness's missing release fails where `TCL_LSP_REQUIRE_TCLSH` requires it and is reported otherwise | none |
 | interpreter platform bootstrap | `rust/tcl-platform/src/lib.rs` | `bootstrap::Values`; `bootstrap::Snapshot`; `bootstrap::snapshot`; `bootstrap::entries`; `bootstrap::HOST_ARRAYS`; `bootstrap::HOST_PATH_GLOBALS`; `bootstrap::safe_scrub_keys`; `bootstrap::SHARED_LIBRARY_EXTENSION` | key, selected-host snapshot, rebootstrap-clear, safe-scrub, and canonical Unix shared-library suffix invariant; runtime identity supplied per engine | none |
 | shared plain types | `rust/tcl-core-types/src/lib.rs`; `rust/tcl-core-types/src/diag_code.rs` | `OoId`; `DiagCode` | interpreter-local OO identity and diagnostic codes are invariant across dialects | `xtask-diag-tables` |
 | diagnostic suppression directives | `rust/tcl-compiler/src/analyser/utils.rs` | `parse_file_suppression`; `parse_noqa_marker`; `parse_noqa_line_suppressions_for_dialect`; `apply_preceding_noqa`; `line_suppressed`; `FILE_SUPPRESS_KEY` | directive shapes are release-invariant; the noqa pre-scan segments under the document dialect's `LexerConfig` | none |
@@ -113,6 +113,16 @@ the alias whose expression words a later sibling evaluates.
   records the interpreter's reported value as provenance. An explicitly
   paired source-tree interpreter may name another patchlevel on the same
   release line, but its binary and `generic/tcl.h` must agree exactly.
+- The output witnesses — the programs the value-transfer tests run before and
+  after `tcl opt`, in `tcl-compiler`'s `value_transfer_witnesses.rs`,
+  `tcl-registry`'s `differential_fold.rs` and `tcl-cli`'s
+  `value_transfers_cli.rs` — find each release's interpreter through one
+  helper, `witness_tclsh`, over `locate_tclsh`. A release it does not find
+  fails the test when `TCL_LSP_REQUIRE_TCLSH` names it (a comma-separated
+  list, `9.0` or `8.6,9.0`, or any value naming none for every release), and
+  is otherwise reported as skipped on standard error, past the test harness's
+  capture, so a run that compared under fewer releases says so. CI's test job
+  requires the 9.0 interpreter it installs.
 - `ParsedVersion::parse` owns package-version grammar. The versionless public
   helpers (`validate_version`, `validate_requirement`, `compare_versions`,
   `version_satisfies`, and provider selection) use the strict Tcl 8 grammar
