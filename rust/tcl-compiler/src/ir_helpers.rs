@@ -1137,6 +1137,13 @@ pub(crate) struct EvaluatedCommandSubstitutions {
     /// Closing that second gap means fixing the recursion summary first; the
     /// two are separate, and this split says which is which.
     pub in_frame_commands: Vec<Vec<CommandWord>>,
+    /// The commands of [`Self::in_frame_commands`] reached inside a protected
+    /// script — the body of a `catch` or a `try` — with the substitutions and
+    /// expression words in it. Each runs only where every command before it
+    /// in the script completed normally, and the error that stops the rest
+    /// is absorbed, not raised: a write among them may not happen, and the
+    /// place keeps what it held where the script stopped first.
+    pub protected_commands: Vec<Vec<CommandWord>>,
     /// The brace-quoted words themselves — the text of each `{$x + [incr x]}`
     /// or `{incr x; puts $y}` a recovered command evaluates in this frame,
     /// which is where the variable reads of that word sit: no command word of
@@ -1202,13 +1209,25 @@ pub(crate) struct ResolvedEmbeddedHead {
 /// used, exactly as when no resolver is supplied.
 pub(crate) type EmbeddedHeadResolver<'a> = &'a dyn Fn(&str) -> Option<ResolvedEmbeddedHead>;
 
+/// Where a recovered command runs, relative to the statement whose
+/// substitutions the walk recovers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Reach {
+    /// A substitution the statement runs itself.
+    Statement,
+    /// A word a recovered command evaluates in this frame: an expression.
+    InFrame,
+    /// A protected script, or a word or substitution inside one.
+    Protected,
+}
+
 fn walk_text(
     text: &str,
     config: LexerConfig,
     registry: &CommandRegistry,
     heads: Option<EmbeddedHeadResolver<'_>>,
     depth: u32,
-    in_frame: bool,
+    reach: Reach,
     out: &mut EvaluatedCommandSubstitutions,
 ) {
     if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
@@ -1223,15 +1242,19 @@ fn walk_text(
     for token in tokens.iter().filter(|token| token.kind == TokenType::Cmd) {
         let inner = source_map.token_text(*token);
         let recovered = tokenise_command_words(inner, config);
+        let protected = reach == Reach::Protected;
         for words in &recovered {
-            walk_in_frame_words(words, config, registry, heads, depth, out);
+            walk_in_frame_words(words, config, registry, heads, (depth, protected), out);
         }
-        if in_frame {
-            out.in_frame_commands.extend(recovered);
-        } else {
-            out.commands.extend(recovered);
+        match reach {
+            Reach::Statement => out.commands.extend(recovered),
+            Reach::InFrame => out.in_frame_commands.extend(recovered),
+            Reach::Protected => {
+                out.protected_commands.extend(recovered.iter().cloned());
+                out.in_frame_commands.extend(recovered);
+            }
         }
-        walk_text(inner, config, registry, heads, depth + 1, in_frame, out);
+        walk_text(inner, config, registry, heads, depth + 1, reach, out);
     }
 }
 
@@ -1268,13 +1291,15 @@ fn walk_text(
 /// run-time data (`[catch $script]`) is unreadable, and the walk is marked
 /// [`EvaluatedCommandSubstitutions::opaque`]. Every other body is left: it
 /// may run zero or many times, in another frame, or bind names of its own,
-/// which a flat command list cannot represent.
+/// which a flat command list cannot represent. What the walk reaches inside
+/// a protected script, or inside a word of a command `in_protected` says
+/// is in one, is also [`EvaluatedCommandSubstitutions::protected_commands`].
 fn walk_in_frame_words(
     words: &[CommandWord],
     config: LexerConfig,
     registry: &CommandRegistry,
     heads: Option<EmbeddedHeadResolver<'_>>,
-    depth: u32,
+    (depth, in_protected): (u32, bool),
     out: &mut EvaluatedCommandSubstitutions,
 ) {
     if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
@@ -1329,7 +1354,12 @@ fn walk_in_frame_words(
             continue;
         };
         out.in_frame_texts.push(word.text.clone());
-        walk_text(&word.text, config, registry, heads, depth + 1, true, out);
+        let reach = if in_protected {
+            Reach::Protected
+        } else {
+            Reach::InFrame
+        };
+        walk_text(&word.text, config, registry, heads, depth + 1, reach, out);
     }
 
     let protected: Vec<usize> = registry
@@ -1365,10 +1395,19 @@ fn walk_in_frame_words(
         out.in_frame_texts.push(script.to_owned());
         let recovered = tokenise_command_words(script, config);
         for inner in &recovered {
-            walk_in_frame_words(inner, config, registry, heads, depth + 1, out);
+            walk_in_frame_words(inner, config, registry, heads, (depth + 1, true), out);
         }
+        out.protected_commands.extend(recovered.iter().cloned());
         out.in_frame_commands.extend(recovered);
-        walk_text(script, config, registry, heads, depth + 1, true, out);
+        walk_text(
+            script,
+            config,
+            registry,
+            heads,
+            depth + 1,
+            Reach::Protected,
+            out,
+        );
     }
 }
 
@@ -1439,7 +1478,7 @@ pub(crate) fn command_substitutions_in_surfaces(
         ..EvaluatedCommandSubstitutions::default()
     };
     for text in surfaces {
-        walk_text(text, config, registry, heads, 0, false, &mut out);
+        walk_text(text, config, registry, heads, 0, Reach::Statement, &mut out);
     }
     out
 }

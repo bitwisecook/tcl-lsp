@@ -5328,7 +5328,7 @@ const PREFIX_PROGRAMS: [PrefixProgram; 9] = [
         flattened: &[],
     },
     PrefixProgram {
-        name: "scan stops at the array",
+        name: "scan writes the place before the array",
         before: "array set b {k keep}\nset a old",
         body: "scan {1 2} {%d %d} a b",
         after: "puts $a",
@@ -5997,6 +5997,96 @@ fn o109_refuses_the_store_ahead_of_a_partial_lassign() {
             );
         }
         prints_under_releases_from(source, printed, "8.6");
+    }
+}
+
+/// A write that may not run leaves the store ahead of it to the reads after
+/// it, in the three shapes a sweep of generated bodies found folding or
+/// deleting that store. `scan` makes every store it can and raises after the
+/// last, so with `a` an array `scan {1 2} {%d %d} a b` leaves `b` 2, which
+/// the route proves in a `catch`, a `try` and `[catch {…}]`. A write in a
+/// `catch` or `try` body inside a substitution happens only where the body
+/// has not stopped first, so `set c old` stays ahead of `[catch {lassign {x
+/// y z} a b c} m]` where `b` may be an array — as a value, in a condition,
+/// and nested in a word or an expression of the body — and `set b old`
+/// ahead of `[catch {set a x; set b [error mid]} m]`, whose word raises. And
+/// a `try` body that ends in a raise may fail at its first command before
+/// it stores, so `set b old` stays ahead of `try {lassign {x y} a b; error
+/// boom} on error {} {}` where `a` may be an array. Every program prints
+/// what tclsh prints before and after `tcl opt`, from the first release
+/// that has its commands.
+#[test]
+fn a_store_ahead_of_a_write_that_may_not_run_stays() {
+    let scans = [
+        (
+            "proc p {} {\n    array set a {k v}\n    set b old\n    catch {scan {1 2} {%d %d} a b} m\n    return $b\n}\nputs [p]\n",
+            "8.4",
+        ),
+        (
+            "proc p {} {\n    array set a {k v}\n    set b old\n    try {scan {1 2} {%d %d} a b} on error {m} {}\n    return $b\n}\nputs [p]\n",
+            "8.6",
+        ),
+        (
+            "proc p {} {\n    array set a {k v}\n    set b old\n    set r [catch {scan {1 2} {%d %d} a b} m]\n    return $b\n}\nputs [p]\n",
+            "8.4",
+        ),
+    ];
+    for (source, first) in scans {
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            assert_eq!(
+                lattice_text(last_value(source, dialect, "::p", "b")),
+                Some("2".to_owned()),
+                "{dialect}: scan writes b after failing on a\n{source}"
+            );
+        }
+        prints_under_releases_from(source, "2\n", first);
+    }
+    let kept = [
+        (
+            "proc p {n} {\n    if {$n} {array set b {k v}}\n    set c old\n    set r [catch {lassign {x y z} a b c} m]\n    if {[info exists c]} {lappend r $c}\n    return $r\n}\nputs [p 0]\nputs [p 1]\n",
+            "0 z\n1 old\n",
+            "8.5",
+        ),
+        (
+            "proc p {n} {\n    if {$n} {array set b {k v}}\n    set c old\n    if {[catch {lassign {x y z} a b c} m]} {return [list raised $c]}\n    return [list ok $c]\n}\nputs [p 0]\nputs [p 1]\n",
+            "ok z\nraised old\n",
+            "8.5",
+        ),
+        (
+            "proc p {n} {\n    if {$n} {array set b {k v}}\n    set c old\n    set r [catch {set q [lassign {x y z} a b c]} m]\n    return [list $r $c]\n}\nputs [p 0]\nputs [p 1]\n",
+            "0 z\n1 old\n",
+            "8.5",
+        ),
+        (
+            "proc p {n} {\n    if {$n} {array set b {k v}}\n    set c old\n    set r [catch {expr {[lassign {x y z} a b c] eq {}}} m]\n    return [list $r $c]\n}\nputs [p 0]\nputs [p 1]\n",
+            "0 z\n1 old\n",
+            "8.5",
+        ),
+        (
+            "proc p {} {\n    set b old\n    set r [catch {set a x; set b [error mid]} m]\n    return [list $r $a $b]\n}\nputs [p]\n",
+            "1 x old\n",
+            "8.4",
+        ),
+        (
+            "proc p {n} {\n    if {$n} {array set a {k v}}\n    set b old\n    try {lassign {x y} a b; error boom} on error {m} {}\n    return $b\n}\nputs [p 0]\nputs [p 1]\n",
+            "y\nold\n",
+            "8.6",
+        ),
+    ];
+    for (source, printed, first) in kept {
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let (rewritten, rewrites) = optimised(source, dialect);
+            let kept = ["b", "c"].iter().all(|name| {
+                !source.contains(&format!("set {name} old"))
+                    || rewritten.contains(&format!("set {name} old"))
+                    || !rewritten.contains(&format!("${name}"))
+            });
+            assert!(
+                kept,
+                "{dialect}: the store a write may not reach stays\n{rewritten}\n{rewrites:#?}"
+            );
+        }
+        prints_under_releases_from(source, printed, first);
     }
 }
 

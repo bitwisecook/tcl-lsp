@@ -282,7 +282,7 @@ impl RegexpSemantics {
         };
         let checked = Checked {
             input,
-            write: ArrayWrite::Scan,
+            write: ArrayWrite::Match,
         };
         publication.publish(
             ops,
@@ -382,7 +382,7 @@ impl RegsubSemantics {
         };
         let checked = Checked {
             input,
-            write: ArrayWrite::Scan,
+            write: ArrayWrite::Match,
         };
         publication.publish(
             ops,

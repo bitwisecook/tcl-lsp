@@ -983,7 +983,7 @@ impl CfgBuilder<'_> {
         (handler_block, block_name, body_block): (&str, &str, &str),
         body_tail: Option<&str>,
         (body_throw_blocks, split_points): (&[String], &[super::SplitPoint]),
-        body_terminal: Option<&str>,
+        (body_terminal, first): (Option<&str>, Option<&Statement>),
     ) {
         if !self.faithful_exceptions || group.is_empty() {
             return;
@@ -1032,6 +1032,35 @@ impl CfgBuilder<'_> {
             });
             for src in throw_sources {
                 self.exception_edges.push((src, handler_block.to_owned()));
+            }
+            // A body that never rests still starts somewhere: a first command
+            // other than a literal assignment may fail before it stores, and
+            // the handler then sees the state before the body, over the region
+            // entry the solver opens there, as for a body that rests below —
+            // unless the body's first block completes with a code the registry
+            // knows exactly and no member takes, as the throw sources above
+            // are filtered. A literal assignment needs no entry: it raises
+            // only where its own place holds an array, whose scalar value
+            // nothing reads, and leaves every other place as the point after
+            // it does. Without the entry the handler took what the first block
+            // left: `try {lassign {x y} a b; error boom} on error {} {}` gave it
+            // `b` as `lassign` wrote it where `a` may be an array, and `set b
+            // old` before it went as dead.
+            let entry = (block_name.to_owned(), handler_block.to_owned());
+            let first_may_fail = first.is_some_and(|first| {
+                !self.leaves_from_the_state_before(first)
+                    && super::NextFailure::of(first) == super::NextFailure::Any
+            });
+            let reached = group
+                .iter()
+                .any(|&member| !self.handler_misses_completion(chain, member, body_block));
+            if first_may_fail && reached && !self.exception_edges.contains(&entry) {
+                self.exception_edges.push(entry);
+                self.region_entries.push((
+                    block_name.to_owned(),
+                    handler_block.to_owned(),
+                    body_block.to_owned(),
+                ));
             }
             self.push_split_failure_edges(handler_block, split_points, |code| {
                 group.iter().any(|&member| !chain.misses(member, code))
@@ -1594,7 +1623,7 @@ impl CfgBuilder<'_> {
                 (&handler_block, block_name, &body_block),
                 body_tail.as_deref(),
                 (&body_throw_blocks, &split_points),
-                body_terminal.as_deref(),
+                (body_terminal.as_deref(), body.statements.first()),
             );
 
             let var_defs = handler_var_defs(handler, &mut pending_fallthrough_defs);

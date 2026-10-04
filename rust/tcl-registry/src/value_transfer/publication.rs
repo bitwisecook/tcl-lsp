@@ -39,41 +39,74 @@ use super::inputs::{AnalysisInputs, DomainFact, FactDomain, FactView, OperandId,
 use super::route::{EvalRoute, NativeEvalId};
 
 /// What writing a scalar to a place that holds an array raises, by the
-/// command making the write and the release: `set`, `append`, `lappend` and
-/// `lassign` say `can't set "b": variable is array`; `incr` says `can't read`
-/// before 8.5; `scan`, `regexp` and `regsub` say `couldn't set variable "b"`
-/// before 8.6. From 8.6 the `-errorcode` is `TCL WRITE VARNAME`, before it
-/// `NONE` (measured, 8.4 to 9.1).
+/// command making the write and the release: `set`, `append`, `lappend`,
+/// `lassign` and `binary scan` say `can't set "b": variable is array`; `incr`
+/// says `can't read` before 8.5; `scan`, `regexp` and `regsub` say `couldn't
+/// set variable "b"` before 8.6. From 8.6 the `-errorcode` is `TCL WRITE
+/// VARNAME`, before it `NONE`. Every command but `scan` raises at the write
+/// it cannot make; `scan` makes every other and raises after the last, worded
+/// by its first failure from 8.6 and by each of them in turn before (measured,
+/// 8.4 to 9.1).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ArrayWrite {
-    /// `set`, `append`, `lappend`, `lassign`.
+    /// `set`, `append`, `lappend`, `lassign`, `binary scan`.
     Set,
     /// `incr`, which reads the variable first before 8.5.
     Incr,
-    /// `scan`, `regexp`, `regsub`.
+    /// `regexp`, `regsub`.
+    Match,
+    /// `scan`, which goes on past a write it cannot make.
     Scan,
 }
 
 impl ArrayWrite {
+    /// The message and `-errorcode` one write to the array `name` raises
+    /// under `release`.
+    fn worded(self, name: &str, release: TclVersion) -> (String, String) {
+        let code = if release >= TclVersion::V8_6 {
+            "TCL WRITE VARNAME"
+        } else {
+            "NONE"
+        };
+        let message = match self {
+            Self::Incr if release < TclVersion::V8_5 => {
+                format!("can't read \"{name}\": variable is array")
+            }
+            Self::Match | Self::Scan if release < TclVersion::V8_6 => {
+                format!("couldn't set variable \"{name}\"")
+            }
+            Self::Set | Self::Incr | Self::Match | Self::Scan => {
+                format!("can't set \"{name}\": variable is array")
+            }
+        };
+        (message, code.to_owned())
+    }
+
     /// The error the write to the array `name` raises.
     pub(super) fn raised(self, name: &str, target: &TargetSemantics) -> Raised {
+        Raised::unanimous(target, |release| self.worded(name, release))
+    }
+
+    /// Whether the command goes on past a write it cannot make: `scan`
+    /// assigns every variable it converted and reports after the last.
+    const fn goes_on(self) -> bool {
+        matches!(self, Self::Scan)
+    }
+
+    /// The error a command that goes on raises after its writes, where the
+    /// writes it could not make were to the arrays `names`, in order: from 8.6
+    /// the first failure's, and before it each failure's message in turn, run
+    /// together (`couldn't set variable "a"couldn't set variable "c"`).
+    fn raised_after(self, names: &[String], target: &TargetSemantics) -> Raised {
         Raised::unanimous(target, |release| {
-            let code = if release >= TclVersion::V8_6 {
-                "TCL WRITE VARNAME"
-            } else {
-                "NONE"
-            };
-            let set = format!("can't set \"{name}\": variable is array");
-            let message = match self {
-                Self::Incr if release < TclVersion::V8_5 => {
-                    format!("can't read \"{name}\": variable is array")
+            let mut worded = names.iter().map(|name| self.worded(name, release));
+            let (mut message, code) = worded.next().unwrap_or_default();
+            if release < TclVersion::V8_6 {
+                for (next, _) in worded {
+                    message.push_str(&next);
                 }
-                Self::Scan if release < TclVersion::V8_6 => {
-                    format!("couldn't set variable \"{name}\"")
-                }
-                Self::Set | Self::Incr | Self::Scan => set,
-            };
-            (message, code.to_owned())
+            }
+            (message, code)
         })
     }
 
@@ -282,21 +315,38 @@ impl PendingStore {
     }
 }
 
-/// The first of `stores` that writes a place `checked` proves holds an array,
-/// as its position and the error the write raises.
-fn first_failing_store(
+/// The error `stores` raise where one writes a place `checked` proves holds
+/// an array, as the count of the stores that ran and the error. A command
+/// raises at the first such store, so the stores before it ran; `scan` goes on
+/// ([`ArrayWrite::goes_on`]), so every store ran, each failing one a
+/// `Preserve` now, and it raises after the last.
+fn failing_stores(
     checked: Option<Checked<'_>>,
-    stores: &[StoreOutcome],
+    stores: &mut [StoreOutcome],
     target: &TargetSemantics,
 ) -> Option<(usize, Raised)> {
     let checked = checked?;
-    stores.iter().enumerate().find_map(|(at, store)| {
-        let StoreOutcome::Write { target: place, .. } = store else {
-            return None;
-        };
-        let name = ArrayWrite::array_place(checked.input, *place)?;
-        Some((at, checked.write.raised(&name, target)))
-    })
+    let failing: Vec<(usize, String)> = stores
+        .iter()
+        .enumerate()
+        .filter_map(|(at, store)| {
+            let StoreOutcome::Write { target: place, .. } = store else {
+                return None;
+            };
+            Some((at, ArrayWrite::array_place(checked.input, *place)?))
+        })
+        .collect();
+    let (first, name) = failing.first()?;
+    if !checked.write.goes_on() {
+        return Some((*first, checked.write.raised(name, target)));
+    }
+    let mut names = Vec::with_capacity(failing.len());
+    for (at, name) in failing {
+        let place = stores[at].target();
+        stores[at] = StoreOutcome::Preserve { target: place };
+        names.push(name);
+    }
+    Some((stores.len(), checked.write.raised_after(&names, target)))
 }
 
 /// What one evaluation publishes, before its values are taken: the result
@@ -336,7 +386,9 @@ impl Publication {
     /// holds an array is the command's error: the stores before it ran and
     /// the rest did not, so the outcome is `Error { written }` with every
     /// store listed in order and the targets after the failing one left as
-    /// they were (the prefix rule).
+    /// they were (the prefix rule). `scan` goes on past such a write: every
+    /// store ran, the failing ones preserve their places, and the error is
+    /// raised after the last.
     pub(super) fn publish(
         self,
         mut ops: ConstOps<'_>,
@@ -395,13 +447,13 @@ impl Publication {
                 Some(key) => ordered_stores.push(StoreOutcome::WriteElement { target, key, value }),
             }
         }
-        let failing = first_failing_store(checked, &ordered_stores, &target_semantics);
+        let failing = failing_stores(checked, &mut ordered_stores, &target_semantics);
         let (completion, result, result_type) = match failing {
             Some((written, raised)) => {
                 per_target.retain(|(target, _)| {
-                    ordered_stores[..written]
-                        .iter()
-                        .any(|store| store.target() == *target)
+                    ordered_stores[..written].iter().any(|store| {
+                        store.target() == *target && !matches!(store, StoreOutcome::Preserve { .. })
+                    })
                 });
                 (
                     CompletionOutcome::Error {

@@ -5950,10 +5950,10 @@ fn writing_to_an_array_is_the_commands_error_with_its_prefix() {
         );
         assert_eq!(
             raised(&scan),
-            Some((1, scan_message.clone(), sub(code))),
+            Some((2, scan_message.clone(), sub(code))),
             "scan under {dialect}"
         );
-        assert_eq!(planned(&scan), ["write 2", "write 3"], "{dialect}");
+        assert_eq!(planned(&scan), ["write 2", "preserve 3"], "{dialect}");
         assert_eq!(
             typed_targets(&scan),
             [2],
@@ -6023,6 +6023,64 @@ fn writing_to_an_array_is_the_commands_error_with_its_prefix() {
     }
 }
 
+/// `scan` goes on past a write it cannot make where `regexp` stops (tclsh
+/// 8.4 to 9.1): `scan {1 2} {%d %d} b a` with `b` an array writes `a` after
+/// failing on `b`, its error comes after both stores, and the failing store
+/// preserves its place and types nothing; with two failures the message is
+/// the first from 8.6 and both, run together, before.
+#[test]
+fn scan_goes_on_past_a_write_to_an_array() {
+    use tcl_registry::value_transfer::BindingKind;
+    let (t, w) = (target, word);
+    let b = [("b", bound_as(BindingKind::Array))];
+    let sub = |text: &str| Some(text.to_owned());
+    let couldnt = |name: &str| format!("couldn't set variable \"{name}\"");
+    let cant_set = |name: &str| format!("can't set \"{name}\": variable is array");
+    for (dialect, code) in [
+        ("tcl8.4", "NONE"),
+        ("tcl8.5", "NONE"),
+        ("tcl8.6", "TCL WRITE VARNAME"),
+        ("tcl9.0", "TCL WRITE VARNAME"),
+        ("tcl9.1", "TCL WRITE VARNAME"),
+    ] {
+        let before_8_6 = dialect == "tcl8.4" || dialect == "tcl8.5";
+        let one = if before_8_6 {
+            couldnt("b")
+        } else {
+            cant_set("b")
+        };
+        let past = completed(
+            "scan",
+            None,
+            &[w("1 2"), w("%d %d"), t("b"), t("a")],
+            &b,
+            Some(dialect),
+        );
+        assert_eq!(
+            (raised(&past), planned(&past), typed_targets(&past)),
+            (
+                Some((2, Some(one.clone()), sub(code))),
+                vec!["preserve 2".to_owned(), "write 3".to_owned()],
+                vec![3]
+            ),
+            "scan goes on past the array under {dialect}"
+        );
+        let twice = completed(
+            "scan",
+            None,
+            &[w("1 2"), w("%d %d"), t("b"), t("b")],
+            &b,
+            Some(dialect),
+        );
+        let both = if before_8_6 { one.repeat(2) } else { one };
+        assert_eq!(
+            raised(&twice),
+            Some((2, Some(both), sub(code))),
+            "two failures under {dialect}"
+        );
+    }
+}
+
 /// A profile that names no release proves a field of the array-write error
 /// only where every release agrees: `scan` is worded differently by 8.5 and
 /// 8.6, so neither field is proven, and `set` is worded alike but its
@@ -6042,7 +6100,7 @@ fn a_write_to_an_array_is_proven_only_where_every_release_agrees() {
         &b,
         None,
     );
-    assert_eq!(raised(&spanning), Some((1, None, None)));
+    assert_eq!(raised(&spanning), Some((2, None, None)));
     let set = completed("set", None, &[t("b"), w("1")], &b, None);
     assert_eq!(raised(&set), Some((0, cant_set("b"), None)));
     // Nothing written to the array, nothing raised: a no-match and a scan

@@ -150,7 +150,10 @@ original's printed output, then the optimised program's):
   known, brace-quoted or a quoted word that substitutes nothing
   (`[catch "incr x"]`): `set x 1; puts [catch {unset x}]` keeps `set x 1`,
   and `set x 1; set c [catch {incr x}]; if {$x == 2} …` is not decided on
-  the value `x` held before the body. A script that is run-time data
+  the value `x` held before the body. The script stops at its first error,
+  so each place it writes may keep what it held, and the statement reads
+  that as well: `set c old` stays ahead of `set r [catch {lassign {x y z} a
+  b c} m]` where `b` may be an array. A script that is run-time data
   (`[catch $script]`, `[catch "incr $name"]`) may write any name, so it
   puts a barrier ahead of the statement, as the statement form does.
 - **An `uplevel 0 {…}` body** (#2261) — that is the *current* frame, not a

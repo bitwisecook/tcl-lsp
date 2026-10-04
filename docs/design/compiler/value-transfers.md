@@ -2186,6 +2186,8 @@ set a old
 catch {foreach {a b} {new second} {set inside 1}}   ;# 1; a is new; inside unbound
 set a old
 catch {scan {1 2} {%d %d} a b}       ;# 1; a is 1
+unset a; array set a {k keep}; set b old
+catch {scan {1 2} {%d %d} a b}       ;# 1; a(k) is keep; b is 2
 set a old
 catch {regexp {(x)(y)} xy a b}       ;# 1; a is xy
 set p 1; set q 2
@@ -2200,7 +2202,11 @@ catch {expr {[incr x] + [error mid]}}    ;# 1; x is 2
 So an error in an argument word is `written = 0` for the command, an
 error in the command's own step `k` is `written = k`, and an error
 inside a nested substitution carries the ordered evaluation state's
-writes so far. When the inputs are not exact enough to place the failing
+writes so far. `scan` alone goes on past a store it cannot make: it
+makes every other store and raises after the last, so its outcome lists
+each failing store as a `Preserve`, `written` counts every store, and the
+message is the first failure's from 8.6 and every failure's, run
+together, under 8.4 and 8.5. When the inputs are not exact enough to place the failing
 step — which target is an array is an existence fact — the `Existence`
 transfer lists the paths with their prefixes: on the error path every
 target before the first whose kind is not proven `Scalar` is a `Bind`,
@@ -2253,7 +2259,11 @@ tier's: in the default build the body is one call whose defs are
 `MayWrite`, whose result variable is a `Write` of an unavailable value,
 and whose inside is `Unavailable`; in the faithful-exceptions build each
 statement transfers as usual and every handler's entry state is the join
-of its throw sources' prefix states. Opaque in every build: an error raised inside an
+of its throw sources' prefix states. A body a substitution runs is its
+statement's effect in both builds, and each place it writes is a
+definition that reads the version before it, since the body may stop
+before the write: `set c old` stays ahead of `set r [catch {lassign {x y
+z} a b c} m]` where `b` may be an array. Opaque in every build: an error raised inside an
 invocation with `CompletionCodeDomain::Any` (every target of that
 invocation is `MayWrite` on the error edge), traces that run during the
 body, the text of `errorInfo`, a computed `-code`, and `bgerror`. The
@@ -2271,7 +2281,9 @@ before it, which the solver leaves closed where the body's first command
 certainly raises after a store, so `set a old` ahead of `try {lassign {new
 second} a b} on error {} {}` goes where `b` is an array — `lassign`
 writes `a` before it fails on `b` — and `set b old` ahead of the same body
-stays where `a` may be an array. Tests: `try_finally_creates_finally_block`
+stays where `a` may be an array. A body in a substitution has no such edge:
+its writes read the versions before them, so a store ahead of `[catch
+{…}]` that the body writes stays. Tests: `try_finally_creates_finally_block`
 and `try_with_handler` in `cfg_lower.rs` pin the faithful shape; the nine
 witnesses above, the `catch` code table and
 `o109_refuses_the_store_ahead_of_a_partial_lassign` are the fixed

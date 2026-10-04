@@ -328,7 +328,15 @@ assignment's error only where some member may take an error), and the
 where no handler certainly takes the failure (`HandlerChain::first_taking`) —
 any command but a literal assignment may complete with any code — together with
 a region entry from the block before the body, unless the body's first
-statement completes from the state before it or runs a clause of its own.
+statement completes from the state before it or runs a clause of its own. A
+handler of a body that never rests takes that region entry too where the
+body's first statement is neither of those nor a literal assignment, and
+where the first block's exact completion, when the registry knows it, is one
+the handler takes: a literal assignment raises only where its own place
+holds an array, whose scalar value nothing reads, and leaves every other
+place as the point after it does. Without it `try {lassign {x y} a b; error
+boom} on error {} {}` gave the handler `b` as `lassign` wrote it where `a`
+may be an array, and the store before the `try` was called dead.
 Without these, `try {set x 2; foo; set x 3} finally {puts $x}` printed `3` once
 optimised where tclsh prints `2` when `foo` raises.  A nested `try` with no
 `finally` hands its body's points to the region around it, since a completion

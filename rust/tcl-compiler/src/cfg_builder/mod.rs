@@ -1401,7 +1401,7 @@ impl<'a> CfgBuilder<'a> {
         let beside = self.read_beside_writes(&embedded_extras, |scanner| {
             crate::ir_helpers::statement_substituted_reads(stmt, &embedded, scanner, self.registry)
         });
-        for name in beside {
+        for name in beside.into_iter().chain(self.protected_writes(&embedded)) {
             if !reads.contains(&name) {
                 reads.push(name);
             }
@@ -1412,6 +1412,26 @@ impl<'a> CfgBuilder<'a> {
             opaque_global: embedded_opaque_global,
             unseen: self.substitutions_reach_unseen(&embedded),
         }
+    }
+
+    /// The places a protected script among `embedded` writes — a `catch` or
+    /// `try` body inside a substitution — each of which the statement reads
+    /// as well as defines. The script stops at its first error and the
+    /// `catch` or `try` absorbs it, so a place written only after a command
+    /// that may fail keeps what it held, and the store before the statement
+    /// is what a later read sees there: `set c old; set r [catch {lassign {x
+    /// y z} a b c} m]` leaves `c` old where `b` is an array (tclsh 8.5 to
+    /// 9.1). Read by name, like a read beside a write, of the version before
+    /// it.
+    fn protected_writes(
+        &self,
+        embedded: &crate::ir_helpers::EvaluatedCommandSubstitutions,
+    ) -> Vec<String> {
+        crate::ir_helpers::variable_write_effects_from_commands(
+            embedded.protected_commands.iter(),
+            self.registry,
+        )
+        .names
     }
 
     /// The places among `written`, which a statement's `[…]` substitutions
@@ -1622,7 +1642,7 @@ impl<'a> CfgBuilder<'a> {
                 self.registry,
             )
         });
-        for name in beside {
+        for name in beside.into_iter().chain(self.protected_writes(&embedded)) {
             if !reads.contains(&name) {
                 reads.push(name);
             }
