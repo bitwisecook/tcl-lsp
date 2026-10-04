@@ -2591,7 +2591,7 @@ pub fn serialise_bounds(result: &ExplorerResult) -> Value {
             let findings: Vec<Value> = find_interval_bounds_with(
                 &snap.unit.cfg,
                 &snap.unit.ssa,
-                &snap.unit.sccp.values,
+                &snap.unit.sccp,
                 &snap.unit.sccp.executable_blocks,
                 snap.unit
                     .semantic_facts
@@ -2617,9 +2617,9 @@ pub fn serialise_bounds(result: &ExplorerResult) -> Value {
             let divzero: Vec<Value> = find_divide_by_zero_with(
                 &snap.unit.cfg,
                 &snap.unit.ssa,
-                &snap.unit.sccp.values,
+                &snap.unit.sccp,
                 &snap.unit.sccp.executable_blocks,
-             numbers, grammar,
+             numbers,
             )
             .iter()
             .map(|d| json!({ "code": "W233", "op": d.op }))

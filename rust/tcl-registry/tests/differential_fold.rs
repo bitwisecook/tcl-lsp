@@ -3087,3 +3087,100 @@ fn the_prefix_rule_over_the_routes_matches_every_release_on_path() {
         }
     }
 }
+
+/// The type `string is` proves of a value is the representation its test
+/// leaves it with (`tcl_registry::commands::tcl::string_is_member_type`),
+/// read back with `tcl::unsupported::representation` under every release
+/// from 8.6 on path: each member a typed class accepts reads as that type —
+/// an integer class as `int`, or `bignum` past the wide range; `double` as
+/// `double` or `int`; `dict` as `dict`, `{}` included, from 9.0 — and a
+/// class left untyped accepts members of more than one: `boolean` keeps the
+/// word `yes` and makes `1` an integer, `list` leaves `{}` a pure string.
+#[test]
+fn a_string_is_type_is_the_representation_its_test_leaves() {
+    use tcl_registry::TclType;
+    use tcl_registry::commands::tcl::string_is_member_type;
+    // (class, its option words, members, the first release with the class)
+    let classes: [(&str, &[&str], &[&str], &str); 7] = [
+        (
+            "integer",
+            &["-strict"],
+            &["12", " 12 ", "0x10", "-5"],
+            "8.6",
+        ),
+        (
+            "wideinteger",
+            &["-strict"],
+            &["12", "9223372036854775807"],
+            "8.6",
+        ),
+        (
+            "entier",
+            &["-strict"],
+            &["12", "123456789012345678901234567890"],
+            "8.6",
+        ),
+        ("double", &["-strict"], &["1.5", "12", "1e3"], "8.6"),
+        ("dict", &[], &["a b", "", "k v k2 v2"], "9.0"),
+        ("boolean", &["-strict"], &["1", "yes", "true", "0"], "8.6"),
+        ("list", &["-strict"], &["", "a b"], "8.6"),
+    ];
+    let type_of = |representation: &str| match representation {
+        "int" | "wideInt" | "bignum" => Some(TclType::Int),
+        "double" => Some(TclType::Double),
+        "dict" => Some(TclType::Dict),
+        "list" => Some(TclType::List),
+        "pure" => Some(TclType::String),
+        "boolean" | "booleanString" => Some(TclType::Boolean),
+        _ => None,
+    };
+    for series in ["8.6", "9.0", "9.1"] {
+        let Some(tclsh) = find_tclsh(series) else {
+            continue;
+        };
+        for &(class, options, members, from) in &classes {
+            if series < from {
+                continue;
+            }
+            let words: Vec<String> = members
+                .iter()
+                .map(|member| format!("{{{member}}}"))
+                .collect();
+            let script = format!(
+                "foreach m {{{}}} {{\n\
+                 set v [string range \"x$m\" 1 end]\n\
+                 if {{![string is {class} {} $v]}} {{puts reject; continue}}\n\
+                 puts [lindex [tcl::unsupported::representation $v] 3]\n\
+                 }}\n",
+                words.join(" "),
+                options.join(" ")
+            );
+            let (ok, out) = run_tcl(&tclsh, &script).expect("tclsh runs");
+            assert!(ok, "tclsh{series}: {class}");
+            let read: Vec<Option<TclType>> = out.lines().map(type_of).collect();
+            assert_eq!(read.len(), members.len(), "tclsh{series}: {class}: {out}");
+            let mut args: Vec<&str> = vec![class];
+            args.extend_from_slice(options);
+            args.push("$v");
+            if let Some(proved) = string_is_member_type(&args) {
+                for (member, ty) in members.iter().zip(&read) {
+                    let within = ty.is_some_and(|ty| {
+                        ty == proved
+                            || (proved == TclType::Numeric
+                                && matches!(ty, TclType::Int | TclType::Double))
+                    });
+                    assert!(
+                        within,
+                        "tclsh{series}: string is {class} {member:?}: {ty:?}"
+                    );
+                }
+            } else {
+                let first = read.first().copied().flatten();
+                assert!(
+                    read.iter().any(|ty| *ty != first),
+                    "tclsh{series}: {class} leaves one representation, {first:?}: {out}"
+                );
+            }
+        }
+    }
+}

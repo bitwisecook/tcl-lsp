@@ -1454,127 +1454,107 @@ impl<'a> LatticeDriver<'a> {
         })])
     }
 
-    /// What the run recorded beside the lattice, at its end: the route
-    /// explanations and tally, the folded types and the preserved
-    /// definitions, in an otherwise empty result.
-    /// The template-word plan each executable call declares, over the
+    /// The template-word plan each call of `block` declares, over the
     /// settled lattice — a switch's proven value reads as its spelling —
-    /// with the template word's span, in source order. Only a trusted call
-    /// to a command that performs substitution is asked.
-    pub(crate) fn template_plans<S: std::hash::BuildHasher>(
+    /// with the template word's span. Only a trusted call to a command that
+    /// performs substitution is asked.
+    pub(crate) fn template_plans_in<S: std::hash::BuildHasher>(
         &self,
         ssa: &SsaFunction,
+        block: &crate::ssa::SsaBlock,
         values: &HashMap<ValueKey, LatticeValue, S>,
-        executable_blocks: &HashSet<crate::cfg::BlockId, S>,
     ) -> Vec<crate::sccp::TemplatePlanRecord> {
         let mut records = Vec::new();
-        for (block_id, block) in &ssa.blocks {
-            if !executable_blocks.contains(block_id) {
+        for stmt_ssa in &block.statements {
+            let Statement::Call {
+                command,
+                args,
+                tokens: Some(tokens),
+                foreach_groups: None,
+                ..
+            } = &stmt_ssa.statement
+            else {
+                continue;
+            };
+            let head = stmt_ssa.statement.canonical_command_or_source();
+            if tokens.argv.len() != args.len() + 1 || !self.trusted(head) {
                 continue;
             }
-            for stmt_ssa in &block.statements {
-                let Statement::Call {
-                    command,
-                    args,
-                    tokens: Some(tokens),
-                    foreach_groups: None,
-                    ..
-                } = &stmt_ssa.statement
-                else {
-                    continue;
-                };
-                let head = stmt_ssa.statement.canonical_command_or_source();
-                if tokens.argv.len() != args.len() + 1 || !self.trusted(head) {
-                    continue;
-                }
-                let cooked = call_arguments(args, Some(tokens), &self.lexer_config);
-                let texts: Vec<&str> = cooked.iter().map(|arg| arg.text.as_ref()).collect();
-                let words: Vec<InvocationWord<'_>> = cooked.iter().map(ArgWord::word).collect();
-                let Some(resolved) = self.resolve(head, &words) else {
-                    continue;
-                };
-                if !resolved
-                    .semantics
-                    .traits
-                    .contains(tcl_registry::Traits::PERFORMS_SUBSTITUTION)
-                {
-                    continue;
-                }
-                let Some(semantics) = resolved.semantics.value.semantics() else {
-                    continue;
-                };
-                let inputs = LatticeInputs {
-                    driver: self,
-                    prior_writes: Vec::new(),
-                    words: Words::Independent,
-                    view: view_of(&resolved, &texts, &words, InvocationLayout::Source),
-                    uses: &stmt_ssa.uses,
-                    values,
-                    ssa,
-                    sources: cooked.iter().map(|arg| arg.source).collect(),
-                };
-                if let PlanAnswer::TemplateWord(plan) = semantics.structure(&inputs)
-                    && let Some(&span) = tokens.argv.get(plan.operand.0 + 1)
-                {
-                    // The spelling each switch reads as, when the lattice
-                    // proves every one exactly.
-                    let switches = (0..plan.operand.0)
-                        .map(|index| {
-                            match inputs.operand(OperandId(index), FactDomain::ExactValue) {
-                                FactView::Exact(value, _) => String::from_utf8(value.bytes).ok(),
-                                _ => None,
-                            }
-                        })
-                        .collect();
-                    records.push(crate::sccp::TemplatePlanRecord {
-                        span,
-                        command: command.clone(),
-                        switches,
-                        plan,
-                    });
-                }
+            let cooked = call_arguments(args, Some(tokens), &self.lexer_config);
+            let texts: Vec<&str> = cooked.iter().map(|arg| arg.text.as_ref()).collect();
+            let words: Vec<InvocationWord<'_>> = cooked.iter().map(ArgWord::word).collect();
+            let Some(resolved) = self.resolve(head, &words) else {
+                continue;
+            };
+            if !resolved
+                .semantics
+                .traits
+                .contains(tcl_registry::Traits::PERFORMS_SUBSTITUTION)
+            {
+                continue;
+            }
+            let Some(semantics) = resolved.semantics.value.semantics() else {
+                continue;
+            };
+            let inputs = LatticeInputs {
+                driver: self,
+                prior_writes: Vec::new(),
+                words: Words::Independent,
+                view: view_of(&resolved, &texts, &words, InvocationLayout::Source),
+                uses: &stmt_ssa.uses,
+                values,
+                ssa,
+                sources: cooked.iter().map(|arg| arg.source).collect(),
+            };
+            if let PlanAnswer::TemplateWord(plan) = semantics.structure(&inputs)
+                && let Some(&span) = tokens.argv.get(plan.operand.0 + 1)
+            {
+                // The spelling each switch reads as, when the lattice
+                // proves every one exactly.
+                let switches = (0..plan.operand.0)
+                    .map(
+                        |index| match inputs.operand(OperandId(index), FactDomain::ExactValue) {
+                            FactView::Exact(value, _) => String::from_utf8(value.bytes).ok(),
+                            _ => None,
+                        },
+                    )
+                    .collect();
+                records.push(crate::sccp::TemplatePlanRecord {
+                    span,
+                    command: command.clone(),
+                    switches,
+                    plan,
+                });
             }
         }
-        records.sort_by_key(|record| (record.span.start(), record.span.end()));
         records
     }
 
-    /// The selection each executable opaque case-list statement makes over
-    /// the settled lattice ([`Self::selection_of`]), in source order, and the
-    /// `Selected` branch fact of every arm that no member of a statement's
-    /// subject reaches ([`unreached_arm_facts`]).
-    pub(crate) fn selection_facts<S: std::hash::BuildHasher>(
+    /// The selection each opaque case-list statement of `block` makes over
+    /// the settled lattice ([`Self::selection_of`]), and the `Selected`
+    /// branch fact of every arm that no member of a statement's subject
+    /// reaches ([`unreached_arm_facts`]).
+    pub(crate) fn selection_facts_in<S: std::hash::BuildHasher>(
         &self,
         cfg: &crate::cfg::Function,
         ssa: &SsaFunction,
+        (block_id, block): (crate::cfg::BlockId, &crate::ssa::SsaBlock),
         values: &HashMap<ValueKey, LatticeValue, S>,
-        executable_blocks: &HashSet<crate::cfg::BlockId, S>,
     ) -> (
         Vec<crate::sccp::SelectionRecord>,
         Vec<crate::sccp::ConstantBranch>,
     ) {
         let mut records = Vec::new();
         let mut unreached = Vec::new();
-        for (block_id, block) in &ssa.blocks {
-            if !executable_blocks.contains(block_id) {
+        for stmt_ssa in &block.statements {
+            let Some(record) = self.selection_of(cfg, ssa, values, stmt_ssa) else {
                 continue;
+            };
+            if let Statement::Switch { arms, .. } = &stmt_ssa.statement {
+                unreached.extend(unreached_arm_facts(cfg.block_name(block_id), &record, arms));
             }
-            for stmt_ssa in &block.statements {
-                let Some(record) = self.selection_of(cfg, ssa, values, stmt_ssa) else {
-                    continue;
-                };
-                if let Statement::Switch { arms, .. } = &stmt_ssa.statement {
-                    unreached.extend(unreached_arm_facts(
-                        cfg.block_name(*block_id),
-                        &record,
-                        arms,
-                    ));
-                }
-                records.push(record);
-            }
+            records.push(record);
         }
-        records.sort_by_key(|record| (record.span.start(), record.span.end()));
-        unreached.sort_by_key(|fact| fact.span.map(|span| (span.start(), span.end())));
         (records, unreached)
     }
 
@@ -1665,6 +1645,9 @@ impl<'a> LatticeDriver<'a> {
         })
     }
 
+    /// What the run recorded beside the lattice, at its end: the route
+    /// explanations and tally, the folded types and the preserved
+    /// definitions, in an otherwise empty result.
     pub(crate) fn take_run_facts(&self) -> crate::sccp::SccpResult {
         crate::sccp::SccpResult {
             explanations: self.take_explanations(),

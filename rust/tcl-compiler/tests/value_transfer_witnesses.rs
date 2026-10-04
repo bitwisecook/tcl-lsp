@@ -7291,3 +7291,153 @@ fn a_traced_variable_is_never_refined() {
     }
     prints_under_every_release(source, "changed\n");
 }
+
+/// The nested equality decides: inside `if {$x eq "a"}`'s arm `x` is `a`,
+/// so `if {$x eq "b"}` there is false — a constant branch the solver applies,
+/// its true block outside the executable blocks — under every dialect, and
+/// the optimiser drops `puts never`. The program prints `inner` for `a` and
+/// nothing for `b` under tclsh 8.4 to 9.1, before and after `tcl opt`.
+#[test]
+fn the_nested_equality_decides() {
+    let source = "proc p {x} {\n    if {$x eq \"a\"} {\n        if {$x eq \"b\"} {puts never} else {puts inner}\n    }\n}\nset ::v a\np $::v\nset ::v b\np $::v\n";
+    for dialect in DIALECTS {
+        let unit = unit_of(source, dialect);
+        let function = unit.procedures.get("::p").expect("the procedure");
+        let decided = function
+            .sccp
+            .constant_branches
+            .iter()
+            .find(|branch| branch.condition == "$x eq \"b\"")
+            .unwrap_or_else(|| panic!("{dialect}: {:?}", function.sccp.constant_branches));
+        assert!(!decided.value, "{dialect}");
+        let dead = function
+            .cfg
+            .block_id(&decided.not_taken_target)
+            .expect("the arm");
+        assert!(
+            !function.sccp.executable_blocks.contains(&dead),
+            "{dialect}: the inner true block never runs"
+        );
+        let (rewritten, _) = optimised(source, dialect);
+        assert!(
+            !rewritten.contains("puts never"),
+            "{dialect}: the optimiser drops the dead arm\n{rewritten}"
+        );
+    }
+    prints_under_every_release(source, "inner\n");
+}
+
+/// The page's twelve programs (`docs/design/compiler/value-transfers.md`
+/// § *Predicate refinement*), each through a procedure whose argument no
+/// call site pins — a global the analysis holds no value for — so the
+/// branch itself is the only evidence: a numeric `==` keeps the string
+/// (`1.0`, ` 1`, `01`, and `08` from 9.0), `eq` compares spellings, a
+/// `string is` test proves a type and never a value (` 12 `, `{}` with and
+/// without `-strict`, `0x10`), truth is no value (`yes`), and from 8.5 an
+/// opaque `-nocase` `switch` and `in` keep what they were given. Each prints
+/// the same under every release before and after `tcl opt`.
+#[test]
+fn the_twelve_refinement_witnesses() {
+    let every = "proc p {x} {if {$x == 1} {return [string length $x]}; return none}\n\
+                 proc q {x} {if {$x == 1} {return $x}; return none}\n\
+                 proc r {x} {if {$x eq \"1\"} {return yes}; return no}\n\
+                 proc s {x} {if {$x eq \"a\"} {return $x}; return none}\n\
+                 proc t {x} {if {[string is integer -strict $x]} {return [string length $x]}; return none}\n\
+                 proc u {x} {if {[string is integer $x]} {return \"yes [string length $x]\"}; return no}\n\
+                 proc u2 {x} {if {[string is integer -strict $x]} {return yes}; return no}\n\
+                 proc v {x} {if {[string is integer -strict $x]} {return $x}; return none}\n\
+                 proc w {x} {if {$x} {return $x}; return none}\n\
+                 set ::v 1.0; puts [p $::v]\n\
+                 set ::v \" 1\"; puts [p $::v]\n\
+                 set ::v 01; puts [q $::v]\n\
+                 set ::v 1.0; puts [r $::v]\n\
+                 set ::v a; puts [s $::v]\n\
+                 set ::v \" 12 \"; puts [t $::v]\n\
+                 set ::v {}; puts [u $::v]; puts [u2 $::v]\n\
+                 set ::v 0x10; puts [v $::v]\n\
+                 set ::v yes; puts [w $::v]\n";
+    prints_under_every_release(every, "3\n2\n01\nno\na\n4\nyes 0\nno\n0x10\nyes\n");
+    let leading_zero = "proc y {x} {if {$x == 8} {return \"yes [string length $x]\"}; return no}\n\
+                        set ::v 08; puts [y $::v]\n";
+    for (series, tclsh) in releases_on_path() {
+        let expected = if series < "9.0" { "no\n" } else { "yes 2\n" };
+        let (rewritten, _) = optimised(leading_zero, &dialect_of(series));
+        for program in [leading_zero, rewritten.as_str()] {
+            assert_eq!(
+                run_script(&tclsh, program),
+                Some((true, expected.to_owned())),
+                "tclsh{series}:\n{program}"
+            );
+        }
+    }
+    let from_85 = "proc z {x} {switch -nocase -- $x {a {return $x}}; return none}\n\
+                   proc m {x} {if {$x in {a b c}} {return $x}; return none}\n\
+                   set ::v A; puts [z $::v]\n\
+                   set ::v b; puts [m $::v]\n";
+    prints_under_releases_from(from_85, "A\nb\n", "8.5");
+}
+
+/// The lines, from 1, of the S100 shimmer warnings in `source` under
+/// `dialect`, in order.
+fn shimmer_lines(source: &str, dialect: &str) -> Vec<usize> {
+    let registry = static_context_for(dialect).commands();
+    let unit = CompilationUnit::build_for_dialect(source, registry, false, dialect);
+    let mut lines: Vec<usize> =
+        tcl_compiler::shimmer::find_shimmer_warnings_for_cu(&unit, registry)
+            .iter()
+            .filter(|warning| warning.code == DiagCode::S100)
+            .map(|warning| {
+                let start = usize::try_from(warning.span.start())
+                    .map_or(source.len(), |start| start.min(source.len()));
+                source[..start].matches('\n').count() + 1
+            })
+            .collect();
+    lines.sort_unstable();
+    lines
+}
+
+/// A `string is` test types its arm: once `string is integer -strict $i`
+/// holds, `i` has an integer representation (`tcl::unsupported::representation`
+/// reads `int`, tclsh 8.6 to 9.1), so reading it as an index in the arm
+/// converts nothing, while past the arm, where the test may have failed,
+/// the read still converts a string — S100 on line 6 and not on line 4. The
+/// program prints `b` twice under every release, before and after `tcl opt`.
+#[test]
+fn a_string_is_test_types_its_arm() {
+    let source = "proc p {s} {\n    set i [string trim $s]\n    if {[string is integer -strict $i]} {\n        puts [lindex {a b c} $i]\n    }\n    puts [lindex {a b c} $i]\n}\nset ::v 1\np $::v\n";
+    for dialect in DIALECTS {
+        assert_eq!(shimmer_lines(source, dialect), vec![6], "{dialect}");
+    }
+    prints_under_every_release(source, "b\nb\n");
+}
+
+/// A definition in a refined arm takes the arm's value: `set y $x` inside
+/// `if {$x eq "a"}` makes `y` the constant `a`, so O100 inlines it where it
+/// is read (`puts $y` becomes `puts a`), while a read of `x` itself keeps the
+/// version's own value and stays as written. The program prints `a` twice
+/// for `a` and nothing for `b` under tclsh 8.4 to 9.1, before and after
+/// `tcl opt`.
+#[test]
+fn a_definition_in_a_refined_arm_takes_the_arms_value() {
+    let source = "proc p {x} {\n    if {$x eq \"a\"} {\n        set y $x\n        puts $y\n        puts $x\n    }\n}\nset ::v a\np $::v\nset ::v b\np $::v\n";
+    for dialect in DIALECTS {
+        let unit = unit_of(source, dialect);
+        let function = unit.procedures.get("::p").expect("the procedure");
+        let y = function.ssa.var_symbol("y").expect("y");
+        assert_eq!(
+            function.sccp.values.get(&(y, 1)),
+            Some(&text("a")),
+            "{dialect}"
+        );
+        let (rewritten, rewrites) = optimised(source, dialect);
+        assert!(rewritten.contains("puts a\n"), "{dialect}:\n{rewritten}");
+        assert!(rewritten.contains("puts $x"), "{dialect}:\n{rewritten}");
+        assert!(
+            rewrites
+                .iter()
+                .any(|rewrite| rewrite.code == DiagCode::O100),
+            "{dialect}: {rewrites:?}"
+        );
+    }
+    prints_under_every_release(source, "a\na\n");
+}

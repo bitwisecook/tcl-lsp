@@ -213,11 +213,13 @@ pub(crate) fn find_shimmer_warnings(
         ),
         loop_blocks: graph::loop_body_blocks(cfg),
     };
+    // A use reads the type a refinement in force at its block proves.
+    let in_force = crate::type_infer::types_in_force(types, sccp);
     let mut out = Vec::new();
     out.extend(use_site::find_use_site_shimmers(
         cfg,
         &commit_ctx,
-        executable_blocks,
+        (executable_blocks, &in_force),
         &facts,
     ));
     out.extend(phi::find_phi_shimmers(
@@ -230,10 +232,53 @@ pub(crate) fn find_shimmer_warnings(
     out.extend(expr::find_expr_shimmers(
         cfg,
         &commit_ctx,
-        executable_blocks,
+        (executable_blocks, &in_force),
         &facts,
     ));
     out
+}
+
+/// The type lattice as one block's statements and terminator read it: the
+/// type a refinement in force at the block proves of a version
+/// ([`crate::type_infer::types_in_force`]) — the arm of `[string is integer
+/// -strict $x]` reads `x` as an integer — and otherwise the version's own.
+#[derive(Clone, Copy)]
+pub(crate) struct BlockTypes<'a> {
+    own: &'a HashMap<ValueKey, TypeLattice>,
+    in_force: Option<&'a HashMap<(BlockId, ValueKey), TypeLattice>>,
+    block: BlockId,
+}
+
+impl<'a> BlockTypes<'a> {
+    /// `own` as `block` reads it under the refinements `in_force`.
+    pub(crate) fn at(
+        own: &'a HashMap<ValueKey, TypeLattice>,
+        in_force: &'a HashMap<(BlockId, ValueKey), TypeLattice>,
+        block: BlockId,
+    ) -> Self {
+        Self {
+            own,
+            in_force: Some(in_force),
+            block,
+        }
+    }
+
+    /// `own` read with no refinement in force.
+    #[cfg(test)]
+    pub(crate) fn unrefined(own: &'a HashMap<ValueKey, TypeLattice>, block: BlockId) -> Self {
+        Self {
+            own,
+            in_force: None,
+            block,
+        }
+    }
+
+    /// The type `key` holds in the block.
+    pub(crate) fn get(&self, key: ValueKey) -> Option<&'a TypeLattice> {
+        self.in_force
+            .and_then(|in_force| in_force.get(&(self.block, key)))
+            .or_else(|| self.own.get(&key))
+    }
 }
 
 /// Per-function facts the three shimmer sub-passes share, each computed once

@@ -6303,6 +6303,7 @@ mod tests {
             refinements_at: HashMap::new(),
             value_entries: HashMap::new(),
             query_places: Vec::new(),
+            existence_guards: Vec::new(),
             values: HashMap::new(),
             executable_blocks: blocks.iter().copied().collect(),
             executable_edges: HashSet::new(),

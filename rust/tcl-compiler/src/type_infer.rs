@@ -1629,14 +1629,120 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
                 }
             }
 
-            // Statements.
-            if type_infer_process_statements(&mut types, ssa_block, &ctx) {
+            // Statements, under the type refinements in force at the block.
+            if type_refined_statements(&mut types, (sccp, *bn), ssa_block, &ctx) {
                 changed = true;
             }
         }
     }
 
     types
+}
+
+/// Type one block's statements under the type refinements in force there
+/// ([`types_at`]): a version a `string is` test or a numeric `==` proved a
+/// type of reads as that type in the block, and as its own past it. Whether
+/// a type moved.
+fn type_refined_statements<S: std::hash::BuildHasher>(
+    types: &mut HashMap<ValueKey, TypeLattice>,
+    (sccp, block): (&SccpResult, BlockId),
+    ssa_block: &crate::ssa::SsaBlock,
+    ctx: &StatementTypingCtx<'_, S>,
+) -> bool {
+    let narrowed: Vec<(ValueKey, Option<TypeLattice>)> = types_at(types, sccp, block)
+        .into_iter()
+        .map(|(key, ty)| (key, types.insert(key, ty)))
+        .collect();
+    let changed = type_infer_process_statements(types, ssa_block, ctx);
+    for (key, before) in narrowed {
+        match before {
+            Some(ty) => {
+                types.insert(key, ty);
+            }
+            None => {
+                types.remove(&key);
+            }
+        }
+    }
+    changed
+}
+
+/// The type each version a type refinement in force at `block` names holds
+/// there ([`SccpResult::refinements_in`]): the type the test proved, or the
+/// version's own where that is the proved one or narrower
+/// ([`refined_type`]), the refinements of one version applied in turn. The
+/// test's own conversion is why a type holds: `string is integer -strict
+/// $x` and `$x == 1` leave `x` with a numeric representation whatever it
+/// had.
+fn types_at(
+    types: &HashMap<ValueKey, TypeLattice>,
+    sccp: &SccpResult,
+    block: BlockId,
+) -> HashMap<ValueKey, TypeLattice> {
+    let mut narrowed: HashMap<ValueKey, TypeLattice> = HashMap::new();
+    for refinement in sccp.refinements_in(block) {
+        let tcl_registry::value_transfer::FactView::Domain(
+            tcl_registry::value_transfer::DomainFact::Type {
+                intrep: Some(proved),
+                ..
+            },
+        ) = &refinement.fact
+        else {
+            continue;
+        };
+        // A version-0 key is what the frame entered with, a parameter's
+        // argument among them, which no definition types: the live-in
+        // root, as a φ reads it.
+        let own = narrowed
+            .get(&refinement.key)
+            .or_else(|| types.get(&refinement.key))
+            .cloned()
+            .unwrap_or_else(|| {
+                if refinement.key.1 == 0 {
+                    TypeLattice::overdefined()
+                } else {
+                    TypeLattice::unknown()
+                }
+            });
+        let refined = refined_type(&own, *proved);
+        if refined != own {
+            narrowed.insert(refinement.key, refined);
+        }
+    }
+    narrowed
+}
+
+/// Per block, the type each version a type refinement in force there names
+/// holds there ([`types_at`]), over the function's settled `types`: what a
+/// use in the block reads, where it differs from the version's own type.
+#[must_use]
+pub(crate) fn types_in_force(
+    types: &HashMap<ValueKey, TypeLattice>,
+    sccp: &SccpResult,
+) -> HashMap<(BlockId, ValueKey), TypeLattice> {
+    sccp.refinements_at
+        .keys()
+        .flat_map(|&block| {
+            types_at(types, sccp, block)
+                .into_iter()
+                .map(move |(key, ty)| ((block, key), ty))
+        })
+        .collect()
+}
+
+/// What a version typed `own` is typed where a refinement proved `proved`:
+/// its own type where that is the proved one or narrower (an integer where
+/// a number is proved), the proved type otherwise, and the optimistic
+/// bottom for a version not typed yet.
+fn refined_type(own: &TypeLattice, proved: TclType) -> TypeLattice {
+    let within = |ty: TclType| {
+        ty == proved || (proved == TclType::Numeric && matches!(ty, TclType::Int | TclType::Double))
+    };
+    match own.kind() {
+        TypeKind::Unknown => own.clone(),
+        TypeKind::Known if own.tcl_type().is_some_and(within) => own.clone(),
+        _ => TypeLattice::of(proved),
+    }
 }
 
 /// Shared, read-only context for [`type_infer_process_statements`].
@@ -2026,6 +2132,7 @@ mod tests {
             refinements_at: HashMap::new(),
             value_entries: HashMap::new(),
             query_places: Vec::new(),
+            existence_guards: Vec::new(),
             values: HashMap::new(),
             executable_blocks: blocks
                 .iter()

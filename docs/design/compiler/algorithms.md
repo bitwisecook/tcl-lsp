@@ -55,8 +55,7 @@ against (`#[cfg(test)]`), because materialising the dominator *sets* is
 O(N²) memory on a multi-thousand-branch generated proc.
 
 Dominance is queried two ways.  The default is a walk up the `idom` chain
-(`loops::dominates`, `intervals::dominates`,
-`diagnostics::helpers::block_dominated_by`), which is O(depth).  On a flat
+(`loops::dominates`, `intervals::dominates`), which is O(depth).  On a flat
 N-branch dispatch chain the chain *is* the whole function, so a per-block-pair
 loop over it is O(V²); `SsaFunction::dominator_intervals` answers the same
 question in O(1) from a pre-order DFS numbering of the dominator tree
@@ -158,12 +157,14 @@ reverse post-order with **widening at loop headers** so loop-induction values
 terminate at `[0, +inf)` instead of an iteration cap.  The header set comes from
 `intervals::loop_headers`, its own back-edge scan (`u → v` where `v` dominates
 `u`) rather than the `LoopForest`, because only the header *set* is needed.
-Constant-bound branch guards narrow via dominator-implied constraints
-(`build_guard_index` + `refine_interval`: `if {$i < 10}` ⇒ `i ∈ [lo, 9]` in the
-dominated region).  A *symbolic* bound (`$i < [llength $l]`) is left
-unrefined — `guard_constraint` requires a literal integer on one side, and a
-non-relational interval domain cannot relate the index to the list length: a
-deliberately-documented precision limit.
+Constant-bound branch guards narrow through the range refinements the
+condition's own `Selection` transfer states on its edges (`refine_interval`
+over `SccpResult::refinements_in`: `if {$i < 10}` ⇒ `i ∈ [lo, 9]` in every
+block each executable path into which crosses the true edge).  A *symbolic*
+bound (`$i < [llength $l]`) is left unrefined — the transfer refines a range
+only against an integer numeral, and a non-relational interval domain cannot
+relate the index to the list length: a deliberately-documented precision
+limit.
 
 The fixpoint is capped at 50 passes.  If it has not converged the result may
 still be ascending — intervals *narrower* than reality — so every value is

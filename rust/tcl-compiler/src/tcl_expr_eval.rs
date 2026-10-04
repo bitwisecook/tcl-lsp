@@ -2139,7 +2139,9 @@ pub(crate) struct ConditionReading<'a> {
 /// the false one; `==` and `!=` do the same where the literal is no number
 /// under the target's numeral grammar, which makes the comparison a string
 /// one, and otherwise prove a number — the point when it is an integer —
-/// and never the string; `in` and `ni` prove the list's finite set; a
+/// and never the string; `<`, `<=`, `>` and `>=` against an integer prove
+/// the half-line an integer value lies on, on each edge; `in` and `ni`
+/// prove the list's finite set; a
 /// `string is` test proves the type its members share, an existence query
 /// the place's existence; `!` swaps the edges, `C1 && C2` proves both
 /// true-edge answers on its true edge and `C1 || C2` both false-edge
@@ -2271,9 +2273,12 @@ fn query_facts(name: &str, kind: crate::existence_query::ExistenceKind) -> EdgeF
 
 /// The facts a comparison of one plain local variable with a literal
 /// proves: `eq`'s and `ne`'s exact value, `==`'s and `!=`'s exact value or
-/// number ([`equality_facts`]), and the finite set of `in`'s and `ni`'s
-/// list ([`membership_facts`]). Equality reads either side as the variable;
-/// membership asks whether the variable is in the list, never the reverse.
+/// number ([`equality_facts`]), the half-line of an ordered comparison with
+/// an integer ([`ordering_facts`]), and the finite set of `in`'s and `ni`'s
+/// list ([`membership_facts`]). A comparison reads either side as the
+/// variable, an ordered one turned round when the literal comes first
+/// ([`turned_round`]); membership asks whether the variable is in the list,
+/// never the reverse.
 fn comparison_facts(
     op: BinOp,
     left: &ExprNode,
@@ -2283,13 +2288,14 @@ fn comparison_facts(
     let style = reading.config.braced_var;
     let operands = variable_operand(left, style)
         .zip(literal_operand(right))
+        .map(|(place, literal)| (op, place, literal))
         .or_else(|| {
-            matches!(op, BinOp::StrEq | BinOp::StrNe | BinOp::Eq | BinOp::Ne)
-                .then(|| literal_operand(left).zip(variable_operand(right, style)))
-                .flatten()
-                .map(|(literal, place)| (place, literal))
+            let turned = turned_round(op)?;
+            literal_operand(left)
+                .zip(variable_operand(right, style))
+                .map(|(literal, place)| (turned, place, literal))
         });
-    let Some((place, literal)) = operands else {
+    let Some((op, place, literal)) = operands else {
         return EdgeFacts::default();
     };
     match op {
@@ -2297,9 +2303,66 @@ fn comparison_facts(
         BinOp::StrNe => EdgeFacts::when_false(vec![PlaceFact::exact(&place, &literal)]),
         BinOp::Eq => EdgeFacts::when_true(equality_facts(&place, &literal, reading.policy)),
         BinOp::Ne => EdgeFacts::when_false(equality_facts(&place, &literal, reading.policy)),
+        BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge => {
+            ordering_facts(op, &place, &literal, reading.policy)
+        }
         BinOp::In => EdgeFacts::when_true(membership_facts(&place, &literal, reading.policy)),
         BinOp::Ni => EdgeFacts::when_false(membership_facts(&place, &literal, reading.policy)),
         _ => EdgeFacts::default(),
+    }
+}
+
+/// The comparison `L op R` read as `R op' L`: an equality as it is, an
+/// ordered comparison turned round (`5 < $x` is `$x > 5`); `in` and `ni`,
+/// which ask about their left operand, never.
+fn turned_round(op: BinOp) -> Option<BinOp> {
+    match op {
+        BinOp::StrEq | BinOp::StrNe | BinOp::Eq | BinOp::Ne => Some(op),
+        BinOp::Lt => Some(BinOp::Gt),
+        BinOp::Le => Some(BinOp::Ge),
+        BinOp::Gt => Some(BinOp::Lt),
+        BinOp::Ge => Some(BinOp::Le),
+        _ => None,
+    }
+}
+
+/// What an ordered comparison of `x` with an integer numeral proves on each
+/// edge: the half-line `x` lies on when it is an integer. `$x < 5` holding
+/// puts an integer `x` at 4 or below, and failing at 5 or above, the false
+/// edge reading the operator's inverse ([`BinOp::inverse`]). The range is
+/// conditional on the value being an integer: a value that is not compares
+/// as a double (`2.5`, NaN, which fails every ordered comparison) or as a
+/// string (`abc`, `end`), and an integer interval says nothing of it, so a
+/// consumer that reads a value that may be no integer as one reads past the
+/// fact. A literal that is no integer under the target's numeral grammar
+/// proves nothing: a word, `true` and `false` among them, which a
+/// comparison reads as a string; a double; a bignum; a leading zero the
+/// target's release leaves open. A bound at the edge of the 64-bit range
+/// saturates, one value wide, rather than wrapping.
+fn ordering_facts(op: BinOp, place: &str, literal: &str, policy: FoldPolicy) -> EdgeFacts {
+    let numbers = policy.numbers.unwrap_or_default();
+    let Operand::Num(TclValue::Int(bound)) =
+        classify_operand(&FoldValue::Str(literal.to_owned()), policy.octal, numbers)
+    else {
+        return EdgeFacts::default();
+    };
+    let half_line = |op: BinOp| {
+        let (lo, hi) = match op {
+            BinOp::Lt => (None, Some(bound.saturating_sub(1))),
+            BinOp::Le => (None, Some(bound)),
+            BinOp::Gt => (Some(bound.saturating_add(1)), None),
+            BinOp::Ge => (Some(bound), None),
+            _ => return Vec::new(),
+        };
+        vec![PlaceFact::domain(
+            place,
+            FactDomain::Range,
+            DomainFact::Range { lo, hi },
+        )]
+    };
+    EdgeFacts {
+        on_true: half_line(op),
+        on_false: op.inverse().map_or_else(Vec::new, half_line),
     }
 }
 
@@ -2487,6 +2550,40 @@ mod tests {
 
     use super::*;
     use crate::expr_parser::parse_expr;
+
+    /// The half-line an ordered comparison with an integer proves, on each
+    /// edge: the false edge reads the operator's inverse (`$x < 5` failing
+    /// puts an integer `x` at 5 or above), and a bound at the 64-bit edge
+    /// saturates, one value wide, rather than wrapping — `$x < MIN` puts `x`
+    /// at `MIN` or below on its true edge, `$x > MAX` at `MAX` or above.
+    #[test]
+    fn an_ordered_comparison_states_the_half_line_on_each_edge() {
+        let range = |facts: &[PlaceFact]| match facts {
+            [
+                PlaceFact {
+                    fact: FactView::Domain(DomainFact::Range { lo, hi }),
+                    ..
+                },
+            ] => Some((*lo, *hi)),
+            _ => None,
+        };
+        let policy = FoldPolicy::default();
+        let five = ordering_facts(BinOp::Lt, "x", "5", policy);
+        assert_eq!(range(&five.on_true), Some((None, Some(4))));
+        assert_eq!(range(&five.on_false), Some((Some(5), None)));
+        let at_most = ordering_facts(BinOp::Le, "x", "5", policy);
+        assert_eq!(range(&at_most.on_false), Some((Some(6), None)));
+        let min = ordering_facts(BinOp::Lt, "x", &i64::MIN.to_string(), policy);
+        assert_eq!(range(&min.on_true), Some((None, Some(i64::MIN))));
+        assert_eq!(range(&min.on_false), Some((Some(i64::MIN), None)));
+        let max = ordering_facts(BinOp::Gt, "x", &i64::MAX.to_string(), policy);
+        assert_eq!(range(&max.on_true), Some((Some(i64::MAX), None)));
+        assert_eq!(range(&max.on_false), Some((None, Some(i64::MAX))));
+        for word in ["true", "false", "2.5", "abc", "18446744073709551616"] {
+            let none = ordering_facts(BinOp::Lt, "x", word, policy);
+            assert_eq!(none, EdgeFacts::default(), "{word}");
+        }
+    }
 
     fn eval_str(expr: &str) -> Option<TclValue> {
         let env = Env::new();

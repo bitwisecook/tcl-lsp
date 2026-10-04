@@ -63,7 +63,10 @@ use super::hints::is_free_first_conversion;
 pub(crate) fn find_expr_shimmers(
     cfg: &CfgFunction,
     commit_ctx: &super::commit::CommitCtx<'_>,
-    executable_blocks: &HashSet<BlockId>,
+    (executable_blocks, in_force): (
+        &HashSet<BlockId>,
+        &HashMap<(BlockId, ValueKey), TypeLattice>,
+    ),
     facts: &super::ShimmerFacts,
 ) -> Vec<ShimmerWarning> {
     let super::commit::CommitCtx {
@@ -93,6 +96,7 @@ pub(crate) fn find_expr_shimmers(
         // The committed-intrep walker replays the commit transfer in step with
         // this walk, so each expr's operands see the state just before it.
         let mut commit_walker = facts.commit.walker(commit_ctx, block_id);
+        let block_types = super::BlockTypes::at(types, in_force, block_id);
 
         // 1. SSA statements: AssignExpr and ExprEval.
         for ss in &ssa_block.statements {
@@ -111,7 +115,7 @@ pub(crate) fn find_expr_shimmers(
                 } => {
                     let mut ctx = ExprShimmerCtx {
                         uses: &ss.uses,
-                        types,
+                        types: block_types,
                         values,
                         folded,
                         ssa,
@@ -151,7 +155,7 @@ pub(crate) fn find_expr_shimmers(
                     ) {
                         let mut ctx = ExprShimmerCtx {
                             uses: &ss.uses,
-                            types,
+                            types: block_types,
                             values,
                             folded,
                             ssa,
@@ -179,7 +183,7 @@ pub(crate) fn find_expr_shimmers(
             &mut TerminatorWalk {
                 cfg,
                 ssa,
-                types,
+                types: block_types,
                 values,
                 folded,
                 block_id,
@@ -199,7 +203,8 @@ pub(crate) fn find_expr_shimmers(
 struct TerminatorWalk<'a> {
     cfg: &'a CfgFunction,
     ssa: &'a SsaFunction,
-    types: &'a HashMap<ValueKey, TypeLattice>,
+    /// The type lattice as the block reads it.
+    types: super::BlockTypes<'a>,
     values: &'a HashMap<ValueKey, LatticeValue>,
     folded: &'a HashMap<ValueKey, crate::value_transfer::FoldedType>,
     block_id: BlockId,
@@ -273,7 +278,8 @@ fn collect_terminator_shimmers(
 /// is being walked); `seen` / `out` accumulate de-duplicated warnings.
 struct ExprShimmerCtx<'a> {
     uses: &'a HashMap<Symbol, u32>,
-    types: &'a HashMap<ValueKey, TypeLattice>,
+    /// The type lattice as the block reads it.
+    types: super::BlockTypes<'a>,
     /// SCCP constant values, for the uncommitted-value ("pure string") check —
     /// a pure operand that is a valid instance of the required type converts for
     /// free, so it must not be flagged (see [`is_free_first_conversion`]).
@@ -490,7 +496,7 @@ fn check_numeric_operand(
     }
     let lattice = ctx
         .types
-        .get(&(sym, ver))
+        .get((sym, ver))
         .cloned()
         .unwrap_or_else(TypeLattice::unknown);
     if lattice.kind() != TypeKind::Known {
@@ -587,7 +593,7 @@ fn check_list_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinOp) 
     }
     let lattice = ctx
         .types
-        .get(&(sym, ver))
+        .get((sym, ver))
         .cloned()
         .unwrap_or_else(TypeLattice::unknown);
     if lattice.kind() != TypeKind::Known {
@@ -673,7 +679,7 @@ fn check_string_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinOp
     }
     let lattice = ctx
         .types
-        .get(&(sym, ver))
+        .get((sym, ver))
         .cloned()
         .unwrap_or_else(TypeLattice::unknown);
     if lattice.kind() != TypeKind::Known {
@@ -766,7 +772,13 @@ mod tests {
             ),
             loop_blocks: super::super::graph::loop_body_blocks(&fu.cfg),
         };
-        find_expr_shimmers(&fu.cfg, &ctx, &fu.sccp.executable_blocks, &facts)
+        let in_force = crate::type_infer::types_in_force(&fu.types, &fu.sccp);
+        find_expr_shimmers(
+            &fu.cfg,
+            &ctx,
+            (&fu.sccp.executable_blocks, &in_force),
+            &facts,
+        )
     }
 
     /// `collect_expr_shimmers` recurses
@@ -805,7 +817,7 @@ mod tests {
         let mut out: Vec<ShimmerWarning> = Vec::new();
         let mut sctx = ExprShimmerCtx {
             uses: &uses,
-            types: &fu.types,
+            types: super::super::BlockTypes::unrefined(&fu.types, fu.cfg.entry),
             values: &fu.sccp.values,
             folded: &fu.sccp.folded_types,
             ssa: &fu.ssa,

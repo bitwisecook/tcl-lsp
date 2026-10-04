@@ -37,7 +37,8 @@
 //!   `build_ssa` → `_sccp` → `compute_intervals`) is
 //!   reachable from a built `CompilationUnit`: `fu.cfg`, `fu.ssa`,
 //!   `fu.sccp.values`, fed to the public `compute_intervals` /
-//!   `build_guard_index` / `refine_interval`. An SSA value `(name, version)` is
+//!   `refine_interval` (which reads `fu.sccp`'s range refinements). An SSA
+//!   value `(name, version)` is
 //!   keyed by an interned `(Symbol, Version)`; resolve a name with
 //!   `fu.ssa.var_symbol` (the tuple key `("j", 1)`).
 //!
@@ -95,8 +96,7 @@ use tcl_compiler::analyser::Analyser;
 use tcl_compiler::cfg::Terminator;
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_compiler::intervals::{
-    Interval, build_guard_index, compute_intervals_with, constant, numbers_for_dialect,
-    refine_interval,
+    Interval, compute_intervals_with, constant, numbers_for_dialect, refine_interval,
 };
 use tcl_registry::model::ingress::static_context_for;
 
@@ -180,16 +180,6 @@ fn loop_body_block(fu: &FunctionUnit) -> tcl_compiler::cfg::BlockId {
         .expect("a comparison-guarded branch")
 }
 
-/// Predecessor count per block — `refine_interval` requires a guarded branch
-/// target have a single entry edge before applying its constraint.
-fn pred_counts(fu: &FunctionUnit) -> std::collections::HashMap<tcl_compiler::cfg::BlockId, usize> {
-    fu.cfg
-        .predecessors()
-        .into_iter()
-        .map(|(bid, preds)| (bid, preds.len()))
-        .collect()
-}
-
 // Dynamic lindex out of range (W230).
 mod dynamic_lindex_out_of_range {
     use super::*;
@@ -220,6 +210,26 @@ mod dynamic_lindex_out_of_range {
         // tclsh: `list a b` → "a b" (2 elements); `lindex {a b} 5` → "".
         let src = "proc f {} { set l [list a b]\n set j 5\n set x [lindex $l $j] }";
         assert_eq!(count(src, "W230"), 1);
+    }
+
+    #[test]
+    fn a_numeric_guard_narrows_the_index() {
+        // `$i > 5` holding puts an integer `i` at 6 or more, past a
+        // three-element list (tclsh: `lindex {a b c} 9` → ""). The range holds
+        // of an integer `i`: `end` passes the guard as a string and indexes
+        // the last element, the reading #2368 records.
+        let src = "proc f {s} {\n    set i [string trim $s]\n    if {$i > 5} { set x [lindex {a b c} $i] }\n}";
+        assert_eq!(count(src, "W230"), 1);
+    }
+
+    #[test]
+    fn a_boolean_word_bounds_no_index() {
+        // `$i < false` compares as strings — an ordered comparison reads no
+        // boolean word as a number — so it bounds nothing (#2369). tclsh 8.4
+        // to 9.1: with `i` 1, `expr {$i < false}` → 1 ("1" sorts before
+        // "false") and `lindex {a b} 1` → "b".
+        let src = "proc f {s} {\n    set i [string trim $s]\n    if {$i < false} { set x [lindex {a b} $i] }\n}";
+        assert_eq!(count(src, "W230"), 0);
     }
 
     #[test]
@@ -814,120 +824,75 @@ mod compute_intervals_suite {
 
 // Guard narrowing (refine_interval at a use site).
 //
-// `for` lowers to a *rotated* loop, so the body is dominated by the latch's
-// `$i < 10` true edge and the narrowable version is the post-increment i₃, which
-// refines to [1, 9] rather than i₂→[0,9]. The
-// intent — the constant `< 10` guard pulls the widened upper bound
-// down to 9 inside the body — holds exactly; only the SSA version / lower bound
-// the loop-rotation assigns differs (a structural detail, not a Tcl fact). So we
-// assert the load-bearing fact (some version narrows to a bounded `hi == 9`) and
-// the symbolic-bound non-narrowing, rather than pinning the rotation's version.
+// A branch condition's `Selection` transfer states a range refinement on each
+// edge of `$i < 10`, and `refine_interval` intersects a version's interval with
+// the refinements in force at a block (`SccpResult::refinements_in`). A `while`
+// loop tests the version its body reads, the header φ's, so the body sees it
+// narrowed; the widened [0, +inf) comes down to [0, 9]. (A `for` whose
+// condition holds on entry is rotated: its latch tests the post-increment
+// version, which the body, entered through the φ, never reads.)
 //
-// tclsh grounding: inside `for {set i 0} {$i < 10} {incr i}` the body runs with
+// tclsh grounding: inside `while {$i < 10} {…; incr i}` the body runs with
 // i ∈ 0..9 (the guard excludes 10) — the upper bound of 9 is the real Tcl range.
 mod guard_narrowing {
     use super::*;
 
+    /// The version of `i` the loop body of `fu` reads, with the body.
+    fn body_read(fu: &FunctionUnit) -> (tcl_compiler::cfg::BlockId, u32) {
+        let body = loop_body_block(fu);
+        let sym = fu.ssa.var_symbol("i").expect("i interned");
+        let version = fu
+            .ssa
+            .blocks
+            .get(&body)
+            .and_then(|block| block.entry_versions.get(&sym))
+            .copied()
+            .expect("the body reads i");
+        (body, version)
+    }
+
     #[test]
     fn constant_bound_loop_body_narrows() {
-        // The body is dominated by the `$i < 10` true edge, so some SSA version
-        // of i narrows from the widened [_, +inf) to a bounded interval with
-        // upper bound 9 (tclsh: the loop body sees i ≤ 9). STRUCTURAL on which
-        // version; the `hi == 9` ceiling is the Tcl-grounded fact.
-        let src = "proc f {} { for {set i 0} {$i < 10} {incr i} { puts $i } }";
+        // The body is entered only through the `$i < 10` true edge, so the
+        // version it reads narrows from the widened [0, +inf) to an upper bound
+        // of 9 (tclsh: the loop body sees i ≤ 9). STRUCTURAL on which version;
+        // the `hi == 9` ceiling is the Tcl-grounded fact.
+        let src = "proc f {} { set i 0\n while {$i < 10} { puts $i\n incr i } }";
         let (cu, key) = func(src);
         let fu = cu.procedures.get(&key).unwrap();
         let iv = compute_intervals_with(&fu.cfg, &fu.ssa, &fu.sccp.values, numbers());
-        let gi = build_guard_index(&fu.cfg, &fu.ssa, tcl_dialect::LexerGrammar::default());
-        let body = loop_body_block(fu);
-        let sym = fu.ssa.var_symbol("i").expect("i interned");
-        let narrowed_to_9 = (1u32..=6).any(|ver| {
-            // Only consider versions that actually have a base interval (skip
-            // version 0 / undefined which refine to TOP).
-            iv.get(&(sym, ver)).is_some_and(|_| {
-                let pc = pred_counts(fu);
-                let r = refine_interval(
-                    &iv,
-                    &fu.cfg,
-                    &fu.ssa,
-                    body,
-                    "i",
-                    ver,
-                    tcl_compiler::intervals::GuardTables {
-                        guard_index: &gi,
-                        pred_counts: &pc,
-                        numbers: numbers(),
-                    },
-                );
-                !r.is_top() && !r.is_bottom() && r.hi == Some(9)
-            })
-        });
-        assert!(
-            narrowed_to_9,
-            "the `< 10` guard must narrow some version of i to an upper bound of 9 in the loop body"
+        let (body, version) = body_read(fu);
+        let r = refine_interval(&iv, &fu.ssa, &fu.sccp, body, "i", version);
+        assert_eq!(
+            r,
+            Interval {
+                lo: Some(0),
+                hi: Some(9)
+            },
+            "the `< 10` guard narrows the body's i to [0, 9]"
         );
     }
 
     #[test]
     fn symbolic_bound_does_not_narrow() {
         // `$i < [llength $l]` has a symbolic RHS — a non-relational interval
-        // domain cannot turn it into a constant bound, so NO version gains a
-        // finite upper bound (no unsound narrowing); the lower bound stays ≥ 0.
-        // STRUCTURAL (domain non-relationality); grounded by the idiom being the
-        // canonical safe iteration in Tcl.
-        let src = "proc f {l} { for {set i 0} {$i < [llength $l]} {incr i} { puts $i } }";
+        // domain cannot turn it into a constant bound, so the version the body
+        // reads keeps its widened interval (no unsound narrowing); the lower
+        // bound stays ≥ 0. STRUCTURAL (domain non-relationality); grounded by
+        // the idiom being the canonical safe iteration in Tcl.
+        let src = "proc f {l} { set i 0\n while {$i < [llength $l]} { puts $i\n incr i } }";
         let (cu, key) = func(src);
         let fu = cu.procedures.get(&key).unwrap();
         let iv = compute_intervals_with(&fu.cfg, &fu.ssa, &fu.sccp.values, numbers());
-        let gi = build_guard_index(&fu.cfg, &fu.ssa, tcl_dialect::LexerGrammar::default());
-        let body = loop_body_block(fu);
+        let (body, version) = body_read(fu);
         let sym = fu.ssa.var_symbol("i").expect("i interned");
-        // Consider only the *widened* versions — those whose base interval is
-        // already unbounded above (`hi == None`); a point-valued init like
-        // i₁ == [0,0] legitimately has a finite `hi` and is not what "narrow"
-        // means. For every widened version, the symbolic `[llength $l]` guard
-        // must NOT pull the upper bound in (it stays +inf), and the lower bound
-        // stays ≥ 0. At least one such widened version must exist (the loop phi).
-        let mut saw_widened = false;
-        for ver in 1u32..=6 {
-            let Some(base) = iv.get(&(sym, ver)).copied() else {
-                continue;
-            };
-            if base.hi.is_some() {
-                continue; // not a widened-above version (e.g. the init const)
-            }
-            saw_widened = true;
-            let pc = pred_counts(fu);
-            let r = refine_interval(
-                &iv,
-                &fu.cfg,
-                &fu.ssa,
-                body,
-                "i",
-                ver,
-                tcl_compiler::intervals::GuardTables {
-                    guard_index: &gi,
-                    pred_counts: &pc,
-                    numbers: numbers(),
-                },
-            );
-            if r.is_bottom() {
-                continue;
-            }
-            assert_eq!(
-                r.hi, None,
-                "a symbolic bound must not give the widened i a finite upper bound (version {ver}): {r:?}"
-            );
-            if let Some(lo) = r.lo {
-                assert!(
-                    lo >= 0,
-                    "the lower bound stays non-negative (version {ver}): {r:?}"
-                );
-            }
-        }
+        let base = iv.get(&(sym, version)).copied().expect("the φ's interval");
+        assert_eq!(base.hi, None, "the loop widens i above: {base:?}");
+        let r = refine_interval(&iv, &fu.ssa, &fu.sccp, body, "i", version);
+        assert_eq!(r, base, "a symbolic bound leaves the interval as it was");
         assert!(
-            saw_widened,
-            "the loop must produce at least one widened (+inf-above) version of i"
+            r.lo.is_some_and(|lo| lo >= 0),
+            "the lower bound stays non-negative: {r:?}"
         );
     }
 }
@@ -1011,27 +976,25 @@ mod dialect_numerals {
 
     /// The finite upper bound the guard `$i < <literal>` proves for the widened
     /// loop counter inside the body of
-    /// `for {set i 0} {$i < <literal>} {incr i} …`, under `dialect`.
+    /// `set i 0; while {$i < <literal>} {…; incr i}`, under `dialect`.
     ///
-    /// This is the guard-narrowing path (`refine_interval` →
-    /// `guard_constraint` → the numeral reader), deliberately chosen over a
+    /// This is the guard-narrowing path (`refine_interval` over the range
+    /// refinement the condition's own transfer states, which reads the literal
+    /// under the target's numeral grammar), deliberately chosen over a
     /// foldable `set x [expr {…}]`: SCCP's own const-folder seeds that case
     /// from its lattice before the interval transfer runs, so it would not
-    /// exercise this module's reader at all. Only versions whose base interval
-    /// is unbounded above are considered, so `None` means "the guard proved no
-    /// ceiling" rather than "some point interval happened to have one".
+    /// exercise the guard's reading at all. The body reads the header φ's
+    /// version, widened to `[0, +inf)`, so `None` means "the guard proved no
+    /// ceiling".
     fn guard_ceiling(literal: &str, dialect: &str) -> Option<i64> {
-        let src = format!(
-            "proc f {{}} {{ for {{set i 0}} {{$i < {literal}}} {{incr i}} {{ puts $i }} }}"
-        );
+        let src =
+            format!("proc f {{}} {{ set i 0\n while {{$i < {literal}}} {{ puts $i\n incr i }} }}");
         let cu = CompilationUnit::build_for(&src, static_context_for(dialect).commands(), false);
         let fu = cu.procedures.get("::f").expect("::f lowered");
         let numbers = numbers_for_dialect(Some(
             tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
         ));
         let iv = compute_intervals_with(&fu.cfg, &fu.ssa, &fu.sccp.values, numbers);
-        let gi = build_guard_index(&fu.cfg, &fu.ssa, tcl_dialect::LexerGrammar::default());
-        let pc = pred_counts(fu);
         // A spelling that is not a numeral for this release may not even parse
         // to a comparison — `$i < 0xZZ` leaves no `Binary`-guarded branch to
         // narrow at, which is itself "no bound proved".
@@ -1044,35 +1007,12 @@ mod dialect_numerals {
             _ => None,
         })?;
         let sym = fu.ssa.var_symbol("i").expect("i interned");
-        let mut ceiling: Option<i64> = None;
-        for ver in 1u32..=6 {
-            let Some(base) = iv.get(&(sym, ver)).copied() else {
-                continue;
-            };
-            if base.hi.is_some() {
-                continue; // not a widened-above version (e.g. the `set i 0` init)
-            }
-            let refined = refine_interval(
-                &iv,
-                &fu.cfg,
-                &fu.ssa,
-                body,
-                "i",
-                ver,
-                tcl_compiler::intervals::GuardTables {
-                    guard_index: &gi,
-                    pred_counts: &pc,
-                    numbers,
-                },
-            );
-            if refined.is_bottom() {
-                continue;
-            }
-            if let Some(hi) = refined.hi {
-                ceiling = Some(ceiling.map_or(hi, |best: i64| best.max(hi)));
-            }
+        let version = *fu.ssa.blocks.get(&body)?.entry_versions.get(&sym)?;
+        let refined = refine_interval(&iv, &fu.ssa, &fu.sccp, body, "i", version);
+        if refined.is_bottom() {
+            return None;
         }
-        ceiling
+        refined.hi
     }
 
     /// The same `$i < 0755` guard proves `i <= 492` for an 8.x target and

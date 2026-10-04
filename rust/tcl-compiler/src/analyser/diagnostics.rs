@@ -73,7 +73,7 @@ use rustc_hash::FxHashSet;
 
 use helpers::{
     UndefSuppressionSemantics, build_undef_suppression, collect_defined_vars,
-    collect_existence_guards, globals_read_by_procs, globals_written_by_procs,
+    globals_read_by_procs, globals_written_by_procs,
 };
 
 use super::state::Analyser;
@@ -937,11 +937,8 @@ impl Analyser {
                 dialect: Some(self.analysis_context().context().authoring_query()),
                 registry: self.registry.as_deref(),
                 rules: self.word_rules(),
-                lexer_config: self.lexer_config(),
             },
         );
-        let exists_guards =
-            collect_existence_guards(function_unit, self.registry.as_deref(), self.lexer_config());
         let rbs_params: HashSet<&str> = ir_proc
             .map(|p| p.params.iter().map(String::as_str).collect())
             .unwrap_or_default();
@@ -970,7 +967,6 @@ impl Analyser {
                 global_aliases: &global_aliases,
                 dialect: Some(self.analysis_context().context().authoring_query()),
                 params: &rbs_params,
-                exists_guards: &exists_guards,
                 scope_aliases: &scope_aliases,
                 extra_known_defined,
                 defined_vars: &defined,

@@ -1281,3 +1281,38 @@ fn opt_keeps_what_the_issue_2141_programs_read() {
         );
     }
 }
+
+/// The nested equality program: inside `if {$x eq "a"}`'s arm `x` is `a`, so
+/// `if {$x eq "b"}` there never holds. The procedure's argument is a global
+/// no call site pins, so the outer test is the only evidence.
+const NESTED_EQUALITY: &str = "proc p {x} {\n    if {$x eq \"a\"} {\n        if {$x eq \"b\"} {puts never} else {puts inner}\n    }\n}\nset ::v a\np $::v\nset ::v b\np $::v\n";
+
+/// The nested equality decides through the shipped binary under every
+/// release: `tcl diag` reports I230 on the inner condition (line 3), `tcl
+/// opt --profile full` drops `puts never`, and both programs print `inner`
+/// under every tclsh release on the oracle's path.
+#[test]
+fn the_nested_equality_decides_through_diag_and_opt() {
+    for series in RELEASES {
+        let dialect = format!("tcl{series}");
+        let found = diagnostics_at(NESTED_EQUALITY, &dialect, &[]);
+        assert!(
+            found
+                .iter()
+                .any(|(line, _, code)| *line == 3 && code == "I230"),
+            "{dialect}: {found:?}"
+        );
+        let optimised = statements_of(&opt_under(NESTED_EQUALITY, series));
+        assert!(!optimised.contains("puts never"), "{dialect}:\n{optimised}");
+    }
+    for (series, tclsh) in tclshs_from("8.4") {
+        let optimised = statements_of(&opt_under(NESTED_EQUALITY, series));
+        for program in [NESTED_EQUALITY, optimised.as_str()] {
+            assert_eq!(
+                run_tclsh(&tclsh, program),
+                Some((true, "inner\n".to_owned())),
+                "tclsh{series}:\n{program}"
+            );
+        }
+    }
+}

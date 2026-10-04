@@ -205,6 +205,36 @@ if {$g} { puts a } else { puts b }                 ;# no I230, as for $::g
   one with `-frame caller` may set any variable of that frame, as `argparse`
   does, so no name in the procedure is decided.
 
+## A test inside another test's arm
+
+A comparison that holds proves something about its variable for the code it
+guards. Inside the arm of `if {$x eq "a"}`, `x` is `a`, so a test there that
+`a` never passes is constant:
+
+```tcl
+proc route {x} {
+    if {$x eq "a"} {
+        if {$x eq "b"} {      ;# I230: always false
+            puts never
+        }
+    }
+}
+```
+
+The same holds on the false edge of `ne`, inside `if {$x in {a b c}}`, where a
+test is decided when every member answers it alike, and in each arm of an
+exact `switch`. It holds only where every path crosses the test: past the `if`,
+where its arms meet, `x` is undecided again, and so it is from a command that
+runs a script the analyser cannot read, such as `eval $script`, which may set
+`x` itself.
+
+A numeric `==` proves a number, never a string: `1.0 == 1` is true, so inside
+`if {$x == 1}` the string `x` holds may still be `1.0`, ` 1` or `01`, and a test
+of its spelling there is not decided. A global, a `global` or `upvar` alias, a
+traced variable, and every variable of a procedure that computes a variable
+name are never narrowed: a call, a trace or the computed name may change them
+between the test and the code it guards.
+
 ## Fix
 
 To remember a value across calls, give it real cross-call storage instead of a

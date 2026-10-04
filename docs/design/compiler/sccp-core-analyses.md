@@ -465,7 +465,10 @@ one, and otherwise the type `Numeric` and, for an integer, the range
 point — never the value, since `1.0 == 1` holds; a leading-zero literal
 the target's release leaves open states nothing. `$x in LIST` states the
 list's finite set, split under the target's word rules, and `ni` the same
-on its false edge; `[string is CLASS -strict $x]` the representation the
+on its false edge; `$x < N`, `<=`, `>` and `>=` against an integer numeral,
+either side, the half-line an integer `x` lies on, on each edge, while a
+boolean word, which a comparison reads as a string, a double and a bignum
+state nothing; `[string is CLASS -strict $x]` the representation the
 test leaves its value with (`tcl_registry::commands::tcl::string_is_member_type`:
 `Int` for the integer classes and `Numeric` for `double` under `-strict`,
 `Dict` for `dict` with or without it; `list` leaves `{}` a pure string and
@@ -487,18 +490,45 @@ another invocation, the object or the host holds — and for none once a
 computed name anywhere in the function may write or destroy a place. It
 names the version the branch block leaves the variable at and holds at a
 block where every executable edge into it carries it: a branch edge that
-takes it, or an edge from a block where it holds
-(`SccpResult::refinements_at`, `refinements_in(block)`). An exception edge
+takes it, or an edge from a block where it holds. The solver computes that
+as it sweeps (`RefinementFlow`): it enters each block with what the
+executable edges into it carry and sweeps again while a block's set moves,
+and since an edge, once executable, stays so, the sets only shrink, to the
+greatest fixed point the edges into a cycle allow. An exception edge
 carries none, and a block holding a barrier or an up-frame, which may
 write any variable without a new version, holds none and passes none on.
-A refinement never makes a version: a φ reads its incoming versions' own
+
+A refinement never makes a version. For a block's statements and its
+terminator the solver narrows each version an exact value or a finite set
+in force there names (`narrow_values`, `refined_value`): a version the
+lattice cannot pin takes the refinement's value or set, a set keeps the
+members it allows, a constant stays itself, and the version's own value
+comes back once the block is done. A φ reads its incoming versions' own
 values, so a merge that two arms refining `x` to `a` and to `b` meet at
-holds neither. `SccpResult::value_at(block, key)` is the block-qualified
-value — the version's own, narrowed by the exact values and finite sets in
-force there (`value_entries`) — and the Explorer's `sccp` view prints each
-refinement on an executable edge (`refinement x = 'a'`, with its edge,
-version and domain). The solver, the type lattice and the ranges read none
-of them, so `if {$x eq "b"}` inside `if {$x eq "a"}` is not decided.
+holds neither, and the post-passes — the constant branches, the template
+plans and the selections — read each block as the sweep did. So `if {$x
+eq "b"}` inside `if {$x eq "a"}` decides false: the solver opens only its
+false edge, I230 reports it and the optimiser folds it. A definition in the
+block reads the narrowed value, so `set y $x` in that arm is the constant
+`a`, which O100 inlines where `y` is read; a read of `x` itself keeps the
+version's own value.
+`SccpResult::refinements_at` and `refinements_in(block)` name the
+refinements in force at each block, and `value_at(block, key)` the value a
+version holds there (`value_entries`); the Explorer's `sccp` view prints
+each refinement on an executable edge (`refinement x = 'a'`, with its edge,
+version and domain).
+
+The type lattice reads the type refinements in force at a block
+(`type_infer::type_refined_statements`, and the shimmer checks through
+`type_infer::types_in_force`): in the arm of `[string is integer -strict
+$x]` the version is an integer and in that of `$x == 1` a number, and its
+own type again past the arm. The ranges read the range refinements in
+place of a reading of the condition of their own
+(`intervals::refine_interval`), and through them W230 to W233 narrow an
+index or a divisor. A range from a comparison holds of a value that is an
+integer: one that is not compares as a double or a string, so `end` passes
+`$i > 5`, and an index check that reads such a value as an integer reads
+past the fact (#2368).
 
 ### Preserve outcomes (`SccpResult::preserved`)
 
@@ -646,16 +676,20 @@ a read-before-set.  `existence_query_vars`
 bare-call form (`info exists X`) and the command-substitution form
 (`set y [info exists X]`, `puts [array exists X]`).
 
-A check also narrows the region it dominates.  `collect_existence_guards`
-(`rust/tcl-compiler/src/analyser/diagnostics/helpers.rs`) walks every
-`Terminator::Branch` whose condition `existence_query::in_expr`
-recognises and emits a `(var, guard_block)` pair — the branch's true target
-for a positive query, its false target for a `![info exists X]`.
-`existence_exempt` then suppresses a read of that name in any block
-`block_dominated_by` puts under the guard block, walking the SSA `idom`
-chain.  The opposite branch keeps version 0, so a read there is still
-flagged.  Narrowing is a runtime fact (the guard passed), so unlike the fold
-it needs no foldability gate.
+A check also narrows the region it guards.  The condition's transfer states
+the check's facts on its edges (§ *Edge refinements*): the true edge of
+`[info exists X]` proves `X` bound, `![info exists X]`'s false edge the same.
+The solver records each such place with the block the edge enters
+(`SccpResult::existence_guards`), whether or not the existence rung refines
+the place, and W210 takes the guard's word in every block that block
+dominates (`SccpResult::guarded`): a read there, a φ incoming whose
+predecessor lies there (`phi_can_undef`), a `return` there.  The rung
+refines no place another actor may write — in a module whose callbacks the
+analyser cannot read, none at all — so for such a place the guard is the
+only evidence W210 has that the check ran.  The opposite branch is no part
+of the guard's region, so a read there is still flagged.  Narrowing is a
+runtime fact (the guard passed), so unlike the fold it needs no
+foldability gate.
 
 Only the exact three-word forms are recognised.  `existence_query::in_text`
 requires exactly `info exists NAME` or `array exists NAME`; the queried word

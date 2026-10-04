@@ -34,9 +34,9 @@ C-extension contracts, none of which this one waits for.
 > (§ Proc-level transfer summaries) and `LoopEnumeration` (§ Bounded-loop
 > enumeration) — and `EdgeRefinement` (`rust/tcl-compiler/src/sccp.rs`) is
 > recorded for each row of § Predicate refinement's table but the `switch`
-> modes that stay one opaque statement, whose arms are no edges, though the
-> existence rung is the one consumer that reads its domain's: the value
-> lattice, the type lattice and the ranges read none. The observed Tcl
+> modes that stay one opaque statement, whose arms are no edges, and the
+> value lattice, the type lattice, the ranges and the existence rung each
+> read their own domain's. The observed Tcl
 > behaviours quoted below were run under Tcl 9.1b0, 9.0.4, 8.6.18, 8.5.19,
 > and 8.4.20; a line names releases only where they differ, or where one of
 > them lacks the feature.
@@ -1420,8 +1420,7 @@ fact is `MayBound` the condition refines its edges instead: the true edge
 of `[info exists x]` carries `Bound(Either)` for `x`, the false edge
 `Unbound`, and `![info exists x]` swaps them — the edge refinement of
 § Predicate refinement in the existence domain, which
-`collect_existence_guards` and `existence_exempt` implement today by
-dominance and which stays byte-identical in effect.
+the existence rung computes as it sweeps.
 
 **Consumers.**
 
@@ -2353,23 +2352,24 @@ the registry's own routes against tclsh
 ### Predicate refinement
 
 Inside the taken arm of `if {$x eq "a"}` or the `a` arm of an exact
-`switch $x`, `x` is `"a"` even when it was `Overdefined` before the test.
-The existence-guard narrowing (`collect_existence_guards`,
-`block_dominated_by`) is the precedent, and the general mechanism is an
-edge fact:
+`switch $x`, `x` is `"a"` even when it was `Overdefined` before the test. The
+existence rung's narrowing under `[info exists x]` is one domain of the
+general mechanism, an edge fact:
 
 ```rust,ignore
-/// A fact that holds on one CFG edge and in every block that edge's
-/// target dominates, for one SSA version. Produced by the `Selection`
-/// transfer of a branch condition or a case list; consumed by the
-/// block-qualified lookup of every domain it names.
+/// A fact that holds on one CFG edge and in every block each executable
+/// path into which crosses it, for one SSA version. Produced by the
+/// `Selection` transfer of a branch condition, a flattened `switch`'s arms
+/// among them; consumed by the block-qualified lookup of every domain it
+/// names.
 struct EdgeRefinement {
     edge: (BlockId, BlockId),
     key: ValueKey,
     domain: FactDomain,
-    /// The refined fact: an exact value, a finite set, an existence, a
-    /// type class, a range point, or a segment.
-    fact: DomainFact,
+    /// The refined fact in its domain's view: an exact value or a finite
+    /// set for the value domain, a domain fact — an existence, a type, a
+    /// range — for every other.
+    fact: FactView,
     evidence: DependencyEvidence,
 }
 ```
@@ -2386,9 +2386,10 @@ proven constant:
 | `$x == LIT`, `LIT == $x`, with `LIT` non-numeric under every profile release | `ExactValue` is `LIT` — the comparison is a string comparison | nothing |
 | `$x == LIT` with `LIT` numeric | `Range` is the point `LIT` and `Type` is numeric; never the string | nothing |
 | `$x != LIT` | nothing | as `==`, on this edge |
+| `$x < N`, `$x <= N`, `$x > N`, `$x >= N`, either side, with `N` an integer under the target's numeral grammar | `Range` is the half-line `x` lies on when it is an integer | `Range` is the other half-line, as an integer |
 | `$x in {L1 L2 …}` (from 8.5) | `ExactValue` is the finite set | nothing |
 | `$x ni {…}` | nothing | the finite set |
-| `[string is CLASS ?-strict? $x]` | `Type` is the class; never a value | nothing |
+| `[string is CLASS ?-strict? $x]` | `Type` is the representation the test leaves: an integer for the integer classes and a number for `double` under `-strict`, a dictionary for `dict`; never a value | nothing |
 | `[info exists x]`, `[array exists x]` | `Existence` is `Bound(Either)` / `Bound(Array)` | `Unbound` for `info exists`; nothing for `array exists` |
 | `!C` | the false-edge answer of `C` | the true-edge answer of `C` |
 | `C1 && C2` | both true-edge answers | nothing |
@@ -2421,26 +2422,34 @@ its true edge `x` is numerically `8` under whichever release took it, and
 the string is untouched either way.
 
 **The block-qualified lookup.** A refinement never creates an SSA
-version; it overrides the version's lattice value in the blocks the
-edge's target dominates, until a new definition of the name. The
-per-value map (`SccpResult::values`, keyed by `ValueKey`) gains a second
-key, `(BlockId, ValueKey)`, consulted first by `env_from_uses`,
-`evaluate_branch`, and `evaluate_def_with_folds` through the block they
-run in, and by every other domain's lookup for the domains it names. At a
-merge the edge's target does not dominate the override is not consulted,
-so the join is with the unrefined version — two arms refining `x` to `a`
-and `b` meet as the version's own value, and a `switch` whose arms all
-refine is enumerated only through the finite set its case list supplies.
+version; it overrides the version's lattice value in the blocks every
+executable path into which crosses its edge, which the solver works out
+as it sweeps. The per-value map (`SccpResult::values`, keyed by
+`ValueKey`) keeps each version's own value: the solver narrows the
+versions a block's refinements name for its statements and its
+terminator, `SccpResult::value_at(block, key)` answers the same lookup
+afterwards, and every other domain reads the refinements in force at a
+block (`SccpResult::refinements_in`). A φ reads its incoming versions'
+own values, so the join is with the unrefined version — two arms refining
+`x` to `a` and `b` meet as the version's own value, and a `switch` whose
+arms all refine is enumerated only through the finite set its case list
+supplies.
 A place that is externally mutable (`is_externally_mutable`) is never
 refined: the version could change between the test and the use, and
 that is the one sense in which a widened place is not re-narrowed.
 
 **What it feeds.** The value lattice, so a nested `if {$x eq "b"}`
-inside `if {$x eq "a"}` decides false and I230 and O112 fire — today
-`tcl diag` and `tcl opt` report nothing for it; the type lattice through
-`string is`; the existence rung through the guard, byte-identical with
-today's narrowing; the range domain; O100, under the same presentation
-gate as any constant. Taint never reads values and is untouched. Tests:
+inside `if {$x eq "a"}` decides false: `tcl diag` reports I230 and `tcl
+opt` folds it, and a definition in the arm reads the refined value; the
+type lattice through `string is` and the numeric `==`, and the shimmer
+checks that read it; the existence rung, and for W210 the guard's region
+(`SccpResult::existence_guards`, whose block a read's block lies under),
+which holds for a place the rung does not refine; the range domain, which
+W230 to W233 read. O100 reads a
+version's own value, so a definition the arm made from the refined
+variable is inlined where it is read (`set y $x; puts $y` becomes `puts
+a`), and a read of the variable itself is not. Taint never reads values
+and is untouched. Tests:
 `info_exists_guard_narrows_read_in_then_arm`,
 `info_exists_negated_guard_narrows_false_arm`, and
 `info_exists_read_outside_guard_still_flags_w210` pin the precedent; the
@@ -2877,15 +2886,15 @@ unit-level lattice evaluates.
 - `rust/tcl-cmd-core/src/switch.rs`, `regex.rs` — `parse_options`, `select`, `RegexpResult::Count`
 - `rust/tcl-cmd-core/src/case.rs` — `select`, `splits_as_list`: `case`'s selection
 - `rust/tcl-registry/src/value_transfer/selection.rs` — `SwitchSemantics`, `CaseSemantics`, the `Selection` transfer
-- `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` — `emit_provably_unset_w210`, `emit_existence_constant_branch_diagnostics`, `emit_read_before_set_diagnostics`, `record_chain_w210_uses`, `emit_unused_variable_diagnostics`, `existence_query_vars`, `existence_exempt`
-- `rust/tcl-compiler/src/analyser/diagnostics/helpers.rs` — `collect_existence_guards`, `block_dominated_by`, `whole_unset_names`, `phi_can_undef`
+- `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` — `emit_provably_unset_w210`, `emit_existence_constant_branch_diagnostics`, `emit_read_before_set_diagnostics`, `record_chain_w210_uses`, `emit_unused_variable_diagnostics`, `existence_query_vars`, `is_existence_query_word`
+- `rust/tcl-compiler/src/analyser/diagnostics/helpers.rs` — `whole_unset_names`, `phi_can_undef`
 - `rust/tcl-compiler/src/analyser/diagnostics/security.rs` — `emit_w102_subst_injection`, `substitution_narrowing_switches`
 - `rust/tcl-registry/src/substitution.rs` — `SubstitutionKinds`, `subst_substitutions`
 - `rust/tcl-compiler/src/lowering/mod.rs`, `specialise_factories.rs`, `subst_nocommands.rs` — `eval_subst_nocommands_body`, `SUBST_NOCOMMANDS_KINDS`, `extract_subst_nocommands_template`, `subst_nocommands`
 - `rust/tcl-lsp-core/src/refactor/extract_proc.rs`, `refactor/mod.rs` — `literal_word_holes`, `push_substituted_commands`, `same_frame_regions`
 - `rust/tcl-compiler/src/dynamic_names.rs` — `DynamicNameBarrier`, `template_word_is_substituted`
 - `rust/tcl-compiler/src/static_loops.rs` — `summarise_for_statement`, `exec_statement`, `exec_switch`, `DEFAULT_MAX_STATIC_LOOP_ITERS`
-- `rust/tcl-compiler/src/intervals.rs` — `transfer`, `widen`, `MAX_ITERS`
+- `rust/tcl-compiler/src/intervals.rs` — `transfer`, `widen`, `MAX_ITERS`, `refine_interval`
 - `rust/tcl-compiler/src/interprocedural.rs` — `ProcSummary`, `ProcArgTrait`, `ReturnKind`, `summarise_returns`, `MAX_INTERPROCEDURAL_WALK_DEPTH`
 - `rust/tcl-compiler/src/optimiser/propagation.rs` — `evaluate_proc_with_constants`, `seed_params_from_args`
 - `rust/tcl-compiler/src/analyser/param_traits.rs`, `bounds_checks.rs` — the two-command copy tracker and the W240–W242 loop-bound readers

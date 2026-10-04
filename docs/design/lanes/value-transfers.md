@@ -2,14 +2,14 @@
 
 The crash-insurance and handover note for the `value-transfers` lane. A
 fresh agent resumes from this file and the `wip(value-transfers):` commits.
-Slices 1 to 6 and 8 to 10 have landed — each has a § *Status* section below,
+Slices 1 to 6 and 8 to 11 have landed — each has a § *Status* section below,
 with the records and the decisions behind it; § *Plan for slices 2–13* is the
 plan for the rest. The review fixes of slices 9 and 10 are in, each its own
 commit (§ *Slice 10* › *Record (2026-10-04): review fixes for slices 9 and
-10*). Slice 11, predicate refinement, is at its first checkpoint, the edge
-refinements recorded in every domain and read by none but the existence rung
-(§ *Slice 11* › *Record (2026-10-04): slice 11*); its landing, where the value
-lattice, the type lattice and the ranges read them, is next.
+10*). Slice 11, predicate refinement, has landed (§ *Status (2026-10-04):
+slice 11 landed*); the next slice is slice 12, bounded-loop enumeration:
+§ *Slice 11* › *Record (2026-10-04): slice 11* › *What slice 12 starts
+from* is where to start, read with D258 to D264.
 
 ## Goal
 
@@ -1080,6 +1080,49 @@ O126 the same inside a flattened `catch` body (#2351); a literal forwarded into
 `[expr {$m …}]` inside a quoted word is inlined as a bareword (#2352); and
 O125's code sinking moves a store past an intervening write or an unseen call
 (#2327).
+
+## Status (2026-10-04): slice 11 landed
+
+One implementer ran the slice in two commits, the plan's checkpoint and its
+landing: `0c02a60e` (VT11.1 and VT11.2, the edge refinements, recorded in
+every domain and read by the existence rung alone) and this commit,
+`wip(value-transfers): slice 11 — predicate refinement` (VT11.3 to VT11.5).
+The decisions are D258 to D264 in § *Decisions taken*, the records § *Plan
+for slices 2–13* › *Slice 11* › *Record (2026-10-04): slice 11*.
+
+Behaviour changes, as the plan's landing message states them: a nested
+condition over a refined variable decides — `if {$x eq "b"}` inside `if {$x
+eq "a"}` draws I230 and `tcl opt` drops the arm (O101), and so do a test
+inside `if {$x in {a b c}}` every member answers alike and a flattened
+`switch` inside an equality's arm (I231, O112); `string is` types its arm,
+so an index read of `i` inside `if {[string is integer -strict $i]}` draws
+no S100; a numeric `==` never rewrites the string. Beyond them, a definition in
+a refined arm takes the arm's value, so O100 inlines it where the definition
+is read (`set y $x; puts $y` in the arm of `$x eq "a"` becomes `puts a`),
+though a read of `x` itself keeps its own value; and a boolean word bounds
+no range (#2369, D262).
+
+Things the plan did not say. The lookup is a narrowing of the solver's own
+map for one block at a time (D261), and the flow that says which
+refinements hold where runs inside the sweep; the ranges read the
+refinements in place of their own reading of a condition, which needed the
+ordered comparisons as rows of the table (D262); the shimmer use checks read
+the type refinements, which is where `string is` typing its arm shows
+(D264); W210 keeps the walk's dominance over a guard's edge, read from the
+condition transfer, since the rung refines no place another actor may write
+and the walk narrowed every place (D263); `switch -nocase` and `-glob`
+refine nothing, their arms being no edges (D260).
+
+Green at the landing: the record's Green paragraph lists the suites and
+gates, run on the tree this commit commits.
+
+Left open, each with its program: a range from a comparison holds of an
+integer operand, so `set i [gets stdin]; if {$i > 5} {set x [lindex {a b c}
+$i]}` draws W230 though `end` passes the guard as a string and indexes `c`
+(#2368, outside the lane); and a read of the refined variable itself is not
+rewritten to the arm's constant, so in `switch -- $x {a {return [string
+length $x]} default {return 0}}` the arm's `[string length $x]` is not
+folded (`value-transfers-examples.md`'s `q`).
 
 ## Plan for slices 2–13
 
@@ -7730,6 +7773,163 @@ the view printed the rung's refinement on the true edge of `[info exists x]`
 after `unset x`, naming a block the solver never enters, and the view now
 leaves an untaken edge's refinements out.
 
+##### The landing: the consumers read the refinements
+
+`wip(value-transfers): slice 11 — predicate refinement` holds VT11.3 to
+VT11.5.
+
+- **The solver narrows a block by what holds there (D261).** The flow that
+  says which refinements hold where moved into the sweep (`RefinementFlow`):
+  entering a block, the solver takes what every executable edge into it
+  carries — an exception edge none — and a set that moved marks the sweep
+  changed, so the sets settle where the checkpoint's pass after the sweep put
+  them. For the block's statements and terminator it narrows each version an
+  exact value or a finite set in force there names (`narrow_values`, over the
+  checkpoint's `refined_value`) and gives the version its own value back
+  after the block (`restore_values`); the φs, which run first, read own
+  values. The post-passes that re-read the settled lattice narrow each block
+  the same way (`Narrowing`): `collect_constant_branches`, and the template
+  plans and selections, which `settled_statements` asks block by block
+  (`LatticeDriver::template_plans_in`, `selection_facts_in`). The nested
+  equality program decides: I230 on the inner condition under every dialect,
+  and `tcl opt` folds it to `0` and drops the arm (O101, O107); a test inside
+  `if {$x in {a b c}}` that every member answers alike decides the same way,
+  and a flattened `switch` inside an equality's arm draws I231 and folds to
+  the arm (O112).
+- **W210 takes the guard from the condition's transfer (D263).**
+  `collect_existence_guards`, `block_dominated_by` and `existence_exempt` are
+  deleted, and with them `existence_query::in_expr` and `ExistenceQuery`,
+  which only the walk read. The solver records each place a guarded edge
+  proves bound, with the block the edge enters, from the condition
+  transfer's existence facts (`SccpResult::existence_guards`), and the four
+  places that read the walk ask `SccpResult::guarded` — whether that block
+  dominates the one at hand: `phi_can_undef` for an incoming's predecessor
+  and a may-definition's block, the statement read and the `return` read;
+  the unset walk uses `crate::loops::dominates`, `is_existence_query_word`
+  keeps the query's own word exempt, and `UndefSuppressionSemantics` loses
+  the lexer configuration only the walk read. The first form asked the rung
+  instead, and the differential found it lose the walk's narrowing where the
+  rung refines nothing: `ident::parse` (tcllib's `ident.tcl`, line 53) and
+  `loggerUtils.tcl` (line 528) drew a W210 the walk had kept silent, every
+  name of both files being one a callback the analyser cannot read may write
+  (`a_guard_holds_where_the_rung_refines_nothing`).
+- **Types (D264).** `type_infer::propagate_types` types each block under the
+  type refinements in force there (`type_refined_statements`, `types_at`),
+  and `types_in_force` keeps the answer per block for the use-site and
+  expression shimmer checks, which read a version's type through
+  `shimmer::BlockTypes`: an index read of `i` inside `if {[string is integer
+  -strict $i]}` draws no S100, and the same read past the arm still does.
+- **Ranges (D262).** The condition transfer gains the ordered rows
+  (`ordering_facts`, with `turned_round` for a literal on the left), and
+  `intervals::refine_interval` intersects the range refinements in force at
+  the use's block in place of its own reading of the dominating conditions,
+  whose helpers go (`build_guard_index`, `guard_constraint`, `guard_interval`,
+  `GuardTables`); `interval_bounds::find_interval_bounds_with` and
+  `find_divide_by_zero_with` take the `SccpResult`, the Explorer's bounds view
+  with them. A boolean word bounds nothing (#2369); a range from a comparison
+  holds of an integer operand, and W230's reading `end` as one stays #2368's.
+- **Docs.** `sccp-core-analyses.md` (§ *Edge refinements*, and W210's guard
+  narrowing), `pass-fact-ownership-matrix.md`, `value-transfers.md` (its
+  status note, the struct, the table's ordered row and `string is` row, the
+  lookup and what it feeds), `value-transfers-migration.md` (item 11 and the
+  `sccp.rs`, `type_infer.rs`, `intervals.rs` and W210 rows),
+  `value-transfers-examples.md` (the predicate refinement rung, with what each
+  program draws now), `algorithms.md`, the GLOSSARY's *Edge refinement*, and
+  a section of the I230 KCS note on a test inside another test's arm. The
+  diagnostics rows the plan drafts for the diagnostic-policy lane's owner
+  documents: I230's row gains "a test inside another test's arm, over a
+  plain local: an equality, a finite set or an exact `switch` arm"; I231's,
+  "a flattened `switch` inside an equality's arm"; S100's, "a read in the arm
+  of `string is CLASS -strict` reads the type the test left"; W230's, "a
+  boolean word bounds no index (#2369)".
+
+Measured: `tcl opt --profile full` and `tcl diag`, run by a binary built at
+this commit and by the checkpoint's (`0c02a60e`), over the 1231 files of the
+checkpoint's corpus: one file differs, and as the slice means it to —
+tcllib's `units.tcl` loses its two S101s at lines 331 and 333, on `expr
+{$factor * $subunit}` and `expr {$factor / $subunit}` inside `if {[string
+is double -strict $subunit]}`, where the test has left `subunit` a number
+(D264) — and every other file prints the same, standard output and exit
+status. The landing's first form also drew the two W210s in tcllib's
+`ident.tcl` and `loggerUtils.tcl` that the rework of D263 removed; this run
+is on the reworked tree, after the container restart that stopped the first
+full run.
+
+Tests: `the_nested_equality_decides`, `the_twelve_refinement_witnesses` (the
+page's twelve programs under tclsh 8.4 to 9.1, before and after `tcl opt`,
+`08 == 8` and the `-nocase` and `in` rows by release),
+`a_string_is_test_types_its_arm` and
+`a_definition_in_a_refined_arm_takes_the_arms_value` (`set y $x` in the arm
+of `$x eq "a"` is the constant `a`, O100 rewrites `puts $y` to `puts a` and
+leaves `puts $x`, and the program prints the same under tclsh 8.4 to 9.1
+before and after `tcl opt`; `value_transfer_witnesses.rs`);
+`the_nested_equality_decides_through_diag_and_opt` (`value_transfers_cli.rs`:
+I230 on line 3 under every release's dialect, `puts never` gone from `tcl
+opt`'s program, `inner` from both under tclsh 8.4 to 9.1);
+`a_string_is_type_is_the_representation_its_test_leaves` (`differential_fold.rs`:
+each member a typed class accepts reads back as the type through
+`tcl::unsupported::representation` under tclsh 8.6 to 9.1, and the untyped
+`boolean` and `list` leave more than one); `an_ordered_comparison_states_the_half_line_on_each_edge`
+(`tcl_expr_eval.rs`) and six new rows of `each_shape_refines_the_edge_its_table_row_names`
+(either side, hex and an 8.6 octal, a boolean word and a double stating
+nothing); `a_numeric_guard_narrows_the_index` and `a_boolean_word_bounds_no_index`
+(`tests/intervals.rs`), whose `guard_narrowing` and `dialect_numerals` now
+read the refinement on a `while` loop's body, where the checkpoint's rotated
+`for` tested a version the body never reads;
+`sccp_text_prints_each_edge_refinement` (`tcl-explorer`), whose inner
+refinement no longer shows, its edge never taken;
+`a_guard_holds_where_the_rung_refines_nothing` (diagnostics `tests.rs`: in a
+module with a callback the analyser cannot read, `return $x` after `if
+{![info exists x]} {set x 0}` draws no W210 and the same shape without the
+`set` still draws one). The three `info_exists_*` precedent tests and
+`the_guarded_global_idiom_draws_no_w210` pass unchanged; the five unit
+tests of `guard_interval` and `guard_constraint` go with them, their rows now
+the new unit test's and the table's.
+
+Green at the landing: `tcl-compiler` 10163 passed, 6 ignored across its
+binaries and doctests (the library 6730, `value_transfer_witnesses` 129,
+`intervals` 73), `tcl-registry` 1426 (the new witness), `tcl-explorer` 111,
+`tcl-lsp-db` 139, 5 ignored, `tcl-lsp-core --lib` 2353, `tcl-cli` 205 (the
+new witness), `xtask` 275, `tcl-spectcl` 476, 1 ignored, and `tcl-cmd-core`
+143, every suite run again on the tree after the W210 rework (D263), and the
+gates and the compiler's library (6730) once more after `PhiUndefCtx`'s
+field took the name of what it holds (`sccp`); workspace clippy
+(`--all-targets -D warnings -A clippy::assert_is_empty`), no `#[allow]`
+added, `cargo fmt --check` and `cargo check --workspace --all-targets`
+clean; `value-transfers --check` (22 clean, 19 waived, 83
+pinned across 34 files, 6625 rows) and `registry-axes --check` (7834
+vocabulary words, 16 clean, 37 waived, 893 pinned across 147 files)
+unchanged, `LANDED` gaining `"slice 11"` expiring no waiver; `pack-goldens`,
+`retired-api-gate`, `owner-resolution` and `kcs-index-links` pass;
+`dialect-drift` 8 sites, none new. `tcl-spectcl`'s
+`cache::tests::the_two_tiers_share_one_identity` failed once, on `clear:
+Directory not empty`, while the differential ran `tcl opt` beside it — the
+shared cache directory, as at the VT10.3 fix — and the crate passes whole
+under a private `XDG_CACHE_HOME`, as the second round ran it.
+
+##### What slice 12 starts from
+
+What slice 11 built, which slice 12's loop enumeration reads or changes:
+
+- **The sweep narrows a block for its statements and gives the value back.**
+  `SweepContext::narrow` and `restore_values` bracket each block's statements
+  and terminator, and `RefinementFlow::enter` runs at each block the sweep
+  enters; an enumerated loop's exit state, published on its exit edge only,
+  is a fact of the same shape — one edge, the versions live there — and a
+  loop header whose back edge the enumeration closes changes which edges are
+  executable, which the flow reads as it is.
+- **The ranges read refinements, not conditions.** `intervals::refine_interval`
+  intersects the range refinements in force at a block; the loop-header
+  widening and `MAX_ITERS` are as slice 10 left them, and an exit state that
+  bypasses the widening (the migration page's `intervals.rs` row) sits beside
+  the refinements rather than in place of them.
+- **`static_loops.rs` is untouched,** and so are `bounds_checks.rs` and
+  W240–W242; a `for` whose condition holds on entry is still rotated, so its
+  latch tests the post-increment version, which the body never reads, and
+  the refinement on the latch's true edge narrows nothing in the body
+  (`tests/intervals.rs`'s guard tests read a `while` loop's body for that
+  reason).
+
 ### Slice 12 — bounded-loop enumeration
 
 #### Goal and exit
@@ -11162,6 +11362,10 @@ Taken in slice 11, predicate refinement (§ *Slice 11* › *Record (2026-10-04):
 - **D258 — An edge refinement's fact is the registry's `FactView`, and one condition-tree transfer states every domain's** (VT11.1, VT11.2). The plan's struct names `fact: DomainFact`, which the registry keeps for the domains other than the value domain, whose answers are `FactView::Exact` and `FactView::Finite`; a refinement is one answer of a domain, so its fact is a `FactView` — `Exact`, `Finite` or `Domain`, never `Pending` or `Top` — and `domain` names which. The facts come from `tcl_expr_eval::condition_edge_facts`, the existence rung's included, so a condition is read once for every domain: the variable is a plain local read whole (`$x`, `${x}`, the flattened `switch` subject's `Raw` text), never an element, whose `Var` name the parser reduces to its array, nor a qualified name; the literal is a bare literal's text (`expr {$x eq 0x10}` compares the spelling, tclsh 8.4 to 9.1), a string operand's body where it is its value in every dialect, or a braced or substitution-free compiled word. `==` is a string comparison where the literal is no number under the target's numeral grammar and leading-zero rule (`classify_operand`; the registry's `numbers` and `octal_fold_policy`, the 9.0 grammar where no dialect is named, and nothing at all where the rule is open), and otherwise refines the type `Numeric` and an integer's range point. `string is` refines the representation its test leaves the value with, measured with `tcl::unsupported::representation` under tclsh 8.6 to 9.1: an integer for the integer classes and an integer or a double for `double`, each under `-strict` alone, since without it the empty string passes and stays a string, and a dictionary for `dict` either way; `list` leaves `{}` a pure string and the boolean classes leave `0` and `1` integers, so neither refines, nor does a character class, `-failindex` or an option spelled other than `-strict` — Tcl accepts `-str`, which this reading leaves alone. A `string is` head is read only where the run trusts it (`LatticeDriver::trusted`); the existence query keeps slice 8's reading, which does not ask.
 - **D259 — The first checkpoint records the refinements and their lookup, and only the existence rung reads any** (VT11.1; the plan's checkpoint, whose green is every decision byte-identical). VT11.1 has the lookup "consulted first by `env_from_uses`, `evaluate_branch` and `evaluate_def_with_folds`", and VT11.2's table produces exact values the first of those would decide the nested `if` with; both cannot hold in a byte-identical checkpoint, so the checkpoint builds the lookup and the landing (VT11.3) makes the solver read it. `env_from_uses` no longer exists: the driver's inputs read each variable through the statement's versions (`LatticeInputs`), and `evaluate_branch` reads the branch block's exit versions, so the landing overlays the block's refined values where they read. Measured: `tcl opt --profile full` and `tcl diag` print the same with and without the checkpoint over the corpus the record names.
 - **D260 — A `switch` refines only where its arms are edges** (VT11.2). An exact `switch` with no fall-through arm, whose subject no option scan reads, lowers to a chain of `StrEq` tests (`switch_is_flattened`), and the `eq` row refines each arm's edge. `-nocase`, `-glob` and `-regexp`, and an exact `switch` with a fall-through arm, stay one statement whose arms are scripts inside it (`lower_opaque_switch`); no edge enters an arm, so their rows — the finite set of a fall-through run, the case-insensitive type, the glob prefix as `Segments` — have nothing to sit on, and the selection record (`SccpResult::selections`) remains what states which arm runs.
+- **D261 — The solver reads a block's refinements by narrowing the versions they name for the block, and the flow that says which hold where runs inside the sweep** (VT11.3). The plan's lookup is "consulted first" by three readers; the driver now reads every operand through one map (`LatticeInputs` over `SccpResult::values`), so the solver narrows the map itself for the span of one block — after its φs, which read own values, and before its statements and terminator — and gives each version its own value back after it (`narrow_values`, `restore_values`): a refinement never makes a version, and no later block sees one it does not hold. Which refinements hold at a block is a must-analysis over the executable edges, and those grow as the sweep opens them, so it runs in the sweep (`RefinementFlow::enter`): a moved set marks the sweep changed, the sets only shrink, and a definition in a narrowed block joins what every sweep computed (`set_value`), so the fixed point is the checkpoint's. The post-passes that re-read the settled lattice read each block as the sweep did (`Narrowing`): the constant branches, and the template plans and selections, which `settled_statements` now asks block by block. A refinement's version is never defined in a block where it holds — its definition dominates the branch, and the path that first reaches the definition never crosses the edge — so restoring never undoes a definition.
+- **D262 — The ranges read the range refinements, and an ordered comparison states its half-line** (VT11.3; R1). `intervals::refine_interval` read the dominating conditions itself (`build_guard_index`, `guard_constraint`, `guard_interval`), matching operators outside the condition tree, which R1 forbids; it now intersects the range refinements in force at the use's block (`SccpResult::refinements_in`). The condition transfer gains the rows the ranges read: `<`, `<=`, `>` and `>=` against an integer numeral, either side (`turned_round`), state the half-line an integer operand lies on, on each edge (`ordering_facts`; the false edge reads `BinOp::inverse`, saturating at the 64-bit edge). The literal is read as `==` reads one (`classify_operand`), so a word — `true` and `false` among them, which a comparison reads as a string — a double, a bignum and an open leading zero state nothing: the guard's own reading took a boolean word as 0 or 1 (`literal_int`), and `set i [string trim $s]; if {$i < false} {lindex {a b} $i}` reported W230 where tclsh 8.4 to 9.1 print `b` for `1` (#2369, closed by this landing at the coordinator's ruling). A range from a comparison holds of an integer operand: a value that is not one compares as a double or a string, so `end` passes `$i > 5` and indexes the last element, and W230's reading such a value as an integer is #2368's to fix, outside the lane; the refinement keeps the condition's semantics as it found them. The ranges now take a refinement only for a plain local no other actor may write, in a block that holds no barrier, where the guard walk took any dominating condition.
+- **D263 — W210 takes an existence guard's word from the condition's transfer, by the dominance the walk tested** (VT11.3; the delta "the existence guard is the refinement lookup (byte-identical effect)"). VT11.3 has the walk's three callers read "the block-qualified existence fact", the rung's. The rung refines no place another actor may write — a global, an alias, and every name of a module whose callbacks the analyser cannot read — and the walk narrowed W210 for every place; reading the rung alone, the landing's first form drew W210 on `return $answer` after `if {![info exists answer]} {set answer …}` in tcllib's `ident.tcl` and on `loggerUtils.tcl`'s `appender`, which the walk had kept silent and tclsh never raises. So the walk's reading of the condition goes — `collect_existence_guards` with `existence_query::in_expr`, and `block_dominated_by` and `existence_exempt` — and its answer stays: the solver records each place a guarded edge proves bound from the condition transfer's existence facts (`SccpResult::existence_guards`, every place, the rung's own and the rest), and W210 asks whether the edge's block dominates the read's, the predecessor's or the return's (`SccpResult::guarded`), by name as the walk did. The transfer states a guard under `&&` and `||` too, which the walk did not read, so a read those forms guard is no longer reported for a place the rung does not refine, as it already was not for one it does (slice 8). The rung's last word at every W210 stays as it was; `UndefSuppressionSemantics` loses the lexer configuration only the walk read.
+- **D264 — The type lattice reads the type refinements, and so do the shimmer use checks** (VT11.3). `propagate_types` types each block under the type refinements in force there (`type_refined_statements`, over `types_at`: the proved type, or the version's own where that is the proved one or narrower), so a definition there takes it, and gives each version its own type back past the block; `types_in_force` keeps the per-block answer, which the use-site and expression shimmer checks read through `shimmer::BlockTypes`. That is where `string is` typing its arm shows: S100 on an index read of `i` inside `if {[string is integer -strict $i]}` is gone, since the test left `i` an integer. Every shimmer check skips a version-0 read, so a parameter's refinement changes no report.
 
 ### Open questions for the owner
 

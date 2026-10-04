@@ -37,9 +37,8 @@ use tcl_registry::value_transfer::{DomainFact, Existence, FactView};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use super::helpers::{
-    PhiUndefMemo, UndefSuppression, block_dominated_by, build_phi_undef_index,
-    collect_existence_guards, find_dotted_quads, is_ident_continue, is_word_byte, phi_can_undef,
-    source_slice,
+    PhiUndefMemo, UndefSuppression, build_phi_undef_index, find_dotted_quads, is_ident_continue,
+    is_word_byte, phi_can_undef, source_slice,
 };
 use crate::analyser::bounds_checks::HeaderFact;
 use crate::analyser::state::Analyser;
@@ -148,7 +147,6 @@ pub(super) struct ReturnUndefCtx<'a> {
     pub global_aliases: &'a HashSet<String>,
     pub dialect: Option<SurfaceQuery<'a>>,
     pub params: &'a HashSet<&'a str>,
-    pub exists_guards: &'a [(String, crate::cfg::BlockId)],
     pub scope_aliases: &'a HashSet<String>,
     pub extra_known_defined: &'a HashSet<String>,
     pub defined_vars: &'a HashSet<String>,
@@ -266,7 +264,6 @@ fn destroys_variable(registry: Option<&tcl_registry::CommandRegistry>, command: 
 
 /// Facts used while recording the read sites of one undef def-use chain.
 struct W210ChainCtx<'a> {
-    exists_guards: &'a [(String, crate::cfg::BlockId)],
     supp: &'a UndefSuppression,
     startup: StartupReadFacts,
 }
@@ -1282,14 +1279,6 @@ file; this call falls through to the 'unknown' handler."
         };
         let params = &params_owned;
 
-        // Collect `[info exists X]` / `[array exists X]`
-        // guards: `(var, guard_block)` where reads of `var` in any
-        // block dominated by `guard_block` are guarded (X is known to
-        // exist there).  Positive guards the true arm; `![info exists
-        // X]` guards the false arm.
-        let exists_guards =
-            collect_existence_guards(fu, self.registry.as_deref(), self.lexer_config());
-
         // W210 fires **once per variable**, at the earliest read-before-set.
         // The def-use walk below
         // visits *every* version-0 use, so record the earliest passing span
@@ -1400,7 +1389,6 @@ file; this call falls through to the 'unknown' handler."
                 fu,
                 chain,
                 &W210ChainCtx {
-                    exists_guards: &exists_guards,
                     supp: ctx.supp,
                     startup,
                 },
@@ -1557,17 +1545,14 @@ file; this call falls through to the 'unknown' handler."
             if stmt_opt.is_some_and(statement_is_synthetic_effect) {
                 continue;
             }
-            // Skip the existence-query word itself and
-            // reads narrowed by an enclosing `[info exists X]` guard.
-            if existence_exempt(
-                stmt_opt,
-                var,
-                ctx.exists_guards,
-                &fu.ssa,
-                &use_site.block,
-                self.registry.as_deref(),
-                self.lexer_config(),
-            ) {
+            // Skip the existence-query word itself and reads in the region
+            // an enclosing `[info exists X]` guard proves `X` bound.
+            if is_existence_query_word(stmt_opt, var, self.registry.as_deref(), self.lexer_config())
+                || fu
+                    .cfg
+                    .block_id(&use_site.block)
+                    .is_some_and(|block| fu.sccp.guarded(&fu.ssa, var, block))
+            {
                 continue;
             }
             // An unbind of the place — a command the registry declares
@@ -1816,9 +1801,10 @@ file; this call falls through to the 'unknown' handler."
     /// Decide whether a single `return`-value read of `(name, ver)` in block
     /// `bn` is a W210 phi-from-undef read: its reaching version must be able to
     /// reach an undef origin, and it must not be a parameter / scope alias /
-    /// known-defined / qualified / suppressed name or be proven
-    /// defined by a dominating existence guard.  Version-0 reads are handled by
-    /// the def-use `DefKind::Parameter` emitter, so they never fire here.
+    /// known-defined / qualified / suppressed name or lie in the region an
+    /// existence guard proves it bound ([`crate::sccp::SccpResult::guarded`]).
+    /// Version-0 reads are handled by the def-use `DefKind::Parameter`
+    /// emitter, so they never fire here.
     fn return_read_fires_w210(
         fu: &crate::compilation_unit::FunctionUnit,
         name: &str,
@@ -1848,7 +1834,7 @@ file; this call falls through to the 'unknown' handler."
             may_defs: phi_idx.may_defs,
             considered: ctx.considered,
             executable_edges: &fu.sccp.executable_edges,
-            exists_guards: ctx.exists_guards,
+            sccp: &fu.sccp,
             initial_global: ctx.initial_global,
             global_aliases: ctx.global_aliases,
             dialect: ctx.dialect,
@@ -1882,15 +1868,9 @@ file; this call falls through to the 'unknown' handler."
         {
             return false;
         }
-        // A dominating existence guard proves the var exists here.
-        if ctx
-            .exists_guards
-            .iter()
-            .any(|(gv, gblk)| gv == name && block_dominated_by(&fu.ssa, bn, *gblk))
-        {
-            return false;
-        }
-        true
+        // An existence guard whose region holds the return proves the
+        // variable defined here.
+        !fu.sccp.guarded(&fu.ssa, name, bn)
     }
 
     /// I230 / I231 — constant branch / switch-arm condition.
@@ -2260,13 +2240,12 @@ file; this call falls through to the 'unknown' handler."
         for finding in crate::interval_bounds::find_divide_by_zero_with(
             &fu.cfg,
             &fu.ssa,
-            &fu.sccp.values,
+            &fu.sccp,
             &executable,
             // The document's own numeral grammar: a divisor literal means what
             // this dialect says it means (`0755` is 493 up to 8.6, 755 from
             // 9.0), and this process analyses documents of several dialects.
             crate::intervals::numbers_for_dialect(Some(self.profile)),
-            self.grammar(),
         ) {
             let span = fu.abs_span(finding.span);
             if span.is_empty() {
@@ -2310,7 +2289,7 @@ file; this call falls through to the 'unknown' handler."
         let findings = crate::interval_bounds::find_interval_bounds_with(
             &fu.cfg,
             &fu.ssa,
-            &fu.sccp.values,
+            &fu.sccp,
             &executable,
             self.profile.character_model(),
             // The document's own numeral grammar, alongside the character model
@@ -2853,31 +2832,19 @@ fn existence_query_vars(
     out
 }
 
-/// True when a read of `var` at `use_block` is exempt
-/// from W210 because it is the existence-query word itself, or because
-/// it sits in a region guarded by an enclosing `[info exists var]`.
-fn existence_exempt(
+/// True when a read of `var` is the word of an existence query in the
+/// statement itself (`info exists var`), which W210 never reports.
+fn is_existence_query_word(
     stmt_opt: Option<&crate::ir::Statement>,
     var: &str,
-    exists_guards: &[(String, crate::cfg::BlockId)],
-    ssa: &crate::ssa::SsaFunction,
-    use_block: &str,
     registry: Option<&tcl_registry::CommandRegistry>,
     config: tcl_lexer::LexerConfig,
 ) -> bool {
-    if let Some(stmt) = stmt_opt
-        && existence_query_vars(stmt, registry, config)
+    stmt_opt.is_some_and(|stmt| {
+        existence_query_vars(stmt, registry, config)
             .iter()
             .any(|q| q == var)
-    {
-        return true;
-    }
-    let Some(use_id) = ssa.block_id(use_block) else {
-        return false;
-    };
-    exists_guards
-        .iter()
-        .any(|(gv, gblk)| gv == var && block_dominated_by(ssa, use_id, *gblk))
+    })
 }
 
 /// True when a read of `var` at this use-site statement is in fact a safe

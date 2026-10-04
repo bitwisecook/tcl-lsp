@@ -10,8 +10,6 @@
 //! `::info exists name` therefore follow the same resolved invocation as
 //! every other compiler consumer.
 
-use crate::expr_ast::{ExprNode, UnaryOp};
-
 /// The fact an existence query asks about a variable name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ExistenceKind {
@@ -19,43 +17,6 @@ pub(crate) enum ExistenceKind {
     AnyVariable,
     /// The name is bound specifically to an array.
     Array,
-}
-
-/// A registry-resolved command-substitution existence query.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ExistenceQuery {
-    /// The queried name, exactly as written.
-    pub(crate) var: String,
-    /// Whether the containing condition negates the query.
-    pub(crate) negated: bool,
-    /// The query's registry-owned semantic distinction.
-    pub(crate) kind: ExistenceKind,
-}
-
-/// Recognise one expression condition as a registry-owned existence query.
-#[must_use]
-pub(crate) fn in_expr(
-    node: &ExprNode,
-    registry: &tcl_registry::CommandRegistry,
-    config: tcl_lexer::LexerConfig,
-) -> Option<ExistenceQuery> {
-    match node {
-        ExprNode::Unary {
-            op: UnaryOp::Not,
-            operand,
-        } => in_expr(operand, registry, config).map(|query| ExistenceQuery {
-            negated: !query.negated,
-            ..query
-        }),
-        ExprNode::Command { text, .. } => {
-            in_text(text, registry, config).map(|(var, kind)| ExistenceQuery {
-                var,
-                negated: false,
-                kind,
-            })
-        }
-        _ => None,
-    }
 }
 
 /// Recognise one bracketed command substitution as an existence query.

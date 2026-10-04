@@ -802,17 +802,17 @@ analyser consume together.
 ```tcl
 proc p {} {
     if {![info exists x]} { set x 0 }
-    puts $x                ;# today: no W210 — the negated existence guard narrows the read's block
+    puts $x                ;# no W210 — the existence rung holds x bound on both paths into the read
 }
 ```
 
-The existence guard is the precedent: `collect_existence_guards` refines
-by dominance, for one domain and one condition shape.
+The existence guard is the precedent: the existence rung refines a guard's
+edges in its own domain, and a W210 read asks it last.
 
 ```tcl
 proc p {x} {
     if {$x eq "a"} {
-        if {$x eq "b"} { puts both }   ;# today: nothing — the outer test does not narrow x
+        if {$x eq "b"} { puts both }   ;# I230 "always false"; O101 folds it and O107 drops the arm
     }
 }
 proc q {x} {
@@ -820,22 +820,25 @@ proc q {x} {
         a { return [string length $x] }
         default { return 0 }
     }
-}                          ;# today: nothing — the arm does not narrow x
+}                          ;# the arm holds x as a; nothing is reported or rewritten
 proc r {x} {
-    if {[string is integer $x]} { return [expr {$x + 1}] }   ;# today: nothing — the class is not a type fact
+    if {[string is integer $x]} { return [expr {$x + 1}] }   ;# nothing — without -strict the test proves no type
     return 0
 }
 proc s {x} {
     if {$x in {a b c}} {
-        if {$x eq "d"} { puts no }     ;# today: nothing — the set is not a lattice value
+        if {$x eq "d"} { puts no }     ;# I230 "always false"; O101 and O107
     }
 }
 ```
 
-Under the contracts each test publishes an `EdgeRefinement` on its true
-edge: `p`'s inner condition decides false, so I230 and O112 fire on it;
-`q`'s arm entry holds `x` as `a`, so `[string length $x]` folds to `1`;
-`r`'s true edge carries the class as a `Type` fact and never a value;
+Each test publishes an `EdgeRefinement` on its true edge, and the solver
+narrows `x` by it in every block each path into which crosses that edge:
+`p`'s inner condition decides false, so I230 and O101 fire on it and O107
+drops the arm; `q`'s arm entry holds `x` as `a`, though `[string length
+$x]` there is not folded; `r`'s test proves no type, since without
+`-strict` the empty string passes it and stays a string —
+`[string is integer -strict $x]` carries an integer type, never a value;
 `s`'s true edge carries the finite set `{a b c}`, so the inner test
 decides false. `s` is 8.5 onwards, where the `in` operator exists —
 `$x in {a b c}` is a syntax error under 8.4 — as is the `-nocase` row of
@@ -843,7 +846,7 @@ the per-shape table.
 
 ```tcl
 proc p {x} {
-    if {$x == 1} { return [string length $x] }   ;# today: nothing
+    if {$x == 1} { return [string length $x] }   ;# nothing — x may be 1.0, whose length is 3
     return no
 }
 proc q {x} {
@@ -853,12 +856,11 @@ proc q {x} {
 ```
 
 `p 1.0` is `3` in every release and `q 08` is `no` under 8.4, 8.5, and 8.6
-and `08` under 9.0 and 9.1. Under the contracts a numeric `==` refines the
-`Range` domain to a point and the `Type` domain to numeric and never the
-`ExactValue` domain — that is why `==` is not `eq` — the leading-zero
-release split is a decision about which edge is taken and not about the
-string, and an externally mutable place (`is_externally_mutable`) is never
-refined at all.
+and `08` under 9.0 and 9.1. A numeric `==` refines the `Range` domain to a
+point and the `Type` domain to numeric and never the `ExactValue` domain —
+that is why `==` is not `eq` — the leading-zero release split is a decision
+about which edge is taken and not about the string, and an externally
+mutable place (`is_externally_mutable`) is never refined at all.
 
 ### W124 · invalid IP literal
 
@@ -1006,8 +1008,9 @@ proc r {a} {
 
 The whole-body scan already decides a name no statement assigns and a
 parameter every call binds: `r 1` is `yes` in every release, and the
-guarded read in `p` draws no W210, which is the guard narrowing
-`collect_existence_guards` applies by dominance.
+guarded read in `p` draws no W210, which is the guard's region
+(`SccpResult::guarded`), the block its edge enters and every block that one
+dominates.
 
 ```tcl
 proc p {} {

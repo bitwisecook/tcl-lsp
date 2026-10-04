@@ -65,7 +65,10 @@ use super::{ShimmerWarning, type_name};
 pub(crate) fn find_use_site_shimmers(
     cfg: &CfgFunction,
     commit_ctx: &super::commit::CommitCtx<'_>,
-    executable_blocks: &HashSet<BlockId>,
+    (executable_blocks, in_force): (
+        &HashSet<BlockId>,
+        &HashMap<(BlockId, ValueKey), TypeLattice>,
+    ),
     facts: &super::ShimmerFacts,
 ) -> Vec<ShimmerWarning> {
     let super::commit::CommitCtx {
@@ -108,7 +111,7 @@ pub(crate) fn find_use_site_shimmers(
         let mut commit_walker = facts.commit.walker(commit_ctx, block_id);
         for ss in &ssa_block.statements {
             let mut ctx = UseSiteCtx {
-                types,
+                types: super::BlockTypes::at(types, in_force, block_id),
                 registry,
                 def_map: &def_map,
                 values,
@@ -133,7 +136,8 @@ pub(crate) fn find_use_site_shimmers(
 /// through the use-site shimmer walk.  `in_loop` / `already_coerced` are
 /// per-block; `out` accumulates across the whole function.
 struct UseSiteCtx<'a> {
-    types: &'a HashMap<ValueKey, TypeLattice>,
+    /// The type lattice as the block reads it.
+    types: super::BlockTypes<'a>,
     registry: &'a CommandRegistry,
     def_map: &'a HashMap<ValueKey, Span>,
     values: &'a HashMap<ValueKey, LatticeValue>,
@@ -436,7 +440,7 @@ fn resolve_tracked_var_use(
     }
     let lattice = ctx
         .types
-        .get(&(sym, ver))
+        .get((sym, ver))
         .cloned()
         .unwrap_or_else(TypeLattice::unknown);
     if lattice.kind() != TypeKind::Known {
@@ -786,7 +790,7 @@ fn check_incr_var(ctx: &mut UseSiteCtx<'_>, var: &str, span: Span, uses: &HashMa
     }
     let lattice = ctx
         .types
-        .get(&(sym, ver))
+        .get((sym, ver))
         .cloned()
         .unwrap_or_else(TypeLattice::unknown);
     if lattice.kind() != TypeKind::Known {
@@ -883,7 +887,13 @@ mod tests {
             ),
             loop_blocks: super::super::graph::loop_body_blocks(&fu.cfg),
         };
-        find_use_site_shimmers(&fu.cfg, &ctx, &fu.sccp.executable_blocks, &facts)
+        let in_force = crate::type_infer::types_in_force(&fu.types, &fu.sccp);
+        find_use_site_shimmers(
+            &fu.cfg,
+            &ctx,
+            (&fu.sccp.executable_blocks, &in_force),
+            &facts,
+        )
     }
 
     /// A computed constant never hides a conversion

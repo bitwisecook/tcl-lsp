@@ -225,63 +225,6 @@ pub(super) fn is_ident_continue(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_' || b == b':'
 }
 
-/// Collect `(var, guard_block)` pairs for every
-/// `[info exists X]` / `[array exists X]` branch condition in `fu`.
-/// A read of `var` in any block dominated by `guard_block` is guarded
-/// (X provably exists).  A positive query guards the true target; a
-/// `![info exists X]` query guards the false target.
-pub(super) fn collect_existence_guards(
-    fu: &crate::compilation_unit::FunctionUnit,
-    registry: Option<&tcl_registry::CommandRegistry>,
-    config: tcl_lexer::LexerConfig,
-) -> Vec<(String, BlockId)> {
-    use crate::cfg::Terminator;
-    let mut guards = Vec::new();
-    let registry = match registry {
-        Some(registry) => registry,
-        None => tcl_registry::default_registry(),
-    };
-    for block in fu.cfg.blocks.values() {
-        if let Some(Terminator::Branch {
-            condition,
-            true_target,
-            false_target,
-            ..
-        }) = &block.terminator
-            && let Some(query) = crate::existence_query::in_expr(condition, registry, config)
-        {
-            // Either spelling proves the name is bound in the guarded region:
-            // `array exists X` implies `info exists X`.
-            let target = if query.negated {
-                *false_target
-            } else {
-                *true_target
-            };
-            guards.push((query.var, target));
-        }
-    }
-    guards
-}
-
-/// True when `block` is dominated by `dom` (walking the SSA immediate
-/// dominator chain; a block dominates itself).
-pub(super) fn block_dominated_by(
-    ssa: &crate::ssa::SsaFunction,
-    block: BlockId,
-    dom: BlockId,
-) -> bool {
-    let mut cur = block;
-    loop {
-        if cur == dom {
-            return true;
-        }
-        match ssa.idom.get(&cur) {
-            Some(Some(parent)) => cur = *parent,
-            _ => return false,
-        }
-    }
-}
-
 /// Names whose whole binding is removed by an `unset` call.  Conservative:
 /// only a **literal** bare name kills
 /// (a dynamic `unset $name` targets the variable *named by* `$name`, not
@@ -327,7 +270,11 @@ pub(super) struct PhiUndefCtx<'a> {
     pub may_defs: &'a MayDefMap,
     pub considered: &'a HashSet<BlockId>,
     pub executable_edges: &'a HashSet<(BlockId, BlockId)>,
-    pub exists_guards: &'a [(String, BlockId)],
+    /// The function's solver result, whose existence guards
+    /// ([`crate::sccp::SccpResult::guarded`]) prove a place bound in the
+    /// region a guard's edge enters: an incoming whose predecessor, or a
+    /// may-definition whose block, lies there reaches no undef origin.
+    pub sccp: &'a crate::sccp::SccpResult,
     /// Startup bindings exist only in the document's initial global frame.
     pub initial_global: bool,
     /// Locals that registry metadata says alias the interpreter's global
@@ -548,14 +495,10 @@ impl PhiUndefIndex {
                 {
                     continue;
                 }
-                // A dominating existence guard proves the variable is defined
-                // at the predecessor; that incoming cannot be undef regardless
-                // of its SSA version.
-                if ctx
-                    .exists_guards
-                    .iter()
-                    .any(|(gv, gblk)| gv == name && block_dominated_by(ctx.ssa, pred, *gblk))
-                {
+                // An existence guard whose region holds the predecessor proves
+                // the variable defined there; that incoming cannot be undef
+                // regardless of its SSA version.
+                if ctx.sccp.guarded(ctx.ssa, name, pred) {
                     continue;
                 }
                 // A definition a route preserved, and the fresh version a call
@@ -578,12 +521,7 @@ impl PhiUndefIndex {
                 continue;
             };
             let node = (symbol, key.1);
-            if killed.contains_key(&node)
-                || ctx
-                    .exists_guards
-                    .iter()
-                    .any(|(gv, gblk)| *gv == key.0 && block_dominated_by(ctx.ssa, block, *gblk))
-            {
+            if killed.contains_key(&node) || ctx.sccp.guarded(ctx.ssa, &key.0, block) {
                 continue;
             }
             let name_facts = *facts
@@ -950,7 +888,7 @@ impl UndefSuppression {
                 if site == block {
                     usize::try_from(index).map_or(true, |index| at <= index)
                 } else {
-                    block_dominated_by(ssa, block, site)
+                    crate::loops::dominates(ssa, site, block)
                 }
             })
         })
@@ -971,7 +909,7 @@ impl UndefSuppression {
             if site == block {
                 usize::try_from(index).map_or(true, |index| at < index)
             } else {
-                block_dominated_by(ssa, block, site)
+                crate::loops::dominates(ssa, site, block)
             }
         })
     }
@@ -1378,7 +1316,6 @@ pub(super) struct UndefSuppressionSemantics<'a> {
     pub dialect: Option<SurfaceQuery<'a>>,
     pub registry: Option<&'a tcl_registry::CommandRegistry>,
     pub rules: tcl_syntax::word_rules::WordValueRules,
-    pub lexer_config: tcl_lexer::LexerConfig,
 }
 
 pub(super) fn build_undef_suppression(
@@ -1392,7 +1329,6 @@ pub(super) fn build_undef_suppression(
         dialect,
         registry,
         rules,
-        lexer_config,
     } = semantics;
     let commands = registry.unwrap_or_else(|| tcl_registry::default_registry());
     let UndefIndexMaps {
@@ -1404,7 +1340,6 @@ pub(super) fn build_undef_suppression(
     // Phi versions that can reach an undef origin on some executable path —
     // a statement read of one is read-before-set. The per-use existence
     // guard + suppression set still apply in the emitter loop.
-    let exists_guards = collect_existence_guards(fu, registry, lexer_config);
     let undef_ctx = PhiUndefCtx {
         registry: commands,
         phi_def: &phi_def,
@@ -1413,7 +1348,7 @@ pub(super) fn build_undef_suppression(
         may_defs: &may_defs,
         considered,
         executable_edges: &fu.sccp.executable_edges,
-        exists_guards: &exists_guards,
+        sccp: &fu.sccp,
         initial_global,
         global_aliases,
         dialect,

@@ -29,7 +29,8 @@
 //! provably integral, or whose range we cannot bound, are `TOP` — always sound.
 //! Loop-header phis are **widened** so the fixpoint terminates.  Tightening back
 //! is query-driven via [`refine_interval`], which intersects a value's interval
-//! with the dominating constant-bound guards at a specific use site.  If the
+//! with the range refinements in force at a specific use site — what the branch
+//! conditions every path there crossed prove of it.  If the
 //! bounded fixpoint does not converge within the iteration cap, the whole result
 //! degrades to `TOP` rather than risk returning a still-ascending (unsound,
 //! too-narrow) interval.
@@ -45,7 +46,7 @@ use tcl_syntax::expr::ast::{BinOp, ExprNode, UnaryOp};
 use tcl_syntax::number::{Number, ParseFlags, parse_whole_with};
 
 use crate::analyses::{ConstValue, LatticeValue};
-use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
+use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::ssa::{SsaFunction, ValueKey, Version};
 
@@ -374,133 +375,6 @@ fn eval_expr_at(
     }
 }
 
-/// The interval a value satisfies given `value <op> k` is true (or false, when
-/// `negate`).  Returns the half-line constraint, or `None` if `op` is not an
-/// order/equality comparison.
-///
-/// The `negate` (false-edge) inversion comes from [`BinOp::inverse`] — the
-/// owner table in `tcl_syntax::expr::operators` — rather than a local copy of
-/// its rows.  Operators the table inverts but this domain does
-/// not model (`eq`/`ne`, `in`/`ni`, the string orderings) invert to another
-/// unmodelled operator and fall out of the match below as `None`, exactly as
-/// they did when the local table passed them through untouched.
-///
-/// **NaN and the false edge.**  `BinOp::inverse_needs_non_nan` flags the four
-/// ordered rows: `!(x < k)` is *not* `x >= k` when `x` may be NaN, because a
-/// NaN operand makes every ordered comparison false, so a NaN `x` takes the
-/// false edge of `if {$x < k}` without satisfying `x >= k`.  That is sound here
-/// because this is an **integer** abstract domain: an [`Interval`] is only ever
-/// read as "*if* this value is an integer, it lies in this range", and NaN — like
-/// `1.5` or `abc` — is simply not in the domain.  The lone guard-narrowing
-/// consumer ([`crate::interval_bounds`]) acts on the fact only where the value
-/// is used as a list index, which must be an integer or the access fails
-/// anyway, and it reports only when the *whole* interval is out of range, so a
-/// non-integer value can never turn the narrowing into a claim about
-/// well-formed code.  The equality rows need no such argument: `!=` is the
-/// exact complement of `==` even for NaN.
-#[must_use]
-fn guard_interval(op: BinOp, k: i64, negate: bool) -> Option<Interval> {
-    let op = if negate {
-        op.inverse().unwrap_or(op)
-    } else {
-        op
-    };
-    match op {
-        // Saturate the `±1` at the i64 boundary: a branch literal of `i64::MIN`
-        // (for `<`) or `i64::MAX` (for `>`) would overflow an unchecked `k ± 1`
-        // and panic in debug/test builds. Saturating keeps a *sound* (if by one
-        // value wider) interval — an over-approximation is always safe for the
-        // analysis.
-        BinOp::Lt => Some(Interval {
-            lo: None,
-            hi: Some(k.saturating_sub(1)),
-        }),
-        BinOp::Le => Some(Interval {
-            lo: None,
-            hi: Some(k),
-        }),
-        BinOp::Gt => Some(Interval {
-            lo: Some(k.saturating_add(1)),
-            hi: None,
-        }),
-        BinOp::Ge => Some(Interval {
-            lo: Some(k),
-            hi: None,
-        }),
-        BinOp::Eq => Some(constant(k)),
-        // NE and non-comparisons give no single interval.
-        _ => None,
-    }
-}
-
-/// If `cond` is `$name <cmp> <int-const>` (or the const on the left), return the
-/// interval `name` satisfies when `cond` is true (`negate` for the false edge).
-/// Only a top-level comparison against a literal int is handled.
-#[must_use]
-fn guard_constraint(
-    cond: &ExprNode,
-    name: &str,
-    negate: bool,
-    numbers: NumberSyntax,
-) -> Option<Interval> {
-    let ExprNode::Binary { op, left, right } = cond else {
-        return None;
-    };
-    // $name <op> K
-    if let ExprNode::Var { name: vn, .. } = left.as_ref()
-        && vn == name
-        && let Some(k) = literal_int(right, numbers)
-    {
-        return guard_interval(*op, k, negate);
-    }
-    // K <op> $name  → rewrite as $name <flipped-op> K
-    if let ExprNode::Var { name: vn, .. } = right.as_ref()
-        && vn == name
-        && let Some(k) = literal_int(left, numbers)
-    {
-        let mirror = match op {
-            BinOp::Lt => BinOp::Gt,
-            BinOp::Le => BinOp::Ge,
-            BinOp::Gt => BinOp::Lt,
-            BinOp::Ge => BinOp::Le,
-            other => *other,
-        };
-        return guard_interval(mirror, k, negate);
-    }
-    None
-}
-
-/// `(name, version) → [branch-block ids]` index for guard narrowing: for
-/// each `Branch` block, the names in its condition resolved against the
-/// block's exit version of each.
-#[must_use]
-pub fn build_guard_index(
-    cfg: &CfgFunction,
-    ssa: &SsaFunction,
-    grammar: tcl_dialect::LexerGrammar,
-) -> HashMap<ValueKey, Vec<BlockId>> {
-    let mut index: HashMap<ValueKey, Vec<BlockId>> = HashMap::new();
-    for (dn, dblock) in &cfg.blocks {
-        let Some(Terminator::Branch { condition, .. }) = &dblock.terminator else {
-            continue;
-        };
-        let Some(sb) = ssa.blocks.get(dn) else {
-            continue;
-        };
-        for name in condition.vars_with_grammar(grammar) {
-            // `name` is a raw IR scan; only an interned SSA variable can carry
-            // a guard fact (an un-interned name is not a tracked value).
-            let Some(sym) = ssa.var_symbol(&name) else {
-                continue;
-            };
-            if let Some(&version) = sb.exit_versions.get(&sym) {
-                index.entry((sym, version)).or_default().push(*dn);
-            }
-        }
-    }
-    index
-}
-
 /// True when `ancestor` dominates `node` (walks `node`'s idom chain).
 #[must_use]
 fn dominates(ssa: &SsaFunction, ancestor: BlockId, node: BlockId) -> bool {
@@ -521,108 +395,38 @@ fn dominates(ssa: &SsaFunction, ancestor: BlockId, node: BlockId) -> bool {
     }
 }
 
-/// The guard-analysis lookup tables [`refine_interval`] consults: the
-/// branch-block index (`build_guard_index`), the per-block predecessor
-/// count (used for the merge / edge-domination check), and the numeral grammar
-/// the branch conditions' literal bounds are read under.  Bundled so the
-/// refiner keeps a small argument list.
-#[derive(Clone, Copy)]
-pub struct GuardTables<'a> {
-    /// Branch blocks that constrain each `(sym, version)`.
-    pub guard_index: &'a HashMap<ValueKey, Vec<BlockId>>,
-    /// Predecessor count per block.
-    pub pred_counts: &'a HashMap<BlockId, usize>,
-    /// The target release's numeric-literal grammar — a guard's constant bound
-    /// (`$i < 0755`) means different numbers in different releases, so the
-    /// dialect rides along with the tables rather than being re-derived (or,
-    /// worse, read from ambient state) inside the refiner. See
-    /// [`parse_whole_int`].
-    pub numbers: NumberSyntax,
-}
-
-/// Narrow `base[(name, version)]` by the constant-bound guards that hold on
-/// every path reaching `block`.
+/// Narrow `base[(name, version)]` at `block` by the range refinements in
+/// force there ([`crate::sccp::SccpResult::refinements_in`]): what the
+/// conditions every executable path into `block` crossed prove of the
+/// version — `if {$i < 10}` puts `i` at 9 or below in its arm — stated by the
+/// condition's own `Selection` transfer, which reads a bound under the
+/// target's numeral grammar. A range refinement, like an [`Interval`], holds
+/// of the value when it is an integer.
 #[must_use]
 pub fn refine_interval<S1: std::hash::BuildHasher>(
     base: &HashMap<ValueKey, Interval, S1>,
-    cfg: &CfgFunction,
     ssa: &SsaFunction,
+    sccp: &crate::sccp::SccpResult,
     block: BlockId,
     name: &str,
     version: Version,
-    guards: GuardTables<'_>,
 ) -> Interval {
-    let GuardTables {
-        guard_index,
-        pred_counts,
-        numbers,
-    } = guards;
     // A name that was never interned is not a tracked SSA value: no base
-    // interval and no guard fact, so its interval is TOP.
+    // interval and no refinement, so its interval is TOP.
     let Some(sym) = ssa.var_symbol(name) else {
         return TOP;
     };
-    let mut iv = base.get(&(sym, version)).copied().unwrap_or(TOP);
-    let Some(candidate_blocks) = guard_index.get(&(sym, version)) else {
-        return iv;
-    };
-    for &dn in candidate_blocks {
-        if dn == block {
+    let key = (sym, version);
+    let mut iv = base.get(&key).copied().unwrap_or(TOP);
+    for refinement in sccp.refinements_in(block) {
+        if refinement.key != key {
             continue;
         }
-        let Some(dblock) = cfg.blocks.get(&dn) else {
-            continue;
-        };
-        let Some(Terminator::Branch {
-            condition,
-            true_target,
-            false_target,
-            ..
-        }) = &dblock.terminator
-        else {
-            continue;
-        };
-        let Some(sb) = ssa.blocks.get(&dn) else {
-            continue;
-        };
-        if sb.exit_versions.get(&sym) != Some(&version) {
-            continue;
-        }
-        let true_dom = dominates(ssa, *true_target, block);
-        let false_dom = dominates(ssa, *false_target, block);
-        // `negate == false` for the true edge (the condition held), `true` for
-        // the false edge (the condition failed).
-        let (guard_target, negate) = if true_dom && !false_dom {
-            (*true_target, false)
-        } else if false_dom && !true_dom {
-            (*false_target, true)
-        } else {
-            continue;
-        };
-        // The guard holds at `block` only if control *must* have traversed the
-        // guarded edge to reach it.  When the guarded target has more than one
-        // predecessor it is a merge, so another edge could reach it without the
-        // guard.  That is sound *only* when the guard variable is redefined at
-        // the merge (a phi for `sym`): the phi gives the guarded edge its own
-        // incoming version, so the version being refined is the one carried
-        // specifically by that edge (the ordinary rotated-loop-header case,
-        // where the loop variable is `incr`-ed).  Without such a phi the *same*
-        // version flows in from a non-guarded predecessor — e.g. a `break` into
-        // a loop exit that is also the header's false target, with the guard
-        // variable un-redefined — where the guard does not hold, so refining
-        // would be unsound.
-        let target_preds = pred_counts.get(&guard_target).copied().unwrap_or(0);
-        if target_preds > 1 {
-            let redefined_at_target = ssa
-                .blocks
-                .get(&guard_target)
-                .is_some_and(|sb| sb.phis.iter().any(|p| p.name == sym));
-            if !redefined_at_target {
-                continue;
-            }
-        }
-        if let Some(c) = guard_constraint(condition, name, negate, numbers) {
-            iv = intersect(iv, c);
+        if let tcl_registry::value_transfer::FactView::Domain(
+            tcl_registry::value_transfer::DomainFact::Range { lo, hi },
+        ) = &refinement.fact
+        {
+            iv = intersect(iv, Interval { lo: *lo, hi: *hi });
         }
     }
     iv
@@ -899,26 +703,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn intersect_guard() {
-        // value < 10 (true) → [-inf, 9].
-        assert_eq!(
-            guard_interval(BinOp::Lt, 10, false),
-            Some(Interval {
-                lo: None,
-                hi: Some(9)
-            })
-        );
-        // negated `< 10` → `>= 10` → [10, +inf].
-        assert_eq!(
-            guard_interval(BinOp::Lt, 10, true),
-            Some(Interval {
-                lo: Some(10),
-                hi: None
-            })
-        );
-    }
-
     fn iv(lo: i64, hi: i64) -> Interval {
         Interval {
             lo: Some(lo),
@@ -1192,146 +976,6 @@ mod tests {
         assert_eq!(ev("$x < 3"), iv(0, 1));
         // division is unmodelled → TOP (sound).
         assert_eq!(ev("$x / 2"), TOP);
-    }
-
-    #[test]
-    fn guard_constraint_both_operand_orders() {
-        let gc = |src: &str, negate: bool| {
-            guard_constraint(&pexpr(src), "x", negate, NumberSyntax::Tcl90)
-        };
-        // `$x < 5` true → x ∈ [-inf, 4] (tclsh: 4<5=1, 5<5=0).
-        assert_eq!(
-            gc("$x < 5", false),
-            Some(Interval {
-                lo: None,
-                hi: Some(4)
-            })
-        );
-        // mirrored: `5 < $x` true → x ∈ [6, +inf].
-        assert_eq!(
-            gc("5 < $x", false),
-            Some(Interval {
-                lo: Some(6),
-                hi: None
-            })
-        );
-        // `$x == 7` → [7,7]; negated → Ne → None.
-        assert_eq!(gc("$x == 7", false), Some(constant(7)));
-        assert_eq!(gc("$x == 7", true), None);
-        // not a comparison against this name → None.
-        assert_eq!(gc("$y < 5", false), None);
-        assert_eq!(gc("$x + 1", false), None);
-    }
-
-    #[test]
-    fn guard_interval_all_ops_and_negation() {
-        assert_eq!(
-            guard_interval(BinOp::Le, 5, false),
-            Some(Interval {
-                lo: None,
-                hi: Some(5)
-            })
-        );
-        assert_eq!(
-            guard_interval(BinOp::Gt, 5, false),
-            Some(Interval {
-                lo: Some(6),
-                hi: None
-            })
-        );
-        assert_eq!(
-            guard_interval(BinOp::Ge, 5, false),
-            Some(Interval {
-                lo: Some(5),
-                hi: None
-            })
-        );
-        assert_eq!(guard_interval(BinOp::Eq, 5, false), Some(constant(5)));
-        // Ne yields no single interval.
-        assert_eq!(guard_interval(BinOp::Ne, 5, false), None);
-        // Negations flip Le↔Gt, Ge↔Lt, Eq↔Ne.
-        assert_eq!(
-            guard_interval(BinOp::Le, 5, true),
-            Some(Interval {
-                lo: Some(6),
-                hi: None
-            })
-        );
-        assert_eq!(
-            guard_interval(BinOp::Ge, 5, true),
-            Some(Interval {
-                lo: None,
-                hi: Some(4)
-            })
-        );
-    }
-
-    /// The false-edge inversion comes from the owner table
-    /// (`BinOp::inverse`), not a local copy; this pins the whole negated row
-    /// set — including the NaN-affected ordered four, whose narrowing this
-    /// domain deliberately keeps (see [`guard_interval`]'s "NaN and the false
-    /// edge").
-    #[test]
-    fn guard_interval_negation_matches_the_owner_inverse_table() {
-        let neg = |op| guard_interval(op, 5, true);
-        let half_from = |lo| {
-            Some(Interval {
-                lo: Some(lo),
-                hi: None,
-            })
-        };
-        let half_to = |hi| {
-            Some(Interval {
-                lo: None,
-                hi: Some(hi),
-            })
-        };
-        // The ordered four invert to each other: `!(x < 5)` narrows to x >= 5.
-        assert_eq!(neg(BinOp::Lt), half_from(5));
-        assert_eq!(neg(BinOp::Le), half_from(6));
-        assert_eq!(neg(BinOp::Gt), half_to(5));
-        assert_eq!(neg(BinOp::Ge), half_to(4));
-        // `!=` is the exact complement of `==` for every value, NaN included,
-        // so the false edge of `if {$x != 5}` really is the point [5,5].
-        assert_eq!(neg(BinOp::Ne), Some(constant(5)));
-        // `==` inverts to `!=`, which is no single interval.
-        assert_eq!(neg(BinOp::Eq), None);
-        // Operators the owner table inverts but this domain does not model
-        // still yield nothing, exactly as the local pass-through table did.
-        for op in [BinOp::StrEq, BinOp::StrNe, BinOp::In, BinOp::Ni] {
-            assert_eq!(neg(op), None, "{op:?} is not an integer-domain guard");
-        }
-        // And an operator with no inverse at all is left alone.
-        assert_eq!(neg(BinOp::Add), None);
-    }
-
-    #[test]
-    fn guard_interval_saturates_at_i64_boundary() {
-        // `value < i64::MIN` / `value > i64::MAX` would overflow an unchecked
-        // `k ± 1`; saturation keeps a sound (empty-ish, one-value-wide) bound
-        // instead of panicking.
-        assert_eq!(
-            guard_interval(BinOp::Lt, i64::MIN, false),
-            Some(Interval {
-                lo: None,
-                hi: Some(i64::MIN)
-            })
-        );
-        assert_eq!(
-            guard_interval(BinOp::Gt, i64::MAX, false),
-            Some(Interval {
-                lo: Some(i64::MAX),
-                hi: None
-            })
-        );
-        // Negated forms route through the same arithmetic (`>=` neg → `<`).
-        assert_eq!(
-            guard_interval(BinOp::Ge, i64::MIN, true),
-            Some(Interval {
-                lo: None,
-                hi: Some(i64::MIN)
-            })
-        );
     }
 
     /// The increment's interval is the registry's `IntegerAdd` over the

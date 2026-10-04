@@ -96,7 +96,7 @@ const AXES: &[&str] = &[
 const LANDED: &[&str] = &[
     "step 1", "step 2", "step 3", "step 4", "step 5", "step 6", "step 7", "step 8", "step 9",
     "step 10", "slice 1", "slice 2", "slice 3", "slice 4", "slice 5", "slice 6", "slice 8",
-    "slice 9", "slice 10",
+    "slice 9", "slice 10", "slice 11",
 ];
 
 /// The files the lint holds clean: every site waived or gone. A step that

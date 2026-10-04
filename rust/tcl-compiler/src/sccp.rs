@@ -374,6 +374,11 @@ pub struct SccpResult {
     /// The places only an existence query names, by their slot past the
     /// SSA's symbols, which a key of the existence rung may hold.
     pub query_places: Vec<String>,
+    /// Each existence guard, where the run computes existence: a place a
+    /// branch edge's condition proves bound (`[info exists x]`'s true edge,
+    /// `![info exists x]`'s false one) and the block the edge enters,
+    /// whether or not the rung refines the place.
+    pub existence_guards: Vec<(String, BlockId)>,
 }
 
 /// A fact that holds on one CFG edge, and in the blocks every path into
@@ -448,6 +453,18 @@ impl SccpResult {
             .into_iter()
             .flatten()
             .filter_map(|&index| self.refinements.get(index))
+    }
+
+    /// Whether an existence guard proves `name` bound at `block`: the block a
+    /// guarded edge enters dominates it. The rung refines no place another
+    /// actor may write, so for such a place this is the one word W210 has
+    /// that the guard ran; it reads the place's name, as the guard does, and
+    /// leaves to the rung's fact a read past the guard's region.
+    #[must_use]
+    pub fn guarded(&self, ssa: &SsaFunction, name: &str, block: BlockId) -> bool {
+        self.existence_guards
+            .iter()
+            .any(|(place, entered)| place == name && crate::loops::dominates(ssa, *entered, block))
     }
 
     /// The name of the place a key's symbol stands for: an SSA variable, or
@@ -798,14 +815,20 @@ pub fn sccp_with_builtin_folds(
     let facts = branch_facts(cfg, (trace.registry, config, policy), &driver);
     // The existence rung runs beside the values, over the same executable
     // blocks and edges, when the caller asks for it.
-    let existence = trace
+    let mut existence = trace
         .existence
         .map(|entry| ExistenceRun::new(cfg, ssa, entry, (&escaping, &facts), trace.registry));
     if let Some(run) = &existence {
         driver.existence_places(run.query_only.clone());
         driver.existence_external(run.external.clone());
     }
-    let value_refinements = refinable_values((cfg, ssa), &facts, &trace, (&escaping, config));
+    // Every refinement, in order: the existence rung's, which it carries
+    // itself, and every other domain's, which the sweep reads through the
+    // blocks they hold in.
+    let refinements = ordered_refinements(
+        existence.as_mut(),
+        refinable_values((cfg, ssa), &facts, &trace, (&escaping, config)),
+    );
 
     let executable_blocks = entry_block_set(cfg);
     let order = cfg_order(cfg);
@@ -821,26 +844,31 @@ pub fn sccp_with_builtin_folds(
         registry: trace.registry,
         driver: &driver,
         regions: &regions,
+        refinements: &refinements,
     };
     let mut state = SweepState {
         values,
         executable_blocks,
         executable_edges: HashSet::new(),
         existence,
+        refined: RefinementFlow::new(cfg, &refinements),
     };
 
     sweep.settle(&order, &mut state);
 
     let SweepState {
-        values,
+        mut values,
         executable_blocks,
         executable_edges,
         existence,
+        refined,
     } = state;
+    let refinements_at = refined.map(RefinementFlow::settled).unwrap_or_default();
+    let narrowing = Narrowing::new(&refinements, &refinements_at);
     let mut constant_branches = collect_constant_branches(
         cfg,
         ssa,
-        &values,
+        (&mut values, narrowing),
         &executable_blocks,
         &order,
         BranchFold {
@@ -851,20 +879,18 @@ pub fn sccp_with_builtin_folds(
         },
         existence.as_ref().map(|run| &run.exits),
     );
-
     let rung = existence.map_or_else(RungResults::default, |run| run.finish(ssa));
-    let refined = settled_refinements(
-        (cfg, &order),
-        (&executable_blocks, &executable_edges),
-        &values,
-        (rung.refinements, value_refinements),
+    // The post-passes read the settled lattice, each block under the
+    // refinements in force there, before it moves in.
+    let (template_plans, selections, unreached_arms) = settled_statements(
+        (&driver, cfg, ssa),
+        (&mut values, narrowing),
+        &executable_blocks,
     );
-    let (selections, unreached_arms) =
-        driver.selection_facts(cfg, ssa, &values, &executable_blocks);
     constant_branches.extend(unreached_arms);
+    let value_entries = refined_values(&refinements, &refinements_at, &values);
     SccpResult {
-        // The post-passes read the settled lattice before it moves in.
-        template_plans: driver.template_plans(ssa, &values, &executable_blocks),
+        template_plans,
         selections,
         values,
         executable_blocks,
@@ -874,10 +900,11 @@ pub fn sccp_with_builtin_folds(
         existence_reads: rung.reads,
         existence_exits: rung.exits,
         existence_entries: rung.entries,
-        refinements: refined.refinements,
-        refinements_at: refined.at,
-        value_entries: refined.values,
+        refinements,
+        refinements_at,
+        value_entries,
         query_places: rung.query_places,
+        existence_guards: rung.guards,
         ..driver.take_run_facts()
     }
 }
@@ -922,6 +949,8 @@ struct SweepContext<'a> {
     driver: &'a LatticeDriver<'a>,
     /// Where the function's exception edges leave from.
     regions: &'a RegionShape,
+    /// The run's refinements, which the refinement flow indexes.
+    refinements: &'a [EdgeRefinement],
 }
 
 /// Where a function's exception edges leave from, which decides what a
@@ -989,6 +1018,9 @@ struct SweepState {
     executable_blocks: HashSet<BlockId>,
     executable_edges: HashSet<(BlockId, BlockId)>,
     existence: Option<ExistenceRun>,
+    /// The refinements outside the existence domain as the sweep reads
+    /// them, when the function has one.
+    refined: Option<RefinementFlow>,
 }
 
 impl SweepContext<'_> {
@@ -1047,6 +1079,11 @@ impl SweepContext<'_> {
             changed |= sccp_process_phis(&mut state.values, ssa_block, &incoming_exec);
             record_phi_folded_types(&state.values, ssa_block, &incoming_exec, self.driver);
         }
+
+        // The refinements every executable edge into the block carries
+        // narrow the versions they name for its statements and its
+        // terminator; the φs above read each version's own value.
+        let narrowed = self.narrow(bn, state, &mut changed);
 
         // The existence rung enters the block with the join of its
         // executable edges, which is each φ's fact.
@@ -1109,7 +1146,26 @@ impl SweepContext<'_> {
         if let Some(at) = at {
             changed |= at.leave(self.driver, run.exit.entry_throws);
         }
+        restore_values(&mut state.values, narrowed);
         changed
+    }
+
+    /// Enter `bn` in the refinement flow and narrow, in the lattice, each
+    /// version a value-domain refinement in force there names; what each
+    /// narrowed version held before, for [`restore_values`]. `changed` is
+    /// set when the refinements the edges into `bn` carry moved.
+    fn narrow(
+        &self,
+        bn: BlockId,
+        state: &mut SweepState,
+        changed: &mut bool,
+    ) -> Vec<(ValueKey, Option<LatticeValue>)> {
+        let Some(flow) = state.refined.as_mut() else {
+            return Vec::new();
+        };
+        let (moved, in_force) = flow.enter(self.cfg, self.preds, bn, &state.executable_edges);
+        *changed |= moved;
+        narrow_values(&mut state.values, self.refinements, in_force)
     }
 
     /// The region entries whose body starts at `bn`: the state before the
@@ -1372,26 +1428,31 @@ struct ExistenceRun {
     /// The slots past the SSA's symbols: each place only an existence
     /// query names, which the run carries like any other.
     query_only: HashMap<String, Symbol>,
-    /// The guarded edges' refinements.
+    /// The guarded edges' refinements, until the run takes them
+    /// ([`ordered_refinements`]); the sweep reads `by_edge`.
     refinements: Vec<EdgeRefinement>,
     /// The refinements by edge: each place's slot and its refined fact.
     by_edge: HashMap<(BlockId, BlockId), Vec<(usize, Existence)>>,
+    /// Each existence guard of the function: a place a guarded edge proves
+    /// bound, and the block the edge enters ([`SccpResult::existence_guards`]).
+    guards: Vec<(String, BlockId)>,
     /// Each executable block's entry state.
     entry_states: HashMap<BlockId, Vec<Existence>>,
 }
 
 /// What the existence rung leaves in the run's result: the fact each SSA
 /// version is established with, the fact each statement finds at each place
-/// it reads, each block's exit, the block-qualified facts, the guarded
-/// edges' refinements and the places only an existence query names.
+/// it reads, each block's exit, the block-qualified facts, the places only
+/// an existence query names and the existence guards. Its guarded edges'
+/// refinements join the run's before the sweep ([`ordered_refinements`]).
 #[derive(Default)]
 struct RungResults {
     versions: HashMap<ValueKey, Existence>,
     reads: HashMap<(BlockId, u32, Symbol), Existence>,
     exits: HashMap<BlockId, Vec<Existence>>,
     entries: HashMap<(BlockId, ValueKey), Existence>,
-    refinements: Vec<EdgeRefinement>,
     query_places: Vec<String>,
+    guards: Vec<(String, BlockId)>,
 }
 
 /// Join `incoming` into `state`, place by place.
@@ -1485,6 +1546,7 @@ impl ExistenceRun {
             }
         }
         let refinements = existence_refinements(facts, ssa, (&query_only, &external));
+        let guards = existence_guards(facts);
         let mut by_edge: HashMap<(BlockId, BlockId), Vec<(usize, Existence)>> = HashMap::new();
         for refinement in &refinements {
             if let FactView::Domain(DomainFact::Existence(fact)) = &refinement.fact {
@@ -1523,6 +1585,7 @@ impl ExistenceRun {
             query_only,
             refinements,
             by_edge,
+            guards,
             entry_states: HashMap::new(),
         }
     }
@@ -1535,7 +1598,7 @@ impl ExistenceRun {
             versions: self.versions,
             reads: self.reads,
             exits: self.exits,
-            refinements: self.refinements,
+            guards: self.guards,
         }
     }
 
@@ -1819,6 +1882,22 @@ fn existence_refinements(
     out
 }
 
+/// Every place a guarded edge proves bound, with the block the edge enters,
+/// whether or not the run refines the place: W210 takes a guard's word for
+/// the region its edge enters ([`SccpResult::guarded`]).
+fn existence_guards(facts: &[BranchFact]) -> Vec<(String, BlockId)> {
+    facts
+        .iter()
+        .filter(|branch| {
+            matches!(
+                branch.fact.fact,
+                FactView::Domain(DomainFact::Existence(Existence::Bound(_)))
+            )
+        })
+        .map(|branch| (branch.fact.place.clone(), branch.edge.1))
+        .collect()
+}
+
 /// Every domain's refinements but the existence rung's
 /// ([`value_refinements`]), for the places no other actor may write: none
 /// externally mutable ([`is_externally_mutable`]) or an element of an
@@ -1877,36 +1956,17 @@ fn value_refinements(
         .collect()
 }
 
-/// The run's refinements once the solver settles.
-struct SettledRefinements {
-    /// The existence rung's and every other domain's, in order
-    /// ([`refinement_order`]).
-    refinements: Vec<EdgeRefinement>,
-    /// The blocks each outside the existence domain is in force at
-    /// ([`refinements_in_force`]).
-    at: HashMap<BlockId, Vec<usize>>,
-    /// The values they narrow there ([`refined_values`]).
-    values: HashMap<(BlockId, ValueKey), LatticeValue>,
-}
-
-/// The run's refinements once the solver settles, from the existence rung's
-/// and the others over the executable blocks and edges and the settled
-/// `values`.
-fn settled_refinements(
-    (cfg, order): (&CfgFunction, &[BlockId]),
-    executable: (&HashSet<BlockId>, &HashSet<(BlockId, BlockId)>),
-    values: &HashMap<ValueKey, LatticeValue>,
-    (mut refinements, others): (Vec<EdgeRefinement>, Vec<EdgeRefinement>),
-) -> SettledRefinements {
+/// Every refinement of the run in one order ([`refinement_order`]): the
+/// existence rung's, which it hands over (its sweep reads its own by edge),
+/// and every other domain's.
+fn ordered_refinements(
+    rung: Option<&mut ExistenceRun>,
+    others: Vec<EdgeRefinement>,
+) -> Vec<EdgeRefinement> {
+    let mut refinements = rung.map_or_else(Vec::new, |run| std::mem::take(&mut run.refinements));
     refinements.extend(others);
     refinements.sort_by_key(refinement_order);
-    let at = refinements_in_force(cfg, order, executable, &refinements);
-    let values = refined_values(&refinements, &at, values);
-    SettledRefinements {
-        refinements,
-        at,
-        values,
-    }
+    refinements
 }
 
 /// The order refinements are kept in: by edge, then place, then domain.
@@ -1926,95 +1986,193 @@ fn refinement_order(refinement: &EdgeRefinement) -> (u32, u32, u32, u8) {
     )
 }
 
-/// Per executable block, the refinements outside the existence domain in
-/// force at its statements and its terminator ([`SccpResult::refinements_at`]):
-/// a refinement holds at a block when every executable edge into it carries
-/// it — a branch edge that takes it, or an edge from a block where it holds
-/// — so a merge keeps only what every incoming path proves, and a merge
-/// that two arms refining `x` to `a` and to `b` meet at holds neither. An
-/// exception edge carries none, and a block with a barrier or an up-frame,
-/// which may write any variable without a new version, holds none and
-/// passes none on. The facts are keyed by version, so a later definition of
-/// the place is a version the refinement does not name.
-fn refinements_in_force(
-    cfg: &CfgFunction,
-    order: &[BlockId],
-    (blocks, edges): (&HashSet<BlockId>, &HashSet<(BlockId, BlockId)>),
-    refinements: &[EdgeRefinement],
-) -> HashMap<BlockId, Vec<usize>> {
-    let mut by_edge: HashMap<(BlockId, BlockId), Vec<usize>> = HashMap::new();
-    for (index, refinement) in refinements.iter().enumerate() {
-        if refinement.domain != FactDomain::Existence {
-            by_edge.entry(refinement.edge).or_default().push(index);
+/// The refinements outside the existence domain as the solver reads them
+/// while it sweeps (`docs/design/compiler/value-transfers.md` § *Predicate
+/// refinement*): which each branch edge takes, which hold at each block it
+/// has entered, and the blocks that hold none.
+struct RefinementFlow {
+    /// By edge, the indices into the run's refinements of those the edge
+    /// takes.
+    by_edge: HashMap<(BlockId, BlockId), Vec<usize>>,
+    /// The blocks holding a barrier or an up-frame, which may write any
+    /// variable without a new version: they hold none and pass none on.
+    overriding: HashSet<BlockId>,
+    /// Per block the solver has entered, the refinements every executable
+    /// edge into it carried when it last did.
+    held: HashMap<BlockId, BTreeSet<usize>>,
+}
+
+impl RefinementFlow {
+    /// The flow over `refinements`, or none when no refinement outside the
+    /// existence domain exists.
+    fn new(cfg: &CfgFunction, refinements: &[EdgeRefinement]) -> Option<Self> {
+        let mut by_edge: HashMap<(BlockId, BlockId), Vec<usize>> = HashMap::new();
+        for (index, refinement) in refinements.iter().enumerate() {
+            if refinement.domain != FactDomain::Existence {
+                by_edge.entry(refinement.edge).or_default().push(index);
+            }
         }
-    }
-    if by_edge.is_empty() {
-        return HashMap::new();
-    }
-    let overriding: HashSet<BlockId> = cfg
-        .blocks
-        .iter()
-        .filter(|(_, block)| {
-            block.statements.iter().any(|statement| {
-                matches!(
-                    statement,
-                    Statement::Barrier { .. } | Statement::UpFrame { .. }
-                )
+        if by_edge.is_empty() {
+            return None;
+        }
+        let overriding = cfg
+            .blocks
+            .iter()
+            .filter(|(_, block)| {
+                block.statements.iter().any(|statement| {
+                    matches!(
+                        statement,
+                        Statement::Barrier { .. } | Statement::UpFrame { .. }
+                    )
+                })
             })
+            .map(|(&id, _)| id)
+            .collect();
+        Some(Self {
+            by_edge,
+            overriding,
+            held: HashMap::new(),
         })
-        .map(|(&id, _)| id)
-        .collect();
-    let preds = compute_predecessors(cfg);
-    // A block no pass has reached yet carries everything: the greatest
-    // fixed point, which every cycle's way in narrows.
-    let mut held: HashMap<BlockId, BTreeSet<usize>> = HashMap::new();
-    let mut changed = true;
-    while changed {
-        changed = false;
-        for &block in order {
-            if !blocks.contains(&block) {
+    }
+
+    /// Enter `block`: the refinements every executable edge into it carries
+    /// now — a branch edge that takes one, or an edge from a block where it
+    /// holds; an exception edge carries none, and a predecessor not entered
+    /// yet carries every one, the greatest fixed point the edges into a
+    /// cycle narrow — recorded, with whether that moved, and those in force
+    /// at its statements and terminator, none where the block overrides.
+    fn enter(
+        &mut self,
+        cfg: &CfgFunction,
+        preds: &HashMap<BlockId, HashSet<BlockId>>,
+        block: BlockId,
+        edges: &HashSet<(BlockId, BlockId)>,
+    ) -> (bool, BTreeSet<usize>) {
+        let mut entering: Option<BTreeSet<usize>> = (block == cfg.entry).then(BTreeSet::new);
+        for &pred in preds.get(&block).into_iter().flatten() {
+            if !edges.contains(&(pred, block)) {
                 continue;
             }
-            let mut entering: Option<BTreeSet<usize>> = None;
-            if block == cfg.entry {
-                entering = Some(BTreeSet::new());
-            }
-            for &pred in preds.get(&block).into_iter().flatten() {
-                if !edges.contains(&(pred, block)) {
-                    continue;
+            let carried = if cfg.exception_edges.contains(&(pred, block)) {
+                Some(BTreeSet::new())
+            } else {
+                self.held.get(&pred).map(|before| {
+                    let mut carried = if self.overriding.contains(&pred) {
+                        BTreeSet::new()
+                    } else {
+                        before.clone()
+                    };
+                    carried.extend(self.by_edge.get(&(pred, block)).into_iter().flatten());
+                    carried
+                })
+            };
+            entering = match (entering, carried) {
+                (Some(entering), Some(carried)) => {
+                    Some(entering.intersection(&carried).copied().collect())
                 }
-                let carried = if cfg.exception_edges.contains(&(pred, block)) {
-                    Some(BTreeSet::new())
-                } else {
-                    held.get(&pred).map(|before| {
-                        let mut carried = if overriding.contains(&pred) {
-                            BTreeSet::new()
-                        } else {
-                            before.clone()
-                        };
-                        carried.extend(by_edge.get(&(pred, block)).into_iter().flatten());
-                        carried
-                    })
-                };
-                entering = match (entering, carried) {
-                    (Some(entering), Some(carried)) => {
-                        Some(entering.intersection(&carried).copied().collect())
-                    }
-                    (entering, carried) => entering.or(carried),
-                };
+                (entering, carried) => entering.or(carried),
+            };
+        }
+        let entering = entering.unwrap_or_default();
+        let moved = self.held.get(&block) != Some(&entering);
+        let in_force = if self.overriding.contains(&block) {
+            BTreeSet::new()
+        } else {
+            entering.clone()
+        };
+        self.held.insert(block, entering);
+        (moved, in_force)
+    }
+
+    /// Per block, the refinements in force there once the solver settles.
+    fn settled(self) -> HashMap<BlockId, Vec<usize>> {
+        let overriding = self.overriding;
+        self.held
+            .into_iter()
+            .filter(|(block, held)| !held.is_empty() && !overriding.contains(block))
+            .map(|(block, held)| (block, held.into_iter().collect()))
+            .collect()
+    }
+}
+
+/// The refinements outside the existence domain in force at each block once
+/// the solver settles, with the run's refinements they index.
+#[derive(Clone, Copy)]
+struct Narrowing<'a> {
+    refinements: &'a [EdgeRefinement],
+    at: &'a HashMap<BlockId, Vec<usize>>,
+}
+
+impl<'a> Narrowing<'a> {
+    /// The narrowing `at` names, over the run's `refinements`.
+    fn new(refinements: &'a [EdgeRefinement], at: &'a HashMap<BlockId, Vec<usize>>) -> Self {
+        Self { refinements, at }
+    }
+
+    /// Narrow, in `values`, each version a value-domain refinement in force
+    /// at `block` names ([`narrow_values`]).
+    fn narrow(
+        self,
+        values: &mut HashMap<ValueKey, LatticeValue>,
+        block: BlockId,
+    ) -> Vec<(ValueKey, Option<LatticeValue>)> {
+        narrow_values(
+            values,
+            self.refinements,
+            self.at.get(&block).into_iter().flatten().copied(),
+        )
+    }
+}
+
+/// Narrow, in `values`, each version a value-domain refinement of
+/// `in_force` names to what it holds where every such refinement holds
+/// ([`refined_value`]); what each narrowed version held before, for
+/// [`restore_values`]. A refinement never makes a version: it overrides the
+/// version's value for the statements of one block, and the version's own
+/// comes back after them.
+fn narrow_values(
+    values: &mut HashMap<ValueKey, LatticeValue>,
+    refinements: &[EdgeRefinement],
+    in_force: impl IntoIterator<Item = usize>,
+) -> Vec<(ValueKey, Option<LatticeValue>)> {
+    let mut by_key: HashMap<ValueKey, Vec<&FactView>> = HashMap::new();
+    for refinement in in_force
+        .into_iter()
+        .filter_map(|index| refinements.get(index))
+    {
+        if refinement.domain == FactDomain::ExactValue {
+            by_key
+                .entry(refinement.key)
+                .or_default()
+                .push(&refinement.fact);
+        }
+    }
+    let mut narrowed = Vec::new();
+    for (key, facts) in by_key {
+        let own = held_value(values, key);
+        let refined = refined_value(&own, facts);
+        if refined != own {
+            narrowed.push((key, values.insert(key, refined)));
+        }
+    }
+    narrowed
+}
+
+/// Give back each version [`narrow_values`] narrowed what it held before.
+fn restore_values(
+    values: &mut HashMap<ValueKey, LatticeValue>,
+    narrowed: Vec<(ValueKey, Option<LatticeValue>)>,
+) {
+    for (key, before) in narrowed {
+        match before {
+            Some(value) => {
+                values.insert(key, value);
             }
-            if let Some(entering) = entering
-                && held.get(&block) != Some(&entering)
-            {
-                held.insert(block, entering);
-                changed = true;
+            None => {
+                values.remove(&key);
             }
         }
     }
-    held.into_iter()
-        .filter(|(block, set)| !set.is_empty() && !overriding.contains(block))
-        .map(|(block, set)| (block, set.into_iter().collect()))
-        .collect()
 }
 
 /// The block-qualified values ([`SccpResult::value_entries`]): at each block,
@@ -3364,7 +3522,7 @@ fn sccp_process_terminator(
 fn collect_constant_branches(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    values: &HashMap<ValueKey, LatticeValue>,
+    (values, narrowing): (&mut HashMap<ValueKey, LatticeValue>, Narrowing<'_>),
     executable_blocks: &HashSet<BlockId>,
     order: &[BlockId],
     fold: BranchFold<'_>,
@@ -3396,7 +3554,9 @@ fn collect_constant_branches(
         if let Some(exit) = existence_exits.and_then(|exits| exits.get(bn)) {
             fold.driver.existence_enter(exit.clone());
         }
+        let narrowed = narrowing.narrow(values, *bn);
         let decision = branch_decision(cfg, ssa, *bn, ssa_block, condition, values, fold);
+        restore_values(values, narrowed);
         fold.driver.existence_leave();
         fold.driver.explaining(None);
         if decision.is_some() && !cfg.loop_nodes.contains_key(bn) {
@@ -3430,6 +3590,37 @@ fn collect_constant_branches(
         }
     }
     constant_branches
+}
+
+/// The post-passes over the settled lattice, block by block under the
+/// refinements in force there: each executable `subst` call's template
+/// plan, each opaque case list's selection, and the `Selected` fact of each
+/// arm no member of a subject reaches, each in source order.
+fn settled_statements(
+    (driver, cfg, ssa): (&LatticeDriver<'_>, &CfgFunction, &SsaFunction),
+    (values, narrowing): (&mut HashMap<ValueKey, LatticeValue>, Narrowing<'_>),
+    executable_blocks: &HashSet<BlockId>,
+) -> (
+    Vec<TemplatePlanRecord>,
+    Vec<SelectionRecord>,
+    Vec<ConstantBranch>,
+) {
+    let (mut plans, mut selections, mut unreached) = (Vec::new(), Vec::new(), Vec::new());
+    for (&block_id, block) in &ssa.blocks {
+        if !executable_blocks.contains(&block_id) {
+            continue;
+        }
+        let narrowed = narrowing.narrow(values, block_id);
+        plans.extend(driver.template_plans_in(ssa, block, values));
+        let (records, arms) = driver.selection_facts_in(cfg, ssa, (block_id, block), values);
+        selections.extend(records);
+        unreached.extend(arms);
+        restore_values(values, narrowed);
+    }
+    plans.sort_by_key(|record: &TemplatePlanRecord| (record.span.start(), record.span.end()));
+    selections.sort_by_key(|record: &SelectionRecord| (record.span.start(), record.span.end()));
+    unreached.sort_by_key(|fact: &ConstantBranch| fact.span.map(|span| (span.start(), span.end())));
+    (plans, selections, unreached)
 }
 
 /// The `<cond>` statement before a branch carries what the condition's
@@ -4683,6 +4874,14 @@ mod tests {
                         lo: Some(lo),
                         hi: Some(hi),
                     }) if lo == hi => format!("range {lo}"),
+                    FactView::Domain(DomainFact::Range { lo, hi }) => {
+                        let bound = |bound: &Option<i64>| bound.map(|n| n.to_string());
+                        format!(
+                            "range {}..{}",
+                            bound(lo).unwrap_or_default(),
+                            bound(hi).unwrap_or_default()
+                        )
+                    }
                     FactView::Domain(DomainFact::Existence(existence)) => {
                         format!("exists {existence:?}")
                     }
@@ -4805,13 +5004,38 @@ mod tests {
             "proc a21 {a} {if {$a(k) eq \"z\"} {puts $a(k)}}",
             &[],
         ),
+        (
+            "a22",
+            "proc a22 {x} {if {$x < 5} {puts $x}}",
+            &[(true, "x", "range ..4"), (false, "x", "range 5..")],
+        ),
+        (
+            "a23",
+            "proc a23 {x} {if {5 <= $x} {puts $x}}",
+            &[(true, "x", "range 5.."), (false, "x", "range ..4")],
+        ),
+        (
+            "a24",
+            "proc a24 {x} {if {$x > 0x10} {puts $x}}",
+            &[(true, "x", "range 17.."), (false, "x", "range ..16")],
+        ),
+        (
+            "a25",
+            "proc a25 {x} {if {$x >= 010} {puts $x}}",
+            &[(true, "x", "range 8.."), (false, "x", "range ..7")],
+        ),
+        ("a26", "proc a26 {x} {if {$x < false} {puts $x}}", &[]),
+        ("a27", "proc a27 {x} {if {$x <= 2.5} {puts $x}}", &[]),
     ];
 
     /// The per-shape table, row for row, under Tcl 8.6: `eq` refines its
     /// true edge and `ne` its false one, either side; `==` with a literal no
     /// number spells refines the value, and with a number the type and the
-    /// integer point, never the value; `in` the finite set and `ni` its
-    /// false edge; `string is` under `-strict` the type, without it nothing;
+    /// integer point, never the value; an ordered comparison with an integer
+    /// the half-line on each edge, either side, `010` octal under 8.6, and
+    /// with a boolean word, which compares as a string, or a double nothing;
+    /// `in` the finite set and `ni` its false edge; `string is` under
+    /// `-strict` the type, without it nothing;
     /// `!` swaps, `&&` keeps both true-edge answers and `||` both
     /// false-edge ones, and neither keeps an answer an impure operand after
     /// it may undo; the flattened exact `switch` refines each arm. `$x`

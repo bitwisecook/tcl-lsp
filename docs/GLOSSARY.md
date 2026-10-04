@@ -871,9 +871,11 @@ definition: what a taken comparison, `in` test, `string is` test,
 existence guard, or `switch` arm proves about its operand. The
 condition's `Selection` transfer produces it and it names the domain it
 refines, so `$x eq "a"` yields an exact value on the true edge while
-`$x == 1` yields a range point and a numeric type and never the string.
-Recorded as `EdgeRefinement` (`rust/tcl-compiler/src/sccp.rs`) in every
-domain; the existence rung reads its own.
+`$x == 1` yields a range point and a numeric type and never the string,
+and `$x < 5` the half-line an integer `x` lies on. Recorded as
+`EdgeRefinement` (`rust/tcl-compiler/src/sccp.rs`): the solver reads the
+exact values and finite sets, the type lattice the types, the ranges the
+points and half-lines, and the existence rung its own.
 
 See also: [Value transfers § Predicate refinement](design/compiler/value-transfers.md#predicate-refinement).
 

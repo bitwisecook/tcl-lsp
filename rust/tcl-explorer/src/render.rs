@@ -293,10 +293,11 @@ mod tests {
     }
 
     /// The `sccp` view prints each executable branch edge's refinement: the
-    /// nested equality program refines `x` to `a` on the outer true edge and
-    /// to `b` on the inner one, a numeric `==` refines the type and the
-    /// point, never the value, and an edge the solver never takes — the true
-    /// edge of `[info exists x]` after `unset x` — shows none.
+    /// nested equality program refines `x` to `a` on the outer true edge,
+    /// which decides the inner test, so the inner true edge and its
+    /// refinement to `b` never show; a numeric `==` refines the type and the
+    /// point, never the value; and the true edge of `[info exists x]` after
+    /// `unset x`, which the solver never takes, shows none either.
     #[test]
     fn sccp_text_prints_each_edge_refinement() {
         let sccp = |src: &str| {
@@ -309,7 +310,8 @@ mod tests {
         let text = sccp("proc p {x} {if {$x eq \"a\"} {if {$x eq \"b\"} {puts never}}}");
         assert!(text.contains("refinement x = 'a'"), "{text}");
         assert!(text.contains("· edge: entry_1 → if_then_3"), "{text}");
-        assert!(text.contains("refinement x = 'b'"), "{text}");
+        assert!(text.contains("branch if_then_3: False"), "{text}");
+        assert!(!text.contains("refinement x = 'b'"), "{text}");
         let text = sccp("proc p {x} {if {$x == 1} {puts $x}}");
         assert!(text.contains("refinement x = type numeric"), "{text}");
         assert!(text.contains("refinement x = range [1, 1]"), "{text}");

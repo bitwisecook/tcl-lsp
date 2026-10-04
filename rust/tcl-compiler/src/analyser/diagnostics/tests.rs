@@ -15590,11 +15590,10 @@ fn a_nested_unbind_is_an_existence_read() {
 /// path reads bound on the true edge of `[info exists x] &&
 /// $flag`, so no W210; the read past the `if` still draws one.
 /// The guarded read of a global draws no W210 although the existence rung
-/// never refines an externally mutable place: the qualified-name
-/// and scope-alias filters and the guard walk (`collect_existence_guards`)
-/// keep `if {[info exists ::errorInfo]} {puts $::errorInfo}` silent at
-/// the top level and in a procedure, and so does the `global` spelling.
-/// Whatever replaces the guard walk must keep this silence.
+/// never refines an externally mutable place: the qualified-name and
+/// scope-alias filters keep `if {[info exists ::errorInfo]} {puts
+/// $::errorInfo}` silent at the top level and in a procedure, and so does
+/// the `global` spelling.
 #[test]
 fn the_guarded_global_idiom_draws_no_w210() {
     for src in [
@@ -15605,6 +15604,28 @@ fn the_guarded_global_idiom_draws_no_w210() {
         let found = lifecycle_findings(src);
         assert!(found.is_empty(), "{src}: {found:?}");
     }
+}
+
+/// A guard holds over the region its edge enters where the existence rung
+/// refines nothing: a callback the module cannot read (`after idle [list
+/// $cmd 1]`) may write any name, so the rung refines none in the file, and
+/// `return $x` after `if {![info exists x]} {set x 0}` still draws no W210 —
+/// tclsh 8.4 to 9.1 return 0 for `p 0` — while the same shape without the
+/// `set` still draws one, `q 0` raising `can't read "y"`.
+#[test]
+fn a_guard_holds_where_the_rung_refines_nothing() {
+    let found = lifecycle_findings(
+        "proc p {c} {\n    if {$c} {set x 1}\n    if {![info exists x]} {set x 0}\n    return $x\n}\n\
+         proc q {c} {\n    if {$c} {set y 1}\n    if {![info exists y]} {puts none}\n    return $y\n}\n\
+         proc cb {cmd} {\n    after idle [list $cmd 1]\n}\n",
+    );
+    assert_eq!(
+        found,
+        vec![(
+            DiagCode::W210,
+            "Variable 'y' is read before it is set".to_owned()
+        )]
+    );
 }
 
 #[test]
