@@ -515,8 +515,10 @@ pub struct CaseInvocation {
     pub inline_clause_start: Option<usize>,
     /// Comparison mode selected by registry-declared options.
     pub mode: CaseMatchMode,
-    /// The canonical [`CaseListSpec::special_match_options`] entry that
-    /// selected [`CaseMatchMode::Other`] (`-integer`), else `None`.
+    /// The canonical spelling of the option that selected
+    /// [`CaseMatchMode::Other`] (`-integer`), whether its option row declares
+    /// that mode as its effect or it is a
+    /// [`CaseListSpec::special_match_options`] entry, else `None`.
     pub special_option: Option<&'static str>,
     /// Whether matching is case-insensitive.
     pub nocase: bool,
@@ -723,6 +725,12 @@ impl CaseListSpec {
                         }
                         saw_match_mode = true;
                         mode = selected;
+                        // The descriptor-specialised mode (`-integer`) is
+                        // named by the option that selected it, so a reader
+                        // of the invocation asks for that spelling.
+                        if selected == CaseMatchMode::Other {
+                            special_option = Some(option_name);
+                        }
                         i += 1;
                     }
                     Some(crate::option_effect::OptionEffectKind::Selects(
