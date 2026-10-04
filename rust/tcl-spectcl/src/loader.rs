@@ -155,7 +155,7 @@ use tcl_registry::state_transition::{
     StateTransitionResolver, StateTransitionWideningRule, StateTransitions,
 };
 use tcl_registry::symbol_def::{DefinedSymbolKind, SymbolDef};
-use tcl_registry::taint::{SetterConstraint, TaintTransformCondition};
+use tcl_registry::taint::{SetterConstraint, TaintNumericCoercion, TaintTransformCondition};
 use tcl_registry::traits::Traits;
 use tcl_registry::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
 use tcl_registry::world_effect::WorldEffectDescriptor;
@@ -4894,6 +4894,7 @@ fn definition_body_block(stmts: &[Stmt], log: &mut Log) -> DefinitionBodyGrammar
                     DefinerFamily::TclOo,
                     DefinerFamily::Snit,
                     DefinerFamily::Itcl,
+                    DefinerFamily::JimClass,
                     DefinerFamily::SpecTcl,
                     DefinerFamily::SslicTcl,
                 ];
@@ -6702,6 +6703,15 @@ fn apply_command_stmt(
         }
         "taint_code_sink_args" => {
             spec.taint_code_sink_args = Some(leak_slice(index_list(&value)));
+        }
+        "taint_numeric_coercion" => {
+            spec.taint_numeric_coercion = enum_by_name(
+                TaintNumericCoercion::ALL.as_slice(),
+                &value,
+                "taint numeric coercion",
+                stmt.line,
+                log,
+            );
         }
         "callback_taint_inputs" => {
             log.v12(stmt.line, "callback_taint_inputs");
@@ -8690,7 +8700,7 @@ mod tests {
 
     use tcl_dialect::BracedVarStyle;
     use tcl_dialect::model::SpecSurface;
-    use tcl_dialect::model::{BuildProfileId, Provenance, Release, WorldPolicy};
+    use tcl_dialect::model::{BuildProfileId, EnvironmentKind, Provenance, Release, WorldPolicy};
 
     use super::*;
 
@@ -11293,6 +11303,75 @@ mod tests {
         assert_eq!(terms, ["vivado", "xilinx", "fpga"]);
     }
 
+    /// `kind` and `short_name` load and convert; a block that states
+    /// neither is a base release plus packages, named by its display name.
+    #[test]
+    fn kind_and_short_name_rows_load_and_convert() {
+        let pack = evaluate_pack(
+            "speclib probe 2.0 {\n \
+             environment probe-language {\n display_name {Probe Language}\n \
+             short_name {Probe}\n kind language\n core tcl 8.6\n }\n \
+             environment probe-shell {\n display_name {Probe Shell}\n \
+             core tcl 8.6\n }\n \
+             environment probe-bare {\n core tcl 8.6\n kind packages\n }\n}",
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        assert_eq!(pack.environments.len(), 3);
+
+        let language = pack.environments[0].to_definition(PackEnvironmentTier::Workspace(
+            tcl_dialect::model::WorkspaceTrust::Trusted,
+        ));
+        assert_eq!(language.kind, EnvironmentKind::Language);
+        assert_eq!(language.short_name.as_ref(), "Probe");
+        assert_eq!(language.description(), "Probe Language");
+
+        let shell = pack.environments[1].to_definition(PackEnvironmentTier::Workspace(
+            tcl_dialect::model::WorkspaceTrust::Trusted,
+        ));
+        assert_eq!(shell.kind, EnvironmentKind::Packages, "packages by default");
+        assert_eq!(shell.short_name.as_ref(), "Probe Shell", "the display name");
+
+        let bare = pack.environments[2].to_definition(PackEnvironmentTier::Workspace(
+            tcl_dialect::model::WorkspaceTrust::Trusted,
+        ));
+        assert_eq!(bare.kind, EnvironmentKind::Packages);
+        assert_eq!(bare.short_name.as_ref(), "probe-bare", "the id");
+    }
+
+    /// An unknown kind word is ignored with a notice: kind is presentation,
+    /// so the environment still loads and resolves.
+    #[test]
+    fn an_unknown_kind_word_is_ignored_with_a_notice() {
+        let pack = evaluate_pack(
+            "speclib probe 2.0 {\n environment probe-shell {\n core tcl 8.6\n \
+             kind dialect\n }\n}",
+        );
+        assert_eq!(pack.environments.len(), 1, "the block still loads");
+        assert_eq!(pack.environments[0].kind, EnvironmentKind::Packages);
+        assert!(
+            pack.notices.iter().any(|n| n
+                .message
+                .contains("`kind dialect` is not an environment kind")),
+            "{:?}",
+            pack.notices
+        );
+    }
+
+    /// An `-extend` block is additive and may not restate the owner's
+    /// identity rows, `kind` and `short_name` among them.
+    #[test]
+    fn an_extend_block_cannot_restate_kind_or_short_name() {
+        for row in ["kind language", "short_name {Probe}"] {
+            let pack = evaluate_pack(&format!(
+                "speclib probe 2.0 {{\n environment tcl8.6 -extend {{\n {row}\n }}\n}}"
+            ));
+            assert!(
+                pack.environments.is_empty(),
+                "`{row}`: the block is rejected"
+            );
+        }
+    }
+
     /// A ceiling off the core's ladder, or with no compiled core to sit on,
     /// rejects the block: it is a point on a ladder or it is nothing.
     #[test]
@@ -11578,6 +11657,38 @@ mod tests {
             pack.notices
                 .iter()
                 .any(|n| n.message.contains("not a contributed editor language id")),
+            "{:?}",
+            pack.notices
+        );
+    }
+
+    /// `selecting_identity` rows carry the contributed language ids that
+    /// select the environment, and an unknown id is dropped with a notice.
+    #[test]
+    fn selecting_identity_rows_carry_contributed_language_ids() {
+        let pack = evaluate_pack(
+            "speclib probe 2.0 {\n environment probe-env {\n core tcl 8.6\n \
+             editor_identity tcl-microchip\n selecting_identity tcl-libero\n \
+             selecting_identity klingon\n }\n}",
+        );
+        let environment = &pack.environments[0];
+        let carried: Vec<&str> = environment
+            .selecting_identities
+            .iter()
+            .map(|identity| identity.as_str())
+            .collect();
+        assert_eq!(carried, ["tcl-libero"]);
+        let definition = environment.to_definition(PackEnvironmentTier::Workspace(
+            tcl_dialect::model::WorkspaceTrust::Trusted,
+        ));
+        assert_eq!(
+            definition.selecting_identities,
+            environment.selecting_identities
+        );
+        assert!(
+            pack.notices
+                .iter()
+                .any(|n| n.message.contains("`selecting_identity klingon`")),
             "{:?}",
             pack.notices
         );

@@ -30,7 +30,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 
 /// `proc name args body` — the synopsis, arity, and argument grammar are
 /// byte-for-byte identical across the fetched Tcl 8.4, 8.5, 8.6, 9.0, and
-/// 9.1 manpages (8.6, 9.0, and 9.1 — 9.1b0, the live beta — share
+/// 9.1 manpages (8.6, 9.0, and 9.1 — 9.1b0 and 9.1.0 alike — share
 /// byte-identical DESCRIPTION text, differing only in incidental
 /// line-wrapping and the version banner). No option/flag has ever existed
 /// and no second form was ever added, so this is the command's only form,

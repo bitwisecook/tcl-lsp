@@ -1,8 +1,8 @@
 # Port of rust/tcl-registry/src/commands/tcl/switch_.rs
 #
 # Exercises: stepped arity with an extra exact count, value-consuming option
-# skipping in a role-resolver hook body, reserved_trailing_words, and an
-# inline case_list descriptor.  (`if`'s clause chain — the other shape of
+# skipping in a role-resolver hook body, reserved_trailing_words, a
+# numeric-coercion taint shape, and an inline case_list descriptor.  (`if`'s clause chain — the other shape of
 # "clause grammar" — is in if.tclspec.)
 
 speclib tcl 2.1 {
@@ -78,6 +78,11 @@ command switch {
     # `string` and pattern-list-or-first-pattern words are never mistaken for
     # options, even when dynamic and starting with `-`.
     reserved_trailing_words 2
+
+    # `-integer` reads the subject and any inline patterns as wide integers,
+    # so a tainted one is a T100 numeric-coercion sink; the option's own
+    # tcl9.1 gate keeps earlier releases silent.
+    taint_numeric_coercion IntegerModeOperands
 
     # The shipped constant is reachable as the one-word `case_list switch`;
     # spelled out here to show the descriptor is authorable, which is what a

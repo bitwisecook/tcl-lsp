@@ -884,6 +884,14 @@ precise slots keeps the finding accurate on commands where only some \
 arguments are executed.",
     ),
     (
+        "taint_numeric_coercion",
+        "Which argument words a call reads as *numbers* — `switch -integer`'s \
+subject. Tainted data reaching one is not executed, but Tcl's numeric reading \
+of it (`0x10` is 16, a non-number raises) can subvert the decision taken on \
+it, the same hazard as a tainted operand of a braced `expr`. The shape names \
+the option that turns coercion on, so other calls of the command stay quiet.",
+    ),
+    (
         "taint_interp_eval_subcommands",
         "Subcommands that evaluate code in *another* interpreter (`interp \
 eval` style). Tainted data reaching them raises the cross-interpreter \
@@ -1536,6 +1544,14 @@ and highlighting.",
 transform colour is claimed. A command whose sanitising effect comes from \
 the literal it was given — `string map` with a mapping that deletes CR and \
 LF — earns its colour call by call, not once for the command.",
+    ),
+    (
+        "taintNumericCoercion",
+        "Numeric-coercion shapes",
+        "Which argument words a call reads as numbers, so a tainted one is a \
+T100 numeric-coercion sink. Each shape names the option that turns the \
+coercion on — `switch -integer` reads its subject as a wide integer, plain \
+`switch` compares text — so only the calls that coerce are flagged.",
     ),
     (
         "formatType",

@@ -2806,6 +2806,26 @@
     "notes": "OptionSpec value descriptor"
   },
   {
+    "id": "defer/arg[0]@jim",
+    "owner": "defer",
+    "surface": "command",
+    "kind": "body-script",
+    "provenance": "Jim Tcl",
+    "dialects": [
+      "jim"
+    ],
+    "lifecycle": "all known owning-package versions",
+    "timing": "deferred",
+    "appended_arity": null,
+    "callback_taint_inputs": [],
+    "forms": [
+      "defer script [all known owning-package versions]"
+    ],
+    "registry_derived": true,
+    "registry_owner": "defer",
+    "notes": "static script-body position"
+  },
+  {
     "id": "defer::autowith/arg[0]@bpf+cadence-eda-tcl+expect+f5-bigip+f5-iapps+f5-irules+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+sslictcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
     "owner": "defer::autowith",
     "surface": "command",
@@ -6034,6 +6054,66 @@
     "notes": "static CommandSpec command-prefix position"
   },
   {
+    "id": "loop form bounds/arg[3]@jim",
+    "owner": "loop form bounds",
+    "surface": "form",
+    "kind": "body-script",
+    "provenance": "Jim Tcl",
+    "dialects": [
+      "jim"
+    ],
+    "lifecycle": "all known owning-package versions",
+    "timing": "same-invocation",
+    "appended_arity": null,
+    "callback_taint_inputs": [],
+    "forms": [
+      "bounds (arity-selected)"
+    ],
+    "registry_derived": true,
+    "registry_owner": "loop",
+    "notes": "static script-body position"
+  },
+  {
+    "id": "loop form limit/arg[2]@jim",
+    "owner": "loop form limit",
+    "surface": "form",
+    "kind": "body-script",
+    "provenance": "Jim Tcl",
+    "dialects": [
+      "jim"
+    ],
+    "lifecycle": "all known owning-package versions",
+    "timing": "same-invocation",
+    "appended_arity": null,
+    "callback_taint_inputs": [],
+    "forms": [
+      "limit (arity-selected)"
+    ],
+    "registry_derived": true,
+    "registry_owner": "loop",
+    "notes": "static script-body position"
+  },
+  {
+    "id": "loop form stepped/arg[4]@jim",
+    "owner": "loop form stepped",
+    "surface": "form",
+    "kind": "body-script",
+    "provenance": "Jim Tcl",
+    "dialects": [
+      "jim"
+    ],
+    "lifecycle": "all known owning-package versions",
+    "timing": "same-invocation",
+    "appended_arity": null,
+    "callback_taint_inputs": [],
+    "forms": [
+      "stepped (arity-selected)"
+    ],
+    "registry_derived": true,
+    "registry_owner": "loop",
+    "notes": "static script-body position"
+  },
+  {
     "id": "lsort/option -command value@bpf+cadence-eda-tcl+expect+f5-bigip+f5-iapps+f5-irules+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+sslictcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
     "owner": "lsort",
     "surface": "command-option",
@@ -8695,6 +8775,46 @@
     ],
     "registry_derived": true,
     "registry_owner": "policy",
+    "notes": "static script-body position"
+  },
+  {
+    "id": "proc form plain/arg[2]@jim",
+    "owner": "proc form plain",
+    "surface": "form",
+    "kind": "body-script",
+    "provenance": "Jim Tcl",
+    "dialects": [
+      "jim"
+    ],
+    "lifecycle": "all known owning-package versions",
+    "timing": "deferred",
+    "appended_arity": null,
+    "callback_taint_inputs": [],
+    "forms": [
+      "plain (arity-selected)"
+    ],
+    "registry_derived": true,
+    "registry_owner": "proc",
+    "notes": "static script-body position"
+  },
+  {
+    "id": "proc form statics/arg[3]@jim",
+    "owner": "proc form statics",
+    "surface": "form",
+    "kind": "body-script",
+    "provenance": "Jim Tcl",
+    "dialects": [
+      "jim"
+    ],
+    "lifecycle": "all known owning-package versions",
+    "timing": "deferred",
+    "appended_arity": null,
+    "callback_taint_inputs": [],
+    "forms": [
+      "statics (arity-selected)"
+    ],
+    "registry_derived": true,
+    "registry_owner": "proc",
     "notes": "static script-body position"
   },
   {
@@ -11802,6 +11922,26 @@
       "timerate ?-calibrate? ?-direct? script ?time? ?max-count? [all known owning-package versions]",
       "timerate ?-direct? ?-overhead estimate? script ?time? ?max-count? [all known owning-package versions]",
       "timerate script ?time? ?max-count? [all known owning-package versions]"
+    ],
+    "registry_derived": true,
+    "registry_owner": "timerate",
+    "notes": "static script-body position"
+  },
+  {
+    "id": "timerate/arg[0]@jim",
+    "owner": "timerate",
+    "surface": "command",
+    "kind": "body-script",
+    "provenance": "Jim Tcl",
+    "dialects": [
+      "jim"
+    ],
+    "lifecycle": "all known owning-package versions",
+    "timing": "same-invocation",
+    "appended_arity": null,
+    "callback_taint_inputs": [],
+    "forms": [
+      "timerate script ?milliseconds? [all known owning-package versions]"
     ],
     "registry_derived": true,
     "registry_owner": "timerate",

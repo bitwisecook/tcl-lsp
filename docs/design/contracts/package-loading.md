@@ -32,6 +32,22 @@ per-dialect spec packs, never as name-matching in a consumer (see
 | Tk      | `"Tk"`                         | `tcl-registry/src/commands/tk`     |
 | iRules  | n/a (no packages on BIG-IP)    | `tcl-registry/src/commands/irules` |
 
+## Runtime discovery completion
+
+The VM's `package require` evaluates `package unknown` and the selected
+`package ifneeded` script in global scope. A completed script may return
+`OK`, `ERROR`, or another Tcl completion code. Ordinary `ERROR` retains its
+result and options, with the loader frame appended to `-errorinfo`. A terminal `BREAK`, `CONTINUE`, `RETURN`, or custom code
+becomes `ERROR` with `-errorcode {TCL PACKAGE BADRESULT}`. For an `ifneeded`
+script the result is `attempt to provide package NAME VERSION failed: bad
+return code: N`; for `unknown` it is `bad return code: N`. The selected
+script is recorded in `-errorinfo` as `("package ifneeded NAME VERSION" script)`
+or `("package unknown" script)` respectively. The selected
+loader's transient provision and circular marker are cleared on failure,
+while its registration remains available for a later retry. This is owned by
+`tcl-vm/src/cmd_package.rs`; coroutine suspension is a separate execution
+state and must not be treated as a completed loader result.
+
 ## Decision rules / contracts
 
 ### Analyser extraction

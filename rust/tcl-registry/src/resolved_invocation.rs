@@ -1109,7 +1109,7 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     /// The release the invocation's [`Self::dialect`] names on the Tcl
     /// ladder, for a rule whose grammar is a release's numerals.
     fn tcl_version(&self) -> Option<tcl_dialect::TclVersion> {
-        match self.dialect?.core {
+        match self.dialect?.core.nearest() {
             Some((tcl_dialect::model::Family::Tcl, Some(release))) => {
                 tcl_dialect::TclVersion::from_version_string(release)
             }

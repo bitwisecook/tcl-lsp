@@ -214,7 +214,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: rust-check check-all prep-pr _prep-pr-checks _prep-pr-tests _prep-pr-smoke _prep-pr-smoke-tier
 # Tests
 .PHONY: test test-ext test-ext-partition test-ext-multi-folder test-emacs test-jetbrains test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all print-server-targets-jetbrains
-.PHONY: xtask-check xtask-editor-extensions xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-command-backing xtask-audit-option-dialects xtask-registry-oracle xtask-sslictcl-data xtask-runtime-stdlib tcltest-sweep tcltest-sweep-check xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-api-ownership check-c-extension-wasm
+.PHONY: xtask-check xtask-editor-extensions xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-editor-configs xtask-gen-environment-docs xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-catalogue-callers xtask-command-backing xtask-audit-option-dialects xtask-registry-oracle xtask-sslictcl-data xtask-runtime-stdlib tcltest-sweep tcltest-sweep-check xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-api-ownership check-c-extension-wasm
 .PHONY: xtask-workflow-sync xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-value-transfers xtask-registry-axes xtask-gen-tmlanguage-keywords xtask-option-registry-drift xtask-callback-inventory check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-vscode-test-partitions check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph xtask-dialect-drift xtask-segmentation-drift
 # Lint / format / typecheck
 .PHONY: lint format lint-ts format-ts typecheck-ts check-rust check-rust-pr _check-rust-pr rust-deny
@@ -638,6 +638,16 @@ TY_VERSION      := 0.0.78
 PYRIGHT_VERSION := 1.1.411
 PYTEST_VERSION  := 9.1.1
 
+# The cached typecheck/test venv is not a distributable report build.  Its
+# native extension must therefore not carry the checkout's mutable Git stamp:
+# source-identical commits may safely share the cache, and generated reports
+# never escape this environment. Keep this marker in python-engine-source-hash
+# so changing the cache provenance policy rebuilds an existing venv.
+PY_ENGINE_CACHE_VERSION      := 0.1.0
+PY_ENGINE_CACHE_GIT_HASH     := 0000000000000000000000000000000000000000
+PY_ENGINE_CACHE_GIT_DESCRIBE := python-engine-cache
+PY_ENGINE_CACHE_PROVENANCE   := cache-neutral-v1
+
 # The typecheck venv installs f5report — which maturin-compiles the native
 # `_engine` extension — plus pytest, so ty and pyright resolve every import for
 # real instead of suppressing `unresolved-import`. The Sublime host APIs
@@ -669,11 +679,15 @@ py-venv: ## Build the typecheck venv (f5report + native _engine + pytest)
 	@# (~4 min), so gate it on a content hash of the package tree: ty/pyright
 	@# read the committed `_engine.pyi` stub, never the compiled module, so the
 	@# venv needs a rebuild when the Python package or any local Rust input
-	@# compiled into its native extension changes.
+	@# compiled into its native extension changes. Its provenance is fixed below:
+	@# this cache only serves checks/tests and is never a report-artifact input.
 	@cd $(ROOT) && \
 	  stamp="$(PY_VENV)/.f5report-src-hash"; \
 	  hash=$$($(MAKE) --no-print-directory python-engine-source-hash); \
 	  if [ ! -f "$$stamp" ] || [ "$$(cat "$$stamp")" != "$$hash" ]; then \
+	    TCL_LSP_VERSION=$(PY_ENGINE_CACHE_VERSION) \
+	    GIT_HASH=$(PY_ENGINE_CACHE_GIT_HASH) \
+	    GIT_DESCRIBE=$(PY_ENGINE_CACHE_GIT_DESCRIBE) \
 	    uv pip install --python $(PY_VENV) --quiet \
 	        --reinstall-package f5report ./rust/bigip-report-gen/python pytest==$(PYTEST_VERSION) || exit; \
 	    printf '%s' "$$hash" > "$$stamp"; \
@@ -686,7 +700,12 @@ python-engine-source-hash: ## Hash every source/build input compiled into the f5
 	  files=$$(scripts/dev/python-engine-source-files.sh) && \
 	  { printf '%s\n' "$$files"; \
 	    printf '%s\n' "$$files" | git hash-object --stdin-paths; \
-	    printf '%s\n' "pytest=$(PYTEST_VERSION)"; \
+	    printf '%s\n' \
+	      "pytest=$(PYTEST_VERSION)" \
+	      "cache-version=$(PY_ENGINE_CACHE_VERSION)" \
+	      "cache-git-hash=$(PY_ENGINE_CACHE_GIT_HASH)" \
+	      "cache-git-describe=$(PY_ENGINE_CACHE_GIT_DESCRIBE)" \
+	      "provenance=$(PY_ENGINE_CACHE_PROVENANCE)"; \
 	  } | git hash-object --stdin
 
 typecheck-py: py-venv ## Type-check every tracked Python file (ty + pyright)
@@ -699,6 +718,8 @@ typecheck-py: py-venv ## Type-check every tracked Python file (ty + pyright)
 
 test-py-engine: py-venv ## Test the native f5report query-engine binding
 	@echo "==> Testing the native Python query-engine binding"
+	@cd $(ROOT) && $(PY_VENV)/bin/python -c \
+	    'import f5report._engine as engine; assert engine.__version__ == "$(PY_ENGINE_CACHE_VERSION)+g$(PY_ENGINE_CACHE_GIT_HASH)"; assert engine.__git_hash__ == "$(PY_ENGINE_CACHE_GIT_HASH)"; assert engine.__git_describe__ == "$(PY_ENGINE_CACHE_GIT_DESCRIBE)"'
 	@cd $(ROOT) && $(PY_VENV)/bin/pytest -q rust/bigip-report-gen/python/tests/test_engine.py
 
 # The lsp_e2e suite is native: rust/tcl-lsp-server/tests/*_e2e.rs, run by
@@ -874,7 +895,7 @@ coverage-ext: compile $(NPM_STAMP) ensure-vscode-test-deps ## Run VS Code extens
 # --- Native (cargo xtask) check gates.  These need the Rust toolchain, so CI
 # runs them in the rust-tests-shard matrix and its stable rust-tests aggregate
 # (ci.yml). `xtask-check` is the CI aggregate.
-xtask-check: check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph check-vsix-web-assets-contract xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-segmentation-drift xtask-value-transfers xtask-registry-axes xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-extension-wasm ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
+xtask-check: check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph check-vsix-web-assets-contract xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-catalogue-callers xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-segmentation-drift xtask-value-transfers xtask-registry-axes xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-gen-editor-configs xtask-gen-environment-docs xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-extension-wasm ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
 
 check-lsp-wasi-lto: ## Verify functional WASI uses thin LTO and tags retain fat LTO
 	@bash scripts/dev/test-lsp-wasi-lto.sh
@@ -961,17 +982,29 @@ xtask-gen-bundled-environments: ## Verify the compiled environment seed matches 
 	@echo "==> Checking the bundled-pack environment seed against specs/ (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-bundled-environments --check
 
-xtask-gen-editor-dialects: ## Verify editor selectable dialect lists match DialectProfile::all
+xtask-gen-editor-dialects: ## Verify editor selectable dialect lists match the selectable environments (drift gate)
 	@echo "==> Checking generated editor dialect lists (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-editor-dialects --check
 
-xtask-editor-extensions: ## Verify the editors' extension/language lists match the dialect catalog + bundled packs (drift gate)
-	@echo "==> Checking editor extension/language lists against the dialect catalog (cargo xtask)"
+xtask-editor-extensions: ## Verify the editors' language, extension and first-line lists match the environment registry + bundled packs (drift gate)
+	@echo "==> Checking editor extension/language lists against the environment registry (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-editor-extensions --check
+
+xtask-gen-editor-configs: ## Verify the Zed extension.toml language table, the editor guides' generated regions and INSTALL-editors.md match the environment registry (drift gate)
+	@echo "==> Checking generated editor configuration regions (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-editor-configs --check
+
+xtask-gen-environment-docs: ## Verify the README dialect tables, docs/generated/environments.md, the dialect-selection KCS lists and the AI prompt manifest match the environment registry (drift gate)
+	@echo "==> Checking generated environment documentation and the prompt manifest (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-environment-docs --check
 
 xtask-owner-resolution: ## Verify the shared semantic-owner contract resolves to live source and gates
 	@echo "==> Checking shared semantic-owner contract (cargo xtask)"
 	cd $(ROOT) && cargo xtask owner-resolution
+
+xtask-catalogue-callers: ## Hold DialectProfile::all() / KNOWN_DIALECTS callers to the allowlist (user-facing lists read the environment registry)
+	@echo "==> Checking dialect catalogue callers against the allowlist (cargo xtask)"
+	cd $(ROOT) && cargo xtask catalogue-callers --check
 
 xtask-workflow-sync: ## Verify .github/workflows/ copies match their canonical deploy sources (drift gate)
 	@echo "==> Checking installed workflows match their canonical sources (cargo xtask)"
@@ -1429,6 +1462,9 @@ _check-rust-pr:
 	cd $(ROOT); \
 	cargo fmt --all --check; \
 	cargo clippy --workspace --all-targets -- $(CLIPPY_LINT_FLAGS); \
+	echo "==> Checking tcl-bigip-query's offline x509 feature set (clippy + test)"; \
+	cargo clippy -p tcl-bigip-query --no-default-features --features x509 --all-targets -- $(CLIPPY_LINT_FLAGS); \
+	cargo test -p tcl-bigip-query --no-default-features --features x509 --test x509_only; \
 	if [ -f "$(RUNTIME_RUST_DIR)/Cargo.toml" ]; then \
 		echo "==> Checking runtime/rust (fmt + clippy)"; \
 		$(MAKE) --no-print-directory -C $(ROOT) runtime-rust-lint; \
@@ -1823,18 +1859,59 @@ editors/zed/languages/tcl/highlights.scm: $(_CATALOG_DEPS)
 # the ownership explicit so a `make generate` after a dialect, lexical grammar,
 # or command-registry change always refreshes every affected editor surface.
 _EDITOR_DIALECT_DEPS := $(shell find $(ROOT)rust/tcl-dialect/src $(ROOT)rust/xtask/src -name '*.rs')
-_EDITOR_DIALECT_OUTPUTS := editors/vscode/package.json editors/vscode/src/extension.ts editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/TclLspSettings.kt editors/sublime-text/plugin.py editors/sublime-text/sublime-package.json
+_EDITOR_DIALECT_OUTPUTS := \
+	editors/vscode/package.json \
+	editors/vscode/src/languageIds.ts \
+	editors/vscode/src/compilerExplorerHtml.ts \
+	editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/TclLspSettings.kt \
+	editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/TclFileType.kt \
+	editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/packs/PackAssociationReconciler.kt \
+	editors/jetbrains/src/main/resources/META-INF/plugin.xml \
+	editors/jetbrains/src/main/resources/textmate/package.json \
+	editors/sublime-text/plugin.py \
+	editors/sublime-text/sublime-package.json \
+	editors/sublime-text/LSP-Tcl.sublime-settings \
+	editors/zed/languages/tcl/config.toml \
+	editors/zed/languages/expect/config.toml \
+	editors/zed/languages/iapps/config.toml \
+	editors/zed/languages/irules/config.toml \
+	editors/zed/languages/tmsh/config.toml \
+	editors/zed/languages/apl/config.toml
 $(_EDITOR_DIALECT_OUTPUTS): $(_EDITOR_DIALECT_DEPS)
+
+_EDITOR_CONFIG_OUTPUTS := \
+	editors/zed/extension.toml \
+	editors/zed/README.md \
+	editors/helix/README.md \
+	editors/emacs/README.md \
+	editors/neovim/tcl_lsp.lua \
+	editors/neovim/README.md \
+	editors/sublime-text/README.md \
+	INSTALL-editors.md
+$(_EDITOR_CONFIG_OUTPUTS): $(_EDITOR_DIALECT_DEPS)
+
+_ENVIRONMENT_DOC_OUTPUTS := \
+	README.md \
+	docs/generated/environments.md \
+	docs/kcs/features/kcs-feature-dialect-selection.md \
+	ai/prompts/manifest.json
+$(_ENVIRONMENT_DOC_OUTPUTS): $(_EDITOR_DIALECT_DEPS)
 
 _TMLANGUAGE_KEYWORD_DEPS := $(shell find $(ROOT)rust/tcl-registry/src $(ROOT)rust/tcl-dialect/src $(ROOT)rust/tcl-syntax/src $(ROOT)rust/xtask/src -name '*.rs')
 _TMLANGUAGE_KEYWORD_OUTPUTS := editors/vscode/syntaxes/tcl.tmLanguage.json editors/jetbrains/src/main/resources/syntaxes/tcl.tmLanguage.json
 $(_TMLANGUAGE_KEYWORD_OUTPUTS): $(_TMLANGUAGE_KEYWORD_DEPS)
 
-generate: editors/vscode/src/generated/iruleEvents.json editors/zed/languages/tcl/highlights.scm $(_EDITOR_DIALECT_OUTPUTS) $(_TMLANGUAGE_KEYWORD_OUTPUTS) gen-irule-test-data ## Regenerate editor catalogs, dialect projections, lexical grammars, and iRule-test data
+generate: editors/vscode/src/generated/iruleEvents.json editors/zed/languages/tcl/highlights.scm $(_EDITOR_DIALECT_OUTPUTS) $(_EDITOR_CONFIG_OUTPUTS) $(_ENVIRONMENT_DOC_OUTPUTS) $(_TMLANGUAGE_KEYWORD_OUTPUTS) gen-irule-test-data ## Regenerate editor catalogs, dialect projections, lexical grammars, and iRule-test data
 	@echo "==> Generating the bundled-pack environment seed (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-bundled-environments
 	@echo "==> Generating editor dialect projections (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-editor-dialects
+	@echo "==> Generating editor language and extension lists (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-editor-extensions
+	@echo "==> Generating editor configuration regions (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-editor-configs
+	@echo "==> Generating environment documentation and the prompt manifest (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-environment-docs
 	@echo "==> Generating TextMate keyword grammars (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-tmlanguage-keywords
 

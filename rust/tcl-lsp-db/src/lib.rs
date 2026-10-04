@@ -1745,9 +1745,10 @@ pub struct ItemBodyKey<'db> {
     /// `false` for procs and snit / itcl members.
     #[returns(copy)]
     pub oo_global_resolution: bool,
-    /// Class instance variables pre-bound in a method body (empty for procs).
+    /// Variables pre-bound in the body: a method body's class instance
+    /// variables, or a procedure's static variables.
     #[returns(ref)]
-    pub class_variables: Vec<String>,
+    pub seeded_variables: Vec<String>,
     /// The constant command-substitution fold context: the
     /// whole-file command-mutation trust snapshot the shell attached for a
     /// body with a fold candidate, paired with the instance-side `TclOO`
@@ -1854,7 +1855,7 @@ pub fn item_body_analysis<'db>(db: &'db dyn TclDb, key: ItemBodyKey<'db>) -> Arc
         namespace: key.namespace(db).clone(),
         scope_name: key.scope_name(db).clone(),
         params: key.params(db).clone(),
-        class_variables: key.class_variables(db).clone(),
+        seeded_variables: key.seeded_variables(db).clone(),
         command_trust,
         oo_defining_class,
         // The two ensemble halves are seeded together, never separately —
@@ -3762,7 +3763,7 @@ pub fn file_analysis_incremental(
             body.params.clone(),
             body.is_method,
             body.oo_global_resolution,
-            body.class_variables.clone(),
+            body.seeded_variables.clone(),
             body.command_trust
                 .clone()
                 .map(|trust| (trust, body.oo_defining_class.clone())),

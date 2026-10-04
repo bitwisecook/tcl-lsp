@@ -31,7 +31,7 @@
 //! ## What "unequal" is allowed to mean
 //!
 //! Exactly the keys [`render_spectcl::GAPS`] names, and nothing else. Each is
-//! one of three kinds, and each kind is a different claim:
+//! one of four kinds, and each kind is a different claim:
 //!
 //! - [`GapKind::DraftOpaque`] — the DSL *has* a spelling and the loader reads
 //!   it, but the draft model records the field as "set, expression not
@@ -41,6 +41,8 @@
 //! - [`GapKind::LoaderGap`] — the draft holds the value and the design memo
 //!   documents a spelling, but no loader reader exists yet.
 //! - [`GapKind::Excluded`] — a pack may not author the field at all.
+//! - [`GapKind::PackLevel`] — a row of a pack-level block (`environment`),
+//!   which no per-command draft key holds.
 //!
 //! **Native hooks are deliberately not in that list.** A hook field renders as
 //! `field -native ID`, the loader installs its family's abstention, and
@@ -928,7 +930,7 @@ fn every_command_in_every_dialect_round_trips_through_spectcl() {
             gap.key,
             gap.kind,
             match gap.kind {
-                GapKind::DraftOpaque | GapKind::LoaderGap => gap.spelling,
+                GapKind::DraftOpaque | GapKind::LoaderGap | GapKind::PackLevel => gap.spelling,
                 GapKind::Excluded => "excluded from what a pack may author",
             }
         );

@@ -70,6 +70,9 @@ pub fn registry_with_packs(
     profile: &'static DialectProfile,
     packs: &PackSet,
 ) -> Arc<CommandRegistry> {
+    // The compiled-in core surfaces belong to every registry this hands out,
+    // whether or not a pack set has been published.
+    crate::core_surfaces::ensure();
     if packs.key == 0 || packs.is_empty() {
         return std::sync::Arc::clone(
             tcl_registry::model::ingress::static_context_for_profile(profile).commands(),

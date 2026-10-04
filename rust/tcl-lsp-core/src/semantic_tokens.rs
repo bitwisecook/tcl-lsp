@@ -132,7 +132,7 @@ enum TokenKind {
     RegexpCharClass = 10,
     /// Regex quantifier: `*` `+` `?` `{n,m}` and lazy variants.
     RegexpQuantifier = 11,
-    /// Regex anchor: `^` `$` `\A` `\Z` `\b` `\B` `\m` `\M` `\y` `\Y`.
+    /// Regex anchor: `^` `$` `\A` `\Z` `\z` `\b` `\B` `\m` `\M` `\y` `\Y`.
     RegexpAnchor = 12,
     /// Regex escape sequence: `\n` `\t` `\xHH` `\uHHHH` `\<meta>`.
     RegexpEscape = 13,
@@ -4185,6 +4185,7 @@ fn scan_are_escape(b: &[u8], i: usize) -> Option<usize> {
         | b'W'
         | b'y'
         | b'Y'
+        | b'z'
         | b'Z'
         | b'0'..=b'9'
         | b'a'
@@ -4243,7 +4244,10 @@ fn classify_regex_component(matched: &str) -> TokenKind {
             TokenKind::RegexpEscape
         } else if matches!(ch, b'd' | b'D' | b's' | b'S' | b'w' | b'W') {
             TokenKind::RegexpCharClass
-        } else if matches!(ch, b'b' | b'B' | b'm' | b'M' | b'y' | b'Y' | b'A' | b'Z') {
+        } else if matches!(
+            ch,
+            b'b' | b'B' | b'm' | b'M' | b'y' | b'Y' | b'A' | b'z' | b'Z'
+        ) {
             TokenKind::RegexpAnchor
         } else {
             TokenKind::RegexpEscape

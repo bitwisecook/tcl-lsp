@@ -779,9 +779,14 @@ pub(crate) fn irule_binary(op: BinOp, left: &Value, right: &Value) -> Result<Val
         // Case-sensitive `string match` / `regexp` — the dialect operators have
         // no `-nocase` form.
         MatchesGlob => tcl_syntax::glob::string_match(&operand, &subject),
-        MatchesRegex => {
-            crate::cmd_regexp::regexp_matches(&operand, &subject, false).map_err(TclError::new)?
-        }
+        // iRules embeds Tcl 8.4, whose ARE has no `\z`.
+        MatchesRegex => crate::cmd_regexp::regexp_matches(
+            &operand,
+            &subject,
+            false,
+            tcl_dialect::TclVersion::V8_4,
+        )
+        .map_err(TclError::new)?,
         _ => return Err(TclError::new("unsupported operator")),
     };
     Ok(Value::bool(truth))
@@ -844,10 +849,20 @@ impl ExprOps for ExprEval<'_> {
         })
     }
 
-    fn string(&mut self, inner: &str) -> Result<Value, TclError> {
+    fn string(&mut self, inner: &str, substitutes: bool) -> Result<Value, TclError> {
         // A `"…"` expr operand is a double-quoted word: substitute `$var` /
         // `[cmd]` / backslashes (the runtime-`expr` analogue of the compiler's
         // `emit_expr_string`), so `expr {"item $i"}` is `item 0`, not `item $i`.
+        //
+        // A `{…}` operand is literal but for its backslash-newlines, which
+        // fold even inside braces. Substituting it fully ran the `[id 9]` in
+        // `set e {{[id 9]}}; expr $e`, which tclsh 8.4.20 through 9.1b0 all
+        // return as the text `[id 9]` (#2227).
+        if !substitutes {
+            return Ok(Value::string(
+                tcl_syntax::backslash::collapse_brace_continuations_str(inner).as_ref(),
+            ));
+        }
         let s = crate::subst::subst_command(self.vm, inner, true, true, true)?;
         Ok(Value::string(s))
     }

@@ -192,6 +192,8 @@ pub(crate) struct Frame {
     /// would add on error (`("eval" body line N)` / `("uplevel" body line N)`).
     /// `None` for a command-substitution `EVAL_STK`, which adds no body frame.
     body_label: Option<&'static str>,
+    /// Entered invocation retained when a tailcall removes its issuing frame.
+    body_invocation: Option<(String, u32)>,
     /// Set on a **catch** activation: the body runs on the explicit stack (like a
     /// script frame) but its completion — of *any* code — is absorbed by the catch
     /// epilogue (`Vm::finish_catch`) rather than propagated. Carries the optional
@@ -331,6 +333,7 @@ pub(crate) struct EachLoopReq {
     pub(crate) groups: Vec<EachLoopGroup>,
     pub(crate) iterations: usize,
     pub(crate) body: crate::compiled::CompiledUnit,
+    pub(crate) invocation: Option<(String, u32)>,
 }
 
 /// [`EachLoopReq`]'s live iteration state, carried on the activation
@@ -412,6 +415,7 @@ impl Frame {
             is_script: false,
             replay_namespace_restore: None,
             body_label: None,
+            body_invocation: None,
             catch: None,
             subst: None,
             each_loop: None,
@@ -505,6 +509,7 @@ impl Frame {
         placeholder: crate::compiled::CompiledUnit,
     ) -> Self {
         let mut f = Self::new(placeholder, false);
+        f.body_invocation = req.invocation;
         f.each_loop = Some(Box::new(EachLoopState {
             name: req.name,
             collect: req.collect,
@@ -1875,6 +1880,13 @@ impl Vm {
             return;
         };
         self.append_body_frame(label);
+        if let Some((cmd, line)) = &act.body_invocation {
+            self.log_command_info(cmd, "", *line);
+            // The entered replacement and the original procedure call are
+            // separate Tcl command frames, even though tailcall removed the
+            // procedure activation between them.
+            self.clear_error_logged();
+        }
         if let Some((cmd, line)) = acts.last().and_then(|parent| {
             parent
                 .asm
@@ -2016,7 +2028,7 @@ impl Vm {
             // unwinding (an error, or an uncaught `return`).
             if acts.last().is_some_and(|p| p.each_loop.is_some()) {
                 let parent = acts.last_mut().expect("each_loop parent present");
-                match self.fold_each_loop(parent, c) {
+                match Self::fold_each_loop(parent, c) {
                     EachLoopFold::Resume => return None,
                     EachLoopFold::Unwind(nc) => {
                         c = nc;
@@ -2348,16 +2360,17 @@ impl Vm {
     /// state, matching the synchronous engine this replaces exactly: `Ok`
     /// collects the result (`lmap`) and continues; `Continue` skips collection
     /// and continues; `Break` stops the loop (delivered as the final result on
-    /// the next tick, since `it` is set to `iterations`); `Error` adds the
-    /// `each_loop`'s own body-frame label (`vm.append_body_frame(name)`) and
-    /// unwinds; `Return`/`Other` propagate immediately, uncollected, exactly as
+    /// the next tick, since `it` is set to `iterations`); `Error` marks the
+    /// `each_loop`'s body-frame label for activation unwind, which appends the
+    /// body frame and logs the invoking command; `Return`/`Other` propagate
+    /// immediately, uncollected, exactly as
     /// C Tcl's `EachloopCmd` passes a body `return` straight out of the loop.
-    fn fold_each_loop(&mut self, parent: &mut Frame, c: Completion<Value>) -> EachLoopFold {
+    fn fold_each_loop(parent: &mut Frame, c: Completion<Value>) -> EachLoopFold {
         if matches!(c.code, Code::Error | Code::Return | Code::Other(_)) {
             let name = parent.each_loop.as_ref().expect("each_loop state").name;
             parent.each_loop = None;
             if c.code == Code::Error {
-                self.append_body_frame(name);
+                parent.body_label = Some(name);
             }
             return EachLoopFold::Unwind(c);
         }
@@ -4549,9 +4562,13 @@ impl Vm {
                 let nocase = imm0(instr) & TCL_REG_NOCASE != 0;
                 let s = pop(f).to_str();
                 let pat = pop(f).to_str();
-                match crate::cmd_regexp::regexp_matches(&pat, &s, nocase) {
+                let version = self.runtime_version();
+                match crate::cmd_regexp::regexp_matches(&pat, &s, nocase, version) {
                     Ok(m) => f.stack.push(Value::bool(m)),
-                    Err(msg) => return Tick::Return(err(msg)),
+                    Err(detail) => {
+                        let prefix = version.regex_compile_error_prefix();
+                        return Tick::Return(err(format!("{prefix}{detail}")));
+                    }
                 }
             }
             // `[string is CLASS $str]` per-character class test — operand
@@ -5890,14 +5907,19 @@ impl Vm {
             self.dispatch_words(parent, words)
         };
         match dispatched {
-            Ok(Some(tick)) => match self.install_tick(acts, tick) {
-                TickAction::Resume => None,
-                TickAction::Complete(completion) => {
-                    self.settle_completion(acts, completion).map(RunExit::Done)
+            Ok(Some(mut tick)) => {
+                if let Tick::PushEachLoop { req, .. } = &mut tick {
+                    req.invocation = Some((Value::list(words.to_vec()).to_str().to_string(), 1));
                 }
-                TickAction::Tailcall(next) => self.run_tailcall(acts, &next, mode),
-                TickAction::Suspend(req) => self.handle_suspend(acts, mode, req),
-            },
+                match self.install_tick(acts, tick) {
+                    TickAction::Resume => None,
+                    TickAction::Complete(completion) => {
+                        self.settle_completion(acts, completion).map(RunExit::Done)
+                    }
+                    TickAction::Tailcall(next) => self.run_tailcall(acts, &next, mode),
+                    TickAction::Suspend(req) => self.handle_suspend(acts, mode, req),
+                }
+            }
             Ok(None) => None,
             Err(completion) => self.unwind(acts, completion).map(RunExit::Done),
         }

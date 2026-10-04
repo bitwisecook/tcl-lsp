@@ -134,7 +134,7 @@ command = "/home/you/bin/tcl-lsp-server-wasi"
 [[language]]
 name = "tcl"
 scope = "source.tcl"
-file-types = ["tcl", "tk", "itcl", "tm", "tclspec", "irul", "irule", "iapp", "iappimpl", "impl"]
+file-types = ["tcl", "tk", "itcl", "tm", "irul", "irule", "iapp", "iappimpl", "impl", "exp", "apl", "test", "irules", "expect", "tmsh", "tclspec", "sslictcl"]
 language-servers = ["tcl-lsp"]
 ```
 
@@ -315,8 +315,12 @@ return {
 
 ```lua
 vim.filetype.add({ extension = {
-  tcl = 'tcl', tk = 'tcl', itcl = 'tcl', tm = 'tcl', tclspec = 'tcl',
-  irul = 'tcl', irule = 'tcl', iapp = 'tcl', iappimpl = 'tcl', impl = 'tcl',
+  -- <generated: install-neovim-extensions>
+  tcl = 'tcl', tk = 'tcl', itcl = 'tcl', tm = 'tcl', irul = 'tcl',
+  irule = 'tcl', iapp = 'tcl', iappimpl = 'tcl', impl = 'tcl', exp = 'tcl',
+  apl = 'tcl', test = 'tcl', irules = 'tcl', expect = 'tcl', tmsh = 'tcl',
+  tclspec = 'tcl', sslictcl = 'tcl',
+  -- </generated>
 }})
 vim.lsp.enable('tcl_lsp')
 ```
@@ -359,7 +363,7 @@ command = "/home/you/bin/tcl-lsp-server"
 [[language]]
 name = "tcl"
 scope = "source.tcl"
-file-types = ["tcl", "tk", "itcl", "tm", "tclspec", "irul", "irule", "iapp", "iappimpl", "impl"]
+file-types = ["tcl", "tk", "itcl", "tm", "irul", "irule", "iapp", "iappimpl", "impl", "exp", "apl", "test", "irules", "expect", "tmsh", "tclspec", "sslictcl"]
 language-servers = ["tcl-lsp"]
 ```
 

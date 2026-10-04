@@ -21,6 +21,7 @@ import * as vscode from "vscode";
 import { isTclLanguage } from "../extension";
 import { resolveIruleCode } from "./codeUtils";
 import { waitForDiagnostics } from "./diagnosticAccess";
+import { DEFAULT_DIALECT } from "./dialectCatalog";
 import { IRULES_EVENT_PATTERN } from "./canonicalDiagnostics";
 import { CommandContext } from "./types";
 
@@ -82,7 +83,7 @@ function diagnosticSeverity(severity: vscode.DiagnosticSeverity): string {
 }
 
 function activeDialect(): string {
-  return vscode.workspace.getConfiguration("tclLsp").get<string>("dialect", "tcl8.6");
+  return vscode.workspace.getConfiguration("tclLsp").get<string>("dialect", DEFAULT_DIALECT);
 }
 
 function formatDocumentLabel(document: vscode.TextDocument): string {

@@ -200,6 +200,41 @@ redefinition.
   builtin — the same discipline the qualified-`foreach` fallback needs (see
   [compiled-scope-and-name-lowering.md](compiled-scope-and-name-lowering.md)).
 
+### Registry terminal facts and scalar analysis
+
+The binding lattice also projects the terminal registry invocation facts at a
+call site.  A resolved terminal whose registry traits include
+`EVALUATES_CODE`, `CREATES_BARRIER`, or `CREATES_DYNAMIC_BARRIER` is a scalar
+analysis boundary: SCCP must widen values after a direct call, and before a
+host statement whose command substitution reaches that terminal.  The CFG
+represents this boundary with a non-dispatching synthetic barrier, so codegen
+does not invoke the handler twice.  The projection follows terminal alias
+resolution and applies the same rule to direct and embedded invocations; it
+does not identify handlers by command spelling.
+
+The historical may-binding state remains a module-wide union for reachability;
+it therefore retains a registry fallback alongside a source-defined procedure.
+Consumers that need execution-point facts use the separate source binding
+timeline: it records each statement before substitutions and before its direct
+call, in Tcl's substitution-before-direct order, and joins conditional and
+loop paths conservatively.  Procedure CFGs start from the timeline suffix
+reachable after their definition together with closed-root boundary state, so
+pre-definition fallbacks do not taint later procedures while later unknown
+rebinding still does.  Any opaque user target or uncertain resolution preserves
+the barrier.  The resulting `RegistryBarrier` is analysis-only and never
+dispatches or adds an executable command/frame/SSA/memory effect. SCCP assigns
+fresh overdefined value versions live after this boundary, including version-0 parameter
+seeds: a handler can change a caller parameter through `upvar` without a source
+assignment. Ordinary barriers retain the existing parameter-seed policy. Only the
+argument-sensitive rerun of an interprocedurally proven pure procedure retains
+its immutable caller-bound seeds. Backward liveness determines the affected
+names; fresh versions preserve earlier proofs even for a value used on both
+sides. The value-clobber sidecar records prior/fresh pairs separately from
+executable writes. Binding and provenance consumers follow the prior version:
+a possible value mutation does not establish a definite source assignment or
+erase existing taint and byte-array provenance. Undefined-variable analysis
+retains unset and after-loop binding evidence through the same lineage.
+
 ## Hazards to design in (not patch)
 
 * **Re-entrancy.** An alias / rename / import may be created mid-eval (inside a
@@ -241,3 +276,47 @@ redefinition.
   as-built dispatch, redirect lists, and the rename sidecar.
 - [command-alias-resolution.md](command-alias-resolution.md) — LSP/analyser
   `interp alias` tracking (the static, editor-facing slice).
+
+Registry value boundaries allocate fresh SSA versions for values live after
+an invocation. The versions live in `SsaFunction::value_clobbers`, separately
+from executable statement writes, caller edges and frame evidence. SCCP marks
+the fresh versions overdefined and preserves the reaching versions for uses
+before the boundary. Explicit outputs of the invocation already have fresh
+versions and keep their binding evidence. Preliminary SSA supplies name-level
+liveness; the final rename walk places clobber joins through ordinary phis.
+Brace-quoted expression substitutions use the canonical owner's complete
+command view for the same registry projection as ordinary substitutions. The
+owner records one evaluation-ordered index stream across the ordinary and
+in-frame expression inventories. Binding transitions and scalar barriers replay
+that stream; an earlier expression's nested renames reach both later siblings
+and following statements without changing the inventories used by call graphs.
+Both consumers use the same resolved registry head and alias-prepended argument
+offsets when discovering expression words, so aliases preserve that ordering.
+Role discovery uses the binding state before that substitution, so a later
+alias redefinition does not hide an earlier expression's nested effects.
+The owner replays each recovered invocation before discovering the next head's
+expression roles. An alias created by an earlier substitution therefore enables
+descent into a later sibling's expression without precomputing a stale inventory.
+
+Conditional expression substitutions retain both executed and skipped binding
+states. The shared expression AST owner identifies short-circuit and ternary
+paths; replay joins the incoming state after each possibly executed command,
+so a skipped alias replacement cannot erase an earlier evaluation target.
+
+Global-frame script and registry-handler boundaries are independent effects.
+When one statement reaches both, CFG construction retains both typed markers
+in ordinary substitutions, conditions, control inputs and direct calls; the
+global boundary cannot replace the registry value clobber for seeded parameters.
+
+Compilation supplies the known entry bindings to SSA value clobber placement.
+An unbound local version zero has no prior value to invalidate; parameter
+seeds still receive fresh versions, while the first real local store retains
+its executable definition identity. Raw CFG-only callers remain conservative
+when entry-binding facts are unavailable.
+
+Catch header substitutions materialise their effects before either inline or
+opaque dispatch. Registry-clobbered type reads widen rather than follow the
+binding domain's executable lineage; subsequent collection writes retain the
+unknown prior elements. Empty source-class factories retain collection type
+precision only under the straight-line, registry-described proof documented
+in the shared owner contract.

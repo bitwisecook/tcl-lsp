@@ -99,8 +99,9 @@ pub use declaration::{
 };
 pub use ingress::{
     DocumentEnvironment, context_for_profile, environments, irules_context,
-    is_known_environment_name, resolve_environment, resolve_known_environment, static_context_for,
-    static_context_for_profile, static_document_context_for, static_document_context_for_profile,
+    is_known_environment_name, resolve_environment, resolve_known_environment, resolve_language_id,
+    selectable_environments, static_context_for, static_context_for_profile,
+    static_document_context_for, static_document_context_for_profile,
 };
 pub use runtime_context::{
     PinError, PinnedContext, pin, runtime_context_for_profile, runtime_context_of,
@@ -115,5 +116,5 @@ pub use registration::{
 };
 pub use surface::{
     BuildCapability, CapabilityPredicate, PackageId, Provider, SurfaceDeclaration,
-    declarations_for_spec,
+    declarations_for_spec, package_hosting_families,
 };

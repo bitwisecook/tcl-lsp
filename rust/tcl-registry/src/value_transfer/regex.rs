@@ -36,6 +36,7 @@ use tcl_cmd_core::regex::{
     regexp_analysis, regsub_analysis,
 };
 use tcl_dialect::TclVersion;
+use tcl_dialect::model::SpecSurface;
 use tcl_regex::cmd_core::AreEngine;
 
 use crate::types::TclType;
@@ -44,7 +45,7 @@ use super::CommandSemantics;
 use super::answers::EvalAnswer;
 use super::const_ops::{ConstOps, ConstValue, Needs, Raised, TargetSemantics};
 use super::context::Budget;
-use super::decline::{BudgetLimit, DeclineReason, NoRouteReason};
+use super::decline::{Axis, BudgetLimit, DeclineReason, NoRouteReason};
 use super::inputs::{AnalysisInputs, OperandId, TargetId};
 use super::publication::{
     ArrayWrite, Checked, PendingStore, Publication, open_words, raised_outcome,
@@ -216,6 +217,23 @@ fn open<'b>(
     Ok((ops, texts, targets))
 }
 
+/// The release the regex core runs under: the target's own, or 9.0's where
+/// it names none — unless a word spells `\z`, which 9.1 reads as an
+/// end-of-string anchor and 8.4 to 9.0 reject as an invalid escape, so the
+/// answer would rest on the release the target leaves open.
+pub(super) fn core_release(
+    release: Option<TclVersion>,
+    words: &[String],
+) -> Result<TclVersion, DeclineReason> {
+    match release {
+        Some(release) => Ok(release),
+        None if words.iter().any(|word| word.contains("\\z")) => Err(
+            DeclineReason::ReleaseAmbiguous(Axis::Availability(SpecSurface::TCL91[0])),
+        ),
+        None => Ok(TclVersion::V9_0),
+    }
+}
+
 /// `regexp ?switches? exp string ?matchVar …?` on the direct route: on a
 /// match the count as the result and one `Write` per match variable (an
 /// unmatched subgroup writes the empty string, or `-1 -1` with
@@ -240,9 +258,13 @@ impl RegexpSemantics {
             Ok(opened) => opened,
             Err(answer) => return answer,
         };
+        let version = match core_release(ops.target().release, &texts) {
+            Ok(version) => version,
+            Err(reason) => return EvalAnswer::Declined(reason),
+        };
         let args: Vec<&[u8]> = texts.iter().map(String::as_bytes).collect();
         let run = metered(&mut ops, |ops, analysis| {
-            regexp_analysis::<ConstOps<'_>, AreEngine>(ops, &args, analysis)
+            regexp_analysis::<ConstOps<'_>, AreEngine>(ops, &args, version, analysis)
         });
         let publication = match run {
             Err(reason) => return EvalAnswer::Declined(reason),
@@ -351,7 +373,10 @@ impl RegsubSemantics {
         }
         // With no release named, the 9.0 table reads every option the
         // earlier tables do; the one it adds is the callback form above.
-        let version = ops.target().release.unwrap_or(TclVersion::V9_0);
+        let version = match core_release(ops.target().release, &texts) {
+            Ok(version) => version,
+            Err(reason) => return EvalAnswer::Declined(reason),
+        };
         let args: Vec<&[u8]> = texts.iter().map(String::as_bytes).collect();
         let run = metered(&mut ops, |_, analysis| {
             regsub_analysis::<AreEngine>(&args, version, analysis)

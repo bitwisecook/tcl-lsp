@@ -485,6 +485,44 @@ fn workspace_scan_project_ini_beats_the_editor_layer() {
 }
 
 #[test]
+fn notifications_environment_kind_section() {
+    // The INI spelling is snake_case; the editor's camelCase key is accepted
+    // so exported settings paste back unchanged.
+    let snake = settings_from_ini("[notifications]\nenvironment_kind = false\n", Layer::Global);
+    assert_eq!(snake["notifications"]["environmentKind"], json!(false));
+    let camel = settings_from_ini("[notifications]\nenvironmentKind = off\n", Layer::Project);
+    assert_eq!(camel["notifications"]["environmentKind"], json!(false));
+    let on = settings_from_ini("[notifications]\nenvironment_kind = yes\n", Layer::Global);
+    assert_eq!(on["notifications"]["environmentKind"], json!(true));
+
+    // An unparsable value or an absent section says nothing, so the built-in
+    // default stands.
+    let bad = settings_from_ini("[notifications]\nenvironment_kind = maybe\n", Layer::Global);
+    assert!(bad.get("notifications").is_none());
+    assert!(
+        settings_from_ini("[features]\nhover = false\n", Layer::Global)
+            .get("notifications")
+            .is_none()
+    );
+}
+
+#[test]
+fn notifications_editor_layer_beats_the_global_file() {
+    // The XDG file is the lowest layer: an editor that sends the key wins, and
+    // an editor that sends nothing leaves the file's value in force.
+    let global = settings_from_ini("[notifications]\nenvironment_kind = false\n", Layer::Global);
+    let editor = json!({ "notifications": { "environmentKind": true } });
+    assert_eq!(
+        merge_settings(&global, &editor)["notifications"]["environmentKind"],
+        json!(true)
+    );
+    assert_eq!(
+        merge_settings(&global, &json!({}))["notifications"]["environmentKind"],
+        json!(false)
+    );
+}
+
+#[test]
 fn signature_help_disabled_commands_section() {
     let snake = settings_from_ini(
         "[signatureHelp]\ndisabled_commands = set, incr\n",

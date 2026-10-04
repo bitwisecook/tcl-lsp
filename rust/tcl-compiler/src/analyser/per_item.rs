@@ -196,15 +196,17 @@ pub struct DeferredBody {
     pub scope_name: String,
     /// The proc / method's declared parameters (locals in the body).
     pub params: Vec<crate::signature_scan::types::ParamDef>,
-    /// Class instance variables pre-bound in every method body (`variable`
-    /// declarations at class level).  Empty for proc bodies.
+    /// Variables pre-bound in the body before it is walked: the class
+    /// instance variables of every method body (`variable` declarations at
+    /// class level), or the static variables a procedure's static-variable
+    /// list declares. Empty for a proc body with no such list.
     ///
     /// The seeded var's real `definition_span` (the `variable v` declaration)
     /// is supplied by the *shell* walk (`oo::walk_method_body`), which the
     /// graft keeps for shell-owned keys (`merge_one_var`); the isolated body
     /// pass below only needs the names, so this stays `Vec<String>` (and salsa
     /// -interning-friendly — see `tcl-lsp-db`'s `ItemBodyKey`).
-    pub class_variables: Vec<String>,
+    pub seeded_variables: Vec<String>,
     /// The whole-file command-mutation trust snapshot, attached by
     /// [`Analyser::fill_deferred_bodies`] to every deferred body whose text
     /// could fold a command substitution
@@ -260,7 +262,7 @@ pub struct DeferredBody {
     /// hidden_extra, exposed)`, sorted `Vec<String>`s rather than the live
     /// `HashSet`-based `SafeInterpCtx` (which isn't `Hash`, so can't key
     /// `tcl-lsp-db`'s `ItemBodyKey` directly) so this stays deterministic and
-    /// salsa-interning-friendly, matching `class_variables` above.
+    /// salsa-interning-friendly, matching `seeded_variables` above.
     /// `None` outside any tracked safe interpreter (the overwhelming common
     /// case). Every safe-interp check only ever consults the *top* of the
     /// stack (`safe_interp_visibility_gate`'s `.last()`), never an older
@@ -1363,7 +1365,7 @@ fn seed_ensemble_facts(a: &mut super::state::Analyser, db: &DeferredBody) {
 
 /// Analyse one `proc` **or method** body as an isolated unit at **offset 0** — a
 /// pure function of `(body_text, namespace, scope_name, params, is_method,
-/// class_variables)`, so a shifted-but-unedited body is a cache hit
+/// seeded_variables)`, so a shifted-but-unedited body is a cache hit
 /// (offset-invariant).  The enclosing namespace + params are reconstructed
 /// (a `Method` scope with instance variables pre-bound for methods, a `Proc`
 /// scope otherwise); params / instance vars get a placeholder definition span
@@ -1468,7 +1470,7 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
     }
     // Class instance variables — visible in every method body (skip ones that a
     // formal parameter already shadows, matching `walk_method_body`).
-    for var in &db.class_variables {
+    for var in &db.seeded_variables {
         let base = crate::naming::normalise_var_name(var);
         if base.is_empty() || db.params.iter().any(|p| p.name == base) {
             continue;

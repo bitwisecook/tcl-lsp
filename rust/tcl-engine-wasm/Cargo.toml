@@ -43,7 +43,7 @@ tcl-engine-api = { path = "../tcl-engine-api" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-syntax = { path = "../tcl-syntax" }
 # The same version and features `tcl-fuzz` builds, so the two share one build.
-wasmtime = { version = "48", default-features = false, features = ["cranelift", "runtime", "gc-drc"] }
+wasmtime = { version = "49.0.1", default-features = false, features = ["cranelift", "runtime", "gc-drc"] }
 
 [dev-dependencies]
 # For the real-link gate shared by path with `tcl-compiler`'s suites.

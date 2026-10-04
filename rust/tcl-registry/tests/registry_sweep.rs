@@ -73,9 +73,9 @@ use tcl_registry::taint::TaintColour;
 // want that same pack-carrying registry.
 use tcl_registry::{
     ArgRole, CallbackEffect, CommandRegistry, DispatchDependencies, DispatchDependencyDescriptor,
-    KNOWN_DIALECTS, ResolvedDispatchDependencies, ResultStability, StateTransitionArgumentShape,
+    ResolvedDispatchDependencies, ResultStability, StateTransitionArgumentShape,
     StateTransitionCommit, StateTransitionComposition, StateTransitionDescriptor, Traits,
-    WorldEffectComposition, WorldEffectDescriptor, available_dialects,
+    WorldEffectComposition, WorldEffectDescriptor,
 };
 
 // Helpers
@@ -114,7 +114,7 @@ fn registry_for_dialect(dialect: &str) -> std::sync::Arc<CommandRegistry> {
 /// Every dialect name that loads a non-trivial command pack — a compiled-in
 /// one by its `SpecSurface` bit, or the EDA vendor libraries through the
 /// bundled loadables [`registry_for_dialect`] installs. (The config-only
-/// `f5-bigip` / `f5-tmsh` names in `KNOWN_DIALECTS` collapse to plain Tcl, so
+/// `f5-bigip` / `f5-tmsh` catalogue names collapse to plain Tcl, so
 /// they are covered via the catalogue sweep rather than as load targets.)
 const LOADABLE_DIALECTS: &[&str] = &[
     "tcl8.4",
@@ -2425,8 +2425,10 @@ fn family_f5_irules_shapes() {
 /// registry-metadata: dialect vocabulary.
 #[test]
 fn sweep_dialect_catalogue() {
-    assert_eq!(available_dialects(), KNOWN_DIALECTS);
-    for &d in KNOWN_DIALECTS {
+    for d in tcl_dialect::DialectProfile::all()
+        .iter()
+        .map(|profile| profile.name)
+    {
         // Every cached dialect registry has the Tcl core.
         let reg = registry_for_dialect(d);
         assert!(!reg.is_empty(), "{d}: empty registry");

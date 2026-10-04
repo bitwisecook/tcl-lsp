@@ -296,3 +296,78 @@ fn regsub_command_is_a_9_0_option() {
         assert_eq!(result, "Abc", "for {version:?}");
     }
 }
+
+/// `\z` is an end-of-string anchor from Tcl 9.1.0 on, through every command
+/// that compiles an ARE; earlier releases reject it. Verified on tclsh 9.1.0,
+/// 9.0.4 and 8.6.18.
+#[test]
+fn z_anchor_is_a_9_1_escape() {
+    use tcl_dialect::TclVersion;
+    let cases: &[(&str, &str)] = &[
+        (r"regexp {a\z} xa", "1"),
+        ("regexp -line {a\\z} \"a\\nb\"", "0"),
+        (r"regsub {a\z} xaa b", "xab"),
+        (r"lsearch -regexp {ab xa} {a\z}", "1"),
+        (
+            r"switch -regexp xa {{a\z} {set r hit} default {set r miss}}",
+            "hit",
+        ),
+        (r"proc p s {regexp {a\z} $s}; p xa", "1"),
+    ];
+    for &(src, want) in cases {
+        let (ok, result) = run_for_version(src, TclVersion::V9_1);
+        assert!(ok, "9.1 `{src}`: {result}");
+        assert_eq!(result, want, "9.1 `{src}`");
+        for (version, verb) in [(TclVersion::V8_6, "couldn't"), (TclVersion::V9_0, "cannot")] {
+            let (ok, result) = run_for_version(src, version);
+            assert!(!ok, "{version:?} `{src}` must reject \\z, got {result}");
+            assert_eq!(
+                result,
+                format!(r"{verb} compile regular expression pattern: invalid escape \ sequence"),
+                "{version:?} `{src}`"
+            );
+        }
+    }
+    let (ok, result) = run_for_version(r"regexp {[\z]} z", TclVersion::V9_1);
+    assert!(!ok, "9.1 still rejects a bracketed \\z, got {result}");
+}
+
+/// Tcl 9.0 reworded the compile-error prefix from `couldn't` to `cannot`, for
+/// every command that compiles an ARE. Verified on tclsh 8.4.20, 8.5.19,
+/// 8.6.18, 9.0.4 and 9.1.0:
+///
+/// ```text
+/// % regexp {(} x
+/// couldn't compile regular expression pattern: parentheses () not balanced
+/// ```
+#[test]
+fn compile_error_prefix_follows_the_release() {
+    use tcl_dialect::TclVersion;
+    let cases = [
+        "regexp {(} x",
+        "regexp -about {(}",
+        "regsub {(} x y",
+        "lsearch -regexp {a b} (",
+        "switch -regexp xa {( {set r hit}}",
+        "proc p s {regexp {(} $s}; p x",
+        "set r [regexp {(} x]",
+        "proc q s {set r [regexp {(} $s]}; q x",
+    ];
+    for (version, verb) in [
+        (TclVersion::V8_4, "couldn't"),
+        (TclVersion::V8_5, "couldn't"),
+        (TclVersion::V8_6, "couldn't"),
+        (TclVersion::V9_0, "cannot"),
+        (TclVersion::V9_1, "cannot"),
+    ] {
+        for src in cases {
+            let (ok, result) = run_for_version(src, version);
+            assert!(!ok, "{version:?} `{src}` must not compile, got {result}");
+            assert_eq!(
+                result,
+                format!("{verb} compile regular expression pattern: parentheses () not balanced"),
+                "{version:?} `{src}`"
+            );
+        }
+    }
+}

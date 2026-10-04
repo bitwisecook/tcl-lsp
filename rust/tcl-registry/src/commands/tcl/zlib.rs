@@ -300,6 +300,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "gunzip",
+        traits: Traits::UNCONDITIONAL_VARIABLE_WRITE,
         // Not `pure`: -headerVar, when given, writes a variable — same
         // "declare the write unconditionally since the static spec can't
         // see whether a call actually passes the option" convention as

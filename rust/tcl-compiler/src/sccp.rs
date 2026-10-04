@@ -526,6 +526,10 @@ pub struct BuiltinFoldInputs<'a> {
     /// Which half of `mutations` gates the declared routes — see
     /// [`FoldTrust`].
     pub trust: FoldTrust,
+    /// A caller has proved this procedure pure before evaluating it with
+    /// constant arguments. Its caller-bound parameter roots cannot be mutated
+    /// by a handler; ordinary analyses must leave this false.
+    pub proven_pure_parameters: bool,
 }
 
 /// How much of the whole-module mutation summary gates a builtin fold.
@@ -986,8 +990,11 @@ impl SweepContext<'_> {
             &mut state.values,
             ssa_block,
             self.ssa,
-            self.escaping,
-            self.has_dynamic_variable_trace,
+            StatementInputs {
+                escaping: self.escaping,
+                has_dynamic_variable_trace: self.has_dynamic_variable_trace,
+                clobbers: self.ssa.value_clobbers.get(&bn),
+            },
             self.driver,
             at.as_mut(),
         );
@@ -2409,6 +2416,17 @@ fn record_phi_folded_types(
     }
 }
 
+/// What [`sccp_process_statements`] reads beside the block: the names that
+/// escape the function, whether a dynamic variable trace may fire, and the
+/// fresh versions each registry boundary in the block gives the names live
+/// after it ([`crate::ssa::SsaFunction::value_clobbers`]).
+#[derive(Clone, Copy)]
+struct StatementInputs<'a> {
+    escaping: &'a HashSet<String>,
+    has_dynamic_variable_trace: bool,
+    clobbers: Option<&'a crate::ssa::BlockValueClobbers>,
+}
+
 /// Evaluate each statement's defs for one block, widening across barriers.
 /// Returns `true` if any lattice value changed. Extracted from [`sccp`].
 ///
@@ -2419,11 +2437,15 @@ fn sccp_process_statements(
     values: &mut HashMap<ValueKey, LatticeValue>,
     ssa_block: &crate::ssa::SsaBlock,
     ssa: &SsaFunction,
-    escaping: &HashSet<String>,
-    has_dynamic_variable_trace: bool,
+    inputs: StatementInputs<'_>,
     driver: &LatticeDriver<'_>,
     mut existence: Option<&mut ExistenceAt<'_>>,
 ) -> StatementsRun {
+    let StatementInputs {
+        escaping,
+        has_dynamic_variable_trace,
+        clobbers,
+    } = inputs;
     let (mut changed, mut prepared) = (false, None);
     let mut exit = BlockExit::NORMAL;
     // The existence a marker for what a statement's scripts may write finds,
@@ -2431,6 +2453,18 @@ fn sccp_process_statements(
     // evaluated over it.
     let mut before_marker = None;
     for (index, stmt_ssa) in ssa_block.statements.iter().enumerate() {
+        // A registry boundary's fresh versions take effect after the inputs
+        // and the barrier of the invocation it stands beside.
+        if stmt_ssa.statement.synthetic_marker()
+            == Some(crate::ir::SyntheticMarker::RegistryBarrier)
+        {
+            changed |= clobber_at_registry_barrier(
+                values,
+                (index, clobbers, exit.completes),
+                (driver, existence.as_deref_mut()),
+            );
+            continue;
+        }
         // A statement after one that certainly raises never runs: its
         // definitions keep what their places held.
         if !exit.completes {
@@ -2500,6 +2534,51 @@ fn sccp_process_statements(
         }
     }
     StatementsRun { changed, exit }
+}
+
+/// The fresh versions a registry boundary at `index` gives the names live
+/// after it ([`crate::ssa::SsaFunction::value_clobbers`]): the code the
+/// invocation beside it reaches may have rewritten each, so each states no
+/// value and, with the rest of the frame, may be bound or not — save a
+/// parameter of a procedure a caller proved pure, whose seed no handler can
+/// rebind. After a statement that certainly raised the boundary was never
+/// reached, so each keeps what its place held. Whether anything moved.
+fn clobber_at_registry_barrier(
+    values: &mut HashMap<ValueKey, LatticeValue>,
+    (index, clobbers, completes): (usize, Option<&crate::ssa::BlockValueClobbers>, bool),
+    (driver, existence): (&LatticeDriver<'_>, Option<&mut ExistenceAt<'_>>),
+) -> bool {
+    let mut changed = false;
+    let fresh_versions = clobbers.and_then(|markers| markers.get(&index));
+    for (&var, &(prior, fresh)) in fresh_versions.into_iter().flatten() {
+        let kept = !completes
+            || (driver.proven_pure_parameters()
+                && matches!(values.get(&(var, 0)), Some(LatticeValue::Const(_))));
+        let value = if kept {
+            held_value(values, (var, prior))
+        } else {
+            LatticeValue::Overdefined
+        };
+        driver.record_folded(
+            (var, fresh),
+            kept.then(|| driver.folded_of((var, prior))).flatten(),
+        );
+        changed |= set_value(values, (var, fresh), &value);
+    }
+    if let Some(at) = existence {
+        if completes {
+            at.finish_statement(index, driver);
+        }
+        let step = if completes {
+            crate::value_transfer::ExistenceStep::Set(Existence::MayBound)
+        } else {
+            crate::value_transfer::ExistenceStep::PRESERVE
+        };
+        for (&var, &(_, fresh)) in fresh_versions.into_iter().flatten() {
+            changed |= at.advance((var, fresh), step, driver);
+        }
+    }
+    changed
 }
 
 /// What a barrier or an up-frame statement does to the values: every value
@@ -3788,6 +3867,7 @@ mod tests {
                 defining_class: None,
                 registry_engine: false,
                 trust: FoldTrust::ObservedBindings,
+                proven_pure_parameters: false,
             }),
         )
     }
@@ -3843,6 +3923,7 @@ mod tests {
                 defining_class: None,
                 registry_engine: false,
                 trust: FoldTrust::ObservedBindings,
+                proven_pure_parameters: false,
             }),
         )
     }
@@ -4464,8 +4545,11 @@ mod tests {
                 &mut values,
                 &block,
                 &ssa,
-                &escaping,
-                false,
+                StatementInputs {
+                    escaping: &escaping,
+                    has_dynamic_variable_trace: false,
+                    clobbers: None,
+                },
                 &LatticeDriver::detached(None, FoldPolicy::default()),
                 None,
             )
@@ -5131,6 +5215,7 @@ mod tests {
             defining_class: None,
             registry_engine: false,
             trust: FoldTrust::ObservedBindings,
+            proven_pure_parameters: false,
         }
     }
 
@@ -5903,6 +5988,7 @@ mod tests {
                 defining_class: None,
                 registry_engine: false,
                 trust: FoldTrust::WholeModule,
+                proven_pure_parameters: false,
             }),
         )
     }
@@ -5977,6 +6063,7 @@ mod tests {
                 defining_class: None,
                 registry_engine: false,
                 trust: FoldTrust::ObservedBindings,
+                proven_pure_parameters: false,
             }),
         )
     }

@@ -1119,8 +1119,9 @@ impl Analyser {
     }
 
     /// Run E006 for the argument shapes the active command spec identifies as
-    /// formal lists. This is deliberately a registry-only query, including
-    /// resolver-defined roles and nested lambda literals.
+    /// formal lists and static-variable lists. This is deliberately a
+    /// registry-only query, including resolver-defined roles and nested lambda
+    /// literals.
     fn emit_formal_parameter_list_diagnostics(
         &mut self,
         cmd_name: &str,
@@ -1138,6 +1139,14 @@ impl Analyser {
             args,
             arg_tokens,
             &parameter_indices,
+        );
+        let static_indices =
+            registry.arg_indices_for_role(cmd_name, &arg_refs, ArgRole::StaticVarList);
+        super::diagnostics::emit_invalid_static_variable_list_diagnostics(
+            self,
+            args,
+            arg_tokens,
+            &static_indices,
         );
         let lambda_indices =
             registry.arg_indices_for_role(cmd_name, &arg_refs, ArgRole::LambdaLiteral);
@@ -1533,12 +1542,16 @@ impl Analyser {
             return self.handle_oo_class_command(cmd_name, args, arg_tokens, scope_path, cmd_tok)
                 || self.handle_snit_type_command(cmd_name, args, arg_tokens, scope_path)
                 || self.handle_itcl_class_command(cmd_name, args, arg_tokens, scope_path)
+                || self.handle_jim_class_command(cmd_name, args, arg_tokens, scope_path)
+                || self.handle_jim_class_member_call(cmd_name, args, arg_tokens, scope_path)
                 || self.handle_interp_handle_eval_command(cmd_name, args, arg_tokens, scope_path);
         };
         match hook {
             // Early-return families: the handler owns the whole command
             // (including its body walk) when it returns `true`.
-            Hook::Proc => self.handle_proc_command(args, arg_tokens, arg_single, scope_path),
+            Hook::Proc => {
+                self.handle_proc_command(cmd_name, args, arg_tokens, arg_single, scope_path)
+            }
             Hook::OptProc => self.handle_opt_proc_command(args, arg_tokens, arg_single, scope_path),
             // `interp eval path { … }` — the child interpreter's script is
             // analysed in an isolated scope; a `{}`/multi-word/dynamic shape
@@ -3954,7 +3967,7 @@ impl Analyser {
             use tcl_registry::hooks::AnalyserHookId as Hook;
             match self.resolve_analyser_hook(&cmd_name, args) {
                 Some(Hook::Proc) => {
-                    self.handle_proc_command(args, arg_tokens, arg_single, scope_path);
+                    self.handle_proc_command(&cmd_name, args, arg_tokens, arg_single, scope_path);
                 }
                 Some(Hook::OptProc) => {
                     self.handle_opt_proc_command(args, arg_tokens, arg_single, scope_path);
@@ -3980,7 +3993,10 @@ impl Analyser {
                     let _claimed = self
                         .handle_oo_class_command(&cmd_name, args, arg_tokens, scope_path, cmd_tok)
                         || self.handle_snit_type_command(&cmd_name, args, arg_tokens, scope_path)
-                        || self.handle_itcl_class_command(&cmd_name, args, arg_tokens, scope_path);
+                        || self.handle_itcl_class_command(&cmd_name, args, arg_tokens, scope_path)
+                        || self.handle_jim_class_command(&cmd_name, args, arg_tokens, scope_path)
+                        || self
+                            .handle_jim_class_member_call(&cmd_name, args, arg_tokens, scope_path);
                 }
                 Some(_) => {}
             }
@@ -4873,7 +4889,7 @@ impl Analyser {
     /// Resolve a class reference (`Dog`, `::Dog`, or a
     /// namespace-relative form) to its qualified name when it
     /// names a user-defined class.
-    fn resolve_user_class(&self, name: &str) -> Option<String> {
+    pub(super) fn resolve_user_class(&self, name: &str) -> Option<String> {
         // Exact / canonical-global / unique-tail via the shared call-site
         // resolver.  A first-`HashMap`-hit `c.name == name` scan instead
         // picks an arbitrary same-tailed class across namespaces.

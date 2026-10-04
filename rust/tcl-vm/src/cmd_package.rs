@@ -26,7 +26,7 @@ use tcl_dialect::{
     select_package_version_for, validate_requirement_for, validate_version_for,
     version_matches_exact_for, version_satisfies_for as vsatisfies,
 };
-use tcl_runtime_api::Completion;
+use tcl_runtime_api::{Code, Completion};
 
 use crate::command::err_with_code;
 use crate::interp::{Vm, err, ok};
@@ -401,8 +401,13 @@ fn pkg_require(vm: &mut Vm, rest: &[Value], discover: bool) -> Completion<Value>
             callback.push_str(&tcl_syntax::list::list_element(requirement));
         }
         let completion = eval_package_script(vm, &callback);
-        if !completion.code.is_ok() {
-            return completion;
+        match completion.code {
+            Code::Ok => {}
+            Code::Error => {
+                append_loader_error_frame(vm, &completion.result.to_str(), None);
+                return completion;
+            }
+            _ => return bad_return_code(vm, &completion, None),
         }
     }
 
@@ -534,13 +539,98 @@ fn eval_package_script(vm: &mut Vm, script: &str) -> Completion<Value> {
     vm.eval_at_level(0, script)
 }
 
+fn bad_return_code(
+    vm: &mut Vm,
+    completion: &Completion<Value>,
+    loader: Option<(&str, &str)>,
+) -> Completion<Value> {
+    // A non-error completion starts a new BADRESULT error episode. Only an
+    // explicit trace carried by a pending error return belongs to that error;
+    // runtime frames logged while unwinding break/continue/custom codes do not.
+    let pending_error = completion.code == Code::Return
+        && crate::command::opt_get(&completion.options, "-code")
+            .is_some_and(|value| value.as_int().is_ok_and(|code| code == 1));
+    let carried = pending_error
+        .then(|| crate::command::opt_get(&completion.options, "-errorinfo"))
+        .flatten()
+        .filter(|info| !info.to_str().is_empty());
+    vm.take_error_info();
+    if let Some(info) = carried {
+        vm.seed_error_info(info.to_str().to_string());
+    }
+    if pending_error
+        && let Some(stack) = crate::command::opt_get(&completion.options, "-errorstack")
+    {
+        vm.seed_error_stack(&stack);
+    }
+    let message = match loader {
+        Some((name, version)) => format!(
+            "attempt to provide package {name} {version} failed: bad return code: {}",
+            completion.code.as_int()
+        ),
+        None => format!("bad return code: {}", completion.code.as_int()),
+    };
+    append_loader_error_frame(vm, &message, loader);
+    // Keep ancillary return options, but a newly generated error episode
+    // cannot inherit non-error trace metadata. Pending error returns carry it.
+    let mut options = completion.options.as_list().map_or_else(
+        |_| Value::list(Vec::new()),
+        |items| {
+            Value::list(
+                items
+                    .as_slice()
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .filter(|pair| {
+                        pending_error
+                            || !matches!(
+                                &*pair[0].to_str(),
+                                "-errorinfo" | "-errorstack" | "-errorline"
+                            )
+                    })
+                    .flat_map(|pair| pair.iter().cloned())
+                    .collect(),
+            )
+        },
+    );
+    for (key, value) in [
+        ("-code", Value::int(1)),
+        ("-level", Value::int(0)),
+        ("-errorcode", Value::string("TCL PACKAGE BADRESULT")),
+    ] {
+        options = crate::command::with_return_option(&options, key, value);
+    }
+    Completion::new(Code::Error, Value::string(message), options)
+}
+
+fn append_loader_error_frame(vm: &mut Vm, message: &str, loader: Option<(&str, &str)>) {
+    let frame = match loader {
+        Some((name, version)) => format!("\n    (\"package ifneeded {name} {version}\" script)"),
+        None => "\n    (\"package unknown\" script)".to_owned(),
+    };
+    vm.seed_error_info_frame(message, &frame);
+}
+
 fn evaluate_loader(vm: &mut Vm, name: &str, loader: &SelectedLoader) -> Completion<Value> {
     vm.begin_package_loading(name, &loader.version);
     let completion = eval_package_script(vm, &loader.script);
     vm.end_package_loading(name, &loader.version);
-    if !completion.code.is_ok() {
-        vm.forget_package(name);
-        return completion;
+    match completion.code {
+        Code::Ok => {}
+        Code::Error => {
+            vm.forget_package(name);
+            append_loader_error_frame(
+                vm,
+                &completion.result.to_str(),
+                Some((name, &loader.version)),
+            );
+            return completion;
+        }
+        _ => {
+            vm.forget_package(name);
+            return bad_return_code(vm, &completion, Some((name, &loader.version)));
+        }
     }
     match vm.package_version(name).map(str::to_owned) {
         Some(provided)

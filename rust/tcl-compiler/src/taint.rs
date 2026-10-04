@@ -1359,7 +1359,7 @@ fn expr_command_taint<S: std::hash::BuildHasher>(
         // counts; a braced `{…}` string is literal (no substitution) and is
         // skipped to avoid a false positive.
         ExprNode::String { text, .. } => {
-            if text.trim_start().starts_with('"') {
+            if tcl_syntax::expr::quoted_string_body(text).is_some() {
                 word_taint(text, uses, taints, ctx)
             } else {
                 TaintLattice::clean()
@@ -1804,6 +1804,23 @@ pub(crate) fn propagate_taints(
             };
             changed |= propagate_phi_taints(&mut taints, ssa_block, *bn, preds, sccp);
             changed |= propagate_statement_taints(&mut taints, ssa_block, ctx, ssa, rendered_props);
+            for versions in ssa
+                .value_clobbers
+                .get(bn)
+                .into_iter()
+                .flat_map(|markers| markers.values())
+            {
+                for (&symbol, &(prior, fresh)) in versions {
+                    if let Some(&old) = taints.get(&(symbol, prior)) {
+                        let key = (symbol, fresh);
+                        let joined = taints.get(&key).map_or(old, |&current| current.join(old));
+                        if taints.get(&key) != Some(&joined) {
+                            taints.insert(key, joined);
+                            changed = true;
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -4809,6 +4826,10 @@ fn emit_resolved_statement_warnings<S: std::hash::BuildHasher, H: std::hash::Bui
         emit_sink_warnings(&env, span, code, &sink_label, &sink_call, warnings);
     }
 
+    // T100 numeric coercion outside `expr`: the words this call reads as
+    // numbers (`switch -integer`'s subject).
+    emit_numeric_coercion_warnings(&sink_call, &env, span, dialect, warnings);
+
     // T102: option injection — any statement shape that resolves to a
     // command invocation (bare `Call`, a `Barrier`, or a `set x [cmd ...]`
     // `AssignValue`), after the primary sink (T100/output/log). Uses the
@@ -5024,10 +5045,10 @@ fn holds_one_whole_var_ref(text: &str, names: &HashSet<String>) -> bool {
 ///   — its coercion status is whatever its parent gives it, and it is flagged
 ///   only `in_context`. A flattened `switch` dispatch puts its subject in
 ///   this shape (`cfg_lower::switch_subject_operand`), under the `StrEq` that
-///   compares it with an arm pattern; `switch` matches as a string in every
-///   mode it has — `-exact`, `-glob` and `-regexp` all compare text, and Tcl
-///   gives it no numeric-coercing mode — so the `StrEq` context is the whole
-///   answer for an arm.
+///   compares it with an arm pattern; only the string modes (`-exact`,
+///   `-glob`, `-regexp`) are flattened, so the `StrEq` context is the whole
+///   answer for an arm. Tcl 9.1's numeric `-integer` mode stays a call, which
+///   [`emit_numeric_coercion_warnings`] covers.
 /// - `Raw` (any other unparsed fallback text): position-blind but
 ///   conservative — every variable found by [`ExprNode::vars`] is flagged
 ///   (`rel_span: None`) regardless of `in_context`, since the parser gave up
@@ -5155,6 +5176,83 @@ fn emit_expr_coercion_warnings<S: std::hash::BuildHasher>(
             replacement: None,
             fixes: Vec::new(),
         });
+    }
+}
+
+/// Emit T100 for a tainted variable in an argument word the command reads as
+/// a number for this call — the registry's
+/// [`tcl_registry::CommandSpec::taint_numeric_coercion`] (`switch -integer`'s
+/// subject). The same hazard, message and carve-outs as a braced `expr`
+/// operand: a brace-quoted mention is literal text, and a mention consumed by
+/// a sanitiser substitution (`[string length $x]`) hands over a clean value.
+fn emit_numeric_coercion_warnings<S: std::hash::BuildHasher>(
+    call: &SinkCall<'_>,
+    env: &TaintScan<'_, S>,
+    span: Span,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    warnings: &mut Vec<TaintWarning>,
+) {
+    let Some(spec) = call.registry.get(call.command) else {
+        return;
+    };
+    let Some(shape) = spec.taint_numeric_coercion else {
+        return;
+    };
+    let arg_refs: Vec<&str> = call.args.iter().map(String::as_str).collect();
+    let slots = shape.coerced_args(spec, &arg_refs, dialect_to_point(dialect));
+    if slots.is_empty() {
+        return;
+    }
+    let sink_label = format!("{} {} operand", spec.name, shape.option());
+    let mut emitted: FxHashSet<Symbol> = FxHashSet::default();
+    for slot in slots {
+        let Some(arg) = call.args.get(slot) else {
+            continue;
+        };
+        let slot_call = SinkCall {
+            args: &call.args[slot..=slot],
+            ..*call
+        };
+        for name in arg_var_names_ordered(arg, env.braced_var) {
+            let Some(sym) = env.ssa.var_symbol(&name) else {
+                continue;
+            };
+            if emitted.contains(&sym) || env.quoted_uses.is_some_and(|q| q.contains(&sym)) {
+                continue;
+            }
+            let Some(&ver) = env.uses.get(&sym) else {
+                continue;
+            };
+            if is_seeded_global_v0(&name, ver) {
+                continue;
+            }
+            let tainted = env
+                .taints
+                .get(&(sym, ver))
+                .copied()
+                .is_some_and(TaintLattice::is_tainted);
+            if !tainted || var_consumed_by_sanitiser(&slot_call, &name) {
+                continue;
+            }
+            let span = call
+                .tokens
+                .and_then(|tokens| tokens.argv.get(slot + 1).copied())
+                .unwrap_or(span);
+            warnings.push(TaintWarning {
+                span,
+                message: format!(
+                    "Tainted variable ${name} flows into {sink_label}; \
+                     numeric coercion may misinterpret value \
+                     (use Tcl numeric-validation guards)"
+                ),
+                variable: name,
+                sink_command: sink_label.clone(),
+                code: DiagCode::T100,
+                replacement: None,
+                fixes: Vec::new(),
+            });
+            emitted.insert(sym);
+        }
     }
 }
 
@@ -8774,10 +8872,10 @@ mod tests {
     /// (`cfg_builder::cfg_lower::switch_subject_operand`), so an arm's
     /// coercion context is the one that `StrEq` gives its operands: none.
     ///
-    /// Every mode is covered because none of them is an exception. `switch`
-    /// compares as a string throughout — `-exact`, `-glob` and `-regexp` all
-    /// match text, and Tcl gives `switch` no numeric mode (`-integer` is
-    /// `lsearch`'s) — so there is no arm spelling the message would fit.
+    /// Every string mode is covered because none of them is an exception:
+    /// `-exact`, `-glob` and `-regexp` all match text, so there is no arm
+    /// spelling the message would fit. Tcl 9.1's `-integer` is the one numeric
+    /// mode; see `t100_for_a_tainted_switch_integer_subject`.
     ///
     /// tclsh 8.6.18 and 9.0.4 both print `other` for `set c 0x10; switch -- $c
     /// {16 {puts hex} default {puts other}}` — the subject is compared as the
@@ -8799,6 +8897,88 @@ mod tests {
                 warnings.iter().all(|w| w.code != DiagCode::T100),
                 "`switch {mode}` matches as a string, expected no T100, got {warnings:?}",
             );
+        }
+    }
+
+    fn switch_integer_t100s(release: &str, body: &str) -> Vec<TaintWarning> {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        let profile = tcl_dialect::DialectProfile::find(release).expect("catalogue profile");
+        let source = format!("proc f {{}} {{\n  set cmd [gets stdin]\n  set ok 5\n  {body}\n}}\n");
+        let cu = CompilationUnit::build_for(&source, &registry, false)
+            .with_interprocedural(&registry, Some(profile));
+        find_taint_warnings_for_cu(&cu, &registry, Some(profile))
+            .into_iter()
+            .filter(|w| w.code == DiagCode::T100)
+            .collect()
+    }
+
+    /// TP: Tcl 9.1's `switch -integer` (TIP 730) reads its subject with
+    /// `Tcl_GetWideIntFromObj`, so a tainted subject is the same coercion
+    /// hazard as a braced `expr` operand. tclsh 9.1.0 runs the `16` arm for
+    /// `switch -integer -- 0x10 {16 {puts hex} default {puts other}}` and
+    /// raises `expected integer but got "abc"` for a subject of `abc`.
+    #[test]
+    fn t100_for_a_tainted_switch_integer_subject() {
+        for call in [
+            "switch -integer -- $cmd {1 { puts one } default { puts none }}",
+            "switch -int $cmd {1 { puts one }}",
+            "switch -integer -- $cmd 1 { puts one } default { puts none }",
+            "if {$ok} { switch -integer -- $cmd {1 { puts one }} }",
+        ] {
+            let hits = switch_integer_t100s("tcl9.1", call);
+            assert_eq!(hits.len(), 1, "{call}: {hits:?}");
+            assert_eq!(hits[0].variable, "cmd", "{call}");
+            assert_eq!(hits[0].sink_command, "switch -integer operand", "{call}");
+            assert!(
+                hits[0].message.contains("numeric coercion"),
+                "{call}: {}",
+                hits[0].message
+            );
+        }
+        // The squiggle is the coerced word, not the whole `switch`.
+        let call = "switch -integer -- $cmd {1 { puts one }}";
+        let hits = switch_integer_t100s("tcl9.1", call);
+        let source = format!("proc f {{}} {{\n  set cmd [gets stdin]\n  set ok 5\n  {call}\n}}\n");
+        let span = hits[0].span;
+        assert_eq!(&source[span.start() as usize..span.end() as usize], "$cmd");
+        // A tainted inline pattern is read as an integer too.
+        let hits = switch_integer_t100s("tcl9.1", "switch -integer -- $ok $cmd { puts one }");
+        assert_eq!(hits.len(), 1, "{hits:?}");
+        assert_eq!(hits[0].variable, "cmd");
+    }
+
+    /// TN: no coercion reaches the tainted value — the option does not exist
+    /// before 9.1 (tclsh 9.0.4 rejects `-integer` as a bad option), the value
+    /// is brace-quoted text, a sanitiser hands over an integer it produced, the
+    /// subject is clean, the mode compares text (including when `-integer` is
+    /// only another option's value), or C rejects the option combination.
+    #[test]
+    fn t100_silent_for_switch_integer_without_a_coerced_tainted_word() {
+        for (release, call) in [
+            ("tcl9.0", "switch -integer -- $cmd {1 { puts one }}"),
+            ("tcl8.6", "switch -integer -- $cmd {1 { puts one }}"),
+            ("tcl9.1", "switch -integer -- {$cmd} {1 { puts one }}"),
+            (
+                "tcl9.1",
+                "switch -integer -- [string length $cmd] {1 { puts one }}",
+            ),
+            ("tcl9.1", "switch -integer -- $ok {1 { puts one }}"),
+            ("tcl9.1", "switch -glob -- $cmd {1* { puts one }}"),
+            // `-integer` is `-matchvar`'s value here: a regexp switch.
+            (
+                "tcl9.1",
+                "switch -matchvar -integer -regexp -- $cmd {1 { puts one }}",
+            ),
+            // C rejects the call before reading the subject.
+            ("tcl9.1", "switch -integer -nocase -- $cmd {1 { puts one }}"),
+            (
+                "tcl9.1",
+                "if {[scan $cmd %d n] == 1} { switch -integer -- $n {1 { puts one }} }",
+            ),
+        ] {
+            let hits = switch_integer_t100s(release, call);
+            assert!(hits.is_empty(), "{release} `{call}`: {hits:?}");
         }
     }
 

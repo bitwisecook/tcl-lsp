@@ -118,9 +118,10 @@ impl<T: Copy + PartialEq> StampSelection<T> {
     /// the point `query` asks about.
     ///
     /// With no windows it is the unversioned field and nothing else, whatever
-    /// the query. With windows the point must be a Tcl release or the whole Tcl
-    /// ladder: a windowed stamp is a fact about a release of Tcl, so a query on
-    /// another family, with no core, or with no query at all cannot select one.
+    /// the query. With windows the query's nearest core point must be a Tcl
+    /// release or the whole Tcl ladder: a windowed stamp is a fact about a
+    /// release of Tcl, so a query whose own family is another, with no core, or
+    /// with no query at all cannot select one.
     /// At a release, the first window covering it wins and the unversioned stamp
     /// stands where none does. Over the whole ladder, the stamp must be the same
     /// at every release, or the level declines.
@@ -133,7 +134,7 @@ impl<T: Copy + PartialEq> StampSelection<T> {
         if windows.is_empty() {
             return Self::stated(unversioned);
         }
-        let Some((Family::Tcl, release)) = query.and_then(|query| query.core) else {
+        let Some((Family::Tcl, release)) = query.and_then(|query| query.core.nearest()) else {
             return Self::Decline;
         };
         if let Some(release) = release {
@@ -332,7 +333,7 @@ mod tests {
             Some(SurfaceQuery::any_release(Family::F5Irules)),
             Some(SurfaceQuery::core(Family::Jim, "0.81")),
             Some(SurfaceQuery {
-                core: None,
+                core: tcl_dialect::model::CorePoints::NONE,
                 packages: &[],
             }),
         ] {

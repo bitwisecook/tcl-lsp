@@ -151,7 +151,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // A keyed update reads the dictionary it rewrites: the store that
         // feeds `dict set d k v` is observed, not overwritten, whatever the
         // spelling (`::tcl::dict::set`, an alias) reaches it.
-        traits: Traits::READS_BEFORE_WRITE,
+        traits: Traits::READS_BEFORE_WRITE.union(Traits::UNCONDITIONAL_VARIABLE_WRITE),
         arity: Arity::at_least(2),
         detail: "Append to a value in a dictionary.",
         synopsis: "dict append dictionaryVariable key ?string ...?",
@@ -288,7 +288,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // A keyed update reads the dictionary it rewrites: the store that
         // feeds `dict set d k v` is observed, not overwritten, whatever the
         // spelling (`::tcl::dict::set`, an alias) reaches it.
-        traits: Traits::READS_BEFORE_WRITE,
+        traits: Traits::READS_BEFORE_WRITE.union(Traits::UNCONDITIONAL_VARIABLE_WRITE),
         arity: Arity::new(2, 3),
         detail: "Increment a value in a dictionary.",
         synopsis: "dict incr dictionaryVariable key ?increment?",
@@ -332,7 +332,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // A keyed update reads the dictionary it rewrites: the store that
         // feeds `dict set d k v` is observed, not overwritten, whatever the
         // spelling (`::tcl::dict::set`, an alias) reaches it.
-        traits: Traits::READS_BEFORE_WRITE,
+        traits: Traits::READS_BEFORE_WRITE.union(Traits::UNCONDITIONAL_VARIABLE_WRITE),
         arity: Arity::at_least(2),
         detail: "Append list elements to a dictionary value.",
         synopsis: "dict lappend dictionaryVariable key ?value ...?",
@@ -432,7 +432,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // A keyed update reads the dictionary it rewrites: the store that
         // feeds `dict set d k v` is observed, not overwritten, whatever the
         // spelling (`::tcl::dict::set`, an alias) reaches it.
-        traits: Traits::READS_BEFORE_WRITE,
+        traits: Traits::READS_BEFORE_WRITE.union(Traits::UNCONDITIONAL_VARIABLE_WRITE),
         arity: Arity::at_least(3),
         detail: "Set a value in a dictionary.",
         synopsis: "dict set dictionaryVariable key ?key ...? value",
@@ -475,7 +475,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         name: "unset",
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictUnset)),
         // The key removal keeps every other key: the prior dictionary is read.
-        traits: Traits::FIRE_AND_FORGET_TEARDOWN.union(Traits::READS_BEFORE_WRITE),
+        traits: Traits::FIRE_AND_FORGET_TEARDOWN
+            .union(Traits::READS_BEFORE_WRITE)
+            .union(Traits::UNCONDITIONAL_VARIABLE_WRITE),
         arity: Arity::at_least(2),
         detail: "Remove keys from a dictionary variable.",
         synopsis: "dict unset dictionaryVariable key ?key ...?",

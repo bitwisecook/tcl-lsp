@@ -65,7 +65,10 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lassign",
         runtime_backing: RuntimeBacking::shipped("lassign"),
-        traits: Traits::FRAMELESS_RUNTIME | Traits::FRAME_HASH_BUILTIN | Traits::BYTE_COMPILED,
+        traits: Traits::FRAMELESS_RUNTIME
+            | Traits::FRAME_HASH_BUILTIN
+            | Traits::BYTE_COMPILED
+            | Traits::UNCONDITIONAL_VARIABLE_WRITE,
         surface: Some(SpecSurface::TCL85_PLUS),
         arity: Arity::at_least(1),
         return_type: Some(TclType::List),

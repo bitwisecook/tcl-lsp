@@ -12062,10 +12062,13 @@ impl Vm {
 
     /// Seed `errorInfo` for an error that *originates* in a command (not from a
     /// sub-command) with a context frame (C's `Tcl_AppendObjToErrorInfo`): start
-    /// it from `msg` if unset, append `frame` verbatim, and clear `error_logged`
+    /// it from `msg` if unset or empty, append `frame` verbatim, and clear `error_logged`
     /// so the enclosing command then logs its `invoked from within` frame.
     /// Used by `apply` for the `(parsing lambda expression "…")` frame.
     pub(crate) fn seed_error_info_frame(&mut self, msg: &str, frame: &str) {
+        if self.error_info.as_ref().is_some_and(String::is_empty) {
+            self.error_info = None;
+        }
         let info = self.error_info.get_or_insert_with(|| msg.to_string());
         info.push_str(frame);
         self.error_logged = false;

@@ -223,8 +223,8 @@
       "comment": "Escape sequences within regex patterns",
       "patterns": [
         {
-          "comment": "Character class shorthand: \\d, \\D, \\w, \\W, \\s, \\S, \\m, \\M, \\y, \\Y, \\A, \\Z",
-          "match": "\\\\[dDwWsSmMyYAZ]",
+          "comment": "Character class shorthand: \\d, \\D, \\w, \\W, \\s, \\S, \\m, \\M, \\y, \\Y, \\A, \\Z, \\z",
+          "match": "\\\\[dDwWsSmMyYAZz]",
           "name": "constant.character.escape.character-class.regexp.tcl"
         },
         {

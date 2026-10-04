@@ -23,7 +23,7 @@ use crate::prelude::*;
 use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    synopsis: "auto_mkindex_old dir ?pattern pattern ...?",
+    synopsis: "auto_mkindex_old dir ?pattern ...?",
     ..FormSpec::DEFAULT
 }];
 
@@ -65,7 +65,7 @@ pub fn spec() -> CommandSpec {
         // (`[list source [file join $dir <file>]]`) that `auto_load` will
         // later `source` with no sandbox at all.
         traits: Traits::OVERRIDABLE_LIBRARY_PROC | Traits::TAINT_SINK,
-        // `auto_mkindex_old dir ?pattern pattern ...?` — `dir` required,
+        // `auto_mkindex_old dir ?pattern ...?` — `dir` required,
         // `pattern` variadic (0 or more, defaulting to `*.tcl` when none are
         // given): every real `library/auto.tcl` defines
         // `proc auto_mkindex_old {dir args} …`, the same `{dir args}` shape
@@ -113,7 +113,7 @@ pub fn spec() -> CommandSpec {
         // directly with no dead code above it.
         hover: Some(HoverSnippet {
             summary: "Generate a tclIndex file from Tcl source files using a simple line-based proc scan.",
-            synopsis: &["auto_mkindex_old dir ?pattern pattern ...?"],
+            synopsis: &["auto_mkindex_old dir ?pattern ...?"],
             snippet: "The original tclIndex generator, superseded by auto_mkindex but kept for source files auto_mkindex can't safely handle. Searches dir for files matching pattern (glob syntax; *.tcl is assumed when no pattern is given) and reads each one line by line without evaluating any of it: a line is treated as a procedure definition only when the literal text \"proc\" begins the line with no leading whitespace, and the following word is taken as the procedure name, normalised via auto_qualify into a fully global-qualified name when it already contains a namespace separator (::), or left as a bare name otherwise. Because nothing is ever executed, this is the recommended generator for source files with global initialization side effects, or with procedure names containing $, *, [, or ] that would confuse auto_mkindex's real interpreter-based parser — but the same lack of evaluation means an indented proc (inside a namespace eval or class body), a proc split across multiple lines, or one built by string substitution is silently skipped. The result is written to tclIndex in dir, in the same version-2.0 index format auto_mkindex produces. auto_mkindex_old changes the process's current working directory to dir for the duration of the call and restores it before returning; on a failure opening or writing tclIndex it still restores the directory, but in Tcl 8.5, 8.6, 9.0, and 9.1 that handler then reports an unrelated \"no such variable\" error instead of the real one (it calls error $msg $info $code, referencing undefined info/code locals left over from before the enclosing catch was changed to the msg opts form) — so the underlying I/O failure's message and options are lost rather than propagated on those versions. Tcl 8.4 does not have this bug: its equivalent handler sets info/code from the errorCode/errorInfo globals immediately before using them. Not available inside a safe interpreter at all — interp issafe is checked at source time and the proc is never defined there.",
             source: "Tcl library(n)",
             examples: "auto_mkindex_old $dir\nauto_mkindex_old $dir *.tcl *.itcl",

@@ -2512,6 +2512,7 @@ fn regex_escape_desc(token: &str) -> Option<&'static str> {
         "\\B" => Some("Non-word boundary"),
         "\\A" => Some("Start of string"),
         "\\Z" => Some("End of string"),
+        "\\z" => Some("End of string (Tcl 9.1+)"),
         "\\n" => Some("Newline"),
         "\\t" => Some("Tab"),
         "\\r" => Some("Carriage return"),

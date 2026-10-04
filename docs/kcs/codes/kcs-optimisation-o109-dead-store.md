@@ -40,6 +40,7 @@ read by [O102](kcs-optimisation-o102-load-forwarding.md).
 ## Safety conditions
 
 - Skipped when the right-hand side of the dead store has side effects.
+- Skipped when evaluating the right-hand side could raise an error, because deleting the statement would drop the error. A value that reads a variable is kept unless every variable it reads is definitely set here (a parameter, or assigned on every path), and an `expr` or `incr` value is kept unless it folds to a constant. So `set y $x` with `x` unset, `set y [expr {$v + 1}]` with `v` a parameter, and `set y [expr {1/0}]` all stay.
 - Skipped when the variable could be observed externally (e.g. via `upvar` or `trace`).
 - Skipped when an existence check or an unset observes the stored value — `info exists v`, `array exists v`, `unset v` or `array unset v`, whether it is a command of its own, a condition, or a `[…]` substitution inside another command — because removing the store changes the check's answer or makes the `unset` fail.
 - Skipped when a statement reads the variable beside a write its own `[…]` substitutions make. In `puts [expr {$x + [set x 10]}]` the first `$x` runs before the nested `set` overwrites `x`, so the store ahead of the statement still feeds it; a statement that only overwrites the variable (`puts [set x 2]`) does not keep it.

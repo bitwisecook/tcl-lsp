@@ -479,11 +479,25 @@ fn lookup_var_type(
     ssa: &SsaFunction,
 ) -> Option<TypeLattice> {
     let sym = ssa.var_symbol(name)?;
-    let ver = *uses.get(&sym)?;
+    let ver = type_version(ssa, sym, *uses.get(&sym)?, types);
     if ver == 0 {
         return None;
     }
     types.get(&(sym, ver)).cloned()
+}
+
+/// Retain executable type provenance only when no widening fact owns the key.
+fn type_version(
+    ssa: &SsaFunction,
+    symbol: Symbol,
+    version: u32,
+    types: &HashMap<ValueKey, TypeLattice>,
+) -> u32 {
+    if types.contains_key(&(symbol, version)) {
+        version
+    } else {
+        ssa.binding_version(symbol, version)
+    }
 }
 
 /// Shared, read-only context for the word-shape / element-inference helpers —
@@ -805,6 +819,9 @@ fn prior_container_elements<S: std::hash::BuildHasher>(
     target: &str,
 ) -> Option<Elements> {
     if let Some(t) = lookup_var_type(target, ctx.uses, ctx.types, ctx.ssa) {
+        if t.kind() == crate::types::TypeKind::Overdefined {
+            return Some(Elements::Unknown);
+        }
         if let Some(e) = t.elements() {
             return Some(e.clone());
         }
@@ -896,17 +913,8 @@ fn value_word_type<S: std::hash::BuildHasher>(
     // Pure variable reference: inherit source type.
     if is_pure_var_ref(stripped) {
         let name = normalise_var_name(stripped);
-        if let Some(&ver) = ctx.ssa.var_symbol(name).and_then(|s| ctx.uses.get(&s))
-            && ver > 0
-        {
-            return ctx
-                .ssa
-                .var_symbol(name)
-                .and_then(|s| ctx.types.get(&(s, ver)))
-                .cloned()
-                .unwrap_or_else(TypeLattice::unknown);
-        }
-        return TypeLattice::unknown();
+        return lookup_var_type(name, ctx.uses, ctx.types, ctx.ssa)
+            .unwrap_or_else(TypeLattice::unknown);
     }
     // Command substitution: [cmd ...].
     if stripped.starts_with('[')
@@ -955,6 +963,166 @@ fn value_word_type<S: std::hash::BuildHasher>(
     literal_type(value, ctx.numbers)
 }
 
+/// Read an empty class declaration through registry manufacturer descriptors.
+fn empty_source_class(
+    command: &str,
+    args: &[String],
+    tokens: &crate::ir::CommandTokens,
+    registry: &CommandRegistry,
+) -> Option<String> {
+    let spec = registry.get(command)?;
+    if !spec.traits.contains(tcl_registry::Traits::IS_OO_METACLASS)
+        || spec.definition_body?.family != tcl_registry::definer::DefinerFamily::TclOo
+    {
+        return None;
+    }
+    let method = spec
+        .manufacturer_methods
+        .iter()
+        .find(|method| args.first().is_some_and(|arg| arg == method.keyword))?;
+    let body_index = usize::from(method.definition_body_at?);
+    let name_index = usize::from(method.names_instance_at?);
+    let words = tokens.words();
+    let class =
+        crate::registry_invocation::invocation_word(words.get(name_index + 1)?).literal()?;
+    let body = crate::registry_invocation::invocation_word(words.get(body_index + 1)?).literal()?;
+    (body.trim().is_empty() && args.len() == body_index + 1)
+        .then(|| crate::naming::normalise_qualified_name(class))
+}
+
+fn caller_safe_factory_invocation(
+    registry: &CommandRegistry,
+    head: &str,
+    args: &[&str],
+    classes: &HashSet<String>,
+) -> bool {
+    let grammar = &tcl_registry::definer::TCLOO_GRAMMAR;
+    if classes.contains(&crate::naming::normalise_qualified_name(head)) {
+        return args
+            .first()
+            .and_then(|word| grammar.manufacturer(word))
+            .is_some_and(|method| {
+                method.names_instance_at.is_none()
+                    && method.visibility == tcl_registry::definer::MemberVisibility::Exported
+                    && args.len() == usize::from(method.constructor_args_from)
+            });
+    }
+    let Some(resolved) =
+        tcl_registry::model::resolve_invocation_in_context(registry, None, head, args)
+    else {
+        return false;
+    };
+    !resolved.semantics.traits.intersects(
+        tcl_registry::Traits::EVALUATES_CODE
+            | tcl_registry::Traits::CREATES_BARRIER
+            | tcl_registry::Traits::CREATES_DYNAMIC_BARRIER,
+    ) && !resolved.semantics.state_transitions.is_declared()
+}
+
+/// Prove the narrow straight-line case of empty source class factories.
+/// Any other opaque invocation, binding transition, class body, or control
+/// edge withdraws the proof for the whole function.
+fn has_only_caller_safe_factories<S: std::hash::BuildHasher>(
+    cfg: &CfgFunction,
+    registry: &CommandRegistry,
+    known_classes: &HashSet<String, S>,
+) -> bool {
+    if cfg.name != "::top"
+        || known_classes.is_empty()
+        || !cfg.exception_edges.is_empty()
+        || cfg.blocks.iter().any(|(id, block)| {
+            *id != cfg.entry && (!block.statements.is_empty() || block.terminator.is_some())
+        })
+        || !matches!(
+            cfg.blocks[&cfg.entry].terminator,
+            None | Some(Terminator::Goto { .. })
+        )
+    {
+        return false;
+    }
+    let mut classes = HashSet::new();
+    for stmt in &cfg.blocks[&cfg.entry].statements {
+        if let Some(marker) = stmt.synthetic_marker() {
+            if !matches!(
+                marker,
+                crate::ir::SyntheticMarker::RegistryBarrier
+                    | crate::ir::SyntheticMarker::GlobalFrameScript
+            ) || !cfg.blocks[&cfg.entry]
+                .statements
+                .iter()
+                .any(|host| host.synthetic_marker().is_none() && host.span() == stmt.span())
+            {
+                return false;
+            }
+            continue;
+        }
+        match stmt {
+            Statement::Call {
+                command,
+                args,
+                tokens,
+                ..
+            }
+            | Statement::Barrier {
+                command,
+                args,
+                tokens,
+                ..
+            } => {
+                let Some(tokens) = tokens else {
+                    return false;
+                };
+                let words = tokens.words();
+                if words
+                    .first()
+                    .and_then(|word| crate::registry_invocation::invocation_word(word).literal())
+                    .is_none()
+                {
+                    return false;
+                }
+                let empty_class = empty_source_class(command, args, tokens, registry);
+                if let Some(class) = empty_class {
+                    if !known_classes.contains(&class) || !classes.insert(class) {
+                        return false;
+                    }
+                    continue;
+                }
+                if !caller_safe_factory_invocation(
+                    registry,
+                    command,
+                    &args.iter().map(String::as_str).collect::<Vec<_>>(),
+                    &classes,
+                ) {
+                    return false;
+                }
+            }
+            Statement::AssignConst { .. } | Statement::AssignValue { .. } => {}
+            _ => return false,
+        }
+        let embedded = crate::ir_helpers::evaluated_command_substitutions(stmt, registry);
+        if embedded.opaque {
+            return false;
+        }
+        for words in embedded.all_commands() {
+            let Some(head) = words
+                .first()
+                .and_then(crate::ir_helpers::CommandWord::literal)
+            else {
+                return false;
+            };
+            let args: Vec<_> = words
+                .iter()
+                .skip(1)
+                .map(|word| word.literal().unwrap_or("<dynamic>"))
+                .collect();
+            if !caller_safe_factory_invocation(registry, head, &args, &classes) {
+                return false;
+            }
+        }
+    }
+    !classes.is_empty()
+}
+
 /// How one statement types the variable(s) it defines.
 enum DefTyping {
     /// One lattice applied to every def of the statement.
@@ -982,6 +1150,7 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
                 .uses
                 .iter()
                 .filter_map(|(&sym, &ver)| {
+                    let ver = type_version(ctx.ssa, sym, ver, ctx.types);
                     if ver == 0 {
                         return None;
                     }
@@ -1357,7 +1526,18 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
     };
 
     let mut types: HashMap<ValueKey, TypeLattice> = HashMap::new();
-
+    let caller_safe_factories = has_only_caller_safe_factories(cfg, registry, known_classes);
+    for (block, markers) in &ssa.value_clobbers {
+        if sccp.executable_blocks.contains(block) {
+            for versions in markers.values() {
+                for (&symbol, &(_, fresh)) in versions {
+                    if !caller_safe_factories {
+                        types.insert((symbol, fresh), TypeLattice::overdefined());
+                    }
+                }
+            }
+        }
+    }
     let mut changed = true;
     while changed {
         changed = false;
@@ -1393,7 +1573,12 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
                     }
                     let mut phi_type = TypeLattice::unknown();
                     for pred in &exec_preds {
-                        let ver = phi.incoming.get(pred).copied().unwrap_or(0);
+                        let ver = type_version(
+                            ssa,
+                            phi.name,
+                            phi.incoming.get(pred).copied().unwrap_or(0),
+                            &types,
+                        );
                         // A version-0 incoming is the entry / live-in root (a
                         // proc parameter, global, or other caller-supplied
                         // value). Its runtime type is unknown at compile time,

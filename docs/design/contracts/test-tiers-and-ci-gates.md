@@ -38,13 +38,13 @@ required aggregate must still succeed after checking every upstream result.
 
 The native VS Code suite remains one unpartitioned extension-host run for
 local `npm test`. In CI, three isolated `test-ext-partition` producers run the
-106 single-root test files as whole-file assignments from
+107 single-root test files as whole-file assignments from
 `editors/vscode/test-partitions.json`; the 14-test multi-folder host remains a
 separate mandatory producer. Each producer uploads its file inventory,
 per-file duration, discovered identities, completed identities, and outcome
 counts. The stable `test-ext` aggregate fails unless the producers succeed and
-their metadata proves exact-once coverage of all 977 single-root identities
-(976 passed plus the one deliberately pending manual edit-storm test) and all
+their metadata proves exact-once coverage of all 973 single-root identities
+(972 passed plus the one deliberately pending manual edit-storm test) and all
 14 passing multi-folder identities. The checked-in assignment records its
 hosted timing evidence and is balanced by measured duration rather than file
 or test count.
@@ -114,7 +114,10 @@ until the map assigns it.
    and `web-frontends`; the required `pr-gate` status is an `always()` aggregate
    that explicitly requires all four results. `scripts/dev/test-pr-gate-path.sh`
    rejects missing needs, job-level skips, weakened tag gates, and serialising
-   the worker behind a prerequisite. `check-all` (lint +
+   the worker behind a prerequisite. Alongside the workspace default-feature
+   pass, it checks and executes the focused x509-only contract test for
+   `tcl-bigip-query`: report WASM uses that socket-free graph, and the default
+   `probes` build cannot expose feature-gating errors there. `check-all` (lint +
    typecheck across TypeScript, Rust, Python) is the surface to run alone
    after touching TypeScript or Python. Failures are fixed, not skipped;
    tooling-missing skips are deliberate (`SKIP_CHECK_RUST=1`, …). Commit
@@ -219,9 +222,15 @@ CI skips only what demonstrably did not change. The rules live in
   the native f5report engine's locked local Cargo dependency closure. The
   classifier and package manifest come from the PR base and fail closed;
   `make check-python-ci-paths` re-derives the closure from the engine lockfile.
-  The restored venv is keyed and stamped with the content of that same native
-  source closure, so a transitive Rust edit both schedules the job and forces
-  maturin to rebuild the extension.
+  The restored venv is keyed and stamped with the compilation inputs from that
+  same native source closure, so a transitive Rust edit both schedules the job
+  and forces maturin to rebuild the extension. The cache keeps that source set
+  broad: production code may include data stored under a `tests/` directory.
+  It excludes only exact Cargo target roots declared solely as integration
+  tests, benches, or examples, plus the Python binding's pytest tree; those
+  are not compiled by maturin. The venv is cache-neutral: it fixes Git
+  provenance rather than embedding its checkout's commit, and is never a
+  report-artifact input.
 - The root `rust-tests-shard` matrix produces five binary-aware legs when the
   Rust suite is required, while the concurrent hosted
   `rust-tests-doctest` job runs `cargo test --workspace --all-features --doc

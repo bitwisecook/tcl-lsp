@@ -244,7 +244,7 @@ fn environment_statement() -> CommandSpec {
         "environment",
         Arity::exact(2),
         "Declare a selectable environment identity.",
-        "`environment NAME { … }` declares the selectable, aliasable identity a `# tcl-dialect:` directive, a settings string, or a detected file extension resolves to (redesign §3.3). Rows: `core FAMILY RELEASE ?-build P?`, `ambient PACKAGE VERSION|tracks-base|keyed KEY`, `hosted PACKAGE REQUIREMENT`, `alias NAME`, `editor_identity ID` (selected from the fixed contributed set, never minted), `file_extension EXT ?-name NAME?`, `filename NAME`, `signature TEXT`, `display_name TEXT`, and `policy open|closed|ambient-plus-require`. Every compiled environment name and alias is reserved: a block claiming one is rejected. Unknown rows are semantic-class vocabulary and reject the whole block; the pack's other content still loads.",
+        "`environment NAME { … }` declares the selectable, aliasable identity a `# tcl-dialect:` directive, a settings string, or a detected file extension resolves to (redesign §3.3). Rows: `core FAMILY RELEASE ?-build P?`, `ambient PACKAGE VERSION|tracks-base|keyed KEY`, `hosted PACKAGE REQUIREMENT`, `alias NAME`, `editor_identity ID` and `selecting_identity ID` (selected from the fixed contributed set, never minted), `file_extension EXT ?-name NAME?`, `filename NAME`, `signature TEXT`, `display_name TEXT`, and `policy open|closed|ambient-plus-require`. Every compiled environment name and alias is reserved: a block claiming one is rejected. Unknown rows are semantic-class vocabulary and reject the whole block; the pack's other content still loads.",
     )
 }
 

@@ -1444,7 +1444,7 @@ fn function_facts(
             // An analysis marker shares its host's span and is no command to
             // plan: counted as a second sighting of that span it would send
             // the host back to the source-span fallback.
-            if crate::ssa::is_effect_marker(statement) {
+            if crate::ssa::is_effect_marker(statement) || !statement.is_executable_invocation() {
                 continue;
             }
             if let Statement::AssignConst {

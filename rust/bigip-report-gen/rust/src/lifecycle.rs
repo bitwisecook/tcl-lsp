@@ -10,8 +10,6 @@
 //! date visible in the output: operators can immediately tell when they should
 //! re-check K5903 for a newer schedule.
 
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use chrono::{DateTime, NaiveDate, Utc};
 use serde_json::{Map, Value as J};
 
@@ -117,11 +115,7 @@ fn parse_date(value: &str) -> NaiveDate {
 }
 
 fn today_utc() -> NaiveDate {
-    let seconds = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-    DateTime::<Utc>::from_timestamp(i64::try_from(seconds).unwrap_or(i64::MAX), 0)
+    DateTime::<Utc>::from_timestamp(crate::clock::now_epoch_seconds(), 0)
         .expect("current time is representable")
         .date_naive()
 }

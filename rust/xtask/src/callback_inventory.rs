@@ -163,6 +163,7 @@ fn discover_registry_rows() -> Result<Vec<InventoryRow>> {
         }
     }
     collect_bundled_packs(&mut rows)?;
+    collect_core_surface_commands(&mut rows)?;
     Ok(rows
         .into_values()
         .map(|mut row| {
@@ -195,6 +196,21 @@ fn collect_bundled_packs(rows: &mut BTreeMap<String, InventoryRow>) -> Result<()
             };
             collect_spec(rows, profile.name, name, spec)?;
         }
+    }
+    Ok(())
+}
+
+/// A family's own compiled-in commands sit over a store no profile above
+/// reads: they are reached only through that family's environment, so the
+/// per-profile pass would leave a callback declared there — Jim's `loop` body —
+/// invisible rather than classified.
+///
+/// Only the commands the family adds are walked, under its own name: the
+/// inherited Tcl surface is projected under the profiles that own it.
+fn collect_core_surface_commands(rows: &mut BTreeMap<String, InventoryRow>) -> Result<()> {
+    tcl_spectcl::core_surfaces::ensure();
+    for spec in tcl_spectcl::core_surfaces::builtin_commands() {
+        collect_spec(rows, "jim", spec.name, spec)?;
     }
     Ok(())
 }

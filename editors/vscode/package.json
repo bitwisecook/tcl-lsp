@@ -25,23 +25,24 @@
   ],
   "activationEvents": [
     "onLanguage:tcl",
-    "onLanguage:tcl-cadence",
     "onLanguage:tcl-expect",
     "onLanguage:tcl-bigip",
     "onLanguage:tcl-iapp",
     "onLanguage:tcl-irule",
     "onLanguage:tcl-tmsh",
-    "onLanguage:tcl-quartus",
-    "onLanguage:tcl-mentor",
-    "onLanguage:tcl-microchip",
+    "onLanguage:tcl-jim",
     "onLanguage:tclspec",
     "onLanguage:sslictcl",
-    "onLanguage:tcl-synopsys",
     "onLanguage:tcl84",
     "onLanguage:tcl85",
     "onLanguage:tcl86",
     "onLanguage:tcl90",
     "onLanguage:tcl91",
+    "onLanguage:tcl-cadence",
+    "onLanguage:tcl-quartus",
+    "onLanguage:tcl-mentor",
+    "onLanguage:tcl-microchip",
+    "onLanguage:tcl-synopsys",
     "onLanguage:tcl-xilinx",
     "onLanguage:tcl-apl",
     "onChatParticipant:tcl-lsp.irule",
@@ -84,17 +85,7 @@
           ".tm",
           ".test"
         ],
-        "configuration": "./language-configuration.json"
-      },
-      {
-        "id": "tcl-cadence",
-        "aliases": [
-          "Cadence EDA Tcl",
-          "cadence"
-        ],
-        "extensions": [
-          ".globals"
-        ],
+        "firstLine": "^#!.*\\b(?:tclsh|wish)[0-9.]*\\b",
         "configuration": "./language-configuration.json"
       },
       {
@@ -107,6 +98,7 @@
           ".exp",
           ".expect"
         ],
+        "firstLine": "^#!.*\\bexpect\\b",
         "configuration": "./language-configuration.json"
       },
       {
@@ -172,35 +164,12 @@
         "configuration": "./language-configuration.json"
       },
       {
-        "id": "tcl-quartus",
+        "id": "tcl-jim",
         "aliases": [
-          "Intel Quartus EDA Tcl",
-          "quartus"
+          "Jim Tcl",
+          "jim"
         ],
-        "extensions": [
-          ".qsf",
-          ".qpf",
-          ".qip"
-        ],
-        "configuration": "./language-configuration.json"
-      },
-      {
-        "id": "tcl-mentor",
-        "aliases": [
-          "Mentor EDA Tcl",
-          "mentor"
-        ],
-        "extensions": [
-          ".do"
-        ],
-        "configuration": "./language-configuration.json"
-      },
-      {
-        "id": "tcl-microchip",
-        "aliases": [
-          "Microchip Libero EDA Tcl",
-          "microchip"
-        ],
+        "firstLine": "^#!.*\\bjimsh\\b",
         "configuration": "./language-configuration.json"
       },
       {
@@ -224,9 +193,92 @@
         "configuration": "./language-configuration.json"
       },
       {
+        "id": "tcl84",
+        "aliases": [
+          "Tcl 8.4"
+        ],
+        "firstLine": "^#!.*\\b(?:tclsh8\\.4|wish8\\.4)\\b",
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "tcl85",
+        "aliases": [
+          "Tcl 8.5"
+        ],
+        "firstLine": "^#!.*\\b(?:tclsh8\\.5|wish8\\.5)\\b",
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "tcl86",
+        "aliases": [
+          "Tcl 8.6"
+        ],
+        "firstLine": "^#!.*\\b(?:tclsh8\\.6|wish8\\.6)\\b",
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "tcl90",
+        "aliases": [
+          "Tcl 9.0"
+        ],
+        "firstLine": "^#!.*\\b(?:tclsh9\\.0|wish9\\.0)\\b",
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "tcl91",
+        "aliases": [
+          "Tcl 9.1"
+        ],
+        "firstLine": "^#!.*\\b(?:tclsh9\\.1|wish9\\.1)\\b",
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "tcl-cadence",
+        "aliases": [
+          "Cadence Genus / Innovus / Xcelium",
+          "cadence"
+        ],
+        "extensions": [
+          ".globals"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "tcl-quartus",
+        "aliases": [
+          "Intel Quartus Prime",
+          "quartus"
+        ],
+        "extensions": [
+          ".qsf",
+          ".qpf",
+          ".qip"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "tcl-mentor",
+        "aliases": [
+          "Siemens Questa / ModelSim",
+          "mentor"
+        ],
+        "extensions": [
+          ".do"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "tcl-microchip",
+        "aliases": [
+          "Microchip Libero SoC",
+          "microchip"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
         "id": "tcl-synopsys",
         "aliases": [
-          "Synopsys EDA Tcl",
+          "Synopsys DC / PrimeTime / ICC2 / Formality",
           "synopsys"
         ],
         "extensions": [
@@ -236,44 +288,9 @@
         "configuration": "./language-configuration.json"
       },
       {
-        "id": "tcl84",
-        "aliases": [
-          "Tcl 8.4"
-        ],
-        "configuration": "./language-configuration.json"
-      },
-      {
-        "id": "tcl85",
-        "aliases": [
-          "Tcl 8.5"
-        ],
-        "configuration": "./language-configuration.json"
-      },
-      {
-        "id": "tcl86",
-        "aliases": [
-          "Tcl 8.6"
-        ],
-        "configuration": "./language-configuration.json"
-      },
-      {
-        "id": "tcl90",
-        "aliases": [
-          "Tcl 9.0"
-        ],
-        "configuration": "./language-configuration.json"
-      },
-      {
-        "id": "tcl91",
-        "aliases": [
-          "Tcl 9.1"
-        ],
-        "configuration": "./language-configuration.json"
-      },
-      {
         "id": "tcl-xilinx",
         "aliases": [
-          "Xilinx EDA Tcl",
+          "Xilinx Vivado",
           "xilinx"
         ],
         "extensions": [
@@ -401,6 +418,11 @@
       },
       {
         "language": "sslictcl",
+        "scopeName": "source.tcl",
+        "path": "./syntaxes/tcl.tmLanguage.json"
+      },
+      {
+        "language": "tcl-jim",
         "scopeName": "source.tcl",
         "path": "./syntaxes/tcl.tmLanguage.json"
       }
@@ -759,15 +781,15 @@
         },
         {
           "command": "tclLsp.optimiseDocument",
-          "when": "editorLangId =~ /^tcl/"
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/"
         },
         {
           "command": "tclLsp.showOptimisations",
-          "when": "editorLangId =~ /^tcl/"
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/"
         },
         {
           "command": "tclLsp.fixAllSafeIssues",
-          "when": "editorLangId =~ /^tcl/"
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/"
         },
         {
           "command": "tclLsp.toggleDiagnostics"
@@ -777,31 +799,31 @@
         },
         {
           "command": "tclLsp.formatDocument",
-          "when": "editorLangId =~ /^tcl/"
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/"
         },
         {
           "command": "tclLsp.minifyDocument",
-          "when": "editorLangId =~ /^tcl/"
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/"
         },
         {
           "command": "tclLsp.unminifyError",
-          "when": "editorLangId =~ /^tcl/"
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/"
         },
         {
           "command": "tclLsp.escapeSelection",
-          "when": "editorLangId =~ /^tcl/ && editorHasSelection"
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/ && editorHasSelection"
         },
         {
           "command": "tclLsp.unescapeSelection",
-          "when": "editorLangId =~ /^tcl/ && editorHasSelection"
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/ && editorHasSelection"
         },
         {
           "command": "tclLsp.base64EncodeSelection",
-          "when": "editorLangId =~ /^tcl/ && editorHasSelection"
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/ && editorHasSelection"
         },
         {
           "command": "tclLsp.base64DecodeSelection",
-          "when": "editorLangId =~ /^tcl/ && editorHasSelection"
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/ && editorHasSelection"
         },
         {
           "command": "tclLsp.copyFileAsBase64",
@@ -813,52 +835,52 @@
         },
         {
           "command": "tclLsp.insertPackageRequire",
-          "when": "editorLangId =~ /^tcl/"
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/"
         },
         {
           "command": "tclLsp.scaffoldPackageStarter"
         },
         {
           "command": "tclLsp.insertIruleEventSkeleton",
-          "when": "editorLangId =~ /^tcl/ && tclLsp.isIruleDialect"
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/ && tclLsp.isIruleDialect"
         },
         {
           "command": "tclLsp.insertTemplateSnippet"
         },
         {
           "command": "tclLsp.runRuntimeValidation",
-          "when": "editorLangId =~ /^tcl/"
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/"
         },
         {
           "command": "tclLsp.openCompilerExplorer",
-          "when": "editorLangId =~ /^tcl/"
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/"
         },
         {
           "command": "tclLsp.openSpecStudio"
         },
         {
           "command": "tclLsp.openTkPreview",
-          "when": "editorLangId =~ /^tcl/"
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/"
         },
         {
           "command": "tclLsp.translateXc",
-          "when": "editorLangId =~ /^tcl/ && tclLsp.isIruleDialect"
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/ && tclLsp.isIruleDialect"
         },
         {
           "command": "tclLsp.translateXcConsole",
-          "when": "editorLangId =~ /^tcl/ && tclLsp.isIruleDialect"
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/ && tclLsp.isIruleDialect"
         },
         {
           "command": "tclLsp.extractRule",
-          "when": "editorLangId =~ /^tcl/"
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/"
         },
         {
           "command": "tclLsp.extractRulePick",
-          "when": "editorLangId =~ /^tcl/"
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/"
         },
         {
           "command": "tclLsp.extractAllRules",
-          "when": "editorLangId =~ /^tcl/"
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/"
         },
         {
           "command": "tclLsp.extractLinkedObjects",
@@ -872,79 +894,79 @@
       "editor/context": [
         {
           "submenu": "tclLsp.editorMenu",
-          "when": "editorLangId =~ /^tcl/",
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/",
           "group": "1_modification"
         }
       ],
       "tclLsp.editorMenu": [
         {
           "command": "tclLsp.optimiseDocument",
-          "when": "editorLangId =~ /^tcl/",
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/",
           "group": "1_fix"
         },
         {
           "command": "tclLsp.fixAllSafeIssues",
-          "when": "editorLangId =~ /^tcl/",
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/",
           "group": "1_fix"
         },
         {
           "command": "tclLsp.minifyDocument",
-          "when": "editorLangId =~ /^tcl/",
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/",
           "group": "1_fix"
         },
         {
           "command": "tclLsp.unminifyError",
-          "when": "editorLangId =~ /^tcl/",
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/",
           "group": "1_fix"
         },
         {
           "command": "tclLsp.escapeSelection",
-          "when": "editorLangId =~ /^tcl/ && editorHasSelection",
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/ && editorHasSelection",
           "group": "2_encode"
         },
         {
           "command": "tclLsp.unescapeSelection",
-          "when": "editorLangId =~ /^tcl/ && editorHasSelection",
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/ && editorHasSelection",
           "group": "2_encode"
         },
         {
           "command": "tclLsp.base64EncodeSelection",
-          "when": "editorLangId =~ /^tcl/ && editorHasSelection",
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/ && editorHasSelection",
           "group": "2_encode"
         },
         {
           "command": "tclLsp.base64DecodeSelection",
-          "when": "editorLangId =~ /^tcl/ && editorHasSelection",
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/ && editorHasSelection",
           "group": "2_encode"
         },
         {
           "command": "tclLsp.insertPackageRequire",
-          "when": "editorLangId =~ /^tcl/",
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/",
           "group": "3_insert"
         },
         {
           "command": "tclLsp.scaffoldPackageStarter",
-          "when": "editorLangId =~ /^tcl/",
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/",
           "group": "3_insert"
         },
         {
           "command": "tclLsp.insertIruleEventSkeleton",
-          "when": "editorLangId =~ /^tcl/ && tclLsp.isIruleDialect",
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/ && tclLsp.isIruleDialect",
           "group": "3_insert"
         },
         {
           "command": "tclLsp.insertTemplateSnippet",
-          "when": "editorLangId =~ /^tcl/",
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/",
           "group": "3_insert"
         },
         {
           "command": "tclLsp.runRuntimeValidation",
-          "when": "editorLangId =~ /^tcl/",
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/",
           "group": "4_tools"
         },
         {
           "command": "tclLsp.openCompilerExplorer",
-          "when": "editorLangId =~ /^tcl/",
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/",
           "group": "4_tools"
         },
         {
@@ -953,32 +975,32 @@
         },
         {
           "command": "tclLsp.openTkPreview",
-          "when": "editorLangId =~ /^tcl/",
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/",
           "group": "4_tools"
         },
         {
           "command": "tclLsp.translateXc",
-          "when": "editorLangId =~ /^tcl/ && tclLsp.isIruleDialect",
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/ && tclLsp.isIruleDialect",
           "group": "4_tools"
         },
         {
           "command": "tclLsp.translateXcConsole",
-          "when": "editorLangId =~ /^tcl/ && tclLsp.isIruleDialect",
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/ && tclLsp.isIruleDialect",
           "group": "4_tools"
         },
         {
           "command": "tclLsp.extractRule",
-          "when": "editorLangId =~ /^tcl/",
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/",
           "group": "4_tools"
         },
         {
           "command": "tclLsp.extractRulePick",
-          "when": "editorLangId =~ /^tcl/",
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/",
           "group": "4_tools"
         },
         {
           "command": "tclLsp.extractAllRules",
-          "when": "editorLangId =~ /^tcl/",
+          "when": "editorLangId =~ /^(?:sslictcl|tcl)/",
           "group": "4_tools"
         },
         {
@@ -1010,24 +1032,270 @@
         "command": "tclLsp.optimiseDocument",
         "key": "ctrl+alt+o",
         "mac": "cmd+alt+o",
-        "when": "editorLangId =~ /^tcl/"
+        "when": "editorLangId =~ /^(?:sslictcl|tcl)/"
       },
       {
         "command": "tclLsp.minifyDocument",
         "key": "ctrl+alt+m",
         "mac": "cmd+alt+m",
-        "when": "editorLangId =~ /^tcl/"
+        "when": "editorLangId =~ /^(?:sslictcl|tcl)/"
       },
       {
         "command": "tclLsp.openCompilerExplorer",
         "key": "ctrl+alt+e",
         "mac": "cmd+alt+e",
-        "when": "editorLangId =~ /^tcl/"
+        "when": "editorLangId =~ /^(?:sslictcl|tcl)/"
       }
     ],
     "semanticTokenScopes": [
       {
         "language": "tcl",
+        "scopes": {
+          "object": [
+            "entity.name.type.bigip"
+          ],
+          "regexp": [
+            "string.regexp.tcl"
+          ],
+          "escape": [
+            "constant.character.escape.tcl"
+          ],
+          "number": [
+            "constant.numeric.tcl"
+          ],
+          "event": [
+            "entity.name.tag.event.tcl"
+          ],
+          "regexpGroup": [
+            "keyword.operator.regexp.group.tcl"
+          ],
+          "regexpCharClass": [
+            "constant.other.regexp.charclass.tcl"
+          ],
+          "regexpQuantifier": [
+            "keyword.operator.regexp.quantifier.tcl"
+          ],
+          "regexpAnchor": [
+            "keyword.operator.regexp.anchor.tcl"
+          ],
+          "regexpEscape": [
+            "constant.character.escape.regexp.tcl"
+          ],
+          "regexpBackref": [
+            "constant.other.regexp.backref.tcl"
+          ],
+          "regexpAlternation": [
+            "keyword.operator.regexp.alternation.tcl"
+          ],
+          "binarySpec": [
+            "keyword.operator.binary.specifier.tcl"
+          ],
+          "binaryCount": [
+            "constant.numeric.binary.count.tcl"
+          ],
+          "binaryFlag": [
+            "keyword.operator.binary.flag.tcl"
+          ],
+          "formatPercent": [
+            "keyword.operator.format.percent.tcl"
+          ],
+          "formatSpec": [
+            "keyword.operator.format.specifier.tcl"
+          ],
+          "formatFlag": [
+            "keyword.operator.format.flag.tcl"
+          ],
+          "formatWidth": [
+            "constant.numeric.format.width.tcl"
+          ],
+          "clockPercent": [
+            "keyword.operator.clock.percent.tcl"
+          ],
+          "clockSpec": [
+            "keyword.operator.clock.specifier.tcl"
+          ],
+          "clockModifier": [
+            "keyword.operator.clock.modifier.tcl"
+          ]
+        }
+      },
+      {
+        "language": "tcl-expect",
+        "scopes": {
+          "regexp": [
+            "string.regexp.tcl"
+          ],
+          "escape": [
+            "constant.character.escape.tcl"
+          ],
+          "number": [
+            "constant.numeric.tcl"
+          ],
+          "event": [
+            "entity.name.tag.event.tcl"
+          ],
+          "regexpGroup": [
+            "keyword.operator.regexp.group.tcl"
+          ],
+          "regexpCharClass": [
+            "constant.other.regexp.charclass.tcl"
+          ],
+          "regexpQuantifier": [
+            "keyword.operator.regexp.quantifier.tcl"
+          ],
+          "regexpAnchor": [
+            "keyword.operator.regexp.anchor.tcl"
+          ],
+          "regexpEscape": [
+            "constant.character.escape.regexp.tcl"
+          ],
+          "regexpBackref": [
+            "constant.other.regexp.backref.tcl"
+          ],
+          "regexpAlternation": [
+            "keyword.operator.regexp.alternation.tcl"
+          ],
+          "binarySpec": [
+            "keyword.operator.binary.specifier.tcl"
+          ],
+          "binaryCount": [
+            "constant.numeric.binary.count.tcl"
+          ],
+          "binaryFlag": [
+            "keyword.operator.binary.flag.tcl"
+          ],
+          "formatPercent": [
+            "keyword.operator.format.percent.tcl"
+          ],
+          "formatSpec": [
+            "keyword.operator.format.specifier.tcl"
+          ],
+          "formatFlag": [
+            "keyword.operator.format.flag.tcl"
+          ],
+          "formatWidth": [
+            "constant.numeric.format.width.tcl"
+          ],
+          "clockPercent": [
+            "keyword.operator.clock.percent.tcl"
+          ],
+          "clockSpec": [
+            "keyword.operator.clock.specifier.tcl"
+          ],
+          "clockModifier": [
+            "keyword.operator.clock.modifier.tcl"
+          ]
+        }
+      },
+      {
+        "language": "tcl-bigip",
+        "scopes": {
+          "regexp": [
+            "string.regexp.tcl"
+          ],
+          "escape": [
+            "constant.character.escape.tcl"
+          ],
+          "number": [
+            "constant.numeric.tcl"
+          ],
+          "event": [
+            "entity.name.tag.event.tcl"
+          ],
+          "object": [
+            "entity.name.type.bigip"
+          ],
+          "fqdn": [
+            "string.unquoted.hostname.bigip"
+          ],
+          "ipAddress": [
+            "constant.numeric.ip-address.bigip"
+          ],
+          "port": [
+            "constant.numeric.port.bigip"
+          ],
+          "routeDomain": [
+            "entity.name.type.route-domain.bigip"
+          ],
+          "partition": [
+            "entity.name.namespace.partition.bigip"
+          ],
+          "username": [
+            "variable.other.username.bigip"
+          ],
+          "encrypted": [
+            "string.other.encrypted.bigip"
+          ],
+          "pool": [
+            "entity.name.type.pool.bigip"
+          ],
+          "monitor": [
+            "entity.name.type.monitor.bigip"
+          ],
+          "profile": [
+            "entity.name.type.profile.bigip"
+          ],
+          "vlan": [
+            "entity.name.type.vlan.bigip"
+          ],
+          "bigipInterface": [
+            "entity.name.type.interface.bigip"
+          ],
+          "regexpGroup": [
+            "keyword.operator.regexp.group.tcl"
+          ],
+          "regexpCharClass": [
+            "constant.other.regexp.charclass.tcl"
+          ],
+          "regexpQuantifier": [
+            "keyword.operator.regexp.quantifier.tcl"
+          ],
+          "regexpAnchor": [
+            "keyword.operator.regexp.anchor.tcl"
+          ],
+          "regexpEscape": [
+            "constant.character.escape.regexp.tcl"
+          ],
+          "regexpBackref": [
+            "constant.other.regexp.backref.tcl"
+          ],
+          "regexpAlternation": [
+            "keyword.operator.regexp.alternation.tcl"
+          ],
+          "binarySpec": [
+            "keyword.operator.binary.specifier.tcl"
+          ],
+          "binaryCount": [
+            "constant.numeric.binary.count.tcl"
+          ],
+          "binaryFlag": [
+            "keyword.operator.binary.flag.tcl"
+          ],
+          "formatPercent": [
+            "keyword.operator.format.percent.tcl"
+          ],
+          "formatSpec": [
+            "keyword.operator.format.specifier.tcl"
+          ],
+          "formatFlag": [
+            "keyword.operator.format.flag.tcl"
+          ],
+          "formatWidth": [
+            "constant.numeric.format.width.tcl"
+          ],
+          "clockPercent": [
+            "keyword.operator.clock.percent.tcl"
+          ],
+          "clockSpec": [
+            "keyword.operator.clock.specifier.tcl"
+          ],
+          "clockModifier": [
+            "keyword.operator.clock.modifier.tcl"
+          ]
+        }
+      },
+      {
+        "language": "tcl-iapp",
         "scopes": {
           "object": [
             "entity.name.type.bigip"
@@ -1169,7 +1437,7 @@
         }
       },
       {
-        "language": "tcl-iapp",
+        "language": "tcl-tmsh",
         "scopes": {
           "object": [
             "entity.name.type.bigip"
@@ -1240,48 +1508,7 @@
         }
       },
       {
-        "language": "tcl-apl",
-        "scopes": {
-          "escape": [
-            "constant.character.escape.apl"
-          ],
-          "number": [
-            "constant.numeric.apl"
-          ],
-          "aplSection": [
-            "keyword.control.apl"
-          ],
-          "aplFieldType": [
-            "keyword.other.apl"
-          ],
-          "aplAttribute": [
-            "entity.other.attribute-name.apl"
-          ],
-          "aplSectionName": [
-            "entity.name.section.apl"
-          ],
-          "aplFieldName": [
-            "variable.other.field.apl"
-          ],
-          "aplDefine": [
-            "keyword.other.define.apl"
-          ],
-          "aplDefineName": [
-            "entity.name.function.apl"
-          ],
-          "aplDirective": [
-            "keyword.control.directive.apl"
-          ],
-          "aplOptional": [
-            "keyword.control.optional.apl"
-          ],
-          "aplValidator": [
-            "support.constant.validator.apl"
-          ]
-        }
-      },
-      {
-        "language": "tcl-bigip",
+        "language": "tcl-jim",
         "scopes": {
           "regexp": [
             "string.regexp.tcl"
@@ -1295,44 +1522,141 @@
           "event": [
             "entity.name.tag.event.tcl"
           ],
-          "object": [
-            "entity.name.type.bigip"
+          "regexpGroup": [
+            "keyword.operator.regexp.group.tcl"
           ],
-          "fqdn": [
-            "string.unquoted.hostname.bigip"
+          "regexpCharClass": [
+            "constant.other.regexp.charclass.tcl"
           ],
-          "ipAddress": [
-            "constant.numeric.ip-address.bigip"
+          "regexpQuantifier": [
+            "keyword.operator.regexp.quantifier.tcl"
           ],
-          "port": [
-            "constant.numeric.port.bigip"
+          "regexpAnchor": [
+            "keyword.operator.regexp.anchor.tcl"
           ],
-          "routeDomain": [
-            "entity.name.type.route-domain.bigip"
+          "regexpEscape": [
+            "constant.character.escape.regexp.tcl"
           ],
-          "partition": [
-            "entity.name.namespace.partition.bigip"
+          "regexpBackref": [
+            "constant.other.regexp.backref.tcl"
           ],
-          "username": [
-            "variable.other.username.bigip"
+          "regexpAlternation": [
+            "keyword.operator.regexp.alternation.tcl"
           ],
-          "encrypted": [
-            "string.other.encrypted.bigip"
+          "binarySpec": [
+            "keyword.operator.binary.specifier.tcl"
           ],
-          "pool": [
-            "entity.name.type.pool.bigip"
+          "binaryCount": [
+            "constant.numeric.binary.count.tcl"
           ],
-          "monitor": [
-            "entity.name.type.monitor.bigip"
+          "binaryFlag": [
+            "keyword.operator.binary.flag.tcl"
           ],
-          "profile": [
-            "entity.name.type.profile.bigip"
+          "formatPercent": [
+            "keyword.operator.format.percent.tcl"
           ],
-          "vlan": [
-            "entity.name.type.vlan.bigip"
+          "formatSpec": [
+            "keyword.operator.format.specifier.tcl"
           ],
-          "bigipInterface": [
-            "entity.name.type.interface.bigip"
+          "formatFlag": [
+            "keyword.operator.format.flag.tcl"
+          ],
+          "formatWidth": [
+            "constant.numeric.format.width.tcl"
+          ],
+          "clockPercent": [
+            "keyword.operator.clock.percent.tcl"
+          ],
+          "clockSpec": [
+            "keyword.operator.clock.specifier.tcl"
+          ],
+          "clockModifier": [
+            "keyword.operator.clock.modifier.tcl"
+          ]
+        }
+      },
+      {
+        "language": "tclspec",
+        "scopes": {
+          "regexp": [
+            "string.regexp.tcl"
+          ],
+          "escape": [
+            "constant.character.escape.tcl"
+          ],
+          "number": [
+            "constant.numeric.tcl"
+          ],
+          "event": [
+            "entity.name.tag.event.tcl"
+          ],
+          "regexpGroup": [
+            "keyword.operator.regexp.group.tcl"
+          ],
+          "regexpCharClass": [
+            "constant.other.regexp.charclass.tcl"
+          ],
+          "regexpQuantifier": [
+            "keyword.operator.regexp.quantifier.tcl"
+          ],
+          "regexpAnchor": [
+            "keyword.operator.regexp.anchor.tcl"
+          ],
+          "regexpEscape": [
+            "constant.character.escape.regexp.tcl"
+          ],
+          "regexpBackref": [
+            "constant.other.regexp.backref.tcl"
+          ],
+          "regexpAlternation": [
+            "keyword.operator.regexp.alternation.tcl"
+          ],
+          "binarySpec": [
+            "keyword.operator.binary.specifier.tcl"
+          ],
+          "binaryCount": [
+            "constant.numeric.binary.count.tcl"
+          ],
+          "binaryFlag": [
+            "keyword.operator.binary.flag.tcl"
+          ],
+          "formatPercent": [
+            "keyword.operator.format.percent.tcl"
+          ],
+          "formatSpec": [
+            "keyword.operator.format.specifier.tcl"
+          ],
+          "formatFlag": [
+            "keyword.operator.format.flag.tcl"
+          ],
+          "formatWidth": [
+            "constant.numeric.format.width.tcl"
+          ],
+          "clockPercent": [
+            "keyword.operator.clock.percent.tcl"
+          ],
+          "clockSpec": [
+            "keyword.operator.clock.specifier.tcl"
+          ],
+          "clockModifier": [
+            "keyword.operator.clock.modifier.tcl"
+          ]
+        }
+      },
+      {
+        "language": "sslictcl",
+        "scopes": {
+          "regexp": [
+            "string.regexp.tcl"
+          ],
+          "escape": [
+            "constant.character.escape.tcl"
+          ],
+          "number": [
+            "constant.numeric.tcl"
+          ],
+          "event": [
+            "entity.name.tag.event.tcl"
           ],
           "regexpGroup": [
             "keyword.operator.regexp.group.tcl"
@@ -1728,143 +2052,7 @@
         }
       },
       {
-        "language": "tcl-synopsys",
-        "scopes": {
-          "regexp": [
-            "string.regexp.tcl"
-          ],
-          "escape": [
-            "constant.character.escape.tcl"
-          ],
-          "number": [
-            "constant.numeric.tcl"
-          ],
-          "event": [
-            "entity.name.tag.event.tcl"
-          ],
-          "regexpGroup": [
-            "keyword.operator.regexp.group.tcl"
-          ],
-          "regexpCharClass": [
-            "constant.other.regexp.charclass.tcl"
-          ],
-          "regexpQuantifier": [
-            "keyword.operator.regexp.quantifier.tcl"
-          ],
-          "regexpAnchor": [
-            "keyword.operator.regexp.anchor.tcl"
-          ],
-          "regexpEscape": [
-            "constant.character.escape.regexp.tcl"
-          ],
-          "regexpBackref": [
-            "constant.other.regexp.backref.tcl"
-          ],
-          "regexpAlternation": [
-            "keyword.operator.regexp.alternation.tcl"
-          ],
-          "binarySpec": [
-            "keyword.operator.binary.specifier.tcl"
-          ],
-          "binaryCount": [
-            "constant.numeric.binary.count.tcl"
-          ],
-          "binaryFlag": [
-            "keyword.operator.binary.flag.tcl"
-          ],
-          "formatPercent": [
-            "keyword.operator.format.percent.tcl"
-          ],
-          "formatSpec": [
-            "keyword.operator.format.specifier.tcl"
-          ],
-          "formatFlag": [
-            "keyword.operator.format.flag.tcl"
-          ],
-          "formatWidth": [
-            "constant.numeric.format.width.tcl"
-          ],
-          "clockPercent": [
-            "keyword.operator.clock.percent.tcl"
-          ],
-          "clockSpec": [
-            "keyword.operator.clock.specifier.tcl"
-          ],
-          "clockModifier": [
-            "keyword.operator.clock.modifier.tcl"
-          ]
-        }
-      },
-      {
         "language": "tcl-cadence",
-        "scopes": {
-          "regexp": [
-            "string.regexp.tcl"
-          ],
-          "escape": [
-            "constant.character.escape.tcl"
-          ],
-          "number": [
-            "constant.numeric.tcl"
-          ],
-          "event": [
-            "entity.name.tag.event.tcl"
-          ],
-          "regexpGroup": [
-            "keyword.operator.regexp.group.tcl"
-          ],
-          "regexpCharClass": [
-            "constant.other.regexp.charclass.tcl"
-          ],
-          "regexpQuantifier": [
-            "keyword.operator.regexp.quantifier.tcl"
-          ],
-          "regexpAnchor": [
-            "keyword.operator.regexp.anchor.tcl"
-          ],
-          "regexpEscape": [
-            "constant.character.escape.regexp.tcl"
-          ],
-          "regexpBackref": [
-            "constant.other.regexp.backref.tcl"
-          ],
-          "regexpAlternation": [
-            "keyword.operator.regexp.alternation.tcl"
-          ],
-          "binarySpec": [
-            "keyword.operator.binary.specifier.tcl"
-          ],
-          "binaryCount": [
-            "constant.numeric.binary.count.tcl"
-          ],
-          "binaryFlag": [
-            "keyword.operator.binary.flag.tcl"
-          ],
-          "formatPercent": [
-            "keyword.operator.format.percent.tcl"
-          ],
-          "formatSpec": [
-            "keyword.operator.format.specifier.tcl"
-          ],
-          "formatFlag": [
-            "keyword.operator.format.flag.tcl"
-          ],
-          "formatWidth": [
-            "constant.numeric.format.width.tcl"
-          ],
-          "clockPercent": [
-            "keyword.operator.clock.percent.tcl"
-          ],
-          "clockSpec": [
-            "keyword.operator.clock.specifier.tcl"
-          ],
-          "clockModifier": [
-            "keyword.operator.clock.modifier.tcl"
-          ]
-        }
-      },
-      {
-        "language": "tcl-xilinx",
         "scopes": {
           "regexp": [
             "string.regexp.tcl"
@@ -2068,7 +2256,7 @@
         }
       },
       {
-        "language": "tcl-expect",
+        "language": "tcl-microchip",
         "scopes": {
           "regexp": [
             "string.regexp.tcl"
@@ -2132,6 +2320,183 @@
           ],
           "clockModifier": [
             "keyword.operator.clock.modifier.tcl"
+          ]
+        }
+      },
+      {
+        "language": "tcl-synopsys",
+        "scopes": {
+          "regexp": [
+            "string.regexp.tcl"
+          ],
+          "escape": [
+            "constant.character.escape.tcl"
+          ],
+          "number": [
+            "constant.numeric.tcl"
+          ],
+          "event": [
+            "entity.name.tag.event.tcl"
+          ],
+          "regexpGroup": [
+            "keyword.operator.regexp.group.tcl"
+          ],
+          "regexpCharClass": [
+            "constant.other.regexp.charclass.tcl"
+          ],
+          "regexpQuantifier": [
+            "keyword.operator.regexp.quantifier.tcl"
+          ],
+          "regexpAnchor": [
+            "keyword.operator.regexp.anchor.tcl"
+          ],
+          "regexpEscape": [
+            "constant.character.escape.regexp.tcl"
+          ],
+          "regexpBackref": [
+            "constant.other.regexp.backref.tcl"
+          ],
+          "regexpAlternation": [
+            "keyword.operator.regexp.alternation.tcl"
+          ],
+          "binarySpec": [
+            "keyword.operator.binary.specifier.tcl"
+          ],
+          "binaryCount": [
+            "constant.numeric.binary.count.tcl"
+          ],
+          "binaryFlag": [
+            "keyword.operator.binary.flag.tcl"
+          ],
+          "formatPercent": [
+            "keyword.operator.format.percent.tcl"
+          ],
+          "formatSpec": [
+            "keyword.operator.format.specifier.tcl"
+          ],
+          "formatFlag": [
+            "keyword.operator.format.flag.tcl"
+          ],
+          "formatWidth": [
+            "constant.numeric.format.width.tcl"
+          ],
+          "clockPercent": [
+            "keyword.operator.clock.percent.tcl"
+          ],
+          "clockSpec": [
+            "keyword.operator.clock.specifier.tcl"
+          ],
+          "clockModifier": [
+            "keyword.operator.clock.modifier.tcl"
+          ]
+        }
+      },
+      {
+        "language": "tcl-xilinx",
+        "scopes": {
+          "regexp": [
+            "string.regexp.tcl"
+          ],
+          "escape": [
+            "constant.character.escape.tcl"
+          ],
+          "number": [
+            "constant.numeric.tcl"
+          ],
+          "event": [
+            "entity.name.tag.event.tcl"
+          ],
+          "regexpGroup": [
+            "keyword.operator.regexp.group.tcl"
+          ],
+          "regexpCharClass": [
+            "constant.other.regexp.charclass.tcl"
+          ],
+          "regexpQuantifier": [
+            "keyword.operator.regexp.quantifier.tcl"
+          ],
+          "regexpAnchor": [
+            "keyword.operator.regexp.anchor.tcl"
+          ],
+          "regexpEscape": [
+            "constant.character.escape.regexp.tcl"
+          ],
+          "regexpBackref": [
+            "constant.other.regexp.backref.tcl"
+          ],
+          "regexpAlternation": [
+            "keyword.operator.regexp.alternation.tcl"
+          ],
+          "binarySpec": [
+            "keyword.operator.binary.specifier.tcl"
+          ],
+          "binaryCount": [
+            "constant.numeric.binary.count.tcl"
+          ],
+          "binaryFlag": [
+            "keyword.operator.binary.flag.tcl"
+          ],
+          "formatPercent": [
+            "keyword.operator.format.percent.tcl"
+          ],
+          "formatSpec": [
+            "keyword.operator.format.specifier.tcl"
+          ],
+          "formatFlag": [
+            "keyword.operator.format.flag.tcl"
+          ],
+          "formatWidth": [
+            "constant.numeric.format.width.tcl"
+          ],
+          "clockPercent": [
+            "keyword.operator.clock.percent.tcl"
+          ],
+          "clockSpec": [
+            "keyword.operator.clock.specifier.tcl"
+          ],
+          "clockModifier": [
+            "keyword.operator.clock.modifier.tcl"
+          ]
+        }
+      },
+      {
+        "language": "tcl-apl",
+        "scopes": {
+          "escape": [
+            "constant.character.escape.apl"
+          ],
+          "number": [
+            "constant.numeric.apl"
+          ],
+          "aplSection": [
+            "keyword.control.apl"
+          ],
+          "aplFieldType": [
+            "keyword.other.apl"
+          ],
+          "aplAttribute": [
+            "entity.other.attribute-name.apl"
+          ],
+          "aplSectionName": [
+            "entity.name.section.apl"
+          ],
+          "aplFieldName": [
+            "variable.other.field.apl"
+          ],
+          "aplDefine": [
+            "keyword.other.define.apl"
+          ],
+          "aplDefineName": [
+            "entity.name.function.apl"
+          ],
+          "aplDirective": [
+            "keyword.control.directive.apl"
+          ],
+          "aplOptional": [
+            "keyword.control.optional.apl"
+          ],
+          "aplValidator": [
+            "support.constant.validator.apl"
           ]
         }
       }
@@ -3255,16 +3620,28 @@
       "[tcl]": {
         "editor.stickyScroll.defaultModel": "foldingProviderModel"
       },
-      "[tcl-irule]": {
+      "[tcl-expect]": {
+        "editor.stickyScroll.defaultModel": "foldingProviderModel"
+      },
+      "[tcl-bigip]": {
         "editor.stickyScroll.defaultModel": "foldingProviderModel"
       },
       "[tcl-iapp]": {
         "editor.stickyScroll.defaultModel": "foldingProviderModel"
       },
-      "[tcl-apl]": {
+      "[tcl-irule]": {
         "editor.stickyScroll.defaultModel": "foldingProviderModel"
       },
-      "[tcl-bigip]": {
+      "[tcl-tmsh]": {
+        "editor.stickyScroll.defaultModel": "foldingProviderModel"
+      },
+      "[tcl-jim]": {
+        "editor.stickyScroll.defaultModel": "foldingProviderModel"
+      },
+      "[tclspec]": {
+        "editor.stickyScroll.defaultModel": "foldingProviderModel"
+      },
+      "[sslictcl]": {
         "editor.stickyScroll.defaultModel": "foldingProviderModel"
       },
       "[tcl84]": {
@@ -3282,13 +3659,7 @@
       "[tcl91]": {
         "editor.stickyScroll.defaultModel": "foldingProviderModel"
       },
-      "[tcl-synopsys]": {
-        "editor.stickyScroll.defaultModel": "foldingProviderModel"
-      },
       "[tcl-cadence]": {
-        "editor.stickyScroll.defaultModel": "foldingProviderModel"
-      },
-      "[tcl-xilinx]": {
         "editor.stickyScroll.defaultModel": "foldingProviderModel"
       },
       "[tcl-quartus]": {
@@ -3297,19 +3668,16 @@
       "[tcl-mentor]": {
         "editor.stickyScroll.defaultModel": "foldingProviderModel"
       },
-      "[tcl-expect]": {
-        "editor.stickyScroll.defaultModel": "foldingProviderModel"
-      },
-      "[tcl-tmsh]": {
-        "editor.stickyScroll.defaultModel": "foldingProviderModel"
-      },
       "[tcl-microchip]": {
         "editor.stickyScroll.defaultModel": "foldingProviderModel"
       },
-      "[tclspec]": {
+      "[tcl-synopsys]": {
         "editor.stickyScroll.defaultModel": "foldingProviderModel"
       },
-      "[sslictcl]": {
+      "[tcl-xilinx]": {
+        "editor.stickyScroll.defaultModel": "foldingProviderModel"
+      },
+      "[tcl-apl]": {
         "editor.stickyScroll.defaultModel": "foldingProviderModel"
       }
     },
@@ -3338,45 +3706,72 @@
             "default": "tcl8.6",
             "enum": [
               "bpf",
-              "cadence-eda-tcl",
               "expect",
               "f5-bigip",
               "f5-iapps",
               "f5-irules",
               "f5-tmsh",
-              "intel-quartus-eda-tcl",
-              "mentor-eda-tcl",
-              "microchip-libero-eda-tcl",
+              "jim",
               "spectcl",
               "sslictcl",
-              "synopsys-eda-tcl",
               "tcl8.4",
               "tcl8.5",
               "tcl8.6",
               "tcl9.0",
               "tcl9.1",
+              "cadence-eda-tcl",
+              "intel-quartus-eda-tcl",
+              "mentor-eda-tcl",
+              "microchip-libero-eda-tcl",
+              "synopsys-eda-tcl",
+              "tk",
               "xilinx-eda-tcl"
             ],
+            "enumItemLabels": [
+              "BPF",
+              "Expect",
+              "F5 BIG-IP",
+              "F5 iApps",
+              "F5 iRules",
+              "F5 tmsh Scripts",
+              "Jim Tcl",
+              "SpecTcl",
+              "SslicTcl",
+              "Tcl 8.4",
+              "Tcl 8.5",
+              "Tcl 8.6",
+              "Tcl 9.0",
+              "Tcl 9.1",
+              "Cadence Genus / Innovus / Xcelium",
+              "Intel Quartus Prime",
+              "Siemens Questa / ModelSim",
+              "Microchip Libero SoC",
+              "Synopsys DC / PrimeTime / ICC2 / Formality",
+              "Tk",
+              "Xilinx Vivado"
+            ],
             "enumDescriptions": [
-              "BPF dialect",
-              "Cadence EDA Tcl dialect",
-              "Expect dialect",
-              "F5 BIG-IP dialect",
-              "F5 iApps dialect",
-              "F5 iRules dialect",
-              "F5 tmsh Scripts dialect",
-              "Intel Quartus EDA Tcl dialect",
-              "Mentor EDA Tcl dialect",
-              "Microchip Libero EDA Tcl dialect",
-              "SpecTcl dialect",
-              "SslicTcl dialect",
-              "Synopsys EDA Tcl dialect",
-              "Tcl 8.4 dialect",
-              "Tcl 8.5 dialect",
-              "Tcl 8.6 dialect",
-              "Tcl 9.0 dialect",
-              "Tcl 9.1 dialect",
-              "Xilinx EDA Tcl dialect"
+              "BPF",
+              "Expect",
+              "F5 BIG-IP",
+              "F5 iApps",
+              "F5 iRules",
+              "F5 tmsh Scripts",
+              "Jim Tcl",
+              "SpecTcl",
+              "SslicTcl",
+              "Tcl 8.4",
+              "Tcl 8.5",
+              "Tcl 8.6",
+              "Tcl 9.0",
+              "Tcl 9.1",
+              "Cadence Genus / Innovus / Xcelium — Tcl 8.4 + cadence-genus, cadence-common, cadence-innovus, cadence-xcelium, sdc, upf",
+              "Intel Quartus Prime — Tcl 8.5 + quartus-project, quartus-flow, quartus-sta, quartus-sdc-ext, quartus-report, quartus-device, quartus-misc, sdc, upf",
+              "Siemens Questa / ModelSim — Tcl 8.6 + questa, questa-formal, calibre, sdc, upf",
+              "Microchip Libero SoC — Tcl 8.5 + libero, sdc, upf",
+              "Synopsys DC / PrimeTime / ICC2 / Formality — Tcl 8.6 + synopsys-dc, synopsys-pt, synopsys-icc2, synopsys-fm, synopsys, sdc, upf",
+              "Tk — Tcl 8.6 + Tk",
+              "Xilinx Vivado — Tcl 8.5 + vivado, sdc, upf"
             ],
             "description": "Default dialect for files without a shebang or ``# tcl-dialect:`` comment directive. Per-file hints (shebang, comment directive, file extension) take priority over this setting.",
             "order": 2
@@ -3460,6 +3855,13 @@
             "type": "boolean",
             "default": true,
             "description": "Warn when semantic highlighting can't reach a Tcl file (wrong language association, or semantic highlighting disabled), which leaves grammar-only colouring that mis-highlights keywords inside braced string arguments. Each notice can also be dismissed permanently via its 'Don't show again' button.",
+            "order": 5
+          },
+          "tclLsp.notifications.environmentKind": {
+            "scope": "window",
+            "type": "boolean",
+            "default": true,
+            "description": "Show a one-time notice explaining that a tool environment such as Vivado or Quartus is a Tcl release plus library packages, not a separate dialect. The notice can also be dismissed permanently via its 'Don't show again' button, and switched off for editors without a settings UI with 'environment_kind = false' under [notifications] in config.ini.",
             "order": 5
           },
           "tclLsp.suppressDiagnosticsInDiffEditors": {
@@ -9723,23 +10125,25 @@
                     "enum": [
                       "*",
                       "bpf",
-                      "cadence-eda-tcl",
                       "expect",
                       "f5-bigip",
                       "f5-iapps",
                       "f5-irules",
                       "f5-tmsh",
-                      "intel-quartus-eda-tcl",
-                      "mentor-eda-tcl",
-                      "microchip-libero-eda-tcl",
+                      "jim",
                       "spectcl",
                       "sslictcl",
-                      "synopsys-eda-tcl",
                       "tcl8.4",
                       "tcl8.5",
                       "tcl8.6",
                       "tcl9.0",
                       "tcl9.1",
+                      "cadence-eda-tcl",
+                      "intel-quartus-eda-tcl",
+                      "mentor-eda-tcl",
+                      "microchip-libero-eda-tcl",
+                      "synopsys-eda-tcl",
+                      "tk",
                       "xilinx-eda-tcl"
                     ]
                   },
@@ -9928,21 +10332,21 @@
   "devDependencies": {
     "@types/glob": "^9.0.0",
     "@types/mocha": "^10.0.10",
-    "@types/node": "^26.4.1",
+    "@types/node": "^26.6.2",
     "@types/vscode": "~1.95.0",
-    "@typescript-eslint/eslint-plugin": "^8.69.0",
+    "@typescript-eslint/eslint-plugin": "^8.70.1",
     "@typescript-eslint/parser": "^8.69.0",
     "@vscode/test-electron": "^3.1.0",
     "@vscode/test-web": "^0.0.81",
-    "@vscode/vsce": "^3.9.2",
+    "@vscode/vsce": "^4.0.0",
     "c8": "^12.0.0",
     "esbuild": "^0.28.2",
-    "eslint": "^10.10.0",
+    "eslint": "^10.11.0",
     "eslint-config-prettier": "^10.1.8",
     "glob": "^13.0.6",
-    "mocha": "^12.0.0",
-    "ovsx": "^1.1.1",
-    "prettier": "^3.9.6",
+    "mocha": "^12.0.2",
+    "ovsx": "^1.2.0",
+    "prettier": "^3.9.9",
     "typescript": "~6.0.3",
     "vscode-oniguruma": "^2.0.1",
     "vscode-textmate": "^9.3.2"

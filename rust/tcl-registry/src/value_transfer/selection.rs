@@ -295,6 +295,10 @@ impl SwitchSemantics {
         let release = TargetSemantics::of(input.context().profile).release;
         let bounded_scan = release.is_some_and(|release| release >= TclVersion::V8_5);
         let may_be_91 = release.is_none_or(|release| release >= TclVersion::V9_1);
+        // With no release named the core reads 9.0's options and patterns: a
+        // `-regexp` pattern only 9.1 compiles (`\z`) then fails to compile,
+        // which declines here and is never taken for a raise.
+        let version = release.unwrap_or(TclVersion::V9_0);
         let mut ops = ConstOps::admit(input.context(), budget, NEEDS)?;
         // The core's argv, name-stripped: every word but the subject exactly.
         let mut argv = Vec::with_capacity(view.operands.len() - first);
@@ -322,7 +326,8 @@ impl SwitchSemantics {
             let member = ConstValue::from_exact(member);
             ops.admissible_text(&member)?;
             argv[at] = member.clone();
-            let options = parse_options(&mut ops, &argv).map_err(|error| ops.decline(&error))?;
+            let options =
+                parse_options(&mut ops, &argv, version).map_err(|error| ops.decline(&error))?;
             // The core must read the layout the plan read: the same
             // subject, mode and case folding. Before 8.5 every leading word
             // that starts with `-` is scanned, so a subject spelled that
@@ -337,7 +342,7 @@ impl SwitchSemantics {
             }
             let chosen = metered(&mut ops, |ops, analysis| {
                 select_analysis::<ConstOps<'_>, AreEngine, ConstValue>(
-                    ops, &options, &member, &patterns, analysis,
+                    ops, &options, &member, &patterns, version, analysis,
                 )
             })?
             .map_err(|failure| failure_reason(&ops, &failure))?;

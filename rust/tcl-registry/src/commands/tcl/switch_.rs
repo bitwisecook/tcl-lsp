@@ -98,8 +98,8 @@ fn switch_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 /// differs from both only in typesetting (an ASCII hyphen vs Unicode em
 /// dash in the NAME line, blank-line spacing, and copyright-block
 /// ordering), never in wording — so no 8.6 or 9.0 delta exists for this
-/// command beyond 8.5's. Tcl 9.1 (whose own manpage self-identifies as
-/// version "9.1b0", a live beta) adds a fourth match mode, -integer,
+/// command beyond 8.5's. Tcl 9.1 (the 9.1b0 and 9.1.0 manpages are
+/// identical) adds a fourth match mode, -integer,
 /// absent from every earlier version's SYNOPSIS/OPTIONS list, and amends
 /// -nocase's own wording to note it cannot be combined with -integer;
 /// 9.1's page also renames the placeholder argument from "string" to
@@ -306,6 +306,10 @@ pub fn spec() -> CommandSpec {
         reserved_trailing_words: 2,
         option_effect_families: FAMILIES,
         case_list: Some(&CaseListSpec::SWITCH),
+        // `-integer` reads the subject and any inline patterns as wide
+        // integers, so a tainted one is a T100 numeric-coercion sink; the
+        // option's own TCL91 surface keeps earlier releases silent.
+        taint_numeric_coercion: Some(TaintNumericCoercion::IntegerModeOperands),
         analyser_hook: Some(crate::hooks::AnalyserHookId::Switch),
         semantics: SemanticsDeclaration::Declared(&SEMANTICS),
         ..CommandSpec::DEFAULT

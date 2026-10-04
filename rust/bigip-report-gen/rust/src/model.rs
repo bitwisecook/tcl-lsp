@@ -2214,11 +2214,7 @@ pub fn collect_model_full(
     files: &HashMap<String, Vec<J>>,
     manifest: Option<&str>,
 ) -> J {
-    let analysis_time = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .ok()
-        .and_then(|duration| i64::try_from(duration.as_secs()).ok())
-        .unwrap_or(0);
+    let analysis_time = crate::clock::now_epoch_seconds();
     let empty_pems = HashMap::new();
     let empty_files: Vec<J> = Vec::new();
     let devices: Vec<J> = sources

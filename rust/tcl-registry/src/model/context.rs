@@ -55,9 +55,11 @@ use tcl_dialect::{LibraryVersionOverrides, TclVersion};
 use crate::hover::OptionSpec;
 use crate::model::surface::{
     BuildCapability, CapabilityPredicate, Provider, SurfaceDeclaration, VENDOR_SURFACE_PACKAGES,
-    is_closed_world_package, is_placement_gated_package, vendor_surface_package,
+    is_closed_world_package, is_placement_gated_package, package_hosting_families,
+    vendor_surface_package,
 };
-use tcl_dialect::model::{PackageFloor, SurfaceQuery, surface_admits};
+use crate::registry::NameProviders;
+use tcl_dialect::model::{CorePoints, PackageFloor, SurfaceQuery, surface_admits};
 // The vendor-surface summary payload: plain registry-derived data, not
 // part of the retiring profile trait, so both faces answer with the one
 // type and the parity pin can compare them directly. The retiring trait
@@ -498,6 +500,46 @@ impl ResolvedContext {
         self.placement(package).is_some()
     }
 
+    /// Whether a command offered by `offered` could be *meant for* this
+    /// document's world: some provider of the name stands in a relation to
+    /// the environment's core family.
+    ///
+    /// The distinction W002 needs. A name offered to a related world — a
+    /// `tcl8.4` document writing a `tcl8.6` command, a `jim` document writing
+    /// a Tcl command Jim's roster omits, a `tcl8.6` document writing an iRules
+    /// command — is *disabled here*. A name only an unrelated world offers
+    /// (`system`, Expect's, in a `jim` document) is simply unknown here.
+    ///
+    /// - a core provider is related when its family is on one derivation line
+    ///   with the document's ([`Family::on_one_line_with`]);
+    /// - a package provider is related when this environment can host the
+    ///   package, or the document's family shares packages with a family that
+    ///   ships it ([`Family::shares_packages_with`] — a fork does, a
+    ///   reimplementation does not). A package no compiled environment ships
+    ///   relates to everything, as a spec that states no surface does.
+    ///
+    /// A context with no core runtime of its own relates to everything.
+    #[must_use]
+    pub fn is_related_to_a_provider_of(&self, offered: &NameProviders) -> bool {
+        let Some(core) = self.environment.core else {
+            return true;
+        };
+        if offered.unrestricted || offered.providers.is_empty() {
+            return true;
+        }
+        offered.providers.iter().any(|provider| match provider {
+            SpecProvider::Core(family) => core.family.on_one_line_with(*family),
+            SpecProvider::Package(package) => {
+                let hosts = package_hosting_families(package);
+                hosts.is_empty()
+                    || self.can_host_package(package)
+                    || hosts
+                        .iter()
+                        .any(|host| core.family.shares_packages_with(*host))
+            }
+        })
+    }
+
     /// Whether `provider` is active here: a core provider iff it is the
     /// environment's core family **or a fork ancestor of it** (a
     /// fork-of-Tcl core embeds the fork point's Tcl core, measurements
@@ -774,7 +816,13 @@ impl ResolvedContext {
     /// `expr`, and its required package is in this document's world.
     #[must_use]
     pub fn spec_available(&self, spec: &CommandSpec) -> bool {
-        spec.supports_dialect(Some(self.authoring_query()))
+        self.spec_available_under(spec, self.authoring_query())
+    }
+
+    /// [`Self::spec_available`] for a caller that already holds the
+    /// authoring query.
+    fn spec_available_under(&self, spec: &CommandSpec, query: SurfaceQuery<'_>) -> bool {
+        spec.supports_dialect(Some(query))
             && (self.operator_heads_are_commands()
                 || !spec.traits.contains(Traits::OPERATOR_COMMAND))
             && self.required_package_available(spec.required_package)
@@ -789,9 +837,43 @@ impl ResolvedContext {
         registry: &CommandRegistry,
         name: &str,
     ) -> Option<&'static CommandSpec> {
-        registry
-            .get_for_surface(name, Some(self.authoring_query()))
-            .filter(|spec| self.spec_available(spec))
+        let query = self.authoring_query();
+        registry.get_for_surface(name, Some(query)).filter(|spec| {
+            self.spec_available_under(spec, query) && self.roster_admits(name, spec, &query)
+        })
+    }
+
+    /// The enumerated half of inherit-then-override for one spec: a spec
+    /// that reaches this document only through an ancestor's core row
+    /// survives when that ancestor's roster lists the name.
+    ///
+    /// The assembled generation applies the roster when it admits a spec
+    /// (`ContextRegistry::assemble`); a query over a store that is not that
+    /// generation, which is how the analyser resolves a written head, applies
+    /// it here, so both answer alike: a `jim` document has no `coroutine`.
+    /// A spec with a row of the document's own family, or a package row, or
+    /// no row at all, is not the roster's to filter.
+    fn roster_admits(&self, name: &str, spec: &CommandSpec, query: &SurfaceQuery<'_>) -> bool {
+        let Some(rows) = spec.surface else {
+            return true;
+        };
+        let mut any_row_reaches_here = false;
+        for row in rows {
+            if !surface_admits(std::slice::from_ref(row), Some(query)) {
+                continue;
+            }
+            any_row_reaches_here = true;
+            let passes = match row.provider {
+                SpecProvider::Core(source) => {
+                    self.inherited_surface_admits(name, &Provider::Core(source))
+                }
+                SpecProvider::Package(_) => true,
+            };
+            if passes {
+                return true;
+            }
+        }
+        !any_row_reaches_here
     }
 
     /// Whether `sub` (of `spec`) is available here — the old
@@ -1207,40 +1289,53 @@ fn release_line(
 fn compute_authoring_scope(context: &ResolvedContext) -> AuthoringScope {
     let mut scope = AuthoringScope::default();
     if let Some(core) = context.environment.core {
-        scope.core = Some(match core.family {
-            // The primary pins the release; without one the question is
-            // about the family's whole ladder.
-            Family::Tcl => (
-                Family::Tcl,
-                context
-                    .floors
-                    .primary(&VersionAxisId::core(Family::Tcl))
-                    .cloned(),
-            ),
-            Family::F5Irules => (Family::F5Irules, None),
-            // Every other family derives its Tcl-facing surface from an
-            // ancestry anchor, so the release it authors against is that
-            // anchor — derived, not per family.
-            //
-            // `f5-tcl`: measurements §4a (F5 reclassification,
-            // `docs/design/f5/bigip-irule-parser-measurements.md`) — the
-            // trunk-riding environments (`f5-iapps`, `f5-tmsh`) embed the
-            // fork of Tcl at 8.4.6, and every 8.4/8.5 discriminator behaves
-            // as 8.4.
-            //
-            // `jim`: the 8.6 command-set anchor (`jim_tcl.txt`), which is
-            // the whole of jim's inherit-then-override — a `jim` document
-            // resolves `set`, `if`, `proc`, `lassign`, `dict` and `lmap`
-            // from the shared core specs instead of from 76
-            // hand-re-authored copies.
-            family @ (Family::F5Tcl | Family::Jim) => (
+        // The Tcl-facing point a family derives from its ancestry anchor,
+        // so the release it authors against is that anchor — derived, not
+        // per family.
+        let anchor_point = |family: Family| {
+            (
                 Family::Tcl,
                 family
                     .ancestry()
                     .filter(|ancestry| ancestry.parent == Family::Tcl)
                     .and_then(|ancestry| Version::parse(ancestry.anchor).ok()),
-            ),
-        });
+            )
+        };
+        match core.family {
+            // The primary pins the release; without one the question is
+            // about the family's whole ladder.
+            Family::Tcl => scope.core.push((
+                Family::Tcl,
+                context
+                    .floors
+                    .primary(&VersionAxisId::core(Family::Tcl))
+                    .cloned(),
+            )),
+            Family::F5Irules => scope.core.push((Family::F5Irules, None)),
+            // `f5-tcl`: measurements §4a (F5 reclassification,
+            // `docs/design/f5/bigip-irule-parser-measurements.md`) — the
+            // trunk-riding environments (`f5-iapps`, `f5-tmsh`) embed the
+            // fork of Tcl at 8.4.6, and every 8.4/8.5 discriminator behaves
+            // as 8.4.
+            Family::F5Tcl => scope.core.push(anchor_point(Family::F5Tcl)),
+            // `jim`: its own family first, then the 8.6 command-set anchor
+            // (`jim_tcl.txt`). The anchor is how a `jim` document resolves
+            // `set`, `if`, `proc`, `lassign`, `dict` and `lmap` from the
+            // shared core specs; the own-family point is how a row that
+            // says `available {jim 0.81-}` is admitted, and it is asked
+            // first, so such a row shadows an inherited Tcl row for the
+            // same command.
+            Family::Jim => {
+                scope.core.push((
+                    Family::Jim,
+                    context
+                        .floors
+                        .primary(&VersionAxisId::core(Family::Jim))
+                        .cloned(),
+                ));
+                scope.core.push(anchor_point(Family::Jim));
+            }
+        }
     }
     for &package in VENDOR_SURFACE_PACKAGES {
         if vendor_surface_package(context.environment.id.as_str()) == Some(package)
@@ -1259,9 +1354,10 @@ fn compute_authoring_scope(context: &ResolvedContext) -> AuthoringScope {
 /// as a [`SurfaceQuery`].
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AuthoringScope {
-    /// The core family this environment authors against, and the release
-    /// when one is pinned.
-    core: Option<(Family, Option<Version>)>,
+    /// The core families this environment authors against, nearest first,
+    /// each with the release when one is pinned. A family with an ancestry
+    /// anchor lists itself, then the anchor.
+    core: Vec<(Family, Option<Version>)>,
     /// The vendor packages whose surface this environment carries, each at
     /// the floor a loaded pack declared for it as ambient.
     ///
@@ -1276,10 +1372,11 @@ impl AuthoringScope {
     #[must_use]
     pub fn query(&self) -> SurfaceQuery<'_> {
         SurfaceQuery {
-            core: self
-                .core
-                .as_ref()
-                .map(|(family, release)| (*family, release.as_ref().map(Version::as_str))),
+            core: CorePoints::from_ordered(
+                self.core
+                    .iter()
+                    .map(|(family, release)| (*family, release.as_ref().map(Version::as_str))),
+            ),
             packages: &self.packages,
         }
     }
@@ -2022,9 +2119,9 @@ mod tests {
     /// A `jim` context resolves the shared core surface through
     /// its ancestry edge instead of through 76 re-authored specs: the
     /// `Core(Tcl)` provider is active, the Tcl-axis primary is the 8.6
-    /// anchor, and the derived point is the 8.6 line — so
-    /// `lassign` (8.5+) and `lmap` (8.6+) both resolve while an
-    /// 8.4-only shape does not.
+    /// anchor, and the derived point is jim's own family followed by the
+    /// 8.6 line — so `lassign` (8.5+) and `lmap` (8.6+) both resolve while
+    /// an 8.4-only shape does not.
     #[test]
     fn a_jim_context_inherits_the_tcl_core_surface() {
         let ctx = context("jim");
@@ -2055,7 +2152,10 @@ mod tests {
         // The derived point, and what it admits.
         assert_eq!(
             ctx.authoring_query(),
-            SurfaceQuery::core(Family::Tcl, "8.6")
+            SurfaceQuery {
+                core: CorePoints::two((Family::Jim, None), (Family::Tcl, Some("8.6"))),
+                packages: &[],
+            }
         );
         for gate in [
             SpecSurface::ALL_TCL,
@@ -2084,6 +2184,90 @@ mod tests {
         let registry = crate::model::assembly::universe();
         for name in ["set", "if", "proc", "lassign", "lmap", "dict"] {
             assert!(ctx.resolve_spec(registry, name).is_some(), "{name}");
+        }
+    }
+
+    const JIM_FROM_080: &[SpecSurface] = &[SpecSurface::core_in(Family::Jim, &[("0.80", None)])];
+
+    /// A registry holding the shipped surface plus a spec of `name` for each
+    /// of `surfaces`, registered in that order.
+    fn registry_with(name: &'static str, surfaces: &[&'static [SpecSurface]]) -> CommandRegistry {
+        let mut registry = CommandRegistry::build_default();
+        for surface in surfaces {
+            registry.insert(CommandSpec {
+                name,
+                surface: Some(*surface),
+                ..CommandSpec::DEFAULT
+            });
+        }
+        registry
+    }
+
+    /// A spec available only from jim 0.80 is admitted at a `jim`
+    /// document's own point and at no Tcl point, and the inherited Tcl
+    /// surface still resolves there.
+    #[test]
+    fn a_jim_context_resolves_a_command_only_jim_provides() {
+        let registry = registry_with("loop", &[JIM_FROM_080]);
+        let jim = context("jim");
+
+        let looped = jim
+            .resolve_spec(&registry, "loop")
+            .expect("a jim document resolves a Core(Jim) command");
+        assert_eq!(looped.surface, Some(JIM_FROM_080));
+        assert!(
+            jim.resolve_spec(&registry, "puts").is_some(),
+            "the inherited Tcl surface still resolves"
+        );
+
+        for environment in ["tcl8.6", "tcl9.0", "tcl", "tk", "f5-iapps"] {
+            assert!(
+                context(environment)
+                    .resolve_spec(&registry, "loop")
+                    .is_none(),
+                "{environment}: a Core(Jim) command is not part of a Tcl surface"
+            );
+        }
+    }
+
+    /// Where a jim-only row and an inherited Tcl row both offer one
+    /// command, a `jim` document sees the jim row and a Tcl document the
+    /// Tcl row — whichever was registered last, and even when the Tcl row
+    /// is the narrower of the two.
+    #[test]
+    fn a_jim_row_shadows_the_inherited_tcl_row_for_a_jim_context() {
+        let jim = context("jim");
+        let tcl = context("tcl8.6");
+
+        // `proc` has an inherited Tcl row in the shipped surface.
+        let registry = registry_with("proc", &[JIM_FROM_080]);
+        assert_eq!(
+            jim.resolve_spec(&registry, "proc")
+                .and_then(|spec| spec.surface),
+            Some(JIM_FROM_080)
+        );
+        let inherited = tcl.resolve_spec(&registry, "proc").expect("Tcl's proc");
+        assert_ne!(inherited.surface, Some(JIM_FROM_080));
+
+        // A single-release Tcl row is as narrow as a jim row can be, so
+        // breadth ties and only the point's order can decide.
+        for surfaces in [
+            [SpecSurface::TCL86, JIM_FROM_080],
+            [JIM_FROM_080, SpecSurface::TCL86],
+        ] {
+            let registry = registry_with("shadow_probe", &surfaces);
+            assert_eq!(
+                jim.resolve_spec(&registry, "shadow_probe")
+                    .and_then(|spec| spec.surface),
+                Some(JIM_FROM_080),
+                "{surfaces:?}: jim"
+            );
+            assert_eq!(
+                tcl.resolve_spec(&registry, "shadow_probe")
+                    .and_then(|spec| spec.surface),
+                Some(SpecSurface::TCL86),
+                "{surfaces:?}: tcl8.6"
+            );
         }
     }
 

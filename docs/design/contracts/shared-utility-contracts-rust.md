@@ -79,6 +79,25 @@ entry point, or gate moves without this contract being updated.
 | diagnostic policy | `rust/tcl-lsp-core/src/diagnostic_policy.rs`; `rust/tcl-lsp-core/src/diagnostic_report.rs`; `rust/tcl-lsp-core/src/config_ini.rs` | `apply`; `Policy`; `PolicyBuilder`; `Report`; `Finding`; `Directives`; `dialect_overlaps`; `document_report`; `standalone_findings`; `optimise_under_policy`; `settings_from_ini`; `merge_settings`; `global_layer`; `project_layer_for` | the dialect's overlap table; the document's configuration layers, resolved per code; the step order is release-invariant | none |
 <!-- end-owner-resolution-manifest -->
 
+### Compiler evaluated substitutions
+
+The compiler's crate-internal `ir_helpers::EvaluatedCommandSubstitutions`
+combines the lexical owners above with registry expression roles. Its
+`all_commands` view is one evaluation-ordered stream across ordinary and
+in-frame expression commands: nested invocations precede their enclosing
+command and later sibling words. Binding-transition and scalar-barrier
+consumers share this stream; call-graph consumers retain the separate ordinary
+inventory. The compiler library's
+`complete_substitution_inventory_preserves_expression_sibling_order` regression
+checks both ordering and classification, and `compiler_analysis_residual` checks
+the resulting scalar proof against the Tcl rename/eval witnesses.
+`command_binding::ModuleCommandBindings::resolved_embedded_head` supplies the
+shared registry target and prepended arguments for this expression descent in
+both CFG projection and binding replay, including aliases to expression commands.
+The inventory walker accepts an invocation observer alongside this resolver;
+discovery and replay advance together so an earlier substitution can introduce
+the alias whose expression words a later sibling evaluates.
+
 ### `tcl-dialect` + `tcl-test-support` — C Tcl reference toolchains
 
 - The `tcl-dialect/data/reference-toolchains.tsv` manifest is the
@@ -253,6 +272,23 @@ entry point, or gate moves without this contract being updated.
   `NumValue<B>` for both engines and the const-folder, with the two release
   axes (`MathFuncSince`, `IntWidth`) and the typed refusals (`MathFuncError`)
   owned here rather than re-derived per engine.
+  `quoted_string_body` is the one rule for which `ExprNode::String` operands
+  substitute: the variant keeps both spellings with their delimiters, and
+  only `"…"` substitutes. The walk hands `ExprOps::string` that answer, so
+  the VM substitutes only a quoted operand and the const-folder declines one
+  it cannot substitute. A braced operand is not quite raw: its
+  backslash-newlines fold even inside braces, so the engines pass it through
+  `backslash::collapse_brace_continuations`, and the const-folder, which
+  does not know whether the dialect folds (Jim keeps the bytes), declines one
+  that carries a backslash-newline. `fixed_string_operand` (and
+  `fixed_string_body` for the walk's stripped body) answers "is this operand
+  its own value in every dialect": the const-folder, native lowering and the
+  F5 XC translator read a constant only through it. Codegen, taint and the
+  `uri_split` hint read the quoted/braced split through
+  `quoted_string_body`; the hint rejects a quoted operand that substitutes
+  (`$`, `[`) but reads its backslash escapes as written, the form its regex
+  classifier expects. The compiler's substitution walks read the same rule
+  (#2227).
 - `rand` — the Park-Miller `rand()`/`srand()` generator both engines call
   (step, seed nudge, and C's reciprocal-multiply scaling). Only seed storage
   and the first-seed policy are per engine (#1432).
@@ -1246,3 +1282,25 @@ helper without reading the rationale:
   ownership rules sit inside.
 - [family-b-routing.md](../runtime/family-b-routing.md) — the runtime seam this
   crate layering serves.
+
+The substitution observer receives the expression owner’s conditional-path
+fact. Binding consumers join skipped and executed states rather than
+interpreting lexical discovery as definite execution. Elimination reads the
+SSA binding lineage to keep executable stores observed through fresh scalar-
+analysis versions live; markers themselves remain without executable uses.
+
+Value provenance uses the canonical lifted-call inventory to recognise the
+first substitution’s variable head read before invocation. Only clobbers
+belonging to that same host are undone for that operand; earlier invocations
+and following statements retain invalidation. Type inference widens registry-clobbered versions independently of binding
+and taint lineage. An unknown prior container contributes unknown elements
+to later updates, preventing a stale class from surviving a handler. A narrow
+straight-line proof retains executable type provenance for empty source-class
+factories: registry manufacturer descriptors identify the empty declarations
+and argument-free factories; any opaque invocation, binding transition,
+nonempty class body or control edge withdraws the proof. The unchanged
+homogeneous and mixed-class collection assertions gate this precision.
+
+The internal SSA entry-binding adapter receives the compilation unit’s formal
+parameters before allocating scalar value versions. The seeded-parameter
+residual tests and unchanged first-store collection assertions gate this route.

@@ -2809,7 +2809,7 @@ impl tcl_syntax::expr::ExprOps for OrderedProbe<'_> {
     fn literal(&mut self, text: &str) -> Result<i64, Stop> {
         text.parse().map_err(|_| Stop::Declined(text.to_owned()))
     }
-    fn string(&mut self, inner: &str) -> Result<i64, Stop> {
+    fn string(&mut self, inner: &str, _substitutes: bool) -> Result<i64, Stop> {
         Err(Stop::Declined(inner.to_owned()))
     }
     fn var(&mut self, name: &str) -> Result<i64, Stop> {

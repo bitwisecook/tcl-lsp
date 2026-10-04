@@ -1746,6 +1746,13 @@ impl<'a> LatticeDriver<'a> {
         })
     }
 
+    /// Whether a caller proved the procedure the run evaluates pure before
+    /// evaluating it with constant arguments
+    /// ([`BuiltinFoldInputs::proven_pure_parameters`]).
+    pub(crate) fn proven_pure_parameters(&self) -> bool {
+        self.folds.is_some_and(|f| f.proven_pure_parameters)
+    }
+
     /// Resolve `head args…` through the invocation resolver under the
     /// registry's own surface.
     fn resolve<'w>(
@@ -6282,6 +6289,7 @@ pub(crate) fn evaluate_over_x(text: &str, nested: NestedPolicy) -> LiftedAnswer 
             defining_class: None,
             registry_engine: false,
             trust: crate::sccp::FoldTrust::ObservedBindings,
+            proven_pure_parameters: false,
         }),
         FoldPolicy::default(),
     );
@@ -7027,6 +7035,7 @@ mod tests {
                 defining_class: None,
                 registry_engine: false,
                 trust: crate::sccp::FoldTrust::ObservedBindings,
+                proven_pure_parameters: false,
             }),
             FoldPolicy::default(),
         );
@@ -7171,6 +7180,7 @@ mod tests {
                 defining_class: None,
                 registry_engine: false,
                 trust: crate::sccp::FoldTrust::ObservedBindings,
+                proven_pure_parameters: false,
             }),
             FoldPolicy::default(),
         );
@@ -7420,6 +7430,7 @@ mod tests {
                 defining_class: None,
                 registry_engine: false,
                 trust: crate::sccp::FoldTrust::ObservedBindings,
+                proven_pure_parameters: false,
             }),
             FoldPolicy::default(),
         );

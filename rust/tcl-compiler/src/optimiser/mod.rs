@@ -346,6 +346,7 @@ impl<'a> PassContext<'a> {
             defining_class: None,
             registry_engine: false,
             trust: crate::sccp::FoldTrust::WholeModule,
+            proven_pure_parameters: false,
         }
     }
 

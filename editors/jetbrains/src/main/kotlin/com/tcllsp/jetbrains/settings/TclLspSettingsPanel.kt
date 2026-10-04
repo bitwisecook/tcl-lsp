@@ -1065,7 +1065,7 @@ class TclLspSettingsPanel {
         // the next request and don't require a restart.
         val oldServerPath = s.serverPath
         s.serverPath = serverPathField.text
-        s.dialect = TclLspSettings.DIALECT_OPTIONS.getOrNull(dialectCombo.selectedIndex)?.first ?: "tcl8.6"
+        s.dialect = TclLspSettings.DIALECT_OPTIONS.getOrNull(dialectCombo.selectedIndex)?.first ?: TclLspSettings.DEFAULT_DIALECT
         s.extraCommands = extraCommandsField.text
         s.libraryPaths = libraryPathsField.text
         s.signatureHelpDisabledCommands = signatureHelpDisabledCommandsOverride(

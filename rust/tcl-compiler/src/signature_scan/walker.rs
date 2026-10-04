@@ -363,6 +363,12 @@ fn dispatch_definer(
                 handlers::handle_itcl_class(texts, argv, ns_prefix, &mut ctx.result);
                 true
             }
+            // `class NAME ?BASES? VARS` — the variable dictionary is the last
+            // word, whether or not base classes are named.
+            DefinerFamily::JimClass => {
+                handlers::handle_jim_class(texts, argv, ns_prefix, &mut ctx.result);
+                true
+            }
         };
     }
     // `tcl::OptProc name optlist body`: a real proc

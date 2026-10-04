@@ -329,7 +329,18 @@ impl<'a> ByteCorruption<'a> {
                 }
             }
 
-            for ss in &ssa_block.statements {
+            for (index, ss) in ssa_block.statements.iter().enumerate() {
+                if let Some(versions) = ssa
+                    .value_clobbers
+                    .get(&block_id)
+                    .and_then(|markers| markers.get(&index))
+                {
+                    for (&symbol, &(prior, fresh)) in versions {
+                        if let Some(provenance) = self.prov.get(&(symbol, prior)).cloned() {
+                            self.prov.insert((symbol, fresh), provenance);
+                        }
+                    }
+                }
                 match &ss.statement {
                     Statement::AssignValue {
                         name, value, span, ..

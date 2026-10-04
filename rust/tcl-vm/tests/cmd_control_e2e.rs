@@ -1434,6 +1434,51 @@ fn foreach_runtime_body_error_adds_frame() {
     );
 }
 
+/// The runtime loop must log its invoking command after the body frame even
+/// when `error` supplies explicit errorInfo (Tcl 9.0.4).
+#[test]
+fn foreach_lmap_runtime_explicit_error_info_logs_invocation() {
+    for name in ["foreach", "lmap"] {
+        let script = format!("set c {name}; catch {{$c x 1 {{error direct EI}}}}; set ::errorInfo");
+        let expected = format!(
+            "EI\n    (\"{name}\" body line 1)\n    invoked from within\n\"$c x 1 {{error direct EI}}\""
+        );
+        assert_eq!(run(&script).1, expected, "{name}");
+    }
+}
+
+#[test]
+fn tailcalled_each_loop_retains_its_entered_error_invocation() {
+    // Exact errorInfo from Tcl 9.0.4, including the tailcall's replacement
+    // invocation rather than the removed procedure's source instruction.
+    for name in ["foreach", "lmap"] {
+        let source = format!(
+            "proc p {{}} {{set c {name}; tailcall $c x 1 {{error direct EI}}}}; catch {{p}}; set ::errorInfo"
+        );
+        let expected = format!(
+            "EI\n    (\"{name}\" body line 1)\n    invoked from within\n\"{name} x 1 {{error direct EI}}\"\n    invoked from within\n\"p\""
+        );
+        assert_eq!(run(&source).1, expected, "{name}");
+    }
+}
+
+#[test]
+fn foreach_in_package_ifneeded_logs_invocation_before_loader_frame() {
+    assert_eq!(
+        run(concat!(
+            "package ifneeded badloop 1.0 {set c foreach; $c x 1 {error direct EI}}; ",
+            "catch {package require badloop}; set ::errorInfo"
+        ))
+        .1,
+        concat!(
+            "EI\n    (\"foreach\" body line 1)\n    invoked from within\n",
+            "\"$c x 1 {error direct EI}\"\n",
+            "    (\"package ifneeded badloop 1.0\" script)\n",
+            "    invoked from within\n\"package require badloop\""
+        ),
+    );
+}
+
 /// A malformed list as the value list errors (the `as_list` Err arm).
 #[test]
 fn foreach_runtime_bad_list_value() {
@@ -2172,5 +2217,53 @@ fn catch_destinations_that_need_resolving_are_not_inlined() {
     assert!(
         result.contains("wrong # args"),
         "and fail the way C does: {result}"
+    );
+}
+
+/// A braced `return` value is literal text: `return {[id 9]}` returns the six
+/// characters `[id 9]` and runs nothing.
+///
+/// `Terminator::Return` carries `braced`, but both bytecode emitters read only
+/// the flattened `value`, whose braces are already stripped — so a proc-body
+/// return treated `{[id 9]}` as the whole-word substitution `[id 9]` and
+/// inlined the call, and any other braced value went through interpolation.
+/// tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0 all return the literal; tclvm
+/// ran `id` at every `--tcl-version` (#2228).
+#[test]
+fn a_braced_return_value_runs_no_substitution() {
+    for (why, src, want) in [
+        (
+            "a whole-word bracket pair",
+            "proc id {v} {return RAN}; proc m {} {return {[id 9]}}; m",
+            "[id 9]",
+        ),
+        (
+            "brackets inside a longer braced word",
+            "proc id {v} {return RAN}; proc m {} {return {a [id 9] b}}; m",
+            "a [id 9] b",
+        ),
+        (
+            "a return that is not the proc's only command",
+            "proc id {v} {return RAN}; proc m {} {set z 1; return {[id 9]}}; m",
+            "[id 9]",
+        ),
+        (
+            "a return inside a branch",
+            "proc id {v} {return RAN}; proc m {} {if {1} {return {[id 9]}}}; m",
+            "[id 9]",
+        ),
+        (
+            "a variable reference",
+            "set x GLOBAL; proc m {} {return {$x}}; m",
+            "$x",
+        ),
+    ] {
+        assert_eq!(run(src).1, want, "{why}");
+    }
+
+    // Precision: an unbraced return still substitutes.
+    assert_eq!(
+        run("proc id {v} {return RAN}; proc m {} {return [id 9]}; m").1,
+        "RAN"
     );
 }

@@ -277,7 +277,10 @@ fn resolve_packs(bundled_dir: Option<PathBuf>) -> PackSet {
 #[must_use]
 pub fn packs() -> &'static PackSet {
     static PACKS: OnceLock<PackSet> = OnceLock::new();
-    PACKS.get_or_init(|| resolve_packs(crate::discovery::bundled_dir()))
+    PACKS.get_or_init(|| {
+        crate::core_surfaces::ensure();
+        resolve_packs(crate::discovery::bundled_dir())
+    })
 }
 
 /// The workspace's loaded pack set, when a consumer has published one.

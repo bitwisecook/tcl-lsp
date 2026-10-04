@@ -55,6 +55,27 @@ fn shebang_env_expect() {
 }
 
 #[test]
+fn shebang_jimsh() {
+    assert_eq!(detect("#!/usr/bin/jimsh\nset x 1\n"), Some("jim"));
+}
+
+#[test]
+fn shebang_env_jimsh() {
+    assert_eq!(detect("#!/usr/bin/env jimsh\nset x 1\n"), Some("jim"));
+}
+
+#[test]
+fn shebang_wish_is_tk_and_versioned_wish_is_its_release() {
+    assert_eq!(detect("#!/usr/bin/wish\nbutton .b\n"), Some("tk"));
+    assert_eq!(detect("#!/usr/bin/env wish\nbutton .b\n"), Some("tk"));
+    assert_eq!(detect("#!/usr/bin/wish8.6\nbutton .b\n"), Some("tcl8.6"));
+    assert_eq!(
+        detect("#!/usr/bin/env wish9.0\nbutton .b\n"),
+        Some("tcl9.0")
+    );
+}
+
+#[test]
 fn directive_tcl84() {
     assert_eq!(detect("# tcl-dialect: tcl8.4\nset x 1\n"), Some("tcl8.4"));
 }
@@ -114,15 +135,18 @@ fn directive_resolves_environment_names_and_aliases() {
     assert_eq!(detect("# tcl-dialect: TK\nset x 1\n"), None);
 }
 
-/// A pack-declared environment resolves through the directive once the
-/// pack registers it — the same live registry the extension routing and
-/// `setDialect` read — and stops resolving once it retires.
+/// A pack-declared environment resolves through the directive and its
+/// shebang words once the pack registers it — the same live registry the
+/// extension routing and `setDialect` read — and stops resolving once it
+/// retires. A word written with capitals still selects: the shebang line is
+/// compared without regard to case.
 #[test]
-fn directive_resolves_a_registered_environment() {
+fn a_registered_environment_resolves_through_the_directive_and_shebang_tiers() {
     use std::sync::Arc;
     use tcl_dialect::model::{
         BuildProfileId, CoreProfileSelector, DetectionFacts, EnvironmentDefinition, EnvironmentId,
-        EnvironmentPolicy, Family, Provenance, Release, VersionAxisId, VersionSet, WorldPolicy,
+        EnvironmentKind, EnvironmentPolicy, Family, Provenance, Release, VersionAxisId, VersionSet,
+        WorldPolicy,
     };
     use tcl_registry::model::{EnvironmentSource, sync_environment_sources};
 
@@ -132,7 +156,10 @@ fn directive_resolves_a_registered_environment() {
         id: EnvironmentId::new("directive-probe-shell"),
         aliases: vec![Arc::from("probe-shell")],
         display_name: Arc::from("Directive Probe"),
+        short_name: Arc::from("Probe"),
+        kind: EnvironmentKind::Packages,
         editor_identity: None,
+        selecting_identities: Vec::new(),
         core: Some(CoreProfileSelector {
             family: Family::Tcl,
             default_release: Release::TCL_8_6,
@@ -147,10 +174,14 @@ fn directive_resolves_a_registered_environment() {
             strict_ascii: false,
             version_ceiling: None,
         },
-        server_detection: DetectionFacts::default(),
+        server_detection: DetectionFacts {
+            shebang_words: vec![Arc::from("ProbeSh")],
+            ..DetectionFacts::default()
+        },
         help_terms: Vec::new(),
         provenance: Provenance::User,
     };
+    let shebang = "#!/usr/bin/env probesh\nset x 1\n";
     let outcome = sync_environment_sources(vec![EnvironmentSource {
         id: "test:directive-probe".to_owned(),
         definitions: vec![definition],
@@ -159,9 +190,11 @@ fn directive_resolves_a_registered_environment() {
     assert!(outcome.rejected.is_empty(), "{:?}", outcome.rejected);
     assert_eq!(detect(source), Some("directive-probe-shell"));
     assert_eq!(detect(alias), Some("directive-probe-shell"));
+    assert_eq!(detect(shebang), Some("directive-probe-shell"));
 
     let _ = sync_environment_sources(Vec::new());
     assert_eq!(detect(source), None, "a retired environment abstains again");
+    assert_eq!(detect(shebang), None);
 }
 
 #[test]
@@ -328,10 +361,8 @@ fn the_speclib_directive_is_a_content_signature() {
 /// to its own surface, and round-trips through the catalogue.
 #[test]
 fn spectcl_is_a_catalogued_dialect() {
-    use tcl_dialect::KNOWN_DIALECTS;
     use tcl_dialect::model::{Family, PackageFloor, SurfaceLayer, SurfaceQuery};
 
-    assert!(KNOWN_DIALECTS.contains(&"spectcl"));
     assert_eq!(
         tcl_dialect::DialectProfile::find("spectcl")
             .map(tcl_dialect::DialectProfile::surface_query),
@@ -454,10 +485,8 @@ fn the_word_sslictcl_alone_does_not_route_a_tcl_script() {
 /// to its own surface, and round-trips through the catalogue.
 #[test]
 fn sslictcl_is_a_catalogued_dialect() {
-    use tcl_dialect::KNOWN_DIALECTS;
     use tcl_dialect::model::{Family, PackageFloor, SurfaceLayer, SurfaceQuery};
 
-    assert!(KNOWN_DIALECTS.contains(&"sslictcl"));
     assert_eq!(
         tcl_dialect::DialectProfile::find("sslictcl")
             .map(tcl_dialect::DialectProfile::surface_query),

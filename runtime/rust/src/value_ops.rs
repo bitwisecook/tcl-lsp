@@ -37,7 +37,11 @@
 
 use std::rc::Rc;
 
+#[cfg(have_tommath)]
+use tcl_syntax::number::Radix;
 use tcl_syntax::number::{self, Number};
+#[cfg(have_tommath)]
+use tcl_syntax::value::IntegerMagnitude;
 use tcl_syntax::value::{string_char_len, ValueError, ValueOps};
 
 use crate::interp::{obj_bytes, Interp};
@@ -127,6 +131,20 @@ impl ValueOps for Interp {
             Some(Number::Int(n)) => Ok(n),
             _ => Err(ValueError::NotInteger(s.into_owned())),
         }
+    }
+
+    #[cfg(have_tommath)]
+    fn integer_magnitude(
+        &mut self,
+        v: &*mut TclObj,
+        radix: Radix,
+        syntax: tcl_dialect::NumberSyntax,
+    ) -> Result<IntegerMagnitude, ValueError> {
+        let (negative, digits) =
+            crate::bignum::integer_magnitude(*v, radix, syntax).ok_or_else(|| {
+                ValueError::NotInteger(String::from_utf8_lossy(&obj_bytes(*v)).into_owned())
+            })?;
+        Ok(IntegerMagnitude { negative, digits })
     }
 
     fn string_compare_length(&mut self, v: &*mut TclObj) -> Result<Option<usize>, ValueError> {

@@ -29,13 +29,23 @@ build.
    parameters, module `CfgContext`, dialect, interprocedural parameter seeds,
    known classes, and trace facts — never the body's position. A reused unit
    must preserve range correctness (`abs_span` / `abs_pos`) and
-   dialect-sensitive behaviour.
+   dialect-sensitive behaviour. Source-order binding entry states can change
+   the CFG without changing the closed module context. After rebasing, a memo
+   result is reusable only when its CFG equals the current procedure CFG;
+   otherwise the ordinary fresh build supplies the current timeline effects.
 3. **Top-level parity.** Top-level and procedure units keep the same fact
    shape (`cfg`, `ssa`, `sccp`, `types`, …) so consumers need no
    mode-specific paths.
 4. **Interprocedural dependency.** A change to call edges, purity, or
    constant-return modelling must revalidate proc folding (O103) and taint
    propagation (T-series) consumers.
+
+Source-order registry-effect projection keeps completed root-boundary states
+separate from historical observations. A retained user call joins the closed
+boundary effects rather than introducing arbitrary command-table mutation.
+Independently callable method and body units replay from those boundaries, so
+pre-definition missing candidates do not turn known helpers into unresolved
+handlers. Actual missing targets and opaque mutations remain barriers.
 
 ## Anchors
 

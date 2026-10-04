@@ -47,7 +47,13 @@ import {
 } from "vscode";
 import { LanguageClient } from "vscode-languageclient/browser";
 import { workerLspTransports, WorkerTransport } from "./webLspTransport";
-import { DIALECT_LABELS } from "./chat/dialectCatalog";
+import {
+  DialectChoice,
+  catalogueChoices,
+  describeDialect,
+  parseListedDialects,
+} from "./dialectChoices";
+import { pickDialect } from "./dialectPicker";
 import {
   ANY_SCHEME,
   buildClientOptions,
@@ -60,7 +66,7 @@ import {
 } from "./clientCore";
 import { DiffDiagnosticsSuppressor } from "./diffAnalysis";
 import { buildIruleEventSkeleton, COMMON_IRULE_EVENTS } from "./iruleSkeleton";
-import { isTclLanguage } from "./languageIds";
+import { LANGUAGE_ID_DIALECTS, isTclLanguage } from "./languageIds";
 import { PackFileExtension, syncPackFileAssociations } from "./packAssociations";
 import { escapeTclText, transformSelection, unescapeTclText } from "./selectionTransforms";
 import { convertShowReferencesArgs, JsonLocation, JsonPosition } from "./showReferences";
@@ -131,6 +137,9 @@ let extensionContext: ExtensionContext | undefined;
 let dialectStatusBarItem: StatusBarItem;
 let versionStatusBarItem: StatusBarItem;
 let outputChannel: vscode.OutputChannel;
+// The dialects the quick pick offers: the generated catalogue until the server
+// has listed its own.
+let dialectChoices: readonly DialectChoice[] = catalogueChoices();
 
 /**
  * How long the server may take to answer `initialize` before activation gives
@@ -362,7 +371,6 @@ async function stopSession(): Promise<void> {
 function registerStatusBar(context: ExtensionContext): void {
   dialectStatusBarItem = window.createStatusBarItem(StatusBarAlignment.Right, 100);
   dialectStatusBarItem.command = "tclLsp.selectDialect";
-  dialectStatusBarItem.tooltip = "Tcl dialect -- click to change";
   updateDialectStatusBar();
   context.subscriptions.push(dialectStatusBarItem);
 
@@ -379,20 +387,24 @@ function registerStatusBar(context: ExtensionContext): void {
 }
 
 /**
- * The status bar reports the *configured* dialect.
+ * The status bar reports the dialect the focused document's language id
+ * implies, else the *configured* one.
  *
- * Per-document detection (the `# tcl-dialect:` directive, the shebang, the
- * language id) is the server's job and it runs it per document either way; the
- * node entry additionally mirrors it client-side for the label, using the
- * generated `LANGUAGE_ID_DIALECTS` table that `cargo xtask
- * gen-editor-extensions` writes into `extension.ts` by path. Mirroring it here
- * too would mean either duplicating that table or moving the generator's
- * target, so the web label stays with the configured value until the table has
- * a shared home.
+ * Per-document detection beyond that (the `# tcl-dialect:` directive, the
+ * shebang, content) is the server's job and it runs it per document either way;
+ * this entry does not ask for the answer, so the label follows the language id
+ * table (`./languageIds`, generated) and the setting.
  */
+function statusDialect(editor: TextEditor | undefined): DialectChoice {
+  const implied = editor ? LANGUAGE_ID_DIALECTS[editor.document.languageId] : undefined;
+  const configured = workspace.getConfiguration("tclLsp").get<string>("dialect", DEFAULT_DIALECT);
+  return describeDialect(implied ?? configured, dialectChoices);
+}
+
 function updateDialectStatusBar(): void {
-  const dialect = workspace.getConfiguration("tclLsp").get<string>("dialect", DEFAULT_DIALECT);
-  dialectStatusBarItem.text = `$(symbol-misc) ${DIALECT_LABELS[dialect] ?? dialect}`;
+  const dialect = statusDialect(window.activeTextEditor);
+  dialectStatusBarItem.text = `$(symbol-misc) ${dialect.shortLabel}`;
+  dialectStatusBarItem.tooltip = `${dialect.description} -- click to change`;
 }
 
 /**
@@ -402,19 +414,17 @@ function updateDialectStatusBar(): void {
  * `tclLsp.translateXc`), so a host that never sets it registers those commands
  * and then hides them from the menu that is meant to offer them.
  *
- * The language id is the node entry's own highest-priority dialect signal, and
- * it is the one signal available here without the generated
- * `LANGUAGE_ID_DIALECTS` table; the configured dialect covers a file typed as
- * plain `tcl` in an iRules workspace.
+ * The language id is the highest-priority dialect signal available here; the
+ * configured dialect covers a file typed as plain `tcl` in an iRules workspace.
  */
 function updateIruleContext(editor: TextEditor | undefined): void {
-  const configured = workspace.getConfiguration("tclLsp").get<string>("dialect", DEFAULT_DIALECT);
-  const isIrule = editor?.document.languageId === "tcl-irule" || configured === "f5-irules";
+  const isIrule = statusDialect(editor).name === "f5-irules";
   void commands.executeCommand("setContext", "tclLsp.isIruleDialect", isIrule);
 }
 
 function onActiveEditorChanged(editor: TextEditor | undefined): void {
   updateIruleContext(editor);
+  updateDialectStatusBar();
   if (editor && isTclLanguage(editor.document.languageId)) {
     dialectStatusBarItem.show();
     versionStatusBarItem.show();
@@ -581,22 +591,32 @@ async function restartServer(): Promise<void> {
   // A failed start has already reported itself, with the reason.
 }
 
+/** Read the server's dialect list, keeping the catalogue when there is no server or it cannot answer. */
+async function refreshDialectChoices(): Promise<void> {
+  const client = session?.client;
+  if (!client) {
+    return;
+  }
+  try {
+    const listed = await client.sendRequest("workspace/executeCommand", {
+      command: "tcl-lsp.listDialects",
+      arguments: [],
+    });
+    dialectChoices = parseListedDialects(listed) ?? dialectChoices;
+  } catch {
+    // The catalogue stays.
+  }
+}
+
 async function selectDialect(): Promise<void> {
+  await refreshDialectChoices();
   const current = workspace.getConfiguration("tclLsp").get<string>("dialect", DEFAULT_DIALECT);
-  const items = Object.entries(DIALECT_LABELS).map(([value, label]) => ({
-    label,
-    description: value,
-    value,
-  }));
-  const picked = await window.showQuickPick(items, {
-    title: "Select Tcl Dialect",
-    placeHolder: `Current dialect: ${DIALECT_LABELS[current] ?? current}`,
-  });
+  const picked = await pickDialect(dialectChoices, current);
   if (!picked) {
     return;
   }
   const target = workspace.workspaceFolders?.length ? undefined : vscode.ConfigurationTarget.Global;
-  await workspace.getConfiguration("tclLsp").update("dialect", picked.value, target);
+  await workspace.getConfiguration("tclLsp").update("dialect", picked, target);
   updateDialectStatusBar();
 }
 

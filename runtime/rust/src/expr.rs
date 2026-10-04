@@ -433,7 +433,13 @@ impl ExprOps for TowerOps<'_> {
     fn literal(&mut self, text: &str) -> Result<Owned, ExprError> {
         Ok(make_literal(text))
     }
-    fn string(&mut self, inner: &str) -> Result<Owned, ExprError> {
+    fn string(&mut self, inner: &str, substitutes: bool) -> Result<Owned, ExprError> {
+        // Only a `"…"` operand substitutes; a `{…}` one is its text with its
+        // backslash-newlines folded, as they are even inside braces (#2227).
+        if !substitutes {
+            let text = tcl_syntax::backslash::collapse_brace_continuations(inner.as_bytes());
+            return Ok(Owned::fresh(obj::new_string_bytes(&text)));
+        }
         self.ctx.subst_string(inner)
     }
     fn var(&mut self, name: &str) -> Result<Owned, ExprError> {

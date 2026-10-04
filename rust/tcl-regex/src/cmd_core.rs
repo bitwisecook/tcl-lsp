@@ -49,6 +49,9 @@ impl RegexEngine for AreEngine {
         if flags.lineanchor {
             cflags |= defs::REG_NLANCH;
         }
+        if flags.z_anchor {
+            cflags |= defs::REG_ZANCHOR;
+        }
         let text = core::str::from_utf8(pattern)
             .map_err(|_| b"invalid UTF-8 in regular expression".to_vec())?;
         let cps: Vec<u32> = text.chars().map(|c| c as u32).collect();

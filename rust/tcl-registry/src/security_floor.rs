@@ -141,6 +141,10 @@ impl SecurityFloor {
             shipped.taint_sink_safe_colour,
         );
         take_shipped(&mut spec.taint_sink_gate, shipped.taint_sink_gate);
+        take_shipped(
+            &mut spec.taint_numeric_coercion,
+            shipped.taint_numeric_coercion,
+        );
         take_shipped(&mut spec.codegen_hook, shipped.codegen_hook);
         take_shipped(&mut spec.inline_codegen_hook, shipped.inline_codegen_hook);
         take_shipped_windows(
@@ -254,6 +258,7 @@ pub const MERGED_FIELDS: &[&str] = &[
     "taint_double_encode_colour",
     "taint_sink_safe_colour",
     "taint_sink_gate",
+    "taint_numeric_coercion",
     "credential_options",
     "callback_taint_inputs",
     "codegen_hook",

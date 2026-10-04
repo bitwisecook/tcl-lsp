@@ -63,7 +63,6 @@ pub use grammar::{
 };
 pub use library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKey};
 pub use profile::{DialectFileExtension, DialectProfile, EvaluationEvidence};
-pub use profile::{KNOWN_DIALECTS, available_dialects};
 pub use version::{
     ByteStringEncoding, CorePackage, PackagePrefer, RequirementValidationError,
     StringCharacterModel, TclVersion, Ternary, compare_versions, compare_versions_for,

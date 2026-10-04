@@ -1399,6 +1399,9 @@ fn prove_closed_program_coverage(
         .zip(&ssa_block.statements)
         .enumerate()
     {
+        if !statement.is_executable_invocation() {
+            continue;
+        }
         let Some(evidence) = cover_closed_statement(&input, index, statement, ssa) else {
             return decline(ClosedProgramCoverageDecline::UncoveredStatement);
         };

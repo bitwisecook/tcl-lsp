@@ -750,21 +750,18 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
     fn literal(&mut self, text: &str) -> Result<FoldValue, ()> {
         Ok(FoldValue::Str(text.to_owned()))
     }
-    fn string(&mut self, inner: &str) -> Result<FoldValue, ()> {
-        Ok(FoldValue::Str(inner.to_owned()))
-    }
     /// A `"…"` operand is substituted by `expr` — `$var`, `[cmd]` and
     /// backslashes — so its spelling is its value only when it holds none of
-    /// them. This environment cannot substitute a script or decode under the
-    /// document's grammar, so any other quoted operand declines: read as its
-    /// spelling, `if {"$a" eq "x"}` was folded false where tclsh 8.4 to 9.1
-    /// take the branch. The analysis services substitute it
-    /// ([`ExprServices`]).
-    fn quoted_string(&mut self, inner: &str) -> Result<FoldValue, ()> {
-        if inner.contains(['$', '[', '\\']) {
-            return Err(());
-        }
-        Ok(FoldValue::Str(inner.to_owned()))
+    /// them, and a `{…}` operand's backslash-newline is a space in Tcl and
+    /// stays as written in Jim. This environment cannot substitute a script,
+    /// decode under the document's grammar or tell the two apart, so such an
+    /// operand declines: read as its spelling, `if {"$a" eq "x"}` was folded
+    /// false where tclsh 8.4 to 9.1 take the branch. The analysis services
+    /// substitute a quoted operand ([`ExprServices`]).
+    fn string(&mut self, inner: &str, substitutes: bool) -> Result<FoldValue, ()> {
+        tcl_syntax::expr::fixed_string_body(inner, substitutes)
+            .map(|body| FoldValue::Str(body.to_owned()))
+            .ok_or(())
     }
     fn var(&mut self, name: &str) -> Result<FoldValue, ()> {
         match self.env.get(name) {
@@ -1820,15 +1817,17 @@ impl tcl_syntax::expr::ExprOps for ExprServices<'_> {
         Ok(FoldValue::Str(text.to_owned()))
     }
 
-    fn string(&mut self, inner: &str) -> Result<FoldValue, ExprStop> {
-        Ok(FoldValue::Str(inner.to_owned()))
-    }
-
     /// A `"…"` operand is substituted as a quoted word is: its variables
     /// read through `variable`, its scripts through `nested`, its escapes
-    /// decoded under the document's grammar.
-    fn quoted_string(&mut self, inner: &str) -> Result<FoldValue, ExprStop> {
+    /// decoded under the document's grammar. A `{…}` operand is its body,
+    /// unless a backslash-newline in it leaves the value to the dialect.
+    fn string(&mut self, inner: &str, substitutes: bool) -> Result<FoldValue, ExprStop> {
         use tcl_lexer::word_parts::{SubstFlags, WordBody, WordPart as Part, decompose};
+        if !substitutes {
+            return tcl_syntax::expr::fixed_string_body(inner, false)
+                .map(|body| FoldValue::Str(body.to_owned()))
+                .ok_or(ExprStop::Declined(DeclineReason::NotExact));
+        }
         let parts = match decompose(inner.as_bytes(), SubstFlags::default(), self.lexer) {
             WordBody::Literal(_) => return Ok(FoldValue::Str(inner.to_owned())),
             WordBody::Parts(parts) => parts,
@@ -2924,6 +2923,8 @@ mod tests {
             eval_irules(r#""abc" matches_glob "a?c""#),
             Some(TclValue::Int(1))
         );
+        // A class is written braced: inside `"…"` the `[bxy]` is a command
+        // substitution, which the folder declines (#2227).
         assert_eq!(
             eval_irules(r#""abc" matches_glob {a[bxy]c}"#),
             Some(TclValue::Int(1))

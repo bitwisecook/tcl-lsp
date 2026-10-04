@@ -486,6 +486,15 @@ fn widen_token_end_in(source_map: &tcl_lexer::SourceMap<'_>, tok: tcl_lexer::Tok
     super::super::utils::full_word_span_in(source_map, tok).end()
 }
 
+/// Whether `word` is a literal list value: braced, or free of outer Tcl
+/// substitutions. A braced word is literal even when its eventual elements
+/// contain `$` / `[`. A computed value can be valid or invalid at runtime, so
+/// reporting it would be an unsound claim.
+fn is_literal_list_word(word: &str, token: &tcl_lexer::Token) -> bool {
+    token.kind == tcl_lexer::TokenType::Str
+        || (token.kind != tcl_lexer::TokenType::Expand && !has_substitution(word, token))
+}
+
 /// Emit E006 for every registry-identified, statically-known formal-parameter
 /// list that Tcl would reject while creating its callable.  Callers supply the
 /// role-derived indices so this routine deliberately has no knowledge of the
@@ -500,13 +509,7 @@ pub(in crate::analyser) fn emit_invalid_formal_parameter_list_diagnostics(
         let (Some(params), Some(token)) = (args.get(index), arg_tokens.get(index)) else {
             continue;
         };
-        // A braced word is literal even when its eventual formal names contain
-        // `$` / `[`.  Every other accepted shape must be free of outer Tcl
-        // substitutions; a computed value can be valid or invalid at runtime,
-        // so reporting it would be an unsound claim.
-        let literal = token.kind == tcl_lexer::TokenType::Str
-            || (token.kind != tcl_lexer::TokenType::Expand && !has_substitution(params, token));
-        if !literal {
+        if !is_literal_list_word(params, token) {
             continue;
         }
         let Err(error) =
@@ -533,6 +536,45 @@ pub(in crate::analyser) fn emit_invalid_formal_parameter_list_diagnostics(
             )
             .with_fixes(fixes),
         );
+    }
+}
+
+/// E006 for a registry-identified ([`tcl_registry::ArgRole::StaticVarList`]),
+/// statically-known static-variable list with an element of more than two
+/// fields: a static is a name, a `{name value}` pair or `&name`, and `jimsh`
+/// rejects any other shape while creating the procedure.
+pub(in crate::analyser) fn emit_invalid_static_variable_list_diagnostics(
+    analyser: &mut Analyser,
+    args: &[String],
+    arg_tokens: &[tcl_lexer::Token],
+    static_indices: &[usize],
+) {
+    for &index in static_indices {
+        let (Some(statics), Some(token)) = (args.get(index), arg_tokens.get(index)) else {
+            continue;
+        };
+        if !is_literal_list_word(statics, token) {
+            continue;
+        }
+        let word_rules = analyser.word_rules();
+        let Ok(elements) = word_rules.split_list(statics) else {
+            continue;
+        };
+        let too_many = elements.iter().find(|element| {
+            word_rules
+                .split_list(element)
+                .is_ok_and(|fields| fields.len() > 2)
+        });
+        let Some(element) = too_many else {
+            continue;
+        };
+        let span = super::super::utils::full_word_span(*token, &analyser.source);
+        analyser.result.diagnostics.push(crate::analyser::types::Diagnostic::new(
+            DiagCode::E006,
+            span,
+            format!("Invalid static variable list: too many fields in static specifier \"{element}\""),
+            Severity::Error,
+        ));
     }
 }
 
@@ -795,9 +837,11 @@ got {nargs_min}{usage_suffix}",
 /// editor-visible prose, so it uses the human spelling; a member with no
 /// catalogue profile keeps its canonical name.
 fn dialect_availability_suffix(surface: Option<&'static [SpecSurface]>) -> String {
-    let Some(rows) = surface else {
-        return String::new();
-    };
+    surface.map_or_else(String::new, dialect_availability_suffix_for_rows)
+}
+
+/// [`dialect_availability_suffix`] over surface rows the caller already holds.
+fn dialect_availability_suffix_for_rows(rows: &[SpecSurface]) -> String {
     // The dialect ids the rows name, in the registry's own projection —
     // the reader wants the dialects they can select, not the row spelling.
     let labels: Vec<String> = tcl_registry::model::surface::dialect_names_for_rows(rows)
@@ -1226,6 +1270,18 @@ impl Analyser {
         {
             return;
         }
+        // "Disabled here" needs a dialect that has the command and that this
+        // document's world is related to: a `tcl8.4` document writing a `tcl8.6`
+        // command, a `jim` document writing a Tcl command Jim's roster omits.
+        // A name only an unrelated environment offers — Expect's `system` in a
+        // `jim` document — is not disabled here, it is unknown here: W123
+        // reports it, as it would any other name nothing defines.
+        if registry
+            .providers_in_any_dialect(bare)
+            .is_some_and(|offered| !generation.context().is_related_to_a_provider_of(offered))
+        {
+            return;
+        }
         // An earlier *unconditional* user proc with this name shadows the
         // would-be-disabled built-in at the call site.
         let qualified = crate::naming::normalise_qualified_name(bare);
@@ -1264,18 +1320,22 @@ impl Analyser {
                 .push((cmd_name.to_string(), ns, enforce_order, diag));
             return;
         }
-        // Best-effort "available in: …" hint read straight from the
-        // registry spec's own dialect gate. Only resolves when the spec is
-        // among the packs this registry instance loaded regardless of
-        // dialect (core Tcl / stdlib / tcllib / Tk / itcl / …, via
-        // `CommandRegistry::build_default`); a command exclusive to a
-        // *different* dialect family (e.g. an iRules-only name referenced
-        // from a `tcl8.6` file) isn't loaded here, so `get` returns `None`
-        // and the message falls back to the plain form — never wrong, just
-        // sometimes less specific.
-        let suffix = registry.get(bare).map_or(String::new(), |spec| {
-            dialect_availability_suffix(spec.surface)
-        });
+        // The "available in: …" hint is read from the spec's own dialect gate.
+        // A command exclusive to a *different* dialect family (an iRules-only
+        // name, Jim's `loop`, referenced from a `tcl8.6` file) isn't loaded in
+        // this registry, so its gate is read from the rows every dialect's
+        // specs of the name state.
+        let suffix = registry.get(bare).map_or_else(
+            || {
+                registry
+                    .providers_in_any_dialect(bare)
+                    .filter(|offered| !offered.unrestricted)
+                    .map_or_else(String::new, |offered| {
+                        dialect_availability_suffix_for_rows(&offered.rows)
+                    })
+            },
+            |spec| dialect_availability_suffix(spec.surface),
+        );
         let diag = crate::analyser::types::Diagnostic::new(
             DiagCode::W002,
             cmd_tok.span,

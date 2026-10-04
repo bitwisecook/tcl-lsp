@@ -87,7 +87,20 @@ import { openSpecStudio, prepareSpecStudioStorage } from "./specStudio";
 import { registerHighlightingHealthChecks } from "./highlightingHealth";
 import { ensureStickyScrollDefaultModel } from "./stickyScrollHealth";
 import { DiffDiagnosticsSuppressor } from "./diffAnalysis";
-import { TCL_LANGUAGE_IDS, isTclLanguage, tclLanguageIdForPath } from "./languageIds";
+import {
+  LANGUAGE_ID_DIALECTS,
+  TCL_LANGUAGE_IDS,
+  isTclLanguage,
+  tclLanguageIdForPath,
+} from "./languageIds";
+import {
+  DialectChoice,
+  catalogueChoices,
+  describeDialect,
+  dialectFromEffectiveConfig,
+  parseListedDialects,
+} from "./dialectChoices";
+import { pickDialect } from "./dialectPicker";
 import { registerIlxReferenceProvider } from "./ilxReferences";
 import { PackFileExtension, syncPackFileAssociations } from "./packAssociations";
 
@@ -96,87 +109,28 @@ const execFileAsync = promisify(execFile);
 let client: LanguageClient;
 let dialectStatusBarItem: StatusBarItem;
 let versionStatusBarItem: StatusBarItem;
-let activeDialect = "tcl8.6";
+// The dialect the focused document is analysed under, as the status bar shows it.
+// Starts from the generated catalogue; the server's answers replace it.
+let activeDialect: DialectChoice = describeDialect(DEFAULT_DIALECT);
+// The dialects the quick pick offers: the generated catalogue until the server
+// has listed its own.
+let dialectChoices: readonly DialectChoice[] = catalogueChoices();
 
 export function getClient(): LanguageClient {
   return client;
 }
 
 export function getActiveDialect(): string {
-  return activeDialect;
+  return activeDialect.name;
 }
 
 export function isAiEnabled(): boolean {
   return workspace.getConfiguration("tclLsp.ai").get<boolean>("enabled", true);
 }
 
-// @generated:dialect-labels:begin
-const DIALECT_LABELS: Record<string, string> = {
-  bpf: "BPF",
-  "cadence-eda-tcl": "Cadence EDA Tcl",
-  expect: "Expect",
-  "f5-bigip": "F5 BIG-IP",
-  "f5-iapps": "F5 iApps",
-  "f5-irules": "F5 iRules",
-  "f5-tmsh": "F5 tmsh Scripts",
-  "intel-quartus-eda-tcl": "Intel Quartus EDA Tcl",
-  "mentor-eda-tcl": "Mentor EDA Tcl",
-  "microchip-libero-eda-tcl": "Microchip Libero EDA Tcl",
-  spectcl: "SpecTcl",
-  sslictcl: "SslicTcl",
-  "synopsys-eda-tcl": "Synopsys EDA Tcl",
-  "tcl8.4": "Tcl 8.4",
-  "tcl8.5": "Tcl 8.5",
-  "tcl8.6": "Tcl 8.6",
-  "tcl9.0": "Tcl 9.0",
-  "tcl9.1": "Tcl 9.1",
-  "xilinx-eda-tcl": "Xilinx EDA Tcl",
-};
-// @generated:dialect-labels:end
-
 // Sourced from ./languageIds (a vscode-free module) and re-exported so existing
 // importers that pull these from ./extension keep working.
 export { TCL_LANGUAGE_IDS, isTclLanguage };
-
-/**
- * Map language IDs that imply a specific dialect.
- *
- * Keys are *language ids* (undotted — see `./languageIds`); values are
- * *dialect* names, which keep their dots. The two namespaces are distinct:
- * `tcl84` is what VS Code calls the language, `tcl8.4` is what the server
- * calls the dialect.
- */
-// @generated:language-id-dialects:begin -- cargo xtask gen-editor-extensions
-const LANGUAGE_ID_DIALECTS: Record<string, string> = {
-  "tcl-cadence": "cadence-eda-tcl",
-  "tcl-expect": "expect",
-  "tcl-bigip": "f5-bigip",
-  "tcl-iapp": "f5-iapps",
-  "tcl-irule": "f5-irules",
-  "tcl-tmsh": "f5-tmsh",
-  "tcl-quartus": "intel-quartus-eda-tcl",
-  "tcl-mentor": "mentor-eda-tcl",
-  "tcl-microchip": "microchip-libero-eda-tcl",
-  tclspec: "spectcl",
-  sslictcl: "sslictcl",
-  "tcl-synopsys": "synopsys-eda-tcl",
-  tcl84: "tcl8.4",
-  tcl85: "tcl8.5",
-  tcl86: "tcl8.6",
-  tcl90: "tcl9.0",
-  tcl91: "tcl9.1",
-  "tcl-xilinx": "xilinx-eda-tcl",
-  "tcl-apl": "f5-iapps",
-};
-// @generated:language-id-dialects:end
-
-const TCL_VERSION_DIALECTS: Record<string, string> = {
-  "8.4": "tcl8.4",
-  "8.5": "tcl8.5",
-  "8.6": "tcl8.6",
-  "9.0": "tcl9.0",
-  "9.1": "tcl9.1",
-};
 
 // LSP wire types (used by rename partitioning) live in ./clientCore, shared
 // with the browser entry.
@@ -300,7 +254,6 @@ export async function activate(context: ExtensionContext) {
 
   dialectStatusBarItem = window.createStatusBarItem(StatusBarAlignment.Right, 100);
   dialectStatusBarItem.command = "tclLsp.selectDialect";
-  dialectStatusBarItem.tooltip = "Tcl dialect -- click to change";
   updateDialectStatusBar();
   context.subscriptions.push(dialectStatusBarItem);
 
@@ -342,12 +295,16 @@ export async function activate(context: ExtensionContext) {
         // The setting changed (``tclLsp.selectDialect``, or the user editing
         // settings.json).  The server picks it up from its own
         // ``workspace/configuration`` pull; all that is left here is the
-        // status-bar label and the iRules context key.  A focused document
-        // with its own detected dialect re-asserts the label on the next
-        // editor/document event.
-        setActiveDialectLabel(
-          workspace.getConfiguration("tclLsp").get<string>("dialect", DEFAULT_DIALECT),
-        );
+        // status-bar label and the iRules context key.  A focused Tcl document
+        // is asked about again, since its own detection may outrank the setting.
+        const focused = window.activeTextEditor?.document;
+        if (focused && isTclLanguage(focused.languageId)) {
+          applyDialectForDocument(focused);
+        } else {
+          setActiveDialectLabel(
+            workspace.getConfiguration("tclLsp").get<string>("dialect", DEFAULT_DIALECT),
+          );
+        }
       }
       // When a VS Code editor setting that a feature toggle inherits from
       // changes, re-push resolved feature values so the server stays in sync.
@@ -374,7 +331,7 @@ export async function activate(context: ExtensionContext) {
         (change) => change.range.start.line < DIALECT_DIRECTIVE_SCAN_LINES,
       );
       if (touchesDirectiveLines) {
-        applyDialectForDocument(e.document);
+        scheduleDialectRefresh(e.document);
       }
       explorerDocChanged();
       tkPreviewDocChanged();
@@ -386,6 +343,22 @@ export async function activate(context: ExtensionContext) {
     workspace.onDidOpenTextDocument((document) => {
       if (window.activeTextEditor?.document.uri.toString() === document.uri.toString()) {
         applyDialectForDocument(document);
+      }
+    }),
+  );
+
+  // The server settles a document's dialect while it analyses it and publishes
+  // diagnostics when that finishes: ask again then, so the label converges even
+  // when the first answer beat the analysis.
+  context.subscriptions.push(
+    vscode.languages.onDidChangeDiagnostics((e) => {
+      const focused = window.activeTextEditor?.document;
+      if (
+        focused &&
+        isTclLanguage(focused.languageId) &&
+        e.uris.some((uri) => uri.toString() === focused.uri.toString())
+      ) {
+        scheduleDialectRefresh(focused);
       }
     }),
   );
@@ -532,6 +505,10 @@ export async function activate(context: ExtensionContext) {
 }
 
 export async function deactivate(): Promise<void> {
+  if (dialectRefreshTimer) {
+    clearTimeout(dialectRefreshTimer);
+    dialectRefreshTimer = undefined;
+  }
   if (client) {
     await client.stop();
   }
@@ -614,8 +591,8 @@ async function syncPackAssociationsNow(
 // Helpers
 
 function updateDialectStatusBar(): void {
-  const label = DIALECT_LABELS[activeDialect] ?? activeDialect;
-  dialectStatusBarItem.text = `$(symbol-misc) ${label}`;
+  dialectStatusBarItem.text = `$(symbol-misc) ${activeDialect.shortLabel}`;
+  dialectStatusBarItem.tooltip = `${activeDialect.description} -- click to change`;
 }
 
 function onActiveEditorChanged(editor: TextEditor | undefined): void {
@@ -654,50 +631,14 @@ async function exportConfig(): Promise<void> {
 }
 
 async function selectDialect(): Promise<void> {
-  const items = Object.entries(DIALECT_LABELS).map(([value, label]) => ({
-    label,
-    description: value,
-    value,
-  }));
-
-  const current = activeDialect || DEFAULT_DIALECT;
-  const picked = await new Promise<(typeof items)[number] | undefined>((resolve) => {
-    const quickPick = window.createQuickPick<(typeof items)[number]>();
-    quickPick.title = "Select Tcl Dialect";
-    quickPick.placeholder = `Current dialect: ${DIALECT_LABELS[current] ?? current}`;
-    quickPick.items = items;
-    const currentItem = items.find((item) => item.value === current);
-    if (currentItem) {
-      quickPick.activeItems = [currentItem];
-    }
-
-    let done = false;
-    const finish = (value: (typeof items)[number] | undefined) => {
-      if (done) {
-        return;
-      }
-      done = true;
-      disposeAccept.dispose();
-      disposeHide.dispose();
-      quickPick.dispose();
-      resolve(value);
-    };
-
-    const disposeAccept = quickPick.onDidAccept(() => {
-      const [selected] =
-        quickPick.selectedItems.length > 0 ? quickPick.selectedItems : quickPick.activeItems;
-      finish(selected);
-    });
-    const disposeHide = quickPick.onDidHide(() => finish(undefined));
-    quickPick.show();
-  });
-
+  await refreshDialectChoices();
+  const picked = await pickDialect(dialectChoices, activeDialect.name);
   if (picked) {
     const target = workspace.workspaceFolders?.length
       ? undefined
       : vscode.ConfigurationTarget.Global;
-    await workspace.getConfiguration("tclLsp").update("dialect", picked.value, target);
-    await setServerDialect(picked.value);
+    await workspace.getConfiguration("tclLsp").update("dialect", picked, target);
+    await setServerDialect(picked);
   }
 }
 
@@ -781,70 +722,103 @@ async function selectTclInstallation(): Promise<void> {
   );
 }
 
-/** Regex for the ``# tcl-dialect: <dialect>`` per-file directive. */
-const DIALECT_DIRECTIVE_RE = /^#\s*tcl-dialect:\s*(\S+)/i;
-
-/** Maximum number of lines to scan for a ``# tcl-dialect:`` directive. */
+/**
+ * Maximum number of lines a ``# tcl-dialect:`` directive may sit in.  An edit
+ * inside them can change the dialect the server detects for the document, so
+ * the label is asked for again.
+ */
 const DIALECT_DIRECTIVE_SCAN_LINES = 5;
 
-function detectDialectFromDocument(document: TextDocument): string {
-  // 1. Language ID from editor (highest priority — unambiguous).
-  const langDialect = LANGUAGE_ID_DIALECTS[document.languageId];
-  if (langDialect) {
-    return langDialect;
-  }
+/** How long to let the client's own ``didOpen``/``didChange`` reach the server before asking. */
+const DIALECT_REFRESH_DELAY_MS = 150;
 
-  // 2. Comment directive ``# tcl-dialect: <dialect>`` in the first few lines.
-  const scanLines = Math.min(document.lineCount, DIALECT_DIRECTIVE_SCAN_LINES);
-  for (let i = 0; i < scanLines; i++) {
-    const directiveMatch = document.lineAt(i).text.match(DIALECT_DIRECTIVE_RE);
-    if (directiveMatch) {
-      const candidate = directiveMatch[1].toLowerCase();
-      if (candidate in DIALECT_LABELS) {
-        return candidate;
-      }
-    }
-  }
-
-  // 3. Shebang detection. `wish` counts alongside `tclsh`: Tk is a library in
-  //    this model, not a dialect, so a `#!/usr/bin/wish8.6` script is a Tcl
-  //    8.6 script for exactly the reason a `tclsh8.6` one is. Mirrors the
-  //    server's `SHEBANG_TCL_SHELLS`.
-  if (document.lineCount > 0) {
-    const firstLine = document.lineAt(0).text;
-    if (/^#!.*\bexpect\b/i.test(firstLine)) {
-      return "expect";
-    }
-    const shebangMatch = firstLine.match(/^#!.*\b(?:tclsh|wish)(\d+\.\d+)\b/i);
-    if (shebangMatch) {
-      const versionDialect = TCL_VERSION_DIALECTS[shebangMatch[1]];
-      if (versionDialect) {
-        return versionDialect;
-      }
-    }
-  }
-
-  // 4. The file's own name — its whole basename, then its extension — through
-  //    the generated catalogue projection, so every registered extension is
-  //    covered and consulted in the same tier order the server uses: below
-  //    the directive and shebang tiers, since a file's content is a stronger
-  //    signal than its name.
-  const pathLanguage = tclLanguageIdForPath(document.fileName);
-  if (pathLanguage) {
-    const pathDialect = LANGUAGE_ID_DIALECTS[pathLanguage];
-    if (pathDialect) {
-      return pathDialect;
-    }
-  }
-
-  // 5. User's configured default dialect (tclLsp.dialect setting).
+/**
+ * The dialect to show for *document* before the server has answered: the one
+ * its language id or file name implies, else the configured one.  Both tables
+ * are generated from the environments' editor identities and extensions.
+ */
+function fallbackDialectForDocument(document: TextDocument): DialectChoice {
+  const languageId = LANGUAGE_ID_DIALECTS[document.languageId];
+  const pathLanguage = languageId ? undefined : tclLanguageIdForPath(document.fileName);
+  const implied = languageId ?? (pathLanguage ? LANGUAGE_ID_DIALECTS[pathLanguage] : undefined);
   const configured = workspace.getConfiguration("tclLsp").get<string>("dialect", "");
-  if (configured && configured in DIALECT_LABELS) {
-    return configured;
-  }
+  return describeDialect(implied ?? (configured || DEFAULT_DIALECT), dialectChoices);
+}
 
-  // 6. Hardcoded fallback.
-  return DEFAULT_DIALECT;
+/** Whether a running server can be asked. */
+function serverIsRunning(): boolean {
+  return client !== undefined && client.isRunning();
+}
+
+/** The server's ``tcl-lsp.getEffectiveConfig`` answer for *document*, or ``undefined`` if it cannot say. */
+async function effectiveConfigFor(document: TextDocument): Promise<unknown> {
+  if (!serverIsRunning()) {
+    return undefined;
+  }
+  try {
+    return await client.sendRequest("workspace/executeCommand", {
+      command: "tcl-lsp.getEffectiveConfig",
+      arguments: [document.uri.toString()],
+    });
+  } catch {
+    // A server still starting (or already stopped) has nothing to say yet; the
+    // fallback label stays until an event asks again.
+    return undefined;
+  }
+}
+
+/**
+ * The dialect *document* is analysed under: the server's answer, else the
+ * fallback.  The server runs the whole detection ladder (directive, shebang,
+ * ``package require``, content, extension) per document; nothing here repeats it.
+ */
+async function effectiveDialectFor(document: TextDocument): Promise<DialectChoice> {
+  const answered = dialectFromEffectiveConfig(await effectiveConfigFor(document), dialectChoices);
+  return answered ?? fallbackDialectForDocument(document);
+}
+
+/** Read the server's dialect list, keeping the catalogue when it cannot be read. */
+async function refreshDialectChoices(): Promise<void> {
+  if (!serverIsRunning()) {
+    return;
+  }
+  try {
+    const listed = await client.sendRequest("workspace/executeCommand", {
+      command: "tcl-lsp.listDialects",
+      arguments: [],
+    });
+    dialectChoices = parseListedDialects(listed) ?? dialectChoices;
+  } catch {
+    // The catalogue stays.
+  }
+}
+
+let dialectRefreshTimer: NodeJS.Timeout | undefined;
+
+/**
+ * Ask the server which dialect the focused document is analysed under and show
+ * it, after a short delay that lets the client's own ``didOpen`` / ``didChange``
+ * for the document go first.  A later request supersedes an earlier one.
+ */
+function scheduleDialectRefresh(document: TextDocument): void {
+  if (dialectRefreshTimer) {
+    clearTimeout(dialectRefreshTimer);
+  }
+  dialectRefreshTimer = setTimeout(() => {
+    dialectRefreshTimer = undefined;
+    if (window.activeTextEditor?.document !== document) {
+      return;
+    }
+    void (async () => {
+      const answered = dialectFromEffectiveConfig(
+        await effectiveConfigFor(document),
+        dialectChoices,
+      );
+      if (answered && window.activeTextEditor?.document === document) {
+        setActiveDialect(answered);
+      }
+    })();
+  }, DIALECT_REFRESH_DELAY_MS);
 }
 
 /**
@@ -852,8 +826,12 @@ function detectDialectFromDocument(document: TextDocument): string {
  * label and the ``tclLsp.isIruleDialect`` context key that gates the iRules
  * commands.  Purely client-side — it tells the server nothing.
  */
-function setActiveDialectLabel(dialect: string): void {
-  if (activeDialect === dialect) {
+function setActiveDialect(dialect: DialectChoice): void {
+  if (
+    activeDialect.name === dialect.name &&
+    activeDialect.shortLabel === dialect.shortLabel &&
+    activeDialect.description === dialect.description
+  ) {
     return;
   }
   activeDialect = dialect;
@@ -861,8 +839,13 @@ function setActiveDialectLabel(dialect: string): void {
   void vscode.commands.executeCommand(
     "setContext",
     "tclLsp.isIruleDialect",
-    dialect === "f5-irules",
+    dialect.name === "f5-irules",
   );
+}
+
+/** Show the dialect called *name*, with the labels the server or the catalogue gives it. */
+function setActiveDialectLabel(name: string): void {
+  setActiveDialect(describeDialect(name, dialectChoices));
 }
 
 /**
@@ -882,7 +865,7 @@ function setActiveDialectLabel(dialect: string): void {
  * it.
  */
 export async function setServerDialect(dialect: string): Promise<void> {
-  if (activeDialect === dialect) {
+  if (activeDialect.name === dialect) {
     return;
   }
   setActiveDialectLabel(dialect);
@@ -925,11 +908,12 @@ export async function setSessionDialectOverride(dialect: string | null): Promise
   // answer `applyDialectForDocument` gives — rather than leaving the override's
   // label behind.
   const editor = vscode.window.activeTextEditor;
+  if (dialect === null && editor && isTclLanguage(editor.document.languageId)) {
+    applyDialectForDocument(editor.document);
+    return;
+  }
   setActiveDialectLabel(
-    dialect ??
-      (editor && isTclLanguage(editor.document.languageId)
-        ? detectDialectFromDocument(editor.document)
-        : workspace.getConfiguration("tclLsp").get<string>("dialect", DEFAULT_DIALECT)),
+    dialect ?? workspace.getConfiguration("tclLsp").get<string>("dialect", DEFAULT_DIALECT),
   );
 }
 
@@ -946,7 +930,8 @@ export function applyDialectForDocument(document: TextDocument): void {
   if (!isTclLanguage(document.languageId)) {
     return;
   }
-  setActiveDialectLabel(detectDialectFromDocument(document));
+  setActiveDialect(fallbackDialectForDocument(document));
+  scheduleDialectRefresh(document);
 }
 
 function applyDialectForEditor(editor: TextEditor | undefined): void {
@@ -1795,7 +1780,7 @@ async function runRuntimeValidationForDocument(
   const tclshPath = runtimeCfg.get<string>("tclshPath", "tclsh");
   const timeoutMs = runtimeCfg.get<number>("timeoutMs", 5000);
   const adapterMode = runtimeCfg.get<RuntimeValidationAdapterMode>("adapter", "auto");
-  const dialect = detectDialectFromDocument(document);
+  const dialect = (await effectiveDialectFor(document)).name;
   const adapter = resolveRuntimeValidationAdapter(adapterMode, dialect);
   const adapterLabel = runtimeValidationAdapterLabel(adapter);
 

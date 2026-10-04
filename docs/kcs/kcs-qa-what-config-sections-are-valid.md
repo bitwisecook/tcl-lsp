@@ -34,8 +34,10 @@ when this section appears in the **global** XDG `config.ini`; a
 
 - `dialect` — default dialect for files that have no per-file hint.
   Any dialect name the tools accept — `tcl8.4` through `tcl9.1`,
-  `f5-irules`, `f5-iapps`, `f5-tmsh`, `f5-bigip`, `expect`, `tk`, and
-  the EDA dialects. `tcl diag --help` prints the current list.
+  `f5-irules`, `f5-iapps`, `f5-tmsh`, `f5-bigip`, `jim`, `expect`, and
+  the tool environments (`tk` and the EDA shells, or an alias such as
+  `vivado`). `tcl diag --help` prints the current list, as does
+  [docs/generated/environments.md](../generated/environments.md).
 - `extraCommands` — comma- or newline-separated list of extra Tcl
   command names the analyser should recognise.
 - `libraryPaths` — one path per line, or comma-separated for one-line
@@ -215,6 +217,24 @@ The setting applies to the whole session — one scan serves every folder
 a per-folder `.tcl-lsp.ini` value for a *secondary* root has no effect.
 Editors set the same thing as `tclLsp.workspaceScan.maxFiles`, and
 changing it re-runs the scan without a restart.
+
+### `[notifications]`
+
+Which one-time messages the server may show.
+
+- `environment_kind` — boolean, default `true`. The message that
+  explains a tool environment such as Vivado or Quartus as a Tcl release
+  plus library packages. Set it to `false` to hide it in an editor with
+  no settings screen.
+
+```ini
+[notifications]
+environment_kind = false
+```
+
+Editors set the same thing as `tclLsp.notifications.environmentKind`, and
+an editor that sends it wins over the global `config.ini`. See
+[Tool Environments](features/kcs-feature-tool-environments.md).
 
 ### `[packages]` and `[packages.provides]`
 

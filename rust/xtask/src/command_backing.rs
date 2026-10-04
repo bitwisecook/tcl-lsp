@@ -119,6 +119,10 @@ const KNOWN_UNBACKED: &[(&str, &str)] = &[
         "ZIP virtual filesystem — no runtime implementation yet; pre-existing gap, unrelated to issue #923",
     ),
     (
+        "tcl::unsupported::grapheme",
+        "Tcl 9.1.0 grapheme-cluster ensemble; needs UAX #29 segmentation tables not yet in runtime/rust",
+    ),
+    (
         "timer",
         "Tcl 9.1 timer command; not yet implemented in runtime/rust",
     ),

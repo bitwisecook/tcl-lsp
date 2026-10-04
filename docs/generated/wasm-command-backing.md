@@ -17,7 +17,7 @@ the WASM runtime lacks is a *known gap* when `KNOWN_UNBACKED` in
 
 | backing | wasm | count |
 | --- | --- | --- |
-| none | absent | 50 |
+| none | absent | 52 |
 | none | unsupported | 5 |
 | shipped-builtin | absent (known gap) | 42 |
 | shipped-builtin | builtin | 275 |
@@ -25,7 +25,7 @@ the WASM runtime lacks is a *known gap* when `KNOWN_UNBACKED` in
 | tcl-body init.tcl | stdlib init.tcl | 7 |
 | tcl-body package.tcl | stdlib package.tcl | 3 |
 | tcl-body parray.tcl | stdlib parray.tcl | 1 |
-| **total** | | 389 |
+| **total** | | 391 |
 
 | command | backing | wasm | vm | note |
 | --- | --- | --- | --- | --- |
@@ -147,6 +147,7 @@ the WASM runtime lacks is a *known gap* when `KNOWN_UNBACKED` in
 | `::tcl::mathop::~` | shipped-builtin | builtin | builtin |  |
 | `::tcl::process` | none | absent | absent |  |
 | `::tcl::unsupported::corotype` | shipped-builtin | builtin | builtin |  |
+| `::tcl::unsupported::grapheme` | none | absent | absent |  |
 | `::tcl::zipfs` | shipped-builtin | absent (known gap) | absent | ZIP virtual filesystem — no runtime implementation yet; pre-existing gap, unrelated to issue #923 |
 | `<` | none | absent | absent |  |
 | `<<` | none | absent | absent |  |
@@ -390,6 +391,7 @@ the WASM runtime lacks is a *known gap* when `KNOWN_UNBACKED` in
 | `tcl::prefix` | shipped-builtin | builtin | builtin |  |
 | `tcl::process` | none | absent | absent |  |
 | `tcl::unsupported::corotype` | shipped-builtin | builtin | builtin |  |
+| `tcl::unsupported::grapheme` | none | absent | absent |  |
 | `tclLog` | tcl-body init.tcl | stdlib init.tcl | absent |  |
 | `tclPkgSetup` | tcl-body package.tcl | stdlib package.tcl | absent |  |
 | `tclPkgUnknown` | tcl-body package.tcl | stdlib package.tcl | absent |  |

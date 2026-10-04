@@ -208,6 +208,22 @@ pub struct RegexFlags {
     pub linestop: bool,
     /// `-lineanchor` — `^`/`$` match at line boundaries.
     pub lineanchor: bool,
+    /// `\z` is an end-of-string anchor ([`TclVersion::regex_z_anchor`]).
+    pub z_anchor: bool,
+}
+
+impl RegexFlags {
+    /// No switches, with the escapes `version` accepts.
+    #[must_use]
+    pub const fn for_release(version: TclVersion) -> Self {
+        Self {
+            nocase: false,
+            expanded: false,
+            linestop: false,
+            lineanchor: false,
+            z_anchor: version.regex_z_anchor(),
+        }
+    }
 }
 
 /// A compiled-regex provider. Stateless at the type level (compiling is a pure
@@ -312,14 +328,15 @@ pub struct RegsubResult {
 }
 
 impl RegexFlags {
-    /// The four booleans packed, for the pattern cache's key: nocase,
-    /// expanded, linestop, lineanchor.
+    /// The five booleans packed, for the pattern cache's key: nocase,
+    /// expanded, linestop, lineanchor, `\z` as an anchor.
     #[must_use]
     pub const fn packed(self) -> u8 {
         (self.nocase as u8)
             | ((self.expanded as u8) << 1)
             | ((self.linestop as u8) << 2)
             | ((self.lineanchor as u8) << 3)
+            | ((self.z_anchor as u8) << 4)
     }
 }
 
@@ -330,7 +347,7 @@ impl RegexFlags {
 pub struct PatternCacheKey {
     /// The pattern's exact bytes, never a normalised or trimmed form.
     pub pattern: Rc<[u8]>,
-    /// [`RegexFlags`]' four booleans, packed ([`RegexFlags::packed`]).
+    /// [`RegexFlags`]' five booleans, packed ([`RegexFlags::packed`]).
     pub flags: u8,
     /// The engine's identity and revision, so a change to the engine cannot
     /// serve a stale compilation.
@@ -468,7 +485,8 @@ pub(crate) enum Run<'a, 'c> {
 }
 
 impl Run<'_, '_> {
-    /// Compile `pattern` under `flags`. On the analysis path the thread's
+    /// Compile `pattern` under `flags`, a failure worded as `version` words
+    /// it. On the analysis path the thread's
     /// cache answers first; a miss charges the pattern's length squared —
     /// the parser's worst case — before it compiles, and a refused charge is
     /// `Cancelled`, never a partial entry.
@@ -476,12 +494,14 @@ impl Run<'_, '_> {
         &mut self,
         pattern: &[u8],
         flags: RegexFlags,
+        version: TclVersion,
     ) -> Result<Rc<RefCell<E::Regex>>, RegexFailure>
     where
         E::Regex: 'static,
     {
         let Self::Analysis(analysis) = self else {
-            let re = E::compile(pattern, flags).map_err(|detail| compile_error(&detail))?;
+            let re =
+                E::compile(pattern, flags).map_err(|detail| compile_error(version, &detail))?;
             return Ok(Rc::new(RefCell::new(re)));
         };
         let key = PatternCacheKey {
@@ -500,7 +520,9 @@ impl Run<'_, '_> {
             return Err(RegexFailure::Declined(PrecisionDecline::Cancelled));
         }
         let re = E::compile(pattern, flags).map_err(|detail| {
-            RegexFailure::Declined(PrecisionDecline::PatternError(compile_error(&detail)))
+            RegexFailure::Declined(PrecisionDecline::PatternError(compile_error(
+                version, &detail,
+            )))
         })?;
         let bytes = E::retained_bytes(&re).saturating_add(pattern.len());
         let re = Rc::new(RefCell::new(re));
@@ -628,11 +650,20 @@ fn resolve_start_checked(spec: &[u8], char_len: usize) -> Result<usize, RegexErr
 }
 
 /// The compile flags + `-all`/`-start` shared by both commands' option sets.
-#[derive(Default)]
 struct Common {
     all: bool,
     flags: RegexFlags,
     start: Option<Vec<u8>>,
+}
+
+impl Common {
+    const fn for_release(version: TclVersion) -> Self {
+        Self {
+            all: false,
+            flags: RegexFlags::for_release(version),
+            start: None,
+        }
+    }
 }
 
 fn wrong_args(usage: &[u8]) -> RegexError {
@@ -642,9 +673,9 @@ fn wrong_args(usage: &[u8]) -> RegexError {
     RegexError(m)
 }
 
-/// Wrap a provider compile-error detail in Tcl's standard prefix.
-fn compile_error(detail: &[u8]) -> RegexError {
-    let mut m = b"cannot compile regular expression pattern: ".to_vec();
+/// Wrap a provider compile-error detail in `version`'s standard prefix.
+fn compile_error(version: TclVersion, detail: &[u8]) -> RegexError {
+    let mut m = version.regex_compile_error_prefix().as_bytes().to_vec();
     m.extend_from_slice(detail);
     RegexError(m)
 }
@@ -685,8 +716,8 @@ const REGEXP_NAMES: [&str; 11] = [
 ];
 const REGEXP_OPTIONS: OptionTable<'static> = OptionTable::exact_only("option", &REGEXP_NAMES);
 
-/// Drive `regexp` over the engine `E` and value-ops `O`. `args` is the
-/// command's arguments **without** the command name.
+/// Drive `regexp` over the engine `E` and value-ops `O` for `version`. `args`
+/// is the command's arguments **without** the command name.
 ///
 /// # Errors
 /// Option/arg/compile errors as ready-to-report [`RegexError`] messages, and
@@ -695,11 +726,12 @@ const REGEXP_OPTIONS: OptionTable<'static> = OptionTable::exact_only("option", &
 pub fn regexp<O: ValueOps, E: RegexEngine>(
     ops: &mut O,
     args: &[&[u8]],
+    version: TclVersion,
 ) -> Result<RegexpResult<O::Value>, RegexError>
 where
     E::Regex: 'static,
 {
-    regexp_run::<O, E>(ops, args, &mut Run::Runtime).map_err(RegexFailure::into_error)
+    regexp_run::<O, E>(ops, args, version, &mut Run::Runtime).map_err(RegexFailure::into_error)
 }
 
 /// `regexp` on the analysis path: compiled through the thread's bounded
@@ -714,12 +746,13 @@ where
 pub fn regexp_analysis<O: ValueOps, E: RegexEngine>(
     ops: &mut O,
     args: &[&[u8]],
+    version: TclVersion,
     analysis: &mut AnalysisMatch<'_>,
 ) -> Result<RegexpResult<O::Value>, RegexFailure>
 where
     E::Regex: 'static,
 {
-    regexp_run::<O, E>(ops, args, &mut Run::Analysis(analysis))
+    regexp_run::<O, E>(ops, args, version, &mut Run::Analysis(analysis))
 }
 
 /// The one `regexp` algorithm both paths run.
@@ -727,12 +760,13 @@ where
 fn regexp_run<O: ValueOps, E: RegexEngine>(
     ops: &mut O,
     args: &[&[u8]],
+    version: TclVersion,
     run: &mut Run<'_, '_>,
 ) -> Result<RegexpResult<O::Value>, RegexFailure>
 where
     E::Regex: 'static,
 {
-    let mut c = Common::default();
+    let mut c = Common::for_release(version);
     let mut indices = false;
     let mut inline = false;
     let mut about = false;
@@ -800,7 +834,7 @@ where
         // command runs: no subject decode, no `-start`, no match loop, and
         // `-indices`/`-all` are simply ignored (all tclsh-verified, 8.4.20
         // through 9.1b0).
-        let re = run.compile::<E>(pattern, c.flags)?;
+        let re = run.compile::<E>(pattern, c.flags, version)?;
         let re = re.borrow();
         let nsubs = i64::try_from(E::nsub(&re)).unwrap_or(i64::MAX);
         let count = ops.new_int(nsubs);
@@ -820,7 +854,7 @@ where
     let char_len = cps.len();
     let match_vars = &rest[2..];
 
-    let re = run.compile::<E>(pattern, c.flags)?;
+    let re = run.compile::<E>(pattern, c.flags, version)?;
     let nsubs = E::nsub(&re.borrow());
 
     let mut offset = c
@@ -1054,9 +1088,10 @@ fn command_prefix(subspec: &[u8]) -> Result<Vec<Vec<u8>>, RegexError> {
 /// A bad option, in `options`' own noun and enumeration.
 fn regsub_option_scan(
     args: &[&[u8]],
-    options: &OptionTable<'static>,
+    version: TclVersion,
 ) -> Result<(Common, bool, usize), RegexError> {
-    let mut c = Common::default();
+    let options = regsub_options(version);
+    let mut c = Common::for_release(version);
     let mut command = false;
     let mut i = 0;
     while i < args.len() {
@@ -1225,7 +1260,7 @@ fn regsub_run<E: RegexEngine, Err>(
 where
     E::Regex: 'static,
 {
-    let (c, command, i) = regsub_option_scan(args, regsub_options(version))?;
+    let (c, command, i) = regsub_option_scan(args, version)?;
 
     let rest = &args[i..];
     if rest.len() < 3 || rest.len() > 4 {
@@ -1249,7 +1284,7 @@ where
     let (cps, byteoff) = decode_utf8(str_bytes);
     let char_len = cps.len();
 
-    let re = run.compile::<E>(pattern, c.flags)?;
+    let re = run.compile::<E>(pattern, c.flags, version)?;
     let nsubs = E::nsub(&re.borrow());
 
     let mut offset = c
@@ -1691,7 +1726,7 @@ mod tests {
             b"error while matching regular expression: the search exceeded its work budget";
         let mut ops = ListOps;
         assert!(matches!(
-            regexp::<ListOps, StoppingEngine>(&mut ops, &[b"abc", b"xabcx"]),
+            regexp::<ListOps, StoppingEngine>(&mut ops, &[b"abc", b"xabcx"], TclVersion::V9_0),
             Err(RegexError(message)) if message == raised
         ));
         assert!(matches!(
@@ -1708,6 +1743,7 @@ mod tests {
             regexp_analysis::<ListOps, StoppingEngine>(
                 &mut ops,
                 &[b"abc", b"xabcx"],
+                TclVersion::V9_0,
                 &mut analysis
             ),
             Err(RegexFailure::Declined(PrecisionDecline::FuelExhausted {
@@ -1749,6 +1785,7 @@ mod tests {
                 let answer = regexp_analysis::<ListOps, LiteralEngine>(
                     &mut ops,
                     &[b"cached-abc", b"xcached-abcx"],
+                    TclVersion::V9_0,
                     &mut analysis,
                 );
                 assert!(matches!(answer, Ok(RegexpResult::Count { count: 1, .. })));
@@ -1758,6 +1795,7 @@ mod tests {
             let answer = regexp_analysis::<ListOps, LiteralEngine>(
                 &mut ops,
                 &[b"cached-abc", b"xcached-abcx"],
+                TclVersion::V9_0,
                 &mut analysis,
             );
             assert!(answer.is_ok());
@@ -1785,7 +1823,12 @@ mod tests {
             limits: MatchLimits::default(),
         };
         assert!(matches!(
-            regexp_analysis::<ListOps, LiteralEngine>(&mut ops, &[b"uncached", b"x"], &mut refused),
+            regexp_analysis::<ListOps, LiteralEngine>(
+                &mut ops,
+                &[b"uncached", b"x"],
+                TclVersion::V9_0,
+                &mut refused
+            ),
             Err(RegexFailure::Declined(PrecisionDecline::Cancelled))
         ));
     }
@@ -1808,6 +1851,7 @@ mod tests {
             let answer = regexp_analysis::<ListOps, LiteralEngine>(
                 &mut ops,
                 &[&pattern, b"z"],
+                TclVersion::V9_0,
                 &mut analysis,
             );
             assert!(matches!(answer, Ok(RegexpResult::Count { count: 0, .. })));
@@ -1821,7 +1865,7 @@ mod tests {
 
     fn about(args: &[&[u8]]) -> Result<String, String> {
         let mut ops = ListOps;
-        match regexp::<ListOps, LiteralEngine>(&mut ops, args) {
+        match regexp::<ListOps, LiteralEngine>(&mut ops, args, TclVersion::V9_0) {
             Ok(RegexpResult::Inline(v)) => Ok(v),
             Ok(RegexpResult::Count { count, .. }) => Ok(count.to_string()),
             Err(RegexError(m)) => Err(String::from_utf8_lossy(&m).into_owned()),
@@ -1853,7 +1897,7 @@ mod tests {
         // The engine's `re_info` names become the second element, in order.
         let mut ops = ListOps;
         let Ok(RegexpResult::Inline(v)) =
-            regexp::<ListOps, FlaggyEngine>(&mut ops, &[b"-about", b"(a)"])
+            regexp::<ListOps, FlaggyEngine>(&mut ops, &[b"-about", b"(a)"], TclVersion::V9_0)
         else {
             panic!("-about must answer")
         };
@@ -1894,6 +1938,37 @@ mod tests {
             "wrong # args: should be \"regexp ?-option ...? exp string \
              ?matchVar? ?subMatchVar ...?\""
         );
+    }
+
+    #[test]
+    fn compile_error_prefix_follows_the_release() {
+        // tclsh 8.4.20 / 8.5.19 / 8.6.18 vs 9.0.4 / 9.1.0:
+        //   % regexp {[a} b
+        //   couldn't compile regular expression pattern: brackets [] not balanced
+        //   cannot compile regular expression pattern: brackets [] not balanced
+        for (version, verb) in [
+            (TclVersion::V8_4, "couldn't"),
+            (TclVersion::V8_5, "couldn't"),
+            (TclVersion::V8_6, "couldn't"),
+            (TclVersion::V9_0, "cannot"),
+            (TclVersion::V9_1, "cannot"),
+        ] {
+            let want =
+                format!("{verb} compile regular expression pattern: brackets [] not balanced");
+            for args in [&[b"!bad".as_slice(), b"x"][..], &[b"-about", b"!bad"]] {
+                let mut ops = ListOps;
+                let Err(RegexError(m)) = regexp::<ListOps, LiteralEngine>(&mut ops, args, version)
+                else {
+                    panic!("{version:?}: a bad pattern must not compile")
+                };
+                assert_eq!(String::from_utf8_lossy(&m), want, "{version:?}");
+            }
+            assert_eq!(
+                regsub_at(version, &[b"!bad", b"x", b"y"]).unwrap_err(),
+                want,
+                "{version:?}"
+            );
+        }
     }
 
     fn regsub_at(version: TclVersion, args: &[&[u8]]) -> Result<(String, i64), String> {

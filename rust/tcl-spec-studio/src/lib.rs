@@ -91,19 +91,24 @@ pub use tcl_spectcl::loader as spectcl;
 
 use serde_json::{Value, json};
 use tcl_dialect::DialectProfile;
+use tcl_dialect::model::EnvironmentRegistry;
 use tcl_lsp_core::formatting::{FormatterConfig, format_tcl};
 
-/// Dialects the studio offers, as `(registry name, label)`, in catalogue order.
+/// Dialects the studio offers, as `(registry name, label)`, in picker order:
+/// the selectable environments, `Language` before `Packages`, then by name.
 ///
-/// These are the profile names [`environment::store_for_dialect`] resolves, not the
-/// primitive surface rows — a profile is what decides which commands are
-/// actually visible. `tk` is therefore not here: it is a library pin rather
-/// than a profile, so it resolves to the permissive fallback, and the Tk
-/// commands are already browsable under every Tcl-version profile.
+/// Only an environment with a catalogue profile is listed, because the studio
+/// resolves a name through [`environment::catalogue_dialect_or_default`], which
+/// sends an environment with none to the default. `jim` and `tk` are therefore
+/// not here: `tk` is a library pin rather than a profile, and the Tk commands
+/// are already browsable under every Tcl-version profile.
 pub fn browsable_dialects() -> impl Iterator<Item = (&'static str, &'static str)> {
-    DialectProfile::all()
+    EnvironmentRegistry::compiled_selectable()
         .iter()
-        .map(|profile| (profile.name, profile.display_name))
+        .filter_map(|environment| {
+            let profile = DialectProfile::find(environment.id.as_str())?;
+            Some((profile.name, &*environment.display_name))
+        })
 }
 
 /// Format a `SpecTcl` pack with the same Tcl formatter used by the LSP and CLI.
@@ -710,6 +715,30 @@ mod tests {
                 "{name} resolved to an empty registry"
             );
         }
+    }
+
+    /// The picker lists the selectable environments that have a catalogue
+    /// profile, each under a name the studio resolves back to itself, and
+    /// leaves out the ones it would sink to the default.
+    #[test]
+    fn the_picker_lists_the_selectable_environments_with_a_catalogue_profile() {
+        let offered: Vec<&str> = browsable_dialects().map(|(name, _)| name).collect();
+        let expected: Vec<&str> = EnvironmentRegistry::compiled_selectable()
+            .iter()
+            .map(|environment| environment.id.as_str())
+            .filter(|id| !matches!(*id, "jim" | "tk"))
+            .collect();
+        assert_eq!(offered, expected);
+        assert!(
+            !offered.contains(&"tcl"),
+            "the lenient sink is not a choice"
+        );
+        for (name, label) in browsable_dialects() {
+            assert_eq!(environment::catalogue_dialect_or_default(name), name);
+            assert!(!label.is_empty(), "{name}");
+        }
+        assert!(offered.contains(&environment::DEFAULT_DIALECT));
+        assert_eq!(dialects().as_array().map(Vec::len), Some(offered.len()));
     }
 
     #[test]

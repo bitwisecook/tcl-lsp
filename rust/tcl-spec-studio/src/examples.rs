@@ -139,7 +139,7 @@ fn catalogue_template(id: &str) -> Option<Example> {
         | "returnTypeHook" | "semanticOperation" => Some(CATALOGUE_HOOK),
         "definitionBody" => Some(CATALOGUE_DEFINITION_BODY),
         "traits" => Some(FIELD_TRAITS),
-        "taintColour" | "taintTransformCondition" => Some(CATALOGUE_TAINT),
+        "taintColour" | "taintTransformCondition" | "taintNumericCoercion" => Some(CATALOGUE_TAINT),
         "dialects" => Some(CATALOGUE_DIALECT),
         "appendedArity" => Some(CATALOGUE_PREFIX),
         "optionArity" => Some(CATALOGUE_OPTION),

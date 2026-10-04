@@ -34,7 +34,7 @@ use crate::grammar::{
     LexerGrammar, ListParse, NumberSyntax, QuoteTermination, VarSyntax, WordSeparators,
 };
 use crate::library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKey};
-use crate::model::{Family, PackageFloor, SpecProvider, SurfaceLayer, SurfaceQuery};
+use crate::model::{CorePoints, Family, PackageFloor, SpecProvider, SurfaceLayer, SurfaceQuery};
 use crate::version::{StringCharacterModel, TclVersion, Ternary};
 
 /// Library pins for the 8.4/8.5-era plain Tcl profiles: Tk tracks the
@@ -231,13 +231,13 @@ pub struct DialectProfile {
     /// separate string-keyed tables would (design doc §2.4).
     pub aliases: &'static [&'static str],
     /// The full human-facing name shown in settings menus and pickers
-    /// (`"Synopsys EDA Tcl"`, `"Tcl 8.6"`). The catalogue is the single
+    /// (`"Xilinx Vivado"`, `"Tcl 8.6"`). The catalogue is the single
     /// source for editor presentation: `cargo xtask gen-editor-dialects`
     /// projects this into every editor's dialect list, so adding a
     /// profile ships its label everywhere at once.
     pub display_name: &'static str,
     /// A compact label for tight UI (the compiler-explorer dropdown,
-    /// status bars): `"Synopsys EDA"`, `"iRules"`. Never empty — repeats
+    /// status bars): `"Vivado"`, `"iRules"`. Never empty — repeats
     /// [`Self::display_name`] where no shorter form exists.
     pub short_name: &'static str,
     /// The editor language id this dialect's files open under, where the
@@ -413,8 +413,7 @@ impl PartialEq for DialectProfile {
 
 impl Eq for DialectProfile {}
 
-/// The catalogue: one profile per canonical dialect, in
-/// [`KNOWN_DIALECTS`](crate::KNOWN_DIALECTS) (sorted) order.
+/// The catalogue: one profile per canonical dialect, in sorted-name order.
 ///
 /// Surface and behaviour values follow the per-dialect table in
 /// `docs/design/registry/dialect-profile-model.md` §7.
@@ -454,9 +453,9 @@ static CATALOG: [DialectProfile; 19] = [
     },
     DialectProfile {
         name: "cadence-eda-tcl",
-        aliases: &[],
-        display_name: "Cadence EDA Tcl",
-        short_name: "Cadence EDA",
+        aliases: &["genus", "innovus"],
+        display_name: "Cadence Genus / Innovus / Xcelium",
+        short_name: "Cadence",
         editor_language_id: Some("tcl-cadence"),
         filenames: &[],
         file_extensions: &[DialectFileExtension {
@@ -773,9 +772,9 @@ static CATALOG: [DialectProfile; 19] = [
     },
     DialectProfile {
         name: "intel-quartus-eda-tcl",
-        aliases: &[],
-        display_name: "Intel Quartus EDA Tcl",
-        short_name: "Intel Quartus",
+        aliases: &["quartus"],
+        display_name: "Intel Quartus Prime",
+        short_name: "Quartus",
         editor_language_id: Some("tcl-quartus"),
         filenames: &[],
         file_extensions: &[
@@ -858,9 +857,9 @@ static CATALOG: [DialectProfile; 19] = [
     },
     DialectProfile {
         name: "mentor-eda-tcl",
-        aliases: &[],
-        display_name: "Mentor EDA Tcl",
-        short_name: "Mentor EDA",
+        aliases: &["questa", "modelsim"],
+        display_name: "Siemens Questa / ModelSim",
+        short_name: "Questa",
         editor_language_id: Some("tcl-mentor"),
         filenames: &[],
         file_extensions: &[DialectFileExtension {
@@ -916,9 +915,9 @@ static CATALOG: [DialectProfile; 19] = [
     },
     DialectProfile {
         name: "microchip-libero-eda-tcl",
-        aliases: &[],
-        display_name: "Microchip Libero EDA Tcl",
-        short_name: "Microchip Libero",
+        aliases: &["libero"],
+        display_name: "Microchip Libero SoC",
+        short_name: "Libero",
         editor_language_id: Some("tcl-microchip"),
         filenames: &[],
         file_extensions: &[],
@@ -1055,9 +1054,9 @@ static CATALOG: [DialectProfile; 19] = [
     },
     DialectProfile {
         name: "synopsys-eda-tcl",
-        aliases: &[],
-        display_name: "Synopsys EDA Tcl",
-        short_name: "Synopsys EDA",
+        aliases: &["dc_shell", "primetime"],
+        display_name: "Synopsys DC / PrimeTime / ICC2 / Formality",
+        short_name: "Synopsys",
         editor_language_id: Some("tcl-synopsys"),
         filenames: &[],
         file_extensions: &[
@@ -1284,9 +1283,9 @@ static CATALOG: [DialectProfile; 19] = [
     },
     DialectProfile {
         name: "xilinx-eda-tcl",
-        aliases: &[],
-        display_name: "Xilinx EDA Tcl",
-        short_name: "Xilinx EDA",
+        aliases: &["vivado"],
+        display_name: "Xilinx Vivado",
+        short_name: "Vivado",
         editor_language_id: Some("tcl-xilinx"),
         filenames: &[],
         file_extensions: &[DialectFileExtension {
@@ -1523,15 +1522,18 @@ impl DialectProfile {
         }
         SurfaceQuery {
             core: match self.signature_base {
-                Some(version) => Some((Family::Tcl, Some(version.version_string()))),
+                Some(version) => CorePoints::one(Family::Tcl, Some(version.version_string())),
                 // No pinned release, but still a Tcl surface: the permissive
                 // `tcl` sink and the `tk` ingress profile ask about the whole
                 // ladder. A profile whose grammar names no core family
                 // (`f5-bigip`) has no Tcl surface to ask about.
-                None => self
+                None if self
                     .grammar_union
-                    .contains(&SpecProvider::Core(Family::Tcl))
-                    .then_some((Family::Tcl, None)),
+                    .contains(&SpecProvider::Core(Family::Tcl)) =>
+                {
+                    CorePoints::one(Family::Tcl, None)
+                }
+                None => CorePoints::NONE,
             },
             packages: self.surface_packages,
         }
@@ -1578,10 +1580,13 @@ impl DialectProfile {
             .map(TclVersion::string_character_model)
     }
 
-    /// The full catalogue of canonical dialect profiles, in sorted-name order
-    /// (the [`KNOWN_DIALECTS`](crate::KNOWN_DIALECTS) order). Excludes the
-    /// [`Self::plain_tcl`] fallback — it is a resolution sink, not a
-    /// selectable dialect.
+    /// The full catalogue of canonical dialect profiles, in sorted-name order.
+    /// Excludes the [`Self::plain_tcl`] fallback — it is a resolution sink, not
+    /// a selectable dialect.
+    ///
+    /// The lexer's grammar rows and the editors' identity key, never a list of
+    /// names shown to a user: that reads
+    /// [`EnvironmentRegistry::selectable`](crate::model::EnvironmentRegistry::selectable).
     #[must_use]
     pub fn all() -> &'static [DialectProfile] {
         &CATALOG
@@ -1802,51 +1807,14 @@ impl DialectProfile {
     }
 }
 
-/// Canonical dialect profile names, in sorted order.
-///
-/// Kept pre-sorted so [`available_dialects`] returns them in sorted
-/// order. This
-/// is the single source of truth for the explorer's dialect dropdown and
-/// the CLI's `--dialect` choices. Every name here resolves to its own
-/// [`DialectProfile::find`] entry (`f5-tmsh` / `f5-bigip` are first-class
-/// profiles, D8; `tk` is a library pin, not a profile — §7.2).
-pub const KNOWN_DIALECTS: &[&str] = &[
-    "bpf",
-    "cadence-eda-tcl",
-    "expect",
-    "f5-bigip",
-    "f5-iapps",
-    "f5-irules",
-    "f5-tmsh",
-    "intel-quartus-eda-tcl",
-    "mentor-eda-tcl",
-    "microchip-libero-eda-tcl",
-    "spectcl",
-    "sslictcl",
-    "synopsys-eda-tcl",
-    "tcl8.4",
-    "tcl8.5",
-    "tcl8.6",
-    "tcl9.0",
-    "tcl9.1",
-    "xilinx-eda-tcl",
-];
-
-/// Return the canonical dialect profile names in sorted order.
-#[must_use]
-pub fn available_dialects() -> &'static [&'static str] {
-    KNOWN_DIALECTS
-}
-
 #[cfg(test)]
 mod tests {
     use super::DialectProfile;
     use super::EvaluationEvidence;
-    use super::KNOWN_DIALECTS;
     use crate::grammar::{BracedVarStyle, EscapeSyntax, ExprCommentStyle, NumberSyntax};
     use crate::library::{LibraryVersion, LibraryVersionOverrides, VersionKey};
     use crate::model::{
-        Family, PackageFloor, SpecProvider, SpecSurface, SurfaceQuery, surface_admits,
+        CorePoints, Family, PackageFloor, SpecProvider, SpecSurface, SurfaceQuery, surface_admits,
     };
     use crate::version::{TclVersion, Ternary};
 
@@ -2015,19 +1983,22 @@ mod tests {
     }
 
     #[test]
-    fn catalog_matches_known_dialects_exactly() {
-        // One profile per canonical name, in the same (sorted) order —
-        // KNOWN_DIALECTS and the catalogue can never drift apart.
+    fn catalog_is_one_profile_per_canonical_name_in_sorted_order() {
         let names: Vec<&str> = DialectProfile::all().iter().map(|p| p.name).collect();
-        assert_eq!(names.as_slice(), KNOWN_DIALECTS);
+        let mut sorted = names.clone();
+        sorted.sort_unstable();
+        sorted.dedup();
+        assert_eq!(names, sorted);
     }
 
     #[test]
     fn find_resolves_canonical_names_to_themselves() {
-        for &name in KNOWN_DIALECTS {
+        for profile in DialectProfile::all() {
             assert_eq!(
-                DialectProfile::find(name).expect("catalogue profile").name,
-                name
+                DialectProfile::find(profile.name)
+                    .expect("catalogue profile")
+                    .name,
+                profile.name
             );
         }
     }
@@ -2215,7 +2186,7 @@ mod tests {
                 .expect("catalogue profile")
                 .surface_query(),
             SurfaceQuery {
-                core: None,
+                core: CorePoints::NONE,
                 packages: &[PackageFloor::named("bigip")],
             }
         );
@@ -2234,7 +2205,7 @@ mod tests {
         // the iRules profile) the precise point — never under-approximates.
         for p in DialectProfile::all() {
             let query = p.surface_query();
-            if let Some((family, _)) = query.core {
+            for (family, _) in query.core.iter() {
                 assert!(
                     p.grammar_union.contains(&SpecProvider::Core(family)),
                     "{}: grammar_union must cover the point's core family",
@@ -2329,7 +2300,8 @@ mod tests {
             assert!(
                 query
                     .core
-                    .is_none_or(|(family, _)| family == Family::Tcl || p.is_irules()),
+                    .iter()
+                    .all(|(family, _)| family == Family::Tcl || p.is_irules()),
                 "{}: a non-iRules point asks on the Tcl ladder",
                 p.name
             );
