@@ -1127,7 +1127,7 @@ impl ExistenceAt<'_> {
     fn step_for(
         &self,
         stmt_ssa: &SsaStatement,
-        (var, element_write_base): (Symbol, Option<Symbol>),
+        (var, name, element_write_base): (Symbol, &str, Option<Symbol>),
         driver: &LatticeDriver<'_>,
         (kept, evaluated): (bool, impl FnOnce() -> crate::value_transfer::ExistenceStep),
     ) -> crate::value_transfer::ExistenceStep {
@@ -1145,7 +1145,13 @@ impl ExistenceAt<'_> {
         if kept {
             return evaluated();
         }
-        assignment_existence(stmt_ssa, var, element_write_base, driver).unwrap_or_else(evaluated)
+        let step = assignment_existence(stmt_ssa, var, element_write_base, driver)
+            .unwrap_or_else(evaluated);
+        // The registry's write class states what a call does to the places
+        // it names where its declared transfer states less.
+        driver
+            .existence_by_write_class(&stmt_ssa.statement, name, step)
+            .unwrap_or(step)
     }
 
     /// Advance the definition `key`'s place by `step` and record the fact
@@ -2751,7 +2757,7 @@ fn define_values(
         if let Some(at) = existence.as_deref_mut() {
             let step = at.step_for(
                 stmt_ssa,
-                (var, element_write_base),
+                (var, ssa.var_name(var), element_write_base),
                 driver,
                 (keeps_all, || value_of(values).4),
             );

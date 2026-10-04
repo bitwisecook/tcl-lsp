@@ -2595,6 +2595,83 @@ impl<'a> LatticeDriver<'a> {
         )
     }
 
+    /// The existence step the registry's write class gives a call's
+    /// definition `name` where the step its declared transfer took,
+    /// `declared`, states less: a may-bind, or the generic widening of a
+    /// command that declares no existence transfer or whose transfer
+    /// declined. A target a command writes whenever it completes
+    /// (`UNCONDITIONAL_VARIABLE_WRITE`: `gets`, `lassign`, `file tempfile`) is
+    /// bound afterwards, as the kind a may-write declaration names or a
+    /// scalar; one it writes only on a match or reads before writing
+    /// (`CONDITIONAL_VARIABLE_WRITE`, `READS_BEFORE_WRITE`: `regexp`, `lset`)
+    /// holds what the place held joined with a scalar binding. A target is a
+    /// word at one of the invocation's own variable-write positions; an
+    /// alias's prepended words are not on the call, so through one any word
+    /// is, unless a word runs a substitution that could define a name of its
+    /// own. `None` keeps `declared`: a head the module may rebind, a command
+    /// that may destroy a variable (`unset`'s class, or an irreversible
+    /// descriptor such as `array unset`'s), any other declared step, and any
+    /// definition no write class reaches.
+    pub(crate) fn existence_by_write_class(
+        &self,
+        statement: &Statement,
+        name: &str,
+        declared: ExistenceStep,
+    ) -> Option<ExistenceStep> {
+        let Statement::Call {
+            canonical_command,
+            args,
+            tokens,
+            foreach_groups: None,
+            ..
+        } = statement
+        else {
+            return None;
+        };
+        let may_bind = match declared {
+            ExistenceStep::Join(Existence::Bound(kind)) => Some(kind),
+            step if step == ExistenceStep::UNKNOWN => None,
+            _ => return None,
+        };
+        let head = statement.canonical_command_or_source();
+        if !self.trusted(head) {
+            return None;
+        }
+        let cooked = call_arguments(args, tokens.as_ref(), &self.lexer_config);
+        let texts: Vec<&str> = cooked.iter().map(|arg| arg.text.as_ref()).collect();
+        let surface = self.registry.own_surface_query();
+        let traits = self.registry.invocation_traits(head, &texts, surface);
+        if traits.contains(tcl_registry::Traits::DESTROYS_VARIABLE)
+            || self
+                .registry
+                .resolve_call(head, &texts, surface)
+                .is_some_and(|call| call.sub.is_some_and(|sub| sub.destructive))
+        {
+            return None;
+        }
+        let step = if traits.contains(tcl_registry::Traits::UNCONDITIONAL_VARIABLE_WRITE) {
+            ExistenceStep::Set(Existence::Bound(may_bind.unwrap_or(BindingKind::Scalar)))
+        } else if may_bind.is_none()
+            && traits.intersects(
+                tcl_registry::Traits::CONDITIONAL_VARIABLE_WRITE
+                    .union(tcl_registry::Traits::READS_BEFORE_WRITE),
+            )
+        {
+            ExistenceStep::Join(Existence::Bound(BindingKind::Scalar))
+        } else {
+            return None;
+        };
+        let target = if canonical_command.is_some() {
+            !args.iter().any(|word| word.contains('[')) && texts.contains(&name)
+        } else {
+            self.registry
+                .arg_indices_for_role(head, &texts, ArgRole::VarWrite)
+                .into_iter()
+                .any(|index| texts.get(index).is_some_and(|&text| text == name))
+        };
+        target.then_some(step)
+    }
+
     /// Whether a statement with no definitions certainly raises, where a
     /// throw leaves from: the answer is `Some` only for a statement the
     /// registry's routes prove an error. A call to a command with no

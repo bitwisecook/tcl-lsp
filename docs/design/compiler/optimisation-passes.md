@@ -29,11 +29,14 @@ under `rust/tcl-compiler/src/optimiser/`, with GVN in `src/gvn.rs`.
   count, and so does a read inside a braced `expr`, and a read beside a write
   the same statement's substitutions make: in `puts [expr {$x + [set x 10] +
   $x}]` the first `$x` runs before the nested `set`, so the store ahead of the
-  statement still feeds it), an unbind statement is never removed, and a dead `incr` on a place
-  the existence rung proves unbound is removable only when its own route
-  explanation never declined `unbound-place` — the release rule finding a
-  release the target profile spans that raises rather than creating the
-  cell, so its completion is not total. O107 removes the blocks applied
+  statement still feeds it), and an unbind statement is never removed. A
+  store whose value can raise stays too (#2249): a read of a variable the
+  existence rung does not hold `Bound(Scalar)` where the statement reads it,
+  an element read, an `expr` that does not fold, and an `incr` unless its
+  amount is a literal integer, its place holds an integer wherever it is
+  bound, and the place is bound where the statement reads it or every
+  release the target profile spans creates an absent cell (8.5 onwards).
+  O107 removes the blocks applied
   reachability drops: a flattened `switch`'s dead arm, whose blocks the
   dispatch chain gives it, and never an opaque form's, whose arms have no
   blocks (I231 reports both). It leaves a statement of a dead block whose span

@@ -1345,6 +1345,20 @@ from that statement on, and a dynamic destroy (`destroys`) turns every
 `Bound` place `MayBound` from that statement on; today both blind the
 whole function.
 
+**What a call's write class adds.** A call whose declared transfer states
+less than its registry write class takes the class's step for each target at
+one of the invocation's own variable-write positions (through an alias, whose
+prepended words are not on the call, any word that runs no substitution): a
+may-write declaration, a command that declares no existence transfer, and a
+transfer that declined all widen, while `UNCONDITIONAL_VARIABLE_WRITE`
+(`gets`, `lassign`, `file tempfile`) binds the target, as the may-write's
+kind or a scalar, and `CONDITIONAL_VARIABLE_WRITE` or `READS_BEFORE_WRITE`
+(`regexp`, `lset`) joins the prior fact with `Bound(Scalar)`. A command that
+may destroy a variable, of `unset`'s class or with an irreversible descriptor
+such as `array unset`'s, keeps its declared step. The optimiser's raise proof
+reads this fact: a dead `set y $x` goes only where the rung holds `x`
+`Bound(Scalar)` where the statement reads it.
+
 **The release rule for an absent cell.** A cell update declares the
 surfaces on which an absent cell is created (`safe_on_uninit`, the plan's
 `creates_absent`): `append` and `lappend` create it in every release;

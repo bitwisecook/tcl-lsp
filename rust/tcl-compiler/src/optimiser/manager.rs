@@ -561,8 +561,7 @@ fn couple_const_dead_store_chain(
         enclosing_class: None,
         config: tcl_lexer::LexerConfig::for_profile(registry.profile()),
     };
-    let site = super::elimination::StatementSite::at(fu, def_block_id, def_idx);
-    if !super::elimination::assignment_safe_to_delete(def_stmt, purity, site) {
+    if !super::elimination::assignment_safe_to_delete(def_stmt, purity) {
         return None;
     }
 

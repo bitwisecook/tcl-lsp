@@ -42,14 +42,12 @@
 //! version they observe as an SSA use wherever they run, a statement, a
 //! condition, a nested word or a `return` word, so the store they observe
 //! stays. An unbind statement is never removed: the error on an absent
-//! place and the binding's disappearance are its effects. A dead `incr` is
-//! removable only when its own outcome is a total `Write` under every
-//! release its target profile spans (a totality proof): the release
-//! rule's `UnboundPlace` decline —
-//! recorded on the statement's own [`crate::value_transfer::RouteExplanation`]
-//! — means a release that does not create the cell may raise instead, so
-//! "the write is the whole observable effect" does not hold and the
-//! statement stays.
+//! place and the binding's disappearance are its effects. A store whose
+//! value can raise stays as well (`RaiseProof`): deleting it would drop
+//! the error, so a value reading a variable the existence rung does not hold
+//! bound as a scalar where it reads it, an `expr` that does not fold, and an
+//! `incr` that may find its place absent under a release the profile spans,
+//! or holding something other than an integer, are kept.
 //!
 //! Emission order is the deterministic CFG `cfg_order` (reverse
 //! post-order from the entry, unreachable blocks appended).
@@ -59,6 +57,7 @@ use tcl_core_types::DiagCode;
 use tcl_lexer::TokenType;
 
 use tcl_registry::CommandRegistry;
+use tcl_registry::value_transfer::{BindingKind, Existence};
 
 use crate::cfg::{Function as CfgFunction, Terminator};
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
@@ -253,105 +252,37 @@ fn expr_has_observable_side_effect(node: &ExprNode, effect: EffectCtx<'_>, depth
     }
 }
 
-/// Where a candidate statement sits: its function unit, its block and its
-/// index there — what a read fact at the statement is asked by.
-#[derive(Clone, Copy)]
-pub(crate) struct StatementSite<'a> {
-    pub(crate) unit: &'a FunctionUnit,
-    pub(crate) block: crate::cfg::BlockId,
-    pub(crate) index: usize,
-}
-
-impl<'a> StatementSite<'a> {
-    /// The statement at `index` of `block` in `unit`.
-    pub(crate) const fn at(
-        unit: &'a FunctionUnit,
-        block: crate::cfg::BlockId,
-        index: usize,
-    ) -> Self {
-        Self { unit, block, index }
-    }
-}
-
 /// `true` when `stmt` is an assignment whose RHS can be discarded
 /// without losing observable behaviour. A literal (`AssignConst`) is
 /// always safe; value / expr forms require every embedded command
 /// substitution to be provably side-effect-free; `incr v` is safe when
-/// its optional amount word has no side effect *and* it cannot raise on an
-/// absent `v` ([`incr_is_total`]). Any other statement form is
+/// its optional amount word has no side effect (whether it can raise is
+/// [`RaiseProof`]'s question). Any other statement form is
 /// conservatively unsafe — a `Call` among them, so an unbind (`unset x`,
 /// `array unset x`) is never removed, whatever reads the definition it
 /// makes.
-pub(crate) fn assignment_safe_to_delete(
-    stmt: &Statement,
-    purity: PurityCtx<'_>,
-    site: StatementSite<'_>,
-) -> bool {
+pub(crate) fn assignment_safe_to_delete(stmt: &Statement, purity: PurityCtx<'_>) -> bool {
     assignment_safe_to_delete_with_effect(
         stmt,
         EffectCtx {
             purity,
             execution_namespace: None,
         },
-        site,
     )
 }
 
-/// Whether the dead `incr` of the place `name` at `site` completes on
-/// every release the profile names: every such
-/// release creates an absent cell (8.5 onwards), or the existence rung
-/// proves the place bound where the statement reads it. Under a profile
-/// spanning 8.4, where `incr` of an absent place raises `can't read`, a
-/// may-bound or unbound place — or one the run computed no fact for — is
-/// not provably total, so the statement stays.
-fn incr_is_total(
-    name: &str,
-    name_braced: bool,
-    registry: Option<&CommandRegistry>,
-    site: StatementSite<'_>,
-) -> bool {
-    if registry.is_some_and(crate::value_transfer::typed_incr_creates_absent) {
-        return true;
-    }
-    let place = crate::naming::element_var_name_braced(name, name_braced);
-    site.unit
-        .ssa
-        .var_symbol(place)
-        .and_then(|symbol| {
-            site.unit
-                .sccp
-                .existence_before(site.block, site.index, symbol)
-        })
-        .is_some_and(|fact| matches!(fact, tcl_registry::value_transfer::Existence::Bound(_)))
-}
-
-fn assignment_safe_to_delete_with_effect(
-    stmt: &Statement,
-    effect: EffectCtx<'_>,
-    site: StatementSite<'_>,
-) -> bool {
+fn assignment_safe_to_delete_with_effect(stmt: &Statement, effect: EffectCtx<'_>) -> bool {
     match stmt {
         Statement::AssignConst { .. } => true,
         Statement::AssignValue { value, .. } => !word_has_observable_side_effect(value, effect, 0),
         Statement::AssignExpr { expr, .. } => !expr_has_observable_side_effect(expr, effect, 0),
         // `incr v` reads + writes v — the assignment itself is the
-        // observable effect, so deleting it is OK when v is dead, the
-        // optional amount word is side-effect-free, and the statement
-        // cannot raise on an absent `v` under a release the profile spans.
-        Statement::Incr {
-            name,
-            name_braced,
-            amount,
-            ..
-        } => {
-            if !incr_is_total(name, *name_braced, effect.purity.registry, site) {
-                return false;
-            }
-            match amount {
-                None => true,
-                Some(a) => !word_has_observable_side_effect(a, effect, 0),
-            }
-        }
+        // observable effect, so deleting it is OK when v is dead and the
+        // optional amount word is side-effect-free.
+        Statement::Incr { amount, .. } => match amount {
+            None => true,
+            Some(a) => !word_has_observable_side_effect(a, effect, 0),
+        },
         // Unknown statement form — conservative.
         _ => false,
     }
@@ -361,125 +292,49 @@ fn assignment_safe_to_delete_with_effect(
 /// deleting the statement cannot remove an error the program would stop on.
 ///
 /// Reading an unset variable, an array as a scalar, or a variable a read trace
-/// guards raises; so does `expr` arithmetic on a bad operand (`1/0`, `abc + 1`).
-/// O109, O126 and O108 deleted those statements and let the program run on
-/// (#2249). The proof:
+/// guards raises; so does `expr` arithmetic on a bad operand (`1/0`, `abc + 1`),
+/// and `incr` of a value that is no integer, of an array, or of an absent
+/// place under 8.4. O109, O126 and O108 deleted those statements and let the
+/// program run on (#2249). The proof:
 ///
 /// * a literal (`AssignConst`) cannot raise;
 /// * a value SCCP folds to a constant evaluated cleanly: SCCP declines on an
 ///   evaluation error and reads an undefined, traced or escaping name as
 ///   overdefined, so a `Const` for the def is a clean evaluation;
-/// * otherwise a word value (`AssignValue`) qualifies when every variable it
-///   reads is definitely set ([`Self::definitely_set`]). An `expr` or `incr`
-///   value needs the SCCP proof, since its operators can raise on a defined
-///   operand.
+/// * otherwise a word value (`AssignValue`) qualifies when the existence rung
+///   holds every variable it reads bound as a scalar where the statement
+///   reads it ([`crate::sccp::SccpResult::existence_before`]). An `expr`
+///   value needs the SCCP proof, since its operators can raise on a bound
+///   operand;
+/// * an `incr` qualifies when its amount is an integer literal and its place
+///   is a scalar that holds an integer wherever it is bound, and is bound
+///   where the statement reads it unless every release the profile names
+///   creates an absent cell.
 struct RaiseProof<'a> {
     fu: &'a FunctionUnit,
-    /// The procedure's parameters: bound on entry, so a version-0 read of one
-    /// is set.
-    params: Vec<String>,
-    /// At top level, the dialect whose interpreter binds its startup scalars
-    /// (`argv`, `tcl_version`) before user code; `None` in a procedure.
-    startup: Option<tcl_dialect::model::SurfaceQuery<'static>>,
     /// Names a scope alias binds, which another frame may unset.
     scope_aliases: HashSet<String>,
     /// Names a module-wide trace guards; a read trace may raise.
     module_traced: Option<&'a std::collections::BTreeSet<String>>,
-    /// Every SSA value's definition site.
-    sites: HashMap<crate::ssa::ValueKey, DefSite>,
-}
-
-enum DefSite {
-    /// A φ: set when every incoming value is set.
-    Phi(Vec<crate::ssa::Version>),
-    /// A statement: `true` when it certainly writes the variable once it
-    /// completes — an assignment or `incr` of the variable itself, or a
-    /// variable target of a command the registry marks as always writing it
-    /// (`catch`, `gets`, `lassign`, `regsub`). Never a synthetic array
-    /// may-def, nor a command (`regexp`, `scan`, `unset`, a `foreach` header)
-    /// that may leave it unset.
-    Stmt(bool),
-    /// A conditional writer's target (`regexp`, `scan`, `binary scan`), or a
-    /// read-modify-write target (`lset`, `lpop`, `ledit`): set exactly when
-    /// the version it keeps or reads was.
-    Carry(crate::ssa::Version),
+    /// Whether every release the profile names creates the cell an `incr`
+    /// of an absent place reads (8.5 onwards); 8.4 raises `can't read`.
+    incr_creates_absent: bool,
 }
 
 impl<'a> RaiseProof<'a> {
-    /// `enclosing_class` is set only for a `TclOO` method unit, and
-    /// `top_level` only for the module's own top-level unit (a procedure may
-    /// share its `::top` name).
-    fn new(
-        ctx: &PassContext<'a>,
-        fu: &'a FunctionUnit,
-        enclosing_class: Option<&str>,
-        top_level: bool,
-    ) -> Self {
+    fn new(ctx: &PassContext<'a>, fu: &'a FunctionUnit) -> Self {
         // Alias recognition is registry-driven; a registry-less context (unit
         // tests) falls back to the cached default.
         let registry = ctx.registry.unwrap_or_else(|| {
             tcl_registry::model::ingress::static_context_for("tcl8.6").commands()
         });
-        // A proc or a method binds its parameters on entry. A proc and a
-        // method may share a qualified name, so the unit's kind picks the map;
-        // the top level has none, even beside a procedure named `::top`.
-        let params = ctx
-            .ir_module
-            .filter(|_| !top_level)
-            .and_then(|m| {
-                if enclosing_class.is_some() {
-                    m.methods.get(&fu.name).map(|d| &d.params)
-                } else {
-                    m.procedures.get(&fu.name).map(|p| &p.params)
-                }
-            })
-            .cloned()
-            .unwrap_or_default();
-        let mut sites = HashMap::new();
-        for block in fu.ssa.blocks.values() {
-            for phi in &block.phis {
-                sites.insert(
-                    (phi.name, phi.version),
-                    DefSite::Phi(phi.incoming.values().copied().collect()),
-                );
-            }
-            for ssa_stmt in &block.statements {
-                let writes = matches!(
-                    ssa_stmt.statement,
-                    Statement::AssignConst { .. }
-                        | Statement::AssignValue { .. }
-                        | Statement::AssignExpr { .. }
-                        | Statement::Incr { .. }
-                );
-                let targets = command_write_targets(&ssa_stmt.statement, registry);
-                for (&sym, &ver) in &ssa_stmt.defs {
-                    let name = fu.ssa.var_name(sym);
-                    let site = if ssa_stmt.may_defs.contains(&sym) {
-                        DefSite::Stmt(false)
-                    } else if writes || targets.always.contains(&name) {
-                        DefSite::Stmt(true)
-                    } else if targets.maybe.contains(&name) {
-                        // The SSA records the kept value as the statement's
-                        // own read of the target (#2051).
-                        ssa_stmt
-                            .uses
-                            .get(&sym)
-                            .map_or(DefSite::Stmt(false), |&prev| DefSite::Carry(prev))
-                    } else {
-                        DefSite::Stmt(false)
-                    };
-                    sites.insert((sym, ver), site);
-                }
-            }
-        }
         Self {
             fu,
-            params,
-            startup: top_level
-                .then(|| tcl_registry::special_vars::surface_query_for_profile(ctx.dialect)),
             scope_aliases: scan_scope_aliases(&fu.cfg, registry),
             module_traced: ctx.ir_module.map(|m| &m.traced_variables),
-            sites,
+            incr_creates_absent: ctx
+                .registry
+                .is_some_and(crate::value_transfer::typed_incr_creates_absent),
         }
     }
 
@@ -520,67 +375,137 @@ impl<'a> RaiseProof<'a> {
         match stmt {
             Statement::AssignConst { .. } => true,
             // An element read (`$a(k)`, `$a($i)`) raises when its base is a
-            // scalar or lacks the element, which the reads' definedness
+            // scalar or lacks the element, which the reads' existence
             // cannot show.
             Statement::AssignValue { value, .. } => {
                 folded() || (!has_element_substitution(value) && self.reads_are_set(block, idx))
+            }
+            Statement::Incr {
+                name,
+                name_braced,
+                amount,
+                ..
+            } => {
+                folded()
+                    || self.incr_cannot_raise(
+                        block,
+                        idx,
+                        crate::naming::element_var_name_braced(name, *name_braced),
+                        amount.as_deref(),
+                    )
             }
             _ => folded(),
         }
     }
 
-    /// Whether every variable the statement substitutes is definitely set.
+    /// Whether every variable the statement substitutes is bound as a scalar
+    /// where it reads it.
     fn reads_are_set(&self, block: crate::cfg::BlockId, idx: usize) -> bool {
-        let Some(ssa_stmt) = self
-            .fu
-            .ssa
-            .blocks
-            .get(&block)
-            .and_then(|b| b.statements.get(idx))
-        else {
+        let Some(ssa_stmt) = self.statement(block, idx) else {
             return false;
         };
         ssa_stmt
             .uses
-            .iter()
-            .filter(|(sym, _)| !ssa_stmt.quoted_uses.contains(sym))
-            .all(|(&sym, &ver)| {
-                let name = self.fu.ssa.var_name(sym);
-                !self.observed(name) && self.definitely_set(sym, ver, &mut HashSet::new())
+            .keys()
+            .filter(|sym| !ssa_stmt.quoted_uses.contains(sym))
+            .all(|&sym| {
+                !self.observed(self.fu.ssa.var_name(sym))
+                    && self.fu.sccp.existence_before(block, idx, sym)
+                        == Some(Existence::Bound(BindingKind::Scalar))
             })
     }
 
-    /// Whether `(sym, ver)` is set on every path that reaches it: a parameter
-    /// on entry, or a value every definition of which certainly writes it.
-    /// A φ cycle adds no unset input of its own, so a revisited value counts
-    /// as set; any unset input reaches the cycle through another φ operand.
-    fn definitely_set(
+    /// Whether `incr place ?amount?` at `idx` of `block` completes: an
+    /// integer literal amount, a scalar place unseen code cannot guard, which
+    /// holds an integer wherever it is bound, and a place bound where the
+    /// statement reads it unless the profile's releases all create an absent
+    /// one. An element's base may be a scalar, which the element's fact cannot
+    /// show, so an element is never proved.
+    fn incr_cannot_raise(
+        &self,
+        block: crate::cfg::BlockId,
+        idx: usize,
+        place: &str,
+        amount: Option<&str>,
+    ) -> bool {
+        if crate::naming::normalise_var_name(place) != place || self.observed(place) {
+            return false;
+        }
+        if amount.is_some_and(|amount| {
+            tcl_registry::value_transfer::ExactValue::from_literal(amount)
+                .as_int()
+                .is_none()
+        }) {
+            return false;
+        }
+        let Some(sym) = self.fu.ssa.var_symbol(place) else {
+            return false;
+        };
+        let holds_integer = || {
+            self.statement(block, idx)
+                .and_then(|ssa_stmt| ssa_stmt.uses.get(&sym))
+                .is_some_and(|&ver| self.integer_where_bound(sym, ver, &mut HashSet::new()))
+        };
+        match self.fu.sccp.existence_before(block, idx, sym) {
+            Some(Existence::Unbound) => self.incr_creates_absent,
+            Some(Existence::MayBound) => self.incr_creates_absent && holds_integer(),
+            Some(Existence::Bound(BindingKind::Scalar)) => holds_integer(),
+            _ => false,
+        }
+    }
+
+    /// Whether the version `(sym, ver)` holds an integer wherever the place
+    /// is bound: a constant integer, a φ every incoming value of which does,
+    /// or the entry value of a place nothing binds on entry. A φ cycle adds no
+    /// value of its own, so a revisited value counts; any other value reaches
+    /// the cycle through another φ operand.
+    fn integer_where_bound(
         &self,
         sym: crate::ssa::Symbol,
         ver: crate::ssa::Version,
         visiting: &mut HashSet<crate::ssa::ValueKey>,
     ) -> bool {
-        if ver == 0 {
-            let name = self.fu.ssa.var_name(sym);
-            return self.params.iter().any(|p| p == name)
-                || self.startup.is_some_and(|dialect| {
-                    let name = name.strip_prefix("::").unwrap_or(name);
-                    tcl_registry::special_vars::special_var(name).is_some_and(|v| {
-                        v.kind == tcl_registry::special_vars::SpecialVarKind::Scalar
-                    }) && tcl_registry::special_vars::is_initially_bound(name, Some(dialect))
-                });
-        }
+        use crate::analyses::{ConstValue, LatticeValue};
         if !visiting.insert((sym, ver)) {
             return true;
         }
-        match self.sites.get(&(sym, ver)) {
-            Some(DefSite::Stmt(writes)) => *writes,
-            Some(DefSite::Carry(prev)) => self.definitely_set(sym, *prev, visiting),
-            Some(DefSite::Phi(incoming)) => incoming
-                .iter()
-                .all(|&v| self.definitely_set(sym, v, visiting)),
-            None => false,
+        match self.fu.sccp.values.get(&(sym, ver)) {
+            Some(LatticeValue::Const(value)) => return matches!(value, ConstValue::Int(_)),
+            Some(LatticeValue::ConstSet(values)) => {
+                return values
+                    .iter()
+                    .all(|value| matches!(value, ConstValue::Int(_)));
+            }
+            _ => {}
         }
+        if ver == 0 {
+            return self.fu.sccp.existence.get(&(sym, 0)) == Some(&Existence::Unbound);
+        }
+        let incoming: Option<Vec<crate::ssa::Version>> =
+            self.fu.ssa.blocks.values().find_map(|b| {
+                b.phis
+                    .iter()
+                    .find(|phi| phi.name == sym && phi.version == ver)
+                    .map(|phi| phi.incoming.values().copied().collect())
+            });
+        incoming.is_some_and(|incoming| {
+            incoming
+                .into_iter()
+                .all(|v| self.integer_where_bound(sym, v, visiting))
+        })
+    }
+
+    /// The SSA statement at `idx` of `block`.
+    fn statement(
+        &self,
+        block: crate::cfg::BlockId,
+        idx: usize,
+    ) -> Option<&'a crate::ssa::SsaStatement> {
+        self.fu
+            .ssa
+            .blocks
+            .get(&block)
+            .and_then(|b| b.statements.get(idx))
     }
 }
 
@@ -609,99 +534,6 @@ fn has_element_substitution(word: &str) -> bool {
         }
     }
     false
-}
-
-/// Whether a word may run a command substitution: any unescaped `[`. The
-/// word's quoting is gone by now, so braces cannot be trusted to suppress
-/// one; a false positive only drops a target, keeping a store.
-fn has_command_substitution(word: &str) -> bool {
-    let mut chars = word.chars();
-    while let Some(c) = chars.next() {
-        match c {
-            '\\' => {
-                chars.next();
-            }
-            '[' => return true,
-            _ => {}
-        }
-    }
-    false
-}
-
-/// The variable targets of a command statement, split by how the registry
-/// says the invocation writes them. The targets are the call's `defs` that
-/// sit at the invocation's own `VarWrite` positions (see
-/// [`command_write_targets`]); a def taken from a script argument
-/// (`catch {set a 1} x` defining `a`) or a nested substitution is in neither.
-#[derive(Default)]
-struct CommandWriteTargets<'s> {
-    /// Written whenever the command completes (`UNCONDITIONAL_VARIABLE_WRITE`).
-    always: Vec<&'s str>,
-    /// Written only on a runtime match, else left as they were
-    /// (`CONDITIONAL_VARIABLE_WRITE`), or read before the write
-    /// (`READS_BEFORE_WRITE`: `lset`, `lpop`, `ledit`), so set after the
-    /// command exactly when they were set before it.
-    maybe: Vec<&'s str>,
-}
-
-fn command_write_targets<'s>(
-    stmt: &'s Statement,
-    registry: &CommandRegistry,
-) -> CommandWriteTargets<'s> {
-    let Statement::Call {
-        command,
-        canonical_command,
-        args,
-        defs,
-        ..
-    } = stmt
-    else {
-        return CommandWriteTargets::default();
-    };
-    let lookup = canonical_command.as_deref().unwrap_or(command);
-    let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-    let traits = registry.invocation_traits(lookup, &arg_strs, registry.own_surface_query());
-    let always = traits.contains(tcl_registry::Traits::UNCONDITIONAL_VARIABLE_WRITE);
-    let maybe = traits.contains(tcl_registry::Traits::CONDITIONAL_VARIABLE_WRITE)
-        || (traits.contains(tcl_registry::Traits::READS_BEFORE_WRITE)
-            && !traits.contains(tcl_registry::Traits::DESTROYS_VARIABLE));
-    if !always && !maybe {
-        return CommandWriteTargets::default();
-    }
-    // `defs` also carries names a nested substitution or a script argument
-    // assigns, so a target must be the word at one of the invocation's own
-    // `VarWrite` positions: `regsub x [regexp z a -> x] y out` targets `out`,
-    // not the inner `regexp`'s `x` that the pattern word happens to spell.
-    // An alias's prepended words are not kept on the call, so its positions
-    // are known only when no word substitutes a command that could define a
-    // name of its own.
-    let words: Vec<&str> = if canonical_command.is_none() {
-        registry
-            .arg_indices_for_role(lookup, &arg_strs, tcl_registry::ArgRole::VarWrite)
-            .into_iter()
-            .filter_map(|i| arg_strs.get(i).copied())
-            .collect()
-    } else if args.iter().any(|word| has_command_substitution(word)) {
-        Vec::new()
-    } else {
-        arg_strs.clone()
-    };
-    let names: Vec<&str> = defs
-        .iter()
-        .map(String::as_str)
-        .filter(|name| words.contains(name))
-        .collect();
-    if always {
-        CommandWriteTargets {
-            always: names,
-            maybe: Vec::new(),
-        }
-    } else {
-        CommandWriteTargets {
-            always: Vec::new(),
-            maybe: names,
-        }
-    }
 }
 
 /// Collect the qualified names of procs / methods that interprocedural
@@ -757,7 +589,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             None,
             &proc_index,
         );
-        emit_adce(ctx, &cu.top_level, &baseline, purity, None, true);
+        emit_adce(ctx, &cu.top_level, &baseline, purity, None);
     }
 
     // `manager::build_pass_context` populates this shared safety fact once,
@@ -783,7 +615,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             config: tcl_lexer::LexerConfig::for_profile(ctx.dialect),
         };
         let baseline = emit_dead_stores_and_unused(ctx, fu, false, purity, None, &proc_index);
-        emit_adce(ctx, fu, &baseline, purity, None, false);
+        emit_adce(ctx, fu, &baseline, purity, None);
     }
     ctx.cross_event_vars = saved_proc_cross;
 
@@ -816,7 +648,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         };
         let baseline =
             emit_dead_stores_and_unused(ctx, fu, false, purity, execution_namespace, &proc_index);
-        emit_adce(ctx, fu, &baseline, purity, execution_namespace, false);
+        emit_adce(ctx, fu, &baseline, purity, execution_namespace);
     }
     ctx.cross_event_vars = saved_cross;
 }
@@ -997,7 +829,7 @@ fn emit_dead_stores_and_unused(
         .registry
         .unwrap_or_else(|| tcl_registry::model::ingress::static_context_for("tcl8.6").commands());
     let scope_aliases = scan_scope_aliases(&fu.cfg, scan_registry);
-    let raise_proof = RaiseProof::new(ctx, fu, purity.enclosing_class, is_top_level);
+    let raise_proof = RaiseProof::new(ctx, fu);
     // Caller-locals this function passes by name to an
     // upvar callee — not dead/unused even when the name-level SSA sees
     // no read (the callee reads/writes it through the alias).
@@ -1058,11 +890,8 @@ fn emit_dead_stores_and_unused(
             purity,
             execution_namespace,
         };
-        if !assignment_safe_to_delete_with_effect(
-            stmt,
-            effect,
-            StatementSite::at(fu, def_block, idx),
-        ) || !raise_proof.value_cannot_raise(def_block, idx, stmt, &chain.key)
+        if !assignment_safe_to_delete_with_effect(stmt, effect)
+            || !raise_proof.value_cannot_raise(def_block, idx, stmt, &chain.key)
         {
             continue;
         }
@@ -1316,11 +1145,10 @@ fn emit_adce(
     baseline: &HashSet<(String, u32)>,
     purity: PurityCtx<'_>,
     execution_namespace: Option<&crate::ir::ExecutionNamespace>,
-    top_level: bool,
 ) {
     let (consumer_stmt_keys, keep_forever) = build_adce_consumers(fu);
     let stmt_to_defs = build_stmt_to_defs(fu);
-    let raise_proof = RaiseProof::new(ctx, fu, purity.enclosing_class, top_level);
+    let raise_proof = RaiseProof::new(ctx, fu);
     let removed = run_adce_fixpoint(
         fu,
         baseline,
@@ -1432,11 +1260,8 @@ fn run_adce_fixpoint(
             // statement live. This reuses the same `PurityCtx` /
             // `assignment_safe_to_delete` gate O109/DSE applies rather than
             // treating every assignment as pure.
-            if !assignment_safe_to_delete_with_effect(
-                stmt,
-                effect,
-                StatementSite::at(fu, def_block, idx),
-            ) || !raise_proof.value_cannot_raise(def_block, idx, stmt, key)
+            if !assignment_safe_to_delete_with_effect(stmt, effect)
+                || !raise_proof.value_cannot_raise(def_block, idx, stmt, key)
             {
                 continue;
             }
