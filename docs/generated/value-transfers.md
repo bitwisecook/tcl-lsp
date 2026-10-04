@@ -125,6 +125,14 @@ Every command, subcommand, and declaring form, resolved through the value-transf
 | `::tcl::mathop::ni` | command | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | — | pure, no route | — |
 | `::tcl::mathop::|` | command | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | — | pure, no route | — |
 | `::tcl::mathop::~` | command | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | — | pure, no route | — |
+| `::tcl::unsupported::grapheme index` | subcommand | tcl9.1, tk | none | — | — | no | — | pure, no route | — |
+| `::tcl::unsupported::grapheme length` | subcommand | tcl9.1, tk | none | — | — | no | — | pure, no route | — |
+| `::tcl::unsupported::grapheme next` | subcommand | tcl9.1, tk | none | — | — | no | `VarWrite@1` | writes a variable, no semantics | slice 7 — the grapheme cursor steps over a new shared core |
+| `::tcl::unsupported::grapheme offset` | subcommand | tcl9.1, tk | none | — | — | no | — | pure, no route | — |
+| `::tcl::unsupported::grapheme prev` | subcommand | tcl9.1, tk | none | — | — | no | `VarWrite@1` | writes a variable, no semantics | slice 7 — the grapheme cursor steps over a new shared core |
+| `::tcl::unsupported::grapheme range` | subcommand | tcl9.1, tk | none | — | — | no | — | pure, no route | — |
+| `::tcl::unsupported::grapheme reverse` | subcommand | tcl9.1, tk | none | — | — | no | — | pure, no route | — |
+| `::tcl::unsupported::grapheme split` | subcommand | tcl9.1, tk | none | — | — | no | — | pure, no route | — |
 | `<` | command | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | — | pure, no route | — |
 | `<<` | command | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | — | pure, no route | — |
 | `<=` | command | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | — | pure, no route | — |
@@ -896,6 +904,14 @@ Every command, subcommand, and declaring form, resolved through the value-transf
 | `tcl::prefix all` | subcommand | bpf, expect, mentor-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.6, tcl9.0, tcl9.1, tk | none | — | — | no | — | pure, no route | — |
 | `tcl::prefix longest` | subcommand | bpf, expect, mentor-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.6, tcl9.0, tcl9.1, tk | none | — | — | no | — | pure, no route | — |
 | `tcl::prefix match` | subcommand | bpf, expect, mentor-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.6, tcl9.0, tcl9.1, tk | none | — | — | no | — | pure, no route | — |
+| `tcl::unsupported::grapheme index` | subcommand | tcl9.1, tk | none | — | — | no | — | pure, no route | — |
+| `tcl::unsupported::grapheme length` | subcommand | tcl9.1, tk | none | — | — | no | — | pure, no route | — |
+| `tcl::unsupported::grapheme next` | subcommand | tcl9.1, tk | none | — | — | no | `VarWrite@1` | writes a variable, no semantics | slice 7 — the grapheme cursor steps over a new shared core |
+| `tcl::unsupported::grapheme offset` | subcommand | tcl9.1, tk | none | — | — | no | — | pure, no route | — |
+| `tcl::unsupported::grapheme prev` | subcommand | tcl9.1, tk | none | — | — | no | `VarWrite@1` | writes a variable, no semantics | slice 7 — the grapheme cursor steps over a new shared core |
+| `tcl::unsupported::grapheme range` | subcommand | tcl9.1, tk | none | — | — | no | — | pure, no route | — |
+| `tcl::unsupported::grapheme reverse` | subcommand | tcl9.1, tk | none | — | — | no | — | pure, no route | — |
+| `tcl::unsupported::grapheme split` | subcommand | tcl9.1, tk | none | — | — | no | — | pure, no route | — |
 | `tcl_endOfWord` | command | bpf, cadence-eda-tcl, expect, f5-iapps, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | — | pure, no route | — |
 | `tcl_findLibrary` | command | bpf, cadence-eda-tcl, expect, f5-iapps, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | `VarWrite@5`, `assigns_variable_at 5` | writes a variable, no semantics | slice 7 — a declared implementation for the Tcl-level library procedure |
 | `tcl_startOfNextWord` | command | bpf, cadence-eda-tcl, expect, f5-iapps, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | — | pure, no route | — |
@@ -1127,8 +1143,8 @@ Commands and subcommands that declare no semantics, write no variable, and decla
 | tcl8.5 | 2350 |
 | tcl8.6 | 2524 |
 | tcl9.0 | 2597 |
-| tcl9.1 | 2611 |
-| tk | 2627 |
+| tcl9.1 | 2613 |
+| tk | 2629 |
 | xilinx-eda-tcl | 3288 |
 
 ## Hand-written command knowledge outside the registry
@@ -1154,8 +1170,8 @@ Every reviewed site the source lint found, with the waiver that names the axis i
 | irreducible | `rust/tcl-compiler/src/codegen/emitter/try_blocks.rs:173` | site | the defs-only marker `lower_catch` builds on a catch end block, not a Tcl invocation |
 | irreducible | `rust/tcl-lsp-core/src/document_links.rs:350` | site | the pack grammar's own statements |
 | irreducible | `rust/tcl-lsp-core/src/document_links.rs:365` | site | the pack grammar's own statements |
-| options | `rust/tcl-compiler/src/analyser/diagnostics/usage.rs:313` | site | W311 reads the encoding option's position, which `option_placement` on the registry will carry |
-| options | `rust/tcl-compiler/src/analyser/diagnostics/usage.rs:316` | site | W311 reads the encoding option's position, which `option_placement` on the registry will carry |
+| options | `rust/tcl-compiler/src/analyser/diagnostics/usage.rs:314` | site | W311 reads the encoding option's position, which `option_placement` on the registry will carry |
+| options | `rust/tcl-compiler/src/analyser/diagnostics/usage.rs:317` | site | W311 reads the encoding option's position, which `option_placement` on the registry will carry |
 
 ## The ratchet
 

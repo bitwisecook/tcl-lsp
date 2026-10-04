@@ -1025,6 +1025,22 @@ const KNOWN_GAPS: &[(&str, &str)] = &[
         "slice 7 — the list cell updates over new shared cores",
     ),
     (
+        "::tcl::unsupported::grapheme next",
+        "slice 7 — the grapheme cursor steps over a new shared core",
+    ),
+    (
+        "::tcl::unsupported::grapheme prev",
+        "slice 7 — the grapheme cursor steps over a new shared core",
+    ),
+    (
+        "tcl::unsupported::grapheme next",
+        "slice 7 — the grapheme cursor steps over a new shared core",
+    ),
+    (
+        "tcl::unsupported::grapheme prev",
+        "slice 7 — the grapheme cursor steps over a new shared core",
+    ),
+    (
         "base32::core::define",
         "slice 7 — a declared implementation when the tcllib specs move to SpecTcl",
     ),

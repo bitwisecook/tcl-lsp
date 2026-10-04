@@ -580,6 +580,9 @@ mod schema_toml {
                 let (k, v) = kv.split_once('=').ok_or_else(|| {
                     BigipError::schema(format!("schema: bad ip_fields entry: {kv}"))
                 })?;
+                // registry-axis-ok: irreducible — the keys of the data schema's
+                // `ip_fields` table, not a Tcl command word: `offset` coincides
+                // with `grapheme`'s subcommand by spelling only; until never
                 match k.trim() {
                     "offset" => {
                         offset = Some(v.trim().parse().map_err(|_| {
