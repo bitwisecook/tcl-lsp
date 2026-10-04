@@ -10,22 +10,23 @@ says where each lane stands, what is queued, and how the work is run.
 
 | Lane | Tracking document | Landed | In flight | Remaining |
 |---|---|---|---|---|
-| Value transfers | [value-transfers.md](value-transfers.md) | slices 1, 2, 3, 4, 5, 8, 6 (reviewed, reworked in three rounds, re-checked "land as is") and 9 (`f06639de`); slice 10 item 3 complete: items 1, 2, 3a to 3e and 3d's remainder (`ddb53a10`, `b9ab4993`, `7ee77e66`, `6f86956d`, `07633485`, `e0675133`, `22be2fd0`, `aa0cc76e`) with the SpecTcl catalogue fix `1d3a937f`; item 4 complete (`513196e5` the reconciliation note, `596a5d86` the registry's handler chain and `try`'s protocol, `2ebf9756` the CFG half carrying `rust`'s #2230 change and reading the chain, with two `try` lowering defects fixed on the way); item 5 complete (`2e4cf3b9`: the prefix rule in the faithful-exceptions build, a `try` body split per statement with every split point wired to its handlers and `finally`, closing D225's open case; 1033 programs differential-clean on tclsh 8.6, 9.0 and 9.1 apart from the pre-existing O125 and O126 defects); the item 3 fix `823e1287` (a `catch` body's store counts as run only where its target is proved writable, closing the lane's own miscompile where a store to a variable that may be an array was taken as succeeding; D244); item 6 (`2d40a40f`: a loop absorbs `break` and `continue`, the registry's loop rule stating each loop's result, `foreach` empty and `lmap` the collected list; D245); item 7 part 1 (`2b67421e`: O109 and O126 read a chain's uses through the running-use rule, a store a later definition preserved counting as read, closing the lane's own item 3d defect; D246) | item 7 part 2 (three of the lane's own defects: a substitution-nested `catch` or `try` body's write as a definition that reads nothing, `scan` into an array going on as tclsh does, a region entry for a `try` body ending in a raise), then items 8 and 9 and the slice's landing commit, after which the implementer stops for the upstream merge | the rest of slice 10, then the fable review of slices 9 and 10 together with its fixes; then slices 11, 12, 7a, 13, 7, in that order |
+| Value transfers | [value-transfers.md](value-transfers.md) | slices 1, 2, 3, 4, 5, 8, 6 (reviewed, reworked in three rounds, re-checked "land as is") and 9 (`f06639de`); slice 10 item 3 complete: items 1, 2, 3a to 3e and 3d's remainder (`ddb53a10`, `b9ab4993`, `7ee77e66`, `6f86956d`, `07633485`, `e0675133`, `22be2fd0`, `aa0cc76e`) with the SpecTcl catalogue fix `1d3a937f`; item 4 complete (`513196e5` the reconciliation note, `596a5d86` the registry's handler chain and `try`'s protocol, `2ebf9756` the CFG half carrying `rust`'s #2230 change and reading the chain, with two `try` lowering defects fixed on the way); item 5 complete (`2e4cf3b9`: the prefix rule in the faithful-exceptions build, a `try` body split per statement with every split point wired to its handlers and `finally`, closing D225's open case; 1033 programs differential-clean on tclsh 8.6, 9.0 and 9.1 apart from the pre-existing O125 and O126 defects); the item 3 fix `823e1287` (a `catch` body's store counts as run only where its target is proved writable, closing the lane's own miscompile where a store to a variable that may be an array was taken as succeeding; D244); item 6 (`2d40a40f`: a loop absorbs `break` and `continue`, the registry's loop rule stating each loop's result, `foreach` empty and `lmap` the collected list; D245); item 7 part 1 (`2b67421e`: O109 and O126 read a chain's uses through the running-use rule, a store a later definition preserved counting as read, closing the lane's own item 3d defect; D246); item 7 part 2 (`754baa7b`: `scan` goes on past a store it cannot make as tclsh does, a write in a substitution-run `catch` or `try` body is a may-definition, a `try` body that never rests gets its region entry; D247 to D249, correcting D232 and D224); item 8 (`613c2147`: the slice's witnesses in all four build shapes, the registry's routes against tclsh 8.4 to 9.1, three CLI witnesses); item 9 (`379982e3`: the docs sweep, with two precision gaps recorded in `precision-limitations.md`); the landing (`4e7b15f2`: "slice 10" in the `registry-axes` gate's LANDED list, the ledgers regenerated unchanged, the migration page, the lanes README bullet and the lane doc's status section with what slice 11 starts from). Slice 10 is landed: slices 1 to 6 and 8 to 10 | nothing: the implementer is stopped at the landing for the upstream merge | the upstream merge; then the fable review of slices 9 and 10 together with its fixes; then slices 11, 12, 7a, 13, 7, in that order |
 | Consumer contracts | [consumer-contracts.md](consumer-contracts.md) | steps 1 to 9, each reviewed with fixes landed (the step 8 rework and step 9 review's fixes are `16e3a5a0`, `1b870f36`, `cdc7307a`); step 10 items 1 to 5 and item 6's first three parts (`69f5211b` the extension default, `ca5cc729` an extension described from three sources, `75b750df` the host load bridge, `141d30f0`, `2d570cf7` and `ecc1e4e2` one header for two hosts with its C-extension WASM gate, `599e7ac3`, `fb1c1dfe`, `0a562616` and `bfbac02f` the engine's completion, variable and package doors with the shim's side, its second test extension and the return options crossing the door; `56515003` the WASM runtime grown to a real extension's C API surface; `3d3956fd` `tcl spec import` describing one entry point at a time; `a3ce8d4c` the runtime as an engine with its own limits and confinement, every family run on both engines; `4f7d977a` the runtime compiled to `wasm32-wasip1` as an engine under in-process wasmtime in the new crate `rust/tcl-engine-wasm`, with the registry's extension-host seam; `1b4a5c78` on the main branch, the LSP e2e archive's committed closure taking `runtime/rust`, which the hook host's dev-dependency on the runtime pulled in and the merge gate caught; `c6e23a53` item 6 landed, its part 3 mutation run killing all twenty-one mutants after two tests were strengthened; `55feb617` step 10 landed: "step 10" in the `registry-axes` gate's LANDED list, the design page's status box, both design indexes, the lane doc's landing sections and the lanes README; `d8549edd` the step 10 review fixes: the C API's integer reads take C Tcl's ranges on every host, one `content_hash` helper for the artefact and implementation identities, a reused WASM engine granting its first-use fuel once, the extension host's evaluate path noted and the runtime's export list pinned, and two defects found on the way, an evaluation's epoch deadline outliving it and the side-module loader resolving any runtime export rather than the C API alone) | nothing: the lane is complete and reviewed | nothing |
 | Diagnostic policy | (landed; see the design page `docs/design/compiler/diagnostic-policy.md`) | complete | | |
 
 Branch heads at the last rewrite of this page: the main branch at the
-commit that rewrites this page, above the merge of `cc-step5` at
-`d8549edd` (`1cda89b6`) and `2b67421e` (slice 10 item 7 part 1);
-`cc-step5` at `d8549edd`, containing the main branch up to `3fd96fbf`,
-and receiving no further commits now that its lane is complete. `cc-step5` is
+commit that rewrites this page, above `4e7b15f2` (slice 10 landed);
+`cc-step5` at `d8549edd`, merged into the main branch as `1cda89b6`,
+containing the main branch up to `3fd96fbf`, and receiving no further
+commits now that its lane is complete. `cc-step5` is
 merged into the main branch, gated and pushed after every one of its
 commits, so nothing of either lane stays off GitHub for longer than one
 gate cycle.
 
 ## Queued on the running implementers
 
-- Value transfers: slice 10 item 7 part 2, items 8 and 9, then the landing commit. Item 4
+- Value transfers: stopped at the slice 10 landing; slice 11 starts on the
+  merged tree after the review of slices 9 and 10. Item 4
   (`try`) was shaped to reconcile with `rust`'s PR #2230
   (the try/finally reachability fix for #2142, absent from this branch's
   base) at the upstream merge: one implementation per fact, with a
@@ -40,7 +41,7 @@ gate cycle.
 
 ## After the lanes
 
-1. Merge `origin/rust` (at `aac0e0d5`, 254 commits above this branch's
+1. The current step: merge `origin/rust` (at `aac0e0d5`, 254 commits above this branch's
    base `08bceb36`: the dialects/tclspec editor-config generation, the
    jimtcl updates, the Rust 1.99.0 baseline this branch already carries,
    PR #2230, and PR #2196's handler-barrier series, which lands in the
@@ -73,10 +74,12 @@ gate cycle.
 
 ## How the work is run
 
-- Four worktrees: the main worktree on the branch (value transfers), a
-  second worktree on `cc-step5` (consumer contracts), and two detached
-  worktrees with their own `target/` for gates and reviews (one can hold a
-  running review while the other gates a push).
+- Four worktrees: the main worktree on the branch (value transfers, and
+  the upstream merge), a second worktree on `cc-step5` (consumer contracts,
+  complete; its `target/` was removed to free disk and is rebuilt only if a
+  review needs it), and two detached worktrees with their own `target/` for
+  gates and reviews (one can hold a running review while the other gates a
+  push; the first one's `target/` is also removed).
 - Every commit on the main branch is gated with `make rust-check` plus
   `cargo xtask dialect-drift` (eight pre-existing sites; a lane adds none)
   in a gate worktree, then pushed with
