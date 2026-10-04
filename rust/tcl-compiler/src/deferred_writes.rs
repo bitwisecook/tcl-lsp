@@ -66,7 +66,7 @@ use tcl_registry::{
 use tcl_syntax::word_rules::WordValueRules;
 
 use crate::cfg_builder::global_write_info::{
-    GlobalWriteInfo, detect_global_write_procs_with_registry,
+    GlobalWriteInfo, detect_global_write_procs_with_registry, own_frame_global_writes,
 };
 use crate::command_binding::ModuleCommandBindings;
 use crate::depth_guard::MAX_BRACKET_TEXT_DEPTH;
@@ -512,6 +512,83 @@ impl Scan<'_> {
                 }
             }
         }
+        for index in self
+            .registry
+            .arg_indices_for_role(head, &spellings, ArgRole::LambdaLiteral)
+        {
+            match args.get(index) {
+                Some(Arg::Literal(lambda)) => self.lambda(lambda, depth + 1),
+                Some(Arg::Substitution(_) | Arg::Dynamic) => self.out.any = true,
+                None => {}
+            }
+        }
+    }
+
+    /// A lambda a callback applies runs its body in a frame of its own, as a
+    /// procedure runs its body, so it writes in the global frame what a
+    /// procedure with that body would: the names its `global`, `variable`,
+    /// `upvar #0` and qualified spellings reach, and what the procedures it
+    /// calls write there ([`own_frame_global_writes`]); and the callbacks the
+    /// body registers are callbacks too. `apply` reads the lambda as a list of
+    /// its parameters, its body and the namespace the body runs in; a word that
+    /// is no such list raises before the body runs.
+    fn lambda(&mut self, text: &str, depth: u32) {
+        if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
+            self.out.any = true;
+            return;
+        }
+        let Ok(elements) = WordValueRules::of_profile(self.registry.profile()).split_list(text)
+        else {
+            return;
+        };
+        let (Some(body), 2..=3) = (elements.get(1), elements.len()) else {
+            return;
+        };
+        let namespace = elements.get(2).map_or_else(
+            || "::".to_owned(),
+            |namespace| tcl_syntax::naming::qualify("::", namespace),
+        );
+        let lowered = crate::lowering::lower_to_ir_with_dialect(
+            body,
+            self.registry,
+            self.config,
+            self.registry.profile(),
+        );
+        let procedures = self
+            .procedure_writes
+            .get_or_init(|| detect_global_write_procs_with_registry(self.module, self.registry));
+        let bindings = self
+            .bindings
+            .get_or_init(|| ModuleCommandBindings::analyse(self.module, self.registry));
+        // The lambdas the body applies are body units of its own lowering,
+        // each run in a frame of its own in the namespace its name holds.
+        let frames = std::iter::once((&lowered.top_level, namespace)).chain(
+            lowered
+                .body_units
+                .iter()
+                .filter(|(name, _)| lowered.lambda_body_units.contains(*name))
+                .map(|(name, unit)| {
+                    let (holder, _) = tcl_syntax::naming::key_holder_and_tail(name);
+                    let namespace = if holder.is_empty() { "::" } else { holder };
+                    (&unit.body, namespace.to_owned())
+                }),
+        );
+        let mut names = Vec::new();
+        for (body, namespace) in frames {
+            let info =
+                own_frame_global_writes(body, self.registry, bindings, &namespace, procedures);
+            self.out.any |= info.opaque_global_frame;
+            names.extend(info.names);
+        }
+        for name in &names {
+            self.note(name);
+        }
+        self.registrations(&lowered.top_level);
+        for (name, unit) in &lowered.body_units {
+            if lowered.lambda_body_units.contains(name) {
+                self.registrations(&unit.body);
+            }
+        }
     }
 
     /// A command that reaches the frame it runs in under names nothing states
@@ -778,6 +855,36 @@ mod tests {
         );
         assert!(writes("proc tick {} { set local 1 }\nafter 100 tick").is_clear());
         assert!(writes("proc tick {} { set ::done 1 }\ntick").is_clear());
+    }
+
+    /// A lambda a callback applies runs its body in a frame of its own, as a
+    /// procedure runs its body: what it writes in the global frame — through
+    /// `global`, a qualified name, `upvar #0`, a procedure it calls, a lambda
+    /// it applies or a callback it registers — is the callback's write, and
+    /// what it writes in its own frame is its own. A lambda the run time
+    /// computes may write anything.
+    #[test]
+    fn a_lambda_a_callback_applies_writes_what_its_body_writes_globally() {
+        for source in [
+            "after 10 {apply {{} {global done; set done 1}}}",
+            "after 10 {apply {{} {set ::done 1}}}",
+            "after 10 {apply {{} {upvar #0 done d; set d 1}}}",
+            "after 10 {apply {{x} {global done; set done $x}} 1}",
+            "after 10 [list apply {{x} {global done; set done $x}} 1]",
+            "set id [after idle {apply {{} {global done; set done 1}}}]",
+            "proc tick {} {global done; set done 1}\nafter 10 {apply {{} {tick}}}",
+            "after 10 {apply {{} {apply {{} {global done; set done 1}}}}}",
+            "after 10 {apply {{} {after 0 {set done 1}}}}",
+            "proc tick {} {global done; foreach done {1} {}}\nafter 10 tick",
+            "after 10 {apply {{} {global done; foreach done {1} {}}}}",
+        ] {
+            assert_eq!(names(source), ["done"], "{source}");
+        }
+        assert!(writes("after 10 {apply {{} {set local 1}}}").is_clear());
+        assert!(writes("after 10 {apply {{x} {incr x}} 1}").is_clear());
+        assert!(writes("after 10 {apply {{} {global done; puts $done}}}").is_clear());
+        assert!(writes("after 10 {apply $lambda}").any);
+        assert!(writes("after 10 {apply [lambda_of done]}").any);
     }
 
     /// A callback command that reaches the frame it runs in under names

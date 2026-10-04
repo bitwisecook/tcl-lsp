@@ -238,6 +238,34 @@ pub(crate) fn detect_global_write_procs_with_bindings(
     own
 }
 
+/// What `body`, run in a frame of its own whose commands resolve in
+/// `namespace` — a lambda's body, as `apply` runs it — writes in the global
+/// frame: what a procedure body's summary states of its own statements
+/// ([`own_body_global_writes`]), unioned with the summary of each procedure it
+/// calls (`procedures`, the map [`detect_global_write_procs_with_bindings`]
+/// builds), a called procedure the map does not hold making it opaque, as a
+/// procedure's transitive closure does.
+pub(crate) fn own_frame_global_writes(
+    body: &Script,
+    registry: &tcl_registry::CommandRegistry,
+    aliases: &ModuleCommandBindings,
+    namespace: &str,
+    procedures: &HashMap<String, GlobalWriteInfo>,
+) -> GlobalWriteInfo {
+    let mut info = own_body_global_writes(body, registry, aliases, namespace);
+    let (calls, calls_opaque) = direct_call_targets(body, registry, aliases, namespace);
+    info.opaque_global_frame |= calls_opaque;
+    for callee in calls {
+        match procedures.get(&callee) {
+            Some(summary) => {
+                info.union_from(summary);
+            }
+            None => info.opaque_global_frame = true,
+        }
+    }
+    info
+}
+
 /// Every call-site spelling of `qname`, from the one helper
 /// [`super::detect_upvar_procs`] and [`super::prepare_cfg_context`] also
 /// use — the three maps are looked up by the same key at the same call
@@ -845,6 +873,36 @@ fn own_write_targets(
                     .filter(|name| !declaration_targets.contains(normalise_var_name(name)))
                     .cloned(),
             );
+        }
+        // A command kept whole as a barrier writes what the SSA states it
+        // defines: a loop header's iteration variables, the targets of its
+        // variable-name words.
+        Statement::Barrier { .. } => {
+            out.extend(crate::ssa::defs_of_with_registry(stmt, Some(registry)));
+        }
+        // A structured statement's own bindings — a loop's iteration
+        // variables, a `catch`'s result and options variables, a `try`
+        // handler's — are writes as an assignment is; its bodies are walked
+        // as statements of their own.
+        Statement::Foreach { iterators, .. } => {
+            for iterator in iterators {
+                out.extend(
+                    iterator
+                        .vars
+                        .iter()
+                        .map(|name| crate::naming::element_var_name(name).to_owned()),
+                );
+            }
+        }
+        Statement::Catch {
+            result_var,
+            options_var,
+            ..
+        } => out.extend(result_var.iter().chain(options_var).cloned()),
+        Statement::Try { handlers, .. } => {
+            for handler in handlers {
+                out.extend(handler.var_name.iter().chain(&handler.options_var).cloned());
+            }
         }
         _ => {}
     }

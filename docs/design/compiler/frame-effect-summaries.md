@@ -15,6 +15,16 @@ Two per-procedure summaries model this, both computed once per module in
 | `UpvarInfo` | `cfg_builder/upvar_info.rs` | effects on the **immediate caller's** frame (`upvar 1`, `uplevel 1`) |
 | `GlobalWriteInfo` | `cfg_builder/global_write_info.rs` | effects on **global/namespace** cells (`global`, `variable`, `upvar #0`, `uplevel #0`) |
 
+`GlobalWriteInfo` counts every way a body writes a name that a `global`,
+`variable` or `upvar #0` makes outer, or that is spelled qualified: an
+assignment, a command's variable-name words and the value writes its
+invocation states, a command kept whole as a barrier (a loop header's
+iteration variables), and the bindings a structured statement makes of its
+own — a loop's iteration variables, a `catch`'s result and options variables,
+a `try` handler's. The same summary reads a lambda an `after` callback applies
+(`own_frame_global_writes`), whose body runs in a frame of its own as a
+procedure's does.
+
 The frame table (pinned on tclsh 9.0.4 / 8.6.14, see `upvar_info.rs`'s module
 doc for transcripts):
 

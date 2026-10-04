@@ -1171,8 +1171,18 @@ substitution of a command the registry states builds a command prefix
 read as the one script its words concatenate into, the way `concat` joins
 them: the registry names the position of the form that has one word for it,
 and the scan asks again with the words from the first position that names one
-joined into that word. A callback the scan cannot read may write any
-variable, and `DeferredWrites::any` makes every name externally mutable, as a
+joined into that word. A lambda a callback applies (`after 10 {apply {{} {global
+done; set done 1}}}`, the registry's `ArgRole::LambdaLiteral` word) runs its
+body in a frame of its own, as a procedure runs its body, so the scan reads it
+as the procedure summary reads a body
+(`global_write_info::own_frame_global_writes`): the names its `global`,
+`variable`, `upvar #0` and qualified spellings reach, the iteration and result
+variables it binds under them, what the procedures it calls write in the
+global frame, and the lambdas it applies in turn, each in the namespace its
+lambda names; and the callbacks its body registers are callbacks too. A lambda
+the run time computes may write anything. A callback the scan cannot read may
+write any variable, and `DeferredWrites::any` makes every name externally
+mutable, as a
 trace on a computed name does: a word the run time computes (`after 100
 $script`), a substitution of a command that builds no command prefix, a `{*}`
 expansion of a command that stores a script, a computed command head, a

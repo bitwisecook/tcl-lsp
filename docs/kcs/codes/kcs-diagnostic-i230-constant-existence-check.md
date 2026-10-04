@@ -175,8 +175,8 @@ if {$g} { puts a } else { puts b }                 ;# no I230, as for $::g
   `dict with`); the name holds its earlier value only on the paths where no
   arm runs.
 - A callback script stored anywhere in the file (`after`, `fileevent`,
-  `bind`, a variable trace's callback, a procedure named as one, a command
-  prefix built with `list`, a script spelled as several words such as `after
+  `bind`, a variable trace's callback, a procedure named as one, a lambda one
+  applies, a command prefix built with `list`, a script spelled as several words such as `after
   100 set done 1`) runs outside the registering code, so a name it writes is
   never a constant, in the top-level script or in any procedure. A callback
   the analyser cannot read — `after 100 $script`, a command the file does not

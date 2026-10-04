@@ -6492,6 +6492,39 @@ fn a_stub_that_states_its_frame_effect_is_a_named_head() {
     }
 }
 
+/// A lambda an `after` callback applies runs its body in a frame of its own,
+/// so what it writes in the global frame is the callback's write: the scan of
+/// callback scripts reads the lambda as a procedure's summary reads a body,
+/// and `$done` after `update` decides nothing. Each program prints `changed`
+/// and `1` under tclsh 8.5 to 9.1, before and after `tcl opt`, where the
+/// rewrite had printed `zero` and `0`.
+#[test]
+fn a_lambda_a_callback_applies_writes_the_globals_its_body_writes() {
+    for (lambda, words) in [
+        ("{} {global done; set done 1}", ""),
+        ("{} {set ::done 1}", ""),
+        ("{} {upvar #0 done d; set d 1}", ""),
+        ("{} {incr ::done}", ""),
+        ("{} {global done; foreach done {1} {}}", ""),
+        ("{} {global done; catch {set done 1}}", ""),
+        ("{} {uplevel #0 {set done 1}}", ""),
+        ("{} {apply {{} {global done; set done 1}}}", ""),
+        ("{} {after 0 {set done 1}; update}", ""),
+        ("{x} {global done; set done $x}", " 1"),
+    ] {
+        for callback in [
+            format!("after 10 {{apply {{{lambda}}}{words}}}"),
+            format!("after 10 [list apply {{{lambda}}}{words}]"),
+        ] {
+            let source = format!(
+                "set done 0\n{callback}\nafter 50\nupdate\n\
+                 if {{$done eq 0}} {{puts zero}} else {{puts changed}}\nputs $done\n"
+            );
+            prints_under_releases_from(&source, "changed\n1\n", "8.5");
+        }
+    }
+}
+
 /// A `try` body that cannot fall through is thrown to from the point it
 /// raises at, and its first command may fail before it stores anything, with
 /// the state the body entered with: after `try {set x [expr {1 / $d}]; error

@@ -56,8 +56,9 @@ with the whole-module `Module::traced_variables` and
 names the module's callback scripts write, destroy or bind — the words the
 registry states as scripts stored to run later (`CommandRegistry::
 callback_script_indices`: `after`, `fileevent`, `bind`, a variable trace's
-callback, never a definition's body, which runs in a frame of its own) and
-what a procedure named as a callback writes in the global frame
+callback, never a definition's body, which runs in a frame of its own), what
+a procedure named as a callback writes in the global frame, and what a lambda
+a callback applies writes there, read as a procedure's body is
 (`deferred_writes.rs`); a callback the scan cannot read — one that writes a
 computed name, a computed word, a command the module does not define — makes
 every name externally mutable, as a trace on a computed name does. SCCP applies

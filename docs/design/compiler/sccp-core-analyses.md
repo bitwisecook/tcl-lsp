@@ -75,8 +75,10 @@ regardless of what is assigned to it, so anything derived from it is
 - the names the module's callback scripts write, destroy or bind
   (`Module::deferred_writes`, carried by `TraceInputs` into every function,
   the top level and each procedure): an `after`, `fileevent`, `bind` or
-  variable-trace script runs outside the code that registered it, and so does
-  a procedure named as one. The registry states which words are such scripts
+  variable-trace script runs outside the code that registered it, and so do a
+  procedure named as one and a lambda one applies, whose global writes are
+  read as a procedure summary reads a body. The registry states which words
+  are such scripts
   (`CommandRegistry::callback_script_indices`); the scan over them
   (`deferred_writes.rs`) names no command. A callback that writes a computed
   name makes every name escaping, as a trace on a computed name does, and so
