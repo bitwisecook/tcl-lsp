@@ -318,29 +318,6 @@ pub fn innermost_scope_is_oo_method_frame(root: &Scope, byte_offset: u32) -> boo
     innermost_oo_frame(root, byte_offset, |child| child.oo_method_frame)
 }
 
-/// Whether code at `byte_offset` runs in a procedure's own frame — a `proc`
-/// body, a `TclOO` method body, an `apply` lambda — where a plain name is a
-/// local of that frame, rather than in a frame whose plain names are a
-/// namespace's variables: the top level, a `namespace eval` body, an
-/// `uplevel #0` body.
-///
-/// The innermost containing scope that opens a frame decides, on the descent
-/// [`innermost_oo_frame`] takes.
-#[must_use]
-pub fn innermost_frame_is_procedure(root: &Scope, byte_offset: u32) -> bool {
-    let mut procedure = false;
-    let mut cursor = root;
-    while let Some(child) = innermost_containing_child(cursor, byte_offset) {
-        procedure = match child.kind {
-            ScopeKind::Proc | ScopeKind::Method => true,
-            ScopeKind::Namespace | ScopeKind::Uplevel => false,
-            ScopeKind::Global => procedure,
-        };
-        cursor = child;
-    }
-    procedure
-}
-
 /// Shared descent for the two `TclOO` frame predicates above: walk to the
 /// innermost containing scope, remembering what the *last*
 /// namespace-resolution-affecting scope kind on the way down said.

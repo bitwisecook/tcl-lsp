@@ -433,6 +433,7 @@ impl Analyser {
         registry: &tcl_registry::CommandRegistry,
     ) {
         self.settle_cu_derived_object_facts(cu, registry);
+        self.settle_w123_widening(cu);
 
         // **W128.** Flag calls to commands renamed or
         // deleted earlier in the file via the flow-sensitive

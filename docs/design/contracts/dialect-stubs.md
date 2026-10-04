@@ -140,9 +140,14 @@ level every global does, so a constant held across the call is not folded
 (`I230`, `O112`), a store the call may read is kept (`W211`, `W220`, `O109`),
 and `[info exists]` after it decides nothing. That is what leaving the frame
 effect unstated costs, and the conservative default it buys: a stub never
-claims a frame effect its author did not state. `W123` on a head in a
-procedure's frame ends with a sentence that says so and names the declaration
-that keeps the locals.
+claims a frame effect its author did not state. `W123` ends with a sentence
+that says so wherever the call widens — where the flow graph marks it as a call
+to code the module cannot see (`SyntheticMarker::UnseenCall`), the one fact
+the widening reads (`Analyser::settle_w123_widening`) — and names the
+declaration that keeps the variables. `tcl opt` does not read stub declarations
+yet (#2366): `optimise_source_multipass` builds its unit without the
+document's declared surface, so there a stubbed command is a call to code the
+module cannot see, whatever the stub states.
 
 **A plain call is a named head.** A declaration names its command to the flow
 graph when it states its frame effect and states nothing else the flow graph

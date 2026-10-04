@@ -846,32 +846,37 @@ puts $result
     );
 }
 
-/// A `W123` head in a procedure's own frame — a `proc` body, a method's, a
-/// lambda's — is a call the flow graph widens the procedure's locals at
-/// (D250), so its message ends with the sentence that says so and names the
-/// stub that keeps them; at the top level, in a `namespace eval` body and in
-/// an `uplevel #0` body no local is widened, and the message is the bare
-/// report.
+/// A `W123` whose call the flow graph widens — it marks the call as one to
+/// code the module cannot see — ends with the sentence that says so and names
+/// the stub that keeps the variables: at the top level, in a `namespace eval`
+/// body, in a procedure, a method and a lambda. A report whose call the graph
+/// does not widen where it is written, as in an `uplevel #0` body, ends as it
+/// was. The top-level `$g == 5` after `db_query x` draws no `I230`: the
+/// sentence stands where the widening does.
 #[test]
-fn w123_in_a_procedure_frame_says_the_call_widens_its_locals() {
+fn w123_says_the_call_widens_where_it_does() {
     let src = "proc p {} {\n    set g 5\n    db_query {select 1}\n    strng length abc\n    \
                namespace eval ns { db_ns_call }\n    uplevel #0 { db_up_call }\n    \
                apply {{} { db_lambda_call }}\n    puts $g\n}\n\
                oo::class create C { method m {} { db_method_call } }\n\
-               db_query {select 2}\n";
+               set g 5\ndb_query x\nif {$g == 5} {puts five} else {puts other}\n";
     let mut a = crate::analyser::Analyser::new();
-    let unknown: Vec<(u32, String)> = a
-        .analyse(src, "tcl8.6")
-        .diagnostics
+    let diagnostics = a.analyse(src, "tcl8.6").diagnostics;
+    assert!(
+        !diagnostics.iter().any(|d| d.code == DiagCode::I230),
+        "the top-level call widens `g`: {diagnostics:?}"
+    );
+    let unknown: Vec<(u32, String)> = diagnostics
         .iter()
         .filter(|d| d.code == DiagCode::W123)
         .map(|d| (d.span.start(), d.message.clone()))
         .collect();
     let hint = |name: &str| {
         format!(
-            "The call widens this procedure's locals held at it; a `# tcl-lsp: stub {name} {{…}} \
-             -frame own` (or `-frame none`) declaration keeps them when every argument is a \
-             value, name, pattern or channel and no flag but `-pure` or `-unsafe` is set."
+            "The call widens the variables held at it, in a procedure's own frame its locals; a \
+             `# tcl-lsp: stub {name} {{…}} -frame own` (or `-frame none`) declaration keeps them \
+             when every argument is a value, name, pattern or channel and no flag but `-pure` or \
+             `-unsafe` is set."
         )
     };
     let message_at = |needle: &str, nth: usize| {
@@ -882,10 +887,19 @@ fn w123_in_a_procedure_frame_says_the_call_widens_its_locals() {
             .map(|(_, message)| message.clone())
             .expect("a W123")
     };
-    assert_eq!(
-        message_at("db_query", 0),
-        format!("Unknown command 'db_query'. {}", hint("db_query"))
-    );
+    for (head, nth) in [
+        ("db_query", 0),
+        ("db_ns_call", 0),
+        ("db_lambda_call", 0),
+        ("db_method_call", 0),
+        ("db_query", 1),
+    ] {
+        assert_eq!(
+            message_at(head, nth),
+            format!("Unknown command '{head}'. {}", hint(head)),
+            "{head} #{nth}"
+        );
+    }
     assert_eq!(
         message_at("strng", 0),
         format!(
@@ -894,26 +908,10 @@ fn w123_in_a_procedure_frame_says_the_call_widens_its_locals() {
         )
     );
     assert_eq!(
-        message_at("db_lambda_call", 0),
-        format!(
-            "Unknown command 'db_lambda_call'. {}",
-            hint("db_lambda_call")
-        )
+        message_at("db_up_call", 0),
+        "Unknown command 'db_up_call'",
+        "an `uplevel #0` body is not lowered where it is written"
     );
-    assert_eq!(
-        message_at("db_method_call", 0),
-        format!(
-            "Unknown command 'db_method_call'. {}",
-            hint("db_method_call")
-        )
-    );
-    for (head, nth) in [("db_ns_call", 0), ("db_up_call", 0), ("db_query", 1)] {
-        assert_eq!(
-            message_at(head, nth),
-            format!("Unknown command '{head}'"),
-            "{head}"
-        );
-    }
 }
 
 /// FN half: descending the lambda's *body* element is what makes the

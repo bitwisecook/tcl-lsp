@@ -148,22 +148,71 @@ pub(super) fn group_defs_by_tail<'a>(
     map
 }
 
-/// The sentence a `W123` in a procedure's frame ends with: a call to a
-/// command the module cannot name may reach the frame that calls it
-/// (`upvar 1`, `uplevel 1`), so the flow graph widens the locals the
-/// procedure holds at the call, and a stub of `name` stating its frame effect
-/// as a plain call
+/// The sentence a `W123` ends with where its call widens: a call to a command
+/// the module cannot name may reach the frame that calls it (`upvar 1`,
+/// `uplevel 1`), so the flow graph widens the variables that frame holds at
+/// the call — in a procedure's own frame, its locals — and a stub of `name`
+/// stating its frame effect as a plain call
 /// ([`tcl_registry::model::DeclaredCommand::plain_call_frame_effect`]) names
 /// the command, so they are kept.
 fn widening_hint(name: &str) -> String {
     format!(
-        "The call widens this procedure's locals held at it; a `# tcl-lsp: stub {name} {{…}} \
-         -frame own` (or `-frame none`) declaration keeps them when every argument is a value, \
-         name, pattern or channel and no flag but `-pure` or `-unsafe` is set."
+        "The call widens the variables held at it, in a procedure's own frame its locals; a \
+         `# tcl-lsp: stub {name} {{…}} -frame own` (or `-frame none`) declaration keeps them \
+         when every argument is a value, name, pattern or channel and no flag but `-pure` or \
+         `-unsafe` is set."
     )
 }
 
 impl Analyser {
+    /// End each `W123` whose call widens with the sentence that says so
+    /// ([`widening_hint`]), decided by the fact the widening reads: the flow
+    /// graph of `cu` puts the marker for a call to code the module cannot see
+    /// ([`crate::ir::SyntheticMarker::UnseenCall`]) over the call, at the top
+    /// level, in a `namespace eval` body and in a procedure's own frame
+    /// alike. A report whose call no marker covers — one the graph does not
+    /// lower where it is written, as an `uplevel #0` body's — ends as it was.
+    pub(super) fn settle_w123_widening(&mut self, cu: &crate::compilation_unit::CompilationUnit) {
+        if self.result.unresolved_command_sites.is_empty() {
+            return;
+        }
+        let markers: Vec<tcl_lexer::Span> = std::iter::once(&cu.top_level)
+            .chain(cu.procedures.values())
+            .chain(cu.methods.values())
+            .chain(cu.body_units.values())
+            .flat_map(|unit| unit.cfg.blocks.values())
+            .flat_map(|block| &block.statements)
+            .filter(|statement| crate::ssa::is_unseen_call_marker(statement))
+            .map(crate::ir::Statement::span)
+            .collect();
+        let widening: Vec<(tcl_lexer::Span, String)> = self
+            .result
+            .unresolved_command_sites
+            .iter()
+            .filter(|(site, _)| {
+                markers
+                    .iter()
+                    .any(|marker| marker.start() <= site.start() && site.end() <= marker.end())
+            })
+            .cloned()
+            .collect();
+        for diagnostic in &mut self.result.diagnostics {
+            if diagnostic.code != DiagCode::W123 {
+                continue;
+            }
+            let Some((_, name)) = widening.iter().find(|(site, _)| *site == diagnostic.span) else {
+                continue;
+            };
+            let joint = if diagnostic.message.ends_with('?') {
+                " "
+            } else {
+                ". "
+            };
+            diagnostic.message.push_str(joint);
+            diagnostic.message.push_str(&widening_hint(name));
+        }
+    }
+
     /// W123 — unknown / unresolved command head.
     ///
     /// Walks every command invocation recorded during the
@@ -1069,13 +1118,6 @@ impl Analyser {
                     // W123: an edit-distance guess at the intended command.
                     safety: crate::irules_checks::FixSafety::RequiresReview,
                 });
-            }
-            if crate::analyser::scope::innermost_frame_is_procedure(
-                &self.result.global_scope,
-                inv.range.start(),
-            ) {
-                message.push_str(if suggestions.is_empty() { ". " } else { " " });
-                message.push_str(&widening_hint(name));
             }
             self.result.diagnostics.push(
                 crate::analyser::types::Diagnostic::new(

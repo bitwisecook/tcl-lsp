@@ -223,8 +223,9 @@ its `-frame`. A `body` argument is treated as a script that runs where the
 command is called, as a built-in command's body is, so the call still affects
 what tcl-lsp knows of every variable.
 
-A `W123` hint on an unknown command inside a procedure says the same thing and
-names the stub that would keep the procedure's variables.
+A `W123` hint on an unknown command says the same thing wherever the call
+makes tcl-lsp forget the variables it holds, and names the stub that would
+keep them.
 
 ### Stubbing a command tcl-lsp already knows
 
@@ -248,6 +249,9 @@ usually a mistake.
   analyser stops calling it unknown; it does not make tcl-lsp count the
   arguments you pass. Where a stub shadows a built-in command, it
   *suppresses* the built-in arity and subcommand checks instead.
+- **`tcl opt` does not read it yet** (#2366). The optimiser treats a stubbed
+  command as one it cannot see, whatever the stub states; `tcl diag` and the
+  editor read it.
 - **It does not carry types or options, and its only side effects are the
   ones its flags state.** The rest needs a real registry entry — see
   [how to add a library to the command registry](kcs-howto-add-command-registry-package.md).
