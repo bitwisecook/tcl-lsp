@@ -131,28 +131,13 @@ pub enum ControlArmSemantics {
     Uncertain,
 }
 
-/// Registry-parsed completion selector for an `on` clause in `try`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TryCompletionSelector {
-    /// Normal completion (`ok` / code 0).
-    Ok,
-    /// Error completion (`error` / code 1).
-    Error,
-    /// Procedure return completion (`return` / code 2).
-    Return,
-    /// Loop break completion (`break` / code 3).
-    Break,
-    /// Loop continue completion (`continue` / code 4).
-    Continue,
-    /// A valid numeric completion code outside the named core codes.
-    Numeric(i32),
-}
-
 /// Registry-parsed kind of one `try` clause.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TryClauseKind {
-    /// `on code variableList script`.
-    On(TryCompletionSelector),
+    /// `on code variableList script`, with the completion code the clause's
+    /// selector names — one of the five standard spellings or an integer
+    /// code, decoded by [`crate::completion::completion_code_selector`].
+    On(crate::completion::CompletionCode),
     /// `trap pattern variableList script`.
     Trap,
     /// `finally script`.
@@ -275,31 +260,6 @@ fn exact_process_exit_completion(
     }
 }
 
-fn parse_try_completion_selector(
-    selector: &str,
-    numbers: tcl_syntax::number::Numbers,
-) -> Option<TryCompletionSelector> {
-    match selector {
-        "ok" => Some(TryCompletionSelector::Ok),
-        "error" => Some(TryCompletionSelector::Error),
-        "return" => Some(TryCompletionSelector::Return),
-        "break" => Some(TryCompletionSelector::Break),
-        "continue" => Some(TryCompletionSelector::Continue),
-        _ => crate::completion::canonical_completion_code(selector, numbers).map(|code| {
-            match crate::completion::CompletionCode::from_int(code) {
-                crate::completion::CompletionCode::Ok => TryCompletionSelector::Ok,
-                crate::completion::CompletionCode::Error => TryCompletionSelector::Error,
-                crate::completion::CompletionCode::Return => TryCompletionSelector::Return,
-                crate::completion::CompletionCode::Break => TryCompletionSelector::Break,
-                crate::completion::CompletionCode::Continue => TryCompletionSelector::Continue,
-                crate::completion::CompletionCode::Other(code) => {
-                    TryCompletionSelector::Numeric(code)
-                }
-            }
-        }),
-    }
-}
-
 fn parse_try_control_invocation(
     plan: &crate::ClausePlan,
     args: &[&str],
@@ -329,9 +289,9 @@ fn parse_try_control_invocation(
                 let (selector_index, handler) = clause.handler()?;
                 let selector = *args.get(selector_index)?;
                 let kind = match handler {
-                    crate::value_transfer::HandlerMatch::CompletionCode => {
-                        TryClauseKind::On(parse_try_completion_selector(selector, numbers)?)
-                    }
+                    crate::value_transfer::HandlerMatch::CompletionCode => TryClauseKind::On(
+                        crate::completion::completion_code_selector(selector, numbers)?,
+                    ),
                     crate::value_transfer::HandlerMatch::ErrorCodePrefix => {
                         if tcl_syntax::naming::is_dynamic_word(selector)
                             || tcl_syntax::list::split_list(selector).is_err()
@@ -12906,7 +12866,7 @@ mod tests {
             Some(TryControlInvocation {
                 body_index: 0,
                 clauses: vec![TryControlClause {
-                    kind: TryClauseKind::On(TryCompletionSelector::Error),
+                    kind: TryClauseKind::On(crate::completion::CompletionCode::Error),
                     selector_index: Some(2),
                     variable_list_index: Some(3),
                     body_index: 4,
@@ -12997,7 +12957,7 @@ mod tests {
         for spelling in ["+1", "01", "0x1", " 1 "] {
             assert_eq!(
                 selector(tcl9, spelling),
-                Some(TryCompletionSelector::Error),
+                Some(crate::completion::CompletionCode::Error),
                 "Tcl 9 completion selector {spelling:?}"
             );
         }
@@ -13013,18 +12973,18 @@ mod tests {
         let tcl8 = crate::model::ingress::static_context_for("tcl8.6").commands();
         assert_eq!(
             selector(tcl8, "010"),
-            Some(TryCompletionSelector::Numeric(8))
+            Some(crate::completion::CompletionCode::Other(8))
         );
         assert_eq!(
             selector(tcl9, "010"),
-            Some(TryCompletionSelector::Numeric(10))
+            Some(crate::completion::CompletionCode::Other(10))
         );
 
         // Completion codes use Tcl's C-compatible signed-int domain: the
         // final unsigned range wraps, while values outside it are invalid.
         assert_eq!(
             selector(tcl9, "4294967295"),
-            Some(TryCompletionSelector::Numeric(-1))
+            Some(crate::completion::CompletionCode::Other(-1))
         );
         for out_of_range in ["-2147483649", "4294967296", "9223372036854775808"] {
             assert_eq!(
@@ -13062,7 +13022,7 @@ mod tests {
         assert!(matches!(
             invocation.clauses.as_slice(),
             [TryControlClause {
-                kind: TryClauseKind::On(TryCompletionSelector::Numeric(10)),
+                kind: TryClauseKind::On(crate::completion::CompletionCode::Other(10)),
                 ..
             }]
         ));

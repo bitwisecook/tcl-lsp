@@ -22,8 +22,9 @@
 //! bytecodes for `catch` and `try` commands.
 
 use tcl_bytecode::ErrorStackContext;
+use tcl_registry::completion::CompletionCode;
 use tcl_registry::hooks::{InlineCodegenHookId, LoweringHookId};
-use tcl_registry::{CommandRegistry, Traits, TryClauseKind, TryCompletionSelector};
+use tcl_registry::{CommandRegistry, Traits, TryClauseKind};
 use tcl_runtime_api::completion_options::ControlOptionPolicy;
 
 use crate::cfg::Function as CfgFunction;
@@ -217,7 +218,7 @@ impl CodegenCtx<'_> {
         let [clause] = invocation.clauses.as_slice() else {
             return None;
         };
-        if clause.kind != TryClauseKind::On(TryCompletionSelector::Error)
+        if clause.kind != TryClauseKind::On(CompletionCode::Error)
             || clause.fallthrough
             || !args[invocation.body_index].1
             || !args[clause.body_index].1

@@ -317,7 +317,7 @@ pub use profile_queries::VendorSurface;
 pub use registry::{
     CommandRegistry, EffectiveCommandSemantics, EffectiveRegistrySemantics, FormatStringArg,
     MethodDispatchKind, NameProviders, ProcedureWords, ResolvedCall, ResolvedTerminator,
-    TryClauseKind, TryCompletionSelector, TryControlClause, TryControlInvocation,
+    TryClauseKind, TryControlClause, TryControlInvocation,
 };
 pub use relation::{
     Relation, RelationFactSource, RelationKind, RelationMode, RelationTermKind, RelationVerdict,
