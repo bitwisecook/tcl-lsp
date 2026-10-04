@@ -7167,3 +7167,127 @@ fn a_split_try_body_keeps_what_its_handlers_were_proved() {
     }
     prints_under_releases_from(breaks_after_stores, "5\n", "8.6");
 }
+
+/// The blocks of `proc`'s `puts` statements, in source order.
+fn puts_blocks(unit: &CompilationUnit, proc: &str) -> Vec<tcl_compiler::cfg::BlockId> {
+    let function = unit.procedures.get(proc).expect("the procedure");
+    let mut found: Vec<(u32, tcl_compiler::cfg::BlockId)> = function
+        .cfg
+        .blocks
+        .iter()
+        .flat_map(|(&id, block)| {
+            block
+                .statements
+                .iter()
+                .filter(|statement| {
+                    matches!(statement, Statement::Call { command, .. } if command == "puts")
+                })
+                .map(move |statement| (statement.span().start(), id))
+        })
+        .collect();
+    found.sort_unstable();
+    found.into_iter().map(|(_, id)| id).collect()
+}
+
+/// The value `var`'s version `version` holds at `block` of `proc`: the
+/// block-qualified lookup, which a refinement in force there narrows.
+fn value_in(
+    unit: &CompilationUnit,
+    proc: &str,
+    block: tcl_compiler::cfg::BlockId,
+    var: &str,
+    version: u32,
+) -> Option<LatticeValue> {
+    let function = unit.procedures.get(proc).expect("the procedure");
+    let symbol = function.ssa.var_symbol(var).expect("the variable");
+    function.sccp.value_at(block, (symbol, version)).cloned()
+}
+
+/// A refinement never makes a version, and a merge keeps only what every
+/// path into it carries: the arms of `if {$x eq "a"} … elseif {$x eq "b"}`
+/// hold `x` at `a` and at `b`, and where they meet — the `else` arm returns,
+/// so only the two refined arms reach the `puts` past them — `x` reads as
+/// its own value, never as either refinement or a set of the two. tclsh 8.4
+/// to 9.1 print `a 1`, `a`, `b 2` and `b` for `p a; p b; p c`, before and
+/// after `tcl opt`.
+#[test]
+fn a_merge_drops_the_refinement() {
+    let source = "proc p {x} {\n    if {$x eq \"a\"} {\n        set r 1\n    } elseif {$x eq \"b\"} {\n        set r 2\n    } else {\n        return\n    }\n    puts \"$x $r\"\n    puts $x\n}\np a\np b\np c\n";
+    for dialect in DIALECTS {
+        let unit = unit_of(source, dialect);
+        let function = unit.procedures.get("::p").expect("the procedure");
+        let refined: Vec<String> = function
+            .sccp
+            .refinements
+            .iter()
+            .filter_map(|refinement| match &refinement.fact {
+                tcl_registry::value_transfer::FactView::Exact(value, _) => {
+                    Some(String::from_utf8_lossy(&value.bytes).into_owned())
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            refined,
+            ["a", "b"],
+            "{dialect}: each arm's edge refines `x`"
+        );
+        let blocks: Vec<_> = function
+            .cfg
+            .blocks
+            .iter()
+            .filter_map(|(&id, block)| {
+                block
+                    .statements
+                    .iter()
+                    .find_map(|statement| match statement {
+                        Statement::AssignConst { name, value, .. } if name == "r" => {
+                            Some((value.clone(), id))
+                        }
+                        _ => None,
+                    })
+            })
+            .collect();
+        for (value, block) in blocks {
+            let expected = if value == "1" { "a" } else { "b" };
+            assert_eq!(
+                value_in(&unit, "::p", block, "x", 0),
+                Some(text(expected)),
+                "{dialect}: the arm that sets `r` to {value} holds `x` at {expected}"
+            );
+        }
+        for block in puts_blocks(&unit, "::p") {
+            assert_eq!(
+                value_in(&unit, "::p", block, "x", 0),
+                value_at(&unit, "::p", "x", 0),
+                "{dialect}: past the merge `x` is its own value"
+            );
+            assert_eq!(function.sccp.refinements_in(block).count(), 0, "{dialect}");
+        }
+    }
+    prints_under_every_release(source, "a 1\na\nb 2\nb\n");
+}
+
+/// A traced variable is never refined: a read trace may write the variable
+/// as the read runs, so the `$x` the arm prints need not be the `a` the
+/// condition read. `tr` leaves the first read alone and rewrites `x` on the
+/// second, and tclsh 8.4 to 9.1 print `changed`, before and after `tcl opt`.
+/// A trace another procedure installs on a name makes it externally mutable
+/// in every function, so `q`'s `y` is never refined either.
+#[test]
+fn a_traced_variable_is_never_refined() {
+    let source = "set n 0\nproc tr {name1 name2 op} {upvar 1 $name1 v; incr ::n; if {$::n > 1} {set v changed}}\nproc p {x} {\n    trace add variable x read tr\n    if {$x eq \"a\"} {puts $x}\n}\nproc t {} {trace add variable y write tr}\nproc q {y} {\n    if {$y eq \"a\"} {puts $y}\n}\np a\n";
+    for dialect in DIALECTS {
+        let unit = unit_of(source, dialect);
+        for proc in ["::p", "::q"] {
+            let function = unit.procedures.get(proc).expect("the procedure");
+            assert!(
+                function.sccp.refinements.is_empty(),
+                "{dialect} {proc}: {:?}",
+                function.sccp.refinements
+            );
+            assert!(function.sccp.value_entries.is_empty(), "{dialect} {proc}");
+        }
+    }
+    prints_under_every_release(source, "changed\n");
+}

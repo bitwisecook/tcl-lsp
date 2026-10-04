@@ -657,6 +657,24 @@ fn build_sccp(d: &Value) -> Vec<ViewNode> {
                 )
             });
         }
+        for refinement in arr(f, "refinements") {
+            children.push(ViewNode::leaf(
+                format!(
+                    "refinement {} = {}",
+                    s(refinement, "variable"),
+                    s(refinement, "fact")
+                ),
+                vec![
+                    det("version", s(refinement, "version")),
+                    det(
+                        "edge",
+                        format!("{} → {}", s(refinement, "from"), s(refinement, "to")),
+                    ),
+                    det("domain", s(refinement, "domain")),
+                ],
+                Some("magenta"),
+            ));
+        }
         children.extend(arr(f, "selections").iter().map(selection_leaf));
         children.extend(arr(f, "routes").iter().map(route_leaf));
         out.push(ViewNode::branch(

@@ -1761,7 +1761,7 @@ impl<'a> LatticeDriver<'a> {
     /// command, and every route declines: a lattice that trusted every
     /// binding answered `3` for `[llength {a b c}]` where the module's own
     /// `proc llength` returns 99 (#2164).
-    fn trusted(&self, head: &str) -> bool {
+    pub(crate) fn trusted(&self, head: &str) -> bool {
         self.folds.is_some_and(|f| match f.trust {
             FoldTrust::WholeModule => f.mutations.trusts(head),
             FoldTrust::ObservedBindings => f.mutations.observed_binding_is_the_builtin(head),

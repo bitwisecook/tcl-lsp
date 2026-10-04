@@ -28,7 +28,9 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use rustc_hash::FxHashSet;
 use tcl_lexer::TokenType;
 use tcl_registry::CommandRegistry;
-use tcl_registry::value_transfer::{BindingKind, ExactValue, Existence};
+use tcl_registry::value_transfer::{
+    BindingKind, DependencyEvidence, DomainFact, ExactValue, Existence, FactDomain, FactView,
+};
 
 use crate::analyses::{ConstValue, LatticeValue, MAX_CONSTSET_SIZE};
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
@@ -354,15 +356,34 @@ pub struct SccpResult {
     /// since the definition. [`Self::existence_at`] reads it before the
     /// per-version map.
     pub existence_entries: HashMap<(BlockId, ValueKey), Existence>,
-    /// The existence refinements of the function's guarded edges, one per
-    /// edge and place.
+    /// The refinements of the function's branch edges, every domain's, one
+    /// per edge, place and fact: the existence rung's where the run computes
+    /// it, and the others in every run.
     pub refinements: Vec<EdgeRefinement>,
+    /// Per executable block, the refinements outside the existence domain
+    /// in force at its statements and its terminator, as indices into
+    /// [`Self::refinements`]: those every executable path into the block
+    /// carries since a branch edge took them, and that no barrier or
+    /// up-frame since — nor in the block itself — may have overridden.
+    pub refinements_at: HashMap<BlockId, Vec<usize>>,
+    /// The block-qualified values: for a block and a version a refinement
+    /// in force there narrows, the value the version holds at the block's
+    /// statements where it differs from the version's own.
+    /// [`Self::value_at`] reads it before [`Self::values`].
+    pub value_entries: HashMap<(BlockId, ValueKey), LatticeValue>,
+    /// The places only an existence query names, by their slot past the
+    /// SSA's symbols, which a key of the existence rung may hold.
+    pub query_places: Vec<String>,
 }
 
-/// A fact that holds on one CFG edge, and on from its target until the
-/// place is defined again or a barrier or an up-frame clobbers it, for one
-/// SSA version (`docs/design/compiler/value-transfers.md` § *Edge
-/// refinement*). The domain is `FactDomain::Existence` alone.
+/// A fact that holds on one CFG edge, and in the blocks every path into
+/// which crosses that edge, for one SSA version, without a new definition
+/// (`docs/design/compiler/value-transfers.md` § *Predicate refinement*):
+/// what a taken comparison, `switch` arm, type test or existence guard
+/// proves about its operand. The existence rung carries its own domain's
+/// facts from the edge until a barrier, an up-frame or a write clobbers the
+/// place; every other domain's hold in the blocks
+/// [`SccpResult::refinements_in`] names. The record carries no span.
 #[derive(Debug, Clone, PartialEq)]
 pub struct EdgeRefinement {
     /// The guarded edge: the branch block and the block the edge enters.
@@ -372,8 +393,9 @@ pub struct EdgeRefinement {
     pub key: ValueKey,
     /// The domain it narrows.
     pub domain: tcl_registry::value_transfer::FactDomain,
-    /// The narrowed fact.
-    pub fact: tcl_registry::value_transfer::DomainFact,
+    /// The narrowed fact, in the domain's view: an exact value or a finite
+    /// set of them for the value domain, a domain fact for every other.
+    pub fact: tcl_registry::value_transfer::FactView,
     /// What the refinement rests on.
     pub evidence: tcl_registry::value_transfer::DependencyEvidence,
 }
@@ -404,6 +426,44 @@ impl SccpResult {
             .get(&(block, key))
             .or_else(|| self.existence.get(&key))
             .copied()
+    }
+
+    /// The value the version `key` holds at `block`'s statements and its
+    /// terminator: the block-qualified value where a refinement in force
+    /// there narrows it, else the version's own. A refinement never makes a
+    /// version, and at a merge only what every incoming path carries holds,
+    /// so two arms refining `x` to `a` and to `b` meet as `x`'s own value.
+    #[must_use]
+    pub fn value_at(&self, block: BlockId, key: ValueKey) -> Option<&LatticeValue> {
+        self.value_entries
+            .get(&(block, key))
+            .or_else(|| self.values.get(&key))
+    }
+
+    /// The refinements outside the existence domain in force at `block`'s
+    /// statements and its terminator ([`Self::refinements_at`]).
+    pub fn refinements_in(&self, block: BlockId) -> impl Iterator<Item = &EdgeRefinement> {
+        self.refinements_at
+            .get(&block)
+            .into_iter()
+            .flatten()
+            .filter_map(|&index| self.refinements.get(index))
+    }
+
+    /// The name of the place a key's symbol stands for: an SSA variable, or
+    /// a place only an existence query names ([`Self::query_places`]).
+    #[must_use]
+    pub fn place_name<'s>(&'s self, ssa: &'s SsaFunction, symbol: Symbol) -> Option<&'s str> {
+        let slot = symbol.0 as usize;
+        let symbols = ssa.var_names();
+        symbols.get(slot).map_or_else(
+            || {
+                self.query_places
+                    .get(slot.checked_sub(symbols.len())?)
+                    .map(String::as_str)
+            },
+            |name| Some(name.as_str()),
+        )
     }
 
     /// The existence fact `symbol`'s place holds at `block`'s exit, where
@@ -729,15 +789,23 @@ pub fn sccp_with_builtin_folds(
     // context is this run's identity.
     let driver = LatticeDriver::new(trace, folds, policy, &escaping);
     driver.catch_ends(cfg);
+    // What every branch edge's condition proves, in every domain, read
+    // under the document's grammar.
+    let config = trace.existence.map_or_else(
+        || crate::dynamic_names::lexer_config_for(trace.registry),
+        |entry| entry.config,
+    );
+    let facts = branch_facts(cfg, (trace.registry, config, policy), &driver);
     // The existence rung runs beside the values, over the same executable
     // blocks and edges, when the caller asks for it.
     let existence = trace
         .existence
-        .map(|entry| ExistenceRun::new(cfg, ssa, entry, &escaping, trace.registry));
+        .map(|entry| ExistenceRun::new(cfg, ssa, entry, (&escaping, &facts), trace.registry));
     if let Some(run) = &existence {
         driver.existence_places(run.query_only.clone());
         driver.existence_external(run.external.clone());
     }
+    let value_refinements = refinable_values((cfg, ssa), &facts, &trace, (&escaping, config));
 
     let executable_blocks = entry_block_set(cfg);
     let order = cfg_order(cfg);
@@ -761,33 +829,7 @@ pub fn sccp_with_builtin_folds(
         existence,
     };
 
-    // Optimistic fixpoint over the RPO sweep, followed by a finalising pass
-    // that forces both arms for any executable branch still stuck on an UNKNOWN
-    // condition (defensive: a value defined only in unreachable code could
-    // otherwise leave a successor spuriously unreachable). `finalizing` is
-    // monotone, so the outer loop runs at most twice.
-    let mut finalizing = false;
-    loop {
-        let mut changed = true;
-        while changed {
-            changed = false;
-            // Every sweep re-evaluates each executable statement from
-            // scratch, so only the settled sweep's route entries — the
-            // last one run — should reach the tally. Each sweep is one
-            // iteration of the run's request: a tenth of what it has left.
-            driver.reset_tally_for_sweep();
-            driver.open_iteration();
-            for bn in &order {
-                if state.executable_blocks.contains(bn) {
-                    changed |= sweep.block(*bn, &mut state, finalizing);
-                }
-            }
-        }
-        if finalizing {
-            break;
-        }
-        finalizing = true;
-    }
+    sweep.settle(&order, &mut state);
 
     let SweepState {
         values,
@@ -810,11 +852,13 @@ pub fn sccp_with_builtin_folds(
         existence.as_ref().map(|run| &run.exits),
     );
 
-    let (existence, existence_reads, existence_exits, existence_entries, refinements) = existence
-        .map_or_else(Default::default, |run| {
-            let entries = run.block_qualified(ssa);
-            (run.versions, run.reads, run.exits, entries, run.refinements)
-        });
+    let rung = existence.map_or_else(RungResults::default, |run| run.finish(ssa));
+    let refined = settled_refinements(
+        (cfg, &order),
+        (&executable_blocks, &executable_edges),
+        &values,
+        (rung.refinements, value_refinements),
+    );
     let (selections, unreached_arms) =
         driver.selection_facts(cfg, ssa, &values, &executable_blocks);
     constant_branches.extend(unreached_arms);
@@ -826,11 +870,14 @@ pub fn sccp_with_builtin_folds(
         executable_blocks,
         executable_edges,
         constant_branches,
-        existence,
-        existence_reads,
-        existence_exits,
-        existence_entries,
-        refinements,
+        existence: rung.versions,
+        existence_reads: rung.reads,
+        existence_exits: rung.exits,
+        existence_entries: rung.entries,
+        refinements: refined.refinements,
+        refinements_at: refined.at,
+        value_entries: refined.values,
+        query_places: rung.query_places,
         ..driver.take_run_facts()
     }
 }
@@ -945,6 +992,36 @@ struct SweepState {
 }
 
 impl SweepContext<'_> {
+    /// The optimistic fixpoint over the RPO sweep, followed by a finalising
+    /// pass that forces both arms for any executable branch still stuck on an
+    /// UNKNOWN condition (defensive: a value defined only in unreachable code
+    /// could otherwise leave a successor spuriously unreachable).
+    /// `finalizing` is monotone, so the outer loop runs at most twice.
+    fn settle(&self, order: &[BlockId], state: &mut SweepState) {
+        let mut finalizing = false;
+        loop {
+            let mut changed = true;
+            while changed {
+                changed = false;
+                // Every sweep re-evaluates each executable statement from
+                // scratch, so only the settled sweep's route entries — the
+                // last one run — should reach the tally. Each sweep is one
+                // iteration of the run's request: a tenth of what it has left.
+                self.driver.reset_tally_for_sweep();
+                self.driver.open_iteration();
+                for bn in order {
+                    if state.executable_blocks.contains(bn) {
+                        changed |= self.block(*bn, state, finalizing);
+                    }
+                }
+            }
+            if finalizing {
+                break;
+            }
+            finalizing = true;
+        }
+    }
+
     /// One executable block of a sweep: its φs, its statements, the
     /// existence rung through them, and its terminator's edges; whether
     /// anything moved.
@@ -1303,6 +1380,20 @@ struct ExistenceRun {
     entry_states: HashMap<BlockId, Vec<Existence>>,
 }
 
+/// What the existence rung leaves in the run's result: the fact each SSA
+/// version is established with, the fact each statement finds at each place
+/// it reads, each block's exit, the block-qualified facts, the guarded
+/// edges' refinements and the places only an existence query names.
+#[derive(Default)]
+struct RungResults {
+    versions: HashMap<ValueKey, Existence>,
+    reads: HashMap<(BlockId, u32, Symbol), Existence>,
+    exits: HashMap<BlockId, Vec<Existence>>,
+    entries: HashMap<(BlockId, ValueKey), Existence>,
+    refinements: Vec<EdgeRefinement>,
+    query_places: Vec<String>,
+}
+
 /// Join `incoming` into `state`, place by place.
 fn join_state(state: &mut [Existence], incoming: &[Existence]) {
     for (fact, other) in state.iter_mut().zip(incoming) {
@@ -1327,12 +1418,13 @@ fn join_into(
 
 impl ExistenceRun {
     /// The run for `cfg` / `ssa` entered under `entry`; `escaping` is the
-    /// value lattice's externally-mutable set.
+    /// value lattice's externally-mutable set, and `facts` what each branch
+    /// edge's condition proves, of which the run takes the existence facts.
     fn new(
         cfg: &CfgFunction,
         ssa: &SsaFunction,
         entry: ExistenceEntry<'_>,
-        escaping: &HashSet<String>,
+        (escaping, facts): (&HashSet<String>, &[BranchFact]),
         registry: &CommandRegistry,
     ) -> Self {
         // The SSA's symbols, then a slot per place only an existence query
@@ -1392,11 +1484,10 @@ impl ExistenceRun {
                 }
             }
         }
-        let refinements =
-            edge_refinements(cfg, ssa, (registry, entry.config), (&query_only, &external));
+        let refinements = existence_refinements(facts, ssa, (&query_only, &external));
         let mut by_edge: HashMap<(BlockId, BlockId), Vec<(usize, Existence)>> = HashMap::new();
         for refinement in &refinements {
-            if let tcl_registry::value_transfer::DomainFact::Existence(fact) = &refinement.fact {
+            if let FactView::Domain(DomainFact::Existence(fact)) = &refinement.fact {
                 by_edge
                     .entry(refinement.edge)
                     .or_default()
@@ -1434,6 +1525,30 @@ impl ExistenceRun {
             by_edge,
             entry_states: HashMap::new(),
         }
+    }
+
+    /// What the run leaves in the result once the solver settles.
+    fn finish(self, ssa: &SsaFunction) -> RungResults {
+        RungResults {
+            entries: self.block_qualified(ssa),
+            query_places: self.query_places(),
+            versions: self.versions,
+            reads: self.reads,
+            exits: self.exits,
+            refinements: self.refinements,
+        }
+    }
+
+    /// The places only an existence query names, by their slot past the
+    /// SSA's symbols.
+    fn query_places(&self) -> Vec<String> {
+        let mut places: Vec<(&String, Symbol)> = self
+            .query_only
+            .iter()
+            .map(|(name, &slot)| (name, slot))
+            .collect();
+        places.sort_by_key(|&(_, slot)| slot);
+        places.into_iter().map(|(name, _)| name.clone()).collect()
     }
 
     /// Enter `block` for a sweep: its entry state, which each φ takes, at
@@ -1602,147 +1717,31 @@ const fn narrowed(current: Existence, fact: Existence) -> Existence {
     }
 }
 
-/// The existence facts a condition states on its true and on its false
-/// edge, each naming its place by the query's word.
-type EdgeFacts = (Vec<(String, Existence)>, Vec<(String, Existence)>);
-
-/// The places one condition states an existence fact about, on its true
-/// and on its false edge (`docs/design/compiler/value-transfers.md` §
-/// *Edge refinement*): an existence query's own ([`query_facts`]), `!`
-/// swapping the edges, `C1 && C2` both true-edge answers on its true edge
-/// and `C1 || C2` both false-edge answers on its false edge — `C1`'s only
-/// when `C2`, which runs after it, changes no place ([`existence_pure`]).
-fn condition_facts(
-    node: &crate::expr_ast::ExprNode,
-    registry: &CommandRegistry,
-    config: tcl_lexer::LexerConfig,
-) -> EdgeFacts {
-    use crate::expr_ast::{BinOp, ExprNode, UnaryOp};
-    match node {
-        ExprNode::Unary {
-            op: UnaryOp::Not | UnaryOp::WordNot,
-            operand,
-        } => {
-            let (on_true, on_false) = condition_facts(operand, registry, config);
-            (on_false, on_true)
-        }
-        // The right operand runs after the left one, so the left operand's
-        // facts reach the edge only when the right one changes no place.
-        ExprNode::Binary {
-            op: BinOp::And,
-            left,
-            right,
-        } => {
-            let (mut on_true, _) = condition_facts(right, registry, config);
-            if existence_pure(right, registry, config) {
-                on_true.extend(condition_facts(left, registry, config).0);
-            }
-            (on_true, Vec::new())
-        }
-        ExprNode::Binary {
-            op: BinOp::Or,
-            left,
-            right,
-        } => {
-            let (_, mut on_false) = condition_facts(right, registry, config);
-            if existence_pure(right, registry, config) {
-                on_false.extend(condition_facts(left, registry, config).1);
-            }
-            (Vec::new(), on_false)
-        }
-        ExprNode::Command { text, .. } => crate::existence_query::in_text(text, registry, config)
-            .map_or_else(Default::default, |(name, kind)| query_facts(&name, kind)),
-        _ => Default::default(),
-    }
+/// One branch edge's fact about one place, from its condition's
+/// `Selection` transfer ([`crate::tcl_expr_eval::condition_edge_facts`]).
+struct BranchFact {
+    /// The branch block and the block the edge enters.
+    edge: (BlockId, BlockId),
+    /// What the edge proves.
+    fact: crate::tcl_expr_eval::PlaceFact,
 }
 
-/// Whether evaluating `node` changes no place's existence: every command
-/// it substitutes is an existence query over a name that runs no command,
-/// and no operand substitutes a command of its own. A math function may be
-/// a procedure, and an unparsed operand may be anything, so neither is.
-fn existence_pure(
-    node: &crate::expr_ast::ExprNode,
-    registry: &CommandRegistry,
-    config: tcl_lexer::LexerConfig,
-) -> bool {
-    use crate::expr_ast::ExprNode;
-    match node {
-        ExprNode::Command { text, .. } => crate::existence_query::in_text(text, registry, config)
-            .is_some_and(|(name, _)| !name.contains('[')),
-        ExprNode::Binary { left, right, .. } => {
-            existence_pure(left, registry, config) && existence_pure(right, registry, config)
-        }
-        ExprNode::Unary { operand, .. } => existence_pure(operand, registry, config),
-        ExprNode::Ternary {
-            condition,
-            true_branch,
-            false_branch,
-        } => [condition, true_branch, false_branch]
-            .iter()
-            .all(|operand| existence_pure(operand, registry, config)),
-        ExprNode::Literal { .. } => true,
-        ExprNode::Var { text, .. }
-        | ExprNode::String { text, .. }
-        | ExprNode::CompiledWord { text, .. } => !text.contains('['),
-        ExprNode::Call { .. } | ExprNode::Raw { .. } => false,
-    }
-}
-
-/// The places one existence query states a fact about, on its true and on
-/// its false edge. `info exists` of a whole place binds it on the true
-/// edge, as either kind, and unbinds it on the false edge; of a literal
-/// element it binds the element as a scalar and its array as an array on
-/// the true edge and unbinds the element on the false edge; of an element
-/// under a computed key it binds the array, when the base is a bareword,
-/// on the true edge. `array exists` of a whole place binds it as an array
-/// on the true edge and states nothing on the false edge, where the place
-/// may be a scalar or absent; of an element it states nothing.
-fn query_facts(name: &str, kind: crate::existence_query::ExistenceKind) -> EdgeFacts {
-    use crate::existence_query::ExistenceKind;
-    let computed = name.contains('$') || name.contains('[');
-    let base = place_base(name);
-    match kind {
-        _ if computed => match (kind, crate::existence_query::computed_element_base(name)) {
-            (ExistenceKind::AnyVariable, Some(base)) => (
-                vec![(base.to_owned(), Existence::Bound(BindingKind::Array))],
-                Vec::new(),
-            ),
-            _ => Default::default(),
-        },
-        ExistenceKind::AnyVariable if base == name => (
-            vec![(name.to_owned(), Existence::Bound(BindingKind::Either))],
-            vec![(name.to_owned(), Existence::Unbound)],
-        ),
-        ExistenceKind::AnyVariable => (
-            vec![
-                (name.to_owned(), Existence::Bound(BindingKind::Scalar)),
-                (base.to_owned(), Existence::Bound(BindingKind::Array)),
-            ],
-            vec![(name.to_owned(), Existence::Unbound)],
-        ),
-        ExistenceKind::Array if base == name => (
-            vec![(name.to_owned(), Existence::Bound(BindingKind::Array))],
-            Vec::new(),
-        ),
-        ExistenceKind::Array => Default::default(),
-    }
-}
-
-/// The existence refinements of the function's guarded edges
-/// ([`EdgeRefinement`]): each branch whose condition states a fact about a
-/// place the rung carries ([`condition_facts`]) refines the place on that
-/// edge. An externally mutable place (`external`, by slot) is never refined:
-/// a plain call to a procedure the module cannot see, or to a
-/// computed head, may write or unset a global, an alias, an instance
-/// variable or a connection's name without any barrier or up-frame, so a
-/// refinement there would outlive the point at which another actor acts.
-fn edge_refinements(
+/// What every branch edge of the function proves: the true and the false
+/// edge of each branch whose targets differ, each condition read against
+/// `registry` under the document's lexer configuration and the target's
+/// fold policy, with the commands `driver` trusts.
+fn branch_facts(
     cfg: &CfgFunction,
-    ssa: &SsaFunction,
-    (registry, config): (&CommandRegistry, tcl_lexer::LexerConfig),
-    (query_only, external): (&HashMap<String, Symbol>, &[bool]),
-) -> Vec<EdgeRefinement> {
-    use tcl_registry::value_transfer::{DependencyEvidence, DomainFact, FactDomain};
+    (registry, config, policy): (&CommandRegistry, tcl_lexer::LexerConfig, FoldPolicy),
+    driver: &LatticeDriver<'_>,
+) -> Vec<BranchFact> {
+    let trusted = |head: &str| driver.trusted(head);
+    let reading = crate::tcl_expr_eval::ConditionReading {
+        registry,
+        config,
+        policy,
+        trusted: &trusted,
+    };
     let mut out = Vec::new();
     for (&block_id, block) in &cfg.blocks {
         let Some(Terminator::Branch {
@@ -1757,38 +1756,349 @@ fn edge_refinements(
         if true_target == false_target {
             continue;
         }
-        let (on_true, on_false) = condition_facts(condition, registry, config);
-        let exit_versions = ssa
-            .blocks
-            .get(&block_id)
-            .map(|ssa_block| &ssa_block.exit_versions);
-        for (target, facts) in [(*true_target, on_true), (*false_target, on_false)] {
-            for (place, fact) in facts {
-                let Some(symbol) = ssa
-                    .var_symbol(&place)
-                    .or_else(|| query_only.get(&place).copied())
-                else {
-                    continue;
-                };
-                if external.get(symbol.0 as usize).copied().unwrap_or(true) {
-                    continue;
-                }
-                let version = exit_versions
-                    .and_then(|versions| versions.get(&symbol))
-                    .copied()
-                    .unwrap_or(0);
-                out.push(EdgeRefinement {
-                    edge: (block_id, target),
-                    key: (symbol, version),
-                    domain: FactDomain::Existence,
-                    fact: DomainFact::Existence(fact),
-                    evidence: DependencyEvidence::default(),
-                });
-            }
+        let facts = crate::tcl_expr_eval::condition_edge_facts(condition, reading);
+        for (target, facts) in [
+            (*true_target, facts.on_true),
+            (*false_target, facts.on_false),
+        ] {
+            out.extend(facts.into_iter().map(|fact| BranchFact {
+                edge: (block_id, target),
+                fact,
+            }));
         }
+    }
+    out
+}
+
+/// The version of `symbol` `block` leaves: its exit version, or the entry's
+/// for a place the function never defines.
+fn exit_version(ssa: &SsaFunction, block: BlockId, symbol: Symbol) -> crate::ssa::Version {
+    ssa.blocks
+        .get(&block)
+        .and_then(|ssa_block| ssa_block.exit_versions.get(&symbol))
+        .copied()
+        .unwrap_or(0)
+}
+
+/// The existence refinements of the function's guarded edges
+/// ([`EdgeRefinement`]): each branch edge's existence fact about a place the
+/// rung carries refines the place on that edge. An externally mutable place
+/// (`external`, by slot) is never refined: a plain call to a procedure the
+/// module cannot see, or to a computed head, may write or unset a global, an
+/// alias, an instance variable or a connection's name without any barrier or
+/// up-frame, so a refinement there would outlive the point at which another
+/// actor acts.
+fn existence_refinements(
+    facts: &[BranchFact],
+    ssa: &SsaFunction,
+    (query_only, external): (&HashMap<String, Symbol>, &[bool]),
+) -> Vec<EdgeRefinement> {
+    let mut out = Vec::new();
+    for BranchFact { edge, fact } in facts {
+        if fact.domain != FactDomain::Existence {
+            continue;
+        }
+        let Some(symbol) = ssa
+            .var_symbol(&fact.place)
+            .or_else(|| query_only.get(&fact.place).copied())
+        else {
+            continue;
+        };
+        if external.get(symbol.0 as usize).copied().unwrap_or(true) {
+            continue;
+        }
+        out.push(EdgeRefinement {
+            edge: *edge,
+            key: (symbol, exit_version(ssa, edge.0, symbol)),
+            domain: fact.domain,
+            fact: fact.fact.clone(),
+            evidence: DependencyEvidence::default(),
+        });
     }
     out.sort_by_key(|refinement| (refinement.edge.0.0, refinement.edge.1.0, refinement.key.0.0));
     out
+}
+
+/// Every domain's refinements but the existence rung's
+/// ([`value_refinements`]), for the places no other actor may write: none
+/// externally mutable ([`is_externally_mutable`]) or an element of an
+/// escaping array, none linked to state another invocation, the object or
+/// the host holds ([`linked_elsewhere`], named where the run computes
+/// existence), and none at all once a computed name anywhere in the
+/// function may write or destroy any place.
+fn refinable_values(
+    (cfg, ssa): (&CfgFunction, &SsaFunction),
+    facts: &[BranchFact],
+    trace: &TraceInputs<'_>,
+    (escaping, config): (&HashSet<String>, tcl_lexer::LexerConfig),
+) -> Vec<EdgeRefinement> {
+    let dialect = Some(tcl_registry::special_vars::surface_query_for_profile(
+        trace.registry.profile(),
+    ));
+    let computed_names = std::cell::OnceCell::new();
+    let external = |name: &str| {
+        is_externally_mutable(name, escaping, trace.has_dynamic_variable_trace)
+            || escaping.contains(place_base(name))
+            || trace
+                .existence
+                .is_some_and(|entry| linked_elsewhere(name, entry, trace.registry, dialect))
+            || *computed_names.get_or_init(|| {
+                let names = crate::dynamic_names::dynamic_name_barrier(cfg, trace.registry, config);
+                names.writes || names.destroys
+            })
+    };
+    value_refinements(facts, ssa, &external)
+}
+
+/// Every other domain's refinements: each branch edge's fact about a
+/// variable the SSA holds and that is not `external` — no other actor may
+/// write it — narrowing the version the branch block leaves it at.
+fn value_refinements(
+    facts: &[BranchFact],
+    ssa: &SsaFunction,
+    external: &dyn Fn(&str) -> bool,
+) -> Vec<EdgeRefinement> {
+    facts
+        .iter()
+        .filter(|branch| branch.fact.domain != FactDomain::Existence)
+        .filter_map(|BranchFact { edge, fact }| {
+            let symbol = ssa.var_symbol(&fact.place)?;
+            if external(&fact.place) {
+                return None;
+            }
+            Some(EdgeRefinement {
+                edge: *edge,
+                key: (symbol, exit_version(ssa, edge.0, symbol)),
+                domain: fact.domain,
+                fact: fact.fact.clone(),
+                evidence: DependencyEvidence::default(),
+            })
+        })
+        .collect()
+}
+
+/// The run's refinements once the solver settles.
+struct SettledRefinements {
+    /// The existence rung's and every other domain's, in order
+    /// ([`refinement_order`]).
+    refinements: Vec<EdgeRefinement>,
+    /// The blocks each outside the existence domain is in force at
+    /// ([`refinements_in_force`]).
+    at: HashMap<BlockId, Vec<usize>>,
+    /// The values they narrow there ([`refined_values`]).
+    values: HashMap<(BlockId, ValueKey), LatticeValue>,
+}
+
+/// The run's refinements once the solver settles, from the existence rung's
+/// and the others over the executable blocks and edges and the settled
+/// `values`.
+fn settled_refinements(
+    (cfg, order): (&CfgFunction, &[BlockId]),
+    executable: (&HashSet<BlockId>, &HashSet<(BlockId, BlockId)>),
+    values: &HashMap<ValueKey, LatticeValue>,
+    (mut refinements, others): (Vec<EdgeRefinement>, Vec<EdgeRefinement>),
+) -> SettledRefinements {
+    refinements.extend(others);
+    refinements.sort_by_key(refinement_order);
+    let at = refinements_in_force(cfg, order, executable, &refinements);
+    let values = refined_values(&refinements, &at, values);
+    SettledRefinements {
+        refinements,
+        at,
+        values,
+    }
+}
+
+/// The order refinements are kept in: by edge, then place, then domain.
+fn refinement_order(refinement: &EdgeRefinement) -> (u32, u32, u32, u8) {
+    let rank = match refinement.domain {
+        FactDomain::Existence => 0,
+        FactDomain::ExactValue => 1,
+        FactDomain::Type => 2,
+        FactDomain::Range => 3,
+        _ => 4,
+    };
+    (
+        refinement.edge.0.0,
+        refinement.edge.1.0,
+        refinement.key.0.0,
+        rank,
+    )
+}
+
+/// Per executable block, the refinements outside the existence domain in
+/// force at its statements and its terminator ([`SccpResult::refinements_at`]):
+/// a refinement holds at a block when every executable edge into it carries
+/// it — a branch edge that takes it, or an edge from a block where it holds
+/// — so a merge keeps only what every incoming path proves, and a merge
+/// that two arms refining `x` to `a` and to `b` meet at holds neither. An
+/// exception edge carries none, and a block with a barrier or an up-frame,
+/// which may write any variable without a new version, holds none and
+/// passes none on. The facts are keyed by version, so a later definition of
+/// the place is a version the refinement does not name.
+fn refinements_in_force(
+    cfg: &CfgFunction,
+    order: &[BlockId],
+    (blocks, edges): (&HashSet<BlockId>, &HashSet<(BlockId, BlockId)>),
+    refinements: &[EdgeRefinement],
+) -> HashMap<BlockId, Vec<usize>> {
+    let mut by_edge: HashMap<(BlockId, BlockId), Vec<usize>> = HashMap::new();
+    for (index, refinement) in refinements.iter().enumerate() {
+        if refinement.domain != FactDomain::Existence {
+            by_edge.entry(refinement.edge).or_default().push(index);
+        }
+    }
+    if by_edge.is_empty() {
+        return HashMap::new();
+    }
+    let overriding: HashSet<BlockId> = cfg
+        .blocks
+        .iter()
+        .filter(|(_, block)| {
+            block.statements.iter().any(|statement| {
+                matches!(
+                    statement,
+                    Statement::Barrier { .. } | Statement::UpFrame { .. }
+                )
+            })
+        })
+        .map(|(&id, _)| id)
+        .collect();
+    let preds = compute_predecessors(cfg);
+    // A block no pass has reached yet carries everything: the greatest
+    // fixed point, which every cycle's way in narrows.
+    let mut held: HashMap<BlockId, BTreeSet<usize>> = HashMap::new();
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for &block in order {
+            if !blocks.contains(&block) {
+                continue;
+            }
+            let mut entering: Option<BTreeSet<usize>> = None;
+            if block == cfg.entry {
+                entering = Some(BTreeSet::new());
+            }
+            for &pred in preds.get(&block).into_iter().flatten() {
+                if !edges.contains(&(pred, block)) {
+                    continue;
+                }
+                let carried = if cfg.exception_edges.contains(&(pred, block)) {
+                    Some(BTreeSet::new())
+                } else {
+                    held.get(&pred).map(|before| {
+                        let mut carried = if overriding.contains(&pred) {
+                            BTreeSet::new()
+                        } else {
+                            before.clone()
+                        };
+                        carried.extend(by_edge.get(&(pred, block)).into_iter().flatten());
+                        carried
+                    })
+                };
+                entering = match (entering, carried) {
+                    (Some(entering), Some(carried)) => {
+                        Some(entering.intersection(&carried).copied().collect())
+                    }
+                    (entering, carried) => entering.or(carried),
+                };
+            }
+            if let Some(entering) = entering
+                && held.get(&block) != Some(&entering)
+            {
+                held.insert(block, entering);
+                changed = true;
+            }
+        }
+    }
+    held.into_iter()
+        .filter(|(block, set)| !set.is_empty() && !overriding.contains(block))
+        .map(|(block, set)| (block, set.into_iter().collect()))
+        .collect()
+}
+
+/// The block-qualified values ([`SccpResult::value_entries`]): at each block,
+/// each version a value-domain refinement in force there narrows
+/// ([`refined_value`]), where the narrowed value differs from its own.
+fn refined_values(
+    refinements: &[EdgeRefinement],
+    refinements_at: &HashMap<BlockId, Vec<usize>>,
+    values: &HashMap<ValueKey, LatticeValue>,
+) -> HashMap<(BlockId, ValueKey), LatticeValue> {
+    let mut out = HashMap::new();
+    for (&block, indices) in refinements_at {
+        let mut by_key: HashMap<ValueKey, Vec<&FactView>> = HashMap::new();
+        for refinement in indices.iter().filter_map(|&index| refinements.get(index)) {
+            if refinement.domain == FactDomain::ExactValue {
+                by_key
+                    .entry(refinement.key)
+                    .or_default()
+                    .push(&refinement.fact);
+            }
+        }
+        for (key, facts) in by_key {
+            let own = held_value(values, key);
+            let refined = refined_value(&own, facts);
+            if refined != own {
+                out.insert((block, key), refined);
+            }
+        }
+    }
+    out
+}
+
+/// What a version holding `own` holds where every value-domain fact of
+/// `facts` holds: the members of its finite set the facts allow, or, for a
+/// value the lattice cannot pin, the facts' own exact value or finite set.
+/// A constant stays itself, as does a set the facts leave no member of — a
+/// branch the solver could not decide although its operand is known —
+/// and a version the solver has not reached stays the optimistic bottom.
+fn refined_value<'f>(
+    own: &LatticeValue,
+    facts: impl IntoIterator<Item = &'f FactView>,
+) -> LatticeValue {
+    let mut allowed: Option<Vec<&'f ExactValue>> = None;
+    for fact in facts {
+        let members: Vec<&ExactValue> = match fact {
+            FactView::Exact(value, _) => vec![value],
+            FactView::Finite(values, _) => values.iter().collect(),
+            _ => continue,
+        };
+        allowed = Some(match allowed {
+            None => members,
+            Some(before) => before
+                .into_iter()
+                .filter(|kept| members.iter().any(|member| member.bytes == kept.bytes))
+                .collect(),
+        });
+    }
+    let Some(allowed) = allowed else {
+        return own.clone();
+    };
+    let permits = |constant: &ConstValue| {
+        let text = crate::value_transfer::const_to_exact(constant).bytes;
+        allowed.iter().any(|member| member.bytes == text)
+    };
+    match own {
+        LatticeValue::ConstSet(members) => {
+            let kept: Vec<ConstValue> = members.iter().filter(|c| permits(c)).cloned().collect();
+            match kept.as_slice() {
+                [] => own.clone(),
+                [one] => LatticeValue::Const(one.clone()),
+                _ => LatticeValue::constset(kept),
+            }
+        }
+        LatticeValue::Overdefined => match allowed.as_slice() {
+            [] => LatticeValue::Overdefined,
+            [one] => LatticeValue::Const(crate::value_transfer::exact_to_const(one)),
+            many => LatticeValue::constset(
+                many.iter()
+                    .map(|member| crate::value_transfer::exact_to_const(member))
+                    .collect(),
+            ),
+        },
+        LatticeValue::Unknown | LatticeValue::Const(_) => own.clone(),
+    }
 }
 
 /// The places an existence query names that no SSA symbol holds, sorted: a
@@ -4179,7 +4489,6 @@ mod tests {
     /// never refined: both its reads stay may-bound.
     #[test]
     fn the_existence_guard_refines_its_edges() {
-        use tcl_registry::value_transfer::DomainFact;
         let registry = CommandRegistry::build_default();
         let cu = crate::compilation_unit::CompilationUnit::build_for(
             "proc f {c} { if {$c} { set x 1 }; if {[info exists x]} { puts $x } else { puts none }; puts $x }\n\
@@ -4211,7 +4520,9 @@ mod tests {
                 .sccp
                 .refinements
                 .iter()
-                .find(|refinement| refinement.fact == DomainFact::Existence(Existence::Unbound))
+                .find(|refinement| {
+                    refinement.fact == FactView::Domain(DomainFact::Existence(Existence::Unbound))
+                })
                 .unwrap_or_else(|| panic!("{proc}: {:?}", f.sccp.refinements));
             assert_eq!(
                 f.sccp.existence_at(unbound.edge.1, unbound.key),
@@ -4344,6 +4655,263 @@ mod tests {
             puts_reads(top, "errorCode"),
             vec![Existence::MayBound, Existence::MayBound]
         );
+    }
+
+    /// Each refinement of `f`, as the edge it sits on (`true` for the
+    /// branch's true edge), the place and the fact spelled for comparison.
+    fn refinement_rows(f: &crate::compilation_unit::FunctionUnit) -> Vec<(bool, String, String)> {
+        f.sccp
+            .refinements
+            .iter()
+            .map(|refinement| {
+                let polarity = matches!(
+                    f.cfg.blocks.get(&refinement.edge.0).and_then(|block| block.terminator.as_ref()),
+                    Some(Terminator::Branch { true_target, .. }) if *true_target == refinement.edge.1
+                );
+                let text = |value: &ExactValue| String::from_utf8_lossy(&value.bytes).into_owned();
+                let fact = match &refinement.fact {
+                    FactView::Exact(value, _) => format!("= {}", text(value)),
+                    FactView::Finite(values, _) => format!(
+                        "in {}",
+                        values.iter().map(text).collect::<Vec<_>>().join(" ")
+                    ),
+                    FactView::Domain(DomainFact::Type {
+                        intrep: Some(intrep),
+                        ..
+                    }) => format!("type {intrep:?}"),
+                    FactView::Domain(DomainFact::Range {
+                        lo: Some(lo),
+                        hi: Some(hi),
+                    }) if lo == hi => format!("range {lo}"),
+                    FactView::Domain(DomainFact::Existence(existence)) => {
+                        format!("exists {existence:?}")
+                    }
+                    other => format!("{other:?}"),
+                };
+                let place = f
+                    .sccp
+                    .place_name(&f.ssa, refinement.key.0)
+                    .unwrap_or("?")
+                    .to_owned();
+                (polarity, place, fact)
+            })
+            .collect()
+    }
+
+    /// The refinements a case expects: its edge, place and fact.
+    type Rows = &'static [(bool, &'static str, &'static str)];
+
+    /// Each case of the per-shape test: the procedure, its source and the
+    /// refinements it expects.
+    const SHAPE_CASES: &[(&str, &str, Rows)] = &[
+        (
+            "a1",
+            "proc a1 {x} {if {$x eq \"a\"} {puts $x}}",
+            &[(true, "x", "= a")],
+        ),
+        (
+            "a2",
+            "proc a2 {x} {if {$x ne \"a\"} {puts $x}}",
+            &[(false, "x", "= a")],
+        ),
+        (
+            "a3",
+            "proc a3 {x} {if {\"a\" eq $x} {puts $x}}",
+            &[(true, "x", "= a")],
+        ),
+        (
+            "a4",
+            "proc a4 {x} {if {$x == \"abc\"} {puts $x}}",
+            &[(true, "x", "= abc")],
+        ),
+        (
+            "a5",
+            "proc a5 {x} {if {$x == 1} {puts $x}}",
+            &[(true, "x", "type Numeric"), (true, "x", "range 1")],
+        ),
+        (
+            "a6",
+            "proc a6 {x} {if {$x != 1.5} {puts $x}}",
+            &[(false, "x", "type Numeric")],
+        ),
+        (
+            "a7",
+            "proc a7 {x} {if {$x in {a b a}} {puts $x}}",
+            &[(true, "x", "in a b")],
+        ),
+        (
+            "a8",
+            "proc a8 {x} {if {$x ni {a}} {puts $x}}",
+            &[(false, "x", "= a")],
+        ),
+        (
+            "a9",
+            "proc a9 {x} {if {[string is integer -strict $x]} {puts $x}}",
+            &[(true, "x", "type Int")],
+        ),
+        (
+            "a10",
+            "proc a10 {x} {if {[string is integer $x]} {puts $x}}",
+            &[],
+        ),
+        (
+            "a11",
+            "proc a11 {x} {if {!($x eq \"a\")} {puts $x}}",
+            &[(false, "x", "= a")],
+        ),
+        (
+            "a12",
+            "proc a12 {x y} {if {$x eq \"a\" && $y eq \"b\"} {puts $x$y}}",
+            &[(true, "x", "= a"), (true, "y", "= b")],
+        ),
+        (
+            "a13",
+            "proc a13 {x y} {if {$x eq \"a\" || $y eq \"b\"} {puts $x$y}}",
+            &[],
+        ),
+        (
+            "a14",
+            "proc a14 {x y} {if {$x ne \"a\" || $y ne \"b\"} {puts $x$y}}",
+            &[(false, "x", "= a"), (false, "y", "= b")],
+        ),
+        (
+            "a15",
+            "proc a15 {x} {if {$x eq \"a\" && [foo]} {puts $x}}",
+            &[],
+        ),
+        (
+            "a16",
+            "proc a16 {x y} {if {$x} {puts $x}; if {$x eq $y} {puts $x$y}}",
+            &[],
+        ),
+        (
+            "a17",
+            "proc a17 {x} {switch -- $x {a {puts $x} b {puts $x}}}",
+            &[(true, "x", "= a"), (true, "x", "= b")],
+        ),
+        (
+            "a18",
+            "proc a18 {x} {switch -glob -- $x {a* {puts $x}}}",
+            &[],
+        ),
+        ("a19", "proc a19 {} {if {$::g eq \"a\"} {puts $::g}}", &[]),
+        (
+            "a20",
+            "proc a20 {} {global g; if {$g eq \"a\"} {puts $g}}",
+            &[],
+        ),
+        (
+            "a21",
+            "proc a21 {a} {if {$a(k) eq \"z\"} {puts $a(k)}}",
+            &[],
+        ),
+    ];
+
+    /// The per-shape table, row for row, under Tcl 8.6: `eq` refines its
+    /// true edge and `ne` its false one, either side; `==` with a literal no
+    /// number spells refines the value, and with a number the type and the
+    /// integer point, never the value; `in` the finite set and `ni` its
+    /// false edge; `string is` under `-strict` the type, without it nothing;
+    /// `!` swaps, `&&` keeps both true-edge answers and `||` both
+    /// false-edge ones, and neither keeps an answer an impure operand after
+    /// it may undo; the flattened exact `switch` refines each arm. `$x`
+    /// alone, `$x eq $y`, an opaque `-glob` switch, a qualified name, an
+    /// alias and an element refine nothing.
+    #[test]
+    fn each_shape_refines_the_edge_its_table_row_names() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let cases = SHAPE_CASES;
+        let source = cases
+            .iter()
+            .map(|(_, proc, _)| *proc)
+            .collect::<Vec<_>>()
+            .join("\n");
+        let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            &source, registry, false, "tcl8.6",
+        );
+        for (name, _, expected) in cases {
+            let f = cu
+                .function(&format!("::{name}"))
+                .expect("procedure analysed");
+            let mut rows = refinement_rows(f);
+            rows.sort();
+            let mut expected: Vec<(bool, String, String)> = expected
+                .iter()
+                .map(|&(polarity, place, fact)| (polarity, place.to_owned(), fact.to_owned()))
+                .collect();
+            expected.sort();
+            assert_eq!(rows, expected, "{name}");
+        }
+    }
+
+    /// The `puts` statements of `f`, in source order, with the block each
+    /// sits in.
+    fn puts_blocks(f: &crate::compilation_unit::FunctionUnit) -> Vec<BlockId> {
+        let mut found: Vec<(u32, BlockId)> = f
+            .cfg
+            .blocks
+            .iter()
+            .flat_map(|(&id, block)| {
+                block
+                    .statements
+                    .iter()
+                    .filter(|statement| {
+                        matches!(statement, Statement::Call { command, .. } if command == "puts")
+                    })
+                    .map(move |statement| (statement.span().start(), id))
+            })
+            .collect();
+        found.sort_unstable();
+        found.into_iter().map(|(_, id)| id).collect()
+    }
+
+    /// A value refinement holds wherever every executable path carries it:
+    /// in its arm and past a merge inside the arm, whose two paths both
+    /// cross the refined edge, and not past the merge of the refined arm
+    /// with the other one, where the version reads as its own value. A
+    /// barrier — `time $script` runs the script here, which may set `x`
+    /// without a new version — ends it, in its own block and after.
+    #[test]
+    fn a_value_refinement_holds_where_every_path_carries_it() {
+        let registry = CommandRegistry::build_default();
+        let cu = crate::compilation_unit::CompilationUnit::build_for(
+            "proc p {x c} {if {$x eq \"a\"} {if {$c} {puts 1} else {puts 2}; puts $x}; puts $x}\n\
+             proc m {x script} {if {$x eq \"a\"} {puts $x; time $script; puts $x}}\n",
+            &registry,
+            false,
+        );
+        let a = LatticeValue::Const(ConstValue::String("a".to_owned()));
+        let p = cu.function("::p").expect("procedure analysed");
+        let x = (p.ssa.var_symbol("x").expect("x"), 0);
+        let held: Vec<Option<&LatticeValue>> = puts_blocks(p)
+            .into_iter()
+            .map(|block| p.sccp.value_at(block, x))
+            .collect();
+        assert_eq!(
+            held,
+            vec![
+                Some(&a),
+                Some(&a),
+                Some(&a),
+                Some(&LatticeValue::Overdefined)
+            ],
+            "both inner arms, the inner merge, then past the outer merge"
+        );
+        let m = cu.function("::m").expect("procedure analysed");
+        let x = (m.ssa.var_symbol("x").expect("x"), 0);
+        assert!(
+            m.cfg
+                .blocks
+                .values()
+                .flat_map(|block| block.statements.iter())
+                .any(|statement| matches!(statement, Statement::Barrier { .. })),
+            "the witness needs `time $script` to lower to a barrier"
+        );
+        assert_eq!(m.sccp.refinements.len(), 1, "{:?}", m.sccp.refinements);
+        for block in puts_blocks(m) {
+            assert_eq!(m.sccp.value_at(block, x), Some(&LatticeValue::Overdefined));
+            assert_eq!(m.sccp.refinements_in(block).count(), 0);
+        }
     }
 
     #[test]

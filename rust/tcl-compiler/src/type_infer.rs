@@ -2023,6 +2023,9 @@ mod tests {
             existence_exits: HashMap::new(),
             existence_entries: HashMap::new(),
             refinements: Vec::new(),
+            refinements_at: HashMap::new(),
+            value_entries: HashMap::new(),
+            query_places: Vec::new(),
             values: HashMap::new(),
             executable_blocks: blocks
                 .iter()

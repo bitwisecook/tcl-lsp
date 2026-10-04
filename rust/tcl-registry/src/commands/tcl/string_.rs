@@ -549,6 +549,44 @@ pub(crate) fn fold_is(args: &[&str], version: Option<TclVersion>) -> Option<Stri
     Some(if member { "1" } else { "0" }.to_owned())
 }
 
+/// The type every value a `string is` test accepts holds once it has: what
+/// the true edge of a branch on `[string is CLASS ?-strict? $x]` proves of
+/// `x` (`docs/design/compiler/value-transfers.md` § *Predicate refinement*),
+/// a type and never a value. `args` are the words after `is` — the class, as
+/// Tcl reads it with its abbreviations, the options, and the value last, as
+/// [`fold_is`] reads them.
+///
+/// The test converts the value it accepts, so the type is the representation
+/// the value then holds (`tcl::unsupported::representation`, tclsh 8.6 to
+/// 9.1): an integer class (`integer`, `entier`, `wideinteger`) leaves an
+/// integer, `double` an integer or a double, so `Numeric`, each only under
+/// `-strict`, since without it the empty string, which none converts, passes
+/// every class; `dict` leaves a dictionary, the empty one included. `list`
+/// leaves the empty string a pure string, and `boolean`, `true` and `false`
+/// leave `0` and `1` integers, so neither proves a type, nor does a character
+/// class. `-failindex` writes a variable, and an option spelled any other way
+/// than `-strict` is one this reading does not decide, so either proves
+/// nothing.
+#[must_use]
+pub fn string_is_member_type(args: &[&str]) -> Option<TclType> {
+    let (class, rest) = args.split_first()?;
+    let (_value, options) = rest.split_last()?;
+    let mut strict = false;
+    for option in options {
+        match *option {
+            "-strict" => strict = true,
+            _ => return None,
+        }
+    }
+    let class = tcl_cmd_core::string_is::resolve_class(class).ok()?;
+    match class {
+        "integer" | "entier" | "wideinteger" if strict => Some(TclType::Int),
+        "double" if strict => Some(TclType::Numeric),
+        "dict" => Some(TclType::Dict),
+        _ => None,
+    }
+}
+
 /// Whether `string is class` is a *defined* operation in the target version
 /// (it doesn't *raise*).  `wideinteger` requires 8.5+, `entier` 8.6+, and
 /// `dict` is **9.0-only** (matching the gating below); an unknown version
@@ -1781,9 +1819,37 @@ pub fn spec() -> CommandSpec {
 mod tests {
     use tcl_dialect::model::{Family, SurfaceQuery};
 
-    use super::fold_is;
+    use super::{fold_is, string_is_member_type};
     use crate::hooks::TclVersion;
+    use crate::types::TclType;
     use crate::{CommandRegistry, DispatchDependencies, DispatchDependencyDomain};
+
+    /// A `string is` test proves a type only where every value it accepts
+    /// holds it once tested: the numeric classes under `-strict` (`string is
+    /// integer {}` is 1 on every release, `-strict` makes it 0), `dict`
+    /// either way; `list`, which leaves `{}` a pure string, the boolean
+    /// classes, which leave `1` an integer, and a character class never; the
+    /// class reads with Tcl's abbreviations, and `-failindex` or an option
+    /// spelled otherwise proves nothing.
+    #[test]
+    fn a_string_is_test_proves_the_type_its_members_share() {
+        let cases: [(&[&str], Option<TclType>); 11] = [
+            (&["integer", "-strict", "$x"], Some(TclType::Int)),
+            (&["int", "-strict", "$x"], Some(TclType::Int)),
+            (&["integer", "$x"], None),
+            (&["double", "-strict", "$x"], Some(TclType::Numeric)),
+            (&["boolean", "-strict", "$x"], None),
+            (&["list", "$x"], None),
+            (&["dict", "-strict", "$x"], Some(TclType::Dict)),
+            (&["alpha", "-strict", "$x"], None),
+            (&["integer", "-failindex", "at", "$x"], None),
+            (&["integer", "-str", "$x"], None),
+            (&["integer"], None),
+        ];
+        for (args, expected) in cases {
+            assert_eq!(string_is_member_type(args), expected, "{args:?}");
+        }
+    }
 
     #[test]
     fn string_is_folds_tcl_faithful_classes() {

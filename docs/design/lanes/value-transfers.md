@@ -4,11 +4,12 @@ The crash-insurance and handover note for the `value-transfers` lane. A
 fresh agent resumes from this file and the `wip(value-transfers):` commits.
 Slices 1 to 6 and 8 to 10 have landed — each has a § *Status* section below,
 with the records and the decisions behind it; § *Plan for slices 2–13* is the
-plan for the rest. The review fixes of slices 9 and 10 come first, each its own
+plan for the rest. The review fixes of slices 9 and 10 are in, each its own
 commit (§ *Slice 10* › *Record (2026-10-04): review fixes for slices 9 and
-10*); the next slice is slice 11, predicate refinement: § *Slice 10* ›
-*Record (2026-10-01): slice 10* › *What slice 11 starts from* is where to
-start, read with D250 to D252 and the review fixes.
+10*). Slice 11, predicate refinement, is at its first checkpoint, the edge
+refinements recorded in every domain and read by none but the existence rung
+(§ *Slice 11* › *Record (2026-10-04): slice 11*); its landing, where the value
+lattice, the type lattice and the ranges read them, is next.
 
 ## Goal
 
@@ -7455,7 +7456,7 @@ before the fix, and 4 after: the one lambda whose body runs `namespace eval ::
 with the lambda's own declarations. A procedure does the same: `set done 0;
 proc p {} {namespace eval :: {set done 1}}; p; if {$done eq 0} {puts zero}
 else {puts changed}` prints `changed` under tclsh 8.4 to 9.0 and `zero` after
-`tcl opt`, reported, not fixed here.
+`tcl opt`: #2367, filed with both forms, not fixed here.
 
 ### Slice 11 — predicate refinement
 
@@ -7636,6 +7637,98 @@ never rewrites the string.
 | a nested condition over a refined variable decides | the exit |
 | `string is CLASS $x` types `x` in its arm | the per-shape table |
 | the existence guard is the refinement lookup (byte-identical effect) | the exit |
+
+#### Record (2026-10-04): slice 11
+
+##### The first checkpoint: the edge refinements
+
+`wip(value-transfers): slice 11 — edge refinements` holds VT11.1 and VT11.2,
+and no consumer outside the existence rung reads what it records, so every
+decision is byte-identical (D259).
+
+- **One transfer, every domain.** The condition tree's `Selection` transfer,
+  `tcl_expr_eval::condition_edge_facts`, answers the per-shape table row for
+  row and states each fact as the registry's `FactView` — an exact value or
+  a finite set for the value domain, a `DomainFact` for every other (D258).
+  The existence rung's facts come from it too: slice 8's `condition_facts`,
+  `existence_pure` and `query_facts` moved out of `sccp.rs` unchanged
+  (`changes_no_place` is `existence_pure`), and `ExistenceRun::new` takes the
+  existence rows of `branch_facts`. `string is` is read through the
+  registry, `tcl_registry::commands::tcl::string_is_member_type`, beside
+  `fold_is`.
+- **Who may be refined.** A variable no other actor may write: none
+  externally mutable (`is_externally_mutable`, an element of an escaping
+  array, a qualified name), none linked to state elsewhere (`linked_elsewhere`,
+  where the run computes existence and so names them), and none at all once
+  a computed name anywhere in the function may write or destroy a place —
+  the rule the unit's own run applies through `has_dynamic_variable_trace`,
+  asked again here (`dynamic_name_barrier`) for a run whose caller does not
+  apply it. A plain local's version 0 and its later versions alike.
+- **Where a refinement holds.** `refinements_in_force`: at a block every
+  executable edge into which carries it — a branch edge that takes it, or an
+  edge from a block where it holds — the greatest fixed point over the
+  executable graph, which is the plan's "blocks the edge's target
+  dominates" read on the edges the solver opened. An exception edge carries
+  none; a block holding a `Barrier` or an `UpFrame` holds none and passes
+  none on, since either may write a variable without a new version (the
+  value lattice widens every value there for the same reason). A later
+  definition is a version the refinement does not name, and the definition
+  of the refined version dominates the branch, so a path that re-runs it
+  reaches the block without crossing the edge. An unseen call needs no rule:
+  every name live past it takes a fresh version.
+- **The lookup.** `SccpResult::refinements_at` (per block, indices into
+  `refinements`), `refinements_in(block)`, `value_entries` and
+  `value_at(block, key)`, the version's own value narrowed by the exact
+  values and finite sets in force there (`refined_value`: a constant or a
+  set member the facts allow stays as it is, a set keeps the members they
+  allow, an `Overdefined` version takes their value or set, and a
+  contradiction — an edge a branch the solver did not decide left open —
+  keeps the version's own). A φ reads its incoming versions' own values: a
+  merge drops what its arms refine. `place_name` and `query_places` name a
+  refinement's place, a query-only slot included.
+- **The Explorer.** `tcl explore --show sccp --text` prints a `refinement x =
+  'a'` line per refinement on an executable edge, with its edge, version and
+  domain, and the JSON view lists them under `refinements`. A refinement on
+  an edge the solver never takes holds nowhere, and the view keeps the
+  untaken block's name out of it: `tcl-cli`'s
+  `explore_sccp_prints_the_existence_branch_decided` asserts that the true
+  block of `[info exists x]` after `unset x` never appears, which the rung's
+  refinement on its edge would break.
+
+Tests: `each_shape_refines_the_edge_its_table_row_names` (the table's rows
+under 8.6, both edges of each) and
+`a_value_refinement_holds_where_every_path_carries_it` (`sccp.rs`);
+`a_merge_drops_the_refinement` and `a_traced_variable_is_never_refined`
+(`value_transfer_witnesses.rs`, under the five dialects, and each program's
+output under tclsh 8.4 to 9.1 before and after `tcl opt`; the traced one
+prints `changed`, which a refinement of `x` to `a` would lose);
+`sccp_text_prints_each_edge_refinement` (`tcl-explorer`, the untaken edge's
+refinement left out);
+`a_string_is_test_proves_the_type_its_members_share` (`tcl-registry`). The
+three `info_exists_*` precedent tests and the existence rung's own pass
+unchanged.
+
+Measured (D259): `tcl opt --profile full` and `tcl diag`, run by a binary
+built at the checkpoint and by one built at its parent `a7639c15`, print the
+same — standard output and exit status — over 1231 files: every `.tcl` and
+`.irul` file of tcllib 2.0's modules, `samples/`, `editors/vscode/`,
+`rust/tcl-compiler`, `rust/tcl-irule-test` and `rust/tcl-lsp-core`. The
+checkpoint's binary predates the correction that leaves `string is boolean`
+and `string is list` untyped, which changes what a refinement records and
+nothing a decision reads.
+
+Green at the first checkpoint: `tcl-compiler` 10160 passed, 6 ignored (the
+four new tests; the library 6733, `value_transfer_witnesses` 125),
+`tcl-registry` 1425 (the new test), `tcl-explorer` 111 (the new test),
+`tcl-lsp-db` 139, 5 ignored, `tcl-lsp-core --lib` 2353, `tcl-cli` 204,
+`xtask` 275, `tcl-spectcl` 476, 1 ignored, and `tcl-cmd-core` 143; workspace
+clippy, `cargo fmt --check` and `cargo check --workspace --all-targets`
+clean; `value-transfers --check` and `registry-axes --check` unchanged; the
+gates pass, and `dialect-drift` stays at its 8 sites. `tcl-cli`'s
+`explore_sccp_prints_the_existence_branch_decided` failed on the first run:
+the view printed the rung's refinement on the true edge of `[info exists x]`
+after `unset x`, naming a block the solver never enters, and the view now
+leaves an untaken edge's refinements out.
 
 ### Slice 12 — bounded-loop enumeration
 
@@ -11062,7 +11155,13 @@ Taken in the review fixes of slices 9 and 10 (§ *Slice 10* › *Record (2026-10
 - **D254 — `return`'s options have one decoding, and the lowering reads it** (S1; corrects D231's canonical-decimal rule and its decline of any other pair). `return`'s completion was decoded four times: `exact_return_completion` in the registry, which kept an unknown pair and read any numeral; `ReturnSemantics`, which declined both; `invocation_completion`, which read `--` as an end of options; and the lowering, which took any first word starting with `-` for options and the CFG then took for a procedure exit, so `return -level 0 -code ok x` ended its procedure and O107 deleted what followed (#2357). `decode_return` reads the words as `Tcl_ReturnObjCmd` and `TclMergeReturnOptions` do, release by release (measured under tclsh 8.4 to 9.1: `return a b` returns the empty string from 8.5 and raises `bad option "a"` in 8.4; `-errorcode` must be a list from 8.5 and `-errorstack` an even list from 8.6; `-code return -level 0` is `TCL_RETURN`), and every reader asks it. The lowering lowers by its answer: at level 0 `ok` is a plain statement, `error` and options the release rejects an error completion, `break` and `continue` loop jumps, and anything else — a positive level, a larger code, a word not known — the `TCL_RETURN` barrier. A target that names no release is answered only where every release reads the words alike, and an integer past `INT_MIN`, which 8.x wraps and 9.0 rejects, is left to the release.
 - **D255 — A stub states its frame effect in the registry's vocabulary, and a plain call is a named head** (S3; the owner's ruling). A stub stated roles and no frame effect, so under D250 every stubbed head was a call to code the module cannot see, and a procedure's locals widened across `db_query {select 1}` whatever the command does. `-frame own|none|caller` fills the declaration's frame-effect field with the value a catalogue command carries on `CommandSpec::frame_effect`: `own` and `none` cross no frame, and `caller` is `argparse`'s `OpaqueCallerVars`. A stub without `-frame` is unstated and widens as before, the conservative default the stub grammar page documents with its cost. `own` and `none` claim what a catalogue command with no frame effect and no variable argument claims: the call touches no variable the calling frame can name, globals and namespace variables included, so a command that touches one by name states neither. `head_is_unseen` keeps one rule and no stub-only branch: the fresh interpreter's command table binds a declared plain call beside the registry's names, so a call to one is named as a catalogue command's call by its own spelling is, and brings its stated effect where a catalogue command's call brings `CommandSpec::frame_effect` — for `caller`, the computed-name walk, as for `argparse`, and the deferred-writes scan, which now reads that effect for `argparse` too (run as a callback, `argparse` had written nothing the scan saw). Only a plain call qualifies — every argument data, no trait but `-pure`'s or `-unsafe`'s, no side effect — because the flow graph reads roles and traits off the catalogue, which answers a name it does not hold as a command of plain values that does nothing it models, and that is the declaration's own answer only for such a stub. This narrows the ruling's "body role included" for soundness: a body or command-prefix word written in a statement of its own already answers as the catalogue's rule answers, the barrier `time {…}` lowers to, under every frame word; but in a substitution the flow graph finds a body by the catalogue's roles, which name none for a stub, so `set n [db_eval $sql {set g 6}]` named would keep `g` at 5 — the unseen call widens it, and the stub stays unseen. A variable word has the same reason: a computed name it writes reaches the computed-name walk only through the catalogue. `W123` in a procedure's own frame — a `proc`, a method, an `apply` lambda — ends with one sentence: the call widens the procedure's locals held at it, and a plain `-frame own` (or `-frame none`) stub keeps them; at the top level, in a `namespace eval` body and in an `uplevel #0` body it adds nothing, as ruled. A `# tcl-lsp: stub` line outside a `stubs-begin`/`stubs-end` block is ignored with no report, as the stub grammar page and the how-to state; that gap is the owner's to file.
 - **D256 — `W123`'s sentence on widening is read from the widening, not from a frame kind** (the S3 follow-up; corrects D255's top-level clause, the owner's correction). D255 put the sentence in a procedure's own frame alone, on the reading that nothing widens at the top level; it does — an unknown head there may set any global by name, and D250's marker widens the globals the frame holds, so `set g 5; db_query x; if {$g == 5} …` draws no `I230`. The sentence now stands exactly where the flow graph puts the marker for a call to code the module cannot see over the call, the fact SSA's fresh versions read, and is worded for every frame: the variables held at the call, in a procedure's own frame its locals. A head the graph does not lower where it is written, in an `uplevel #0` body, has no marker of its own — its procedure's summary carries the global effect to the procedure's calls — and no sentence.
-- **D257 — A lambda a callback applies is read as a procedure's body is, and the procedure summary counts the bindings a body makes** (the lane's open defect from the reconciliation). The deferred-writes scan read the scripts a module stores as callbacks and the procedures they name, but not a lambda one applies, whose body runs in a frame of its own: a plain name there is the lambda's local, and a global is reached only as a procedure reaches one, so the procedure summary's reading of a body — its `global`, `variable`, `upvar #0` and qualified spellings, the procedures it calls, the lambdas it applies — is the lambda's answer too, asked of the body's own lowering. The summary had counted assignments, call definitions and invocation write projections, not the bindings a barrier or a structured statement makes; a procedure never showed it, since the module-wide facts its own flow graph feeds (the globals a procedure's graph defines) caught the name, but a callback's lambda is lowered apart and has no such facts, so the summary counts them now, which only adds names. A `namespace eval` body inside a procedure or a lambda is still walked with the frame's own declarations, so a plain write there, which is the namespace's, reads as a local: pre-existing in the summary, reported, not fixed here.
+- **D257 — A lambda a callback applies is read as a procedure's body is, and the procedure summary counts the bindings a body makes** (the lane's open defect from the reconciliation). The deferred-writes scan read the scripts a module stores as callbacks and the procedures they name, but not a lambda one applies, whose body runs in a frame of its own: a plain name there is the lambda's local, and a global is reached only as a procedure reaches one, so the procedure summary's reading of a body — its `global`, `variable`, `upvar #0` and qualified spellings, the procedures it calls, the lambdas it applies — is the lambda's answer too, asked of the body's own lowering. The summary had counted assignments, call definitions and invocation write projections, not the bindings a barrier or a structured statement makes; a procedure never showed it, since the module-wide facts its own flow graph feeds (the globals a procedure's graph defines) caught the name, but a callback's lambda is lowered apart and has no such facts, so the summary counts them now, which only adds names. A `namespace eval` body inside a procedure or a lambda is still walked with the frame's own declarations, so a plain write there, which is the namespace's, reads as a local: pre-existing in the summary, #2367, not fixed here.
+
+Taken in slice 11, predicate refinement (§ *Slice 11* › *Record (2026-10-04): slice 11* has the witnesses):
+
+- **D258 — An edge refinement's fact is the registry's `FactView`, and one condition-tree transfer states every domain's** (VT11.1, VT11.2). The plan's struct names `fact: DomainFact`, which the registry keeps for the domains other than the value domain, whose answers are `FactView::Exact` and `FactView::Finite`; a refinement is one answer of a domain, so its fact is a `FactView` — `Exact`, `Finite` or `Domain`, never `Pending` or `Top` — and `domain` names which. The facts come from `tcl_expr_eval::condition_edge_facts`, the existence rung's included, so a condition is read once for every domain: the variable is a plain local read whole (`$x`, `${x}`, the flattened `switch` subject's `Raw` text), never an element, whose `Var` name the parser reduces to its array, nor a qualified name; the literal is a bare literal's text (`expr {$x eq 0x10}` compares the spelling, tclsh 8.4 to 9.1), a string operand's body where it is its value in every dialect, or a braced or substitution-free compiled word. `==` is a string comparison where the literal is no number under the target's numeral grammar and leading-zero rule (`classify_operand`; the registry's `numbers` and `octal_fold_policy`, the 9.0 grammar where no dialect is named, and nothing at all where the rule is open), and otherwise refines the type `Numeric` and an integer's range point. `string is` refines the representation its test leaves the value with, measured with `tcl::unsupported::representation` under tclsh 8.6 to 9.1: an integer for the integer classes and an integer or a double for `double`, each under `-strict` alone, since without it the empty string passes and stays a string, and a dictionary for `dict` either way; `list` leaves `{}` a pure string and the boolean classes leave `0` and `1` integers, so neither refines, nor does a character class, `-failindex` or an option spelled other than `-strict` — Tcl accepts `-str`, which this reading leaves alone. A `string is` head is read only where the run trusts it (`LatticeDriver::trusted`); the existence query keeps slice 8's reading, which does not ask.
+- **D259 — The first checkpoint records the refinements and their lookup, and only the existence rung reads any** (VT11.1; the plan's checkpoint, whose green is every decision byte-identical). VT11.1 has the lookup "consulted first by `env_from_uses`, `evaluate_branch` and `evaluate_def_with_folds`", and VT11.2's table produces exact values the first of those would decide the nested `if` with; both cannot hold in a byte-identical checkpoint, so the checkpoint builds the lookup and the landing (VT11.3) makes the solver read it. `env_from_uses` no longer exists: the driver's inputs read each variable through the statement's versions (`LatticeInputs`), and `evaluate_branch` reads the branch block's exit versions, so the landing overlays the block's refined values where they read. Measured: `tcl opt --profile full` and `tcl diag` print the same with and without the checkpoint over the corpus the record names.
+- **D260 — A `switch` refines only where its arms are edges** (VT11.2). An exact `switch` with no fall-through arm, whose subject no option scan reads, lowers to a chain of `StrEq` tests (`switch_is_flattened`), and the `eq` row refines each arm's edge. `-nocase`, `-glob` and `-regexp`, and an exact `switch` with a fall-through arm, stay one statement whose arms are scripts inside it (`lower_opaque_switch`); no edge enters an arm, so their rows — the finite set of a fall-through run, the case-insensitive type, the glob prefix as `Segments` — have nothing to sit on, and the selection record (`SccpResult::selections`) remains what states which arm runs.
 
 ### Open questions for the owner
 

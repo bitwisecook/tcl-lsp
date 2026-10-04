@@ -292,6 +292,36 @@ mod tests {
         );
     }
 
+    /// The `sccp` view prints each executable branch edge's refinement: the
+    /// nested equality program refines `x` to `a` on the outer true edge and
+    /// to `b` on the inner one, a numeric `==` refines the type and the
+    /// point, never the value, and an edge the solver never takes — the true
+    /// edge of `[info exists x]` after `unset x` — shows none.
+    #[test]
+    fn sccp_text_prints_each_edge_refinement() {
+        let sccp = |src: &str| {
+            render_all(
+                &serialise_result(&run_pipeline(src, "tcl8.6")),
+                &["sccp".to_owned()],
+                false,
+            )
+        };
+        let text = sccp("proc p {x} {if {$x eq \"a\"} {if {$x eq \"b\"} {puts never}}}");
+        assert!(text.contains("refinement x = 'a'"), "{text}");
+        assert!(text.contains("· edge: entry_1 → if_then_3"), "{text}");
+        assert!(text.contains("refinement x = 'b'"), "{text}");
+        let text = sccp("proc p {x} {if {$x == 1} {puts $x}}");
+        assert!(text.contains("refinement x = type numeric"), "{text}");
+        assert!(text.contains("refinement x = range [1, 1]"), "{text}");
+        assert!(!text.contains("refinement x = '1'"), "{text}");
+        let text = sccp("proc p {} {set x 1; unset x; if {[info exists x]} {puts yes}}");
+        assert!(text.contains("refinement x = unbound"), "{text}");
+        assert!(
+            !text.contains("refinement x = bound"),
+            "the untaken edge's refinement holds nowhere: {text}"
+        );
+    }
+
     const SEALED_ADD: &str =
         "proc add {b c} {return [expr {$b + $c}]}\nset d 2\nset e 4\nputs [add $d $e]\n";
 

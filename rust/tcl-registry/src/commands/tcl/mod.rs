@@ -166,6 +166,7 @@ mod socket_;
 mod source_;
 mod split_;
 mod string_;
+pub use string_::string_is_member_type;
 pub(crate) use string_::{
     fold_cat, fold_compare, fold_equal, fold_first, fold_index, fold_is, fold_last, fold_length,
     fold_match, fold_range, fold_range_unanimous, fold_repeat, fold_replace, fold_reverse,

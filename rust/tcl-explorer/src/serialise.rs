@@ -1733,11 +1733,71 @@ fn selection_json(
     })
 }
 
+/// One edge refinement of the SCCP view: the edge, the place and version it
+/// narrows, the domain, and the fact as the view spells it — a value as a
+/// constant is (`'a'`), a finite set as its members, an existence, a type
+/// or a range by name.
+fn refinement_json(
+    refinement: &tcl_compiler::sccp::EdgeRefinement,
+    sccp: &tcl_compiler::sccp::SccpResult,
+    ssa: &tcl_compiler::ssa::SsaFunction,
+) -> Value {
+    use tcl_registry::value_transfer::{BindingKind, DomainFact, Existence, FactDomain, FactView};
+    let text = |bytes: &[u8]| crate::formatters::py_repr_str(&String::from_utf8_lossy(bytes));
+    let fact = match &refinement.fact {
+        FactView::Exact(value, _) => text(&value.bytes),
+        FactView::Finite(values, _) => format!(
+            "one of {}",
+            values
+                .iter()
+                .map(|value| text(&value.bytes))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        FactView::Domain(DomainFact::Existence(existence)) => match existence {
+            Existence::Bound(BindingKind::Either) => "bound".to_owned(),
+            Existence::Bound(BindingKind::Scalar) => "bound scalar".to_owned(),
+            Existence::Bound(BindingKind::Array) => "bound array".to_owned(),
+            Existence::Unbound => "unbound".to_owned(),
+            Existence::MayBound => "may be bound".to_owned(),
+            Existence::Pending => "pending".to_owned(),
+        },
+        FactView::Domain(DomainFact::Type {
+            intrep: Some(intrep),
+            ..
+        }) => format!("type {}", type_name(*intrep)),
+        FactView::Domain(DomainFact::Range { lo, hi }) => {
+            let bound = |bound: &Option<i64>, infinite: &str| {
+                bound.map_or_else(|| infinite.to_owned(), |bound| bound.to_string())
+            };
+            format!("range [{}, {}]", bound(lo, "-inf"), bound(hi, "+inf"))
+        }
+        other => format!("{other:?}"),
+    };
+    let domain = match refinement.domain {
+        FactDomain::ExactValue => "value",
+        FactDomain::Type => "type",
+        FactDomain::Existence => "existence",
+        FactDomain::Range => "range",
+        FactDomain::Segments => "segments",
+        _ => "other",
+    };
+    json!({
+        "from": ssa.block_name(refinement.edge.0),
+        "to": ssa.block_name(refinement.edge.1),
+        "variable": sccp.place_name(ssa, refinement.key.0).unwrap_or("?"),
+        "version": refinement.key.1,
+        "domain": domain,
+        "fact": fact,
+    })
+}
+
 /// Serialise the complete SCCP lattice and executable CFG facts. The SSA CFG
 /// tab intentionally keeps a compact annotation; this view is the durable
-/// proof surface for constants, reachability, executable edges, each opaque
-/// case list's selection and — per statement — the value-transfer route the
-/// resolved invocation declared and how it answered.
+/// proof surface for constants, reachability, executable edges, each
+/// executable branch edge's refinements, each opaque case list's selection
+/// and — per statement — the value-transfer route the resolved invocation
+/// declared and how it answered.
 #[must_use]
 pub fn serialise_sccp(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
     Value::Array(
@@ -1813,6 +1873,18 @@ pub fn serialise_sccp(result: &ExplorerResult, li: &LineIndex, source: &str) -> 
                     .iter()
                     .map(|record| selection_json(record, li, source))
                     .collect();
+                // A refinement on an edge the solver never takes holds
+                // nowhere, so the view names only the executable edges'.
+                let refinements: Vec<Value> = snap
+                    .unit
+                    .sccp
+                    .refinements
+                    .iter()
+                    .filter(|refinement| {
+                        snap.unit.sccp.executable_edges.contains(&refinement.edge)
+                    })
+                    .map(|refinement| refinement_json(refinement, &snap.unit.sccp, ssa))
+                    .collect();
                 let tally = &snap.unit.sccp.route_tally;
                 json!({
                     "name": snap.name,
@@ -1821,6 +1893,7 @@ pub fn serialise_sccp(result: &ExplorerResult, li: &LineIndex, source: &str) -> 
                     "executableBlocks": executable_blocks,
                     "executableEdges": executable_edges,
                     "constantBranches": branches,
+                    "refinements": refinements,
                     "selections": selections,
                     "routes": routes,
                     "routeTally": {

@@ -32,11 +32,14 @@ C-extension contracts, none of which this one waits for.
 > from its definition in the source, the source is the contract. Three shapes
 > name nothing in the workspace — `TransferSummary` and `ParamRole`
 > (§ Proc-level transfer summaries) and `LoopEnumeration` (§ Bounded-loop
-> enumeration) — and `EdgeRefinement` exists for the existence domain alone
-> (`rust/tcl-compiler/src/sccp.rs`; § Predicate refinement describes its other
-> domains). The observed Tcl behaviours quoted below were run under Tcl 9.1b0,
-> 9.0.4, 8.6.18, 8.5.19, and 8.4.20; a line names releases only where they
-> differ, or where one of them lacks the feature.
+> enumeration) — and `EdgeRefinement` (`rust/tcl-compiler/src/sccp.rs`) is
+> recorded for each row of § Predicate refinement's table but the `switch`
+> modes that stay one opaque statement, whose arms are no edges, though the
+> existence rung is the one consumer that reads its domain's: the value
+> lattice, the type lattice and the ranges read none. The observed Tcl
+> behaviours quoted below were run under Tcl 9.1b0, 9.0.4, 8.6.18, 8.5.19,
+> and 8.4.20; a line names releases only where they differ, or where one of
+> them lacks the feature.
 
 ## Rulings
 

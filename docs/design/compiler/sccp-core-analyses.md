@@ -433,7 +433,8 @@ is `Unavailable`, never `Unbound`.
   fact the version live at the block's entry holds there — from
   `existence_entries` where a refinement or a clobber changed it on the
   way in, else the version's own. `SccpResult::refinements` lists the
-  function's refinements, one per edge and place.
+  function's refinements in every domain — the rung's and those
+  § *Edge refinements* records — one per edge, place and fact.
 
 The cell updates read it through `prior_store(place, FactDomain::Existence)`:
 an `Unbound` place is an absent cell, which `append` and `lappend` create in
@@ -450,6 +451,54 @@ way. `array unset` without a pattern unbinds an array but leaves a scalar
 or an absent name alone — it never raises — so it reads the prior fact,
 and a place that may be either widens; with a pattern the array stays.
 `array default` (from 9.0) may bind its name as an array.
+
+### Edge refinements (`SccpResult::refinements`)
+
+A branch condition's `Selection` transfer
+(`tcl_expr_eval::condition_edge_facts`) states, per edge, what the
+condition's outcome proves about the places it reads
+([value-transfers.md](value-transfers.md) § *Predicate refinement*, the
+per-shape table): `$x eq LIT` the exact value on the true edge and
+`$x ne LIT` on the false one; `==` and `!=` the same where `LIT` is no
+number under the target's numeral grammar, so the comparison is a string
+one, and otherwise the type `Numeric` and, for an integer, the range
+point — never the value, since `1.0 == 1` holds; a leading-zero literal
+the target's release leaves open states nothing. `$x in LIST` states the
+list's finite set, split under the target's word rules, and `ni` the same
+on its false edge; `[string is CLASS -strict $x]` the representation the
+test leaves its value with (`tcl_registry::commands::tcl::string_is_member_type`:
+`Int` for the integer classes and `Numeric` for `double` under `-strict`,
+`Dict` for `dict` with or without it; `list` leaves `{}` a pure string and
+the boolean classes leave `1` an integer, so neither proves a type);
+`[info exists x]` and `[array exists x]` the existence
+(§ *The existence rung*). `!` swaps the edges, `&&` keeps both true-edge
+answers and `||` both false-edge ones, a left operand's only when the right
+one changes no place. The variable is a plain local read whole — `$x`,
+`${x}`, the flattened `switch` subject — and the other side a literal, so
+`$x` alone, `$x eq $y`, an element and a qualified name state nothing. An
+exact `switch` with no fall-through arm lowers to a chain of `eq` tests,
+whose edges refine each arm; any other `switch` is one statement whose arms
+are no edges.
+
+The existence rung takes its own domain's facts. Every other domain's is
+recorded for a variable no other actor may write — none externally
+mutable, none an element of an escaping array, none linked to state
+another invocation, the object or the host holds — and for none once a
+computed name anywhere in the function may write or destroy a place. It
+names the version the branch block leaves the variable at and holds at a
+block where every executable edge into it carries it: a branch edge that
+takes it, or an edge from a block where it holds
+(`SccpResult::refinements_at`, `refinements_in(block)`). An exception edge
+carries none, and a block holding a barrier or an up-frame, which may
+write any variable without a new version, holds none and passes none on.
+A refinement never makes a version: a φ reads its incoming versions' own
+values, so a merge that two arms refining `x` to `a` and to `b` meet at
+holds neither. `SccpResult::value_at(block, key)` is the block-qualified
+value — the version's own, narrowed by the exact values and finite sets in
+force there (`value_entries`) — and the Explorer's `sccp` view prints each
+refinement on an executable edge (`refinement x = 'a'`, with its edge,
+version and domain). The solver, the type lattice and the ranges read none
+of them, so `if {$x eq "b"}` inside `if {$x eq "a"}` is not decided.
 
 ### Preserve outcomes (`SccpResult::preserved`)
 
