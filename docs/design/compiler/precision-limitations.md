@@ -198,14 +198,51 @@ Two shapes are left undecided as well. A nested command that reads a variable
 no statement records as a use (`[string length $y]`, `[incr x $y]`) leaves the
 expression unevaluated: the synthetic call and the host record the reads of the
 places the words write and of the expression's own variables, not of a nested
-command's own words. And an error completion, which no route yields, ends no
-evaluation with its prefix: `catch {expr {[incr x] + [error mid]}}` leaves `x`
-unknown rather than 2.
+command's own words. And at a script's top level, where a `catch` stays one
+call, `catch {expr {[incr x] + [error mid]}}` is not evaluated and leaves `x`
+unknown; in a procedure, where the `catch` is lowered into blocks, the error
+ends the evaluation with its prefix and `x` is 2.
 
-Why it has not been done: each shape needs the host statement to state the
-reads of its own substitutions, or a route that raises with a prefix of
-stores, which is more than a policy change. Extend the host list, and the
-reads the call records, when one of these is the motivating case.
+Why it has not been done: the first shape needs the host statement to state
+the reads of its own substitutions, which is more than a policy change.
+Extend the host list, and the reads the call records, when one of these is
+the motivating case.
+
+## Open — a constant the solver proves at a φ is not inlined into a read
+
+The proved-read rewrite (O100's "Inline the constant value of 'x' proved at
+this read", `run_load_forwarding` in `optimiser/propagation.rs`) inlines the
+value of a version a statement defines, and skips a read of a φ's version;
+the name-keyed projection the other O100 forms read drops a variable whose
+versions hold different constants. So `proc p {} {set x 1; catch {expr
+{[incr x] + [error mid]}} msg; puts $x}` keeps `puts $x`, though `tcl
+explore --show sccp` proves `x#3 = const(2)` there, the φ where the `catch`
+ends; and `proc p {c} {set x 1; if {$c} {set x 2} else {set x 2}; puts $x}`
+keeps it too. The branch folds read the lattice, so `if {$x == 2}` in the
+read's place is decided (I230, O101). That is sound — the read stays — and
+short of what the lattice proves.
+
+Why it has not been done: the def-use consumer knows the φ's version, but
+the rewrite asks for a defining statement whose span it rewrites, which a φ
+does not have. Extend `run_load_forwarding` to a φ's version when a program
+motivates it.
+
+## Open — an element of a place a store preserved holds no value
+
+`scan` goes on past a store it cannot make and preserves the place that store
+failed on. The solver gives the definitions of that place's elements — the
+fan of a whole-variable write — no value, since a definition takes only the
+stores to its own place (`defs_from_placed` in `value_transfer.rs`). So after
+`array set a {k keep}; set b old; catch {scan {1 2} {%d %d} a b}`, `$a(k)` is
+unknown and `if {$a(k) eq "keep"} …` is not decided, where after `catch
+{lassign {x y} b a}`, which stops at `a` and never reaches it, I230 reports the
+condition always true and O101 folds it. Sound, and short of what tclsh
+leaves.
+
+Why it has not been done: an element's definition would take the stores to
+its base where every one of them is a `Preserve`, a rule the driver does not
+state yet for any command. Extend `defs_from_placed` when a program motivates
+it.
 
 ## Accepted — a nested unbind's kill is not a definition
 

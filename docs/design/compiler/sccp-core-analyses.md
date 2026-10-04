@@ -472,7 +472,44 @@ the general trace over the fact every declared preserve outcome states.
 A nested conditional writer (`regexp` in a word or a condition) records
 its targets as read the same way the statement form does
 (`ir_helpers::variable_write_effects_from_commands`), so the optimiser
-never deletes the store a no-match preserves there either.
+never deletes the store a no-match preserves there either; and a write in
+a `catch` or `try` body inside a substitution is read the same way, since
+the body may stop before it. A command that raises preserves the places
+its error did not reach, and `scan`, which goes on past a store it cannot
+make, preserves the place of each store that failed.
+
+### Completion paths
+
+The solver publishes a statement's values and existence per completion
+path. A block a handler's region holds is a point a throw may leave from,
+and a statement in it that certainly raises — its route answers `Error {
+written, .. }`, the prefix rule of [value-transfers.md](value-transfers.md)
+§ *`catch`, `try`, and completion* — answers `DefValues::Raised`: its
+definitions take what the stores that ran left, and the places the error
+did not reach keep what they held. An error in a word is an error before the
+command, and the pair of an embedded call and its host that raises gives the
+writes it made. The block's normal way out is then closed (`BlockExit`), and
+a later statement of the block, which never runs, leaves its places as they
+were. Outside a handler's region nothing is claimed of a raise.
+
+A handler is entered over the exception edges from its region's points and
+over its region entry (`Function::region_entries`, `RegionEntry`), the edge
+from the block before a `catch` or `try` body, which carries the state
+before the body. The solver opens a region entry once the body's first
+command is processed and does not raise only after a store
+(`BlockExit::entry_throws`), so no handler sees the state before `lassign
+{new second} a b` over an array `b`, which writes `a` first. A `try` body
+that never rests has the entry where its first statement may fail before it
+stores and is no literal assignment, which raises only where its own place
+holds an array. The existence rung enters a handler with the join of its
+region's points. A flattened `catch` is evaluated where its region ends
+(`Function::catch_ends`, `LatticeDriver::evaluate_catch_end`) through the
+`catch` route, over the versions the block before the body exits with, so
+its result variable holds what the script returned; a `catch` that stays one
+call is evaluated as any other call, and one inside a `[…]` substitution with
+its statement's synthetic call. O109 and O126 read the region entries the
+solver opens and the definitions a raise preserved
+([optimisation-passes.md](optimisation-passes.md)).
 
 ### Unreachable blocks
 

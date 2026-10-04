@@ -619,9 +619,10 @@ shape the comment on #2050 names: the read is inside a braced `expr`, so
 neither the dead-store guard nor the unused-variable check would see it if it
 were not an SSA use of the version it reads. `LocalWrites` is the policy that
 admits the nested increments, and an error inside the expression ends the
-evaluation with the writes so far; no route yields an error completion yet,
-so an expression with an error in the middle is not evaluated, and `catch
-{expr {[incr x] + [error mid]}}` leaves `x` unknown.
+evaluation with the writes so far: in a procedure, where the `catch` is
+lowered into blocks, `catch {expr {[incr x] + [error mid]}}` leaves `x` 2 on
+the error path, and at a script's top level, where it stays one call, `x` is
+unknown.
 
 ### Bounded-loop enumeration · rung
 
@@ -1060,21 +1061,20 @@ representation merge and S100 is silent on it.
 
 ```tcl
 proc p {} {
-    set a before           ;# today: W220 "never read", and O109 deletes it
+    set a before           ;# kept, with no W220
     if {[catch {regexp {(x)(y)} zz a b} m]} { puts $m }
     puts $a
 }
 ```
 
-`p` is `before` in every release, and the optimised procedure raises
-`can't read "a": no such variable`: the #2051 shape through `catch`. Under
-the contracts the no-match outcome preserves both targets on the normal
-path, so the store is read and stays.
+`p` is `before` in every release, optimised or not: the #2051 shape through
+`catch`. The no-match outcome preserves both targets on the normal path, so
+the store is read and stays.
 
 ```tcl
 set a old
 array set b {k keep}
-catch {lassign {new second} a b} m   ;# merged: under 8.6, W220 and O109 delete `set a old`; under 8.4 it stays (#2144, fixed by #2211)
+catch {lassign {new second} a b} m   ;# `set a old` stays in every release, with no W220
 puts "$a $m"
 ```
 
@@ -1085,29 +1085,33 @@ failed on `b`; under 8.4 it is `1` with `a` still `old` and the message
 `3b5eba8a` it was made under an 8.4 profile too, a miscompile, and the
 merged tree keeps the store there because a write by a command the
 profile lacks is no write (`command_is_unavailable_here`).
-Under the contracts the outcome is `Error { written: 1, … }` and the
-prefix rule is what proves the store dead — `written` is the proof, and
-the release that has no `lassign` at all declines instead.
+The outcome is `Error { written: 1, … }` from 8.5, and the prefix rule is
+what proves the store dead — `written` is the proof, and the release that
+has no `lassign` at all declines instead. O109 deletes it where the body
+is lowered into blocks and `lassign` is not the last command a `catch` runs:
+in a `try`, or in a procedure's `catch {lassign {new second} a b; set z 1}`.
+The last command of a `catch` body supplies the value the `catch` stores,
+whose names O109 leaves alone, and at a script's top level the `catch`
+stays one call, whose marker reads every version the body may overwrite; so
+the store stays in both, dead though it is.
 
 ```tcl
 proc p {} {
-    set f 0                ;# today: W220, and O109 deletes it (#2142)
+    set f 0                ;# W220, and O109 deletes it: nothing reads it
     try {
         error boom
     } finally {
-        set f 1            ;# today: O107 deletes it as unreachable
+        set f 1            ;# W220, and O109 deletes it: nothing reads it
     }
-    return $f              ;# today: W210, and O100 folds it to `return 0`
+    return $f              ;# never runs: the error resumes after `finally`
 }
 ```
 
 `p` raises `boom` from 8.6 and `invalid command name "try"` under 8.4 and
-8.5. Both W210 and O107 are wrong about the same fact and sound only by
-accident: `f` is bound before the `try`, and `finally` runs on every path,
-so the read can never be of an unset `f` and the `finally` body is never
-unreachable. Under the contracts the `Handlers` protocol gives `finally`
-its edge from every completion path, `f` is `Bound(Scalar)` at the return,
-and the store is dead only because nothing reads it.
+8.5. `finally` runs on every path, so its body is reachable and no read of
+`f` is of an unset `f`; the error resumes after the clause, so `return $f`
+never runs, and both stores are dead because nothing reads them. The
+`Handlers` protocol gives `finally` its edge from every completion path.
 
 ### W126 · non-channel value in channel position
 

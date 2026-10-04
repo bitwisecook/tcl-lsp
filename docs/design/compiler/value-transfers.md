@@ -1746,12 +1746,14 @@ is 4 and `list $x [incr x] $x` is `1 2 2`, each declining under
 `EffectFreeOnly`.
 
 An error completion inside the expression ends the evaluation with that
-completion and the writes so far as the statement's stores. No route yields
-an error completion yet, so an expression with an error in the middle is
-not evaluated: the last witness above leaves `x` unknown in the lattice,
-whether the `catch` is kept as one statement, whose body's writes are
-may-definitions, or inlined, and nothing forwards the 1 it held before the
-`catch`. The evaluation declines when a nested invocation has a world
+completion and the writes so far as the statement's stores: a route that
+proves an error answers `Error { written, .. }` (§ *`catch`, `try`, and
+completion*), and the expression's own answer carries the writes the
+ordered state made before it. So the last witness above leaves `x` 2 on the
+error path where the `catch` is lowered into a procedure's blocks — the
+expression's route answers `error after 1 store` — and unknown where the
+`catch` stays one call at a script's top level, whose body's writes are
+may-definitions; neither forwards the 1 `x` held before the `catch`. The evaluation declines when a nested invocation has a world
 effect or an unknown completion domain, when a read names a place another
 admitted write may alias, when the nested depth or the request budget is
 exhausted, and when a nested query would need the lattice being computed
@@ -2077,7 +2079,14 @@ the same selection facts from its `.tclspec`, as data.
 
 ### `catch`, `try`, and completion
 
-A `catch` body is one opaque `Call` in the default CFG build
+In a procedure, a `catch` whose body is a straight line is lowered into the
+procedure's blocks (`lower_catch`): in an analysis build a block per
+statement, each a point a throw may leave from, a region entry from the
+block before the body, and where the region ends a statement that defines
+the result and options variables, kept beside the `catch` as written
+(`Function::catch_ends`) so the solver evaluates it over the state the block
+before the body exits with. Elsewhere — at a script's top level, and for a
+body that is not a straight line — a `catch` body is one opaque `Call`
 (`emit_opaque_catch` in `cfg_builder/mod.rs`): the call defines its result
 variable and its options variable, and what the body writes is a
 may-definition of a marker ahead of the call (`SyntheticMarker::ArmWrites`),
@@ -2284,10 +2293,13 @@ writes `a` before it fails on `b` — and `set b old` ahead of the same body
 stays where `a` may be an array. A body in a substitution has no such edge:
 its writes read the versions before them, so a store ahead of `[catch
 {…}]` that the body writes stays. Tests: `try_finally_creates_finally_block`
-and `try_with_handler` in `cfg_lower.rs` pin the faithful shape; the nine
-witnesses above, the `catch` code table and
-`o109_refuses_the_store_ahead_of_a_partial_lassign` are the fixed
-additions.
+and `try_with_handler` in `cfg_lower.rs` pin the faithful shape; the ten
+programs above run in four shapes under both builds and every release
+(`the_prefix_rule_holds_in_both_builds`), and those of one command through
+the registry's own routes against tclsh
+(`the_prefix_rule_over_the_routes_matches_every_release_on_path`); the
+`catch` code table, `o109_refuses_the_store_ahead_of_a_partial_lassign` and
+`a_store_ahead_of_a_write_that_may_not_run_stays` pin the rest.
 
 ### Predicate refinement
 
