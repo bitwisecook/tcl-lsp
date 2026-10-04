@@ -1236,11 +1236,13 @@ fn dead_chain_code(
 ) -> Option<(DiagCode, &'static str)> {
     let var = &chain.key.0;
     // A scalar-fact invalidation does not overwrite the executable cell.
-    // Reads of its fresh version still observe the earlier store.
+    // Reads of its fresh version that can run still observe the earlier
+    // store.
     if let Some(symbol) = fu.ssa.var_symbol(var)
         && fu.def_use.chains.iter().any(|(key, consumer)| {
             key.0 == *var
-                && !consumer.is_dead()
+                && key.1 != chain.key.1
+                && has_running_use(fu, consumer)
                 && fu.ssa.binding_version(symbol, key.1) == chain.key.1
         })
     {
