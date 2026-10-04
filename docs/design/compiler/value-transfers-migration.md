@@ -248,15 +248,19 @@ executes that runtime.
    2026-10-01; the record and the decisions (D188–D192, D202–D204, D213
    and D214) are [value-transfers.md (lane)](../lanes/value-transfers.md)
    § *Plan for slices 2–13* › *Slice 9*.
-10. **Completion paths.** Storage outcomes indexed by completion path:
-    the prefix rule (`Error { written, … }`), the completion protocols of
-    `catch` and `try`, the `Absorb` rule for loop bodies, the options
-    dictionary's exact and `Unavailable` keys, and the per-path
-    publication the solver already needs for the existence rung. *After:*
-    slices 5, 8, and 9. *Exit:* the prefix rule holds in the default and
-    the faithful-exceptions build; the nine witnesses and the `catch` code
-    table pass; O109 refuses the store ahead of `catch {lassign {new
-    second} a b} msg`.
+10. **Completion paths (landed).** Storage outcomes indexed by completion
+    path: the prefix rule (`Error { written, … }`, `scan` going on past a
+    store it cannot make), the completion protocols of `catch` and `try`,
+    the `Absorb` rule for loop bodies, the options dictionary's exact and
+    `Unavailable` keys, and the per-path publication the solver needs for
+    the existence rung. *After:* slices 5, 8, and 9. *Exit:* the prefix rule
+    holds in the default and the faithful-exceptions build; the nine
+    witnesses — ten, with `scan`'s — and the `catch` code table pass; O109
+    keeps a store ahead of `catch {lassign {new second} a b} msg` that the
+    body may never overwrite, and removes one every path overwrites. Landed
+    2026-10-04; the record and the decisions (D216–D249) are
+    [value-transfers.md (lane)](../lanes/value-transfers.md) § *Plan for
+    slices 2–13* › *Slice 10*.
 11. **Predicate refinement.** `EdgeRefinement` as a fact on one CFG edge
     for one SSA version, with the block-qualified lookup `(BlockId,
     ValueKey)` consulted first by `env_from_uses`, `evaluate_branch`, and

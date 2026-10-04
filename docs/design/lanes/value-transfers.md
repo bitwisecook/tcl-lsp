@@ -968,6 +968,116 @@ caller's place through `upvar` inside a `Call` host's expression, and
 
 Pins #2141 (closed on `rust` by #2215).
 
+## Status (2026-10-04): slice 10 landed
+
+One implementer ran the slice item by item, each its own commit, in the plan's
+order, with the lane's own fixes as commits of their own and the
+consumer-contracts lane's step 10 merged in at the checkpoints between them:
+`ddb53a10` (VT10.1, an error is a completion, not a decline), `b9ab4993`
+(VT10.2, per-path publication), `a191584f` (`catch`'s scope, D230),
+`7ee77e66` (VT10.3a, `return`, `break` and `continue` complete with their
+codes), `6f86956d` (VT10.3b, a nested `catch` body is the statement's effect),
+`1d3a937f` (the native evaluator catalogue), `07633485` (VT10.3c, `catch`
+evaluates a closed script), `e0675133` (VT10.3d, a `catch` in a substitution
+is evaluated), `22be2fd0` (VT10.3b2, a quoted or computed script), `aa0cc76e`
+(VT10.3e, a flattened `catch` is evaluated where its region ends), `513196e5`
+(`try`, reconciling with #2230, D237), `596a5d86` (VT10.4a), `2ebf9756`
+(VT10.4b), `2e4cf3b9` (VT10.5), `823e1287` (the fix to VT10.3's runner,
+D244), `2d40a40f` (VT10.6), `2b67421e` and `754baa7b` (VT10.7, in two parts),
+`613c2147` (VT10.8), `379982e3` (VT10.9), and this commit, `wip(value-transfers):
+slice 10 — completion paths` (the landing). The decisions are D216 to D249 in
+§ *Decisions taken*, the records § *Plan for slices 2–13* › *Slice 10* ›
+*Record (2026-10-01): slice 10*.
+
+Behaviour changes, as the plan's landing message states them: a proven error is
+a completion fact — a route that proves the program raises answers `Error {
+written, … }` after the stores that ran, and the solver publishes those stores
+on the error edge and nothing else, in the default and the faithful-exceptions
+build alike; `catch` and `try` bodies decide their results where closed —
+`set c [catch {error boom} m]` leaves `c` 1 and `m` `boom`, a flattened `catch`
+gives its result variable what its script returned, and `try` runs its
+handlers by the clause grammar's match; a `finally` body is live on every
+path; loop bodies absorb `break` and `continue`; and O109 keeps the store ahead
+of a partial `lassign` where the body may stop before overwriting it.
+
+Things the plan did not say. The store the plan's exit named — `set a old`
+ahead of `catch {lassign {new second} a b} msg`, `b` maybe an array — is
+overwritten on every path, since `lassign` writes `a` before it can fail; the
+store O109 must keep is one the body writes only after a target that may fail,
+and D246 states the rule as it is (the top-level and the flattened `catch`
+still keep the exit's store, dead though it is, D236). `scan` goes on past a
+store it cannot make where every other command stops (D247), so the prefix
+rule is the command's. A store in a protected script is taken as run only
+where its place is proved to take it (D244), a write in one a substitution
+runs is a may-definition (D248, correcting D232), and a `try` body that never
+rests has a region entry too (D249, correcting D224) — the last three each the
+lane's own defect, found by its own sweeps and fixed in the slice. `catch`
+evaluates in five commits and `try` in two, its CFG half #2230's (D230, D237,
+D239). #2142, whose closing the plan's landing message names, was closed on
+`rust` before the slice; its programs are witnesses here.
+
+Green at the landing, the review checklist's suite plus every standing gate,
+run on the tree the landing commits — the landing changes one constant and
+pages, so no test moves with it (the Green paragraphs in the slice's record
+have the per-item counts):
+
+- `cargo check --workspace --all-targets`: clean;
+- `tcl-compiler` 10042 passed, 6 ignored across its binaries and 7 doctests
+  (the library 6699, `value_transfer_witnesses` 117); `tcl-registry` 1390
+  across its binaries and a doctest (the library 1021, `differential_fold` 18,
+  `value_transfers` 74); `tcl-cli` 188 (`value_transfers_cli` 22);
+  `tcl-explorer` 110; `tcl-lsp-db` 139, 5 ignored; `tcl-lsp-core --lib` 2350;
+  `tcl-spectcl` 421, 1 ignored; `tcl-cmd-core` 135; `xtask` 242 — no failure;
+- pedantic clippy (`--workspace --all-targets -D warnings -A
+  clippy::assert_is_empty`) after every item, no `#[allow]` added anywhere in
+  the slice, and `cargo fmt --check`;
+- `cargo xtask value-transfers --check`: 22 files clean, 19 sites waived, 83
+  pinned across 34 ratcheted files, 6607 inventory rows — the generated
+  ledger moved in the slice with the routes and declarations it added (VT10.1,
+  VT10.2, VT10.3a, VT10.3c and VT10.4a), and not since;
+- `cargo xtask registry-axes --check`: 7831 vocabulary words, 16 files clean,
+  36 sites waived, 893 pinned across 147 ratcheted files — `LANDED` gaining
+  `"slice 10"` expires no waiver, so `docs/generated/registry-axes.md` does not
+  move;
+- `cargo xtask pack-goldens`: 25 packs, 0 rewritten;
+- `cargo xtask kcs-index-links`: "KCS docs checks passed";
+- `cargo xtask owner-resolution`: OK, 45 owner rows;
+- `cargo xtask retired-api-gate`: OK;
+- `cargo xtask dialect-drift`: 8 sites, the eight pre-existing ones, none new;
+- `callback-inventory --check`, `number-drift`, `segmentation-drift`,
+  `resolution-drift`, `diag-tables --check`, `diag-emission-check` and
+  `gen-ai-diagnostics --check`: OK;
+- `scripts/dev/verify-nextest-binary-shards.py --metadata-only` over `cargo
+  metadata`: the shard manifest covers the workspace's 335 test targets.
+
+Left to later slices, each with its program: a constant the solver proves at a
+φ is not inlined into a read (`proc p {} {set x 1; catch {expr {[incr x] +
+[error mid]}} msg; puts $x}` keeps `puts $x`, though `x#3 = const(2)`), and an
+element of a place a store preserved holds no value (after `array set a {k
+keep}; set b old; catch {scan {1 2} {%d %d} a b}`, `if {$a(k) eq "keep"}` is not
+decided, where after `catch {lassign {x y} b a}` I230 decides it) — both in
+[precision-limitations.md](../compiler/precision-limitations.md); a host that
+is not an assignment (`if {[catch {…} m]}`, `puts [catch …]`) keeps the
+effect-free policy, and at a script's top level `catch {expr {[incr x] +
+[error mid]}}` stays unevaluated (§ *Open — a statement's nested writes are
+evaluated for an assignment or an `expr` only* there). § *Record* › *What
+slice 11 starts from* names what the next slice reads.
+
+Found and left, outside the slice's scope, each reported: a `foreach` in a
+substitution states no write — `proc p {} {set a old; set c old; set r [foreach
+{a b} {x y} {set c z}]; puts "$a $c"}` prints `x z` under tclsh 8.6 to 9.1 and
+`old old` optimised (`variable_write_projection` projects `VarWrite` operands
+only, and the walk descends no loop body), now a comment on #2323 with its
+binder half named; O126 removes an unused assignment that raises — #2346's
+one whose substituted value raises, and VT10.7's `set b 1` in `try {set b 1;
+set c new; error boom} on error {} {}` over a `b` that may be an array, where
+the removal lets `set c new` run (reported as a further witness); O109 deletes
+a scalar store a later element store on the same name depends on (#2350), and
+O126 the same inside a flattened `catch` body (#2351); a literal forwarded into
+`[expr {$m …}]` inside a quoted word is inlined as a bareword (#2352); and
+O125's code sinking moves a store past an intervening write or an unseen call
+(#2327).
+
 ## Plan for slices 2–13
 
 The delivery plan for the rest of
@@ -6999,6 +7109,7 @@ oracle (R6), never deleted.
 | VT10.7 (part 2) | ``wip(value-transfers): slice 10 — O109 and the prefix rule (part 2)`` | **The three classes of the lane's own the part 1 sweep left: a write that may not run keeps the store ahead of it.** *`scan` goes on* (D247; the lane's own defect from VT10.1): tclsh's `scan` sets every variable it converted and reports the first failure after the last (8.4 to 9.1: `tclScan.c` loops on), where the route raised at the first array target like `lassign`, so with `a` an array `scan {1 2} {%d %d} a b` left `b` old. `publication.rs`: `ArrayWrite::Scan` is `scan` alone and goes on (`goes_on`), `regexp` and `regsub` are `ArrayWrite::Match`, and `failing_stores` makes each failing store a `Preserve`, counts every store as written and words the error by the first failure from 8.6 and by each in turn, run together, under 8.4 and 8.5 (`raised_after`); a preserved store keeps no type. *A protected write in a substitution reads the version before it* (D248, correcting D232; the lane's own defect from VT10.3b): the walk made a `catch` or `try` body's writes the statement's definitions and nothing read the store before them, so `set c old` died ahead of `set r [catch {lassign {x y z} a b c} m]` where `b` may be an array and ahead of `[catch {set a x; set b [error mid]} m]`. `ir_helpers.rs`: the walk tracks where it is (`Reach`), and what it reaches in a protected script — the script's commands, their substitutions and expression words — is also `protected_commands`; `cfg_builder/mod.rs`: the effect call and a condition's `<cond>` read each name those commands write (`protected_writes`), by name, as a read beside a write is. *A `try` body that never rests has a region entry* (D249, correcting D224; the lane's own defect from VT10.2): `push_try_handler_exception_edges` recorded the entry only for a body with a resting tail, so `try {lassign {x y} a b; error boom} on error {m} {}` gave its handler `b` as `lassign` wrote it and `set b old` went as dead where `a` may be an array; the entry is now recorded there too, where the body's first statement may fail before it stores and is no literal assignment, and the first block's exact completion, where the registry knows it, is one a member takes (`handler_misses_completion`, as the throw sources are filtered). Both conditions came from the first draft, which recorded the entry for any first statement that may fail: `a_handler_selector_reads_the_targets_numerals` failed (the entry gave `on 010` under 9.0 the body `return -level 0 -code 8 boom`), and so did `try_handler_edge_suppressed_when_var_set_before_sole_throw` and `try_handler_versions_are_correct` (W210 on `try {set x 1; error boom} on error {} {puts $x}`): a literal assignment raises only where its own place holds an array, whose scalar value nothing reads, and leaves every other place as the point after it does. Owner passages: the design page's prefix rule gains `scan` and its example, its opaque paragraph and consumers paragraph the protected write; `cfg-construction.md` the entry; `precision-limitations.md` the nested script's may-definition; `optimisation-passes.md`'s O107–O109 row and the O109 KCS note the read. | `a_store_ahead_of_a_write_that_may_not_run_stays` (`value_transfer_witnesses.rs`, new: `scan` into an array in a `catch`, a `try` and `[catch {…}]`, `b` proved 2 in the lattice; kept — `set c old` ahead of `lassign {x y z} a b c` where `b` may be an array as a value, in a condition, nested in a word and in an expression of the body, `set b old` ahead of `[catch {set a x; set b [error mid]} m]`, and `set b old` ahead of the `try` that ends in `error boom`; each printed by tclsh before and after `tcl opt` from the first release that has its commands, and the `scan` prefix program of `the_prefix_rule_holds_in_both_builds` renamed for what it shows, the place before the array written); `scan_goes_on_past_a_write_to_an_array` (`value_transfers.rs`, new: `scan {1 2} {%d %d} b a` writes `a` after failing on `b`, the failing store preserved and untyped, two failures worded together before 8.6, under 8.4 to 9.1), and `writing_to_an_array_is_the_commands_error_with_its_prefix` and `a_write_to_an_array_is_proven_only_where_every_release_agrees` restated for `scan`: `written` counts both stores and the failing one is a `Preserve`. **Mutation checks**: twelve, each reverted and each killed — `scan` stopping at the failing write, a failing write left a write, one failure worded before 8.6, and a preserved store keeping its type (by `scan_goes_on_past_a_write_to_an_array`, with `writing_to_an_array_is_the_commands_error_with_its_prefix` for three of them); the effect call, or a condition's `<cond>`, reading no protected write, and a substitution, an expression word or the script's own commands in a protected script left unprotected (by the new witness); no region entry for a body that never rests (by the new witness), one given to a literal assignment first (`try_handler_versions_are_correct`), and one given to a handler that misses the first block's exact completion (`a_handler_selector_reads_the_targets_numerals`). **Differential sweep** (tclsh 8.6, 9.0 and 9.1, before and after `tcl opt --profile full`): the 480 `gen6.py` programs of part 1 mismatch in 16 now, against 30 at part 1 and 37 at the VT10.6 tip, none new: the sixteen are the `foreach` in a substitution, pre-existing and filed as a comment on #2323 with its binder half named; the fourteen of this lane's are gone. The earlier sets, rerun with this commit's binary, add nothing: `gen4.py`'s 195 catch bodies over a variable whose kind varies mismatch in 15 programs, a subset of the 18 of VT10.3's record (#2346, #2350, #2351, #2352) — the three it no longer shows, `g4_0033`, `g4_0101` and `g4_0176`, each `set c [catch {set y(a) 1; set y 2} m]` over a `y` that may be a scalar, were this lane's protected-write class rather than #2350's, and part 2 fixes them, `gen5.py`'s 300 loop bodies and the 300 random programs of `gen2.py` in none, and the 300 `try` programs of `gen3.py` in the one of VT10.5's record (`p3_0067`). |
 | VT10.8 | ``wip(value-transfers): slice 10 — the slice's witnesses`` | **The prefix rule's programs, witnessed on every surface that reads them.** The nine programs of the design page's § *`catch`, `try`, and completion* already ran under both builds and every release in `the_prefix_rule_holds_in_both_builds` (VT10.5); the page's tenth, `scan` going on past the array (D247), joins them, and the other two surfaces take the programs too. Registry: `LiteralInputs::with_existence` (`literal.rs`) gives a literal input the existence fact of a place, the one a write to an array or an unset of an absent name turns on, so a route runs over literal words with the kinds the rung would prove. The absent-cell table's `unset p nosuch q` line (`p` unbound, `q` 2) and slice 9's error-path witness (`x` exact on the error path) are each a named witness below. Noted, not changed: the lattice proves `x` 2 after `catch {expr {[incr x] + [error mid]}} msg` in a procedure, but O100's proved-read rewrite reads statement definitions only and the read is of the catch end's φ, so `puts $x` stays; and the driver gives the element `a(k)` of a place a `scan` preserved no value (`defs_from_placed` matches a definition to its own place's stores), so the tenth program claims `b` alone. | `the_prefix_rule_holds_in_both_builds` (`value_transfer_witnesses.rs`): the tenth program, `array set a {k keep}; set b old; catch {scan {1 2} {%d %d} a b}` printing `keep 2` in the four shapes under 8.4 to 9.1 (8.6 on for `try`), `b` proved 2 where the body's blocks are the analysis's own; `the_prefix_rule_over_the_routes_matches_every_release_on_path` (`differential_fold.rs`, new): `lassign` twice, `regexp`, `scan` with the array last and first, and `unset p nosuch q`, each through the registry's own route with the places' kinds stated, against tclsh 8.4 to 9.1 (8.5 on for `lassign`) — what each place holds after the stores the route says ran is what tclsh leaves, and a proven message is tclsh's; `explore_sccp_prints_what_an_unset_stores_before_its_error` (`unset p nosuch q`: `error after 1 store`, `path error after 1 store: unbind p`), `explore_sccp_prints_x_exact_on_the_error_path` (`x#3 = const(2)`, the expression route's `path error after 1 store: write x = 2`, `msg#1 = const('mid')`) and `opt_prints_what_tclsh_prints_for_the_prefix_programs` (the ten programs in a procedure through the shipped `tcl opt`, printing what tclsh prints from each command's first release) in `value_transfers_cli.rs`, new. **Mutation checks**, three, each reverted and each killed: `scan` stopping at the failing write (by the differential witness and the prefix witness), `unset` running every store (the differential witness and the `unset` explore witness), and a literal input stating no existence (the differential witness, whose `unset` route then declines). |
 | VT10.9 | ``wip(value-transfers): slice 10 — the pages say what the completion paths do`` | Docs only. The design pages describe the code as it is, in current-state prose, per the owner's ruling for every file outside this directory. `value-transfers.md`: the two sentences the plan named — "No route yields an error completion yet", now the error path the ordered state ends with and the witness's `x` 2 where a procedure lowers the `catch`, and "A `catch` body is one opaque `Call` in the default CFG build", now the procedure's straight-line `catch` lowered into blocks with its region entry and its `catch` end and the opaque call elsewhere — and the tests line, which names the ten programs and the two new witnesses. `sccp-core-analyses.md`: § *Completion paths*, new — `DefValues::Raised`, `BlockExit`, the region entries and when the solver opens them, the `try` body that never rests, the existence rung's handler regions and the `catch` end — and § *Preserve outcomes* gains the protected write's read and `scan`'s failing stores. `downstream-pass-contracts.md`: the value-transfer anchor names what a pass reads of a completion path. `precision-limitations.md`: the entry on nested writes no longer says no route yields an error completion — at a script's top level the `catch` of the seventh program is still one call and `x` unknown, in a procedure it is 2 — and two open entries record VT10.8's notes with the programs that show them: a constant the solver proves at a φ is not inlined into a read (`proc p {} {set x 1; catch {expr {[incr x] + [error mid]}} msg; puts $x}` keeps `puts $x`, though `x#3 = const(2)`), and an element of a place a store preserved holds no value (after `array set a {k keep}; set b old; catch {scan {1 2} {%d %d} a b}`, `if {$a(k) eq "keep"}` is not decided, where after `catch {lassign {x y} b a}` I230 decides it). `value-transfers-examples.md`: the completion paths rung's three programs say what happens now — the no-match store stays with no W220, `set a old` ahead of the top-level `catch {lassign {new second} a b}` stays in every release, deleted only where a `try` or a `catch` with a command after it lowers the body, and the `try … finally` stores are dead because the error resumes after the clause — and the ordered-state rung's error path is the one above. `pass-fact-ownership-matrix.md`: a row for the completion paths, and the embedded pair's row gains the protected write. `value-transfers-migration.md`: the `sccp.rs`, `cfg_builder/` and O109 / O126 rows state what the slice built (the slice's entry is marked landed by the landing). `optimisation-passes.md` needs nothing more: VT10.7's two parts gave the O107–O109 row the closed region entry, the preserve and the protected write. KCS notes: none beyond the O109 note VT10.7 changed. The rows drafted for the diagnostic-policy lane's owner documents (B-DP4) follow this table. Deviation: one page beyond the plan's file list, `value-transfers-examples.md`, whose completion paths rung stated the behaviour before the slice. | none (docs only); G6 and the slice's green below |
+| VT10 landing | ``wip(value-transfers): slice 10 — completion paths`` | One constant and pages. `LANDED` (`rust/xtask/src/registry_axes.rs`) gains `"slice 10"`; no waiver names slice 10 — no source or page carries an `until slice 10` — so none expires, and `docs/generated/registry-axes.md` and the value-transfer ledger are unchanged (both regenerated, no diff). `docs/design/lanes/README.md`'s paragraph moves slice 10 to the landed list; `value-transfers-migration.md`'s slice list marks slice 10 landed with its record and decisions (D216–D249), and its exit says what O109 does now (D246) and counts `scan`'s program; this document gains § *Status (2026-10-04): slice 10 landed* and, below, § *What slice 11 starts from*. Departure from the plan's landing message: it closes #2142, which `rust` closed on 2026-09-23, before the slice; its programs are witnesses here (`try_finally_runs_on_every_path`). | none (one constant and pages); G1 (`value-transfers --check`, unchanged), G5, G6 and the shard manifest proof green; G3 (no new test binary) and G4 (no catalogue text changed) not triggered |
 
 
 Rows for the diagnostic-policy lane's owner documents (B-DP4), drafted here
@@ -7050,6 +7161,49 @@ Green at VT10.7 (part 2): `tcl-compiler` 10042 passed, 6 ignored across its bina
 Green at VT10.8: `tcl-registry` 1390 across its binaries and a doctest (the library 1021, `differential_fold` 18, `value_transfers` 74), `tcl-compiler` 10042 passed, 6 ignored across its binaries and 7 doctests (the library 6699, `value_transfer_witnesses` 117, the prefix witness now over ten programs), `tcl-cli` 188 (`value_transfers_cli` 22), `tcl-explorer` 110, `tcl-lsp-db` 139, 5 ignored, `tcl-lsp-core --lib` 2350, `xtask` 242, `tcl-spectcl` 421, 1 ignored, and `tcl-cmd-core` 135 (untouched by this commit); workspace clippy (`--all-targets -D warnings -A clippy::assert_is_empty`), no `#[allow]` added, and `cargo fmt --check`; `value-transfers --check` and `registry-axes --check` unchanged; `pack-goldens` (25 packs), `retired-api-gate`, `owner-resolution` (45 rows) and `kcs-index-links` pass; `dialect-drift` 8 sites, none new; `cargo check --workspace --all-targets` clean.
 
 Green at VT10.9: docs only, no code changed since VT10.8, so its suites stand; `xtask` 242, which reads the migration page's ledger, rerun on this tree; workspace clippy (`--all-targets -D warnings -A clippy::assert_is_empty`), `cargo fmt --check` and `cargo check --workspace --all-targets` clean; `value-transfers --check` and `registry-axes --check` unchanged; `pack-goldens` (25 packs), `retired-api-gate`, `owner-resolution` (45 rows) and `kcs-index-links` pass; `dialect-drift` 8 sites, none new.
+
+Green at the landing: § *Status (2026-10-04): slice 10 landed* lists the suites and gates, run on the tree this commit commits; `registry-axes --check` and `value-transfers --check` unchanged after `LANDED` gains `"slice 10"`.
+
+##### What slice 11 starts from
+
+What slice 10 built, which slice 11's edge refinements read or change:
+
+- **The solver's edges are more than branches.** `SccpResult::executable_edges`
+  holds the exception edges of a handler's region and its region entries
+  (`Function::region_entries`), each opened as the per-path publication says:
+  a region entry carries the state before a body and opens only where the
+  body's first command can fail before it stores (`BlockExit::entry_throws`).
+  A refinement is a fact on one branch edge for one SSA version, so the
+  `(BlockId, ValueKey)` lookup slice 11 puts first in `env_from_uses`,
+  `evaluate_branch` and `evaluate_def_with_folds` (`sccp.rs`) must take a
+  branch's edge and never an exception edge or an entry, which carry no
+  condition.
+- **The statement loop is the per-path one.** `sccp_process_statements` runs
+  the catch-end evaluation (`evaluate_catch_end`), the pair of an effect call
+  and its host (`pair_answer`), the raise of a statement where a handler is
+  thrown to (`raised_writes`, `define_values`, `BlockExit`), and the
+  existence a body reads at its entry (`body_entry_scope`); the lookup that
+  reads a refinement threads through these, and `#2196`'s rewrite of the same
+  function (`StatementInputs`, its binding timeline), which the upstream merge
+  after this landing brings in, sits beside them — § *Reconciling with #2230*
+  under VT10.4 names the files and the facts each side settles.
+- **The existence domain is the precedent.** Slice 8's edge refinement in the
+  existence domain (`EdgeRefinement`, `SccpResult::existence_at`) is the shape
+  the value domains take; `collect_existence_guards` and `block_dominated_by`
+  (`analyser/diagnostics/helpers.rs`) are still there for slice 11 to delete.
+- **A condition's substitution reads more.** A `<cond>` statement reads by
+  name each place a `catch` or `try` body in it writes (D248), and I230 and
+  O101 decide a condition on a value a `catch` computed (`set x 1; set c
+  [catch {incr x}]; if {$x == 2} …` is always true), so a refinement on such a
+  branch refines a version a protected script may have written.
+- **Left open, each in `precision-limitations.md` with its program:** a
+  constant the solver proves at a φ is not inlined into a read (`proc p {}
+  {set x 1; catch {expr {[incr x] + [error mid]}} msg; puts $x}` keeps `puts
+  $x`, though `x#3 = const(2)`), and an element of a place a store preserved
+  holds no value (after `catch {scan {1 2} {%d %d} a b}` over an array `a`,
+  `if {$a(k) eq "keep"}` is not decided); a host that is not an assignment
+  keeps the effect-free policy, and a `catch` at a script's top level around
+  an expression that raises stays unevaluated.
 
 ### Slice 11 — predicate refinement
 

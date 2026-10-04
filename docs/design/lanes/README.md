@@ -121,9 +121,23 @@ checkpoint compiling.
   O109 keeps the store they read; O100 and O102 forward the nested store's
   value; a nested write to a place the state cannot own declines as
   `StatefulNested`; and the seven ordered-state witnesses run through the direct
-  unit, the memoised unit, `tcl opt` and the registry's routes) have landed; the
-  slices after them are planned item by item in the tracking document's §
-  *Plan for slices 2–13*.
+  unit, the memoised unit, `tcl opt` and the registry's routes), and slice 10
+  (completion paths: a route that proves the program raises answers `Error {
+  written, … }` after the stores that ran — `scan` alone going on past a store
+  it cannot make — and the solver publishes values and existence per path in
+  both builds, a handler entered from its region's points and from the block
+  before the body only where the first command can fail before it stores;
+  `catch` is a route over a script run whole, in a statement, in a
+  substitution and where a procedure's straight-line body is lowered into
+  blocks, and a `try` gives its handlers blocks and its `finally` an edge from
+  every path; a loop in a protected script absorbs `break` and `continue`; a
+  store in a protected script is taken only where its place is proved to take
+  it, and a write in one a substitution runs is a may-definition; O109 removes
+  a store ahead of a write that may stop part-way only where every path
+  through the body overwrites it; and the prefix programs run under both
+  builds and every release, through the registry's routes and through `tcl
+  opt`) have landed; the slices after them are planned item by item in the
+  tracking document's § *Plan for slices 2–13*.
 - [consumer-contracts.md](consumer-contracts.md) — steps 1 to 10 of
   [registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
   § *Build order*: step 1 (the four rulings taken as decided, and the
