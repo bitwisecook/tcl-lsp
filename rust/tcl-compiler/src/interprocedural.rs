@@ -418,7 +418,11 @@ fn is_literal_var_name(word: &str) -> bool {
 /// * only *opaque* callees qualify — a registry command has a declared
 ///   frame effect, and a procedure defined in this unit has a real summary
 ///   which is trusted per-name (so a same-file helper without an `upvar`
-///   keeps its reads reporting).
+///   keeps its reads reporting). A head this unit can resolve is opaque all
+///   the same where the flow graph marks the call as one to code the module
+///   cannot see ([`crate::ir::SyntheticMarker::UnseenCall`]): an alias of
+///   `upvar`, a rename's target, the unresolved-command handler reached by
+///   another name.
 ///
 /// `resolvable` answers "can this unit resolve that command head?", which
 /// the analyser supplies from the dialect profile plus its own definition
@@ -431,7 +435,7 @@ pub fn collect_opaque_callee_name_args(
     use crate::ir::Statement;
     let mut out = HashSet::new();
     for block in cfg.blocks.values() {
-        for stmt in &block.statements {
+        for (index, stmt) in block.statements.iter().enumerate() {
             if !stmt.is_executable_invocation() {
                 continue;
             }
@@ -442,7 +446,14 @@ pub fn collect_opaque_callee_name_args(
             };
             // A dynamic head (`$cmd …`) is handled by the dynamic-name
             // barrier, not here; an empty head is not a call.
-            if command.is_empty() || command.contains(['$', '[']) || resolvable(command) {
+            if command.is_empty() || command.contains(['$', '[']) {
+                continue;
+            }
+            let marked_unseen = block.statements[index + 1..]
+                .iter()
+                .take_while(|next| next.span() == stmt.span() && next.synthetic_marker().is_some())
+                .any(crate::ssa::is_unseen_call_marker);
+            if resolvable(command) && !marked_unseen {
                 continue;
             }
             out.extend(args.iter().filter(|a| is_literal_var_name(a)).cloned());

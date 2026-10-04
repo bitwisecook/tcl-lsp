@@ -1140,7 +1140,7 @@ fn emit_dead_stores_and_unused(
 /// names, so an element symbol `a(k)` checks its base too); and a call to a
 /// command the module cannot see may read the name the store leaves, as it may
 /// read a `::`-qualified one.
-fn store_is_seen_elsewhere(
+pub(super) fn store_is_seen_elsewhere(
     fu: &FunctionUnit,
     chain: &crate::def_use::DefUseChain,
     scope_aliases: &HashSet<String>,
@@ -2367,12 +2367,15 @@ mod tests {
         );
     }
 
+    /// The fresh version a call to code the module cannot see leaves is an
+    /// analysis value, not a store: a read of it still reads the store before
+    /// the call, which therefore stays.
     #[test]
     fn analysis_value_clobber_keeps_executable_store_live() {
         for body in [
-            "set local 1; upvar 1 $v alias; return $local",
-            "set local 1; upvar 1 $v alias; puts $local",
-            "set local 1; upvar 1 $v alias; set copy $local; return $copy",
+            "set local 1; missing_command; return $local",
+            "set local 1; missing_command; puts $local",
+            "set local 1; missing_command; set copy $local; return $copy",
         ] {
             let source = format!("proc p {{v}} {{{body}}}");
             let opts = crate::optimiser::optimise(&source, &registry());
@@ -2872,11 +2875,11 @@ mod tests {
     }
 
     /// A call to a command the module cannot see may read a top-level name as
-    /// it may read `::x`, so the store it can observe is no dead store; a store
-    /// overwritten before any such call, and a procedure's local, are still
-    /// dead.
+    /// it may read `::x`, and a procedure's local through `upvar 1`, so the
+    /// store it can observe is no dead store; a store overwritten before any
+    /// such call is still dead.
     #[test]
-    fn o109_keeps_a_top_level_store_a_call_the_module_cannot_see_may_read() {
+    fn o109_keeps_a_store_a_call_the_module_cannot_see_may_read() {
         let dead = |src: &str| run_pass(src).iter().any(|o| o.code == DiagCode::O109);
         assert!(!dead("set x 1\nfoo\nset x 2\nputs $x\n"));
         assert!(!dead("set ::x 1\nfoo\nset ::x 2\nputs $::x\n"));
@@ -2884,8 +2887,11 @@ mod tests {
         assert!(!dead(
             "proc p {} {\n set x 1\n source other.tcl\n set x 2\n puts $x\n}\n"
         ));
+        assert!(!dead(
+            "proc p {} {\n set x 1\n foo\n set x 2\n puts $x\n}\n"
+        ));
         assert!(dead("set x 1\nset x 2\nfoo\nputs $x\n"));
-        assert!(dead("proc p {} {\n set x 1\n foo\n set x 2\n puts $x\n}\n"));
+        assert!(dead("proc p {} {\n set x 1\n set x 2\n foo\n puts $x\n}\n"));
         assert!(dead(
             "proc foo {} { puts hi }\nset x 1\nfoo\nset x 2\nputs $x\n"
         ));

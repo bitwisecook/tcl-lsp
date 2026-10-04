@@ -206,8 +206,11 @@ pub struct SsaFunction {
     pub entry: BlockId,
     /// SSA blocks keyed by block id.
     pub blocks: HashMap<BlockId, SsaBlock>,
-    /// Fresh scalar versions at registry boundaries. These are value effects,
-    /// separate from executable writes and statement use/def evidence.
+    /// Fresh scalar versions where a call to code the module cannot see sits
+    /// ([`crate::ir::SyntheticMarker::UnseenCall`]), for the names live past
+    /// it. These are value effects, separate from executable writes and
+    /// statement use/def evidence: the binding behind a fresh version is the
+    /// one before the marker ([`Self::binding_version`]).
     pub value_clobbers: ValueClobbers,
     /// Immediate dominator: block → parent (None for entry).
     pub idom: HashMap<BlockId, Option<BlockId>>,
@@ -225,9 +228,10 @@ pub struct SsaFunction {
     var_names: Vec<String>,
     /// Reverse interner index: variable name → its [`Symbol`].
     var_to_symbol: FxHashMap<String, Symbol>,
-    /// Every version a name holds where a call to a command the module cannot
-    /// see sits ([`crate::ir::SyntheticMarker::UnseenCall`]): the code that
-    /// call reaches may write the name, unset it or read it.
+    /// Every version a name holds where a call to code the module cannot see
+    /// sits ([`crate::ir::SyntheticMarker::UnseenCall`]): the code that call
+    /// reaches may read it, so a store to it is observed. What the code writes
+    /// is the fresh version after the marker ([`Self::value_clobbers`]).
     unseen_call_versions: HashSet<(Symbol, Version)>,
 }
 
@@ -237,7 +241,7 @@ pub type ValueClobbers = HashMap<BlockId, BlockValueClobbers>;
 /// Per-marker prior and fresh versions within one basic block.
 pub type BlockValueClobbers = HashMap<usize, HashMap<Symbol, (Version, Version)>>;
 
-type RegistryClobberNames = HashMap<BlockId, HashMap<usize, Vec<String>>>;
+type UnseenCallClobberNames = HashMap<BlockId, HashMap<usize, Vec<String>>>;
 
 /// Per-[`SsaFunction`] variable-name interner.
 ///
@@ -288,19 +292,12 @@ impl SsaFunction {
     }
 
     /// Whether version `version` of `sym` is the one the name holds at a call
-    /// to a command the module cannot see: that call may have written it, so
-    /// no consumer may take its value as what a reader after the call finds,
-    /// and may have read it, so no store to it is dead before the call.
+    /// to code the module cannot see: that code may have read it, so no store
+    /// to it is dead before the call. What the code may have written is the
+    /// fresh version the marker leaves ([`Self::value_clobbers`]).
     #[must_use]
     pub fn is_observed_by_unseen_call(&self, sym: Symbol, version: Version) -> bool {
         self.unseen_call_versions.contains(&(sym, version))
-    }
-
-    /// Record `version` of `sym` as one a call to a command the module cannot
-    /// see holds, for a test that builds its SSA by hand.
-    #[cfg(test)]
-    pub(crate) fn observe_by_unseen_call(&mut self, sym: Symbol, version: Version) {
-        self.unseen_call_versions.insert((sym, version));
     }
 
     /// [`Self::is_observed_by_unseen_call`] for a name spelled out.
@@ -888,10 +885,8 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
 /// prior one, the solver joins the two, and existence is unknown afterwards.
 /// The statement the CFG builder puts after such a `switch` for the names a
 /// callee its arms call writes ([`crate::ir::SyntheticMarker::ArmWrites`])
-/// states them as its own definitions, and they are may-definitions too, as
-/// are the names the marker beside a call to a command the module cannot see
-/// states ([`enrich_unseen_call_reads`]). Every other statement kind returns
-/// nothing.
+/// states them as its own definitions, and they are may-definitions too.
+/// Every other statement kind returns nothing.
 pub(crate) fn switch_may_defs(stmt: &Statement, registry: &CommandRegistry) -> Vec<String> {
     if let Statement::Call { defs, .. } = stmt
         && is_effect_marker(stmt)
@@ -1240,7 +1235,7 @@ fn compute_phi_vars_with_config(
     registry: &CommandRegistry,
     elems: &ArrayElems,
     config: tcl_lexer::LexerConfig,
-    clobbers: &RegistryClobberNames,
+    clobbers: &UnseenCallClobberNames,
 ) -> HashMap<BlockId, HashSet<String>> {
     let reachable = func.reachable_blocks();
     let (nonlocal_names, mut all_defsites) =
@@ -3186,7 +3181,7 @@ impl RenameWalk {
         phi_vars: &HashMap<BlockId, HashSet<String>>,
         registry: &CommandRegistry,
         elems: &ArrayElems,
-        clobbers: &RegistryClobberNames,
+        clobbers: &UnseenCallClobberNames,
     ) {
         let bn = frame.block;
 
@@ -3222,8 +3217,9 @@ impl RenameWalk {
             let stmts: Vec<Statement> = block.statements.clone();
             for (index, stmt) in stmts.iter().enumerate() {
                 let info = self.rename_statement(stmt, frame, registry, elems);
-                // After the marker's own definitions, which are the versions
-                // the call leaves: the ones its words read are not among them.
+                // The versions held where the call runs, before the fresh
+                // ones it leaves are pushed below: the code it reaches may
+                // read each of them.
                 if is_unseen_call_marker(stmt) {
                     let live = self.visible_versions(bn);
                     self.out.unseen_call_versions.extend(live);
@@ -3315,8 +3311,8 @@ pub(crate) fn build_ssa_for_entry(
     entry_bindings: Option<&[String]>,
 ) -> SsaFunction {
     let initial = build_ssa_inner(func, registry, config, &HashMap::new());
-    let live = crate::slot_allocation::registry_barrier_live_names(func, &initial, registry);
-    let clobbers: RegistryClobberNames = live
+    let live = crate::slot_allocation::unseen_call_live_names(func, &initial, registry);
+    let clobbers: UnseenCallClobberNames = live
         .into_iter()
         .filter_map(|(block, markers)| {
             let markers: HashMap<_, _> = markers
@@ -3373,7 +3369,7 @@ fn build_ssa_inner(
     func: &cfg::Function,
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
-    clobbers: &RegistryClobberNames,
+    clobbers: &UnseenCallClobberNames,
 ) -> SsaFunction {
     // Complexity guard: skip the O(blocks·vars) phi placement + rename walk
     // for a pathologically large (usually generated) body. Returns a trivial
@@ -3388,11 +3384,6 @@ fn build_ssa_inner(
     if func.name == "::top" {
         let target = enriched.get_or_insert_with(|| func.clone());
         let _ = mirror_top_level_global_option_defs(target, registry);
-    }
-    if let Some(stated) =
-        enrich_unseen_call_reads(enriched.as_ref().unwrap_or(func), registry, config)
-    {
-        enriched = Some(stated);
     }
     let func = enriched.as_ref().unwrap_or(func);
 
@@ -3492,106 +3483,6 @@ fn build_ssa_inner(
         var_to_symbol: walk.interner.to_symbol,
         unseen_call_versions,
     }
-}
-
-/// States, on each marker for a call to a command the module cannot see
-/// ([`crate::ir::SyntheticMarker::UnseenCall`]) that follows the call, the
-/// names the call's words read.
-///
-/// A call reads its words before its head runs, and the code the head reaches
-/// may rewrite any name it can reach, so a word keeps the version it reads
-/// (`set a 1; $cmd $a`) and a read after the call finds a new one. The marker
-/// is the call's definition of each name its words read, as a `switch`'s arms
-/// may define one ([`switch_may_defs`]), and the versions it leaves are the
-/// ones the call is recorded as holding. A marker ahead of the statement it
-/// stands for, where a command a `[…]` substitution of the statement runs is
-/// unseen, follows no call and states nothing.
-///
-/// The CFG is cloned only when a marker states a name, and the clone is what
-/// the rest of the build reads, so no other pass of the compiler sees a
-/// definition the call does not make.
-fn enrich_unseen_call_reads(
-    func: &cfg::Function,
-    registry: &CommandRegistry,
-    config: tcl_lexer::LexerConfig,
-) -> Option<cfg::Function> {
-    let mut scanner = VarReferenceScanner::with_config(
-        VarScanOptions {
-            include_var_read_roles: true,
-            recurse_cmd_substitutions: true,
-            include_reads_before_write: false,
-            element_qualified: true,
-        },
-        config,
-    );
-    let mut stated: Vec<(BlockId, usize, Vec<String>)> = Vec::new();
-    for (&id, block) in &func.blocks {
-        for (index, marker) in block.statements.iter().enumerate() {
-            if !is_unseen_call_marker(marker) {
-                continue;
-            }
-            let Some(host) = block.statements[..index]
-                .iter()
-                .rev()
-                .find(|statement| !is_synthetic_statement(statement))
-                .filter(|host| {
-                    matches!(host, Statement::Call { .. }) && host.span() == marker.span()
-                })
-            else {
-                continue;
-            };
-            let names = words_read_by_call(host, &mut scanner, registry);
-            if !names.is_empty() {
-                stated.push((id, index, names.into_iter().collect()));
-            }
-        }
-    }
-    if stated.is_empty() {
-        return None;
-    }
-    let mut enriched = func.clone();
-    for (id, index, names) in stated {
-        if let Some(Statement::Call { defs, .. }) = enriched
-            .blocks
-            .get_mut(&id)
-            .and_then(|block| block.statements.get_mut(index))
-        {
-            *defs = names;
-        }
-    }
-    Some(enriched)
-}
-
-/// The names the call `host` reads when its words are evaluated, before its
-/// head runs: those of its head, of each word that is not brace-quoted, and of
-/// the commands such a word runs. A brace-quoted word is passed on as it is,
-/// and the code the call reaches may evaluate it later, so a name only it
-/// carries is not one the call has read.
-fn words_read_by_call(
-    host: &Statement,
-    scanner: &mut VarReferenceScanner,
-    registry: &CommandRegistry,
-) -> BTreeSet<String> {
-    let Statement::Call {
-        command,
-        args,
-        tokens,
-        ..
-    } = host
-    else {
-        return BTreeSet::new();
-    };
-    let mut names: BTreeSet<String> = scanner.scan_word(command, registry).into_iter().collect();
-    for (index, word) in args.iter().enumerate() {
-        if !tokens
-            .as_ref()
-            .is_some_and(|tokens| tokens.arg_is_braced_literal(index))
-        {
-            names.extend(scanner.scan_word(word, registry));
-        }
-    }
-    scan_nested_substitution_words(tokens.as_ref(), scanner, registry, &mut names);
-    names
 }
 
 /// A statement whose `[…]` substitutions write a name reads it before,
@@ -5768,7 +5659,8 @@ mod tests {
     }
 
     /// The version each name holds where a call to a command the module cannot
-    /// see sits is recorded; a version a later definition makes is not.
+    /// see sits is recorded, in a procedure as at the top level; a version a
+    /// later definition makes is not.
     #[test]
     fn an_unseen_call_records_the_versions_live_where_it_sits() {
         let ssa = ssa_of_function("set x 1\nset y 2\nfoo\nset x 3\nputs $x$y\n", "::top");
@@ -5779,9 +5671,10 @@ mod tests {
         assert!(!ssa.is_observed_by_unseen_call(x, 2));
         assert!(ssa.name_is_observed_by_unseen_call("x", 1));
         assert!(!ssa.name_is_observed_by_unseen_call("nothing", 1));
-        // A procedure's local, and a call the module resolves, record nothing.
+        let ssa = ssa_of_function("proc p {} {\n set x 1\n foo\n puts $x\n}\n", "::p");
+        assert!(ssa.name_is_observed_by_unseen_call("x", 1));
+        // A call the module resolves records nothing.
         for (source, name) in [
-            ("proc p {} {\n set x 1\n foo\n puts $x\n}\n", "::p"),
             ("proc foo {} { puts hi }\nset x 1\nfoo\nputs $x\n", "::top"),
             ("set x 1\nputs $x\n", "::top"),
         ] {
@@ -5800,8 +5693,7 @@ mod tests {
     }
 
     /// A sourced file runs in the frame of the call, so it may write or read
-    /// any name there: a top-level name, and a procedure's local too, which no
-    /// callee the module cannot see reaches.
+    /// any name there: a top-level name, and a procedure's local too.
     #[test]
     fn a_sourced_file_records_the_versions_live_where_it_sits_in_a_procedure_too() {
         for (source, name) in [
@@ -5905,14 +5797,14 @@ mod tests {
     }
 
     /// A call to a command the module cannot see reads its words before its
-    /// head runs, so the version a word reads is not recorded where the call
-    /// sits — a computed head resolves through it (`set cmd foo; $cmd`), an
-    /// operand keeps its value — and the call may rewrite the name, so a read
-    /// after it is of a new version, which is. A name no word reads, and one
-    /// only a braced word carries, which the code the call reaches may
-    /// evaluate, stay recorded.
+    /// head runs, so the version each word reads is the one the call holds,
+    /// which is recorded — the code the call reaches may read it — and the code
+    /// may rewrite the name, so a read after the call is of the fresh version
+    /// the marker leaves, which is not, and whose binding is the version the
+    /// call held. A name only a braced word carries, which the code may
+    /// evaluate, is recorded as well.
     #[test]
-    fn a_call_the_module_cannot_see_leaves_the_versions_its_words_read() {
+    fn a_call_the_module_cannot_see_holds_the_versions_its_words_read() {
         for (source, names) in [
             ("set cmd puts\n$cmd hi\nputs $cmd\n", vec!["cmd"]),
             ("set a 1\nset b 2\n$cmd $a $b\nputs $a$b\n", vec!["a", "b"]),
@@ -5921,14 +5813,16 @@ mod tests {
         ] {
             let ssa = ssa_of_function(source, "::top");
             for name in names {
+                let symbol = ssa.var_symbol(name).expect("the name is an SSA symbol");
                 assert!(
-                    !ssa.name_is_observed_by_unseen_call(name, 1),
+                    ssa.name_is_observed_by_unseen_call(name, 1),
                     "{source}: {name}#1"
                 );
                 assert!(
-                    ssa.name_is_observed_by_unseen_call(name, 2),
+                    !ssa.name_is_observed_by_unseen_call(name, 2),
                     "{source}: {name}#2"
                 );
+                assert_eq!(ssa.binding_version(symbol, 2), 1, "{source}: {name}#2");
             }
         }
         for source in [
@@ -5941,22 +5835,29 @@ mod tests {
         }
     }
 
-    /// The marker beside such a call defines each name the call's words read as
-    /// a *may*-definition: it uses the version before it, so liveness keeps
-    /// the store that feeds it, and a loop that holds the call places the φ the
-    /// definition needs.
+    /// The marker beside such a call defines no name: each name live past it
+    /// takes a fresh version where it stands
+    /// ([`SsaFunction::value_clobbers`]), whose binding is the version before
+    /// it, and a loop that holds the call places the φ the fresh version
+    /// needs. A name no read after the marker reaches takes none.
     #[test]
-    fn the_marker_beside_a_call_the_module_cannot_see_may_define_the_names_its_words_read() {
+    fn the_marker_beside_a_call_the_module_cannot_see_gives_live_names_fresh_versions() {
+        let fresh = |ssa: &SsaFunction, symbol: Symbol| -> Vec<(Version, Version)> {
+            ssa.value_clobbers
+                .values()
+                .flat_map(HashMap::values)
+                .filter_map(|versions| versions.get(&symbol).copied())
+                .collect()
+        };
         let ssa = ssa_of_function("set a 1\nget $a\nputs $a\n", "::top");
         let marker = ssa_statements(&ssa)
             .into_iter()
             .find(|statement| is_unseen_call_marker(&statement.statement))
             .expect("the call is followed by its marker");
+        assert!(marker.defs.is_empty() && marker.may_defs.is_empty());
         let a = ssa.var_symbol("a").expect("a");
-        assert_eq!(marker.may_defs, HashSet::from([a]));
-        assert_eq!(marker.defs[&a], 2);
-        assert_eq!(marker.uses[&a], 1);
-        assert!(marker.quoted_uses.contains(&a));
+        assert_eq!(fresh(&ssa, a), [(1, 2)]);
+        assert_eq!(ssa.binding_version(a, 2), 1);
 
         let ssa = ssa_of_function(
             "set a 1\nwhile {[gets stdin line] >= 0} { get $a }\nputs $a\n",
@@ -5966,25 +5867,18 @@ mod tests {
             ssa.blocks
                 .values()
                 .any(|block| block.phis.iter().any(|phi| ssa.var_name(phi.name) == "a")),
-            "the loop defines `a` where the call sits"
+            "the loop joins the fresh version `a` takes where the call sits"
         );
 
-        // The marker a substitution's unseen command puts ahead of its
-        // statement follows no call, so it states no name.
-        let ssa = ssa_of_function("set x 1\nfoo $x\nputs [get $x]\nputs $x\n", "::top");
-        let stating = ssa_statements(&ssa)
-            .into_iter()
-            .filter(|statement| {
-                is_unseen_call_marker(&statement.statement) && !statement.defs.is_empty()
-            })
-            .count();
-        assert_eq!(stating, 1);
+        let ssa = ssa_of_function("set a 1\nget $a\nset a 2\nputs $a\n", "::top");
+        let a = ssa.var_symbol("a").expect("a");
+        assert!(fresh(&ssa, a).is_empty());
     }
 
-    /// A call to a command the module cannot see inside a top-level `catch`
-    /// body, or with a computed head, records the versions live where it sits,
-    /// as a call the graph lowers does; a procedure's local is out of the
-    /// callee's reach, and a `source` runs in the frame of the call.
+    /// A call to a command the module cannot see inside a `catch` body, or with
+    /// a computed head, records the versions live where it sits, as a call the
+    /// graph lowers does, in a procedure as at the top level; a call the module
+    /// resolves records nothing.
     #[test]
     fn a_catch_body_and_a_computed_head_record_the_versions_live_where_they_sit() {
         for source in [
@@ -6009,10 +5903,10 @@ mod tests {
             (
                 "proc p {} {\n set x 1\n catch { if {1} { foo } }\n puts $x\n}\n",
                 "::p",
-                false,
+                true,
             ),
-            ("proc p {} {\n set x 1\n $cmd\n puts $x\n}\n", "::p", false),
-            ("proc p {} {\n set x 1\n puts [$cmd]\n}\n", "::p", false),
+            ("proc p {} {\n set x 1\n $cmd\n puts $x\n}\n", "::p", true),
+            ("proc p {} {\n set x 1\n puts [$cmd]\n}\n", "::p", true),
             (
                 "proc p {} {\n set x 1\n catch { if {1} { source other.tcl } }\n puts $x\n}\n",
                 "::p",

@@ -182,20 +182,21 @@ if {$g} { puts a } else { puts b }                 ;# no I230, as for $::g
   the analyser cannot read — `after 100 $script`, a command the file does not
   define, an `interp alias`, a `{*}` expansion — may write any variable, so no
   name is decided anywhere in the file.
-- A plain name in the top-level script is the global `::name`. A call there to
-  a command the file does not define may write, unset or read it, so the
-  versions the name holds at that call are undecided, as a `$::g` is. So is a
-  call whose command is computed (`$cmd`), and a call inside the body of a
-  `catch`, whether the `catch` is a command of its own or one a condition
-  runs (`if {[catch {foo}]} …`), and a call inside any body a `[…]` substitution
-  runs, whatever frame the body runs in: a lambda's (`[apply {{} {foo}}]`), a
-  `namespace eval` or `uplevel` body, the text a `[subst {[foo]}]` substitutes
-  and an expression word inside a body (`[catch {if {[foo]} …}]`). A name the
-  body of a `catch` writes on some path is undecided afterwards too, since the
-  body stops at its first error. A
-  procedure's own local is out of every callee's reach and is still folded;
-  a `source` runs its file in the frame of the call, so a local is not safe
-  across one.
+- A call to a command the file does not define may write, unset or read a
+  name of the frame it is called from: a plain name in the top-level script is
+  the global `::name`, and a procedure's local is in its reach through `upvar
+  1` — a procedure an autoloader or the unknown handler brings in can do so on
+  every release. So the name is undecided after such a call, as a `$::g` is. So
+  it is after a call whose command is computed (`$cmd`), and a call inside the
+  body of a `catch`, whether the `catch` is a command of its own or one a
+  condition runs (`if {[catch {foo}]} …`), and a call inside any body a `[…]`
+  substitution runs, whatever frame the body runs in: a lambda's (`[apply {{}
+  {foo}}]`), a `namespace eval` or `uplevel` body, the text a `[subst
+  {[foo]}]` substitutes and an expression word inside a body (`[catch {if
+  {[foo]} …}]`). A name the body of a `catch` writes on some path is undecided
+  afterwards too, since the body stops at its first error. A `source` runs its
+  file in the frame of the call, so no name is safe across one either; a
+  procedure the file defines is read for what it writes.
 
 ## Fix
 

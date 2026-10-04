@@ -100,7 +100,7 @@ See
 [W220](kcs-diagnostic-w220-dead-store.md#a-procedure-you-call-can-read-your-variables)
 for the same rule on the dead-store side.
 
-## A command the file does not define can read a top-level variable
+## A command the file does not define can read your variables
 
 A plain variable in the top-level script is the global `::name`, which a
 command the file does not define, a call whose command is computed and a call
@@ -112,10 +112,11 @@ set h 6
 source other.tcl      ;# runs in this frame and may read h: not flagged
 ```
 
-A procedure's own local is out of every callee's reach, so a local set and
-never read still draws `W211` there, except across a `source`, which runs its
-file in the procedure's frame. See
-[W220](kcs-diagnostic-w220-dead-store.md#a-command-the-file-does-not-define-can-read-a-top-level-variable)
+The same holds for a procedure's local: such a command — one an autoloader or
+the unknown handler brings in — reaches it through `upvar 1`, and a `source`
+runs its file in the procedure's frame. A local set and never read with no
+such call after it still draws `W211`. See
+[W220](kcs-diagnostic-w220-dead-store.md#a-command-the-file-does-not-define-can-read-your-variables)
 for the dead-store side.
 
 ## How to suppress

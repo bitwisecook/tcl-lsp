@@ -693,19 +693,6 @@ mod tests {
         }
     }
 
-    fn registry_barrier_marker() -> Statement {
-        Statement::Barrier {
-            span: Span::new(0, 0),
-            reason: "scalar facts".into(),
-            command: "<registry-barrier>".into(),
-            canonical_command: None,
-            args: Vec::new(),
-            tokens: Some(crate::ir::CommandTokens::marker(
-                crate::ir::SyntheticMarker::RegistryBarrier,
-            )),
-        }
-    }
-
     #[test]
     fn aot_clean_when_no_barrier() {
         // A barrier-free function (here: just an empty entry block) is AOT-clean.
@@ -726,14 +713,14 @@ mod tests {
     }
 
     #[test]
-    fn registry_barrier_marker_does_not_block_aot() {
+    fn the_unseen_call_marker_does_not_block_aot() {
         let mut f = Function::new("::p", "entry");
         let entry = f.entry;
         f.blocks
             .get_mut(&entry)
             .unwrap()
             .statements
-            .push(registry_barrier_marker());
+            .push(Statement::unseen_call_marker(Span::new(0, 0)));
         assert!(f.is_aot_clean());
     }
 

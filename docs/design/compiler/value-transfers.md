@@ -1139,7 +1139,8 @@ and every specialisation inherits them:
 | a word is not an exact value at this use (multi-token, `{*}`, unresolvable variable, JimTcl `$(…)`) | the driver | decline (`NotExact`) |
 | the head's binding is suspect: renamed, aliased to an unknown target, redefined, or in an opaque namespace (`ModuleCommandMutations::trusts`, `trusts_proc_binding`, `redefined_procedures`, `opaque_namespaces`) | binding validity — not an author-trust check | decline (`RebindingSuspected`); a consumer with no whole-module view uses `distrust_all()` |
 | the invocation has no semantics declaration, or declares a route of none (`evaluate none`) | the resolver, at step 1 | decline (`NoSemantics`, or `NoRoute` with the evaluation page's `NoRouteReason`); the generic conservative transfer applies, and a declared plan or transfer still answers its own domain |
-| the place is `::`-qualified, escaping, or the function has a dynamic trace (`is_externally_mutable` over the `var_observability` escaping set), or the version is one a call to a command the module cannot see (a head it does not define, a computed head, one inside the body of a `catch` kept as one statement), or a call that sources a file, holds, the versions its own words read excepted (`SsaFunction::is_observed_by_unseen_call`) | the solver, before any transfer runs | the def is `Overdefined` and no transfer re-narrows it (`EscapingPlace`) |
+| the place is `::`-qualified, escaping, or the function has a dynamic trace (`is_externally_mutable` over the `var_observability` escaping set) | the solver, before any transfer runs | the def is `Overdefined` and no transfer re-narrows it (`EscapingPlace`) |
+| the version is the fresh one a call to a command the module cannot see (a head it cannot name, a computed head, one inside the body of a `catch` kept as one statement) or a call that sources a file leaves a name live past it (`SsaFunction::value_clobbers`) | the solver, at the marker | the version is `Overdefined`, save a parameter seed of a procedure a caller proved pure; the version before the call keeps its value |
 | the place is named in `Module::traced_variables` or `Module::deferred_writes` (`TraceInputs`) | the solver | same (`TracedPlace`) |
 | the target is an array-element base write, or the targets overlap, or a target is trace-visible | the driver | decline (`OverlappingTargets`), stated as a precision limit |
 | a dynamic key (`incr a($i)`) | `DynamicNameBarrier` | decline (`DynamicName`), not pending: the miss is permanent and `join(prev, Unknown) = prev` would launder a stale element constant |
@@ -1332,10 +1333,11 @@ document's initial global frame a registry special variable enters
 variable (`ConnectionScope::cross_event_defs`) as `MayBound`, which is
 the rule `drop_cross_event_existence_folds` applies to the post-pass's
 output today. A `Barrier` or `UpFrame` statement sets every place to
-`MayBound`, as it sets every value to `Overdefined`. A call in the top-level
-script to a command the module cannot see (`SyntheticMarker::UnseenCall`)
-sets every place `MayBound` from there on, and the version each name holds
-there `Overdefined`, because a plain top-level name is the global `::name`.
+`MayBound`, as it sets every value to `Overdefined`. A call to a command the
+module cannot see (`SyntheticMarker::UnseenCall`) sets every place `MayBound`
+from there on, and gives each name live past it a fresh `Overdefined` version,
+because a plain top-level name is the global `::name` and a procedure's local
+is in the reach of a callee that runs `upvar 1`.
 The dynamic-name
 barrier is flow-sensitive here: a dynamic write
 (`DynamicNameBarrier::writes`) turns every `Unbound` place `MayBound`

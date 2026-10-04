@@ -2116,7 +2116,9 @@ mod tests {
         let fu = cu.function("::f").expect("proc lowered");
         let tokens = fu.cfg.blocks.values().find_map(|block| {
             block.statements.iter().find_map(|stmt| match stmt {
-                Statement::Call { tokens, .. } => tokens.as_ref(),
+                Statement::Call {
+                    command, tokens, ..
+                } if command == "myexpr" => tokens.as_ref(),
                 _ => None,
             })
         });
@@ -2650,14 +2652,14 @@ mod tests {
     }
 
     #[test]
-    fn registry_barrier_marker_is_not_a_zero_argument_caller() {
+    fn the_unseen_call_marker_is_not_a_zero_argument_caller() {
         let ev = evidence(
-            "proc {<registry-barrier>} {mode} { return $mode }\n\
-             {<registry-barrier>} fixed\n\
+            "proc {<unseen-call>} {mode} { return $mode }\n\
+             {<unseen-call>} fixed\n\
              set ignored [missing_command]\n",
         );
         assert_eq!(
-            uniform(&ev, "::<registry-barrier>", 0),
+            uniform(&ev, "::<unseen-call>", 0),
             Some("fixed".into()),
             "the synthetic marker is analysis-only; the real invocation remains evidence",
         );

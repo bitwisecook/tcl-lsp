@@ -15634,27 +15634,28 @@ fn i230_never_reports_a_condition_over_a_name_a_callback_writes() {
 }
 
 /// A plain top-level name is the global name a command the module cannot see
-/// may write, as it may `::g`; a procedure's local is out of every callee's
-/// reach, and a procedure the module defines that writes no global changes
-/// nothing.
+/// may write, as it may `::g`, and a procedure's local is in the reach of such
+/// a command too: an autoloaded or unknown-handled callee runs `upvar 1` into
+/// the frame that called it, on every release (tclsh 8.4 to 9.1 return
+/// `changed` from `proc p {} {set x 5; missing; if {$x == 5} {return stale}
+/// {return changed}}` where `auto_index(missing)` defines `missing` as `upvar
+/// 1 x x; set x 6`). A procedure the module defines that writes no global
+/// changes nothing.
 #[test]
-fn i230_never_reports_a_top_level_condition_across_a_call_the_module_cannot_see() {
+fn i230_never_reports_a_condition_across_a_call_the_module_cannot_see() {
     assert_no_i230(&[
         "set g 5\nfoo\nif {$g} {puts a} else {puts b}\n",
         "set ::g 5\nfoo\nif {$::g} {puts a} else {puts b}\n",
         "set g 5\nputs [foo]\nif {$g} {puts a} else {puts b}\n",
         "set g 5\nwhile {[foo]} { puts x }\nif {$g} {puts a} else {puts b}\n",
         "set g 5\nswitch -glob -- [gets stdin] { q* { foo } }\nif {$g} {puts a} else {puts b}\n",
-    ]);
-    for src in [
         "proc p {} {\n set g 5\n foo\n if {$g} {puts a} else {puts b}\n}\n",
-        "proc foo {} { puts hi }\nset g 5\nfoo\nif {$g} {puts a} else {puts b}\n",
-    ] {
-        let (whole, per_item) = i230_on_both_paths(src);
-        assert_eq!(whole.len(), 1, "{src}: {whole:?}");
-        assert!(whole[0].contains("always true"), "{src}: {whole:?}");
-        assert_eq!(per_item, whole, "{src}");
-    }
+    ]);
+    let src = "proc foo {} { puts hi }\nset g 5\nfoo\nif {$g} {puts a} else {puts b}\n";
+    let (whole, per_item) = i230_on_both_paths(src);
+    assert_eq!(whole.len(), 1, "{src}: {whole:?}");
+    assert!(whole[0].contains("always true"), "{src}: {whole:?}");
+    assert_eq!(per_item, whole, "{src}");
 }
 
 /// A sourced file runs in the frame of the call, so it may write the name the
@@ -15697,11 +15698,12 @@ fn a_read_after_an_opaque_switch_only_an_arm_sets_draws_w210() {
     assert_eq!(found[0].0, DiagCode::W210, "{src}");
 }
 
-/// A call to a command the module cannot see inside the body of a top-level
-/// `catch`, or through a computed head, may write a plain top-level name as
-/// it may `::g`, and what the body writes on some path is a name the
-/// statement may leave as it was: tclsh prints `b` where the `foo` of a
-/// sourced file sets `g` to 0, and `5` where the body writes nothing.
+/// A call to a command the module cannot see inside the body of a `catch`, or
+/// through a computed head, may write a plain top-level name as it may `::g`,
+/// and a procedure's local through `upvar 1`, and what the body writes on some
+/// path is a name the statement may leave as it was: tclsh prints `b` where
+/// the `foo` of a sourced file sets `g` to 0, and `5` where the body writes
+/// nothing.
 #[test]
 fn i230_never_reports_a_condition_across_a_catch_body_or_a_computed_head() {
     assert_no_i230(&[
@@ -15721,11 +15723,11 @@ fn i230_never_reports_a_condition_across_a_catch_body_or_a_computed_head() {
         "set go 1\ncatch { namespace eval :: {set go 0} }\nif {$go} {puts a} else {puts b}\n",
         "proc zero {v} {upvar 1 $v x; set x 0}\nproc p {} {\n set go 1\n catch { if {1} { zero go } }\n if {$go} {puts a} else {puts b}\n}\n",
         "proc p {c} {\n catch { if {$c} { set x 1 } }\n if {[info exists x]} {puts yes} else {puts no}\n}\n",
-    ]);
-    for src in [
         "proc p {} {\n set g 5\n catch { if {1} {foo} }\n if {$g} {puts a} else {puts b}\n}\n",
         "proc p {} {\n set g 5\n $cmd\n if {$g} {puts a} else {puts b}\n}\n",
         "proc p {} {\n set g 5\n if {[catch {foo}]} {puts bad}\n if {$g} {puts a} else {puts b}\n}\n",
+    ]);
+    for src in [
         "proc foo {} { puts hi }\nset g 5\ncatch {foo}\nif {$g} {puts a} else {puts b}\n",
         "set g 5\ncatch { set other 1 }\nif {$g} {puts a} else {puts b}\n",
     ] {
@@ -15812,7 +15814,10 @@ fn w210_names_on_both_paths(src: &str) -> (Vec<String>, Vec<String>) {
 /// file has not set by then, so a read of the name after it is no read before
 /// it is set. A read the code does not precede on every path is one (no code
 /// ahead of it, code after it, code on one branch only), and so is a read in a
-/// procedure, whose locals no callee reaches.
+/// procedure after a call it is not handed by name: a callee the module cannot
+/// see reaches a local through `upvar 1` under the name it is given, which the
+/// per-name abstention answers, while a sourced file runs in the procedure's
+/// frame and may set any of its names.
 #[test]
 fn a_read_after_code_the_module_cannot_see_is_no_read_before_set() {
     for src in [
@@ -15827,6 +15832,7 @@ fn a_read_after_code_the_module_cannot_see_is_no_read_before_set() {
         "foo\nputs $g\nset g 1\n",
         "foo\nif {$argc} {puts $g}\n",
         "proc p {} {\n source other.tcl\n puts $g\n}\n",
+        "proc p {} {\n foo g\n puts $g\n}\n",
     ] {
         let (whole, per_item) = w210_names_on_both_paths(src);
         assert!(whole.is_empty(), "whole file: {src}\n{whole:?}");
@@ -15873,10 +15879,10 @@ fn dead_store_hints_on_both_paths(src: &str) -> (Hints, Hints) {
 }
 
 /// A call to a command the module cannot see may read a name the store before
-/// it leaves, as it may read `::g`, so the store is no dead one (W220) and the
-/// name no unused one (W211): the optimiser's O109 and O126 already said so.
-/// A procedure's local is out of every callee's reach, a procedure the module
-/// defines is seen, and a store nothing reads before the next is still dead.
+/// it leaves, as it may read `::g`, and a procedure's local through `upvar 1`,
+/// so the store is no dead one (W220) and the name no unused one (W211): the
+/// optimiser's O109 and O126 already said so. A procedure the module defines
+/// is seen, and a store nothing reads before the next is still dead.
 #[test]
 fn a_store_a_call_the_module_cannot_see_may_read_draws_neither_w220_nor_w211() {
     for src in [
@@ -15887,16 +15893,13 @@ fn a_store_a_call_the_module_cannot_see_may_read_draws_neither_w220_nor_w211() {
         "set h 6\nsource other.tcl\n",
         "set h 6\nputs [foo]\n",
         "proc p {} {\n set h 6\n source other.tcl\n}\n",
+        "proc p {} {\n set g 5\n foo\n set g 6\n return $g\n}\n",
     ] {
         let (whole, per_item) = dead_store_hints_on_both_paths(src);
         assert!(whole.is_empty(), "whole file: {src}\n{whole:?}");
         assert_eq!(per_item, whole, "per item: {src}");
     }
     for (src, code) in [
-        (
-            "proc p {} {\n set g 5\n foo\n set g 6\n return $g\n}\n",
-            DiagCode::W220,
-        ),
         (
             "proc foo {} { puts hi }\nset g 5\nfoo\nset g 6\nputs $g\n",
             DiagCode::W220,

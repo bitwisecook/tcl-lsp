@@ -282,14 +282,26 @@ source other.tcl
 puts $g            ;# not flagged — other.tcl may have set g
 ```
 
-The same holds after a `catch` whose body runs such a call, and inside a
-procedure after a `source`, which runs its file in the procedure's own frame.
+The same holds after a `catch` whose body runs such a call. Inside a procedure
+the silence is per name. A `source` runs its file in the procedure's own frame,
+so a read after it is not flagged. A procedure the analyser cannot see — one
+defined in another file, or `upvar` reached through an alias — sets a local of
+yours through `upvar 1` under a name it is given, so only the names the call
+spells as words of its own stop being flagged:
+
+```tcl
+proc build {} {
+    setdef options name blue  ;# setdef lives in another file
+    puts $options             ;# not flagged — setdef is handed `options`
+    puts $other               ;# flagged — setdef is not handed `other`
+}
+```
+
 The call has to come first on every path to the read. These are still flagged: a
 read in the words of the call itself (`foo $g`), a call on one branch of an `if`
 only, a read with no such call ahead of it at all (`puts $g` on its own), a name
-the file sets on some other path (`if {$argc} {set g 1}` before the call), and a
-read in a procedure after a call to a command the file does not define, because
-no callee reaches a procedure's locals.
+the file sets on some other path (`if {$argc} {set g 1}` before the call), and,
+in a procedure, a name the call does not spell.
 
 ## How to suppress
 

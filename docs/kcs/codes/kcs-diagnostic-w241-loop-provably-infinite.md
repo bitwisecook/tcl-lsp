@@ -50,13 +50,16 @@ sets the caller's variable with `upvar`), one a callback script stored
 anywhere in the file sets (`after`, `fileevent`, `bind`, a variable trace's
 callback, a procedure named as a callback, a command prefix built with
 `list`, a script spelled as several words), one a callback the analyser cannot
-read may set (`after 100 $script`, a command the file does not define), and —
-at the top level — one a call to a command the file does not define, a call
-whose command is computed and a call inside a `catch` body may set, as it may
-set `$::go`.
-In a procedure a local is out of every callee's reach, so `while {$go} { foo
-}` over a local `go` is still reported; a `source` in the loop runs its file in
-the procedure's frame, so it is not.
+read may set (`after 100 $script`, a command the file does not define), and
+one a call to a command the file does not define, a call whose command is
+computed and a call inside a `catch` body may set. At the top level `go` is
+the global `$::go`, which such a call may set; in a procedure the call may set
+the local `go` too, through `upvar 1` — a procedure an autoloader or the
+unknown handler brings in can do so on every release — so `while {$go} { foo
+}` is not reported there either, nor is a loop around a `source`, which runs
+its file in the procedure's frame. A procedure the file defines is read for
+what it writes, so a loop around a call to one that leaves `go` alone is still
+reported.
 
 ## Example that triggers it
 

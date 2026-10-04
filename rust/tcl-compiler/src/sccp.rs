@@ -961,14 +961,8 @@ impl SweepContext<'_> {
         // Phi nodes (not at entry, only when some predecessor is
         // executable).
         if bn != self.cfg.entry {
-            changed |= sccp_process_phis(&mut state.values, self.ssa, ssa_block, &incoming_exec);
-            record_phi_folded_types(
-                &state.values,
-                self.ssa,
-                ssa_block,
-                &incoming_exec,
-                self.driver,
-            );
+            changed |= sccp_process_phis(&mut state.values, ssa_block, &incoming_exec);
+            record_phi_folded_types(&state.values, ssa_block, &incoming_exec, self.driver);
         }
 
         // The existence rung enters the block with the join of its
@@ -2338,7 +2332,6 @@ pub(crate) fn is_externally_mutable(
 /// `true` if any lattice value changed. Extracted from [`sccp`].
 fn sccp_process_phis(
     values: &mut HashMap<ValueKey, LatticeValue>,
-    ssa: &SsaFunction,
     ssa_block: &crate::ssa::SsaBlock,
     incoming_exec: &[BlockId],
 ) -> bool {
@@ -2369,11 +2362,6 @@ fn sccp_process_phis(
             });
             phi_val = join(&phi_val, &candidate);
         }
-        // A version a call to a command the module cannot see may have
-        // rewritten states no value, whatever flows into it.
-        if ssa.is_observed_by_unseen_call(phi.name, phi.version) {
-            phi_val = LatticeValue::Overdefined;
-        }
         if set_value(values, (phi.name, phi.version), &phi_val) {
             changed = true;
         }
@@ -2387,7 +2375,6 @@ fn sccp_process_phis(
 /// has not reached is skipped, as the value join skips it.
 fn record_phi_folded_types(
     values: &HashMap<ValueKey, LatticeValue>,
-    ssa: &SsaFunction,
     ssa_block: &crate::ssa::SsaBlock,
     incoming_exec: &[BlockId],
     driver: &LatticeDriver<'_>,
@@ -2396,10 +2383,6 @@ fn record_phi_folded_types(
         return;
     }
     for phi in &ssa_block.phis {
-        if ssa.is_observed_by_unseen_call(phi.name, phi.version) {
-            driver.record_folded((phi.name, phi.version), None);
-            continue;
-        }
         let members = incoming_exec.iter().filter_map(|pred| {
             let version = phi.incoming.get(pred).copied().unwrap_or(0);
             if version == 0 {
@@ -2418,8 +2401,9 @@ fn record_phi_folded_types(
 
 /// What [`sccp_process_statements`] reads beside the block: the names that
 /// escape the function, whether a dynamic variable trace may fire, and the
-/// fresh versions each registry boundary in the block gives the names live
-/// after it ([`crate::ssa::SsaFunction::value_clobbers`]).
+/// fresh versions each marker for a call to code the module cannot see in the
+/// block gives the names live after it
+/// ([`crate::ssa::SsaFunction::value_clobbers`]).
 #[derive(Clone, Copy)]
 struct StatementInputs<'a> {
     escaping: &'a HashSet<String>,
@@ -2453,12 +2437,11 @@ fn sccp_process_statements(
     // evaluated over it.
     let mut before_marker = None;
     for (index, stmt_ssa) in ssa_block.statements.iter().enumerate() {
-        // A registry boundary's fresh versions take effect after the inputs
-        // and the barrier of the invocation it stands beside.
-        if stmt_ssa.statement.synthetic_marker()
-            == Some(crate::ir::SyntheticMarker::RegistryBarrier)
-        {
-            changed |= clobber_at_registry_barrier(
+        // The fresh versions a call to code the module cannot see leaves take
+        // effect after the inputs and the barrier of the call they stand
+        // beside.
+        if crate::ssa::is_unseen_call_marker(&stmt_ssa.statement) {
+            changed |= clobber_at_unseen_call(
                 values,
                 (index, clobbers, exit.completes),
                 (driver, existence.as_deref_mut()),
@@ -2536,14 +2519,15 @@ fn sccp_process_statements(
     StatementsRun { changed, exit }
 }
 
-/// The fresh versions a registry boundary at `index` gives the names live
-/// after it ([`crate::ssa::SsaFunction::value_clobbers`]): the code the
-/// invocation beside it reaches may have rewritten each, so each states no
-/// value and, with the rest of the frame, may be bound or not — save a
-/// parameter of a procedure a caller proved pure, whose seed no handler can
-/// rebind. After a statement that certainly raised the boundary was never
-/// reached, so each keeps what its place held. Whether anything moved.
-fn clobber_at_registry_barrier(
+/// The fresh versions the marker for a call to code the module cannot see at
+/// `index` gives the names live after it
+/// ([`crate::ssa::SsaFunction::value_clobbers`]): that code may have rewritten
+/// each, so each states no value and, with the rest of the frame, may be bound
+/// or not — save a parameter of a procedure a caller proved pure, whose seed
+/// no such code can rebind. After a statement that certainly raised the
+/// marker was never reached, so each keeps what its place held. Whether
+/// anything moved.
+fn clobber_at_unseen_call(
     values: &mut HashMap<ValueKey, LatticeValue>,
     (index, clobbers, completes): (usize, Option<&crate::ssa::BlockValueClobbers>, bool),
     (driver, existence): (&LatticeDriver<'_>, Option<&mut ExistenceAt<'_>>),
@@ -2712,7 +2696,6 @@ fn define_values(
         let (val, folded) =
             if is_externally_mutable(ssa.var_name(var), escaping, has_dynamic_variable_trace)
                 || element_write_base == Some(var)
-                || ssa.is_observed_by_unseen_call(var, ver)
             {
                 (LatticeValue::Overdefined, None)
             } else if keeps_all {
@@ -4505,7 +4488,6 @@ mod tests {
         values.insert((x, 1), LatticeValue::Const(ConstValue::Int(5)));
         assert!(sccp_process_phis(
             &mut values,
-            &ssa,
             &block,
             &[BlockId(1), BlockId(2)]
         ));
@@ -4579,7 +4561,6 @@ mod tests {
         values.insert((x, 1), LatticeValue::Const(ConstValue::Int(5)));
         assert!(sccp_process_phis(
             &mut values,
-            &ssa,
             &block,
             &[BlockId(1), BlockId(2)]
         ));
@@ -4587,22 +4568,32 @@ mod tests {
     }
 
     /// A call to a command the module cannot see may create or destroy a plain
-    /// top-level name as it may a `::` one, so `[info exists]` after it decides
-    /// nothing; a procedure's local, which no callee can reach, is decided
-    /// as before.
+    /// top-level name as it may a `::` one, and a procedure's local through
+    /// `upvar 1`, so `[info exists]` after it decides nothing; a call the
+    /// module resolves leaves the local's existence decided.
     #[test]
-    fn an_unseen_call_leaves_no_top_level_name_with_a_settled_existence() {
+    fn an_unseen_call_leaves_no_name_with_a_settled_existence() {
         let registry = CommandRegistry::build_default();
-        for source in [
-            "set x 1\nfoo\nif {[info exists x]} { puts a } else { puts b }\n",
-            "foo\nif {[info exists never_set]} { puts a } else { puts b }\n",
+        for (source, function) in [
+            (
+                "set x 1\nfoo\nif {[info exists x]} { puts a } else { puts b }\n",
+                "::top",
+            ),
+            (
+                "foo\nif {[info exists never_set]} { puts a } else { puts b }\n",
+                "::top",
+            ),
+            (
+                "proc p {} { set x 1; foo; if {[info exists x]} { puts a } else { puts b } }\n",
+                "::p",
+            ),
         ] {
             let cu = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false);
-            let f = cu.function("::top").expect("top level analysed");
+            let f = cu.function(function).expect("function analysed");
             assert!(f.sccp.constant_branches.is_empty(), "{source}");
         }
         let cu = crate::compilation_unit::CompilationUnit::build_for(
-            "proc p {} { set x 1; foo; if {[info exists x]} { puts a } else { puts b } }\n",
+            "proc foo {} { puts hi }\nproc p {} { set x 1; foo; if {[info exists x]} { puts a } else { puts b } }\n",
             &registry,
             false,
         );
@@ -4614,33 +4605,6 @@ mod tests {
             .find(|branch| branch.condition == "[info exists x]")
             .expect("the local's existence is decided");
         assert!(decided.value);
-    }
-
-    /// A φ over two constants is no constant when a call to a command the
-    /// module cannot see holds it: whatever flows in, the call may have
-    /// rewritten the version since.
-    #[test]
-    fn a_phi_an_unseen_call_holds_is_overdefined() {
-        let mut ssa = bare_ssa();
-        let x = ssa.intern_var("x");
-        let mut block = empty_ssa_block("merge");
-        block.phis.push(crate::ssa::Phi {
-            name: x,
-            version: 3,
-            incoming: HashMap::from([(BlockId(1), 1), (BlockId(2), 2)]),
-        });
-        let mut values: HashMap<ValueKey, LatticeValue> = HashMap::new();
-        values.insert((x, 1), LatticeValue::Const(ConstValue::Int(5)));
-        values.insert((x, 2), LatticeValue::Const(ConstValue::Int(5)));
-        let incoming = [BlockId(1), BlockId(2)];
-        assert!(sccp_process_phis(&mut values, &ssa, &block, &incoming));
-        assert_eq!(
-            values.get(&(x, 3)),
-            Some(&LatticeValue::Const(ConstValue::Int(5)))
-        );
-        ssa.observe_by_unseen_call(x, 3);
-        assert!(sccp_process_phis(&mut values, &ssa, &block, &incoming));
-        assert_eq!(values.get(&(x, 3)), Some(&LatticeValue::Overdefined));
     }
 
     #[test]
@@ -7019,16 +6983,18 @@ p
         );
     }
 
-    /// A plain top-level name is the global name: the version it holds where a
-    /// call to a command the module cannot see sits has no constant value, and
-    /// every definition after the call is decided again. A procedure's local
-    /// is out of the callee's reach, and so is a name the call follows only in
-    /// a procedure the module defines.
+    /// A call to a command the module cannot see leaves each name live past it
+    /// a fresh version with no constant value — a plain top-level name, which
+    /// is the global name, and a procedure's local, which the callee reaches
+    /// through `upvar 1` — while the version the call holds keeps its value for
+    /// a read before the call, and a definition after the call is decided
+    /// again. A name the call follows only in a procedure the module defines
+    /// keeps its constant.
     #[test]
-    fn an_unseen_call_widens_the_versions_it_holds_and_no_later_one() {
+    fn an_unseen_call_widens_the_versions_it_leaves_and_no_earlier_or_later_one() {
         let registry = CommandRegistry::build_default();
         let cu = crate::compilation_unit::CompilationUnit::build_for(
-            "set x 1\nfoo\nset y 2\nset x 3\nputs $x$y\n",
+            "set x 1\nputs $x\nfoo\nputs $x\nset y 2\nset x 3\nputs $x$y\n",
             &registry,
             false,
         );
@@ -7036,8 +7002,15 @@ p
         let symbol = top.ssa.var_symbol("x").expect("x");
         assert!(top.ssa.is_observed_by_unseen_call(symbol, 1));
         assert!(!top.ssa.is_observed_by_unseen_call(symbol, 2));
-        let x1 = top.sccp.values.get(&(symbol, 1));
-        assert_eq!(x1, Some(&LatticeValue::Overdefined));
+        assert_eq!(top.ssa.binding_version(symbol, 2), 1);
+        assert_eq!(
+            top.sccp.values.get(&(symbol, 1)),
+            Some(&LatticeValue::Const(ConstValue::Int(1)))
+        );
+        assert_eq!(
+            top.sccp.values.get(&(symbol, 2)),
+            Some(&LatticeValue::Overdefined)
+        );
         assert_eq!(
             last_value(top, "y"),
             LatticeValue::Const(ConstValue::Int(2))
@@ -7046,21 +7019,23 @@ p
             last_value(top, "x"),
             LatticeValue::Const(ConstValue::Int(3))
         );
-        for source in [
+        let cu = crate::compilation_unit::CompilationUnit::build_for(
             "proc p {} { set x 1; foo; puts $x }\n",
+            &registry,
+            false,
+        );
+        let p = cu.function("::p").expect("procedure analysed");
+        assert_eq!(last_value(p, "x"), LatticeValue::Overdefined);
+        let cu = crate::compilation_unit::CompilationUnit::build_for(
             "proc foo {} { puts hi }\nset x 1\nfoo\nputs $x\n",
-        ] {
-            let cu = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false);
-            let f = cu
-                .function("::p")
-                .or_else(|| cu.function("::top"))
-                .expect("function analysed");
-            assert_eq!(
-                last_value(f, "x"),
-                LatticeValue::Const(ConstValue::Int(1)),
-                "{source}"
-            );
-        }
+            &registry,
+            false,
+        );
+        let top = cu.function("::top").expect("top level analysed");
+        assert_eq!(
+            last_value(top, "x"),
+            LatticeValue::Const(ConstValue::Int(1))
+        );
         // The `::` spelling is externally mutable whatever the call.
         let cu = crate::compilation_unit::CompilationUnit::build_for(
             "set ::x 1\nputs $::x\n",

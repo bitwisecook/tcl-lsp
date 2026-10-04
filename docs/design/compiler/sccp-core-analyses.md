@@ -105,19 +105,18 @@ regardless of what is assigned to it, so anything derived from it is
 What survives the projection for a method body is therefore a provably
 method-local name, which no `my` / `next` / `[self …]` dispatch can reach.
 
-The escaping set is name-based and whole-function. A call in the top-level
-script to a command the module cannot see, with a computed command, or inside
-the body of an opaque `catch` adds a flow-sensitive fact beside it: the CFG
-marks the call (`SyntheticMarker::UnseenCall`), the SSA records the
-version each name holds there (`SsaFunction::is_observed_by_unseen_call`), and
-the solver forces each recorded version — a definition or a φ — to
-`OVERDEFINED`, so a plain top-level name after such a call is as undecided as
-its `::` spelling while a definition made afterwards is decided again. The call
-reads its own words before its head runs, so the names those words read are
-may-defined at the marker instead: the version a word reads is not recorded, and
-a read after the call is of a new version, which is. A
-procedure's locals are recorded only at a call that sources a file, which runs
-in the frame of the call.
+The escaping set is name-based and whole-function. A call to a command the
+module cannot see, with a computed command, or inside the body of an opaque
+`catch` adds a flow-sensitive fact beside it: the CFG marks the call
+(`SyntheticMarker::UnseenCall`), the SSA gives each name live past the marker
+a fresh version (`SsaFunction::value_clobbers`), which the solver states
+`OVERDEFINED` — save a parameter seed of a procedure a caller proved pure — and
+records the version each name held there
+(`SsaFunction::is_observed_by_unseen_call`), which the code may read. So a
+plain top-level name after such a call is as undecided as its `::` spelling,
+and a procedure's local too, which the callee reaches through `upvar 1`; a use
+before the call keeps its value, and a definition made afterwards is decided
+again.
 
 #### The method-dispatch barrier and its evidence rules
 
@@ -391,8 +390,8 @@ is `Unavailable`, never `Unbound`.
   synthetic loop header binds its binders once the list is proven to have an
   element and leaves them as they were over a proven-empty list.
 - **Clobbers.** A `Barrier` or `UpFrame` makes every place `MayBound`, as
-  it widens every value, and so does a top-level call to a command the
-  module cannot see (`SyntheticMarker::UnseenCall`); a computed name is
+  it widens every value, and so does a call to a command the module cannot
+  see (`SyntheticMarker::UnseenCall`); a computed name is
   applied from its own statement
   on (`dynamic_names::statement_barrier`): a dynamic write turns an
   `Unbound` place `MayBound`, a dynamic destroy a bound one; a statement that

@@ -2557,20 +2557,20 @@ mod tests {
     }
 
     /// A plain top-level name is the global name, so a call to a command the
-    /// module cannot see may end the loop as it may one over `::go`; a
-    /// procedure's local is out of every callee's reach, and a procedure the
-    /// module defines writes no global.
+    /// module cannot see may end the loop as it may one over `::go`, and so may
+    /// such a call over a procedure's local, which an autoloaded or
+    /// unknown-handled callee reaches with `upvar 1` (tclsh 8.4 to 9.1 end
+    /// `while {$go} {stopper}` where `auto_index(stopper)` defines `stopper`
+    /// as `upvar 1 go go; set go 0`). A procedure the module defines writes no
+    /// global.
     #[test]
-    fn a_call_the_module_cannot_see_keeps_a_top_level_loop_silent() {
+    fn a_call_the_module_cannot_see_keeps_a_loop_silent() {
         assert_undecided("set go 1\nwhile {$go} { foo }\n");
         assert_undecided("set ::go 1\nwhile {$::go} { foo }\n");
+        assert_undecided("proc p {} {\n set go 1\n while {$go} { foo }\n}\n");
         // A sourced file runs in the frame of the call, a procedure's too.
         assert_undecided("set go 1\nwhile {$go} { source other.tcl }\n");
         assert_undecided("proc p {} {\n set go 1\n while {$go} { source other.tcl }\n}\n");
-        assert_verdicts(
-            "proc p {} {\n set go 1\n while {$go} { foo }\n}\n",
-            &["W241"],
-        );
         assert_verdicts(
             "proc foo {} { puts hi }\nset go 1\nwhile {$go} { foo }\n",
             &["W241"],
@@ -2578,13 +2578,13 @@ mod tests {
     }
 
     /// A command the module cannot see inside the body of a `catch` the flow
-    /// graph keeps as one statement runs at the top level as one outside it
-    /// does, and a computed head is a command the module cannot see: either
-    /// may end the loop as a write to `::go` does. A procedure's local is out
-    /// of every callee's reach, a procedure the module defines is seen, and a
-    /// body that writes another name leaves the verdict.
+    /// graph keeps as one statement runs as one outside it does, and a
+    /// computed head is a command the module cannot see: either may end the
+    /// loop as a write to `::go` does, or to a procedure's local through
+    /// `upvar 1`. A procedure the module defines is seen, and a body that
+    /// writes another name leaves the verdict.
     #[test]
-    fn a_catch_body_or_a_computed_head_the_module_cannot_see_keeps_a_top_level_loop_silent() {
+    fn a_catch_body_or_a_computed_head_the_module_cannot_see_keeps_a_loop_silent() {
         for src in [
             "set go 1\ncatch {foo}\nwhile {$go} {puts x}\n",
             "set go 1\ncatch {foo} msg\nwhile {$go} {puts x}\n",
@@ -2600,13 +2600,13 @@ mod tests {
             "set go 1\nputs [$cmd]\nwhile {$go} {puts x}\n",
             "set go 1\nwhile {$go} { $cmd }\n",
             "proc p {} {\n set go 1\n catch { if {1} { source other.tcl } }\n while {$go} {puts x}\n}\n",
+            "proc p {} {\n set go 1\n catch { if {1} { foo } }\n while {$go} {puts x}\n}\n",
+            "proc p {} {\n set go 1\n $cmd\n while {$go} {puts x}\n}\n",
+            "proc p {} {\n set go 1\n if {[catch {foo}]} {puts bad}\n while {$go} {puts x}\n}\n",
         ] {
             assert_undecided(src);
         }
         for src in [
-            "proc p {} {\n set go 1\n catch { if {1} { foo } }\n while {$go} {puts x}\n}\n",
-            "proc p {} {\n set go 1\n $cmd\n while {$go} {puts x}\n}\n",
-            "proc p {} {\n set go 1\n if {[catch {foo}]} {puts bad}\n while {$go} {puts x}\n}\n",
             "proc foo {} { puts hi }\nset go 1\ncatch { if {1} { foo } }\nwhile {$go} {puts x}\n",
             "set go 1\ncatch { if {[gets stdin] eq {q}} { set other 0 } }\nwhile {$go} {puts x}\n",
         ] {

@@ -4208,16 +4208,21 @@ mod canonicalisation_matrix {
     }
 
     #[test]
-    fn w210_upvar_aliased_does_not_silence_rust_behaviour() {
+    fn w210_upvar_aliased_silences_the_name_it_links() {
         // An aliased `upvar` (`interp alias {} link {} upvar` then
-        // `link 1 caller_v local`) is not recognised by the W210-suppression
-        // path, so reading `local` DOES fire W210.
+        // `link 1 caller_v local`) reaches `upvar` through another binding,
+        // a registry command whose traits say it raises a barrier, so the
+        // flow graph lowers no frame effect for it and marks the call as one
+        // to code the module cannot see. Such a callee may create the caller's
+        // names it is handed, and `local` is one: reading it draws no W210.
+        // tclsh 8.4 to 9.1 print `5` for the procedure called after
+        // `set caller_v 5`.
         assert_eq!(
             w210_for(
                 "interp alias {} link {} upvar\nproc f {} { link 1 caller_v local; puts $local }",
                 "'local'"
             ),
-            1
+            0
         );
     }
 

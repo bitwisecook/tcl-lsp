@@ -930,19 +930,26 @@ mod tests {
         assert!(env.contains_key("x"));
     }
 
-    /// A plain top-level name is the global name: a command the module
-    /// cannot see may rewrite it, so it is no more constant than its `::`
-    /// spelling. A procedure's local stays constant across the same call.
+    /// A command the module cannot see may rewrite a plain top-level name, the
+    /// global name, so a name read after the call is no more constant than its
+    /// `::` spelling, and so may it a procedure's local through `upvar 1`. A
+    /// name read only before the call keeps its constant.
     #[test]
     fn sccp_env_extraction_leaves_out_a_name_an_unseen_call_may_write() {
-        let unseen = CompilationUnit::build_for("set x 7\nif {$x} { ok }", &registry(), false);
+        let unseen =
+            CompilationUnit::build_for("set x 7\nok\nif {$x} { puts ok }", &registry(), false);
         assert!(!sccp_env_for(&unseen.top_level).contains_key("x"));
         let qualified =
             CompilationUnit::build_for("set ::x 7\nif {$::x} { puts ok }", &registry(), false);
         assert!(!sccp_env_for(&qualified.top_level).contains_key("::x"));
-        let local =
-            CompilationUnit::build_for("proc p {} { set x 7; if {$x} { ok } }", &registry(), false);
-        assert!(sccp_env_for(&local.procedures["::p"]).contains_key("x"));
+        let local = CompilationUnit::build_for(
+            "proc p {} { set x 7; ok; if {$x} { puts ok } }",
+            &registry(),
+            false,
+        );
+        assert!(!sccp_env_for(&local.procedures["::p"]).contains_key("x"));
+        let before = CompilationUnit::build_for("set x 7\nif {$x} { ok }", &registry(), false);
+        assert!(sccp_env_for(&before.top_level).contains_key("x"));
     }
 
     #[test]
@@ -955,10 +962,10 @@ mod tests {
 
     /// No O112 folds a condition over a name the lattice cannot pin: one an
     /// arm of a `switch` the flow graph keeps as one statement writes, one a
-    /// callback script writes, and a top-level one a command the module cannot
-    /// see may write, as it may write `::g`. A name none of them writes, a
-    /// procedure's local and a name a procedure the module defines leaves
-    /// alone still fold.
+    /// callback script writes, and one a command the module cannot see may
+    /// write, as it may write `::g` — a top-level name, or a procedure's local
+    /// through `upvar 1`. A name none of them writes and a name a procedure
+    /// the module defines leaves alone still fold.
     #[test]
     fn o112_leaves_a_condition_over_a_name_the_lattice_cannot_pin() {
         for source in [
@@ -971,6 +978,7 @@ mod tests {
             "set go 1\nafter idle {set ::go 0}\nif {$go} { puts a } else { puts b }",
             "set g 5\nfoo\nif {$g} { puts a } else { puts b }",
             "set ::g 5\nfoo\nif {$::g} { puts a } else { puts b }",
+            "proc p {} {\n set g 5\n foo\n if {$g} { puts a } else { puts b }\n}",
         ] {
             assert!(
                 run_pass(source).iter().all(|o| o.code != DiagCode::O112),
@@ -979,7 +987,6 @@ mod tests {
         }
         for source in [
             "set go 1\nswitch -glob -- [gets stdin] { q* { set other 0 } }\nif {$go} { puts a } else { puts b }",
-            "proc p {} {\n set g 5\n foo\n if {$g} { puts a } else { puts b }\n}",
             "proc foo {} { puts hi }\nset g 5\nfoo\nif {$g} { puts a } else { puts b }",
         ] {
             assert!(

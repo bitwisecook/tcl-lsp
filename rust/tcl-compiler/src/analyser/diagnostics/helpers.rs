@@ -342,8 +342,8 @@ pub(super) struct PhiUndefCtx<'a> {
 
 /// The version whose binding a read of `version` reads: through the
 /// definitions a route preserved ([`through_preserved`]) and the fresh
-/// versions a registry boundary gave the names live after it
-/// ([`crate::ssa::SsaFunction::binding_version`]), followed until neither
+/// versions a call to code the module cannot see gave the names live after
+/// it ([`crate::ssa::SsaFunction::binding_version`]), followed until neither
 /// moves it. Each step reads an earlier version, so the walk ends.
 fn binding_origin(
     ssa: &crate::ssa::SsaFunction,
@@ -558,8 +558,9 @@ impl PhiUndefIndex {
                 {
                     continue;
                 }
-                // A definition a route preserved, and a registry boundary's
-                // fresh version, read the binding of an earlier version.
+                // A definition a route preserved, and the fresh version a call
+                // to code the module cannot see leaves, read the binding of an
+                // earlier version.
                 let incoming = binding_origin(ctx.ssa, ctx.preserved, symbol, incoming);
                 walk.take(
                     node,
@@ -989,11 +990,19 @@ impl UndefSuppression {
     }
 }
 
-/// Each `(block, statement)` where code the module cannot see runs, in the
-/// blocks `considered`.
+/// Each `(block, statement)` in the blocks `considered` where code the module
+/// cannot see runs that may set any name the function reads: at the top level
+/// any such code, which can set a global by name; in a procedure a sourced
+/// file, which runs in the procedure's own frame. A callee the module cannot
+/// see sets a procedure's local through `upvar 1` under a name it is handed,
+/// which the per-name abstention answers
+/// ([`crate::interprocedural::collect_opaque_callee_name_args`]), so its marker
+/// is no site here.
 fn collect_unseen_call_sites(
     fu: &crate::compilation_unit::FunctionUnit,
     considered: &HashSet<BlockId>,
+    initial_global: bool,
+    registry: &tcl_registry::CommandRegistry,
 ) -> Vec<(BlockId, usize)> {
     let mut out = Vec::new();
     for &bn in considered {
@@ -1001,12 +1010,111 @@ fn collect_unseen_call_sites(
             continue;
         };
         for (index, stmt) in block.statements.iter().enumerate() {
-            if crate::ssa::is_unseen_call_marker(stmt) {
+            if crate::ssa::is_unseen_call_marker(stmt)
+                && (initial_global || sources_a_file_beside(block, stmt.span(), registry))
+            {
                 out.push((bn, index));
             }
         }
     }
     out
+}
+
+/// Whether the code the marker at `span` in `block` stands for sources a file
+/// ([`tcl_registry::Traits::SOURCES_FILE`]): a statement of the block that
+/// shares the marker's span — the call it follows, or the statement it stands
+/// ahead of — or the condition the block's branch reads there, or a command
+/// either of them runs.
+fn sources_a_file_beside(
+    block: &crate::cfg::Block,
+    span: tcl_lexer::Span,
+    registry: &tcl_registry::CommandRegistry,
+) -> bool {
+    block
+        .statements
+        .iter()
+        .filter(|stmt| stmt.span() == span && stmt.synthetic_marker().is_none())
+        .any(|stmt| statement_sources_a_file(stmt, registry))
+        || matches!(
+            &block.terminator,
+            Some(crate::cfg::Terminator::Branch {
+                condition,
+                span: Some(at),
+                ..
+            }) if *at == span
+                && crate::ir_helpers::expression_command_substitutions_with_replay(
+                    condition, registry, None, None,
+                )
+                .all_commands()
+                .any(|words| words_source_a_file(words, registry))
+        )
+}
+
+/// Whether `stmt`, a command one of its `[…]` substitutions runs, or a
+/// statement of a script it keeps inside itself sources a file.
+fn statement_sources_a_file(
+    stmt: &crate::ir::Statement,
+    registry: &tcl_registry::CommandRegistry,
+) -> bool {
+    let itself = |stmt: &crate::ir::Statement| {
+        let direct = match stmt {
+            crate::ir::Statement::Call {
+                command,
+                canonical_command,
+                args,
+                ..
+            }
+            | crate::ir::Statement::Barrier {
+                command,
+                canonical_command,
+                args,
+                ..
+            } => {
+                let words: Vec<&str> = args.iter().map(String::as_str).collect();
+                registry
+                    .invocation_traits(
+                        canonical_command.as_deref().unwrap_or(command),
+                        &words,
+                        registry.own_surface_query(),
+                    )
+                    .contains(tcl_registry::Traits::SOURCES_FILE)
+            }
+            _ => false,
+        };
+        direct
+            || crate::ir_helpers::evaluated_command_substitutions(stmt, registry)
+                .all_commands()
+                .any(|words| words_source_a_file(words, registry))
+    };
+    itself(stmt)
+        || crate::ir_helpers::nested_bodies(stmt)
+            .into_iter()
+            .any(|body| {
+                let mut found = false;
+                crate::ir::for_each_statement(body, &mut |inner| found |= itself(inner));
+                found
+            })
+}
+
+/// Whether the recovered command `words` sources a file.
+fn words_source_a_file(
+    words: &[crate::ir_helpers::CommandWord],
+    registry: &tcl_registry::CommandRegistry,
+) -> bool {
+    let Some(head) = words
+        .first()
+        .and_then(crate::ir_helpers::CommandWord::literal)
+    else {
+        return false;
+    };
+    let spellings: Vec<&str> = words
+        .iter()
+        .skip(1)
+        .map(|word| word.literal().unwrap_or_default())
+        .collect();
+    registry
+        .invocation_traits(head, &spellings, registry.own_surface_query())
+        .contains(tcl_registry::Traits::SOURCES_FILE)
 }
 
 /// Where a command substitution buried inside an `expr` argument writes: per
@@ -1352,7 +1460,7 @@ pub(super) fn build_undef_suppression(
         build_loop_entry_only_undef(fu, &can_undef, &undef_ctx, rules, &mut memo);
     let mut s = UndefSuppression {
         cmd_sub_writes: collect_expr_cmd_sub_writes(fu, considered, commands),
-        unseen_call_sites: collect_unseen_call_sites(fu, considered),
+        unseen_call_sites: collect_unseen_call_sites(fu, considered, initial_global, commands),
         script_concat_writes: collect_script_concat_writes(fu, considered, commands),
         killed,
         can_undef,
@@ -1473,7 +1581,8 @@ fn build_loop_entry_only_undef(
             break;
         }
     }
-    // Registry barriers change value facts without introducing a new binding.
+    // A call to code the module cannot see changes value facts without
+    // introducing a new binding.
     // Carry the established after-loop binding proof through their fresh value
     // versions, just as `phi_can_undef` follows that same binding lineage.
     for (block, markers) in &fu.ssa.value_clobbers {

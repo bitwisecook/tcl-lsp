@@ -405,19 +405,22 @@ pub enum SyntheticMarker {
     /// site widens. It sits *beside* the call it widens for, which is why
     /// naming the callee on it would make codegen run the callee twice.
     CallerFrameOpaque,
-    /// A call, in the top-level script, to a command the module cannot see — a
-    /// literal head it does not define, a `source`, a computed head — or code
-    /// of that kind a script a statement keeps inside itself runs: a plain
-    /// name there is the global `::name`, which the code that command reaches
-    /// may write, unset or read. The CFG gives it no names; the SSA records
-    /// the version each name holds where it sits
-    /// ([`crate::ssa::SsaFunction::is_observed_by_unseen_call`]), and every
-    /// pass that trusts a name's value across a statement asks that record.
-    /// Where it follows the call whose head runs the code, the call's words
-    /// were read before the code ran: the SSA states the names they read as
-    /// the marker's may-definitions ([`crate::ssa::switch_may_defs`]), so each
-    /// keeps the version its word read and a read after the call finds a new
-    /// one.
+    /// A call to code the module cannot see — a head the module cannot name
+    /// (a literal it neither defines nor the registry ships, an alias to the
+    /// unresolved-command handler, a binding the source-order timeline cannot
+    /// name, a computed head), a `source`, or code of that kind a script a
+    /// statement keeps inside itself runs. That code may write, unset or read
+    /// any name of the frame it is called from: a plain name at the top level
+    /// is the global `::name`, and a procedure's local is in the reach of a
+    /// callee that runs `upvar 1` or `uplevel 1`, which an autoloaded or
+    /// unknown-handled callee can do on every release. The marker sits beside
+    /// the call (ahead of the statement for a `[…]` substitution's call), is
+    /// no command to run, and widens once: the SSA gives every name live past
+    /// it a fresh version ([`crate::ssa::SsaFunction::value_clobbers`]),
+    /// whose value is unknown while every proof about the version before it
+    /// stands, and records the version each name holds where it sits
+    /// ([`crate::ssa::SsaFunction::is_observed_by_unseen_call`]), which the
+    /// code it reaches may read.
     UnseenCall,
     /// The names a statement that keeps its scripts inside itself may write
     /// into the frame, carried on a statement of its own beside it because the
@@ -427,11 +430,6 @@ pub enum SyntheticMarker {
     /// The names are *may*-definitions of the statement, as the writes the arms
     /// of a `switch` make themselves are ([`crate::ssa::switch_may_defs`]).
     ArmWrites,
-    /// A registry-resolved invocation declares a dynamic evaluation or
-    /// analysis barrier. The marker sits beside the real call (or before a
-    /// host statement for an embedded substitution), so it widens scalar
-    /// facts without dispatching the command a second time.
-    RegistryBarrier,
 }
 
 /// Original parsed tokens for a command invocation.
@@ -1517,6 +1515,26 @@ pub enum Statement {
 }
 
 impl Statement {
+    /// The statement standing where code the module cannot see runs
+    /// ([`SyntheticMarker::UnseenCall`]): it carries no name and is no command
+    /// to run. The SSA gives the names live past it fresh versions and records
+    /// the version each name holds where it stands.
+    #[must_use]
+    pub fn unseen_call_marker(span: Span) -> Self {
+        Self::Call {
+            span,
+            command: "<unseen-call>".to_owned(),
+            canonical_command: None,
+            args: Vec::new(),
+            defs: Vec::new(),
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: Some(CommandTokens::marker(SyntheticMarker::UnseenCall)),
+            foreach_groups: None,
+        }
+    }
+
     /// Return the synthetic marker attached to this statement, when it has
     /// one. Markers carry analysis-only effects beside their source command.
     #[must_use]
@@ -1532,15 +1550,13 @@ impl Statement {
     /// Whether this statement represents an invocation that code generation
     /// and command-effect analyses must execute.
     ///
-    /// `RegistryBarrier` widens scalar facts only; its adjacent source call
-    /// already performs the real dispatch. Other synthetic barriers retain
-    /// their existing executable semantics.
+    /// The marker for code the module cannot see
+    /// ([`SyntheticMarker::UnseenCall`]) widens facts only; the call beside it
+    /// performs the real dispatch. Other synthetic statements retain their
+    /// existing executable semantics.
     #[must_use]
     pub fn is_executable_invocation(&self) -> bool {
-        !matches!(
-            self.synthetic_marker(),
-            Some(SyntheticMarker::RegistryBarrier)
-        )
+        !matches!(self.synthetic_marker(), Some(SyntheticMarker::UnseenCall))
     }
 
     /// Return the source span of this statement.

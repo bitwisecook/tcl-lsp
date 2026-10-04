@@ -301,7 +301,7 @@ fn if_const_true_dead_branch_eliminated() {
 }
 
 #[test]
-fn registry_barrier_after_if_arm_call_keeps_the_arm_value() {
+fn unseen_call_marker_after_if_arm_call_keeps_the_arm_value() {
     let mut cfg = CfgFunction::new("::top", "entry_0");
     let entry = cfg.entry;
     let then = cfg.intern_block("if_then_1");
@@ -336,16 +336,7 @@ fn registry_barrier_after_if_arm_call_keeps_the_arm_value() {
             tokens: None,
             foreach_groups: None,
         },
-        Statement::Barrier {
-            span: sp(),
-            reason: "scalar facts".into(),
-            command: "<registry-barrier>".into(),
-            canonical_command: None,
-            args: vec![],
-            tokens: Some(tcl_compiler::ir::CommandTokens::marker(
-                tcl_compiler::ir::SyntheticMarker::RegistryBarrier,
-            )),
-        },
+        Statement::unseen_call_marker(sp()),
     ];
     cfg.blocks.get_mut(&then).unwrap().terminator = Some(Terminator::Goto {
         target: end,

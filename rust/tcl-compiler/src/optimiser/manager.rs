@@ -495,7 +495,7 @@ fn couple_const_dead_store_chain(
         return None;
     }
     if var.starts_with("::")
-        || scope_aliases.contains(var)
+        || super::elimination::store_is_seen_elsewhere(fu, chain, scope_aliases)
         || rmw_hidden.contains(var)
         || traced.contains(var.trim_start_matches("::"))
     {

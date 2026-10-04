@@ -1786,7 +1786,7 @@ mod tests {
     }
 
     #[test]
-    fn inline_catch_ignores_a_trailing_registry_barrier() {
+    fn inline_catch_ignores_a_trailing_unseen_call_marker() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(true, &[], &registry);
         let mut cfg = CfgFunction::new("::p", "entry_0");
@@ -1808,16 +1808,7 @@ mod tests {
                         tokens: None,
                         foreach_groups: None,
                     },
-                    Statement::Barrier {
-                        span: tcl_lexer::Span::new(0, 0),
-                        reason: "scalar facts".into(),
-                        command: "<registry-barrier>".into(),
-                        canonical_command: None,
-                        args: vec![],
-                        tokens: Some(crate::ir::CommandTokens::marker(
-                            crate::ir::SyntheticMarker::RegistryBarrier,
-                        )),
-                    },
+                    Statement::unseen_call_marker(tcl_lexer::Span::new(0, 0)),
                 ],
                 terminator: None,
             },

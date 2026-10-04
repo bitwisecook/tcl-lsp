@@ -3513,6 +3513,28 @@ fn a_write_a_sourced_file_makes_is_never_folded_away() {
     prints_under_every_release(&in_proc, "six\n6\n");
 }
 
+/// A command the module cannot see may write a procedure's local as well as a
+/// global: a callee an autoloader or the unresolved-command handler brings in
+/// runs `upvar 1` into the frame that called it. `missing` here is defined by
+/// `auto_index` when Tcl's `unknown` first looks for it, and sets the
+/// caller's `g` to 6 — tclsh 8.4 to 9.1 print `six` and `6` from each
+/// procedure, where taking `5` across the call printed `other` and `5`, and the
+/// loop the call ends never stopped.
+#[test]
+fn a_write_an_autoloaded_command_makes_to_a_procedure_local_is_never_folded_away() {
+    let define = "set auto_index(missing) {proc missing {} {upvar 1 g g; set g 6}}\n";
+    for body in [
+        " set g 5\n missing\n if {$g == 6} {puts six} else {puts other}\n puts $g\n",
+        " set g 5\n set r [missing]\n if {$g == 6} {puts six} else {puts other}\n puts $g\n",
+        " set g 5\n while {$g != 6} { missing }\n puts six\n puts $g\n",
+    ] {
+        prints_under_every_release(
+            &format!("{define}proc p {{}} {{\n{body}}}\np\n"),
+            "six\n6\n",
+        );
+    }
+}
+
 /// Each program selects its `hit` arm of a `switch` whose subject and pattern
 /// are the same characters spelled two ways: a bare or quoted word is its
 /// escapes decoded, a braced word its content, and an element of a braced arm

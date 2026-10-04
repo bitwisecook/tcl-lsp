@@ -1045,7 +1045,7 @@ fn has_only_caller_safe_factories<S: std::hash::BuildHasher>(
         if let Some(marker) = stmt.synthetic_marker() {
             if !matches!(
                 marker,
-                crate::ir::SyntheticMarker::RegistryBarrier
+                crate::ir::SyntheticMarker::UnseenCall
                     | crate::ir::SyntheticMarker::GlobalFrameScript
             ) || !cfg.blocks[&cfg.entry]
                 .statements
@@ -1455,9 +1455,9 @@ fn foreach_var_lattice(container_shape: Option<&TypeShape>, nvars: usize, j: usi
     }
 }
 
-/// The types the fresh versions a registry boundary gives the names live
-/// after it start with, in the blocks that run: overdefined, since the code
-/// the boundary's invocation reaches may rebind each — unless the function is
+/// The types the fresh versions a call to code the module cannot see gives the
+/// names live after it start with, in the blocks that run: overdefined, since
+/// that code may rebind each — unless the function is
 /// the narrow straight-line case whose factories no handler can reach
 /// ([`has_only_caller_safe_factories`]), where they keep the lineage's types.
 fn registry_clobber_types<S: std::hash::BuildHasher>(

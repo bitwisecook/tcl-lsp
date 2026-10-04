@@ -284,14 +284,6 @@ fn run_load_forwarding(
         if crate::sccp::is_externally_mutable(var_name, &escaping, trace.writes_any_variable()) {
             continue;
         }
-        // A call to a command the module cannot see may rewrite the name
-        // between this definition and the use.
-        if fu
-            .ssa
-            .name_is_observed_by_unseen_call(var_name, chain.key.1)
-        {
-            continue;
-        }
         // A synthetic may-def (the element fan of a dynamic-key write, or a
         // base refresh) is not a real reaching definition — forwarding its
         // statement's value would forward the *other* element's literal.
@@ -5079,6 +5071,7 @@ mod tests {
             ),
             ("set g 5\nfoo\nputs $g", "5"),
             ("set ::g 5\nfoo\nputs $::g", "5"),
+            ("proc p {} {\n set g 5\n foo\n puts $g\n}", "5"),
             ("set g 5\nsource other.tcl\nputs $g", "5"),
             ("proc p {} {\n set g 5\n source other.tcl\n puts $g\n}", "5"),
             (
@@ -5100,13 +5093,13 @@ mod tests {
         }
     }
 
-    /// The controls: a procedure's local, a name the hidden writes never
-    /// name, and a name assigned after the call the module cannot see still
+    /// The controls: a name the hidden writes never name, a name assigned
+    /// after the call the module cannot see, and a read the call follows still
     /// forward.
     #[test]
     fn o100_and_o102_still_forward_a_literal_no_hidden_write_can_replace() {
         for (src, literal) in [
-            ("proc p {} {\n set g 5\n foo\n puts $g\n}", "5"),
+            ("proc p {} {\n set g 5\n puts $g\n foo\n}", "5"),
             (
                 "set go 1\nswitch -glob -- [gets stdin] { q* { set other 0 } }\nputs $go",
                 "1",

@@ -378,18 +378,20 @@ impl ModuleCommandBindings {
         }
     }
 
-    /// Resolve recovered substitutions in Tcl evaluation order for the
-    /// scalar-barrier projection. Each command advances the local source-order
-    /// state before the next one is resolved, including registry binding
-    /// transitions such as `rename` and opaque readable-eval bodies.
-    pub(crate) fn source_order_registry_barrier_for_command(
+    /// Advance this source-order state past one recovered command, in Tcl's
+    /// evaluation order: the registry binding transitions the command makes
+    /// (`rename`, `interp alias`, an opaque readable-eval body), and the closed
+    /// module effects of a retained user procedure it calls. A computed head,
+    /// or one whose namespace is not known, may change any binding. A command
+    /// expression control may skip (`conditional`) joins the state it leaves
+    /// with the one before it.
+    pub(crate) fn advance_source_order_for_command(
         &mut self,
         words: &[crate::ir_helpers::CommandWord],
         conditional: bool,
         registry: &CommandRegistry,
         namespace: &crate::ir_helpers::ExecutionNamespace,
-        barrier_traits: tcl_registry::Traits,
-    ) -> bool {
+    ) {
         if self.source_order_user_call_effects.is_none() {
             self.source_order_user_call_effects = Some(self.source_order_call_boundary());
         }
@@ -398,11 +400,11 @@ impl ModuleCommandBindings {
             .and_then(crate::ir_helpers::CommandWord::literal)
         else {
             self.mark_opaque_binding_mutation();
-            return true;
+            return;
         };
         let Some(command_namespace) = namespace.for_head(head) else {
             self.mark_opaque_binding_mutation();
-            return true;
+            return;
         };
         let skipped = conditional.then(|| self.clone());
         let source_may_be_unknown = self.target_may_be_unknown(head, command_namespace);
@@ -411,10 +413,6 @@ impl ModuleCommandBindings {
             .iter()
             .any(|target| !target.registry_backed);
         let facts = self.resolve_command_words(words, registry, command_namespace);
-        let barrier = source_may_be_unknown
-            || facts
-                .iter()
-                .any(|facts| facts.traits.intersects(barrier_traits));
         apply_resolved_may_transitions(facts, source_may_be_unknown, true, self, namespace);
         if reaches_user_procedure {
             self.mark_source_order_user_procedure_call();
@@ -422,7 +420,6 @@ impl ModuleCommandBindings {
         if let Some(skipped) = skipped {
             self.join(&skipped);
         }
-        barrier
     }
 
     #[cfg(test)]
@@ -1092,6 +1089,22 @@ impl ModuleCommandBindings {
     #[must_use]
     pub(crate) const fn has_opaque_domain(&self) -> bool {
         self.opaque_domain
+    }
+
+    /// Whether this state holds a command table to resolve against: the
+    /// registry's baseline of the analysed module. A state built for no module
+    /// (`Default`) names no command, so it can say nothing about one.
+    #[must_use]
+    pub(crate) fn holds_a_command_table(&self) -> bool {
+        !self.baseline.semantics.binding_names().is_empty()
+    }
+
+    /// Whether a `rename`, an `interp alias` or a command delete moved a name
+    /// this lattice cannot name, so that no spelling can be claimed to denote
+    /// what it did before ([`Self::unnameable_rebinding_subject`]).
+    #[must_use]
+    pub(crate) const fn has_unnameable_rebinding_subject(&self) -> bool {
+        self.unnameable_rebinding_subject
     }
 
     /// Project this already-computed binding summary into the optimiser's

@@ -1161,7 +1161,7 @@ fn for_with_complex_init() {
 }
 
 #[test]
-fn for_init_registry_barrier_keeps_count_two_boundary() {
+fn for_init_unseen_call_keeps_count_two_boundary() {
     let asm = proc_asm(
         "proc p {} { set warmup 1; for {missing_command} {0} {} {} }",
         "::p",

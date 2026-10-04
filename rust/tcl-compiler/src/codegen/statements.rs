@@ -1408,19 +1408,10 @@ mod tests {
     }
 
     #[test]
-    fn registry_barrier_marker_is_not_dispatched() {
+    fn the_unseen_call_marker_is_not_dispatched() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
-        let stmt = Statement::Barrier {
-            span: sp(),
-            reason: "scalar facts".into(),
-            command: "<registry-barrier>".into(),
-            canonical_command: None,
-            args: vec![],
-            tokens: Some(crate::ir::CommandTokens::marker(
-                crate::ir::SyntheticMarker::RegistryBarrier,
-            )),
-        };
+        let stmt = Statement::unseen_call_marker(sp());
         let mut ugi = false;
         ctx.emit_stmt(&stmt, &mut ugi);
         assert!(!ugi);
@@ -1428,7 +1419,7 @@ mod tests {
     }
 
     #[test]
-    fn registry_barrier_wrapper_keeps_the_next_command_boundary() {
+    fn the_unseen_call_marker_keeps_the_next_command_boundary() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
         let first = Statement::AssignConst {
@@ -1438,16 +1429,7 @@ mod tests {
             name_braced: false,
             value_span: None,
         };
-        let barrier = Statement::Barrier {
-            span: sp(),
-            reason: "scalar facts".into(),
-            command: "<registry-barrier>".into(),
-            canonical_command: None,
-            args: vec![],
-            tokens: Some(crate::ir::CommandTokens::marker(
-                crate::ir::SyntheticMarker::RegistryBarrier,
-            )),
-        };
+        let marker = Statement::unseen_call_marker(sp());
         let second = Statement::AssignConst {
             span: sp(),
             name: "y".into(),
@@ -1457,7 +1439,7 @@ mod tests {
         };
 
         ctx.emit_stmt_with_start_cmd(&first, None, None);
-        ctx.emit_stmt_with_start_cmd(&barrier, None, None);
+        ctx.emit_stmt_with_start_cmd(&marker, None, None);
         ctx.emit_stmt_with_start_cmd(&second, None, None);
 
         assert_eq!(
@@ -1472,7 +1454,7 @@ mod tests {
     }
 
     #[test]
-    fn registry_barrier_under_start_cmd_does_not_advance_command_index() {
+    fn the_unseen_call_marker_under_start_cmd_does_not_advance_command_index() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
         let first = Statement::AssignConst {
@@ -1482,19 +1464,10 @@ mod tests {
             name_braced: false,
             value_span: None,
         };
-        let barrier = Statement::Barrier {
-            span: sp(),
-            reason: "scalar facts".into(),
-            command: "<registry-barrier>".into(),
-            canonical_command: None,
-            args: vec![],
-            tokens: Some(crate::ir::CommandTokens::marker(
-                crate::ir::SyntheticMarker::RegistryBarrier,
-            )),
-        };
+        let marker = Statement::unseen_call_marker(sp());
 
         ctx.emit_stmt_with_start_cmd(&first, None, None);
-        ctx.emit_stmt_under_start_cmd(&barrier);
+        ctx.emit_stmt_under_start_cmd(&marker);
 
         assert_eq!(ctx.cmd_index, 1, "the marker is not a source command");
     }

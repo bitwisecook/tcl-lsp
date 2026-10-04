@@ -328,17 +328,20 @@ fn scalar_live_out(
     live_out
 }
 
-/// SSA variables live immediately after registry scalar barriers. Dead values
-/// still describe their earlier uses and must not lose those proofs.
-pub(crate) fn registry_barrier_live_names(
+/// SSA variables live immediately after each marker for a call to code the
+/// module cannot see ([`crate::ir::SyntheticMarker::UnseenCall`]), the names
+/// the marker gives fresh versions. Dead values still describe their earlier
+/// uses and must not lose those proofs.
+pub(crate) fn unseen_call_live_names(
     cfg: &cfg::Function,
     ssa: &SsaFunction,
     registry: &CommandRegistry,
 ) -> HashMap<BlockId, HashMap<usize, HashSet<Symbol>>> {
     if !ssa.blocks.values().any(|block| {
-        block.statements.iter().any(|stmt| {
-            stmt.statement.synthetic_marker() == Some(crate::ir::SyntheticMarker::RegistryBarrier)
-        })
+        block
+            .statements
+            .iter()
+            .any(|stmt| crate::ssa::is_unseen_call_marker(&stmt.statement))
     }) {
         return HashMap::new();
     }
@@ -352,9 +355,7 @@ pub(crate) fn registry_barrier_live_names(
         }
         let mut barriers = HashMap::new();
         for (index, stmt) in sblock.statements.iter().enumerate().rev() {
-            if stmt.statement.synthetic_marker()
-                == Some(crate::ir::SyntheticMarker::RegistryBarrier)
-            {
+            if crate::ssa::is_unseen_call_marker(&stmt.statement) {
                 barriers.insert(index, live.clone());
             }
             for var in stmt.defs.keys() {

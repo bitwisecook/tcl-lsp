@@ -120,7 +120,7 @@ locals stay provable — a `set` in `runner` that nothing in `runner` reads is
 still a real dead store. `eval $script` is the other way round: it runs where
 it is written, so it protects that procedure's own locals instead.
 
-## A command the file does not define can read a top-level variable
+## A command the file does not define can read your variables
 
 A plain variable in the top-level script is the global `::name`, which a
 command the file does not define — a procedure of another file, one an
@@ -135,11 +135,11 @@ set g 6           ;# no W220 on `set g 5`: foo may read g
 puts $g
 ```
 
-A procedure's own local is out of every callee's reach, so the same code
-inside a procedure still draws `W220`; a `source` runs its file in the
-procedure's frame, so it does not. The optimiser's
-[`O109`](kcs-optimisation-o109-dead-store.md) keeps the store for the same
-reason.
+The same code inside a procedure draws no `W220` either: such a command reaches
+the procedure's local through `upvar 1`, and a `source` runs its file in the
+procedure's frame. A store overwritten before any such call is still dead. The
+optimiser's [`O109`](kcs-optimisation-o109-dead-store.md) keeps the store for
+the same reason.
 
 ## How to suppress
 

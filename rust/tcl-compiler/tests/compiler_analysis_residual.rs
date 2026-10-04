@@ -1661,7 +1661,7 @@ fn try_header_handler_barrier_blocks_scalar_constant_branch() {
             function.blocks.values().any(|block| {
                 block.statements.iter().any(|statement| {
                     statement.synthetic_marker()
-                        == Some(tcl_compiler::ir::SyntheticMarker::RegistryBarrier)
+                        == Some(tcl_compiler::ir::SyntheticMarker::UnseenCall)
                 })
             }),
             "both inlined and deferred try paths must retain header effects"
@@ -1698,7 +1698,7 @@ fn known_safe_registry_handler_preserves_scalar_constant_branch() {
 }
 
 #[test]
-fn embedded_shadowed_builtin_does_not_borrow_registry_barrier_traits() {
+fn embedded_shadowed_builtin_does_not_borrow_code_running_traits() {
     let cu = CompilationUnit::build_for(
         "proc eval args {return 0}; proc p {} {set x 5; set ignored [eval {set x 6}]; if {$x == 5} {return kept} else {return changed}}",
         &reg(),
@@ -1707,12 +1707,12 @@ fn embedded_shadowed_builtin_does_not_borrow_registry_barrier_traits() {
     let fu = cu.function("::p").expect("procedure");
     assert!(
         !fu.sccp.constant_branches.is_empty(),
-        "a user procedure named eval must not inherit eval's registry barrier",
+        "a user procedure named eval must not inherit eval's code-running traits",
     );
 }
 
 #[test]
-fn embedded_alias_to_user_proc_does_not_borrow_registry_barrier_traits() {
+fn embedded_alias_to_user_proc_does_not_borrow_code_running_traits() {
     let cu = CompilationUnit::build_for(
         "proc fake args {return 0}; interp alias {} eval {} fake; proc p {} {set x 5; set ignored [eval {set x 6}]; if {$x == 5} {return kept} else {return changed}}",
         &reg(),
@@ -2074,7 +2074,7 @@ fn safe_registry_call_keeps_seeded_parameter_constant() {
 }
 
 #[test]
-fn registry_barrier_preserves_dead_prior_and_future_definitions() {
+fn an_unseen_call_preserves_dead_prior_and_future_definitions() {
     let registry = reg();
     let cu = CompilationUnit::build_for(
         "proc p {} { set first 5; set before [expr {$first + 1}]; missing_command; set after 7; return $after }",
@@ -2376,7 +2376,7 @@ fn conditional_expression_binding_replay_keeps_skipped_paths() {
 }
 
 #[test]
-fn global_script_and_registry_barriers_both_widen_seeded_parameter() {
+fn global_script_and_unseen_call_both_widen_seeded_parameter() {
     for middle in [
         "set y [setter $::script][missing_command]",
         "list [setter $::script] [missing_command]",
@@ -2399,14 +2399,14 @@ fn global_script_and_registry_barriers_both_widen_seeded_parameter() {
         let fu = cu.function("::p").unwrap();
         for marker in [
             tcl_compiler::ir::SyntheticMarker::GlobalFrameScript,
-            tcl_compiler::ir::SyntheticMarker::RegistryBarrier,
+            tcl_compiler::ir::SyntheticMarker::UnseenCall,
         ] {
             assert!(
                 fu.cfg
                     .blocks
                     .values()
                     .flat_map(|block| &block.statements)
-                    .any(|stmt| matches!(stmt, tcl_compiler::ir::Statement::Barrier { tokens: Some(tokens), .. } if tokens.synthetic == Some(marker))),
+                    .any(|stmt| stmt.synthetic_marker() == Some(marker)),
                 "{middle}: {marker:?}"
             );
         }
@@ -2442,7 +2442,7 @@ fn catch_header_handler_widens_seeded_parameter_on_both_dispatch_paths() {
                     .values()
                     .flat_map(|block| &block.statements)
                     .any(|stmt| stmt.synthetic_marker()
-                        == Some(tcl_compiler::ir::SyntheticMarker::RegistryBarrier))
+                        == Some(tcl_compiler::ir::SyntheticMarker::UnseenCall))
             );
         }
     }

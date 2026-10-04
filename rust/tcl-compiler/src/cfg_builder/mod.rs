@@ -45,11 +45,15 @@ use crate::var_refs::{VarReferenceScanner, VarScanOptions};
 use self::global_write_info::GlobalWriteInfo;
 use self::upvar_info::{FrameReach, UpvarInfo};
 
-/// Registry traits whose terminal invocation can execute code or otherwise
-/// invalidate scalar facts. The command binding lattice resolves aliases and
-/// unresolved-command handlers to terminal registry targets before this set is
-/// consulted, so this remains generic and does not name `unknown` directly.
-const REGISTRY_BARRIER_TRAITS: Traits = Traits::EVALUATES_CODE
+/// Registry traits by which a command declares that it runs code, or raises a
+/// barrier, where it is invoked. A head that reaches such a command through a
+/// binding other than its own spelling — an `interp alias`, a `rename`, the
+/// registry's unresolved-command handler — runs code the graph never lowers,
+/// so it is a call to code the module cannot see
+/// ([`CfgBuilder::head_is_unseen`]). The command binding lattice resolves
+/// aliases and unresolved-command handlers to terminal registry targets before
+/// this set is consulted, so it does not name `unknown` directly.
+const CODE_RUNNING_TRAITS: Traits = Traits::EVALUATES_CODE
     .union(Traits::CREATES_BARRIER)
     .union(Traits::CREATES_DYNAMIC_BARRIER);
 
@@ -180,8 +184,6 @@ struct ConditionEffects {
     opaque_global: bool,
     /// An embedded command is one the module cannot see.
     unseen: bool,
-    /// A timeline-resolved embedded invocation reaches a registry barrier.
-    registry_barrier: bool,
 }
 
 /// The caller-frame effects a statement's `[…]` substitutions contribute.
@@ -613,40 +615,25 @@ impl<'a> CfgBuilder<'a> {
         combined
     }
 
-    /// Whether a direct call's closed binding reaches a registry operation
-    /// whose declared barrier/evaluation traits invalidate scalar facts.
-    ///
-    /// `resolve_statement` includes terminal alias targets and the registry's
-    /// unresolved-command fallback, so the projection applies equally to a
-    /// builtin, an alias, and a missing command handled by a registered
-    /// fallback. Known safe handlers have no matching traits and keep their
-    /// existing scalar precision.
-    fn direct_registry_barrier(&self, stmt: &Statement) -> bool {
-        let Statement::Call { command, .. } = stmt else {
-            return false;
-        };
-        let Some(namespace) = self.invocation_namespace.for_head(command) else {
-            return false;
-        };
-        let bindings = self
-            .source_binding_timeline
+    /// The command bindings in force where the call at `span` dispatches: the
+    /// source-order state the timeline recorded before it, or the module's
+    /// closed state where the timeline holds none.
+    fn bindings_before_call(&self, span: Span) -> &ModuleCommandBindings {
+        self.source_binding_timeline
             .as_ref()
-            .and_then(|timeline| timeline.before_direct_call(stmt.span()))
-            .unwrap_or(&self.command_bindings);
-        if bindings.target_may_be_unknown(command, namespace) {
-            return true;
-        }
-        let resolved = bindings.resolve_statement(stmt, self.registry, namespace);
-        resolved
-            .iter()
-            .any(|invocation| invocation.facts.traits.intersects(REGISTRY_BARRIER_TRAITS))
+            .and_then(|timeline| timeline.before_direct_call(span))
+            .unwrap_or(&self.command_bindings)
     }
 
-    /// Whether any recovered command substitution reaches a registry operation
-    /// with a barrier/evaluation trait. Substitutions execute before their
-    /// host statement, so callers place the synthetic barrier before that
-    /// host in the CFG.
-    fn embedded_registry_barrier(&self, stmt: &Statement) -> bool {
+    /// Whether a command a `[…]` substitution of `stmt` runs is one the module
+    /// cannot see ([`Self::command_reaches_unseen`]). The substitutions run in
+    /// Tcl's evaluation order before the statement does, and each is asked
+    /// under the command bindings the ones before it leave: a `[rename …]`
+    /// earlier in the statement decides what a later head reaches.
+    fn embedded_reaches_unseen(&self, stmt: &Statement) -> bool {
+        if !self.command_bindings.holds_a_command_table() {
+            return false;
+        }
         let bindings = self
             .source_binding_timeline
             .as_ref()
@@ -654,48 +641,47 @@ impl<'a> CfgBuilder<'a> {
             .cloned()
             .unwrap_or_else(|| self.command_bindings.clone());
         let state = std::cell::RefCell::new(bindings);
-        let barrier = std::cell::Cell::new(false);
+        let unseen = std::cell::Cell::new(false);
         let resolve = |head: &str| {
             state
                 .borrow()
                 .resolved_embedded_head(head, &self.invocation_namespace)
         };
         let observe = |words: &[crate::ir_helpers::CommandWord], conditional: bool| {
-            let found = state
-                .borrow_mut()
-                .source_order_registry_barrier_for_command(
-                    words,
-                    conditional,
-                    self.registry,
-                    &self.invocation_namespace,
-                    REGISTRY_BARRIER_TRAITS,
-                );
-            barrier.set(barrier.get() || found);
+            self.observe_in_source_order(&state, &unseen, words, conditional);
         };
-        let embedded = crate::ir_helpers::evaluated_command_substitutions_with_replay(
+        let _ = crate::ir_helpers::evaluated_command_substitutions_with_replay(
             stmt,
             self.registry,
             Some(&resolve),
             Some(&observe),
         );
-        embedded.opaque || barrier.get()
+        unseen.get()
     }
 
-    fn registry_barrier_statement(stmt: &Statement, reason: &str) -> Statement {
-        Self::registry_barrier_statement_at(stmt.span(), reason)
-    }
-
-    fn registry_barrier_statement_at(span: Span, reason: &str) -> Statement {
-        Statement::Barrier {
-            span,
-            reason: reason.to_owned(),
-            command: "<registry-barrier>".to_owned(),
-            canonical_command: None,
-            args: Vec::new(),
-            tokens: Some(crate::ir::CommandTokens::marker(
-                crate::ir::SyntheticMarker::RegistryBarrier,
-            )),
+    /// One step of a source-order replay over the commands a statement's
+    /// substitutions run: whether `words` reaches code the module cannot see
+    /// under the bindings in `state`, then the binding transition the command
+    /// makes, which the next command is resolved after.
+    fn observe_in_source_order(
+        &self,
+        state: &std::cell::RefCell<ModuleCommandBindings>,
+        unseen: &std::cell::Cell<bool>,
+        words: &[crate::ir_helpers::CommandWord],
+        conditional: bool,
+    ) {
+        if !unseen.get()
+            && self.command_bindings.holds_a_command_table()
+            && self.command_reaches_unseen(&state.borrow(), words, 0)
+        {
+            unseen.set(true);
         }
+        state.borrow_mut().advance_source_order_for_command(
+            words,
+            conditional,
+            self.registry,
+            &self.invocation_namespace,
+        );
     }
 
     /// Fold one binding-resolved terminal user procedure into a caller-frame
@@ -827,19 +813,20 @@ impl<'a> CfgBuilder<'a> {
     }
 
     /// Whether the call statement `stmt` itself runs code the module cannot
-    /// see: its head is a literal spelling that is neither a command the
-    /// registry ships for the dialect nor one the module binds
-    /// ([`ModuleCommandBindings::may_dispatch_unresolved`]), or it sources a
-    /// file ([`Traits::SOURCES_FILE`]), or it is computed.
+    /// see: its head is computed, or is a literal the module cannot name
+    /// ([`Self::head_is_unseen`]) under the command bindings in force where it
+    /// dispatches, or it sources a file ([`Traits::SOURCES_FILE`]).
     ///
-    /// A plain name in the top-level script is the global `::name`, and the
-    /// code such a call reaches can write, unset or read it with nothing in
-    /// this function's text to show it; the CFG marks the call
-    /// ([`Self::unseen_call_marker`]). A procedure body's plain names are
-    /// locals no callee reaches, so a callee it cannot see marks nothing; a
-    /// sourced file runs in the frame of the call, and marks there too. A
-    /// computed head names whatever its value does, so outside a procedure
-    /// body it is unseen as a literal one the module cannot resolve is.
+    /// The code such a call reaches can write, unset or read any name of the
+    /// frame it runs from with nothing in this function's text to show it: a
+    /// plain name at the top level is the global `::name`, and a procedure's
+    /// local is in the reach of a callee that runs `upvar 1` or `uplevel 1`.
+    /// An autoloaded or unknown-handled callee can do either on every release,
+    /// so the CFG marks the call ([`Statement::unseen_call_marker`]) in a procedure
+    /// body as at the top level. A head the module can name brings its frame
+    /// effect from the registry or from the procedure summary instead. A
+    /// builder that holds no module's command table names no head, so it marks
+    /// nothing.
     fn call_is_unseen(&self, stmt: &Statement) -> bool {
         let Statement::Call {
             command,
@@ -851,63 +838,58 @@ impl<'a> CfgBuilder<'a> {
         else {
             return false;
         };
-        if tokens
-            .as_ref()
-            .is_some_and(|tokens| tokens.synthetic.is_some())
+        if !self.command_bindings.holds_a_command_table()
+            || tokens
+                .as_ref()
+                .is_some_and(|tokens| tokens.synthetic.is_some())
         {
             return false;
         }
         if !statement_has_literal_head(stmt) {
-            return !self.is_proc_body;
+            return true;
         }
-        let head = canonical_command.as_deref().unwrap_or(command.as_str());
         let spellings: Vec<&str> = args.iter().map(String::as_str).collect();
-        self.runs_unseen_code(head, &spellings)
+        let lookup = canonical_command.as_deref().unwrap_or(command.as_str());
+        self.sources_a_file(lookup, &spellings)
+            || self.head_is_unseen(self.bindings_before_call(stmt.span()), command, &spellings)
     }
 
-    /// Whether a command with literal head `head` runs code the module cannot
-    /// see in a frame this function holds.
-    fn runs_unseen_code(&self, head: &str, args: &[&str]) -> bool {
+    /// Whether the command `head args…` sources a file, which runs in the
+    /// frame of the call ([`Traits::SOURCES_FILE`]).
+    fn sources_a_file(&self, head: &str, args: &[&str]) -> bool {
         self.registry
             .invocation_traits(head, args, self.registry.own_surface_query())
             .contains(Traits::SOURCES_FILE)
-            || (!self.is_proc_body && self.head_is_unseen(head))
-    }
-
-    /// Whether any command in `embedded` — those a statement's `[…]`
-    /// substitutions run — runs code the module cannot see
-    /// ([`Self::command_reaches_unseen`]).
-    fn substitutions_reach_unseen(
-        &self,
-        embedded: &crate::ir_helpers::EvaluatedCommandSubstitutions,
-    ) -> bool {
-        embedded
-            .all_commands()
-            .any(|words| self.command_reaches_unseen(words, 0))
     }
 
     /// Whether the command `words`, or code it runs, runs code the module cannot
-    /// see: a literal head that [`Self::runs_unseen_code`] says does, or a
-    /// computed head outside a procedure body. Every word the command runs as
-    /// code is read, whichever frame it runs in: a body of this frame (the script
-    /// of a `catch`), a body that runs in another (`uplevel`, `namespace eval`),
-    /// a lambda's body (`apply`), the commands in the text a `subst`
-    /// substitutes and those in an expression word, and a computed one outside a
-    /// procedure body. Whether such code runs is all this answers: the names the
-    /// commands of a substitution write are not stated.
-    fn command_reaches_unseen(&self, words: &[crate::ir_helpers::CommandWord], depth: u32) -> bool {
+    /// see under `bindings`: a computed head, a literal one that sources a file
+    /// or that the module cannot name ([`Self::head_is_unseen`]). Every word the
+    /// command runs as code is read, whichever frame it runs in: a body of this
+    /// frame (the script of a `catch`), a body that runs in another (`uplevel`,
+    /// `namespace eval`), a lambda's body (`apply`), the commands in the text a
+    /// `subst` substitutes and those in an expression word; a computed one is
+    /// code the module cannot see. Whether such code runs is all this answers:
+    /// the names the commands of a substitution write are not stated.
+    fn command_reaches_unseen(
+        &self,
+        bindings: &ModuleCommandBindings,
+        words: &[crate::ir_helpers::CommandWord],
+        depth: u32,
+    ) -> bool {
         let Some(head) = words
             .first()
             .and_then(crate::ir_helpers::CommandWord::literal)
         else {
-            return !self.is_proc_body;
+            return true;
         };
         let spellings: Vec<&str> = words
             .iter()
             .skip(1)
             .map(|word| word.literal().unwrap_or_default())
             .collect();
-        if self.runs_unseen_code(head, &spellings) {
+        if self.sources_a_file(head, &spellings) || self.head_is_unseen(bindings, head, &spellings)
+        {
             return true;
         }
         // Past the cap the text is not read, so it is taken to run anything.
@@ -917,7 +899,7 @@ impl<'a> CfgBuilder<'a> {
         let reaches = |text: &str| {
             crate::ir_helpers::tokenise_command_words(text, self.config)
                 .iter()
-                .any(|inner| self.command_reaches_unseen(inner, depth + 1))
+                .any(|inner| self.command_reaches_unseen(bindings, inner, depth + 1))
         };
         // A script's own substitutions are not among the commands recovered
         // from the statement, whose words are the only ones scanned for them.
@@ -932,7 +914,7 @@ impl<'a> CfgBuilder<'a> {
         }
         let runs = |index: usize, text_runs: &dyn Fn(&str) -> bool| match words.get(index + 1) {
             Some(word) if !word.substituted => text_runs(&word.text),
-            Some(_) => !self.is_proc_body,
+            Some(_) => true,
             None => false,
         };
         let role_indices = |role| self.registry.arg_indices_for_role(head, &spellings, role);
@@ -1057,7 +1039,7 @@ impl<'a> CfgBuilder<'a> {
             effects.push(Self::caller_frame_opaque(span, barrier_reason.to_owned()));
         }
         if unseen {
-            effects.push(Self::unseen_call_marker(span));
+            effects.push(Statement::unseen_call_marker(span));
         }
         effects
     }
@@ -1096,37 +1078,46 @@ impl<'a> CfgBuilder<'a> {
         }
     }
 
-    /// The statement standing where code the module cannot see runs: it
-    /// carries no name, and tells the SSA which version each name holds there
-    /// ([`crate::ir::SyntheticMarker::UnseenCall`]). Where it follows a call,
-    /// the SSA states the names the call's words read on it.
-    fn unseen_call_marker(span: Span) -> Statement {
-        Statement::Call {
-            span,
-            command: "<unseen-call>".to_owned(),
-            canonical_command: None,
-            args: Vec::new(),
-            defs: Vec::new(),
-            reads: Vec::new(),
-            reads_own_defs: false,
-            safe_on_uninit: false,
-            tokens: Some(crate::ir::CommandTokens::marker(
-                crate::ir::SyntheticMarker::UnseenCall,
-            )),
-            foreach_groups: None,
+    /// Whether the literal head `head`, called with `args` in this function's
+    /// namespace under `bindings`, may reach code the module cannot name: a
+    /// spelling neither the registry ships for the dialect nor the module binds,
+    /// which Tcl dispatches to the unresolved-command handler
+    /// ([`ModuleCommandBindings::may_dispatch_unresolved`]); a binding the
+    /// source-order timeline cannot name — one a `rename` or an alias of a
+    /// computed name may have replaced, or any spelling once a `rename` or an
+    /// alias moved a name the timeline cannot name; and a registry command the
+    /// head reaches through another binding — an alias, a rename, the
+    /// unresolved-command handler — that declares it runs code
+    /// ([`CODE_RUNNING_TRAITS`]), which the graph never lowers. A head whose
+    /// namespace the builder does not know is taken to.
+    fn head_is_unseen(&self, bindings: &ModuleCommandBindings, head: &str, args: &[&str]) -> bool {
+        let Some(namespace) = self.invocation_namespace.for_head(head) else {
+            return true;
+        };
+        if bindings.has_unnameable_rebinding_subject()
+            || bindings.may_dispatch_unresolved(head, namespace)
+            || bindings.target_resolution_may_be_unknown(head, namespace)
+        {
+            return true;
         }
-    }
-
-    /// Whether `head`, run in this function's namespace, may reach no
-    /// command the module can name. A head whose namespace the builder does
-    /// not know is taken to.
-    fn head_is_unseen(&self, head: &str) -> bool {
-        self.invocation_namespace
-            .for_head(head)
-            .is_none_or(|namespace| {
-                self.command_bindings
-                    .may_dispatch_unresolved(head, namespace)
-            })
+        let own = tcl_syntax::naming::normalise_qualified_name(head);
+        bindings.targets(head, namespace).iter().any(|target| {
+            if !target.registry_backed
+                || (target.prepended.is_empty()
+                    && tcl_syntax::naming::normalise_qualified_name(&target.command) == own)
+            {
+                return false;
+            }
+            let words: Vec<&str> = target
+                .prepended
+                .iter()
+                .map(String::as_str)
+                .chain(args.iter().copied())
+                .collect();
+            self.registry
+                .invocation_traits(&target.command, &words, self.registry.own_surface_query())
+                .intersects(CODE_RUNNING_TRAITS)
+        })
     }
 
     /// The outer-scope names the procedure a direct call statement reaches
@@ -1190,14 +1181,15 @@ impl<'a> CfgBuilder<'a> {
         let (mut out, substitution_unseen) = self.upvar_effect_statements(stmt);
         // An embedded command runs while the host's words are still being
         // evaluated, so its marker goes ahead of the host's own reads; the
-        // call's own head runs after its words are, so its marker follows, and
-        // the SSA states the names those words read on it
-        // ([`crate::ssa::SsaFunction::is_observed_by_unseen_call`]).
+        // call's own head runs after its words are, so its marker follows:
+        // the words read the versions before it, and a read after the call
+        // finds the fresh one the marker leaves
+        // ([`crate::ssa::SsaFunction::value_clobbers`]).
         if substitution_unseen {
-            out.insert(0, Self::unseen_call_marker(span));
+            out.insert(0, Statement::unseen_call_marker(span));
         }
         if call_unseen {
-            out.push(Self::unseen_call_marker(span));
+            out.push(Statement::unseen_call_marker(span));
         }
         out
     }
@@ -1217,7 +1209,7 @@ impl<'a> CfgBuilder<'a> {
         //    summary may contain both precise caller-side defs and an opaque
         //    remainder, and dropping the known defs loses useful facts such
         //    as `uplevel 1 [list set $parameter value]`.
-        let direct_opaque_barriers = self.opaque_call_barriers(&stmt);
+        let direct_opaque_barrier = self.opaque_call_barrier(&stmt);
 
         // 3. Embedded-substitution extras: walk text for
         //    `[upvar_proc arg]` / `[global_write_proc arg]` substitutions.
@@ -1227,16 +1219,16 @@ impl<'a> CfgBuilder<'a> {
             opaque_global: embedded_opaque_global,
             unseen: substitution_unseen,
         } = self.embedded_subst_extras(&stmt);
-        let embedded_registry_barrier = self.embedded_registry_barrier(&stmt);
 
         if direct_extras.is_empty()
             && embedded_extras.is_empty()
             && embedded_reads.is_empty()
             && !embedded_opaque_global
-            && !embedded_registry_barrier
         {
-            let mut out = vec![stmt];
-            out.extend(direct_opaque_barriers);
+            let out = match direct_opaque_barrier {
+                Some(barrier) => vec![stmt, barrier],
+                None => vec![stmt],
+            };
             return (out, substitution_unseen);
         }
 
@@ -1247,25 +1239,16 @@ impl<'a> CfgBuilder<'a> {
         //     program-order position the synthetic `<upvar-invalidate>`
         //     uses, so the host statement's own reads already see the
         //     widened state.
-        let mut embedded_barriers = Vec::new();
-        if embedded_opaque_global {
-            embedded_barriers.push(Statement::Barrier {
-                span: stmt.span(),
-                reason: "embedded call runs an unreadable script at the global frame".to_owned(),
-                command: "<global-frame-script>".to_owned(),
-                canonical_command: None,
-                args: Vec::new(),
-                tokens: Some(crate::ir::CommandTokens::marker(
-                    crate::ir::SyntheticMarker::GlobalFrameScript,
-                )),
-            });
-        }
-        if embedded_registry_barrier {
-            embedded_barriers.push(Self::registry_barrier_statement(
-                &stmt,
-                "embedded call reaches a registry-declared evaluation barrier",
-            ));
-        }
+        let opaque_barrier = embedded_opaque_global.then(|| Statement::Barrier {
+            span: stmt.span(),
+            reason: "embedded call runs an unreadable script at the global frame".to_owned(),
+            command: "<global-frame-script>".to_owned(),
+            canonical_command: None,
+            args: Vec::new(),
+            tokens: Some(crate::ir::CommandTokens::marker(
+                crate::ir::SyntheticMarker::GlobalFrameScript,
+            )),
+        });
 
         // 3. Merge into the host statement when it's a Call.
         if let Statement::Call { defs, reads, .. } = &mut stmt {
@@ -1287,9 +1270,14 @@ impl<'a> CfgBuilder<'a> {
                     reads.push(r);
                 }
             }
-            let mut out = embedded_barriers;
+            let mut out = Vec::new();
+            if let Some(barrier) = opaque_barrier {
+                out.push(barrier);
+            }
             out.push(stmt);
-            out.extend(direct_opaque_barriers);
+            if let Some(barrier) = direct_opaque_barrier {
+                out.push(barrier);
+            }
             return (out, substitution_unseen);
         }
 
@@ -1297,7 +1285,10 @@ impl<'a> CfgBuilder<'a> {
         //    emit a synthetic `<upvar-invalidate>` Call before the
         //    host so the affected vars are invalidated in
         //    program order.
-        let mut out = embedded_barriers;
+        let mut out = Vec::new();
+        if let Some(barrier) = opaque_barrier {
+            out.push(barrier);
+        }
         if !embedded_extras.is_empty() || !embedded_reads.is_empty() {
             out.push(Statement::Call {
                 span: stmt.span(),
@@ -1315,36 +1306,28 @@ impl<'a> CfgBuilder<'a> {
             });
         }
         out.push(stmt);
-        out.extend(direct_opaque_barriers);
+        if let Some(barrier) = direct_opaque_barrier {
+            out.push(barrier);
+        }
         (out, substitution_unseen)
     }
 
-    fn opaque_call_barriers(&self, stmt: &Statement) -> Vec<Statement> {
-        let mut barriers: Vec<_> = self.opaque_call_barrier(stmt).into_iter().collect();
-        if self.direct_opaque_global_effect(stmt)
-            && self.direct_registry_barrier(stmt)
-            && barriers.iter().all(|barrier| {
-                !matches!(barrier, Statement::Barrier { tokens: Some(tokens), .. }
-                    if tokens.synthetic == Some(crate::ir::SyntheticMarker::RegistryBarrier))
-            })
-        {
-            barriers.push(Self::registry_barrier_statement(
-                stmt,
-                "direct call also reaches a registry-declared evaluation barrier",
-            ));
-        }
-        barriers
-    }
-
-    fn direct_opaque_global_effect(&self, stmt: &Statement) -> bool {
+    /// The opaque widening barrier for a direct call whose callee's
+    /// caller-frame effect has no sound per-name def list: a callee whose
+    /// `upvar` caller-side name is unresolvable (`upvar 1 $computed x`) can
+    /// write ANY caller variable, and a callee that runs an unreadable
+    /// script at the global frame (`uplevel #0 $body`) can write or read ANY
+    /// global/namespace name.
+    fn opaque_call_barrier(&self, stmt: &Statement) -> Option<Statement> {
         let Statement::Call {
             command,
             canonical_command,
+            span,
             tokens,
             ..
         } = stmt
         else {
-            return false;
+            return None;
         };
         let literal_head = tokens.as_ref().is_none_or(|tokens| {
             tokens.synthetic.is_none()
@@ -1355,52 +1338,24 @@ impl<'a> CfgBuilder<'a> {
                 })
         });
         let target = canonical_command.as_deref().unwrap_or(command.as_str());
-        self.global_write_procs
-            .get(target)
-            .is_some_and(|info| literal_head && info.opaque_global_frame)
-    }
-
-    /// The opaque widening barrier for a direct call whose callee's
-    /// caller-frame effect has no sound per-name def list: a callee whose
-    /// `upvar` caller-side name is unresolvable (`upvar 1 $computed x`) can
-    /// write ANY caller variable, and a callee that runs an unreadable
-    /// script at the global frame (`uplevel #0 $body`) can write or read ANY
-    /// global/namespace name.
-    fn opaque_call_barrier(&self, stmt: &Statement) -> Option<Statement> {
-        let Statement::Call { command, span, .. } = stmt else {
-            return None;
-        };
         let direct_upvar = self.direct_upvar_effects(stmt);
         let unresolvable_upvar = direct_upvar.has_unresolvable_target;
-        let opaque_global = self.direct_opaque_global_effect(stmt);
+        let opaque_global = self
+            .global_write_procs
+            .get(target)
+            .is_some_and(|info| literal_head && info.opaque_global_frame);
         let source_opaque_upvar = direct_upvar.opaque_arguments;
         let opaque_variable_write = self.variable_write_projection(stmt).opaque_variable_frame;
-        let registry_barrier = self.direct_registry_barrier(stmt);
-        if !unresolvable_upvar
-            && !source_opaque_upvar
-            && !opaque_global
-            && !opaque_variable_write
-            && !registry_barrier
-        {
+        if !unresolvable_upvar && !source_opaque_upvar && !opaque_global && !opaque_variable_write {
             return None;
         }
         let reason = if unresolvable_upvar || source_opaque_upvar {
             format!("{command} upvar-aliases a dynamic caller variable")
         } else if opaque_global {
             format!("{command} runs an unreadable script at the global frame")
-        } else if registry_barrier {
-            format!("{command} reaches a registry-declared evaluation barrier")
         } else {
             format!("{command} writes a source-opaque variable name")
         };
-        if registry_barrier
-            && !unresolvable_upvar
-            && !source_opaque_upvar
-            && !opaque_global
-            && !opaque_variable_write
-        {
-            return Some(Self::registry_barrier_statement(stmt, &reason));
-        }
         // Not a command to run: the call itself is already in the statement
         // stream immediately beside this barrier, so naming the callee here
         // would make codegen invoke it a second time: `proc p {} { upvar 1 {a
@@ -1541,7 +1496,7 @@ impl<'a> CfgBuilder<'a> {
             defs: embedded_extras,
             reads,
             opaque_global: embedded_opaque_global,
-            unseen: self.substitutions_reach_unseen(&embedded),
+            unseen: self.embedded_reaches_unseen(stmt),
         }
     }
 
@@ -1688,7 +1643,8 @@ impl<'a> CfgBuilder<'a> {
     }
 
     /// Condition-position effects combine registry variable roles, resolved
-    /// procedure summaries, and timeline-resolved handler barriers.
+    /// procedure summaries, and whether a command the condition's
+    /// substitutions run, in source order, is one the module cannot see.
     fn condition_out_vars(&self, condition: &ExprNode, span: Span) -> ConditionEffects {
         let mut defs = crate::ir_helpers::condition_command_out_vars(condition, self.registry);
         let bindings = self
@@ -1698,23 +1654,14 @@ impl<'a> CfgBuilder<'a> {
             .cloned()
             .unwrap_or_else(|| self.command_bindings.clone());
         let state = std::cell::RefCell::new(bindings);
-        let registry_barrier = std::cell::Cell::new(false);
+        let unseen = std::cell::Cell::new(false);
         let resolve = |head: &str| {
             state
                 .borrow()
                 .resolved_embedded_head(head, &self.invocation_namespace)
         };
         let observe = |words: &[crate::ir_helpers::CommandWord], conditional: bool| {
-            let found = state
-                .borrow_mut()
-                .source_order_registry_barrier_for_command(
-                    words,
-                    conditional,
-                    self.registry,
-                    &self.invocation_namespace,
-                    REGISTRY_BARRIER_TRAITS,
-                );
-            registry_barrier.set(registry_barrier.get() || found);
+            self.observe_in_source_order(&state, &unseen, words, conditional);
         };
         let embedded = crate::ir_helpers::expression_command_substitutions_with_replay(
             condition,
@@ -1792,8 +1739,7 @@ impl<'a> CfgBuilder<'a> {
             defs,
             reads,
             opaque_global,
-            unseen: self.substitutions_reach_unseen(&embedded),
-            registry_barrier: embedded.opaque || registry_barrier.get(),
+            unseen: unseen.get(),
         }
     }
 
@@ -1804,12 +1750,11 @@ impl<'a> CfgBuilder<'a> {
             reads,
             opaque_global,
             unseen,
-            registry_barrier,
         } = self.condition_out_vars(condition, span);
         if unseen {
             self.block_mut(block)
                 .statements
-                .push(Self::unseen_call_marker(span));
+                .push(Statement::unseen_call_marker(span));
         }
         if !defs.is_empty() || !reads.is_empty() {
             self.block_mut(block).statements.push(Statement::Call {
@@ -1838,14 +1783,6 @@ impl<'a> CfgBuilder<'a> {
                     crate::ir::SyntheticMarker::GlobalFrameScript,
                 )),
             });
-        }
-        if registry_barrier {
-            self.block_mut(block)
-                .statements
-                .push(Self::registry_barrier_statement_at(
-                    span,
-                    "condition reaches a registry-declared evaluation barrier",
-                ));
         }
     }
 
@@ -2343,9 +2280,8 @@ impl<'a> CfgBuilder<'a> {
         if unseen {
             self.block_mut(current)
                 .statements
-                .push(Self::unseen_call_marker(stmt.span()));
+                .push(Statement::unseen_call_marker(stmt.span()));
         }
-        let registry_barrier = self.embedded_registry_barrier(stmt);
         if opaque {
             self.block_mut(current).statements.push(Statement::Barrier {
                 span: stmt.span(),
@@ -2357,14 +2293,6 @@ impl<'a> CfgBuilder<'a> {
                     crate::ir::SyntheticMarker::GlobalFrameScript,
                 )),
             });
-        }
-        if registry_barrier {
-            self.block_mut(current)
-                .statements
-                .push(Self::registry_barrier_statement(
-                    stmt,
-                    "embedded call reaches a registry-declared evaluation barrier",
-                ));
         }
         if !extras.is_empty() || !extra_reads.is_empty() {
             self.block_mut(current).statements.push(Statement::Call {
@@ -2574,7 +2502,17 @@ impl<'a> CfgBuilder<'a> {
             unreachable!();
         };
 
-        if self.embedded_subst_extras(stmt).opaque_global {
+        // Foreach/lmap list words are evaluated before the header binds any
+        // iteration variables. A substitution there can run code the module
+        // cannot see just like a substitution in an ordinary value or
+        // condition, so the marker stands before the header executes.
+        let list_effects = self.embedded_subst_extras(stmt);
+        if list_effects.unseen {
+            self.block_mut(current)
+                .statements
+                .push(Statement::unseen_call_marker(*span));
+        }
+        if list_effects.opaque_global {
             self.block_mut(current).statements.push(Statement::Barrier {
                 span: *span,
                 reason: "foreach list runs an unreadable script at the global frame".to_owned(),
@@ -2585,19 +2523,6 @@ impl<'a> CfgBuilder<'a> {
                     crate::ir::SyntheticMarker::GlobalFrameScript,
                 )),
             });
-        }
-
-        // Foreach/lmap list words are evaluated before the header binds any
-        // iteration variables. A substitution there can reach the registry
-        // fallback just like a substitution in an ordinary value or
-        // condition, so widen scalar facts before the header executes.
-        if self.embedded_registry_barrier(stmt) {
-            self.block_mut(current)
-                .statements
-                .push(Self::registry_barrier_statement(
-                    stmt,
-                    "foreach list evaluation reaches a registry-declared evaluation barrier",
-                ));
         }
 
         // `array for {k v} arr body` (Tcl 9.0): the body runs in the caller's
@@ -5883,8 +5808,9 @@ mod tests {
     /// The marker for where code the module cannot see runs, and the barrier
     /// for a command that may write any name, stand ahead of the opaque
     /// `catch` call whose body runs it: at the top level a plain name is the
-    /// global the code reaches, and a sourced file runs in the frame of the call
-    /// in a procedure too.
+    /// global the code reaches, in a procedure a local is in the reach of a
+    /// callee that runs `upvar 1`, and a sourced file runs in the frame of the
+    /// call.
     #[test]
     fn an_opaque_catch_marks_the_unseen_code_and_the_barrier_its_body_runs() {
         let has_marker = |func: &Function, marker: crate::ir::SyntheticMarker| {
@@ -5923,19 +5849,16 @@ mod tests {
                 "{src}"
             );
         }
-        // A procedure's local is out of every callee's reach; a sourced file
-        // runs in its frame.
-        assert!(!has_marker(
-            &in_proc("catch { if {1} { foo } }"),
-            crate::ir::SyntheticMarker::UnseenCall
-        ));
+        // An autoloaded or unknown-handled callee reaches a procedure's local
+        // through `upvar 1`; a sourced file runs in its frame.
         for src in [
+            "catch { if {1} { foo } }",
             "if {[catch {foo}]} { puts bad }",
             "set rc [catch {foo} msg]",
             "puts [catch { puts [foo] }]",
         ] {
             assert!(
-                !has_marker(&in_proc(src), crate::ir::SyntheticMarker::UnseenCall),
+                has_marker(&in_proc(src), crate::ir::SyntheticMarker::UnseenCall),
                 "proc: {src}"
             );
         }
@@ -5994,11 +5917,11 @@ mod tests {
         }
     }
 
-    /// A computed head runs whatever its value names, so outside a procedure
-    /// body it is code the module cannot see, as a literal head it does not
-    /// define is.
+    /// A computed head runs whatever its value names, so it is code the module
+    /// cannot see, as a literal head it does not define is, at the top level
+    /// and in a procedure body alike.
     #[test]
-    fn a_computed_head_outside_a_procedure_body_is_an_unseen_call() {
+    fn a_computed_head_is_an_unseen_call() {
         let unseen = |func: &Function| {
             calls_in_order(func)
                 .iter()
@@ -6019,15 +5942,16 @@ mod tests {
         for src in ["$cmd", "puts [$cmd]", "set x [$cmd]"] {
             let module = lower_module(&format!("proc p {{}} {{\n{src}\n}}"));
             let cfg = build_cfg(&module, false);
-            assert!(!unseen(&cfg.procedures["::p"]), "proc: {src}");
+            assert!(unseen(&cfg.procedures["::p"]), "proc: {src}");
         }
     }
 
     /// A substitution's command reaches code the module cannot see through every
     /// word it runs as code: a lambda's body, a body that runs in another frame
     /// (`uplevel`, `namespace eval`), the commands in a `subst` text and in an
-    /// expression word of a body, as through a body of this frame. A body that
-    /// holds no such code, and a procedure's own locals, mark nothing.
+    /// expression word of a body, as through a body of this frame, in a
+    /// procedure as at the top level. A body that holds no such code marks
+    /// nothing.
     #[test]
     fn a_substitution_marks_the_unseen_code_in_every_word_its_command_runs() {
         let unseen = |func: &Function| {
@@ -6076,7 +6000,7 @@ mod tests {
                 "{src}"
             );
         }
-        // A procedure's locals are out of every callee's reach.
+        // A callee the code reaches runs `upvar 1` into a procedure's frame too.
         for src in [
             "set x [apply {{} {foo}}]",
             "set x [namespace eval ns {foo}]",
@@ -6084,7 +6008,7 @@ mod tests {
         ] {
             let module = lower_module(&format!("proc p {{}} {{\n{src}\n}}"));
             let cfg = build_cfg(&module, false);
-            assert!(!unseen(&cfg.procedures["::p"]), "proc: {src}");
+            assert!(unseen(&cfg.procedures["::p"]), "proc: {src}");
         }
     }
 
