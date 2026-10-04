@@ -1236,11 +1236,13 @@ fn parse_command_stub(line: &str, range: tcl_lexer::Span) -> Option<super::types
     let after_close = after_open[close_rel + 1..].trim_start();
     let args = parse_stub_args(args_body)?;
     let flags = parse_stub_flags(after_close);
+    let frame = tcl_registry::model::DeclaredFrameEffect::from_stub_flags(after_close);
     Some(super::types::StubCommandDef {
         name: name.to_string(),
         args,
         range,
         flags,
+        frame,
         from_sidecar: false,
     })
 }
@@ -2644,6 +2646,49 @@ proc foo {} {}
             sidecar
                 .flags
                 .contains(super::super::types::StubFlags::EXTENSION)
+        );
+    }
+
+    #[test]
+    fn parse_command_stub_frame_effect() {
+        use tcl_registry::model::DeclaredFrameEffect;
+        let frame = |line: &str| cmd_stub(line).expect("a stub").frame;
+        assert_eq!(
+            frame("# tcl-lsp: stub db_query {sql}"),
+            DeclaredFrameEffect::Unstated
+        );
+        assert_eq!(
+            frame("# tcl-lsp: stub db_query {sql} -frame own"),
+            DeclaredFrameEffect::Stated(None)
+        );
+        assert_eq!(
+            frame("# tcl-lsp: stub db_query {sql} -pure -frame none"),
+            DeclaredFrameEffect::Stated(None)
+        );
+        assert_eq!(
+            frame("stub db_bind {spec} -frame caller"),
+            DeclaredFrameEffect::Stated(Some(DeclaredFrameEffect::CALLER))
+        );
+        // The last word written wins; a word the grammar does not know, or
+        // none at all, states nothing, as an unrecognised flag does.
+        assert_eq!(
+            frame("# tcl-lsp: stub db_bind {spec} -frame caller -frame own"),
+            DeclaredFrameEffect::Stated(None)
+        );
+        assert_eq!(
+            frame("# tcl-lsp: stub db_query {sql} -frame upvar"),
+            DeclaredFrameEffect::Unstated
+        );
+        assert_eq!(
+            frame("# tcl-lsp: stub db_query {sql} -frame"),
+            DeclaredFrameEffect::Unstated
+        );
+        // The frame words are no flags of their own.
+        let stub = cmd_stub("# tcl-lsp: stub db_query {sql} -frame own -pure").unwrap();
+        assert_eq!(stub.flags, super::super::types::StubFlags::PURE);
+        assert_eq!(
+            stub.to_declared_command().frame_effect,
+            DeclaredFrameEffect::Stated(None)
         );
     }
 

@@ -94,8 +94,8 @@ pub use context::{
     ladder_releases_in, requirement_spelling, specificity_breadth, targets_from_clauses,
 };
 pub use declaration::{
-    DeclaredArgument, DeclaredCommand, DeclaredSurface, DocumentCommandSurface, role_for_word,
-    role_for_word_checked,
+    DeclaredArgument, DeclaredCommand, DeclaredFrameEffect, DeclaredSurface,
+    DocumentCommandSurface, role_for_word, role_for_word_checked,
 };
 pub use ingress::{
     DocumentEnvironment, context_for_profile, environments, irules_context,

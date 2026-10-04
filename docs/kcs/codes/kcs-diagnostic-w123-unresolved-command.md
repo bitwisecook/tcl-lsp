@@ -24,6 +24,12 @@ A command the analyser cannot find in the registry, user procs, or unknown handl
 - A hint underline under the command name, with the message "Unknown command
   'unknownCmd'; did you mean 'unknown'?" — the "did you mean" tail appears only
   when a close match exists.
+- Inside a procedure, a method or an `apply` lambda the message goes on: "The
+  call widens this procedure's locals held at it; a `# tcl-lsp: stub
+  unknownCmd {…} -frame own` (or `-frame none`) declaration keeps them when
+  every argument is a value, name, pattern or channel and no flag but `-pure`
+  or `-unsafe` is set." See
+  [the call widens the procedure's variables](#the-call-widens-the-procedures-variables).
 
 ## Example that triggers it
 
@@ -227,6 +233,39 @@ extension, an EDA-vendor builtin — declare its shape with a
 [stub](../kcs-howto-annotate-commands-with-stubs.md) instead. A stub also
 declares which of its arguments are scripts, so `W123` then reports the
 commands inside those scripts on their own merits.
+
+## The call widens the procedure's variables
+
+A command tcl-lsp cannot find may still exist when the script runs — a
+procedure the unknown handler or an autoloader brings in, a command a C
+extension registers — and such a command can reach the procedure that calls it
+through `upvar 1` or `uplevel 1`. So inside a procedure body, a method body or
+an `apply` lambda, every local variable the procedure holds at the call is
+unknown after it: a condition on one is never reported as always true or
+false ([`I230`](kcs-diagnostic-i230-constant-existence-check.md)), and a value
+stored before the call is never reported as unused
+([`W211`](kcs-diagnostic-w211-variable-set-not-used.md)). The message says so
+there, and not at the top level, in a `namespace eval` body or in an `uplevel
+#0` body, whose plain names are no procedure's locals.
+
+When the command runs in a frame of its own, a stub that says so keeps them:
+
+```tcl
+# tcl-lsp: stubs-begin
+# tcl-lsp: stub db_query {sql} -frame own
+# tcl-lsp: stubs-end
+
+proc q {} {
+    set g 5
+    db_query {select 1}
+    if {$g == 5} {puts five} else {puts other}   ;# I230: always true
+}
+```
+
+A stub without `-frame`, or one whose arguments include a script, an
+expression, a callback or a variable, or that sets another flag, keeps the
+call widening. See
+[`-frame`](../kcs-howto-annotate-commands-with-stubs.md#what-the-command-does-to-the-callers-variables--frame).
 
 ## How to suppress
 

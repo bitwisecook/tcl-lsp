@@ -4836,9 +4836,16 @@ impl Lowerer<'_> {
         self.extract_oo_methods_pass();
         let registry = self.registry;
         let dialect = self.dialect.map(|profile| profile.name.to_owned());
+        let declared_frame_effects = self
+            .command_surface()
+            .plain_call_frame_effects()
+            .filter(|(name, _)| registry.get(name).is_none())
+            .map(|(name, effect)| (tcl_syntax::naming::normalise_qualified_name(name), effect))
+            .collect();
         let mut module = self.module;
         source.clone_into(&mut module.source);
         module.dialect = dialect;
+        module.declared_frame_effects = declared_frame_effects;
         populate_trace_facts(&mut module, registry);
         module.deferred_writes = crate::deferred_writes::scan_module(&module, registry);
         module

@@ -508,6 +508,7 @@ mod tests {
                 has_dynamic_variable_trace: false,
                 deferred_writes: crate::ir::DeferredWrites::default(),
                 reference_bodies: crate::ir::ReferenceBodies::default(),
+                declared_frame_effects: std::collections::BTreeMap::new(),
             },
             cfg_module: crate::cfg::CfgModule {
                 top_level: fu.cfg.clone(),

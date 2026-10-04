@@ -178,6 +178,54 @@ Two things a flag does not do yet: `-pure` does not make
 `set a [mypure $x]` removable when you write the call directly (only through
 a proc, as above), and no flag changes how the SSA passes treat the call.
 
+### What the command does to the caller's variables (`-frame`)
+
+`-frame` says whether the command can touch the variables of the procedure
+that calls it:
+
+- `-frame own` — its code runs in a frame of its own, as a procedure's does.
+- `-frame none` — it runs no code that reaches a frame at all.
+- `-frame caller` — it sets variables of the procedure that calls it, under
+  names you do not write in the call, as `argparse` does.
+
+`-frame own` and `-frame none` promise that the command sets and reads none of
+the caller's variables, and no global or namespace variable either. A command
+that touches a global by name (`global x`, `upvar #0`, `$::x`) or reads its
+caller's variables needs no `-frame` at all, or `-frame caller` if all it does
+is set them.
+
+Without `-frame`, tcl-lsp cannot know, so it assumes the command may reach
+into the caller as `upvar 1` or `uplevel 1` would. That costs precision in
+every procedure that calls it: a local set before the call is treated as
+unknown after it, so a condition on it is never reported as always true or
+false (`I230`), and a store before it is never reported as unused (`W211`).
+
+```tcl
+# tcl-lsp: stubs-begin
+# tcl-lsp: stub db_query {sql} -frame own
+# tcl-lsp: stubs-end
+
+proc q {} {
+    set g 5
+    db_query {select 1}
+    if {$g == 5} {puts five} else {puts other}   ;# I230: always true
+}
+```
+
+Without `-frame own`, or with `-frame caller`, `q` draws no `I230`: the call
+may have changed `g`.
+
+`-frame own` and `-frame none` take effect only on a plain stub: every
+argument a `value`, `name`, `pattern` or `channel`, and no flag but `-pure`
+or `-unsafe`. A stub with a script, expression, callback or variable argument,
+or another flag, is still treated as possibly reaching the caller, whatever
+its `-frame`. A `body` argument is treated as a script that runs where the
+command is called, as a built-in command's body is, so the call still affects
+what tcl-lsp knows of every variable.
+
+A `W123` hint on an unknown command inside a procedure says the same thing and
+names the stub that would keep the procedure's variables.
+
 ### Stubbing a command tcl-lsp already knows
 
 A stub can declare a command tcl-lsp ships, and then the stub wins for that
@@ -233,6 +281,8 @@ an operator when you leave it out.
 - For a flag, check the finding the table above names: a `-loop` stub called
   as `name 1 {…}` with nothing leaving the loop draws `W241`, and an
   `-unsafe` stub called inside a safe interpreter draws `W129`.
+- For `-frame own`, check that a condition on a variable set before the call
+  is reported as always true or false (`I230`) where it was not before.
 - Open the file in your editor and confirm the stubbed command no longer
   raises the "unresolved command" hint.
 - For a sidecar, confirm the filename matches the dialect the file is

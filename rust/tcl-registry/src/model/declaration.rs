@@ -86,6 +86,7 @@ use tcl_dialect::model::{ItemHistory, Provenance, SurfaceQuery, VersionAxisId, V
 
 use crate::arg_role::{AppendedArity, ArgRole};
 use crate::extension_default;
+use crate::frame_effect::{FrameArgLayout, FrameEffectSpec, FrameLevelWord};
 use crate::model::surface::{CapabilityPredicate, Provider, SurfaceDeclaration};
 use crate::security_floor::SecurityFloor;
 use crate::side_effects::SideEffect;
@@ -120,6 +121,65 @@ pub fn role_for_word_checked(word: &str) -> Option<ArgRole> {
 #[must_use]
 pub fn role_for_word(word: &str) -> ArgRole {
     role_for_word_checked(word).unwrap_or(ArgRole::Value)
+}
+
+/// What a declaration states of its command's frame effect — the stub
+/// grammar's `-frame` word — in the registry's own vocabulary: the
+/// frame-crossing argument grammar a catalogue command carries on
+/// [`CommandSpec::frame_effect`](crate::CommandSpec), `None` for a command
+/// that crosses no frame.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum DeclaredFrameEffect {
+    /// The declaration states none, so nothing bounds what the command does
+    /// to the frame that calls it: like code the module cannot see, it may
+    /// reach that frame (`upvar 1`, `uplevel 1`).
+    #[default]
+    Unstated,
+    /// The declaration states the command's frame effect: `None` for
+    /// `-frame own` and `-frame none`, which cross no frame, and
+    /// [`DeclaredFrameEffect::CALLER`] for `-frame caller`.
+    Stated(Option<FrameEffectSpec>),
+}
+
+impl DeclaredFrameEffect {
+    /// The effect `-frame caller` states, `argparse`'s: variables of the
+    /// frame that calls the command, reached under names nothing states.
+    pub const CALLER: FrameEffectSpec = FrameEffectSpec {
+        level_word: FrameLevelWord::None,
+        layout: FrameArgLayout::OpaqueCallerVars,
+    };
+
+    /// The effect a stub's `-frame` word states, or `None` for a word the
+    /// grammar does not know. `own` (the command's code runs in a frame of
+    /// its own, as a procedure's does) and `none` (it runs no code that
+    /// reaches a frame) state the same value, a command that crosses no
+    /// frame; `caller` states [`Self::CALLER`].
+    #[must_use]
+    pub fn from_stub_word(word: &str) -> Option<Self> {
+        match word {
+            "own" | "none" => Some(Self::Stated(None)),
+            "caller" => Some(Self::Stated(Some(Self::CALLER))),
+            _ => None,
+        }
+    }
+
+    /// The effect a stub's trailing flag run states with `-frame WORD`
+    /// ([`Self::from_stub_word`]), the last one written winning; unstated
+    /// when the run has none, or names a word the grammar does not know,
+    /// which is ignored as an unrecognised flag is.
+    #[must_use]
+    pub fn from_stub_flags(flags: &str) -> Self {
+        let mut stated = Self::Unstated;
+        let mut words = flags.split_whitespace();
+        while let Some(word) = words.next() {
+            if word == "-frame"
+                && let Some(effect) = words.next().and_then(Self::from_stub_word)
+            {
+                stated = effect;
+            }
+        }
+        stated
+    }
 }
 
 /// The full [document axis](VersionAxisId::document) — a declared command
@@ -158,6 +218,9 @@ pub struct DeclaredCommand {
     /// read and a write of
     /// [`SideEffectTarget::Variable`](crate::side_effects::SideEffectTarget::Variable).
     pub side_effects: Vec<SideEffect>,
+    /// The frame effect the declaration states — a stub's `-frame` word —
+    /// or [`DeclaredFrameEffect::Unstated`].
+    pub frame_effect: DeclaredFrameEffect,
     /// The §4.1 surface row this declaration ingested as.
     pub declaration: SurfaceDeclaration,
 }
@@ -177,6 +240,7 @@ impl DeclaredCommand {
             arguments,
             traits: Traits::empty(),
             side_effects: Vec::new(),
+            frame_effect: DeclaredFrameEffect::Unstated,
             declaration: SurfaceDeclaration {
                 provider: Provider::Document,
                 applicable: whole_document_axis(),
@@ -199,6 +263,58 @@ impl DeclaredCommand {
     pub fn with_side_effects(mut self, side_effects: Vec<SideEffect>) -> Self {
         self.side_effects = side_effects;
         self
+    }
+
+    /// The same declaration, stating `frame_effect`.
+    #[must_use]
+    pub fn with_frame_effect(mut self, frame_effect: DeclaredFrameEffect) -> Self {
+        self.frame_effect = frame_effect;
+        self
+    }
+
+    /// The roles a reader that does not hold this declaration still reads
+    /// right: data — a value, a name, a pattern, a channel. A script, an
+    /// expression, a command prefix and a variable name are words only a
+    /// reader of the declaration knows to follow.
+    const DATA_ROLES: [ArgRole; 4] = [
+        ArgRole::Value,
+        ArgRole::Name,
+        ArgRole::Pattern,
+        ArgRole::Channel,
+    ];
+
+    /// The traits a reader that does not hold this declaration may go
+    /// without: `-pure`'s, whose absence only declines what purity allows,
+    /// and `-unsafe`'s, which speak of safe interpreters alone.
+    const INERT_TRAITS: Traits = Traits::PURE
+        .union(Traits::UNSAFE)
+        .union(Traits::SAFE_INTERP_HIDDEN);
+
+    /// The frame effect the declaration states, when that is all a reader
+    /// holding the catalogue alone has to learn from it to read a call to
+    /// the command right: every argument is data ([`Self::DATA_ROLES`]), and
+    /// it states no trait but `-pure`'s or `-unsafe`'s and no side effect.
+    ///
+    /// A flow graph is such a reader — it reads roles and traits off the
+    /// catalogue, which answers a name it does not hold as a command of
+    /// plain values that states nothing — so it may name the command, and a
+    /// call to it brings the effect stated here, as a catalogue command's
+    /// call brings [`CommandSpec::frame_effect`]. `None` for a declaration
+    /// that states no frame effect, or states a role or a fact that reader
+    /// would miss: a call to its command stays a call to code the module
+    /// cannot see.
+    #[must_use]
+    pub fn plain_call_frame_effect(&self) -> Option<Option<FrameEffectSpec>> {
+        let DeclaredFrameEffect::Stated(effect) = self.frame_effect else {
+            return None;
+        };
+        (self
+            .arguments
+            .iter()
+            .all(|argument| Self::DATA_ROLES.contains(&argument.role))
+            && Self::INERT_TRAITS.contains(self.traits)
+            && self.side_effects.is_empty())
+        .then_some(effect)
     }
 
     /// Declare `name` as a command a native extension registers: the
@@ -401,6 +517,19 @@ impl<'a> DocumentCommandSurface<'a> {
             .into_iter()
             .flat_map(DeclaredSurface::iter)
             .map(|(name, _)| name)
+    }
+
+    /// Every command this document declares that a reader holding the
+    /// catalogue alone may call by name, with the frame effect its
+    /// declaration states ([`DeclaredCommand::plain_call_frame_effect`]), in
+    /// name order.
+    pub fn plain_call_frame_effects(
+        &self,
+    ) -> impl Iterator<Item = (&'a str, Option<FrameEffectSpec>)> {
+        self.declared
+            .into_iter()
+            .flat_map(DeclaredSurface::iter)
+            .filter_map(|(name, command)| Some((name, command.plain_call_frame_effect()?)))
     }
 
     /// The document's own declaration of `name`, when it has one — the row
@@ -866,6 +995,161 @@ mod tests {
         assert_eq!(
             plain.clone().narrowed_by(Traits::empty(), Vec::new()),
             plain
+        );
+    }
+
+    #[test]
+    fn the_frame_words_are_the_registrys_frame_effects() {
+        assert_eq!(
+            DeclaredFrameEffect::from_stub_word("own"),
+            Some(DeclaredFrameEffect::Stated(None))
+        );
+        assert_eq!(
+            DeclaredFrameEffect::from_stub_word("none"),
+            Some(DeclaredFrameEffect::Stated(None))
+        );
+        assert_eq!(
+            DeclaredFrameEffect::from_stub_word("caller"),
+            Some(DeclaredFrameEffect::Stated(Some(FrameEffectSpec {
+                level_word: FrameLevelWord::None,
+                layout: FrameArgLayout::OpaqueCallerVars,
+            })))
+        );
+        // `argparse`'s own effect is the vocabulary `caller` names.
+        let registry = crate::cache::registry_for_profile(tcl_dialect::DialectProfile::plain_tcl());
+        assert_eq!(
+            registry.frame_effect("argparse"),
+            Some(DeclaredFrameEffect::CALLER)
+        );
+        assert_eq!(DeclaredFrameEffect::from_stub_word("Own"), None);
+        assert_eq!(DeclaredFrameEffect::from_stub_word(""), None);
+        // In a flag run, the last `-frame` word wins and an unknown one, or
+        // none, states nothing.
+        assert_eq!(
+            DeclaredFrameEffect::from_stub_flags("-pure -frame caller -frame own"),
+            DeclaredFrameEffect::Stated(None)
+        );
+        assert_eq!(
+            DeclaredFrameEffect::from_stub_flags("-frame caller -frame upvar"),
+            DeclaredFrameEffect::Stated(Some(DeclaredFrameEffect::CALLER))
+        );
+        assert_eq!(
+            DeclaredFrameEffect::from_stub_flags("-pure -frame"),
+            DeclaredFrameEffect::Unstated
+        );
+        assert_eq!(
+            DeclaredFrameEffect::from_stub_flags(""),
+            DeclaredFrameEffect::Unstated
+        );
+        assert_eq!(
+            declared("unstated", &[]).frame_effect,
+            DeclaredFrameEffect::Unstated
+        );
+    }
+
+    #[test]
+    fn a_plain_call_states_its_frame_effect_and_data_alone() {
+        let own =
+            |command: DeclaredCommand| command.with_frame_effect(DeclaredFrameEffect::Stated(None));
+        let data = [
+            ("sql", ArgRole::Value),
+            ("design", ArgRole::Name),
+            ("glob", ArgRole::Pattern),
+            ("chan", ArgRole::Channel),
+        ];
+        assert_eq!(
+            own(declared("db_query", &data)).plain_call_frame_effect(),
+            Some(None)
+        );
+        assert_eq!(
+            declared("db_query", &data)
+                .with_frame_effect(DeclaredFrameEffect::Stated(Some(
+                    DeclaredFrameEffect::CALLER
+                )))
+                .plain_call_frame_effect(),
+            Some(Some(DeclaredFrameEffect::CALLER))
+        );
+        assert_eq!(
+            own(declared("pure_query", &data))
+                .with_traits(Traits::PURE.union(Traits::UNSAFE))
+                .plain_call_frame_effect(),
+            Some(None)
+        );
+        // Unstated, it is not one.
+        assert_eq!(declared("db_query", &data).plain_call_frame_effect(), None);
+        // A word only a reader of the declaration knows to follow.
+        for role in [
+            ArgRole::Body,
+            ArgRole::Expr,
+            ArgRole::VarWrite,
+            ArgRole::VarRead,
+            ArgRole::CommandPrefix,
+        ] {
+            assert_eq!(
+                own(declared("db_eval", &[("sql", ArgRole::Value), ("w", role)]))
+                    .plain_call_frame_effect(),
+                None,
+                "{role:?}"
+            );
+        }
+        // A fact only a reader of the declaration knows.
+        for traits in [
+            Traits::CREATES_DYNAMIC_BARRIER,
+            Traits::HAS_LOOP_BODY,
+            Traits::CREATES_SCOPE_ALIAS,
+            Traits::READS_BEFORE_WRITE,
+        ] {
+            assert_eq!(
+                own(declared("flagged", &data))
+                    .with_traits(traits)
+                    .plain_call_frame_effect(),
+                None,
+                "{traits:?}"
+            );
+        }
+        assert_eq!(own(extension("ext_query")).plain_call_frame_effect(), None);
+        assert_eq!(
+            own(declared("mutator", &data))
+                .with_side_effects(unknown_read_write())
+                .plain_call_frame_effect(),
+            None
+        );
+    }
+
+    #[test]
+    fn the_surface_lists_the_plain_calls_it_declares() {
+        let registry = crate::cache::registry_for_profile(tcl_dialect::DialectProfile::plain_tcl());
+        let mut surface = DeclaredSurface::new();
+        surface.declare(
+            declared("db_query", &[("sql", ArgRole::Value)])
+                .with_frame_effect(DeclaredFrameEffect::Stated(None)),
+        );
+        surface.declare(
+            declared("db_bind", &[("sql", ArgRole::Value)]).with_frame_effect(
+                DeclaredFrameEffect::Stated(Some(DeclaredFrameEffect::CALLER)),
+            ),
+        );
+        surface.declare(declared("db_close", &[("handle", ArgRole::Value)]));
+        surface.declare(
+            declared(
+                "db_eval",
+                &[("sql", ArgRole::Value), ("script", ArgRole::Body)],
+            )
+            .with_frame_effect(DeclaredFrameEffect::Stated(None)),
+        );
+        let document = DocumentCommandSurface::new(registry, Some(&surface));
+        assert_eq!(
+            document.plain_call_frame_effects().collect::<Vec<_>>(),
+            vec![
+                ("db_bind", Some(DeclaredFrameEffect::CALLER)),
+                ("db_query", None),
+            ]
+        );
+        assert_eq!(
+            DocumentCommandSurface::new(registry, None)
+                .plain_call_frame_effects()
+                .count(),
+            0
         );
     }
 }

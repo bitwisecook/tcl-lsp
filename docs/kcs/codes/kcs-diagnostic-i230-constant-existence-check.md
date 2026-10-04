@@ -196,7 +196,14 @@ if {$g} { puts a } else { puts b }                 ;# no I230, as for $::g
   {[foo]} …}]`). A name the body of a `catch` writes on some path is undecided
   afterwards too, since the body stops at its first error. A `source` runs its
   file in the frame of the call, so no name is safe across one either; a
-  procedure the file defines is read for what it writes.
+  procedure the file defines is read for what it writes. A command a
+  [stub](../kcs-howto-annotate-commands-with-stubs.md) declares is one the file
+  does not define until the stub states what it does to the caller's frame: a
+  plain stub (every argument a value, name, pattern or channel, no flag but
+  `-pure` or `-unsafe`) with `-frame own` or `-frame none` changes no variable
+  of the frame it is called from, so a name keeps its value across the call;
+  one with `-frame caller` may set any variable of that frame, as `argparse`
+  does, so no name in the procedure is decided.
 
 ## Fix
 

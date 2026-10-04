@@ -148,6 +148,21 @@ pub(super) fn group_defs_by_tail<'a>(
     map
 }
 
+/// The sentence a `W123` in a procedure's frame ends with: a call to a
+/// command the module cannot name may reach the frame that calls it
+/// (`upvar 1`, `uplevel 1`), so the flow graph widens the locals the
+/// procedure holds at the call, and a stub of `name` stating its frame effect
+/// as a plain call
+/// ([`tcl_registry::model::DeclaredCommand::plain_call_frame_effect`]) names
+/// the command, so they are kept.
+fn widening_hint(name: &str) -> String {
+    format!(
+        "The call widens this procedure's locals held at it; a `# tcl-lsp: stub {name} {{…}} \
+         -frame own` (or `-frame none`) declaration keeps them when every argument is a value, \
+         name, pattern or channel and no flag but `-pure` or `-unsafe` is set."
+    )
+}
+
 impl Analyser {
     /// W123 — unknown / unresolved command head.
     ///
@@ -1054,6 +1069,13 @@ impl Analyser {
                     // W123: an edit-distance guess at the intended command.
                     safety: crate::irules_checks::FixSafety::RequiresReview,
                 });
+            }
+            if crate::analyser::scope::innermost_frame_is_procedure(
+                &self.result.global_scope,
+                inv.range.start(),
+            ) {
+                message.push_str(if suggestions.is_empty() { ". " } else { " " });
+                message.push_str(&widening_hint(name));
             }
             self.result.diagnostics.push(
                 crate::analyser::types::Diagnostic::new(

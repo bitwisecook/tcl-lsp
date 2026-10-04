@@ -1380,13 +1380,13 @@ impl ExistenceRun {
         let mut terminator_clobbers = HashMap::new();
         for (&block_id, block) in &cfg.blocks {
             for (index, statement) in block.statements.iter().enumerate() {
-                let clobber = statement_clobber(statement, ssa, registry, entry.config);
+                let clobber = statement_clobber(statement, ssa, cfg, registry, entry.config);
                 if !clobber.is_empty() {
                     clobbers.insert((block_id, index), clobber);
                 }
             }
             if let Some(terminator) = &block.terminator {
-                let clobber = terminator_clobber(terminator, ssa, registry, entry.config);
+                let clobber = terminator_clobber(terminator, ssa, cfg, registry, entry.config);
                 if !clobber.is_empty() {
                     terminator_clobbers.insert(block_id, clobber);
                 }
@@ -1924,11 +1924,15 @@ fn linked_elsewhere(
 fn statement_clobber(
     statement: &Statement,
     ssa: &SsaFunction,
+    cfg: &CfgFunction,
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
 ) -> Clobber {
     let mut clobber = Clobber::of_names(crate::dynamic_names::statement_barrier(
-        statement, registry, config,
+        statement,
+        registry,
+        &cfg.declared_frame_effects,
+        config,
     ));
     if matches!(
         statement,
@@ -1954,11 +1958,15 @@ fn statement_clobber(
 fn terminator_clobber(
     terminator: &Terminator,
     ssa: &SsaFunction,
+    cfg: &CfgFunction,
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
 ) -> Clobber {
     let mut clobber = Clobber::of_names(crate::dynamic_names::terminator_barrier(
-        terminator, registry, config,
+        terminator,
+        registry,
+        &cfg.declared_frame_effects,
+        config,
     ));
     let mut touch = BodyTouch::default();
     match terminator {

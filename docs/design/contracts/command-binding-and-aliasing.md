@@ -203,13 +203,18 @@ redefinition.
 ### Calls to code the module cannot see
 
 A head the module can name brings its frame effect from the registry (a
-builtin's declared traits and variable roles) or from the summary of a
-procedure the module defines. A head it cannot name may reach the frame it is
-called from — an autoloaded or unknown-handled callee runs `upvar 1` or
-`uplevel 1` there on every release — so the call widens the names that frame
-holds, once. The binding lattice decides which heads those are, at the call
-site and in Tcl's evaluation order: a spelling neither the registry ships for
-the dialect nor the module binds, which Tcl dispatches to the
+builtin's declared traits and variable roles), from the summary of a
+procedure the module defines, or from the document's declaration of a plain
+call — a stub that states its frame effect and nothing else the flow graph
+would have to read from it (`Module::declared_frame_effects`, see
+[dialect-stubs.md](dialect-stubs.md#frame-effect)), which the fresh
+interpreter's command table binds beside the registry's names. A head it
+cannot name may reach the frame it is called from — an autoloaded or
+unknown-handled callee runs `upvar 1` or `uplevel 1` there on every release —
+so the call widens the names that frame holds, once. The binding lattice
+decides which heads those are, at the call site and in Tcl's evaluation order:
+a spelling neither the registry ships for the dialect, nor the document
+declares as a plain call, nor the module binds, which Tcl dispatches to the
 unresolved-command handler; a binding the source-order timeline cannot name,
 after a `rename` or an alias of a computed name, or any spelling once a
 transition moved a name the timeline cannot name; a registry command the head

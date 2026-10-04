@@ -115,7 +115,14 @@ source other.tcl      ;# runs in this frame and may read h: not flagged
 The same holds for a procedure's local: such a command — one an autoloader or
 the unknown handler brings in — reaches it through `upvar 1`, and a `source`
 runs its file in the procedure's frame. A local set and never read with no
-such call after it still draws `W211`. See
+such call after it still draws `W211`.
+
+A command a [stub](../kcs-howto-annotate-commands-with-stubs.md) declares is
+such a command until the stub states what it does to the caller's variables. A
+plain stub — every argument a value, name, pattern or channel, no flag but
+`-pure` or `-unsafe` — with `-frame own` or `-frame none` reads none of them,
+and one with `-frame caller` only sets them, as `argparse` does, so a local set
+before such a call and never read still draws `W211`. See
 [W220](kcs-diagnostic-w220-dead-store.md#a-command-the-file-does-not-define-can-read-your-variables)
 for the dead-store side.
 

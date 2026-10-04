@@ -2995,6 +2995,10 @@ pub struct StubCommandDef {
     /// / ``-mutator`` / ``-unsafe`` / ``-scope_alias`` /
     /// ``-extension``).
     pub flags: StubFlags,
+    /// The frame effect ``-frame own|none|caller`` states, in the registry's
+    /// vocabulary ([`tcl_registry::model::DeclaredFrameEffect`]); unstated
+    /// without one.
+    pub frame: tcl_registry::model::DeclaredFrameEffect,
     /// `true` when this declaration came from a workspace sidecar rather than
     /// the analysed document. Such declarations participate in resolution but
     /// cannot produce source-positioned shadow diagnostics.
@@ -3049,11 +3053,13 @@ impl StubCommandDef {
         };
         if self.flags.contains(StubFlags::EXTENSION) {
             return DeclaredCommand::extension(self.name.clone(), arguments, provenance)
-                .narrowed_by(self.declared_traits(), self.declared_side_effects());
+                .narrowed_by(self.declared_traits(), self.declared_side_effects())
+                .with_frame_effect(self.frame);
         }
         DeclaredCommand::new(self.name.clone(), arguments, provenance)
             .with_traits(self.declared_traits())
             .with_side_effects(self.declared_side_effects())
+            .with_frame_effect(self.frame)
     }
 
     /// The traits the flags state, each on the field its catalogue

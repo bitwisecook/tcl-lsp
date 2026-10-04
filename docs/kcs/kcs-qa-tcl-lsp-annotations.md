@@ -83,7 +83,9 @@ Seven flags are accepted — `-barrier`, `-loop`, `-pure`, `-mutator`,
 command and changes the analysis of a call to it: a barrier, a loop, a pure
 call, a mutation of its target, a command hidden in a safe interpreter, a
 scope alias, or a command a native extension registers, which starts from the
-most conservative reading of all. See
+most conservative reading of all. `-frame own`, `-frame none` and `-frame
+caller` say whether the command can reach the variables of the procedure that
+calls it; without one, the analyser assumes it can. See
 [kcs-howto-annotate-commands-with-stubs.md](kcs-howto-annotate-commands-with-stubs.md)
 for the full flag reference.
 

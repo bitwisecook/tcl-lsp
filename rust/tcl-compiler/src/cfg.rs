@@ -297,6 +297,13 @@ pub struct Function {
     /// everything downstream of it) run per function with only the CFG in
     /// hand.  Cleared for any CFG built without an upvar context.
     pub caller_frame_barrier: crate::dynamic_names::DynamicNameBarrier,
+    /// The commands the document declares as plain calls, with the frame
+    /// effect each declaration states ([`crate::ir::DeclaredFrameEffects`]),
+    /// as the module's command table holds them: the per-function
+    /// computed-name walk ([`crate::dynamic_names`]) reads a call's frame
+    /// effect here where the catalogue holds no command of that name. Empty
+    /// for a CFG built without a module's command table.
+    pub declared_frame_effects: std::sync::Arc<crate::ir::DeclaredFrameEffects>,
     /// Caller-frame names some callee of this function may **touch through
     /// an `upvar` alias or an `uplevel` write** (`get` running `upvar 1
     /// callervar m` makes `callervar` here observable in both directions).
@@ -334,6 +341,7 @@ impl Function {
             command_boundary_sites: HashMap::new(),
             command_boundary_continuations: HashMap::new(),
             caller_frame_barrier: crate::dynamic_names::DynamicNameBarrier::default(),
+            declared_frame_effects: std::sync::Arc::default(),
             alias_observed_vars: std::collections::BTreeSet::new(),
             block_names: Vec::new(),
             name_to_id: FxHashMap::default(),

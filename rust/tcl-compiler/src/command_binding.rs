@@ -131,6 +131,12 @@ enum MayBinding {
 struct BindingBaseline {
     /// Registry-owned, generation-specific facts shared with CFG construction.
     semantics: Arc<EffectiveRegistrySemantics>,
+    /// The commands the analysed document declares as plain calls
+    /// ([`Module::declared_frame_effects`]), with the frame effect each
+    /// declaration states. The fresh interpreter binds them beside the
+    /// registry's names: the document states that they exist and what they
+    /// do to the frame that calls them.
+    declared: Arc<crate::ir::DeclaredFrameEffects>,
 }
 
 impl PartialEq for BindingBaseline {
@@ -138,22 +144,32 @@ impl PartialEq for BindingBaseline {
         self.semantics.binding_names() == other.semantics.binding_names()
             && self.semantics.unresolved_command_handlers()
                 == other.semantics.unresolved_command_handlers()
+            && self.declared == other.declared
     }
 }
 
 impl Eq for BindingBaseline {}
 
 impl BindingBaseline {
-    fn for_registry(registry: &CommandRegistry) -> Self {
+    fn for_module(registry: &CommandRegistry, module: &Module) -> Self {
         Self {
             semantics: registry.effective_semantics(),
+            declared: Arc::new(module.declared_frame_effects.clone()),
         }
+    }
+
+    /// Whether the fresh interpreter binds `key`, a normalised qualified
+    /// name: one the registry ships for the dialect, or one the document
+    /// declares as a plain call.
+    fn binds(&self, key: &str) -> bool {
+        self.semantics.binding_names().contains(key) || self.declared.contains_key(key)
     }
 }
 
 impl Hash for BindingBaseline {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.semantics.binding_fingerprint().hash(state);
+        self.declared.hash(state);
     }
 }
 
@@ -654,7 +670,7 @@ impl ModuleCommandBindings {
             procedure_bodies.extend(discarded_module.procedures.keys().cloned());
         }
         let state = Self {
-            baseline: Arc::new(BindingBaseline::for_registry(registry)),
+            baseline: Arc::new(BindingBaseline::for_module(registry, module)),
             opaque_domain: opaque_binding_mutation,
             opaque_binding_mutation,
             dynamic_proc_binding,
@@ -1091,6 +1107,14 @@ impl ModuleCommandBindings {
         self.opaque_domain
     }
 
+    /// The commands the analysed document declares as plain calls, which
+    /// this state's command table binds beside the registry's names, with the
+    /// frame effect each declaration states ([`Module::declared_frame_effects`]).
+    #[must_use]
+    pub(crate) fn declared_frame_effects(&self) -> Arc<crate::ir::DeclaredFrameEffects> {
+        Arc::clone(&self.baseline.declared)
+    }
+
     /// Whether this state holds a command table to resolve against: the
     /// registry's baseline of the analysed module. A state built for no module
     /// (`Default`) names no command, so it can say nothing about one.
@@ -1121,7 +1145,7 @@ impl ModuleCommandBindings {
     pub(crate) fn mutation_projection(&self, registry: &CommandRegistry) -> ModuleCommandMutations {
         let mut names = std::collections::HashSet::new();
         for (name, observed) in self.bindings.iter() {
-            let original = Self::unmodified_bindings(name, self.baseline.semantics.binding_names());
+            let original = Self::unmodified_bindings(name, &self.baseline);
             if *observed == original {
                 continue;
             }
@@ -1271,7 +1295,7 @@ impl ModuleCommandBindings {
         visiting: &mut BTreeSet<String>,
     ) -> bool {
         let Some(key) = self.lookup_key(name, namespace) else {
-            return !self.baseline.semantics.binding_names().contains(&nqn(name));
+            return !self.baseline.binds(&nqn(name));
         };
         if !visiting.insert(key.clone()) {
             return false;
@@ -1353,7 +1377,7 @@ impl ModuleCommandBindings {
             // Sparse state omits untouched registry commands. Any other
             // absent literal is dispatched through this dialect's active
             // registry-declared unknown-handler carrier, when one exists.
-            if self.baseline.semantics.binding_names().contains(&nqn(name)) {
+            if self.baseline.binds(&nqn(name)) {
                 return false;
             }
             return self.unresolved_target_may_be_unknown(name, visiting);
@@ -1429,7 +1453,7 @@ impl ModuleCommandBindings {
         visiting: &mut BTreeSet<String>,
     ) -> BTreeSet<ResolvedCommandTarget> {
         let Some(key) = self.lookup_key(name, namespace) else {
-            if self.baseline.semantics.binding_names().contains(&nqn(name)) {
+            if self.baseline.binds(&nqn(name)) {
                 return BTreeSet::from([ResolvedCommandTarget {
                     command: name.to_owned(),
                     prepended: Vec::new(),
@@ -1499,12 +1523,18 @@ impl ModuleCommandBindings {
     /// registry transition already identifies its exact key and should not
     /// rescan every unchanged binding merely to publish that one delta.
     fn join_binding_from(&mut self, other: &Self, key: &str) -> bool {
-        let mut joined = self.bindings.get(key).cloned().unwrap_or_else(|| {
-            Self::unmodified_bindings(key, self.baseline.semantics.binding_names())
-        });
-        joined.extend(other.bindings.get(key).cloned().unwrap_or_else(|| {
-            Self::unmodified_bindings(key, self.baseline.semantics.binding_names())
-        }));
+        let mut joined = self
+            .bindings
+            .get(key)
+            .cloned()
+            .unwrap_or_else(|| Self::unmodified_bindings(key, &self.baseline));
+        joined.extend(
+            other
+                .bindings
+                .get(key)
+                .cloned()
+                .unwrap_or_else(|| Self::unmodified_bindings(key, &self.baseline)),
+        );
         self.replace_bindings([(key.to_owned(), joined)])
     }
 
@@ -1512,11 +1542,8 @@ impl ModuleCommandBindings {
         self.replace(key, BTreeSet::from([MayBinding::Missing]));
     }
 
-    fn unmodified_bindings(
-        key: &str,
-        initial_registry_bindings: &BTreeSet<String>,
-    ) -> BTreeSet<MayBinding> {
-        if initial_registry_bindings.contains(key) {
+    fn unmodified_bindings(key: &str, baseline: &BindingBaseline) -> BTreeSet<MayBinding> {
+        if baseline.binds(key) {
             BTreeSet::from([MayBinding::Target(ResolvedCommandTarget {
                 command: key.to_owned(),
                 prepended: Vec::new(),
@@ -1584,12 +1611,18 @@ impl ModuleCommandBindings {
                 .cloned()
                 .collect();
             let joined = keys.into_iter().map(|key| {
-                let mut bindings = self.bindings.get(&key).cloned().unwrap_or_else(|| {
-                    Self::unmodified_bindings(&key, self.baseline.semantics.binding_names())
-                });
-                bindings.extend(other.bindings.get(&key).cloned().unwrap_or_else(|| {
-                    Self::unmodified_bindings(&key, self.baseline.semantics.binding_names())
-                }));
+                let mut bindings = self
+                    .bindings
+                    .get(&key)
+                    .cloned()
+                    .unwrap_or_else(|| Self::unmodified_bindings(&key, &self.baseline));
+                bindings.extend(
+                    other
+                        .bindings
+                        .get(&key)
+                        .cloned()
+                        .unwrap_or_else(|| Self::unmodified_bindings(&key, &self.baseline)),
+                );
                 (key, bindings)
             });
             changed |= self.replace_bindings(joined.collect::<Vec<_>>());
@@ -2573,13 +2606,14 @@ fn observe_exact_procedure_definition(
     // exact definition that state is the registry baseline; seed it explicitly
     // before joining the new procedure target.
     let mut history = bindings.clone();
-    let mut historical = ModuleCommandBindings::unmodified_bindings(
-        &key,
-        history.baseline.semantics.binding_names(),
+    let mut historical = ModuleCommandBindings::unmodified_bindings(&key, &history.baseline);
+    historical.extend(
+        bindings
+            .bindings
+            .get(&key)
+            .cloned()
+            .unwrap_or_else(|| ModuleCommandBindings::unmodified_bindings(&key, &history.baseline)),
     );
-    historical.extend(bindings.bindings.get(&key).cloned().unwrap_or_else(|| {
-        ModuleCommandBindings::unmodified_bindings(&key, history.baseline.semantics.binding_names())
-    }));
     history.replace(key, historical);
     *observed = Some(history);
     true
@@ -3394,7 +3428,7 @@ fn apply_may_binding_transition(
                         .unwrap_or_else(|| {
                             ModuleCommandBindings::unmodified_bindings(
                                 &from_key,
-                                bindings.baseline.semantics.binding_names(),
+                                &bindings.baseline,
                             )
                         }),
                 );

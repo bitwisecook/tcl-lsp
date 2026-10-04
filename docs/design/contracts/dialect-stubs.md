@@ -102,6 +102,77 @@ A stub with no flags states no behaviour, and side-effect classification
 treats it exactly as an undeclared command: an unknown read and write, never
 pure.
 
+### Frame effect
+
+`-frame WORD` states what the command does to the frame that calls it, in the
+registry's own frame-effect vocabulary: the value a catalogue command carries
+on `CommandSpec::frame_effect` (a `tcl_registry::frame_effect::FrameEffectSpec`,
+`None` for a command that crosses no frame).
+`DeclaredFrameEffect::from_stub_flags` reads the flag run and
+`DeclaredFrameEffect::from_stub_word` the word; `StubCommandDef::frame` holds
+the effect, and it lands on `DeclaredCommand::frame_effect`, beside the traits
+and side effects the flags state:
+
+| Word | Frame effect | Meaning |
+|---|---|---|
+| `own` | `None` | the command's code runs in a frame of its own, as a procedure's does |
+| `none` | `None` | the command runs no code that reaches a frame |
+| `caller` | `FrameArgLayout::OpaqueCallerVars` (`DeclaredFrameEffect::CALLER`) | the command reaches variables of the frame that calls it under names nothing states, as `argparse` does |
+
+The last `-frame` written wins. A word the grammar does not know states
+nothing, as an unrecognised flag does; `-frame` sets no `StubFlags` bit.
+
+`own` and `none` state what a catalogue command with no frame effect and no
+variable argument states: the call sets, unsets and reads no variable the
+frame that calls it can name, a global or a namespace variable included. A
+command that reads its caller's variables, or touches a global or namespace
+variable by name (`global`, `upvar #0`, a `::`-qualified name), states
+neither: it leaves `-frame` unstated, or states `caller` when all it does is
+set variables of the frame that calls it, as `argparse` does.
+
+**Unstated is the default, and it widens.** A stub without `-frame`
+(`DeclaredFrameEffect::Unstated`) says nothing of the frame that calls the
+command, so nothing bounds it: like code the module cannot see, the command
+may reach that frame through `upvar 1` or `uplevel 1`. A call to it is a call
+to code the module cannot see: in a procedure every local the
+procedure holds at the call takes a fresh, unknown version, and at the top
+level every global does, so a constant held across the call is not folded
+(`I230`, `O112`), a store the call may read is kept (`W211`, `W220`, `O109`),
+and `[info exists]` after it decides nothing. That is what leaving the frame
+effect unstated costs, and the conservative default it buys: a stub never
+claims a frame effect its author did not state. `W123` on a head in a
+procedure's frame ends with a sentence that says so and names the declaration
+that keeps the locals.
+
+**A plain call is a named head.** A declaration names its command to the flow
+graph when it states its frame effect and states nothing else the flow graph
+would have to read from it (`DeclaredCommand::plain_call_frame_effect`): every
+argument is data — `value`, `name`, `pattern` or `channel` — and no flag but
+`-pure` or `-unsafe` is written. The flow graph reads roles and traits off the
+catalogue, which answers a name it does not hold as a command of plain values
+that does nothing it models, and that answer is the declaration's own only for
+such a stub. The lowering puts these commands on `Module::declared_frame_effects`
+(`DocumentCommandSurface::plain_call_frame_effects`), by normalised qualified
+name, leaving out a name the catalogue holds, which keeps the catalogue's
+answer. The module's command table (`ModuleCommandBindings`) binds them beside
+the registry's names, so `CfgBuilder::head_is_unseen` answers for a call to one
+by its one rule, as for a catalogue command reached by its own spelling, and
+the call brings its stated effect as a catalogue command's call brings
+`CommandSpec::frame_effect`: under `own` or `none` nothing widens, and under
+`caller` the computed-name walk (`dynamic_names`) reads
+`CfgFunction::declared_frame_effects` and raises the barrier it raises for
+`argparse`, for the function and from the statement on.
+
+A declaration with a code or variable word (`body`, `expr`, `command_prefix`,
+`var`, `var_read`) or another flag stays a call to code the module cannot see,
+whatever its `-frame`: the lowering reads its roles, but the flow graph reads
+roles and traits off the catalogue alone, so it would miss the body a
+substitution such as `set n [db_eval $sql {set g 6}]` runs, or the variable a
+computed name writes. A `body` or `command_prefix` word still answers as the
+catalogue's rule answers for one written directly: a script whose timing is
+not known makes the call the barrier `time {…}` lowers to (`unsupported body
+command`), which widens every value, whatever the frame effect.
+
 ### Extension commands
 
 `-extension` is for a command C code registers (`Tcl_CreateObjCommand`), of
@@ -160,7 +231,8 @@ stub expr-op starts_with 2
 `StubCommandDef` / `StubArgDef` / `StubExprDef`
 (`rust/tcl-compiler/src/analyser/types.rs`) are the analyser-side records:
 name, parsed argument list, the span of the declaring comment line, a
-`StubFlags` bitflag set, and the `from_sidecar` marker. They are collected onto
+`StubFlags` bitflag set, the frame effect the `-frame` word states, and the
+`from_sidecar` marker. They are collected onto
 `AnalysisResult` and keep their spans so diagnostics can point at the
 declaration.
 
@@ -304,9 +376,11 @@ draft declared.
 | `rust/tcl-compiler/src/unit_scope.rs` | `CallSiteScanCtx::surface`, `note_surface_var_writes` |
 | `rust/tcl-compiler/src/analyser/state.rs` | `Analyser::command_surface` |
 | `rust/tcl-compiler/src/analyser/types.rs` | `StubCommandDef`, `StubArgDef`, `StubExprDef`, `StubFlags`, `declared_traits`, `declared_side_effects` |
+| `rust/tcl-compiler/src/command_binding.rs` | the module's command table, which binds a declared plain call beside the registry's names |
+| `rust/tcl-compiler/src/dynamic_names.rs` | the computed-name walk, which reads a declared plain call's frame effect |
 | `rust/tcl-compiler/src/side_effects.rs` | `classify_side_effects_in` |
 | `rust/tcl-compiler/src/analyser/bounds_checks.rs` | `loop_shape` |
 | `rust/tcl-lsp-core/src/minify.rs` | `find_rename_barriers` |
-| `rust/tcl-registry/src/model/declaration.rs` | `DeclaredCommand`, `DeclaredArgument`, `DeclaredSurface`, `DocumentCommandSurface`, `role_for_word` |
+| `rust/tcl-registry/src/model/declaration.rs` | `DeclaredCommand`, `DeclaredArgument`, `DeclaredFrameEffect`, `DeclaredSurface`, `DocumentCommandSurface`, `role_for_word` |
 | `rust/tcl-spec-studio/src/render_stub.rs` | stub rendering |
 | `samples/` | example sidecar and inline stub files |

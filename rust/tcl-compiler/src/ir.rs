@@ -1997,7 +1997,29 @@ pub struct Module {
     /// from, and where [`Self::source`] holds their text — see
     /// [`ReferenceBodies`].
     pub reference_bodies: ReferenceBodies,
+    /// The commands the document declares (`# tcl-lsp: stub`) as plain
+    /// calls, which the catalogue does not hold — see
+    /// [`DeclaredFrameEffects`]. Empty for a module lowered without the
+    /// document's declarations.
+    pub declared_frame_effects: DeclaredFrameEffects,
 }
+
+/// The commands a document declares whose declarations state their frame
+/// effect and nothing a reader of the catalogue alone would miss
+/// ([`tcl_registry::model::DeclaredCommand::plain_call_frame_effect`]), by
+/// normalised qualified name, with the effect each states: `None` for one
+/// that crosses no frame (`-frame own`, `-frame none`), `argparse`'s
+/// caller-frame effect for `-frame caller`.
+///
+/// The module's command table holds them as it holds a catalogue command
+/// (`ModuleCommandBindings`), so a call to one is a call to a command the
+/// module can name, and it brings the stated effect where a catalogue
+/// command's call brings the registry's ([`crate::dynamic_names`]). A
+/// declaration that states no frame effect leaves its command out, and a call
+/// to it stays a call to code the module cannot see; a name the catalogue
+/// holds keeps the catalogue's answer, which is what the flow graph reads.
+pub type DeclaredFrameEffects =
+    std::collections::BTreeMap<String, Option<tcl_registry::FrameEffectSpec>>;
 
 /// The reference bodies a module's calls were inlined from.
 ///

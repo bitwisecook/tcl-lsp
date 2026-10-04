@@ -70,9 +70,11 @@ its def-use walk never consults `fu.sccp`; and
 half through `memory_ssa::compute_aliases` when the unit carries no
 `MemorySsa`. There is no separate bytecode-level shortcut to guard.
 
-A head the module can name brings its frame effect from the registry or from
-the summary of a procedure it defines. A call to a head it cannot name — one
-neither the registry ships for the dialect nor the module binds
+A head the module can name brings its frame effect from the registry, from
+the summary of a procedure it defines, or from the stub that declares it as a
+plain call stating its frame effect (`Module::declared_frame_effects`). A call
+to a head it cannot name — one neither the registry ships for the dialect, nor
+the document declares as a plain call, nor the module binds
 (`ModuleCommandBindings::may_dispatch_unresolved`), a binding the source-order
 timeline cannot name, a registry command reached through an alias or a rename
 whose traits say it runs code, a computed head — may write, unset or read any

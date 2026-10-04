@@ -58,6 +58,7 @@ use std::cell::OnceCell;
 use std::collections::HashMap;
 
 use tcl_lexer::LexerConfig;
+use tcl_registry::frame_effect::FrameArgLayout;
 use tcl_registry::{
     ArgRole, CommandRegistry, InvocationWord, InvocationWords, StateTransition, Traits,
     TransitionSubject, VariableAliasTarget,
@@ -484,6 +485,7 @@ impl Scan<'_> {
     /// scripts its words carry.
     fn invocation(&mut self, head: &str, args: &[Arg], depth: u32) {
         self.procedure(head);
+        self.frame_reach(head);
         let spellings = spellings_of(args);
         let inputs: Vec<InvocationWord<'_>> = args.iter().map(Arg::registry_word).collect();
         self.variable_targets(head, args, &spellings, &inputs);
@@ -509,6 +511,26 @@ impl Scan<'_> {
                     None => {}
                 }
             }
+        }
+    }
+
+    /// A command that reaches the frame it runs in under names nothing states
+    /// — `argparse`, or a command the document declares `-frame caller`
+    /// ([`FrameArgLayout::OpaqueCallerVars`]) — writes, run as a callback,
+    /// any name of the global frame. The frame effect is the catalogue's, or
+    /// the one the document's declaration of a plain call states where the
+    /// catalogue holds no command of that name
+    /// ([`Module::declared_frame_effects`]).
+    fn frame_reach(&mut self, head: &str) {
+        let effect = self.registry.frame_effect(head).or_else(|| {
+            self.module
+                .declared_frame_effects
+                .get(&tcl_syntax::naming::normalise_qualified_name(head))
+                .copied()
+                .flatten()
+        });
+        if effect.is_some_and(|effect| effect.layout == FrameArgLayout::OpaqueCallerVars) {
+            self.out.any = true;
         }
     }
 
@@ -756,6 +778,40 @@ mod tests {
         );
         assert!(writes("proc tick {} { set local 1 }\nafter 100 tick").is_clear());
         assert!(writes("proc tick {} { set ::done 1 }\ntick").is_clear());
+    }
+
+    /// A callback command that reaches the frame it runs in under names
+    /// nothing states may write any global: `argparse`, and a command the
+    /// document declares `-frame caller`. One declared `-frame own` or
+    /// `-frame none` is a command of the module's table that writes nothing
+    /// there, and one that states no frame effect is code the module cannot
+    /// see.
+    #[test]
+    fn a_callback_that_reaches_its_frame_by_unstated_names_writes_any_global() {
+        let registry = CommandRegistry::build_default();
+        let declared_writes = |stub: &str| {
+            let source = format!(
+                "# tcl-lsp: stubs-begin\n# tcl-lsp: stub {stub}\n# tcl-lsp: stubs-end\n\
+                 set done 0\nafter 10 {{db_bind {{done}}}}\n"
+            );
+            let declared =
+                crate::analyser::utils::document_declared_surface(&source, None, "tcl8.6");
+            let module = crate::lowering::lower_to_ir_with(
+                crate::lowering::Lowerer::with_config(
+                    &registry,
+                    LexerConfig::for_profile(registry.profile()),
+                )
+                .with_dialect(registry.profile())
+                .with_declared_commands(Some(&declared)),
+                &source,
+            );
+            scan_module(&module, &registry)
+        };
+        assert!(declared_writes("db_bind {spec} -frame caller").any);
+        assert!(declared_writes("db_bind {spec}").any);
+        assert!(declared_writes("db_bind {spec} -frame own").is_clear());
+        assert!(declared_writes("db_bind {spec} -frame none").is_clear());
+        assert!(writes("after 10 {argparse {done}}").any);
     }
 
     /// A callback spelled as a quoted word with no substitution, or as one

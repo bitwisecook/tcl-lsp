@@ -6371,6 +6371,127 @@ fn a_level_zero_return_completes_where_it_stands() {
     }
 }
 
+/// The e5 program with its stub block in place: `db_query` and `db_eval`
+/// declared under each `-frame` word, called in a procedure that holds `g`.
+fn stubbed_e5(frame: &str) -> String {
+    format!(
+        "# tcl-lsp: stubs-begin\n# tcl-lsp: stub db_query {{sql}}{frame}\n\
+         # tcl-lsp: stub db_eval {{sql script:body}}{frame}\n# tcl-lsp: stubs-end\n\
+         proc q {{}} {{\n    set g 5\n    db_query {{select 1}}\n    \
+         if {{$g == 5}} {{puts five}} else {{puts other}}\n}}\n\
+         proc p {{}} {{\n    set g 5\n    db_eval {{select 1}} {{set g 6}}\n    \
+         if {{$g == 5}} {{puts five}} else {{puts other}}\n}}\nq\np\n"
+    )
+}
+
+/// A stub that states its frame effect is a command the module can name
+/// (D255). `-frame own` and `-frame none` state that the call crosses no
+/// frame, so the locals `q` holds at `db_query {select 1}` keep their values
+/// and `$g == 5` is decided; `-frame caller` states `argparse`'s effect, and a
+/// stub that states none may reach the frame that calls it as code the module
+/// cannot see may, so the condition stays open under both. A stub with a body
+/// role answers as the registry's rule answers for one: `db_eval`'s call is
+/// the barrier `time {…}` lowers to, and the condition after it stays open
+/// whatever the frame effect. Each declaration runs under tclsh with a
+/// definition it describes — a procedure that returns, or one that sets its
+/// caller's `g` through `upvar 1` — and prints what the claims allow.
+#[test]
+fn a_stub_that_states_its_frame_effect_is_a_named_head() {
+    let own = "proc db_query {sql} {return 1}\nproc db_eval {sql script} {uplevel 1 $script}\n";
+    let caller = "proc db_query {sql} {upvar 1 g g; set g 6}\nproc db_eval {sql script} {uplevel 1 $script}\n";
+    for (frame, definitions, claims, printed) in [
+        (" -frame own", own, &[true][..], "five\nother\n"),
+        (" -frame none", own, &[true][..], "five\nother\n"),
+        (" -frame caller", caller, &[][..], "other\nother\n"),
+        ("", caller, &[][..], "other\nother\n"),
+    ] {
+        let source = stubbed_e5(frame);
+        for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+            assert_eq!(
+                condition_claims(&source, dialect),
+                claims,
+                "{dialect}{frame}:\n{source}"
+            );
+        }
+        for (series, tclsh) in releases_on_path() {
+            assert_eq!(
+                run_script(&tclsh, &format!("{definitions}{source}")),
+                Some((true, printed.to_owned())),
+                "tclsh{series}{frame}"
+            );
+        }
+    }
+    let registry = static_context_for("tcl8.6").commands();
+    let barrier_of = |source: &str, head: &str| {
+        let declared =
+            tcl_compiler::analyser::utils::document_declared_surface(source, None, "tcl8.6");
+        let module = tcl_compiler::lowering::lower_to_ir_with(
+            tcl_compiler::lowering::Lowerer::with_config(
+                registry,
+                tcl_lexer::LexerConfig::for_profile(registry.profile()),
+            )
+            .with_declared_commands(Some(&declared)),
+            source,
+        );
+        let mut reasons = Vec::new();
+        tcl_compiler::ir::for_each_statement(&module.procedures["::p"].body, &mut |statement| {
+            if let Statement::Barrier {
+                command, reason, ..
+            } = statement
+                && command == head
+            {
+                reasons.push(reason.clone());
+            }
+        });
+        reasons
+    };
+    let timed = barrier_of(
+        "proc p {} {\n    set g 5\n    time {set g 6}\n    puts $g\n}\n",
+        "time",
+    );
+    assert_eq!(timed, ["unsupported body command"]);
+    for frame in ["", " -frame own", " -frame none", " -frame caller"] {
+        assert_eq!(barrier_of(&stubbed_e5(frame), "db_eval"), timed, "{frame}");
+    }
+    // Run as a callback, a command that reaches the frame it runs in writes
+    // the global frame: `$done` stays open after `update` under `-frame
+    // caller`, and with no `-frame`, where tclsh prints 1.
+    let callback = |frame: &str| {
+        format!(
+            "# tcl-lsp: stubs-begin\n# tcl-lsp: stub db_bind {{spec}}{frame}\n\
+             # tcl-lsp: stubs-end\nset done 0\nafter 10 {{db_bind {{done}}}}\nafter 50\n\
+             update\nif {{$done}} {{puts 1}} else {{puts 0}}\n"
+        )
+    };
+    let reaches = "proc db_bind {spec} {upvar 1 done d; set d 1}\n";
+    for (frame, definition, claims, printed) in [
+        (" -frame caller", reaches, &[][..], "1\n"),
+        ("", reaches, &[][..], "1\n"),
+        (
+            " -frame own",
+            "proc db_bind {spec} {return}\n",
+            &[false][..],
+            "0\n",
+        ),
+    ] {
+        let source = callback(frame);
+        for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+            assert_eq!(
+                condition_claims(&source, dialect),
+                claims,
+                "{dialect}{frame}:\n{source}"
+            );
+        }
+        for (series, tclsh) in releases_on_path() {
+            assert_eq!(
+                run_script(&tclsh, &format!("{definition}{source}")),
+                Some((true, printed.to_owned())),
+                "tclsh{series}{frame}"
+            );
+        }
+    }
+}
+
 /// A `try` body that cannot fall through is thrown to from the point it
 /// raises at, and its first command may fail before it stores anything, with
 /// the state the body entered with: after `try {set x [expr {1 / $d}]; error

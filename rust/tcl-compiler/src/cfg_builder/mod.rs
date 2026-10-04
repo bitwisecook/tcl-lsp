@@ -2105,6 +2105,7 @@ impl<'a> CfgBuilder<'a> {
                 .map(|(entry, continuation)| (self.bid(&entry), self.bid(&continuation)))
                 .collect();
         func.caller_frame_barrier = self.caller_frame_barrier;
+        func.declared_frame_effects = self.command_bindings.declared_frame_effects();
         func.alias_observed_vars = std::mem::take(&mut self.alias_observed_vars);
         func
     }
@@ -6068,6 +6069,101 @@ mod tests {
             let module = lower_module(&format!("proc p {{}} {{\n{src}\n}}"));
             let cfg = build_cfg(&module, false);
             assert!(unseen(&cfg.procedures["::p"]), "proc: {src}");
+        }
+    }
+
+    /// A command the document declares as a plain call that states its frame
+    /// effect is one the module can name: under `-frame own` and `-frame none`
+    /// its call, direct or in a substitution, marks nothing, and under
+    /// `-frame caller` it brings `argparse`'s caller-frame effect to the
+    /// computed-name walk. A declaration that states no frame effect, or
+    /// names a word the flow graph would have to follow, stays a call to code
+    /// the module cannot see; one with a body word lowers to the barrier
+    /// `time {…}` lowers to, whatever its frame effect.
+    #[test]
+    fn a_declared_plain_call_brings_the_frame_effect_it_states() {
+        let registry = static_context_for("tcl8.6").commands();
+        let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+        let build = |stub: &str, body: &str| {
+            let src = format!(
+                "# tcl-lsp: stubs-begin\n# tcl-lsp: stub {stub}\n# tcl-lsp: stubs-end\n\
+                 proc p {{}} {{\n    set g 5\n    {body}\n    puts $g\n}}\n"
+            );
+            let declared = crate::analyser::utils::document_declared_surface(&src, None, "tcl8.6");
+            let module = crate::lowering::lower_to_ir_with(
+                crate::lowering::Lowerer::with_config(registry, config)
+                    .with_dialect(registry.profile())
+                    .with_declared_commands(Some(&declared)),
+                &src,
+            );
+            build_cfg_with_registry(&module, false, registry).procedures["::p"].clone()
+        };
+        let unseen = |func: &Function| {
+            calls_in_order(func)
+                .iter()
+                .any(|(command, _)| *command == "<unseen-call>")
+        };
+        let writes = |func: &Function| {
+            crate::dynamic_names::dynamic_name_barrier(func, registry, config).writes
+        };
+        for stub in [
+            "db_query {sql} -frame own",
+            "db_query {sql:pattern} -pure -frame none",
+        ] {
+            for body in ["db_query {select 1}", "set n [db_query {select 1}]"] {
+                let func = build(stub, body);
+                assert!(!unseen(&func), "{stub}: {body}");
+                assert!(!writes(&func), "{stub}: {body}");
+                assert_eq!(
+                    func.declared_frame_effects.get("::db_query"),
+                    Some(&None),
+                    "{stub}"
+                );
+            }
+        }
+        for body in ["db_query {select 1}", "set n [db_query {select 1}]"] {
+            let func = build("db_query {sql} -frame caller", body);
+            assert!(!unseen(&func), "caller: {body}");
+            assert!(writes(&func), "caller: {body}");
+        }
+        for stub in [
+            "db_query {sql}",
+            "db_query {sql} -frame bogus",
+            "db_query {row:var} -frame own",
+            "db_query {sql:expr} -frame own",
+            "db_query {sql} -barrier -frame own",
+            "db_query {sql} -extension -frame own",
+        ] {
+            let func = build(stub, "db_query {select 1}");
+            assert!(unseen(&func), "{stub}");
+            assert!(func.declared_frame_effects.is_empty(), "{stub}");
+        }
+        let barrier_reason = |func: &Function, head: &str| {
+            func.blocks
+                .values()
+                .flat_map(|block| &block.statements)
+                .find_map(|stmt| match stmt {
+                    Statement::Barrier {
+                        command, reason, ..
+                    } if command == head => Some(reason.clone()),
+                    _ => None,
+                })
+        };
+        let registry_body = build("db_query {sql} -frame own", "time {set x 1}");
+        assert!(barrier_reason(&registry_body, "time").is_some());
+        for stub in [
+            "db_eval {sql script:body} -frame own",
+            "db_eval {sql script:body} -frame none",
+            "db_eval {sql script:body}",
+            "db_eval {sql cb:command_prefix} -frame own",
+        ] {
+            let declared_body = build(stub, "db_eval {select 1} {set x 1}");
+            assert_eq!(
+                barrier_reason(&declared_body, "db_eval"),
+                barrier_reason(&registry_body, "time"),
+                "{stub}"
+            );
+            assert!(declared_body.declared_frame_effects.is_empty(), "{stub}");
         }
     }
 

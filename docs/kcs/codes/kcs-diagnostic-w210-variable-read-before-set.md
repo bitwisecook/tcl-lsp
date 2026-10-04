@@ -303,6 +303,31 @@ only, a read with no such call ahead of it at all (`puts $g` on its own), a name
 the file sets on some other path (`if {$argc} {set g 1}` before the call), and,
 in a procedure, a name the call does not spell.
 
+A command a [stub](../kcs-howto-annotate-commands-with-stubs.md) declares is one
+the analyser cannot see until the stub states what the command does to the
+caller's variables. A plain stub — every argument a value, name, pattern or
+channel, no flag but `-pure` or `-unsafe` — with `-frame own` or `-frame none`
+sets nothing in the procedure that calls it, so a read after the call of a name
+nothing has set is flagged; with `-frame caller` it may set any variable of that
+procedure, as `argparse` does, so no read of an unset name in the procedure is
+flagged:
+
+```tcl
+# tcl-lsp: stubs-begin
+# tcl-lsp: stub db_query {sql} -frame own
+# tcl-lsp: stub db_bind {spec} -frame caller
+# tcl-lsp: stubs-end
+
+proc a {} {
+    db_query {select 1}
+    puts $row              ;# flagged — db_query sets nothing here
+}
+proc b {} {
+    db_bind {row count}
+    puts $row              ;# not flagged — db_bind may have set row
+}
+```
+
 ## How to suppress
 
 Add `# noqa: W210` on the line **above** the offending command.
