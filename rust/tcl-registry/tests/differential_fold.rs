@@ -2959,3 +2959,209 @@ fn the_seven_ordered_state_witnesses() {
         eprintln!("no tclsh on PATH: the ordered-state witnesses were not exercised");
     }
 }
+
+/// What one place holds after a witness: an array, a scalar's value, or
+/// nothing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Held {
+    Array,
+    Value(String),
+    Unset,
+}
+
+/// One prefix witness: the command and its words, the places that hold an
+/// array before it, and the first release that has the command.
+type PrefixWitness = (
+    &'static str,
+    &'static [&'static str],
+    &'static [&'static str],
+    &'static str,
+);
+
+/// What the place `name` holds before `command` runs: an array where the
+/// witness says so; for `unset`, 1 in `p`, 2 in `q` and nothing in its
+/// absent name; and `old` everywhere else.
+fn held_before(command: &str, arrays: &[&str], name: &str) -> Held {
+    if arrays.contains(&name) {
+        Held::Array
+    } else if command == "unset" {
+        match name {
+            "p" => Held::Value("1".to_owned()),
+            "q" => Held::Value("2".to_owned()),
+            _ => Held::Unset,
+        }
+    } else {
+        Held::Value("old".to_owned())
+    }
+}
+
+/// `catch {command args…}` under `tclsh` over the places as
+/// [`held_before`] gives them: the message, and what each place holds
+/// afterwards. The command must raise.
+fn prefix_oracle(
+    tclsh: &str,
+    (command, args, arrays): (&str, &[&str], &[&str]),
+    places: &[&str],
+) -> (String, Vec<Held>) {
+    use std::fmt::Write as _;
+    let mut script = String::new();
+    for &name in places {
+        match held_before(command, arrays, name) {
+            Held::Array => writeln!(script, "array set {name} {{k keep}}"),
+            Held::Value(value) => writeln!(script, "set {name} {value}"),
+            Held::Unset => Ok(()),
+        }
+        .expect("a script");
+    }
+    let invocation = tcl_command(command, None, args);
+    writeln!(script, "puts [catch {{{invocation}}} msg]\nputs $msg").expect("a script");
+    for &name in places {
+        writeln!(
+            script,
+            "if {{[array exists {name}]}} {{puts array}} elseif {{[info exists {name}]}} \
+             {{puts \"=[set {name}]\"}} else {{puts unset}}"
+        )
+        .expect("a script");
+    }
+    let (_, out) = run_tcl(tclsh, &script).expect("tclsh runs");
+    let mut lines = out.lines();
+    assert_eq!(lines.next(), Some("1"), "{invocation}: tclsh raises");
+    let message = lines.next().expect("the message").to_owned();
+    let held = lines
+        .map(|line| match line {
+            "array" => Held::Array,
+            "unset" => Held::Unset,
+            value => Held::Value(value.trim_start_matches('=').to_owned()),
+        })
+        .collect();
+    (message, held)
+}
+
+/// The same invocation through the registry's route, each place's kind as
+/// the existence rung would prove it: the message the route proves, if it
+/// proves one, and what each place holds after the stores it says ran.
+fn prefix_route(
+    reg: &CommandRegistry,
+    profile: Option<&'static tcl_dialect::DialectProfile>,
+    (command, args, arrays): (&str, &[&str], &[&str]),
+    places: &[(usize, &str)],
+) -> (Option<String>, Vec<Held>) {
+    use tcl_registry::ArgRole;
+    use tcl_registry::value_transfer::{
+        AnalysisInputs, BindingKind, Budget, CompletionOutcome, EvalAnswer, ExactValue,
+        ExactValueOrUnavailable, Existence, LiteralInputs, OperandId, resolve_semantics,
+    };
+    let semantics = resolve_semantics(reg.get(command).expect(command), None, None);
+    let semantics = semantics.semantics().expect("a registry-owned route");
+    let mut inputs = LiteralInputs::new(command, None, args, profile);
+    for &(index, name) in places {
+        inputs = inputs.with_role(OperandId(index), ArgRole::VarWrite);
+        let existence = match held_before(command, arrays, name) {
+            Held::Array => Existence::Bound(BindingKind::Array),
+            Held::Value(value) => {
+                inputs = inputs.with_prior(name, ExactValue::from_literal(&value));
+                Existence::Bound(BindingKind::Scalar)
+            }
+            Held::Unset => Existence::Unbound,
+        };
+        inputs = inputs.with_existence(name, existence);
+    }
+    let answer = semantics.evaluate(&inputs, &mut Budget::evaluation());
+    let EvalAnswer::Evaluated(outcome) = answer else {
+        panic!("{command}: the route answered {answer:?}");
+    };
+    let CompletionOutcome::Error {
+        written, message, ..
+    } = &outcome.completion
+    else {
+        panic!(
+            "{command}: the route proves no error: {:?}",
+            outcome.completion
+        );
+    };
+    let mut held: Vec<(String, Held)> = places
+        .iter()
+        .map(|&(_, name)| (name.to_owned(), held_before(command, arrays, name)))
+        .collect();
+    for store in &outcome.ordered_stores[..*written] {
+        let name = inputs.place(store.target().0).expect("a place").name;
+        let slot = held
+            .iter_mut()
+            .find(|(place, _)| *place == name)
+            .expect("a witness place");
+        match store {
+            StoreOutcome::Write { value, .. } => {
+                slot.1 = Held::Value(String::from_utf8_lossy(&value.bytes).into_owned());
+            }
+            StoreOutcome::Unbind { .. } => slot.1 = Held::Unset,
+            StoreOutcome::Preserve { .. } => {}
+            other => panic!("{command}: a store the witness does not read: {other:?}"),
+        }
+    }
+    let proved = match message {
+        ExactValueOrUnavailable::Exact(text) => {
+            Some(String::from_utf8_lossy(&text.bytes).into_owned())
+        }
+        ExactValueOrUnavailable::Unavailable(_) => None,
+    };
+    (proved, held.into_iter().map(|(_, held)| held).collect())
+}
+
+/// A command that raises part-way through its stores, run through the
+/// registry's route with each place's kind as the existence rung proves it,
+/// against the real `tclsh` of each release found on `PATH` from the
+/// command's first: what each place holds after `catch {…}` is what the
+/// stores the route says ran leave it, and the message is tclsh's wherever the
+/// route proves one. `lassign` stops at the first place it cannot write (8.5
+/// on), so `lassign {new second} a b` over an array `b` writes `a` alone, and
+/// `lassign {x y z} a b c` leaves `c` as well; `regexp` stops the same way;
+/// `scan` goes on past the array, so with `a` an array `scan {1 2} {%d %d} a
+/// b` still writes `b`; and `unset p nosuch q` unbinds `p`, raises on the
+/// absent name and leaves `q` at 2.
+#[test]
+fn the_prefix_rule_over_the_routes_matches_every_release_on_path() {
+    use tcl_registry::ArgRole;
+    let witnesses: [PrefixWitness; 6] = [
+        ("lassign", &["new second", "a", "b"], &["b"], "8.5"),
+        ("lassign", &["x y z", "a", "b", "c"], &["b"], "8.5"),
+        ("regexp", &["(x)(y)", "xy", "a", "b"], &["b"], "8.4"),
+        ("scan", &["1 2", "%d %d", "a", "b"], &["b"], "8.4"),
+        ("scan", &["1 2", "%d %d", "a", "b"], &["a"], "8.4"),
+        ("unset", &["p", "nosuch", "q"], &[], "8.4"),
+    ];
+    let mut releases = 0usize;
+    for version in tcl_dialect::TclVersion::ALL {
+        let Some(tclsh) = find_tclsh(version.version_string()) else {
+            continue;
+        };
+        releases += 1;
+        let dialect = version.dialect_profile_name();
+        let reg = tcl_registry::model::ingress::static_context_for(dialect).commands();
+        let profile = tcl_dialect::DialectProfile::find(dialect);
+        for (command, args, arrays, first) in witnesses {
+            if version.version_string() < first {
+                continue;
+            }
+            let at = format!(
+                "tclsh{} {}",
+                version.version_string(),
+                tcl_command(command, None, args)
+            );
+            let places: Vec<(usize, &str)> = reg
+                .arg_indices_for_role(command, args, ArgRole::VarWrite)
+                .into_iter()
+                .map(|index| (index, args[index]))
+                .collect();
+            let names: Vec<&str> = places.iter().map(|&(_, name)| name).collect();
+            let (message, oracle) = prefix_oracle(&tclsh, (command, args, arrays), &names);
+            let (proved, held) = prefix_route(reg, profile, (command, args, arrays), &places);
+            if let Some(proved) = proved {
+                assert_eq!(proved, message, "{at}: the message");
+            }
+            assert_eq!(held, oracle, "{at}: what each place holds");
+        }
+    }
+    if releases == 0 {
+        eprintln!("no tclsh on PATH: the prefix witnesses were not exercised");
+    }
+}

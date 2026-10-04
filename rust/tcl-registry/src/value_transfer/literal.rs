@@ -26,20 +26,24 @@ use crate::arg_role::ArgRole;
 use crate::invocation_words::InvocationWordKind;
 
 use super::CommandSemantics;
-use super::answers::{EvalAnswer, ExactValue, ExactValueOrUnavailable};
+use super::answers::{EvalAnswer, ExactValue, ExactValueOrUnavailable, Existence};
 use super::context::{AnalysisContext, BindingIdentity, Budget};
 use super::decline::{AnalysisTier, DeclineReason};
 use super::inputs::{
-    AnalysisInputs, BodyRegion, EvaluationState, FactDomain, FactView, InvocationLayout, OperandId,
-    OperandView, PlaceRef, ResolvedInvocationView, WordPart, WordStructure,
+    AnalysisInputs, BodyRegion, DomainFact, EvaluationState, FactDomain, FactView,
+    InvocationLayout, OperandId, OperandView, PlaceRef, ResolvedInvocationView, WordPart,
+    WordStructure,
 };
 
-/// Inputs over literal words: every operand is exact, no place has a
-/// prior fact, and the context is detached under the given profile.
+/// Inputs over literal words: every operand is exact, a place has only the
+/// prior value and existence the caller gives it, and the context is
+/// detached under the given profile.
 pub struct LiteralInputs<'a> {
     view: ResolvedInvocationView<'a>,
     context: AnalysisContext,
     priors: Vec<(String, ExactValue)>,
+    /// The existence facts the caller gives places, by name.
+    existences: Vec<(String, Existence)>,
     /// The operands' substitution structures, as the caller read them.
     structures: Vec<(OperandId, WordStructure)>,
     /// The operands the caller does not prove a value for.
@@ -77,6 +81,7 @@ impl<'a> LiteralInputs<'a> {
             },
             context: AnalysisContext::detached(profile),
             priors: Vec::new(),
+            existences: Vec::new(),
             structures: Vec::new(),
             unproven: Vec::new(),
         }
@@ -144,6 +149,16 @@ impl<'a> LiteralInputs<'a> {
         self
     }
 
+    /// What the place `name` is before the invocation runs — unbound, or
+    /// bound as a scalar or an array — as the existence rung would prove it,
+    /// for a route whose outcome turns on it: a write to an array raises,
+    /// and so does an unset of an absent name.
+    #[must_use]
+    pub fn with_existence(mut self, name: &str, existence: Existence) -> Self {
+        self.existences.push((name.to_owned(), existence));
+        self
+    }
+
     /// The role the resolver gives operand `id` — the registry's
     /// `arg_indices_for_role` answer for the same words — so a
     /// specialisation that finds its places by role can run here.
@@ -191,6 +206,13 @@ impl AnalysisInputs for LiteralInputs<'_> {
     }
 
     fn prior_store(&self, place: &PlaceRef, domain: FactDomain) -> FactView {
+        if domain == FactDomain::Existence
+            && !place.is_element()
+            && let Some((_, existence)) =
+                self.existences.iter().find(|(name, _)| *name == place.name)
+        {
+            return FactView::Domain(DomainFact::Existence(*existence));
+        }
         if domain != FactDomain::ExactValue {
             return FactView::Top(DeclineReason::Unavailable(AnalysisTier::Structure));
         }

@@ -5296,7 +5296,7 @@ struct PrefixProgram {
     flattened: &'static [PrefixFact],
 }
 
-const PREFIX_PROGRAMS: [PrefixProgram; 9] = [
+const PREFIX_PROGRAMS: [PrefixProgram; 10] = [
     PrefixProgram {
         name: "lassign stops at the array",
         before: "set a old\narray set b {k keep}",
@@ -5335,6 +5335,15 @@ const PREFIX_PROGRAMS: [PrefixProgram; 9] = [
         printed: "1\n",
         first: "8.4",
         flattened: &[PrefixFact::Number("a", 1)],
+    },
+    PrefixProgram {
+        name: "scan goes on past the array",
+        before: "array set a {k keep}\nset b old",
+        body: "scan {1 2} {%d %d} a b",
+        after: "puts \"$a(k) $b\"",
+        printed: "keep 2\n",
+        first: "8.4",
+        flattened: &[PrefixFact::Number("b", 2)],
     },
     PrefixProgram {
         name: "regexp stops at the array",

@@ -1081,6 +1081,158 @@ fn opt_prints_what_tclsh_prints_for_the_seven_ordered_state_programs() {
     }
 }
 
+/// The absent-cell table's `unset` line through `tcl explore --show sccp`:
+/// `unset p nosuch q` unbinds `p`, raises on the absent name and leaves `q`,
+/// so the route answers an error after one store, and that store is the
+/// unbinding of `p`.
+#[test]
+fn explore_sccp_prints_what_an_unset_stores_before_its_error() {
+    let text = run_tcl(&[
+        "explore",
+        "--source",
+        "proc p {} {set p 1; set q 2; unset p nosuch q}",
+        "--show",
+        "sccp",
+        "--text",
+        "--no-colour",
+    ]);
+    assert!(
+        text.contains("route unset: direct variable-unset (registry)"),
+        "{text}"
+    );
+    assert!(
+        text.contains("· answer: evaluated: error after 1 store"),
+        "{text}"
+    );
+    assert!(
+        text.contains("· path error after 1 store: unbind p"),
+        "{text}"
+    );
+}
+
+/// The ordered-state witness whose expression raises after a write, in a
+/// procedure, where the `catch` is lowered into blocks: `tcl explore --show
+/// sccp` proves `x` 2 on the error path — the expression's route answers an
+/// error after one store, the write of 2 — and so `x` after the `catch`.
+#[test]
+fn explore_sccp_prints_x_exact_on_the_error_path() {
+    let text = run_tcl(&[
+        "explore",
+        "--source",
+        "proc p {} {set x 1; catch {expr {[incr x] + [error mid]}} msg; return $x}",
+        "--show",
+        "sccp",
+        "--text",
+        "--no-colour",
+    ]);
+    assert!(text.contains("route expr: expression tcl.expr"), "{text}");
+    assert!(
+        text.contains("· answer: evaluated: error after 1 store"),
+        "{text}"
+    );
+    assert!(
+        text.contains("· path error after 1 store: write x = 2"),
+        "{text}"
+    );
+    assert!(text.contains("x#3 = const(2)"), "{text}");
+    assert!(text.contains("msg#1 = const('mid')"), "{text}");
+}
+
+/// The programs of the design page's prefix rule through the shipped binary,
+/// each in a procedure: a command that raises part-way leaves the stores
+/// before its failure and nothing after — save `scan`, which goes on past
+/// the array — and `tcl opt` keeps what each program prints under every
+/// release from the first that has its command.
+#[test]
+fn opt_prints_what_tclsh_prints_for_the_prefix_programs() {
+    let programs: [(&str, &str, &str, &str, &str); 10] = [
+        (
+            "set a old\n    array set b {k keep}",
+            "lassign {new second} a b",
+            "puts \"$a $b(k)\"",
+            "new keep\n",
+            "8.5",
+        ),
+        (
+            "array set b {k keep}\n    set a old\n    set c old",
+            "lassign {x y z} a b c",
+            "puts \"$a $c\"",
+            "x old\n",
+            "8.5",
+        ),
+        (
+            "array set b {k keep}\n    set a old",
+            "foreach {a b} {new second} {set inside 1}",
+            "puts \"$a [info exists inside]\"",
+            "new 0\n",
+            "8.4",
+        ),
+        (
+            "array set b {k keep}\n    set a old",
+            "scan {1 2} {%d %d} a b",
+            "puts $a",
+            "1\n",
+            "8.4",
+        ),
+        (
+            "array set a {k keep}\n    set b old",
+            "scan {1 2} {%d %d} a b",
+            "puts \"$a(k) $b\"",
+            "keep 2\n",
+            "8.4",
+        ),
+        (
+            "array set b {k keep}\n    set a old",
+            "regexp {(x)(y)} xy a b",
+            "puts $a",
+            "xy\n",
+            "8.4",
+        ),
+        (
+            "set p 1\n    set q 2",
+            "unset p nosuch q",
+            "puts \"[info exists p] $q\"",
+            "0 2\n",
+            "8.4",
+        ),
+        (
+            "set x 1",
+            "append x 2 [error boom]",
+            "puts $x",
+            "1\n",
+            "8.4",
+        ),
+        (
+            "set w 0",
+            "set r [expr {1 + [error mid]}]",
+            "puts [info exists r]",
+            "0\n",
+            "8.4",
+        ),
+        (
+            "set x 1",
+            "expr {[incr x] + [error mid]}",
+            "puts $x",
+            "2\n",
+            "8.4",
+        ),
+    ];
+    for (before, body, after, printed, first) in programs {
+        let source =
+            format!("proc p {{}} {{\n    {before}\n    catch {{{body}}} m\n    {after}\n}}\np\n");
+        for (series, tclsh) in tclshs_from(first) {
+            let optimised = opt_under(&source, series);
+            for program in [source.as_str(), optimised.as_str()] {
+                assert_eq!(
+                    run_tclsh(&tclsh, program),
+                    Some((true, printed.to_owned())),
+                    "tclsh{series}:\n{program}"
+                );
+            }
+        }
+    }
+}
+
 /// #2141's programs through the shipped binary: a write nested in a braced
 /// `expr` word is a write of the frame, so `tcl opt` forwards nothing past it
 /// to the `puts $x` that follows a `puts` argument — `5` then `2` where it
