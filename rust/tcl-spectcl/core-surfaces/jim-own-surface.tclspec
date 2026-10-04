@@ -863,7 +863,8 @@ speclib jim-own-surface 2.0 {
 
         definition_body {
             family JimClass
-            member method -roles {0 Name 1 ParamList 2 Body}
+            member method -roles {0 Name 1 ParamList 2 Body} \
+                -effect {callable -receiver instance -role method}
             implicit_vars {self}
             dynamic_method_dispatch
             manufacturer new -constructor-args-from 1
