@@ -19,7 +19,7 @@ element's base and a loop word's escapes, the lane's own, and #2381, a body
 word written bare or quoted that the W241 scans did not read. Its review
 asked for rework, done in its own commits (§ *Slice 12* › *Record
 (2026-10-05): review fixes for slice 12*, D285 onward): what writes a loop's
-counter is the unit's answer.
+counter is the unit's answer, and a loop states only what it defines.
 
 ## Goal
 
@@ -8814,6 +8814,7 @@ in the paragraph headed *Taken in the review fixes of slice 12*.
 | Item | Commit | What landed | Its tests |
 |---|---|---|---|
 | B1, with N2 | ``wip(value-transfers): slice 12 — what writes a loop's counter is the unit's answer`` | **The counter's writes are the unit's answer (D285).** The per-function pass reads what may write a variable over a loop's passes from the unit that holds the loop (`loop_writes` over `loop_blocks`: every block reachable from the block its passes start from without passing the block it leaves to, over the exception edges): each statement of those blocks whose SSA definitions name it — a cell update, a write a `[…]` word makes, a binder, a destructuring target, an opaque statement's or an arm marker's may-definition, a procedure's write its call states — and, as unseen, an unseen-call marker there, a write to a computed name in the function, and a callback script or variable trace of the module that names it (`ModuleUnseenWrites`, from `Module::deferred_writes` and `traced_variables`). W241's counter needs the plan's step as the one definition and nothing unseen; W242 needs neither (`LoopTerminationCandidate::settle`, replacing `seed`). The text scans — `command_writes`, `script_writes`, `body_writes_var`, `loop_modifies_var`, `writes_first_arg` — are gone, and so is the walk's literal start (`literal_start`): a `for`'s start is the solver's integer at the block its passes start from, as every loop's is, which fixes the same miss on a `for` with a literal start that predates the slice. A loop no unit holds keeps its constant-condition verdicts alone. IRULE5003 reads the catalogue's registry for an analyse with none (N2), as the loop checks do. | `whatever_writes_the_counter_keeps_w241_silent` (`value_transfer_witnesses.rs`, new): a `[…]` write (24), a binder (100), an `uplevel` procedure (100), the `upvar` helper (100), a call to a procedure a sourced file defines, at the top level and in a procedure (100, 100), and a `for` with a literal start and a write in a `[…]` word (18) — no W241 under the five dialects, each printing the same under tclsh 8.4 to 9.1 before and after `tcl opt`; `w240_seeds_from_the_iteration_plan` keeps its four W241 rows and seven silent shapes and gains three silent ones (a `[…]` write, a binder, an undefined call), on both walks; `the_step_runs_its_route` replaces the start-and-step test; `body_scans_are_command_structural` keeps the exit scan's rows |
+| S1, with N6 | ``wip(value-transfers): slice 12 — a loop states only what it defines, and a contradiction drops its own state alone`` | **A loop states only what it defines (D286).** `enumerate_loops` (`sccp.rs`) states the value a loop leaves in a place only at a version the loop defines where it leaves: one other than the version live where its passes start (`start`'s exit versions), which is a φ in the block it leaves to or a definition in the loop's blocks, since `start` dominates the loop. A name the loop rebinds that is dead after it has no φ there, so the version live there was the one from before the loop; the state stated of it contradicted the settled run, and D270's rule dropped every loop's state in the unit. **A contradiction drops its own loop (D286).** `contradicted_exits` names the blocks the contradicted loops leave to (`Solved::Contradicted`), and `drive` — the solver's rounds, out of `sccp_with_builtin_folds` — drops those loops' records and refinements and runs again with the rest; each such run drops at least one loop. **A binder's store takes the store rule (N6).** The `foreach` binder writes through `Enumerator::store` (`static_loops.rs`), the rule `apply` takes for an invocation's stores — a scalar place no other actor may write (`store_kind`) whose kind the state proves (`write`) — so `foreach a(k) {1 2} {}` declines as `set a(k) …` does, where the binder had written the element. | `a_name_dead_after_its_loop_keeps_every_loops_state` (`value_transfer_witnesses.rs`, new): the review's two programs — the `foreach` that rebinds `tmp`, and the `found`/`last` idiom in a procedure — the `while` form, and the first followed by an unrelated `for`: each branch decides true under the five dialects (the last's two, over two enumerated loops), and each program prints `yes` (and `three`) under tclsh 8.4 to 9.1 before and after `tcl opt`; `a_contradiction_drops_only_its_own_loop` (`sccp.rs`, new: rounds over a solver that contradicts the first of two loops' states: the run is made again with the second loop's refinements alone, and the result records that loop alone); `an_enumeration_runs_only_over_places_it_proves` gains the element binder (no loop enumerated; tclsh 8.4 to 9.1 print `two`) |
 
 B1's behaviour, measured over the review's 79 loop probes under `--dialect
 tcl8.6` with W242 enabled: the nineteen B1 rows — `[…]` writes in a `set`,
@@ -8854,6 +8855,30 @@ passed with the crate whole on the next run; `tcl-cmd-core` 143;
 `tcl-registry` 1428. Mutations, each reverted: a counter taken as stepped
 alone with any number of definitions (`definitions >= 1`), and the unseen
 writes ignored, each fail `whatever_writes_the_counter_keeps_w241_silent`.
+
+Over the same 1120 corpus files, `tcl diag` and `tcl opt --profile full`
+print under S1's binary what they print under the landing's (5bf6eb1b) for
+every file: the corpus holds no branch after an enumerated loop whose
+decision the dropped states had kept back, and no decision rests on a
+`foreach` whose binder names an element.
+
+Green for S1: `make rust-check` passed whole, its 83 steps, and
+`dialect-drift` reports its 8 sites, none new; the suites one crate at a
+time, each pruned after — `tcl-compiler` 10184 passed, 6 ignored (the two
+new tests among them); `tcl-explorer` 112; `tcl-lsp-db` 139, 5 ignored;
+`tcl-lsp-core --lib` 2353; `tcl-cli` 206; `xtask` 275; `tcl-spectcl` 476,
+1 ignored; `tcl-cmd-core` 143; `tcl-registry` 1428. `value-transfers
+--check` and `registry-axes --check` need no regeneration. Mutations, each
+reverted: the loop's state stated at the version live where its passes
+start fails `a_name_dead_after_its_loop_keeps_every_loops_state` (the
+`foreach` that rebinds `tmp` decides nothing); a contradiction dropping
+every loop's state fails `a_contradiction_drops_only_its_own_loop`; the
+binder written without the store rule fails
+`an_enumeration_runs_only_over_places_it_proves` (the element binder is
+enumerated). Stated only where the loop defines the version, the review's
+programs reach no contradiction — each decides — so the drop of the
+contradicted loops alone is witnessed by the unit test, over a solver that
+contradicts one loop of two.
 
 ### Slice 7a — seedless return summaries
 
@@ -12128,6 +12153,7 @@ Taken in slice 12, bounded-loop enumeration (§ *Slice 12* › *Record (2026-10-
 Taken in the review fixes of slice 12 (§ *Slice 12* › *Record (2026-10-05): review fixes for slice 12*):
 
 - **D285 — What may write a loop's counter is the unit's answer, read alike by W241 and W242** (B1 of the slice 12 review, at the coordinator's ruling; amending D282). D282 kept the walk's text scan for "nothing else writes the counter" and its literal start; a text scan sees a command that names the variable in its first word or a `VarWrite` role, and none of the writes the compiler already states — the nested writes slice 9 records, binders and destructuring targets, opaque statements' may-definitions, a procedure's write through `uplevel` or `upvar` — nor a call to code the module cannot see, which W123 already reports as widening the variables held at it. The per-function pass reads them from the unit that holds the loop, over the blocks its passes may run, and a definition beyond the plan's step, or anything unseen, declines W241's counter; W242 reads the same fact and declines on any of it, so its claim that nothing modifies the variable is never made where a call the module cannot see may. The start is the solver's alone, so a loop no unit holds has no counter verdict and no W242.
+- **D286 — A loop's state is stated only at a version the loop defines, and a contradiction drops only the contradicted loops' states** (S1 of the slice 12 review, with N6, at the coordinator's ruling; amending D270). The exit state keyed each place the run held by the version live where the loop leaves, which for a name the loop rebinds and that is dead after it is the version from before the loop, since no φ is placed for a dead name: the state described a value the version never holds, the settled run contradicted it, and D270's rule dropped every loop's state in the unit, the unrelated loops' with it. A place is stated only where the version live where the loop leaves is not the one live where its passes start, and a contradiction drops the states of the loops it contradicts, the run made again with the others'. A `foreach` binder's store takes the store rule every store takes (N6), so a binder that names an element declines.
 
 ### Open questions for the owner
 

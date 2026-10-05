@@ -827,15 +827,21 @@ pub fn sccp_with_builtin_folds(
         trace,
         folds,
     };
-    // A loop the first run proves the start state of is run to its exit, and
-    // the run is made again with the state it leaves stated on the edges it
-    // leaves by: the values only descend. The second run enumerates nothing.
-    // Where its settled values contradict a state a loop left, the loops'
-    // states are dropped and the run made once more without them.
+    drive(|round| solve(&inputs, round))
+}
+
+/// The solver's rounds over `solve`, one run of the solver each. A loop the
+/// first run proves the start state of is run to its exit, and the run is
+/// made again with the state it leaves stated on the edges it leaves by: the
+/// values only descend. The second run enumerates nothing. Where its settled
+/// values contradict the state some loops left, those loops' states are
+/// dropped and the run made again without them; every other loop's state
+/// stands. Each such run drops at least one loop, so the rounds end.
+fn drive(mut solve: impl FnMut(&Round) -> Solved) -> SccpResult {
     let mut round = Round::First;
     let mut loops = Vec::new();
     loop {
-        match solve(&inputs, &round) {
+        match solve(&round) {
             Solved::Settled(result) => {
                 return SccpResult {
                     loop_enumerations: loops,
@@ -846,9 +852,11 @@ pub fn sccp_with_builtin_folds(
                 loops = enumerated;
                 round = Round::Published(exits);
             }
-            Solved::Contradicted => {
-                loops = Vec::new();
-                round = Round::Published(Vec::new());
+            Solved::Contradicted(ends) => {
+                loops.retain(|record| !ends.contains(&record.exit_block));
+                if let Round::Published(exits) = &mut round {
+                    exits.retain(|refinement| !ends.contains(&refinement.edge.1));
+                }
             }
         }
     }
@@ -881,8 +889,9 @@ enum Solved {
     /// The first run enumerated loops whose exits publish state: the loops
     /// and the refinements their exits state, for the second run.
     Enumerated(Vec<EnumeratedLoop>, Vec<EdgeRefinement>),
-    /// The second run's settled values contradict a state a loop left.
-    Contradicted,
+    /// The second run's settled values contradict the state the loops that
+    /// leave to these blocks left.
+    Contradicted(HashSet<BlockId>),
 }
 
 /// One run of the solver ([`sccp_with_builtin_folds`]).
@@ -971,10 +980,11 @@ fn solve(inputs: &SolveInputs<'_>, round: &Round) -> Solved {
         refined,
     } = state;
     let refinements_at = refined.map(RefinementFlow::settled).unwrap_or_default();
-    if matches!(round, Round::Published(_))
-        && exit_state_contradicted(&refinements, &refinements_at, &values)
-    {
-        return Solved::Contradicted;
+    if matches!(round, Round::Published(_)) {
+        let ends = contradicted_exits(&refinements, &refinements_at, &values);
+        if !ends.is_empty() {
+            return Solved::Contradicted(ends);
+        }
     }
     if matches!(round, Round::First) {
         let (loops, exits) = enumerate_loops(
@@ -2097,8 +2107,12 @@ fn external_places<'a>(
 /// Run each loop whose start state the settled run proves to its exit
 /// ([`crate::static_loops::enumerate_loop`]), and state what it leaves as an
 /// exact-value refinement on every executable edge into the block it leaves
-/// to, for the version of each place it wrote that is live there: the loops
-/// run, and the refinements their exits publish. A loop that leaves with a
+/// to, for the version of each place it wrote that is live there and that
+/// the loop defines — a φ there, or a definition in its blocks — never the
+/// version live where it starts: the loops run, and the refinements their
+/// exits publish. A name the loop writes that is dead after it has no φ
+/// where it leaves, so the version live there is the one from before the
+/// loop, which its state does not describe. A loop that leaves with a
 /// completion its plan does not absorb publishes nothing, since what it
 /// leaves holds on that path alone, and one that declines is not run.
 fn enumerate_loops(
@@ -2143,6 +2157,10 @@ fn enumerate_loops(
         if run.completion == tcl_registry::value_transfer::CompletionOutcome::Normal
             && let Some(entry) = ssa.blocks.get(&end).map(|block| &block.entry_versions)
         {
+            let before = ssa
+                .blocks
+                .get(&node.start)
+                .map(|block| &block.exit_versions);
             for (name, slot) in &run.state {
                 let crate::static_loops::Slot::Value(value) = slot else {
                     continue;
@@ -2153,6 +2171,13 @@ fn enumerate_loops(
                 let Some(&version) = entry.get(&symbol) else {
                     continue;
                 };
+                let live_before = before
+                    .and_then(|versions| versions.get(&symbol))
+                    .copied()
+                    .unwrap_or(0);
+                if version == live_before {
+                    continue;
+                }
                 for &pred in preds.get(&end).into_iter().flatten() {
                     if edges.contains(&(pred, end)) {
                         published.push(EdgeRefinement {
@@ -2525,25 +2550,28 @@ fn refined_values(
     out
 }
 
-/// Whether the settled value of a version some loop's exit state narrows, at
-/// a block where that state is in force, is one the state rules out: the
-/// enumeration and the lattice disagree about what the loop leaves, and
-/// neither is read.
-fn exit_state_contradicted(
+/// The blocks the loops whose exit state the settled values contradict leave
+/// to: a version a loop's state narrows, at a block where that state is in
+/// force, settled on a value the state rules out. The enumeration and the
+/// lattice disagree about what that loop leaves, and neither is read; every
+/// other loop's state stands.
+fn contradicted_exits(
     refinements: &[EdgeRefinement],
     refinements_at: &HashMap<BlockId, Vec<usize>>,
     values: &HashMap<ValueKey, LatticeValue>,
-) -> bool {
+) -> HashSet<BlockId> {
     refinements_at
         .values()
         .flatten()
         .filter_map(|&index| refinements.get(index))
         .filter(|refinement| refinement.loop_exit && refinement.domain == FactDomain::ExactValue)
-        .any(|refinement| {
+        .filter(|refinement| {
             let own = held_value(values, refinement.key);
             own != LatticeValue::Unknown
-                && refined_value(&own, [refinement]) == LatticeValue::Unknown
+                && refined_value(&own, [*refinement]) == LatticeValue::Unknown
         })
+        .map(|refinement| refinement.edge.1)
+        .collect()
 }
 
 /// What a version holding `own` holds where every value-domain refinement of
@@ -8252,5 +8280,68 @@ p
         );
         let f = cu.function("::top").expect("top level analysed");
         assert_eq!(last_value(f, "::x"), LatticeValue::Overdefined);
+    }
+
+    /// A contradiction drops the state of the loop whose state the settled
+    /// run contradicts and keeps every other loop's: the run is made again
+    /// with the other loop's refinements alone, and the result records that
+    /// loop alone. Two loops leave to blocks 3 and 7; the second run
+    /// contradicts the first's state.
+    #[test]
+    fn a_contradiction_drops_only_its_own_loop() {
+        let record = |end: u32| EnumeratedLoop {
+            exit_block: BlockId(end),
+            span: Span::new(0, 0),
+            iterations: 1,
+            exit: tcl_registry::value_transfer::ExitRule::Exhaustion,
+            published: Vec::new(),
+        };
+        let refinement = |end: u32| EdgeRefinement {
+            edge: (BlockId(end - 1), BlockId(end)),
+            key: (Symbol(0), 1),
+            domain: FactDomain::ExactValue,
+            fact: FactView::Exact(ExactValue::int(1), None),
+            evidence: DependencyEvidence::default(),
+            loop_exit: true,
+        };
+        let mut rounds = Vec::new();
+        let result = drive(|round| {
+            let published = match round {
+                Round::First => None,
+                Round::Published(exits) => Some(
+                    exits
+                        .iter()
+                        .map(|refinement| refinement.edge.1)
+                        .collect::<Vec<_>>(),
+                ),
+            };
+            rounds.push(published.clone());
+            match published {
+                None => Solved::Enumerated(
+                    vec![record(3), record(7)],
+                    vec![refinement(3), refinement(7)],
+                ),
+                Some(ends) if ends.contains(&BlockId(3)) => {
+                    Solved::Contradicted(HashSet::from([BlockId(3)]))
+                }
+                Some(_) => Solved::Settled(Box::default()),
+            }
+        });
+        assert_eq!(
+            rounds,
+            [
+                None,
+                Some(vec![BlockId(3), BlockId(7)]),
+                Some(vec![BlockId(7)])
+            ]
+        );
+        assert_eq!(
+            result
+                .loop_enumerations
+                .iter()
+                .map(|record| record.exit_block)
+                .collect::<Vec<_>>(),
+            [BlockId(7)]
+        );
     }
 }

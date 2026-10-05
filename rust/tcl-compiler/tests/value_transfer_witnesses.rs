@@ -7585,8 +7585,10 @@ fn the_iteration_cap_publishes_nothing() {
 /// `${a(k)}` and `set a(k) …` raise on a scalar `a`, so a `catch` body that
 /// does any of them leaves its counter where the error left it. Had the run
 /// bound the array as a scalar, or read and written `a(k)` as `a`, `$n == 0`
-/// would decide false and `i` would leave the `catch` at 3. tclsh 8.4 to 9.1
-/// print `zero` and `0` twice, before and after `tcl opt`.
+/// would decide false and `i` would leave the `catch` at 3. A binder takes
+/// the same rule as every other store, so `foreach a(k) {1 2} {}` is not
+/// run, as `set a(k) …` is not. tclsh 8.4 to 9.1 print `zero`, `0` twice and
+/// `two`, before and after `tcl opt`.
 #[test]
 fn an_enumeration_runs_only_over_places_it_proves() {
     let array_binder = "proc p {} {\n    array set b {k keep}\n    set n 0\n    \
@@ -7600,7 +7602,20 @@ fn an_enumeration_runs_only_over_places_it_proves() {
         )
     };
     let elements = [element("set x ${a(k)}"), element("set a(k) $i")];
+    let element_binder = "proc p {} {\n    set a(k) 0\n    foreach a(k) {1 2} {}\n    \
+                          if {$a(k) == 2} {puts two} else {puts other}\n}\np\n";
     for dialect in DIALECTS {
+        let binder_unit = unit_of(element_binder, dialect);
+        assert!(
+            binder_unit
+                .procedures
+                .get("::p")
+                .expect("the procedure")
+                .sccp
+                .loop_enumerations
+                .is_empty(),
+            "{dialect}"
+        );
         let unit = unit_of(array_binder, dialect);
         let function = unit.procedures.get("::p").expect("the procedure");
         assert!(
@@ -7626,6 +7641,60 @@ fn an_enumeration_runs_only_over_places_it_proves() {
     for source in &elements {
         prints_under_every_release(source, "0\n");
     }
+    prints_under_every_release(element_binder, "two\n");
+}
+
+/// A name a loop rebinds that is dead after it — a temporary set before the
+/// loop and in its body, read nowhere after — has no φ where the loop leaves,
+/// so the version live there is the one from before the loop, which the
+/// loop's state does not describe, and the solver states nothing of it. It
+/// had stated the loop's last value of the name for that version, which the
+/// settled run contradicted, and the contradiction dropped every loop's state
+/// in the unit: the loop's own counter, and a later loop's that has nothing
+/// to do with the name. A contradiction now drops only the loop whose state
+/// it contradicts. The branch after each loop decides, for I230 as for `tcl
+/// opt`. tclsh 8.4 to 9.1 print `yes`, `yes` and `three`, `yes`, and `yes`,
+/// before and after `tcl opt`.
+#[test]
+fn a_name_dead_after_its_loop_keeps_every_loops_state() {
+    let top = "set tmp 1\nset n 0\nforeach x {1 2} { set tmp $x; incr n }\n\
+               if {$n == 2} {puts yes} else {puts no}\n";
+    let later = format!(
+        "{top}for {{set i 0}} {{$i < 3}} {{incr i}} {{}}\n\
+         if {{$i == 3}} {{puts three}} else {{puts other}}\n"
+    );
+    let dead_while = "set tmp 1\nset n 0\nwhile {$n < 2} { set tmp $n; incr n }\n\
+                      if {$n == 2} {puts yes} else {puts no}\n";
+    let idiom = "proc p {} {\n    set found 0\n    set last \"\"\n    \
+                 foreach x {a b c} { set last $x; if {$x eq \"b\"} { set found 1 } }\n    \
+                 if {$found} { return yes }\n    return no\n}\nputs [p]\n";
+    for dialect in DIALECTS {
+        for (source, claims) in [
+            (top, vec![true]),
+            (later.as_str(), vec![true, true]),
+            (dead_while, vec![true]),
+            (idiom, vec![true]),
+        ] {
+            assert_eq!(
+                condition_claims(source, dialect),
+                claims,
+                "{dialect}\n{source}"
+            );
+        }
+        assert_eq!(
+            unit_of(&later, dialect)
+                .top_level
+                .sccp
+                .loop_enumerations
+                .len(),
+            2,
+            "{dialect}"
+        );
+    }
+    prints_under_every_release(top, "yes\n");
+    prints_under_every_release(&later, "yes\nthree\n");
+    prints_under_every_release(dead_while, "yes\n");
+    prints_under_every_release(idiom, "yes\n");
 }
 
 /// The state a `foreach` or a `while` leaves decides the branch after it,

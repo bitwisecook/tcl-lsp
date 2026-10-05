@@ -33,7 +33,7 @@ use tcl_registry::CommandRegistry;
 use tcl_registry::hooks::LoweringHookId;
 use tcl_registry::value_transfer::{
     Budget, BudgetLimit, CompletionOutcome, DeclineReason, ExactValue, ExitRule, IterationPlan,
-    LoopStep, NumericValue, PlaceKind, RepresentationEvidence, StoreOutcome,
+    LoopStep, NumericValue, PlaceKind, PlaceRef, RepresentationEvidence, StoreOutcome,
 };
 
 use crate::expr_ast::ExprNode;
@@ -461,7 +461,11 @@ impl Enumerator<'_> {
                             let element = elements
                                 .get(pass * vars.len() + at)
                                 .map_or("", String::as_str);
-                            this.write(state, var, Slot::Value(ExactValue::from_literal(element)))?;
+                            this.store(
+                                state,
+                                &crate::value_transfer::place_named(var),
+                                Slot::Value(ExactValue::from_literal(element)),
+                            )?;
                         }
                     }
                     pass += 1;
@@ -831,9 +835,7 @@ impl Enumerator<'_> {
             _ => step.stores.len(),
         };
         for (place, store) in step.stores.into_iter().take(ran) {
-            if !matches!(place.kind, PlaceKind::Scalar) || (self.external)(&place.name) {
-                return Err(DeclineReason::EscapingPlace);
-            }
+            self.store_kind(&place)?;
             match store {
                 StoreOutcome::Write { value, .. } => {
                     self.write(state, &place.name, Slot::Value(value))?;
@@ -844,6 +846,30 @@ impl Enumerator<'_> {
             }
         }
         Ok(step.completion)
+    }
+
+    /// Hold `slot` for `place` as a `foreach` binder binds it, under the rule
+    /// an invocation's stores take ([`Self::apply`]): a scalar place no other
+    /// actor may write ([`Self::store_kind`]) whose kind the state proves
+    /// ([`Self::write`]). A binder that names an element (`a(k)`) declines,
+    /// as `set a(k) …` does.
+    fn store(
+        &mut self,
+        state: &mut LoopState,
+        place: &PlaceRef,
+        slot: Slot,
+    ) -> Result<(), DeclineReason> {
+        self.store_kind(place)?;
+        self.write(state, &place.name, slot)
+    }
+
+    /// The rule every store the run makes takes, an invocation's and a
+    /// binder's alike: the place is a scalar no other actor may write.
+    fn store_kind(&self, place: &PlaceRef) -> Result<(), DeclineReason> {
+        if !matches!(place.kind, PlaceKind::Scalar) || (self.external)(&place.name) {
+            return Err(DeclineReason::EscapingPlace);
+        }
+        Ok(())
     }
 
     /// The head the typed statement of `hook` resolves through, asked of the

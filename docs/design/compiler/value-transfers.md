@@ -1056,8 +1056,9 @@ pub enum Slot {
   or no binding, where the existence rung proves it so. A read of a place it
   holds no value of declines the enumeration, and so does a store to a place
   it does not hold, which may be an array a scalar store raises on, and a
-  store to an element or to a place another actor may write — an escaping,
-  linked or traced place, or any once a computed name may write one. So does
+  store — an invocation's or a `foreach` binder's alike — to an element or to
+  a place another actor may write — an escaping, linked or traced place, or
+  any once a computed name may write one. So does
   a word that substitutes a command and any statement no route evaluates
   exactly. A loop that declines publishes nothing, and the widened lattice
   stands.
@@ -1075,7 +1076,15 @@ pub enum Slot {
   the version live in the block the loop leaves to, as an exact-value
   `EdgeRefinement` on every executable edge into that block — the false edge
   of its test and each `break` edge; the second run solves with those among
-  the other refinements, and the values only descend. A block every one of
+  the other refinements, and the values only descend. A place is stated only
+  where that version is one the loop defines — a φ in the block it leaves
+  to, or a definition in its blocks — and not the version live where its
+  passes start: a name the loop rebinds that is dead after it has no φ where
+  it leaves, and the version live there is the one from before the loop,
+  which its state does not describe. Where the second run's settled value of
+  a version is one a loop's state rules out, the enumeration and the lattice
+  disagree about that loop: its state is dropped and the run made again with
+  the other loops' states. A block every one of
   those edges enters holds them, one fact stated on several edges being one
   fact, so a branch after the loop decides, for I230 as for O101, while
   inside the loop the header φs widen as before: a body statement sees

@@ -6096,7 +6096,7 @@ fn held_before<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
 }
 
 /// A place for a normalised name.
-fn place_named(name: &str) -> PlaceRef {
+pub(crate) fn place_named(name: &str) -> PlaceRef {
     let kind = crate::naming::split_element_ref(name).map_or(PlaceKind::Scalar, |(base, key)| {
         PlaceKind::Element {
             base: base.to_owned(),
