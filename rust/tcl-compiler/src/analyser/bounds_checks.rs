@@ -742,7 +742,7 @@ fn body_writes_var(
     registry: Option<&tcl_registry::CommandRegistry>,
     lexer_config: tcl_lexer::LexerConfig,
 ) -> bool {
-    any_command_recursive(body, lexer_config, &mut |cmd| {
+    any_command_recursive(body, registry, lexer_config, &mut |cmd| {
         writes_first_arg(cmd.name(), registry)
             && cmd.args().first().map(String::as_str) == Some(var)
     })
@@ -758,23 +758,36 @@ fn writes_first_arg(name: &str, registry: Option<&tcl_registry::CommandRegistry>
         .writes_first_arg_variable(name.trim_start_matches(':'))
 }
 
-/// Walk every command in `script`, recursing into braced / quoted word
-/// arguments (which may be nested scripts), and return `true` as soon as
-/// `pred` matches.  A shallow-but-structural body scan.
+/// Walk every command in `script`, descending into each word that may be a
+/// nested script, and return `true` as soon as `pred` matches.  A
+/// shallow-but-structural body scan.
+///
+/// A word is descended into when it is braced, or when the registry gives
+/// it a `Body` role however it is written: `if {$i < 0} break` runs the bare
+/// word `break` as a script, which is the one command it names, and `if {$i
+/// < 0} "break"` runs the quoted one, so both leave a loop as `if {$i < 0}
+/// {break}` does (#2381). The catalogue's registry answers the roles for an
+/// analyse with none.
 fn any_command_recursive(
     script: &str,
+    registry: Option<&tcl_registry::CommandRegistry>,
     lexer_config: tcl_lexer::LexerConfig,
     pred: &mut impl FnMut(&SegmentedCommand) -> bool,
 ) -> bool {
+    let registry = registry
+        .unwrap_or_else(|| tcl_registry::model::ingress::static_context_for("tcl8.6").commands());
     for cmd in segment_commands_with_offset_and_config(script, 0, lexer_config) {
         if pred(&cmd) {
             return true;
         }
         let args = cmd.args();
+        let words: Vec<&str> = args.iter().map(String::as_str).collect();
+        let head = cmd.name().strip_prefix("::").unwrap_or(cmd.name());
+        let bodies = registry.arg_indices_for_role(head, &words, tcl_registry::ArgRole::Body);
         for (i, tok) in cmd.arg_tokens().iter().enumerate() {
-            if tok.kind == TokenType::Str
+            if (tok.kind == TokenType::Str || bodies.contains(&i))
                 && let Some(inner) = args.get(i)
-                && any_command_recursive(inner, lexer_config, pred)
+                && any_command_recursive(inner, Some(registry), lexer_config, pred)
             {
                 return true;
             }
@@ -1477,15 +1490,17 @@ fn condition_constant(cond: &str) -> Option<bool> {
 /// the loop (`break` / `tailcall` / a `TERMINATES_BLOCK` command such as
 /// `return` / `error` / `exit` / `throw`) — see [`is_loop_exit_command`].
 ///
-/// Resolved via the segmenter (recursing into nested bodies) so only a
-/// command in *command position* counts — a `break` appearing as a bare
-/// argument no longer triggers a false exit.
+/// Resolved via the segmenter (recursing into nested bodies,
+/// [`any_command_recursive`]) so only a command in *command position* counts
+/// — a `break` appearing as a bare argument of a command that does not run
+/// it as a script triggers no false exit, and one an `if` runs as its bare
+/// body is an exit.
 fn body_may_exit(
     body: &str,
     registry: Option<&tcl_registry::CommandRegistry>,
     lexer_config: tcl_lexer::LexerConfig,
 ) -> bool {
-    any_command_recursive(body, lexer_config, &mut |cmd| {
+    any_command_recursive(body, registry, lexer_config, &mut |cmd| {
         is_loop_exit_command(cmd.name(), registry)
     })
 }
@@ -1524,9 +1539,12 @@ mod tests {
         let config = tcl_lexer::LexerConfig::for_dialect("f5-irules");
         let one = sole_command("cmd {a}{b}", config).expect("one command");
         assert_eq!(one.args().len(), 2, "iRules words: {:?}", one.texts);
-        assert!(any_command_recursive("cmd {a}{b}", config, &mut |cmd| {
-            cmd.args().len() == 2
-        }));
+        assert!(any_command_recursive(
+            "cmd {a}{b}",
+            None,
+            config,
+            &mut |cmd| { cmd.args().len() == 2 }
+        ));
 
         let source = "set xs {a b}\nlset xs 9 v\n";
         let before = u32::try_from(source.find("lset").expect("lset")).expect("offset");
@@ -1938,6 +1956,35 @@ mod tests {
         // `break`/`tailcall` are recognised even without a registry handle.
         assert!(super::body_may_exit("break", None, config()));
         assert!(super::body_may_exit("tailcall foo", None, config()));
+        // A word the registry names a body is a script however it is
+        // written: `if` runs a bare or a quoted body as `{…}`, so the exit
+        // and the write inside one count (#2381). The same word as another
+        // command's data is no script.
+        assert!(super::body_may_exit("if {$c} break", Some(reg), config()));
+        assert!(super::body_may_exit(
+            "if {$c} \"break\"",
+            Some(reg),
+            config()
+        ));
+        assert!(super::body_may_exit(
+            "if {$c} {puts x} else return",
+            Some(reg),
+            config()
+        ));
+        assert!(super::body_may_exit("if {$c} break", None, config()));
+        assert!(!super::body_may_exit("puts break", Some(reg), config()));
+        assert!(super::body_writes_var(
+            "if {$c} \"set i 20\"",
+            "i",
+            None,
+            config()
+        ));
+        assert!(!super::body_writes_var(
+            "puts \"set i 20\"",
+            "i",
+            None,
+            config()
+        ));
     }
 
     fn idx_codes_for(src: &str, dialect: &str) -> Vec<String> {

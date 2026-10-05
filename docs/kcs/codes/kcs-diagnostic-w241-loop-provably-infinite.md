@@ -29,7 +29,8 @@ terminate. It reports **`W241`** in these cases:
   step never changes (`for {set i 0} {$i < 10} {} {...}`) — and which no path
   leaves. An exit the analyser can find, in the flow graph or in the text of
   the body (a `break` inside a `catch` body, say), keeps the loop from being
-  reported.
+  reported, however the word that holds it is written: `if {$i < 0} break`
+  and `if {$i < 0} "break"` leave the loop as `if {$i < 0} {break}` does.
 - A `for {set v INT} {$v OP INT} {incr v INT}` where the
   counter cannot reach the bound:
   - `incr v 0` — the counter never changes.
@@ -39,8 +40,8 @@ terminate. It reports **`W241`** in these cases:
     direction or magnitude never lands exactly on `N`).
 
 If the body assigns the counter itself (`set v ...`, nested
-`incr v`, `lset`, ...) the analyser backs off — it cannot
-reason about arbitrary rewrites.
+`incr v`, `lset`, ..., in a braced, quoted or bare body word alike) the
+analyser backs off — it cannot reason about arbitrary rewrites.
 
 The proof is about the value the condition's variable holds, so a write the
 analyser cannot place leaves the loop undecided and draws no `W241`: a

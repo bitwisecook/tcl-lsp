@@ -10,12 +10,14 @@ commit (§ *Slice 10* › *Record (2026-10-04): review fixes for slices 9 and
 slice 11 landed*), and its review fixes are in, each its own commit
 (§ *Slice 11* › *Record (2026-10-05): review fixes for slice 11*). Slice 12,
 bounded-loop enumeration, is at its second checkpoint (§ *Slice 12* ›
-*Record (2026-10-05): slice 12*, read with D268 to D279): the enumeration and
+*Record (2026-10-05): slice 12*, read with D268 to D280): the enumeration and
 the loop plans, with the post-loop branches deciding for I230 as for O101;
 the lane's own defect found there, a may-written element's base, fixed in its
-own commit; and the simulator become the enumeration, whose exit state the
-ranges and the O103 re-run read. The landing — W240–W242 and the iRules loop
-bound reading the plan, the slice's witnesses and the pages — is next.
+own commit; the simulator become the enumeration, whose exit state the
+ranges and the O103 re-run read; and #2381, a body word written bare or
+quoted that the W241 scans did not read, fixed in its own commit ahead of the
+landing, which would have widened it. The landing — W240–W242 and the iRules
+loop bound reading the plan, the slice's witnesses and the pages — is next.
 
 ## Goal
 
@@ -8523,6 +8525,51 @@ before the runs: `refine_interval` passing over the loop's exit point fails
 reading the version's own value in place of `value_at` fails
 `the_argument_sensitive_rerun_runs_the_callees_loop`.
 
+##### Ahead of the landing: a body word written bare or quoted (#2381)
+
+`wip(value-transfers): slice 12 — a bare or quoted body word leaves the
+loop`, straight after the second checkpoint at the coordinator's ruling
+(D280). Found while seeding the landing's counter: the W241 exit scan
+(`body_may_exit`) and the counter's write scan (`body_writes_var`) read a
+loop's body through `any_command_recursive`, which descended into braced words
+alone, so a script written as a bare or a quoted word — `if {$i < 0} break`,
+`if {$i < -5} "set i 20"` — was neither an exit nor a write. `for {set i 5}
+{$i < 10} {incr i -1} {if {$i < 0} break}; puts $i` drew W241 ("counter $i
+starts at 5, moves by -1 per step, and compares < 10 (never reached)") where
+tclsh 8.4 to 9.1 print -1, and the landing's counter, which a `while` body's
+one increment gives too, would have drawn it on `set i 5; while {$i < 10} {if
+{$i < 0} break; incr i -1}`. The walk now descends into every word the
+registry gives a `Body` role however it is written, as well as into every
+braced word as before; a bare word is the one command it names, and the
+catalogue's registry answers the roles for an analyse with none. W242 reads a
+write in such a word as the loop modifying its counter, as it reads a braced
+one.
+
+Tests: `a_bare_or_quoted_body_word_leaves_the_loop` (`value_transfer_witnesses.rs`,
+new: #2381's `for`, the `while`, a quoted `break` and a quoted write of the
+counter, no W241 under the five dialects, each printing what tclsh 8.4 to 9.1
+print before and after `tcl opt` — -1, -1, -6 and 19; with the walk's `Body`
+descent removed it fails on the first); `body_scans_are_command_structural`
+gains the bare and quoted forms, with `puts break` still data. The W241 KCS
+note says a body word's quoting does not hide an exit or a write.
+
+Measured: `tcl diag`, run by the fix's binary over the second checkpoint's
+1120 files, prints what the checkpoint's prints for every file — no W241 the
+corpus draws is one the fix removes; `fumagic/filetypes.tcl` runs past the
+300 s limit under both, as a debug build.
+
+Green at the fix: `tcl-compiler` 10175 passed, 6 ignored (the library 6730,
+`value_transfer_witnesses` 140, the new witness), `tcl-registry` 1428,
+`tcl-explorer` 112, `tcl-lsp-db` 139, 5 ignored, `tcl-lsp-core --lib` 2353,
+`tcl-cli` 205, `xtask` 275, `tcl-spectcl` 476, 1 ignored (under a private
+`XDG_CACHE_HOME`), and `tcl-cmd-core` 143; workspace clippy, no `#[allow]`
+added, `cargo fmt --check` and `cargo check --workspace --all-targets` clean;
+`value-transfers --check` (the inventory regenerated, its waived sites in
+`bounds_checks.rs` moved down the file) and `registry-axes --check`
+unchanged, `pack-goldens`, `retired-api-gate`, `owner-resolution` and
+`kcs-index-links` pass, and `dialect-drift` stays at its 8 sites. The
+mutation was reverted before the runs.
+
 ### Slice 7a — seedless return summaries
 
 #### Goal and exit
@@ -11787,6 +11834,7 @@ Taken in slice 12, bounded-loop enumeration (§ *Slice 12* › *Record (2026-10-
 - **D277 — The analyser's static conditions read a variable's text through the engine's literal rule** (VT12.3, with `parse_literal_value` gone). `handlers.rs` built its expression environment with the simulator's ingress; it now hands the engine each text as a string binding, which `parse_literal` reads as Tcl reads an operand, so a canonical integer is the integer and a boolean word 1 or 0 as before, and an unpadded `true` in arithmetic no longer evaluates where Tcl raises.
 - **D278 — The ranges take a loop's exact exit integer as its point, without a proof of an integer** (VT12.4; D265 keeps its rule for the range refinements). D265 narrows by a range refinement only a version proved an integer, since a comparison holds of a double or a string too; a loop's exit state is the version's exact value, and a canonical integer's text is an integer, so it bounds the version by itself. It is taken only where it lies within the version's own interval, so a contradiction keeps the widened one.
 - **D279 — O103's return fold reads the value at the return's block** (VT12.4). The re-run's lattice holds the loop's state as a refinement, not as a version's value, so `resolve_return_constant` reads `value_at` for a `$var` return and for the variables of a returned `expr`; a refinement in force at a return is a proof there, a branch's as much as a loop's, and every executable return must still agree.
+- **D280 — The body scans descend into every script word the registry names, however it is written** (the coordinator's ruling on #2381, found while seeding slice 12's counter). W241's exit scan and the counter's write scan read a loop's body through one walk, which took a braced word for a nested script and nothing else, where Tcl runs an `if`'s bare or quoted body as it runs a braced one. The walk descends into a word the registry gives a `Body` role whatever its quoting, and into every braced word as before, so both scans find more exits and more writes, each of which keeps W241 silent. It is the lane's fix rather than an issue left open because the landing extends the counter to a `while` loop's increment and would otherwise widen a false report to a new loop shape.
 
 ### Open questions for the owner
 

@@ -7712,6 +7712,44 @@ fn a_may_written_element_reads_the_store_to_its_array() {
     prints_under_every_release(never_set_switch, "1\n0\n");
 }
 
+/// A loop's body leaves the loop, or writes its counter, through a script
+/// word however it is written: `if` runs a bare or a quoted body as it runs a
+/// braced one, so `if {$i < 0} break` is an exit and `if {$i < -5} "set i
+/// 20"` a write of the counter, and none of these loops is provably infinite
+/// (#2381) — the first was W241, "counter $i starts at 5, moves by -1 per
+/// step, and compares < 10 (never reached)". tclsh 8.4 to 9.1 print `-1`,
+/// `-1`, `-6` and `19`, before and after `tcl opt`.
+#[test]
+fn a_bare_or_quoted_body_word_leaves_the_loop() {
+    let programs = [
+        (
+            "for {set i 5} {$i < 10} {incr i -1} {if {$i < 0} break}\nputs $i\n",
+            "-1\n",
+        ),
+        (
+            "set i 5\nwhile {$i < 10} {if {$i < 0} break; incr i -1}\nputs $i\n",
+            "-1\n",
+        ),
+        (
+            "for {set i 0} {$i < 10} {incr i -1} {if {$i < -5} \"break\"}\nputs $i\n",
+            "-6\n",
+        ),
+        (
+            "for {set i 0} {$i < 10} {incr i -1} {if {$i < -5} \"set i 20\"}\nputs $i\n",
+            "19\n",
+        ),
+    ];
+    for (source, printed) in programs {
+        for dialect in DIALECTS {
+            assert!(
+                !reports(source, dialect, DiagCode::W241),
+                "{dialect}\n{source}"
+            );
+        }
+        prints_under_every_release(source, printed);
+    }
+}
+
 /// A loop condition's math function is the one the module binds: with `abs`
 /// rebound by `proc ::tcl::mathfunc::abs`, `$i < abs(-3)` runs the loop to
 /// 99 under 8.5 to 9.1, so the enumeration declines — the shared lattice
