@@ -392,16 +392,18 @@ impl Analyser {
     /// with its body off the plan's words
     /// ([`crate::value_transfer::resolved_iteration_plan`]); the body
     /// decrements the variable when a cell update the registry declares an
-    /// integer increment of it adds a negative amount.
+    /// integer increment of it adds a negative amount. An analyse with no
+    /// registry reads the catalogue's, as the loop checks do.
     fn emit_irule5003_loop_bound_inequality(
         &mut self,
         cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
     ) {
-        let Some(registry) = self.registry.as_deref() else {
-            return;
-        };
+        let registry = self
+            .registry
+            .as_deref()
+            .unwrap_or_else(super::bounds_checks::default_registry);
         let head = cmd_name.strip_prefix("::").unwrap_or(cmd_name);
         let Some(plan) = crate::value_transfer::resolved_iteration_plan(registry, head, args)
         else {

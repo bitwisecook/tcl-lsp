@@ -16,7 +16,10 @@ deciding for I230 as for O101; the simulator become the enumeration, whose
 exit state the ranges and the O103 re-run read; W240–W242 and the iRules loop
 bound reading the plan; and three fixes, each its own commit — a may-written
 element's base and a loop word's escapes, the lane's own, and #2381, a body
-word written bare or quoted that the W241 scans did not read.
+word written bare or quoted that the W241 scans did not read. Its review
+asked for rework, done in its own commits (§ *Slice 12* › *Record
+(2026-10-05): review fixes for slice 12*, D285 onward): what writes a loop's
+counter is the unit's answer.
 
 ## Goal
 
@@ -8785,6 +8788,53 @@ positive amount for a decrement fails `irule5003_fires_for_ne_zero_decrement_loo
 `irule5003_fires_for_zero_ne_braced_form` and
 `irule5003_reads_the_plan_and_the_cell_update`.
 
+#### Record (2026-10-05): review fixes for slice 12
+
+The review of slice 12 on the landed tree (`5bf6eb1b`) found one blocking
+defect and three to fix before the slice is complete; its hand-written
+programs, its generated sweep and its 79 loop probes found no wrong decision
+of the enumeration's under any release. B1: W241's counter took a text walk's
+word for "nothing but the step writes the counter", and the walk missed a
+write a `[…]` word makes, a binder, a procedure's `uplevel` or `upvar` write
+and a call to code the module cannot see, so the landing's `while` and
+solver-seeded `for` drew W241 where tclsh ends the loop. S1: a name a loop
+rebinds that is dead after it has no φ at the loop's exit, so its exit fact
+named the version before the loop, contradicted the settled run and dropped
+every loop's state in the unit. S2 and S3 are note edits; N1, N4, N5 and N7
+go with them, N2 with B1 and N6 with S1; N3 is pre-existing wording. The
+review's P1 to P7 are the coordinator's issues: #2383 (O112 drops a folded
+`if` body's closing brace), #2384 (W240 on a rotated `for` that runs once,
+from `header_fact` reading the latch's test), #2385 (a `foreach` with a
+`::`-qualified binder), #2323 (nested control in a substituted `catch` body),
+#2386 (a nested call site seeds the callee with a braced spelling), #2373 (the
+auto-detected dialect) and #2387 (W230 on a `lindex` in a quoted word). Each
+fix is its own commit; the decisions are D285 onward in § *Decisions taken*,
+in the paragraph headed *Taken in the review fixes of slice 12*.
+
+| Item | Commit | What landed | Its tests |
+|---|---|---|---|
+| B1, with N2 | ``wip(value-transfers): slice 12 — what writes a loop's counter is the unit's answer`` | **The counter's writes are the unit's answer (D285).** The per-function pass reads what may write a variable over a loop's passes from the unit that holds the loop (`loop_writes` over `loop_blocks`: every block reachable from the block its passes start from without passing the block it leaves to, over the exception edges): each statement of those blocks whose SSA definitions name it — a cell update, a write a `[…]` word makes, a binder, a destructuring target, an opaque statement's or an arm marker's may-definition, a procedure's write its call states — and, as unseen, an unseen-call marker there, a write to a computed name in the function, and a callback script or variable trace of the module that names it (`ModuleUnseenWrites`, from `Module::deferred_writes` and `traced_variables`). W241's counter needs the plan's step as the one definition and nothing unseen; W242 needs neither (`LoopTerminationCandidate::settle`, replacing `seed`). The text scans — `command_writes`, `script_writes`, `body_writes_var`, `loop_modifies_var`, `writes_first_arg` — are gone, and so is the walk's literal start (`literal_start`): a `for`'s start is the solver's integer at the block its passes start from, as every loop's is, which fixes the same miss on a `for` with a literal start that predates the slice. A loop no unit holds keeps its constant-condition verdicts alone. IRULE5003 reads the catalogue's registry for an analyse with none (N2), as the loop checks do. | `whatever_writes_the_counter_keeps_w241_silent` (`value_transfer_witnesses.rs`, new): a `[…]` write (24), a binder (100), an `uplevel` procedure (100), the `upvar` helper (100), a call to a procedure a sourced file defines, at the top level and in a procedure (100, 100), and a `for` with a literal start and a write in a `[…]` word (18) — no W241 under the five dialects, each printing the same under tclsh 8.4 to 9.1 before and after `tcl opt`; `w240_seeds_from_the_iteration_plan` keeps its four W241 rows and seven silent shapes and gains three silent ones (a `[…]` write, a binder, an undefined call), on both walks; `the_step_runs_its_route` replaces the start-and-step test; `body_scans_are_command_structural` keeps the exit scan's rows |
+
+B1's behaviour, measured over the review's 79 loop probes under `--dialect
+tcl8.6` with W242 enabled: the nineteen B1 rows — `[…]` writes in a `set`,
+`puts`, `list`, `expr`, `if` condition, `regexp` target and quoted or bare
+word; `foreach`, `lmap` and `dict for` binders; an `uplevel` procedure at the
+top level and in a procedure; the `upvar` helper and its `for` form; the
+undefined calls — draw nothing, and so does an element write of the counter
+(`set i(k) 1`, which raises); the truly infinite loops keep W241 (`proc q {}
+{puts hi}`, `vwait forever` in an arm never taken, the three `for` loops with
+an empty, `puts` or `set j` body); the rotated `for` loops the latch decides
+keep the W240 of #2384, which this commit does not touch; and `set ::i 100`
+at the top level (#2305) and `upvar 0 i j; set j 100` (#2306) keep W241, the
+SSA not reading either as a write of `i`. W242 is drawn where nothing in the
+loop may write the condition's variable, so a loop that calls code the module
+cannot see — the W242 note's `process_event` — draws none, where the text
+scan drew it.
+
+MEASURED_B1
+
+GREEN_B1
+
 ### Slice 7a — seedless return summaries
 
 #### Goal and exit
@@ -12054,6 +12104,10 @@ Taken in slice 12, bounded-loop enumeration (§ *Slice 12* › *Record (2026-10-
 - **D282 — W241's counter is the plan's, and its start is read where it can be** (VT12.5). The plan has W240–W242 seed from "the iteration plan's bound and step"; the counted plan names a step script and the conditional plan none, so a `while` body's one top-level increment is its step — what "`set i $start; while {$i < 10} {incr i}` is checked" needs — and each step is the registry's integer cell update, its amount what the route stores run from 0. The bound stays the literal the condition compares with. The walk that queues the loop has no lattice, so the start is read twice: the walk proves a loop infinite from a `for`'s start script that is the registry's write of a value word, and the per-function pass reads the integer the solver proves at the block the loop's passes start from, for a loop the unit holds, reaches and does not decide (`LoopTerminationCandidate::seed`). A loop no unit holds — inside a body the flow graph does not lower — keeps the walk's reading. The counter's write scan reads a `VarWrite` role beside a first-argument writer, so `lassign {20} i` in the body is a write.
 - **D283 — A substituted word runs over the enumeration's state** (VT12.6, for the correlated pairs). The page writes the mirror programs with `incr x [expr {$b / $a}]`, whose amount the enumeration could not read: `StateInputs` read a substituting word only when it was one whole variable. It now reads such a word by its parts, as the lattice's own inputs do — a variable from the state, a `[…]` script as the one command it names, run by its declared route (a registry-owned evaluator, or the expression engine once a pack's option row lets it) under the effect-free policy — and the expression engine's `nested` service runs a script the same way. A script that stores, or does not complete normally, declines the loop, so no nested write is taken out of its order.
 - **D284 — IRULE5003 reads its loop and its decrement through the registry** (VT12.5). The loop is the one whose iteration plan is a bare condition, its condition and body the plan's words; a decrement is a command at any depth of the body that is the registry's integer cell update of the variable adding a negative amount, so the text `incr count -1` as a `log` argument is no decrement, where the substring scan took it for one.
+
+Taken in the review fixes of slice 12 (§ *Slice 12* › *Record (2026-10-05): review fixes for slice 12*):
+
+- **D285 — What may write a loop's counter is the unit's answer, read alike by W241 and W242** (B1 of the slice 12 review, at the coordinator's ruling; amending D282). D282 kept the walk's text scan for "nothing else writes the counter" and its literal start; a text scan sees a command that names the variable in its first word or a `VarWrite` role, and none of the writes the compiler already states — the nested writes slice 9 records, binders and destructuring targets, opaque statements' may-definitions, a procedure's write through `uplevel` or `upvar` — nor a call to code the module cannot see, which W123 already reports as widening the variables held at it. The per-function pass reads them from the unit that holds the loop, over the blocks its passes may run, and a definition beyond the plan's step, or anything unseen, declines W241's counter; W242 reads the same fact and declines on any of it, so its claim that nothing modifies the variable is never made where a call the module cannot see may. The start is the solver's alone, so a loop no unit holds has no counter verdict and no W242.
 
 ### Open questions for the owner
 

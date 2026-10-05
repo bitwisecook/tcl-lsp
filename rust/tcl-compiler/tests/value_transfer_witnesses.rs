@@ -7750,6 +7750,70 @@ fn a_bare_or_quoted_body_word_leaves_the_loop() {
     }
 }
 
+/// W241's counter path reads what may write the counter from the unit that
+/// holds the loop: every statement of the loop's blocks that defines it, and
+/// every call there to code the module cannot see. A write a `[…]` word
+/// makes, a binder, a procedure's `uplevel` and the `upvar` helper idiom each
+/// define the counter, and a call to a procedure another file defines — here
+/// one the program sources — is one the module cannot see, at the top level
+/// and in a procedure; each `while` was W241, "while loop is provably
+/// infinite: counter $i starts at 5, moves by -1 per step, and compares < 10
+/// (never reached)", and so was the `for` with a literal start, before the
+/// slice. tclsh 8.4 to 9.1 print each program's number, before and after
+/// `tcl opt`.
+#[test]
+fn whatever_writes_the_counter_keeps_w241_silent() {
+    let helper = std::env::temp_dir().join(format!(
+        "value-transfer-witness-helper-{}.tcl",
+        std::process::id()
+    ));
+    std::fs::write(&helper, "proc foo {name} {upvar 1 $name v; set v 100}\n")
+        .expect("the helper file");
+    let source_helper = format!("source {{{}}}\n", helper.display());
+    let sourced = [
+        format!("{source_helper}set i 5\nwhile {{$i < 10}} {{incr i -1; foo i}}\nputs $i\n"),
+        format!(
+            "{source_helper}proc s {{}} {{\n    set i 5\n    \
+             while {{$i < 10}} {{incr i -1; foo i}}\n    return $i\n}}\nputs [s]\n"
+        ),
+    ];
+    let mut programs: Vec<(&str, &str)> = vec![
+        (
+            "set i 5\nwhile {$i < 10} {incr i -1; set j [incr i 20]}\nputs $i\n",
+            "24\n",
+        ),
+        (
+            "set i 5\nwhile {$i < 10} {incr i -1; foreach i {100} {}}\nputs $i\n",
+            "100\n",
+        ),
+        (
+            "proc q {} {uplevel 1 {set i 100}}\nset i 5\n\
+             while {$i < 10} {incr i -1; q}\nputs $i\n",
+            "100\n",
+        ),
+        (
+            "proc foo {name} {upvar 1 $name v; set v 100}\nset i 5\n\
+             while {$i < 10} {incr i -1; foo i}\nputs $i\n",
+            "100\n",
+        ),
+        (
+            "for {set i 5} {$i < 10} {incr i -1} {if {$i < 0} {set j [incr i 20]}}\nputs $i\n",
+            "18\n",
+        ),
+    ];
+    programs.extend(sourced.iter().map(|source| (source.as_str(), "100\n")));
+    for (source, printed) in programs {
+        for dialect in DIALECTS {
+            assert!(
+                !reports(source, dialect, DiagCode::W241),
+                "{dialect}\n{source}"
+            );
+        }
+        prints_under_every_release(source, printed);
+    }
+    let _ = std::fs::remove_file(&helper);
+}
+
 /// A loop statement's literal word is its value as Tcl substitutes it: a bare
 /// or quoted word's escapes are decoded, so `lappend r a\x41` appends `aA`,
 /// `append r \x41` appends `A`, and an `incr` by `\x31` adds 1. The

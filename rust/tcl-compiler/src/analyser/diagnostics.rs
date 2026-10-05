@@ -434,6 +434,7 @@ impl Analyser {
     ) {
         self.settle_cu_derived_object_facts(cu, registry);
         self.settle_w123_widening(cu);
+        self.loop_unseen_writes = super::bounds_checks::ModuleUnseenWrites::of(&cu.ir_module);
 
         // **W128.** Flag calls to commands renamed or
         // deleted earlier in the file via the flow-sensitive

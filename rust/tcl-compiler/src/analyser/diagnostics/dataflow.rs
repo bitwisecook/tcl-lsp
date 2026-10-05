@@ -67,27 +67,89 @@ fn header_fact(
     })
 }
 
-/// The integer `var` holds where the loop whose condition word spans `span`
-/// in `fu` starts its passes — the end of a `for`'s start script, the block
-/// before any other loop ([`crate::cfg::LoopNode::start`]) — when the unit's
-/// solver proves it there, on a path that reaches the loop.
-fn loop_start_integer(
+/// The loop `fu` holds whose condition word spans `span`, with the block it
+/// leaves to.
+fn held_loop(
     fu: &crate::compilation_unit::FunctionUnit,
     span: tcl_lexer::Span,
-    var: &str,
-) -> Option<i64> {
-    use crate::analyses::{ConstValue, LatticeValue};
+) -> Option<(crate::cfg::BlockId, &crate::cfg::LoopNode)> {
     use crate::ir::Statement;
-    let node = fu
-        .cfg
+    fu.cfg
         .loop_nodes
-        .values()
-        .find(|node| match &node.statement {
+        .iter()
+        .find(|(_, node)| match &node.statement {
             Statement::For { condition_span, .. } | Statement::While { condition_span, .. } => {
                 fu.abs_span(*condition_span) == span
             }
             _ => false,
-        })?;
+        })
+        .map(|(&end, node)| (end, node))
+}
+
+/// The blocks a loop's passes may run: every block reachable from the block
+/// its passes start from ([`crate::cfg::LoopNode::start`]) without passing
+/// the block it leaves to, over the exception edges too — so a handler a pass
+/// may reach, and what follows it, is counted, which only adds to what may
+/// write.
+fn loop_blocks(
+    fu: &crate::compilation_unit::FunctionUnit,
+    start: crate::cfg::BlockId,
+    end: crate::cfg::BlockId,
+) -> HashSet<crate::cfg::BlockId> {
+    let mut seen = HashSet::new();
+    let mut pending = fu.cfg.block_successors(start);
+    while let Some(block) = pending.pop() {
+        if block != end && seen.insert(block) {
+            pending.extend(fu.cfg.block_successors(block));
+        }
+    }
+    seen
+}
+
+/// What may write `var` over a loop's passes, its `blocks`
+/// ([`crate::analyser::bounds_checks::LoopWrites`]): each statement of the
+/// blocks whose SSA definitions name it — a cell update, a write a
+/// substitution makes, a binder, a destructuring target, an opaque
+/// statement's or an arm marker's may-definition, a procedure's write the
+/// call states — and, as unseen, a call to code the module cannot see in the
+/// blocks ([`crate::ssa::is_unseen_call_marker`]), a write to a computed
+/// name in the function ([`crate::dynamic_names::DynamicNameBarrier`]), and
+/// a callback script or variable trace of the module that names it.
+fn loop_writes(
+    fu: &crate::compilation_unit::FunctionUnit,
+    blocks: &HashSet<crate::cfg::BlockId>,
+    var: &str,
+    module: &crate::analyser::bounds_checks::ModuleUnseenWrites,
+) -> crate::analyser::bounds_checks::LoopWrites {
+    let symbol = fu.ssa.var_symbol(var);
+    let statements = blocks
+        .iter()
+        .filter_map(|block| fu.ssa.blocks.get(block))
+        .flat_map(|block| &block.statements);
+    let mut definitions = 0;
+    let mut unseen = fu.dynamic_names.writes || module.may_write(var);
+    for statement in statements {
+        if symbol.is_some_and(|symbol| statement.defs.contains_key(&symbol)) {
+            definitions += 1;
+        }
+        unseen |= crate::ssa::is_unseen_call_marker(&statement.statement);
+    }
+    crate::analyser::bounds_checks::LoopWrites {
+        definitions,
+        unseen,
+    }
+}
+
+/// The integer `var` holds where `node`'s passes start — the end of a
+/// `for`'s start script, the block before any other loop
+/// ([`crate::cfg::LoopNode::start`]) — when the unit's solver proves it
+/// there, on a path that reaches the loop.
+fn loop_start_integer(
+    fu: &crate::compilation_unit::FunctionUnit,
+    node: &crate::cfg::LoopNode,
+    var: &str,
+) -> Option<i64> {
+    use crate::analyses::{ConstValue, LatticeValue};
     if !fu.sccp.executable_blocks.contains(&node.start) {
         return None;
     }
@@ -2062,11 +2124,12 @@ file; this call falls through to the 'unknown' handler."
     /// ([`crate::analyser::bounds_checks::LoopTerminationCandidate::resolve`]).
     /// A header false at entry is W240, one true at every test with no
     /// executable exit is W241, and either suppresses W242. A loop the unit
-    /// holds and does not decide reads its counter from the integer the
-    /// unit's state proves it starts at
-    /// ([`crate::analyser::bounds_checks::LoopTerminationCandidate::seed`]),
-    /// and stays queued, as one the unit does not hold does, for another
-    /// unit or for [`Self::flush_loop_terminations`].
+    /// holds and does not decide is read against what the unit knows of it
+    /// ([`crate::analyser::bounds_checks::LoopTerminationCandidate::settle`]):
+    /// what may write a variable over its passes ([`loop_writes`]) and the
+    /// integer its counter starts at ([`loop_start_integer`]). It stays
+    /// queued, as one the unit does not hold does, for another unit or for
+    /// [`Self::flush_loop_terminations`].
     pub(super) fn resolve_loop_terminations(&mut self, fu: &crate::compilation_unit::FunctionUnit) {
         for mut candidate in std::mem::take(&mut self.loop_candidates) {
             if let Some(header) = header_fact(fu, candidate.condition_span) {
@@ -2075,12 +2138,13 @@ file; this call falls through to the 'unknown' handler."
                     .extend(candidate.resolve(Some(header)));
                 continue;
             }
-            if let Some(start) = candidate
-                .counter
-                .as_ref()
-                .and_then(|counter| loop_start_integer(fu, candidate.condition_span, &counter.var))
-            {
-                candidate.seed(start);
+            if let Some((end, node)) = held_loop(fu, candidate.condition_span) {
+                let blocks = loop_blocks(fu, node.start, end);
+                let module = &self.loop_unseen_writes;
+                candidate.settle(
+                    |var| loop_writes(fu, &blocks, var, module),
+                    |var| loop_start_integer(fu, node, var),
+                );
             }
             self.loop_candidates.push(candidate);
         }

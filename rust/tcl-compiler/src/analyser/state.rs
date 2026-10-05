@@ -522,6 +522,11 @@ pub struct Analyser {
     /// ([`Self::resolve_loop_terminations`]); what no unit decides is
     /// reported by [`Self::flush_loop_terminations`] as its text says.
     pub(super) loop_candidates: Vec<super::bounds_checks::LoopTerminationCandidate>,
+    /// What the module's callback scripts and variable traces may write, for
+    /// the loops the CFG/SSA pass settles
+    /// ([`Self::resolve_loop_terminations`]): set from the compilation unit
+    /// the pass reads.
+    pub(super) loop_unseen_writes: super::bounds_checks::ModuleUnseenWrites,
     /// Proven W147 option conflicts whose `OptionRelation` is version-gated
     /// — decided post-walk by [`Self::flush_gated_option_conflicts`], which
     /// promotes the ones the resolved floor actually has onto
@@ -1571,6 +1576,7 @@ impl Analyser {
             dsl_gate_sites: Vec::new(),
             proven_sites: Vec::new(),
             loop_candidates: Vec::new(),
+            loop_unseen_writes: super::bounds_checks::ModuleUnseenWrites::default(),
             pending_option_conflicts: Vec::new(),
             pending_gated_arity: Vec::new(),
             pending_gated_bare_ensemble: Vec::new(),
@@ -3232,6 +3238,7 @@ impl Analyser {
         self.deferred_class_creations.clear();
         self.proven_sites.clear();
         self.loop_candidates.clear();
+        self.loop_unseen_writes = super::bounds_checks::ModuleUnseenWrites::default();
         self.pending_bareword_dispatch_sites = None;
         self.line_offsets = None;
         self.cached_line_index = tcl_lexer::LineIndex::new("");
