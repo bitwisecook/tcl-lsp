@@ -8831,9 +8831,29 @@ loop may write the condition's variable, so a loop that calls code the module
 cannot see — the W242 note's `process_event` — draws none, where the text
 scan drew it.
 
-MEASURED_B1
+Over the corpus the landing's differential read — every `.tcl` file of
+tcllib 2.0's modules (794), and every `.tcl` and `.irul` file of `samples/`
+(137) and `editors/vscode/` (189), 1120 in all — `tcl diag` and `tcl opt
+--profile full` print under B1's binary what they print under the landing's
+(5bf6eb1b) for every file: no corpus loop draws a W241 that B1 adds or
+removes, and W242, the hint whose reach B1 narrows, is off in the corpus run,
+as it is by default. The device under the tree began failing reads at 16:12Z,
+during the run; no file of the corpus failed to read, each output matching
+the landing's byte for byte, and the files were restored before the run
+ended.
 
-GREEN_B1
+Green for B1, at 1d5fbc1f: `make rust-check` passed whole, its 83 steps
+(a first run had died in its runtime lint, on a read error of the failing
+device, before the repair), and `dialect-drift` reports its 8 sites, none
+new; the suites one crate at a time, each pruned after — `tcl-compiler` 10182
+passed, 6 ignored; `tcl-explorer` 112; `tcl-lsp-db` 139, 5 ignored;
+`tcl-lsp-core --lib` 2353; `tcl-cli` 206; `xtask` 275; `tcl-spectcl` 476,
+1 ignored, whose `cache::tests::the_two_tiers_share_one_identity` failed once
+on `clear: Directory not empty`, the cache race recorded at slice 11, and
+passed with the crate whole on the next run; `tcl-cmd-core` 143;
+`tcl-registry` 1428. Mutations, each reverted: a counter taken as stepped
+alone with any number of definitions (`definitions >= 1`), and the unseen
+writes ignored, each fail `whatever_writes_the_counter_keeps_w241_silent`.
 
 ### Slice 7a — seedless return summaries
 
