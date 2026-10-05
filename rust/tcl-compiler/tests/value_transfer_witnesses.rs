@@ -8159,3 +8159,57 @@ fn a_computed_double_is_spelled_as_tcl_spells_it() {
     }
     prints_under_every_release(source, "3\n6\n");
 }
+
+/// O103's argument-independent fold replaces a call by the procedure's
+/// constant return only where the call is one the argument-sensitive re-run
+/// could make: every word after the head literal, and as many as the
+/// parameters accept. A word that substitutes runs before the call and may
+/// write or raise, and a count the parameters do not accept raises, and the
+/// constant says neither: `[p [incr n]]` had become `foo` and lost the
+/// `incr`, and `[p $undefined]` and `[p]` had become `foo` where tclsh raises
+/// (#2389). A call with a literal word still folds, and a bare call draws the
+/// hint only where it is such a call. Each program prints what tclsh 8.4 to
+/// 9.1 print, before and after `tcl opt`.
+#[test]
+fn the_summary_folds_only_a_call_the_rerun_could_make() {
+    let kept = [
+        (
+            "proc p {a} {return foo}\nset n 0\nputs [p [incr n]]\nputs $n\n",
+            "foo\n1\n",
+            "[p [incr n]]",
+        ),
+        (
+            "proc p {a} {return foo}\nproc q {} {puts [p $undefined]}\nputs [catch q]\n",
+            "1\n",
+            "[p $undefined]",
+        ),
+        (
+            "proc p {a} {return foo}\nproc q {} {puts [p]}\nputs [catch q]\n",
+            "1\n",
+            "[p]",
+        ),
+    ];
+    for (source, printed, call) in kept {
+        for dialect in DIALECTS {
+            let (rewritten, _) = optimised(source, dialect);
+            assert!(
+                rewritten.contains(call),
+                "{dialect}: {call} stays\n{rewritten}"
+            );
+        }
+        prints_under_every_release(source, printed);
+    }
+    let folded = "proc p {a} {return foo}\nputs [p x]\n";
+    let bare = "proc p {a} {return foo}\np x\np [incr n]\n";
+    for dialect in DIALECTS {
+        let (rewritten, _) = optimised(folded, dialect);
+        assert!(rewritten.contains("puts foo"), "{dialect}\n{rewritten}");
+        let hints: Vec<&str> = rewrites_of(bare, dialect)
+            .iter()
+            .filter(|rewrite| rewrite.code == DiagCode::O103)
+            .map(|rewrite| &bare[rewrite.span.start() as usize..rewrite.span.end() as usize])
+            .collect();
+        assert_eq!(hints, ["p x"], "{dialect}");
+    }
+    prints_under_every_release(folded, "foo\n");
+}

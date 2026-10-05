@@ -9057,6 +9057,46 @@ is recorded with the next commit's. Mutations, each reverted: the double
 spelled with Rust's `Display` fails `a_computed_double_is_spelled_as_tcl_spells_it`
 (`n` at 1); spelled with Rust's `Debug`, `1e301`, the same test (`m` at 5).
 
+##### #2389: the summary answers only a call the re-run could make
+
+`wip(value-transfers): slice 7a — the summary path folds only a call the
+re-run could make`, at the coordinator's ruling ahead of the slice, which
+would otherwise carry the defect to every computed constant return (D288).
+Pre-existing: O103's argument-independent path replaced a `[p …]`
+substitution by the summary's constant whatever the call's words were, so for
+`proc p {a} {return foo}`, `set n 0; puts [p [incr n]]; puts $n` printed `foo`
+and `0` after `tcl opt` where tclsh 8.4 to 9.1 print `foo` and `1`, and `[p
+$undefined]` and `[p]` folded to `foo` where tclsh raises. A call whose words
+are literal was already folded by the argument-sensitive re-run, so every
+fold the slice's computed returns would add is a call whose words substitute
+— exactly these. The summary path answers only a call the re-run could make
+(`summary_answers`): every word after the head literal, as
+`parse_static_call_args` reads them — a `$name` the caller proves constant and
+a `[…]` that folds count — and a count the parameters accept
+(`arity_from_names(params).accepts`; the lsp-db's projection carries the
+parameters). The bare-statement hint takes the same test over the words the
+lowering records as literal (`WordExpr::Literal` and `BracedLiteral`).
+
+Tests: `the_summary_folds_only_a_call_the_rerun_could_make`
+(`value_transfer_witnesses.rs`, new: the three programs keep their calls under
+the five dialects and print what tclsh 8.4 to 9.1 print, before and after
+`tcl opt`; `[p x]` still folds; the bare `p x` draws the hint and `p [incr
+n]` none).
+
+Measured, and committed while the device fails reads again (new `I/O error,
+dev vda` lines from 22:51Z, every file this lane reads still readable), at the
+coordinator's standing ruling to preserve what has passed: `make rust-check`
+passed whole and `dialect-drift` reports its 8 sites, none new; the compiler
+suite passed — 10187, 6 ignored, the new witness among them — and F's, re-run
+once the 8.5 oracle was rebuilt, 10186, 6 ignored; the other crates' suites
+were running. Over the corpus, `tcl diag` and `tcl opt --profile full` print
+under this commit's binary what they print under F's for each of the first
+347 files compared, and F's print what the landing's do for each of the first
+657; the rest is recorded with the next commit's. Mutations, each reverted:
+`summary_answers` answering every call fails
+`the_summary_folds_only_a_call_the_rerun_could_make` (`[p [incr n]]` folds);
+answering any number of literal words, the same test (`[p]` folds).
+
 ### Slice 13 — proc-level transfer summaries
 
 #### Goal and exit
@@ -12249,6 +12289,7 @@ Taken in the review fixes of slice 12 (§ *Slice 12* › *Record (2026-10-05): r
 Taken in slice 7a, seedless return summaries (§ *Slice 7a* › *Record (2026-10-05): slice 7a* has the witnesses):
 
 - **D287 — A lattice double is spelled as Tcl spells it** (the lane's own defect from slice 1, found while preparing slice 7a; the coordinator's ruling, before the slice). `const_to_exact` is the one projection of a lattice constant into the exact value the routes, the refinements, the loop state and the return folds read; it spelled a double with Rust's `Display`, which drops an integral double's `.0` and never writes an exponent, so `string length` of `[expr {1.0 * 3}]` read `3`. It spells a double with `format_double`, as O103 renders one (D58). The spelling's release axis — 8.4's twelve-digit `tcl_precision` — is not modelled here (#2395).
+- **D288 — O103's argument-independent fold answers only a call its re-run could make** (#2389, at the coordinator's ruling, ahead of slice 7a). The summary's constant says what the procedure returns, not what evaluating the call's words does: a word that substitutes runs before the call and may raise or write, and a count the parameters do not accept raises. The fold takes the re-run's own test, read once for both paths — every word after the head literal, as `parse_static_call_args` reads them, and a count `arity_from_names(params)` accepts — and the bare-statement hint, which has the lowering's words, their literal kinds. The parameters are read by name, as the re-run reads them: a call that leaves a defaulted parameter out folds on neither path.
 
 ### Open questions for the owner
 

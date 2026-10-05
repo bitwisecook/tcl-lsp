@@ -1489,7 +1489,6 @@ fn walk_statement(
         Statement::Call {
             span,
             command,
-            args,
             tokens,
             ..
         } => {
@@ -1497,7 +1496,7 @@ fn walk_statement(
                 visit_call_tokens(ctx, t, constants);
                 visit_call_cmd_subst_folds(ctx, cu, t, constants, namespace);
             }
-            try_fold_static_proc_call(ctx, cu, *span, command, args, namespace);
+            try_fold_static_proc_call(ctx, cu, *span, command, tokens.as_ref(), namespace);
         }
         // `set TARGET [cmd-sub]` lowers to `AssignValue` carrying the
         // full command's tokens (`["set", TARGET, "[cmd-sub]"]`). Walk
@@ -2075,14 +2074,14 @@ fn resolve_proc_qname(
 }
 
 /// O103: if `command` resolves to a proc with `can_fold_static_calls`
-/// and a `constant_return`, emit a rewrite replacing the call
-/// with the literal return value.
+/// and a `constant_return`, and the call is one [`summary_answers`],
+/// emit a rewrite replacing the call with the literal return value.
 fn try_fold_static_proc_call(
     ctx: &mut PassContext<'_>,
     cu: &CompilationUnit,
     span: tcl_lexer::Span,
     command: &str,
-    _args: &[String],
+    tokens: Option<&CommandTokens>,
     namespace: &str,
 ) {
     use crate::interprocedural::ConstantReturn;
@@ -2113,6 +2112,21 @@ fn try_fold_static_proc_call(
         return;
     }
     if !summary.can_fold_static_calls {
+        return;
+    }
+    let literal_words = tokens.and_then(|tokens| {
+        let words = tokens.words().get(1..)?;
+        words
+            .iter()
+            .all(|word| {
+                matches!(
+                    word,
+                    crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. }
+                )
+            })
+            .then_some(words.len())
+    });
+    if !summary_answers(&summary.params, literal_words) {
         return;
     }
     let Some(cr) = &summary.constant_return else {
@@ -2523,8 +2537,9 @@ fn visit_call_cmd_subst_folds(
 
 /// Fold a pure-proc command substitution to its constant return (O103),
 /// returning `(qualified_name, replacement_word)`. Uses the interprocedural
-/// summary's argument-independent constant return when present, else re-runs
-/// the pure callee under the call's constant arguments. `None` when the head
+/// summary's argument-independent constant return when present and the call
+/// is one it answers ([`summary_answers`]), else re-runs the pure callee
+/// under the call's constant arguments. `None` when the head
 /// is not a foldable internal proc. Extracted from [`visit_call_cmd_subst_folds`].
 fn try_o103_proc_fold(
     ctx: &PassContext<'_>,
@@ -2558,8 +2573,10 @@ fn try_o103_proc_fold(
         ConstValue::Bool(b) => i64::from(*b).to_string(),
         ConstValue::String(s) => render_propagation_word(s),
     };
+    let args = parse_static_call_args(ctx, inner, 1, constants);
     let replacement = if summary.can_fold_static_calls
         && let Some(cr) = &summary.constant_return
+        && summary_answers(&summary.params, args.as_ref().map(Vec::len))
     {
         // Argument-independent constant return from the summary.
         match cr {
@@ -2574,12 +2591,12 @@ fn try_o103_proc_fold(
         }
     } else if summary.pure
         && let Some(callee) = cu.procedures.get(&qname)
-        && let Some(args) = parse_static_call_args(ctx, inner, 1, constants)
+        && let Some(args) = &args
         && let Some(cv) = evaluate_proc_with_constants(
             ctx,
             callee,
             &summary.params,
-            &args,
+            args,
             crate::tcl_expr_eval::FoldPolicy::for_profile(
                 ctx.dialect
                     .and_then(crate::tcl_expr_eval::leading_zero_is_octal),
@@ -2594,6 +2611,19 @@ fn try_o103_proc_fold(
         return None;
     };
     Some((summary.qualified_name.clone(), replacement))
+}
+
+/// Whether a procedure's argument-independent constant return answers a
+/// call whose words after the head are `literal_words` many, all literal
+/// (`None` when one substitutes): only a call the argument-sensitive re-run
+/// could make — every word literal, as many as the parameters accept. A
+/// word that substitutes runs before the call and may raise or write, and a
+/// count the parameters do not accept raises; the constant says neither
+/// (#2389).
+fn summary_answers(params: &[String], literal_words: Option<usize>) -> bool {
+    literal_words
+        .and_then(|count| u16::try_from(count).ok())
+        .is_some_and(|count| crate::interprocedural::arity_from_names(params).accepts(count))
 }
 
 /// Parse the head word out of a CMD-subst interior. Returns

@@ -78,7 +78,14 @@ command-substitution path (`try_o103_proc_fold` in
 plus `evaluate_proc_with_constants`, re-running the callee body under the
 literal arguments.  `can_fold_static_calls` gates only the
 argument-independent fold, which replaces the call with
-`summary.constant_return`.
+`summary.constant_return` — and only a call the re-run could make: every
+word after the head literal (a `$name` the caller proves constant, or a
+`[…]` that folds, counts), and as many as the parameters accept. A word that
+substitutes runs before the call and may raise or write, and a count the
+parameters do not accept raises, which the constant does not say: `[p [incr
+n]]`, `[p $undefined]` and `[p]` are not folded for `proc p {a} {return foo}`
+(#2389). The bare-statement hint takes the same test, over the words the
+lowering records as literal.
 
 ### Worked example
 
