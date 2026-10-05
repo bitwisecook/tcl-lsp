@@ -33,6 +33,15 @@ proc double {n} { expr {$n * 2} }
 set x 42
 ```
 
+A loop in the procedure does not stop the fold where the arguments bound it:
+the analyser runs the procedure over the call's constant arguments, its loops
+to their end, and reads the value each `return` gives where it returns.
+
+```tcl
+proc total {n} { set t 0; for {set i 0} {$i < $n} {incr i} {incr t 2}; return $t }
+set r [total 3]   ;# becomes set r 6
+```
+
 ## Safety conditions
 
 - Skipped when the proc has observable side effects.

@@ -25,16 +25,30 @@ usually expected an element and will never see the error. `linsert` is
 deliberately excluded — its clamp always produces a sensible result, so
 flagging it would second-guess intent.
 
-The list itself must be written as a literal in the same command, so
-the analyser can count its elements. `lindex $xs -1` is never flagged,
-even after `set xs {a b c}` — only `lset` (`W231`) recovers a length
-from a preceding literal `set`.
-
-The analyser checks two constant shapes:
+The analyser checks two shapes. The first is a constant index into a list
+written as a literal in the same command, where it can count the elements:
 
 - A plain integer like `-1` or `5`.
 - An `end-N` expression where `N` is larger than the list length minus
   one (so the resolved offset is negative).
+
+A constant index into a list held in a variable is not checked:
+`lindex $xs 5` and `lindex $xs -1` are never flagged, even after
+`set xs {a b c}`.
+
+The second is an `lindex` whose index is a variable, into a list whose length
+the analyser knows — a variable set from a literal list or from `[list …]` —
+where every value the index may hold lies outside the list. A loop's counter
+holds a known value after the loop when the analyser runs the loop to its
+end:
+
+```tcl
+set xs {a b c}
+for {set i 0} {$i < 5} {incr i} {}
+puts [lindex $xs $i]   ;# i is 5 after the loop
+```
+
+The second shape is read for `lindex` alone, and not inside a quoted word.
 
 ## Example that triggers it
 

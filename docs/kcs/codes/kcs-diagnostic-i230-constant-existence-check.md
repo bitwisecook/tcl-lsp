@@ -277,14 +277,22 @@ loop nothing is decided from the run, since each pass sees a different value.
 A loop is not run, and the test after it is decided only as it is without
 the run, when it would run more than 4096 passes, reads a value the analyser
 does not know (`for {set i 0} {$i < $n} {incr i} {}` with `n` a parameter),
-runs a command the analyser does not evaluate (`puts`, a procedure, a
-command substitution other than `set v [expr …]`), or writes a `global`,
-traced or array variable.
+runs a command the analyser does not evaluate (`puts`, a procedure), or
+writes a `global`, traced or array variable. A command substitution in the
+loop runs over the loop's values when the command registry gives its command
+an evaluation, and only where it has no effect: `incr n [string length $s]`,
+`incr x [expr {$b / $a}]` and `$i < [llength $l]` are run, while a
+substitution whose script sets a variable (`incr n [incr k]`) or does not
+complete normally stops the run, and so does one whose command has no
+evaluation (`[string toupper $x]`).
 
 A loop's own condition is never reported as always true: `while 1 { … }`
 loops on purpose. That is the condition that leaves the loop when it is
 false; an `if` inside the loop's body, or right after the loop, is reported
-like any other.
+like any other. A loop's condition that is never true is reported naming the
+loop — `Loop condition '$n' is never true; the loop leaves at this test` —
+beside [W240](kcs-diagnostic-w240-loop-constant-false.md) where the body never
+runs.
 
 ## Fix
 

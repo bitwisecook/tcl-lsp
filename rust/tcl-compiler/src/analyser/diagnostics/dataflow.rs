@@ -2084,6 +2084,13 @@ file; this call falls through to the 'unknown' handler."
                     )
                 };
                 (DiagCode::I230, msg)
+            } else if is_loop {
+                // A loop's own test decided true was skipped above.
+                let msg = format!(
+                    "Loop condition '{}' is never true; the loop leaves at this test",
+                    branch.condition,
+                );
+                (DiagCode::I230, msg)
             } else {
                 let msg = format!(
                     "Branch condition '{}' is constant; one branch is unreachable",

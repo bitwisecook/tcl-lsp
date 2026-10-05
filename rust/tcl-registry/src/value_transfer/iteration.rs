@@ -327,6 +327,8 @@ impl IterationSemantics {
     /// the loop when false, and the step script runs after every pass whose
     /// body completes normally or with `continue`; `break` ends the loop,
     /// from the body or the step script alike. Nothing is bound per pass.
+    /// The plan counts the words and names them by position; it reads none
+    /// of their text.
     fn counted_plan(self, input: &dyn AnalysisInputs) -> PlanAnswer {
         let view = input.invocation();
         let first = view.argument_offset;

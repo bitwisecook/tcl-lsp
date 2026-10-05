@@ -156,8 +156,10 @@ pub fn summarise_for_statement(
     else {
         return None;
     };
-    // The plan reads the counted loop's four words; a statement built without
-    // them stands for the same loop.
+    // The plan is resolved from the counted loop's four words, which it counts
+    // and names by position, never reading their text — the run reads the
+    // statement's own start script, condition, step script and body — so four
+    // empty words stand for a statement built without them.
     let words: Vec<String> = if raw_args.len() == 4 {
         raw_args.clone()
     } else {

@@ -1056,12 +1056,14 @@ pub enum Slot {
   or no binding, where the existence rung proves it so. A read of a place it
   holds no value of declines the enumeration, and so does a store to a place
   it does not hold, which may be an array a scalar store raises on, and a
-  store — an invocation's or a `foreach` binder's alike — to an element or to
-  a place another actor may write — an escaping, linked or traced place, or
-  any once a computed name may write one. So does
-  a word that substitutes a command and any statement no route evaluates
-  exactly. A loop that declines publishes nothing, and the widened lattice
-  stands.
+  store — an invocation's or a `foreach` binder's alike — to an element or
+  to a place another actor may write — an escaping, linked or traced place,
+  or any once a computed name may write one. So does a command substitution
+  whose command the registry gives no evaluation, or whose script stores or
+  does not complete normally — a `[…]` script runs over the state as the one
+  command it names, by its declared route, under the effect-free policy —
+  and any statement no route evaluates exactly. A loop that declines
+  publishes nothing, and the widened lattice stands.
 - **Bounds.** At most `DEFAULT_MAX_STATIC_LOOP_ITERS` passes in all, a
   nested loop's included, with every statement charged to the driver's
   evaluation budget; a loop past the cap declines with `Budget(Iterations)`
@@ -2929,7 +2931,7 @@ unit-level lattice evaluates.
 - `rust/tcl-registry/src/hooks.rs`, `return_type.rs` — `ReturnTypeHookId` and the intrep-guaranteeing return-type algorithms
 - `rust/tcl-registry/src/literal_validation.rs` — `LiteralArgumentValidator`, the validation pattern
 - `rust/tcl-registry/src/bpf_op.rs`, `commands/bpf/loop_.rs` — `BpfOpSpec`, the BPF descriptor
-- `rust/tcl-compiler/src/sccp.rs` — the transfer function, `evaluate_def_with_folds`, `evaluate_branch`, `env_from_uses`, `existence_constant_branches`, `scan_defined_and_unset`, `ExistenceFrame`, `enumerate_loops`, `start_state`, `catch_body_answer`, `parse_literal_value`, `TraceInputs`
+- `rust/tcl-compiler/src/sccp.rs` — the transfer function, `evaluate_def_with_folds`, `evaluate_branch`, `ExistenceRun`, `existence_refinements`, `enumerate_loops`, `start_state`, `catch_body_answer`, `parse_literal_value`, `TraceInputs`
 - `rust/tcl-compiler/src/const_subst.rs` — `ConstSubstCtx`, `ResolvedConstSubst` and its `command_bindings`
 - `rust/tcl-compiler/src/analyses.rs` — `LatticeValue`, `ConstValue`, `MAX_CONSTSET_SIZE`
 - `rust/tcl-compiler/src/command_binding.rs` — `ModuleCommandMutations`, `CommandTrustSnapshot`, binding validity
@@ -2940,7 +2942,7 @@ unit-level lattice evaluates.
 - `rust/tcl-cmd-core/src/switch.rs`, `regex.rs` — `parse_options`, `select`, `RegexpResult::Count`
 - `rust/tcl-cmd-core/src/case.rs` — `select`, `splits_as_list`: `case`'s selection
 - `rust/tcl-registry/src/value_transfer/selection.rs` — `SwitchSemantics`, `CaseSemantics`, the `Selection` transfer
-- `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` — `emit_provably_unset_w210`, `emit_existence_constant_branch_diagnostics`, `emit_read_before_set_diagnostics`, `record_chain_w210_uses`, `emit_unused_variable_diagnostics`, `existence_query_vars`, `is_existence_query_word`
+- `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` — `emit_read_before_set_diagnostics`, `record_chain_w210_uses`, `emit_unused_variable_diagnostics`, `existence_query_vars`, `is_existence_query_word`
 - `rust/tcl-compiler/src/analyser/diagnostics/helpers.rs` — `whole_unset_names`, `phi_can_undef`
 - `rust/tcl-compiler/src/analyser/diagnostics/security.rs` — `emit_w102_subst_injection`, `substitution_narrowing_switches`
 - `rust/tcl-registry/src/substitution.rs` — `SubstitutionKinds`, `subst_substitutions`

@@ -1799,6 +1799,33 @@ mod tests {
         assert!(loop_verdicts("proc p {} {\n set i 0\n while {$i < 3} {incr i}\n}\n").is_empty());
     }
 
+    /// A loop's own test decided false names the loop in its I230, beside the
+    /// W240 of a body that never runs; a decided `if` keeps its own wording.
+    #[test]
+    fn a_loop_test_decided_false_names_the_loop() {
+        let i230 = |src: &str| -> Vec<String> {
+            Analyser::new()
+                .analyse(src, "tcl8.6")
+                .diagnostics
+                .into_iter()
+                .filter(|d| d.code == DiagCode::I230)
+                .map(|d| d.message)
+                .collect()
+        };
+        assert_eq!(
+            i230("set n 0\nwhile {$n} {puts never}\n"),
+            ["Loop condition '$n' is never true; the loop leaves at this test"]
+        );
+        assert_eq!(
+            i230("proc p {} {\n for {set i 0} {$i < 0} {incr i} {puts never}\n}\n"),
+            ["Loop condition '$i < 0' is never true; the loop leaves at this test"]
+        );
+        assert_eq!(
+            i230("set n 0\nif {$n} {puts never}\n"),
+            ["Condition '$n' is always false; the alternate branch is unreachable"]
+        );
+    }
+
     /// A loop inside a proc body reaches the same verdict on the per-item
     /// path, which walks each body in isolation and grafts the candidates
     /// back at their real positions.

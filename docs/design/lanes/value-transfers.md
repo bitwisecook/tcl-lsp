@@ -19,7 +19,8 @@ element's base and a loop word's escapes, the lane's own, and #2381, a body
 word written bare or quoted that the W241 scans did not read. Its review
 asked for rework, done in its own commits (§ *Slice 12* › *Record
 (2026-10-05): review fixes for slice 12*, D285 onward): what writes a loop's
-counter is the unit's answer, and a loop states only what it defines.
+counter is the unit's answer, a loop states only what it defines, and the
+notes say what the loop checks read.
 
 ## Goal
 
@@ -8815,6 +8816,7 @@ in the paragraph headed *Taken in the review fixes of slice 12*.
 |---|---|---|---|
 | B1, with N2 | ``wip(value-transfers): slice 12 — what writes a loop's counter is the unit's answer`` | **The counter's writes are the unit's answer (D285).** The per-function pass reads what may write a variable over a loop's passes from the unit that holds the loop (`loop_writes` over `loop_blocks`: every block reachable from the block its passes start from without passing the block it leaves to, over the exception edges): each statement of those blocks whose SSA definitions name it — a cell update, a write a `[…]` word makes, a binder, a destructuring target, an opaque statement's or an arm marker's may-definition, a procedure's write its call states — and, as unseen, an unseen-call marker there, a write to a computed name in the function, and a callback script or variable trace of the module that names it (`ModuleUnseenWrites`, from `Module::deferred_writes` and `traced_variables`). W241's counter needs the plan's step as the one definition and nothing unseen; W242 needs neither (`LoopTerminationCandidate::settle`, replacing `seed`). The text scans — `command_writes`, `script_writes`, `body_writes_var`, `loop_modifies_var`, `writes_first_arg` — are gone, and so is the walk's literal start (`literal_start`): a `for`'s start is the solver's integer at the block its passes start from, as every loop's is, which fixes the same miss on a `for` with a literal start that predates the slice. A loop no unit holds keeps its constant-condition verdicts alone. IRULE5003 reads the catalogue's registry for an analyse with none (N2), as the loop checks do. | `whatever_writes_the_counter_keeps_w241_silent` (`value_transfer_witnesses.rs`, new): a `[…]` write (24), a binder (100), an `uplevel` procedure (100), the `upvar` helper (100), a call to a procedure a sourced file defines, at the top level and in a procedure (100, 100), and a `for` with a literal start and a write in a `[…]` word (18) — no W241 under the five dialects, each printing the same under tclsh 8.4 to 9.1 before and after `tcl opt`; `w240_seeds_from_the_iteration_plan` keeps its four W241 rows and seven silent shapes and gains three silent ones (a `[…]` write, a binder, an undefined call), on both walks; `the_step_runs_its_route` replaces the start-and-step test; `body_scans_are_command_structural` keeps the exit scan's rows |
 | S1, with N6 | ``wip(value-transfers): slice 12 — a loop states only what it defines, and a contradiction drops its own state alone`` | **A loop states only what it defines (D286).** `enumerate_loops` (`sccp.rs`) states the value a loop leaves in a place only at a version the loop defines where it leaves: one other than the version live where its passes start (`start`'s exit versions), which is a φ in the block it leaves to or a definition in the loop's blocks, since `start` dominates the loop. A name the loop rebinds that is dead after it has no φ there, so the version live there was the one from before the loop; the state stated of it contradicted the settled run, and D270's rule dropped every loop's state in the unit. **A contradiction drops its own loop (D286).** `contradicted_exits` names the blocks the contradicted loops leave to (`Solved::Contradicted`), and `drive` — the solver's rounds, out of `sccp_with_builtin_folds` — drops those loops' records and refinements and runs again with the rest; each such run drops at least one loop. **A binder's store takes the store rule (N6).** The `foreach` binder writes through `Enumerator::store` (`static_loops.rs`), the rule `apply` takes for an invocation's stores — a scalar place no other actor may write (`store_kind`) whose kind the state proves (`write`) — so `foreach a(k) {1 2} {}` declines as `set a(k) …` does, where the binder had written the element. | `a_name_dead_after_its_loop_keeps_every_loops_state` (`value_transfer_witnesses.rs`, new): the review's two programs — the `foreach` that rebinds `tmp`, and the `found`/`last` idiom in a procedure — the `while` form, and the first followed by an unrelated `for`: each branch decides true under the five dialects (the last's two, over two enumerated loops), and each program prints `yes` (and `three`) under tclsh 8.4 to 9.1 before and after `tcl opt`; `a_contradiction_drops_only_its_own_loop` (`sccp.rs`, new: rounds over a solver that contradicts the first of two loops' states: the run is made again with the second loop's refinements alone, and the result records that loop alone); `an_enumeration_runs_only_over_places_it_proves` gains the element binder (no loop enumerated; tclsh 8.4 to 9.1 print `two`) |
+| S2, S3, N1, N3, N4, N5, N7 | ``wip(value-transfers): slice 12 — the notes say what the loop checks read`` | **S2.** The W241 note says what the counter path reads after B1 — every write the unit's dataflow states in the loop, a write it cannot place, and the start the solver proves after a `for`'s start script — and its paragraph on writes the analyser cannot place is said of both proofs that read a variable, which B1 made true; its example puts each loop in a procedure of its own, since a loop after one that never ends is dead code and draws nothing. The W242 note reads the same fact: its `process_event` example, a call the module cannot see, no longer draws the hint (B1), so the example calls `puts`. **S3.** The I230 note's *A test after a loop* says that a command substitution runs over the loop's values when the registry gives its command an evaluation, and only without effects (D283): a script that sets a variable or does not complete normally stops the run; the compiler page's *What is closed*, which still had every word that substitutes a command decline the loop, says the same. **N1.** The compiler page's file index drops six names no file holds (`env_from_uses`, `existence_constant_branches`, `scan_defined_and_unset`, `ExistenceFrame`, `emit_provably_unset_w210`, `emit_existence_constant_branch_diagnostics`) and names the existence rung's `ExistenceRun` and `existence_refinements`. **N3.** A loop's own test decided false draws `Loop condition '…' is never true; the loop leaves at this test` where it drew the generic `Branch condition '…' is constant; one branch is unreachable`; the change stays inside the slice's tests — no test or golden held the generic wording for a loop's test — and the new wording avoids the words `condition_claims` reads, so the witnesses' claims are unchanged; the I230 note names it. **N4.** The four empty words `summarise_for_statement` gives a statement built without them are commented as counted, never read for their text, and so is the counted plan (`counted_plan`, `iteration.rs`). **N5.** The W230 note gains its second shape, a variable index into a list of known length that the index's every value misses, a loop's counter after the loop among them (D278), with the limits of #2387; the O103 note, a procedure whose loops the call's constant arguments bound (D279). **N7.** Below. | `a_loop_test_decided_false_names_the_loop` (`bounds_checks.rs`, new: a `while` and a `for` in a procedure decided false at entry, and an `if` that keeps its wording); each note's examples run under `tcl diag` and `tcl opt` as the notes say |
 
 B1's behaviour, measured over the review's 79 loop probes under `--dialect
 tcl8.6` with W242 enabled: the nineteen B1 rows — `[…]` writes in a `set`,
@@ -8879,6 +8881,37 @@ enumerated). Stated only where the loop defines the version, the review's
 programs reach no contradiction — each decides — so the drop of the
 contradicted loops alone is witnessed by the unit test, over a solver that
 contradicts one loop of two.
+
+The slice's review checklist item R7, an error path publishes its prefix
+only, has a half no program can witness (N7 of the review; its mutation M4):
+`enumerate_loops` publishes nothing for a loop that leaves by an error or a
+`return`, and such a loop, run exactly, never takes its normal exit, so a
+state stated on its exit edges would narrow a block that is dead, and no
+branch after it could decide otherwise. The other half, the prefix an error
+leaves inside a `catch` whose body the enumeration runs whole, is witnessed
+(`the_eleven_loop_witnesses`, its eighth program).
+
+Over the same 1120 corpus files, `tcl diag` and `tcl opt --profile full`
+print under the binary of the notes' commit what they print under the
+landing's (5bf6eb1b) for every file: no corpus loop has its own test decided
+false, so N3's wording appears nowhere in it, where the landing's outputs
+held no `Branch condition` message either.
+
+Green for the notes' commit: `make rust-check` passed whole, its 83 steps,
+and `dialect-drift` reports its 8 sites, none new; the suites one crate at a
+time, each pruned after — `tcl-compiler` 10185 passed, 6 ignored (the new
+test among them); `tcl-explorer` 112; `tcl-lsp-db` 139, 5 ignored;
+`tcl-lsp-core --lib` 2353; `tcl-cli` 206; `xtask` 275; `tcl-spectcl` 476,
+1 ignored; `tcl-cmd-core` 143; `tcl-registry` 1428. The container restarted
+at about 20:02Z while `tcl-spectcl` ran; the gate and the three crates the
+restart stopped ran again on the same code, the others having passed on it
+before. Each note's examples print, under `tcl diag` and `tcl opt`, what the
+note says: the six procedures of the W241 note draw six W241; the W242 note's
+loop draws the hint and its fix none; the substitutions the I230 note says
+are run decide the test after their loop, and those it says stop the run
+decide nothing; the W230 note's counter after its loop draws W230, and tclsh
+8.4 to 9.1 print `i=5 <>`; the O103 note's call folds to `set r 6`, the 6
+tclsh prints.
 
 ### Slice 7a — seedless return summaries
 
