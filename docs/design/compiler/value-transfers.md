@@ -2392,11 +2392,12 @@ proven constant:
 | `[string is CLASS ?-strict? $x]` | `Type` is the representation the test leaves: an integer for the integer classes and a number for `double` under `-strict`, a dictionary for `dict`; never a value | nothing |
 | `[info exists x]`, `[array exists x]` | `Existence` is `Bound(Either)` / `Bound(Array)` | `Unbound` for `info exists`; nothing for `array exists` |
 | `!C` | the false-edge answer of `C` | the true-edge answer of `C` |
-| `C1 && C2` | both true-edge answers | nothing |
-| `C1 \|\| C2` | nothing | both false-edge answers |
-| `switch -exact` arm `LIT` (the default mode) | `ExactValue` is `LIT` at the arm's entry; a body reached through `-` arms gets the finite set of their patterns | nothing at `default` |
-| `switch -nocase` (from 8.5) | `Type` is "case-insensitively equal to `LIT`"; never a value | nothing |
-| `switch -glob` | `Segments`: the literal prefix of the pattern | nothing |
+| `C1 && C2` | `C2`'s true-edge answer, and `C1`'s only when `C2` changes no place (it runs no command but an existence query, calls no math function, and every operand of it parses) | nothing |
+| `C1 \|\| C2` | nothing | `C2`'s false-edge answer, and `C1`'s only when `C2` changes no place |
+| `switch -exact` arm `LIT` (the default mode), the `switch` flattened | `ExactValue` is `LIT` at the arm's entry | nothing at `default` |
+| `switch -exact` with a `-` arm | not recorded: the `switch` stays one opaque statement, whose arms are no edges; a body reached through `-` arms would get the finite set of their patterns | nothing |
+| `switch -nocase` (from 8.5) | not recorded: the `switch` stays opaque; an arm would prove `Type` "case-insensitively equal to `LIT`", never a value | nothing |
+| `switch -glob` | not recorded: the `switch` stays opaque; an arm would prove `Segments`, the literal prefix of the pattern | nothing |
 | `switch -regexp`, `$x`, `$x eq $y` | nothing | nothing |
 
 The numeric rows are why `==` is not `eq`. Under every tested release,

@@ -261,17 +261,23 @@ executes that runtime.
     2026-10-04; the record and the decisions (D216–D249) are
     [value-transfers.md (lane)](../lanes/value-transfers.md) § *Plan for
     slices 2–13* › *Slice 10*.
-11. **Predicate refinement.** `EdgeRefinement` as a fact on one CFG edge
-    for one SSA version, with the block-qualified lookup `(BlockId,
-    ValueKey)` consulted first by `env_from_uses`, `evaluate_branch`, and
-    `evaluate_def_with_folds`, and by every other domain for the domains
-    the refinement names; the per-shape table, including the numeric `==`
-    rows that refine `Range` and `Type` and never `ExactValue`; no
-    refinement of an externally mutable place. *After:* slices 6 and 8.
-    *Exit:* the nested `if {$x eq "a"}` / `if {$x eq "b"}` program decides
-    through `tcl diag` and `tcl opt`, `collect_existence_guards` is
-    deleted, and the twelve witnesses, the merge that drops a refinement,
-    and the traced variable that is never refined pass. Landed
+11. **Predicate refinement (landed).** `EdgeRefinement` as a fact on one
+    CFG edge for one SSA version, stated by the condition's own `Selection`
+    transfer (`tcl_expr_eval::condition_edge_facts`) and in force in each
+    block every executable path into which crosses the edge, which the
+    solver works out as it sweeps (`RefinementFlow`): it narrows a block's
+    statements, its terminator and the post-passes by the exact values and
+    finite sets in force there and gives each version its own value back
+    past the block (`SccpResult::value_at`), and every other domain reads
+    the refinements in force at a block for the domains they name
+    (`SccpResult::refinements_in`); the per-shape table, including the
+    numeric `==` rows that refine `Range` and `Type` and never
+    `ExactValue`; no refinement of a place another actor may write.
+    *After:* slices 6 and 8. *Exit:* the nested `if {$x eq "a"}` / `if {$x
+    eq "b"}` program decides through `tcl diag` and `tcl opt`,
+    `collect_existence_guards` is deleted, and the twelve witnesses, the
+    merge that drops a refinement, and the traced variable that is never
+    refined pass. Landed
     2026-10-04; the record and the decisions (D258–D264) are
     [value-transfers.md (lane)](../lanes/value-transfers.md) § *Plan for
     slices 2–13* › *Slice 11*.

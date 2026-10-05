@@ -696,12 +696,15 @@ runtime fact (the guard passed), so unlike the fold it needs no
 foldability gate.
 
 Only the exact three-word forms are recognised.  `existence_query::in_text`
-requires exactly `info exists NAME` or `array exists NAME`; the queried word
-is taken verbatim, with no name-shape test of its own —
-`existence_constant_branches` applies the bare-local shape gate itself, and
-the narrowing path applies none.  Membership idioms (`[info vars X]` / `[info locals X]` compared with
-`""`, `[llength [info vars X]]`, `[lsearch [info vars] X] > -1`) and
-`catch {set _ $X}` are **not** recognised as existence proofs.
+requires exactly `info exists NAME` or `array exists NAME`, as the registry
+resolves the invocation (a rooted `::info exists NAME` among them); the
+queried word is taken verbatim, with no name-shape test of its own.  The
+existence rung applies its own place gate — its refinements skip a place
+another actor may write (`existence_refinements`) — and the guards W210
+reads apply none (`existence_guards`, `SccpResult::guarded`).  Membership
+idioms (`[info vars X]` / `[info locals X]` compared with `""`, `[llength
+[info vars X]]`, `[lsearch [info vars] X] > -1`) and `catch {set _ $X}` are
+**not** recognised as existence proofs.
 
 ### Unused variables
 

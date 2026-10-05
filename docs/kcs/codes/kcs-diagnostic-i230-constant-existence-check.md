@@ -230,10 +230,27 @@ runs a script the analyser cannot read, such as `eval $script`, which may set
 
 A numeric `==` proves a number, never a string: `1.0 == 1` is true, so inside
 `if {$x == 1}` the string `x` holds may still be `1.0`, ` 1` or `01`, and a test
-of its spelling there is not decided. A global, a `global` or `upvar` alias, a
-traced variable, and every variable of a procedure that computes a variable
-name are never narrowed: a call, a trace or the computed name may change them
-between the test and the code it guards.
+of its spelling there is not decided. A `::`-qualified name, a `global`,
+`variable` or `upvar` alias, a traced variable, and every variable of a
+procedure that computes a variable name are never narrowed: a call, a trace or
+the computed name may change them between the test and the code it guards.
+
+A plain name in top-level code is the global of that name, and it is narrowed
+as a procedure's local is, on the same terms as the constant the analyser
+propagates for it: a call to a command the file does not define gives it a
+fresh, unknown value, and a name one of the file's procedures declares
+`global` is never narrowed. A write through the qualified spelling in the same
+code is not read as a write to the plain name, though, so a test of `z` made
+before `set ::z c` still holds for `z` after it, as the constant a `set z`
+before it gave still stands (#2370):
+
+```tcl
+set z [gets stdin]
+if {$z eq "a"} {
+    set ::z c
+    if {$z eq "c"} { puts changed }   ;# I230: always false, though tclsh prints changed
+}
+```
 
 ## Fix
 

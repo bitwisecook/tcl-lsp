@@ -267,6 +267,37 @@ host word; one for the kill, ordered after it), which no other existence
 read needs and which the placement machinery does not have a slot for
 today. Tracked as #2263.
 
+## Open — a write through `::name` does not alias the top-level `name`
+
+In top-level code a plain name is the global of that name, and the solver
+gives it the footing it gives a procedure's local: the constant it
+propagates, and the narrowing a test proves in the arm the test guards
+(`refinable_values` in `sccp.rs`), hold until a call to a command the file
+does not define gives the name a fresh version, and a name one of the file's
+procedures declares `global` is neither propagated nor narrowed. A write
+through the qualified spelling in the same code is not read as a write to the
+plain name:
+
+```tcl
+set z a
+set ::z c
+set w $z
+puts $w
+```
+
+prints `c` under tclsh 8.4 to 9.1, and `tcl opt` forwards `z`'s literal
+(O102), removes `set w` (O109) and inlines `w` (O100), so the rewritten
+program prints `a`. With `set z [gets stdin]` and the three statements inside
+`if {$z eq "a"}`, the arm's narrowing gives `w` the same `a`, which O100
+inlines, and a test `if {$z eq "c"}` after `set ::z c` there is reported
+always false (I230) and folded, where tclsh takes it.
+
+Why it has not been done: the escaping set (`escaping_names` in `sccp.rs`,
+over `var_observability::analyse_var_observability`) has no entry for a name
+the same body writes through its qualified spelling, and the narrowing reads
+the same set, so neither is less sound than the other; the fix is that entry,
+for both at once. Tracked as #2370.
+
 ## Open — a procedure's implicit return value is not a recorded use
 
 Every Tcl command returns a value, and the last one a procedure body runs
