@@ -1452,6 +1452,12 @@ struct RungResults {
     exits: HashMap<BlockId, Vec<Existence>>,
     entries: HashMap<(BlockId, ValueKey), Existence>,
     query_places: Vec<String>,
+    /// The existence guards ([`SccpResult::existence_guards`]), which the
+    /// rung's run collects, so they exist only where the rung runs: the deep
+    /// tier (`AnalysisTier::Deep`). A run without the rung leaves none, and
+    /// W210 then has no guard's word — a tier below the deep one that keeps
+    /// the dataflow diagnostics must collect them itself
+    /// (`existence_guards`) or lose every `info exists` guard.
     guards: Vec<(String, BlockId)>,
 }
 

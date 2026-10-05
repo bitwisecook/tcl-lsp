@@ -2496,17 +2496,13 @@ fn variable_name(text: &str, style: tcl_dialect::BracedVarStyle) -> Option<&str>
 
 /// The value an operand's literal spelling holds: a bare literal's text, a
 /// string operand's body where it is its value in every dialect
-/// ([`tcl_syntax::expr::fixed_string_body`]), or a compiled word's value
+/// ([`tcl_syntax::expr::fixed_string_operand`]), or a compiled word's value
 /// when it was braced or substitutes nothing.
 fn literal_operand(node: &ExprNode) -> Option<String> {
     match node {
         ExprNode::Literal { text, .. } => Some(text.clone()),
         ExprNode::String { text, .. } => {
-            let (body, substitutes) = match tcl_syntax::expr::quoted_string_body(text) {
-                Some(body) => (body, true),
-                None => (text.strip_prefix('{')?.strip_suffix('}')?, false),
-            };
-            tcl_syntax::expr::fixed_string_body(body, substitutes).map(str::to_owned)
+            tcl_syntax::expr::fixed_string_operand(text).map(str::to_owned)
         }
         ExprNode::CompiledWord { text, braced } => {
             (*braced || !text.contains(['$', '[', '\\'])).then(|| text.clone())

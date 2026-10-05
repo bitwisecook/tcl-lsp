@@ -7336,10 +7336,17 @@ fn the_nested_equality_decides() {
 /// without `-strict`, `0x10`), truth is no value (`yes`), and from 8.5 an
 /// opaque `-nocase` `switch` and `in` keep what they were given. Each prints
 /// the same under every release before and after `tcl opt`.
+///
+/// A read of the refined variable itself is never rewritten, so the `==`
+/// arms, an `in` arm and a flattened `switch`'s arms also read the arm's
+/// value through a definition (`set y $x; puts $y`), which O100 inlines
+/// where the arm proves an exact value: an exact value where the table
+/// says "never the string" prints `1` for `1.0`, and one member of an `in`
+/// set prints that member for another.
 #[test]
 fn the_twelve_refinement_witnesses() {
-    let every = "proc p {x} {if {$x == 1} {return [string length $x]}; return none}\n\
-                 proc q {x} {if {$x == 1} {return $x}; return none}\n\
+    let every = "proc p {x} {if {$x == 1} {set y $x; puts $y; return [string length $x]}; return none}\n\
+                 proc q {x} {if {$x == 1} {set y $x; puts $y; return $x}; return none}\n\
                  proc r {x} {if {$x eq \"1\"} {return yes}; return no}\n\
                  proc s {x} {if {$x eq \"a\"} {return $x}; return none}\n\
                  proc t {x} {if {[string is integer -strict $x]} {return [string length $x]}; return none}\n\
@@ -7347,6 +7354,7 @@ fn the_twelve_refinement_witnesses() {
                  proc u2 {x} {if {[string is integer -strict $x]} {return yes}; return no}\n\
                  proc v {x} {if {[string is integer -strict $x]} {return $x}; return none}\n\
                  proc w {x} {if {$x} {return $x}; return none}\n\
+                 proc k {x} {switch -- $x {a {set y $x; puts $y; return A} b {set y $x; puts $y; return B}}; return none}\n\
                  set ::v 1.0; puts [p $::v]\n\
                  set ::v \" 1\"; puts [p $::v]\n\
                  set ::v 01; puts [q $::v]\n\
@@ -7355,12 +7363,20 @@ fn the_twelve_refinement_witnesses() {
                  set ::v \" 12 \"; puts [t $::v]\n\
                  set ::v {}; puts [u $::v]; puts [u2 $::v]\n\
                  set ::v 0x10; puts [v $::v]\n\
-                 set ::v yes; puts [w $::v]\n";
-    prints_under_every_release(every, "3\n2\n01\nno\na\n4\nyes 0\nno\n0x10\nyes\n");
-    let leading_zero = "proc y {x} {if {$x == 8} {return \"yes [string length $x]\"}; return no}\n\
+                 set ::v yes; puts [w $::v]\n\
+                 set ::v b; puts [k $::v]\n";
+    prints_under_every_release(
+        every,
+        "1.0\n3\n 1\n2\n01\n01\nno\na\n4\nyes 0\nno\n0x10\nyes\nb\nB\n",
+    );
+    let leading_zero = "proc y {x} {if {$x == 8} {set y $x; puts $y; return \"yes [string length $x]\"}; return no}\n\
                         set ::v 08; puts [y $::v]\n";
     for (series, tclsh) in releases_on_path() {
-        let expected = if series < "9.0" { "no\n" } else { "yes 2\n" };
+        let expected = if series < "9.0" {
+            "no\n"
+        } else {
+            "08\nyes 2\n"
+        };
         let (rewritten, _) = optimised(leading_zero, &dialect_of(series));
         for program in [leading_zero, rewritten.as_str()] {
             assert_eq!(
@@ -7371,10 +7387,10 @@ fn the_twelve_refinement_witnesses() {
         }
     }
     let from_85 = "proc z {x} {switch -nocase -- $x {a {return $x}}; return none}\n\
-                   proc m {x} {if {$x in {a b c}} {return $x}; return none}\n\
+                   proc m {x} {if {$x in {a b c}} {set y $x; puts $y; return $x}; return none}\n\
                    set ::v A; puts [z $::v]\n\
                    set ::v b; puts [m $::v]\n";
-    prints_under_releases_from(from_85, "A\nb\n", "8.5");
+    prints_under_releases_from(from_85, "A\nb\nb\n", "8.5");
 }
 
 /// The lines, from 1, of the S100 shimmer warnings in `source` under
