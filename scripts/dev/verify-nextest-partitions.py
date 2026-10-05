@@ -530,7 +530,7 @@ def self_test() -> None:
             f"{archive_sha}  lsp-e2e.tar.zst\n", encoding="utf-8"
         )
         (proof_dir / "nextest-version.txt").write_text(
-            "cargo-nextest 0.9.143\n", encoding="utf-8"
+            "cargo-nextest 0.9.146\n", encoding="utf-8"
         )
         listing_paths = {
             "all.json": proof_dir / "all.json",
@@ -551,7 +551,7 @@ def self_test() -> None:
         common: dict[str, Any] = {
             "schema": 1,
             "workspace_sha": "abc123",
-            "nextest_version": "cargo-nextest 0.9.143",
+            "nextest_version": "cargo-nextest 0.9.146",
             "package": "tcl-lsp-server",
             "filter": "default",
             "archive_sha256": archive_sha,

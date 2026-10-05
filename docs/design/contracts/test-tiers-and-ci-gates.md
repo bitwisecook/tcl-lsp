@@ -12,7 +12,7 @@ behind it.
 | **deep** — CI jobs `rust-tests-shard` and `rust-tests-doctest` plus their stable `rust-tests` aggregate, `rust-tests-heavy`, `runtime-rust-tests`, `lsp-e2e`, `test-ext`, `test-ext-web`, `cargo-deny`, `python`, `spectcl-compat`, `web-frontends` | every PR and every push to `rust` | the full workspace suite (native `lsp_e2e` included), the VM-sim heavies, the standalone `runtime/rust` unit suite, the VS Code extension on desktop and in a browser host, supply-chain audit, Python lint/typecheck plus native-engine build and binding tests for `rust/bigip-report-gen/python`, and an `npm ci` of the two npm roots that are not `editors/vscode`. Skips only what demonstrably did not change (below). |
 | **exhaustive** — `make test-exhaustive`, `make fuzz`, `make tcltest-sweep[-check]` | only when a human invokes it by name | every `#[ignore]`d corpus sweep over `tmp/tcl*` and tcllib, differential-fuzz gates, privileged bpf/kernel tests, fuzz campaigns. **Never** wired into `prep-pr`, `test`, `check-all`, or CI. |
 
-The native `lsp-e2e` surface is produced once as a nextest 0.9.143 archive,
+The native `lsp-e2e` surface is produced once as a nextest 0.9.146 archive,
 then consumed by three hosted `hash:1/3`, `hash:2/3`, and `hash:3/3` jobs.
 Each consumer remaps the archive to its checkout and receives the relocated server through
 `NEXTEST_BIN_EXE_tcl-lsp-server`; ordinary Cargo tests retain the compile-time

@@ -42,8 +42,8 @@ REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
 tcl_reference_load_toolchains "$REPO_ROOT"
 
 # Pinned toolchain versions. Bump these when new stable releases land.
-WASMTIME_VERSION="48.0.1"
-BINARYEN_VERSION="132"
+WASMTIME_VERSION="49.0.2"
+BINARYEN_VERSION="133"
 WASI_SDK_VERSION="34.0"
 # Rust tracks the floating `stable` channel to match `rust-toolchain.toml`
 # (see docs/rust-rewrite.md). Installing the channel — rather than a pinned
@@ -167,9 +167,9 @@ install_wasmtime() {
     local expected_sha=""
     case "$wasm_arch" in
         x86_64-linux)
-            expected_sha="4c2e31b68ad99e0a519f225a261fda099eb15f056d4a24fdb3c2a46517bde1df" ;;
+            expected_sha="a4d6e9e3a5a60f527cf7793d674c48930c80c2e8977995b8a275cad3254b9322" ;;
         aarch64-linux)
-            expected_sha="fdbebd838ed7b9cc4e2b63f6d7d855b33386fc388f3595f668bf394131dd072f" ;;
+            expected_sha="ca14988c6da3d92512bd9c3bad6cbd06b1f5743b6911a9e709f1a6fa30637d7f" ;;
     esac
     if [ -z "$expected_sha" ]; then
         echo "session-start: no pinned wasmtime sha256 for ${wasm_arch}" >&2
@@ -228,9 +228,9 @@ install_binaryen() {
     local expected_sha=""
     case "$bin_arch" in
         x86_64-linux)
-            expected_sha="195ddc94f9bc89f45abdabb0b9eea86023d727ba90eac8b35b80f2544fc30572" ;;
+            expected_sha="2dc9c7813f5375db93d96ead4b78222fcc3e2677bbb832297af4797782a37489" ;;
         aarch64-linux)
-            expected_sha="c58562417836c5d0493d89bdefc434933bdc097db641b483df86bcfa557a107f" ;;
+            expected_sha="89c07ea56faf38d0fbecf36ca8ec0721756716185f265b568e133d427f299bf8" ;;
     esac
     local actual_sha
     actual_sha="$(sha256sum "${tmpdir}/${tarball}" | awk '{print $1}')"

@@ -633,9 +633,9 @@ format: format-ts format-py ## Format TypeScript and Python code
 # Python tooling. Versions are pinned so a new ruff/ty/pyright release cannot
 # change the verdict of a gate between a local run and CI — the failure mode the
 # floating Rust `stable` channel already gives us (see rust-toolchain.toml).
-RUFF_VERSION    := 0.16.6
-TY_VERSION      := 0.0.78
-PYRIGHT_VERSION := 1.1.411
+RUFF_VERSION    := 0.16.10
+TY_VERSION      := 0.0.84
+PYRIGHT_VERSION := 1.1.414
 PYTEST_VERSION  := 9.1.1
 
 # The cached typecheck/test venv is not a distributable report build.  Its
@@ -1951,11 +1951,11 @@ codegen: generate gen-editor-settings ## Regenerate ALL generated files (catalog
 # into that same dir. `build.rs` then embeds the whole bundle, and
 # `tcl explore --serve` serves it from memory — no CDN, no network at runtime.
 
-MERMAID_VERSION  := 11.17.2
+MERMAID_VERSION  := 12.1.0
 MERMAID_JS       := $(EXPLORER_STATIC)/mermaid.min.js
 MERMAID_CDN      := https://cdn.jsdelivr.net/npm/mermaid@$(MERMAID_VERSION)/dist/mermaid.min.js
 
-$(MERMAID_JS):
+$(MERMAID_JS): $(ROOT)Makefile
 	@echo "==> Downloading Mermaid.js $(MERMAID_VERSION)"
 	curl -fSL -o $@ $(MERMAID_CDN)
 
@@ -2019,7 +2019,7 @@ tcl-vm-wasm: ## Build the bytecode VM as a self-contained wasm32 cdylib (the pri
 .PHONY: report-wasm
 report-wasm: ## Build the in-browser BIG-IP report generator (Rust → WASM) into rust/bigip-report-gen/wasm/dist/
 	@command -v wasm-bindgen >/dev/null 2>&1 || { \
-		echo "wasm-bindgen not found — 'cargo install wasm-bindgen-cli --version 0.2.128'"; exit 1; }
+		echo "wasm-bindgen not found — 'cargo install wasm-bindgen-cli --version 0.2.129'"; exit 1; }
 	bash $(ROOT)rust/bigip-report-gen/wasm/build-wasm.sh
 
 .PHONY: spec-studio-assets spec-studio-wasm

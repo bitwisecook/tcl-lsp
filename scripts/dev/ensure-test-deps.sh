@@ -103,7 +103,7 @@ requested_tcl_releases() {
         | awk 'NF && !seen[$0]++ { print }'
 }
 
-WASMTIME_VERSION="48.0.1"
+WASMTIME_VERSION="49.0.2"
 WASI_SDK_VERSION="34.0"
 TCLLIB_TAG="tcllib-2-0"
 TCLLIB_VERSION="2.0"
@@ -894,8 +894,8 @@ ensure_wasmtime() {
 
     local wasm_arch expected_sha
     case "$ARCH" in
-        x86_64)  wasm_arch="x86_64-linux"; expected_sha="4c2e31b68ad99e0a519f225a261fda099eb15f056d4a24fdb3c2a46517bde1df" ;;
-        aarch64) wasm_arch="aarch64-linux"; expected_sha="fdbebd838ed7b9cc4e2b63f6d7d855b33386fc388f3595f668bf394131dd072f" ;;
+        x86_64)  wasm_arch="x86_64-linux"; expected_sha="a4d6e9e3a5a60f527cf7793d674c48930c80c2e8977995b8a275cad3254b9322" ;;
+        aarch64) wasm_arch="aarch64-linux"; expected_sha="ca14988c6da3d92512bd9c3bad6cbd06b1f5743b6911a9e709f1a6fa30637d7f" ;;
         *) echo "ERROR: unsupported architecture for Wasmtime: $ARCH" >&2; return 1 ;;
     esac
 
@@ -1162,8 +1162,8 @@ ensure_rgxg() {
 # and checked against its digest before it runs, so a dev box and a CI runner
 # install the same uv from the same script.  Re-pin both together:
 #   curl -fsSL https://astral.sh/uv/<version>/install.sh | sha256sum
-UV_VERSION="0.12.10"
-UV_INSTALLER_SHA256="a3196b75f697a1adaa5e4af34ffba7629c710931ab1dac33bab59ecf228080bb"
+UV_VERSION="0.12.23"
+UV_INSTALLER_SHA256="b8e6c43099ee9f9a550984d3ad56948457c689e7a99c090b35377234ac241491"
 
 ensure_uv() {
     if [ "${SKIP_UV:-}" = "1" ]; then info "SKIP_UV=1 — skipping uv"; return 0; fi

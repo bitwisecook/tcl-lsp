@@ -45,7 +45,7 @@ do
 done
 
 case "$archive" in
-    *'if: $'*'needs: [channel]'*'tool: nextest@0.9.143'*'cargo nextest archive -p tcl-lsp-server --all-features'*) ;;
+    *'if: $'*'needs: [channel]'*'tool: nextest@0.9.146'*'cargo nextest archive -p tcl-lsp-server --all-features'*) ;;
     *) echo "archive job lost its no-op, pinned nextest, or archive command" >&2; exit 1 ;;
 esac
 
@@ -74,7 +74,7 @@ case "$partition$archive$aggregate" in
 esac
 
 case "$partition" in
-    *'strategy:'*'fail-fast: false'*'needs: [channel, lsp-e2e-archive]'*'tool: nextest@0.9.143'*'--archive-file'*'--workspace-remap'*'--partition "hash:'*) ;;
+    *'strategy:'*'fail-fast: false'*'needs: [channel, lsp-e2e-archive]'*'tool: nextest@0.9.146'*'--archive-file'*'--workspace-remap'*'--partition "hash:'*) ;;
     *) echo "partition matrix lost fail-fast, archive remap, pinned nextest, or hash partitioning" >&2; exit 1 ;;
 esac
 

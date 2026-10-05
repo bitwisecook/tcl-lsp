@@ -51,7 +51,7 @@ updates:
       interval: weekly
     groups:
       # The npm CLI itself is pinned via the `packageManager` field in
-      # package.json (currently npm@12.0.2). Dependabot tracks that
+      # package.json (currently npm@12.2.0). Dependabot tracks that
       # field as the "npm" dependency, so isolate it in its own group: a CLI
       # bump then lands as a clearly labelled standalone PR instead of being
       # buried in the weekly devDependency roll-up.
@@ -67,7 +67,7 @@ updates:
       # Compile against the oldest API declared in engines.vscode. Newer types
       # would allow calls that fail for users on the supported 1.95 floor.
       - dependency-name: "@types/vscode"
-      # typescript-eslint 8.69 supports TypeScript only below 6.1, so the
+      # typescript-eslint 8.71 supports TypeScript only below 6.1, so the
       # wall is 6.1.0 and not 7.0.0. Pair this with the `~6.0.3` range in
       # package.json: the range keeps a plain `npm install` on 6.0.x, and
       # this keeps Dependabot from proposing the bump the range would
@@ -93,7 +93,7 @@ updates:
         exclude-patterns:
           - "npm"
     ignore:
-      # typescript-eslint 8.69 supports TypeScript only below 6.1, so the
+      # typescript-eslint 8.71 supports TypeScript only below 6.1, so the
       # wall is 6.1.0 and not 7.0.0. Pair this with the `~6.0.3` range in
       # package.json: the range keeps a plain `npm install` on 6.0.x, and
       # this keeps Dependabot from proposing the bump the range would
@@ -115,7 +115,7 @@ updates:
         exclude-patterns:
           - "npm"
     ignore:
-      # typescript-eslint 8.69 supports TypeScript only below 6.1, so the
+      # typescript-eslint 8.71 supports TypeScript only below 6.1, so the
       # wall is 6.1.0 and not 7.0.0. Pair this with the `~6.0.3` range in
       # package.json: the range keeps a plain `npm install` on 6.0.x, and
       # this keeps Dependabot from proposing the bump the range would
