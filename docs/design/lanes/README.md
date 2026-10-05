@@ -148,6 +148,9 @@ checkpoint compiling.
   W240–W242 and IRULE5003 read the iteration plan) have landed; the slices
   after them are planned item by item in the tracking document's § *Plan for
   slices 2–13*.
+- [value-transfers-review-12.md](value-transfers-review-12.md) — the
+  adversarial review of slice 12 (bounded-loop enumeration), kept with the
+  lane while its fixes land.
 - [consumer-contracts.md](consumer-contracts.md) — steps 1 to 10 of
   [registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
   § *Build order*: step 1 (the four rulings taken as decided, and the
