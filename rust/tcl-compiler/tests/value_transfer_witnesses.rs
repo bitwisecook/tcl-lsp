@@ -7750,6 +7750,37 @@ fn a_bare_or_quoted_body_word_leaves_the_loop() {
     }
 }
 
+/// A loop statement's literal word is its value as Tcl substitutes it: a bare
+/// or quoted word's escapes are decoded, so `lappend r a\x41` appends `aA`,
+/// `append r \x41` appends `A`, and an `incr` by `\x31` adds 1. The
+/// enumeration had handed each word on as written, so it left `r` holding
+/// `a\x41 a\x41` and `tcl opt` folded the test after the loop to its false
+/// arm. Each loop now leaves what Tcl leaves and the test decides true, for
+/// I230 as for `tcl opt`. tclsh 8.4 to 9.1 print `yes` for each, before and
+/// after `tcl opt`.
+#[test]
+fn a_loop_word_is_its_value_with_its_escapes_decoded() {
+    for source in [
+        "set r {}\nforeach x {1 2} { lappend r a\\x41 }\n\
+         if {$r eq \"aA aA\"} {puts yes} else {puts no}\n",
+        "set r {}\nfor {set i 0} {$i < 2} {incr i} { append r \\x41 }\n\
+         if {$r eq \"AA\"} {puts yes} else {puts no}\n",
+        "set r {}\nforeach x {1 2} { lappend r \"a\\x41\" }\n\
+         if {$r eq \"aA aA\"} {puts yes} else {puts no}\n",
+        "for {set i 0} {$i < 2} {incr i \\x31} {}\n\
+         if {$i == 2} {puts yes} else {puts no}\n",
+    ] {
+        for dialect in DIALECTS {
+            assert_eq!(
+                condition_claims(source, dialect),
+                [true],
+                "{dialect}\n{source}"
+            );
+        }
+        prints_under_every_release(source, "yes\n");
+    }
+}
+
 /// A loop condition's math function is the one the module binds: with `abs`
 /// rebound by `proc ::tcl::mathfunc::abs`, `$i < abs(-3)` runs the loop to
 /// 99 under 8.5 to 9.1, so the enumeration declines — the shared lattice

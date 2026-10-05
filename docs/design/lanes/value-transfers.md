@@ -10,14 +10,16 @@ commit (§ *Slice 10* › *Record (2026-10-04): review fixes for slices 9 and
 slice 11 landed*), and its review fixes are in, each its own commit
 (§ *Slice 11* › *Record (2026-10-05): review fixes for slice 11*). Slice 12,
 bounded-loop enumeration, is at its second checkpoint (§ *Slice 12* ›
-*Record (2026-10-05): slice 12*, read with D268 to D280): the enumeration and
+*Record (2026-10-05): slice 12*, read with D268 to D281): the enumeration and
 the loop plans, with the post-loop branches deciding for I230 as for O101;
 the lane's own defect found there, a may-written element's base, fixed in its
 own commit; the simulator become the enumeration, whose exit state the
-ranges and the O103 re-run read; and #2381, a body word written bare or
-quoted that the W241 scans did not read, fixed in its own commit ahead of the
-landing, which would have widened it. The landing — W240–W242 and the iRules
-loop bound reading the plan, the slice's witnesses and the pages — is next.
+ranges and the O103 re-run read; #2381, a body word written bare or quoted
+that the W241 scans did not read, fixed in its own commit ahead of the
+landing, which would have widened it; and the lane's own escape defect, a
+loop statement's word handed on as written, fixed in its own commit. The
+landing — W240–W242 and the iRules loop bound reading the plan, the slice's
+witnesses and the pages — is next.
 
 ## Goal
 
@@ -8570,6 +8572,45 @@ unchanged, `pack-goldens`, `retired-api-gate`, `owner-resolution` and
 `kcs-index-links` pass, and `dialect-drift` stays at its 8 sites. The
 mutation was reverted before the runs.
 
+##### The lane's own: a loop word's escapes
+
+`wip(value-transfers): slice 12 — a loop word is its value with its escapes
+decoded`, straight after #2381's fix at the coordinator's ruling (D281).
+Found while probing the landing's nested words, and the lane's own:
+c1d24182, the first checkpoint, introduced it. `Enumerator::exec_command`
+handed a `Statement::Call`'s words, and an `incr` amount, to
+`invoke_in_state` as written, where a bare or quoted word with nothing to
+substitute was taken for a literal of its spelling, so its escapes were never
+decoded. `set r {}; foreach x {1 2} { lappend r a\x41 }; if {$r eq "aA aA"}
+{puts yes} else {puts no}` left `r` holding `a\x41 a\x41`, and `tcl opt
+--profile full` folded the test to `if {0} {} else {puts no}`, which prints
+`no` where tclsh 8.4 to 9.1 print `yes`; so did `append r \x41` in a `for`
+and the quoted `lappend r "a\x41"`. The release built before slice 12 left
+all three alone. `exec_command` now hands on each literal word's value, a
+braced word's under the `Str` rules and a bare or quoted word's under the
+`Esc` rules — `literal_token_value`, the rule the lattice driver's words and
+`word_in_state` already read — and a word that substitutes as written, for
+the run to read over the state; the `incr` amount goes the same way.
+
+Tests: `a_loop_word_is_its_value_with_its_escapes_decoded`
+(`value_transfer_witnesses.rs`, new: the three programs and `for {set i 0}
+{$i < 2} {incr i \x31} {}`, each test decided true under the five dialects
+and each program printing `yes` under tclsh 8.4 to 9.1 before and after `tcl
+opt`; with the words handed on as written it fails on the first).
+
+Green at the fix: `tcl-compiler` 10176 passed, 6 ignored (the library 6730,
+`value_transfer_witnesses` 141, the new witness), `tcl-registry` 1428,
+`tcl-explorer` 112, `tcl-lsp-db` 139, 5 ignored, `tcl-lsp-core --lib` 2353,
+`tcl-cli` 205, `xtask` 275, `tcl-spectcl` 476, 1 ignored (under a private
+`XDG_CACHE_HOME`), and `tcl-cmd-core` 143; workspace clippy, no `#[allow]`
+added, `cargo fmt --check` and `cargo check --workspace --all-targets` clean;
+`value-transfers --check` and `registry-axes --check` unchanged,
+`pack-goldens`, `retired-api-gate`, `owner-resolution` and `kcs-index-links`
+pass, and `dialect-drift` stays at its 8 sites. The mutation was reverted
+before the runs. This fix's own comparison over the corpus, `tcl diag` and
+`tcl opt --profile full` against the second checkpoint's, runs with the
+landing, whose record holds it.
+
 ### Slice 7a — seedless return summaries
 
 #### Goal and exit
@@ -11835,6 +11876,7 @@ Taken in slice 12, bounded-loop enumeration (§ *Slice 12* › *Record (2026-10-
 - **D278 — The ranges take a loop's exact exit integer as its point, without a proof of an integer** (VT12.4; D265 keeps its rule for the range refinements). D265 narrows by a range refinement only a version proved an integer, since a comparison holds of a double or a string too; a loop's exit state is the version's exact value, and a canonical integer's text is an integer, so it bounds the version by itself. It is taken only where it lies within the version's own interval, so a contradiction keeps the widened one.
 - **D279 — O103's return fold reads the value at the return's block** (VT12.4). The re-run's lattice holds the loop's state as a refinement, not as a version's value, so `resolve_return_constant` reads `value_at` for a `$var` return and for the variables of a returned `expr`; a refinement in force at a return is a proof there, a branch's as much as a loop's, and every executable return must still agree.
 - **D280 — The body scans descend into every script word the registry names, however it is written** (the coordinator's ruling on #2381, found while seeding slice 12's counter). W241's exit scan and the counter's write scan read a loop's body through one walk, which took a braced word for a nested script and nothing else, where Tcl runs an `if`'s bare or quoted body as it runs a braced one. The walk descends into a word the registry gives a `Body` role whatever its quoting, and into every braced word as before, so both scans find more exits and more writes, each of which keeps W241 silent. It is the lane's fix rather than an issue left open because the landing extends the counter to a `while` loop's increment and would otherwise widen a false report to a new loop shape.
+- **D281 — The enumeration hands a statement's literal word on as its value** (the lane's own defect from slice 12's first checkpoint, c1d24182; the coordinator's ruling). `invoke_in_state` reads a word given as braced as a literal of its text and classifies any other by its spelling, which is right for a value the run computed and for a braced word, but a bare or quoted word's value is its spelling with its escapes decoded. `exec_command` therefore cooks each literal word of a call, and an `incr` amount, before handing it on — `literal_token_value` under the `Str` rules for a braced word and the `Esc` rules for a bare or quoted one, the one rule the lattice driver and `word_in_state` read — and passes the value as a literal; a word that substitutes goes on as written, which the run reads over its state.
 
 ### Open questions for the owner
 

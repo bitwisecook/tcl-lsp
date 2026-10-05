@@ -704,8 +704,11 @@ impl Enumerator<'_> {
                 ..
             } => {
                 let head = self.typed_head(LoweringHookId::Incr)?;
+                let amount = amount
+                    .as_deref()
+                    .map(|text| self.source_word(text, *amount_braced));
                 let mut words = vec![(name.as_str(), true)];
-                words.extend(amount.as_deref().map(|text| (text, *amount_braced)));
+                words.extend(amount.as_ref().map(|(text, value)| (text.as_ref(), *value)));
                 self.driver
                     .invoke_in_state(state, &head, &words, &mut self.budget)?
             }
@@ -717,15 +720,19 @@ impl Enumerator<'_> {
                 ..
             } => {
                 let head = canonical_command.as_deref().unwrap_or(command);
-                let words: Vec<(&str, bool)> = args
+                let words: Vec<(std::borrow::Cow<'_, str>, bool)> = args
                     .iter()
                     .enumerate()
                     .map(|(at, text)| {
                         let braced = tokens
                             .as_ref()
                             .is_some_and(|tokens| tokens.arg_is_braced_literal(at));
-                        (text.as_str(), braced)
+                        self.source_word(text, braced)
                     })
+                    .collect();
+                let words: Vec<(&str, bool)> = words
+                    .iter()
+                    .map(|(text, value)| (text.as_ref(), *value))
                     .collect();
                 self.driver
                     .invoke_in_state(state, head, &words, &mut self.budget)?
@@ -733,6 +740,27 @@ impl Enumerator<'_> {
             _ => return Err(DeclineReason::Unsupported),
         };
         self.apply(state, step)
+    }
+
+    /// A source word of a statement as the run hands it to its route: a
+    /// literal word's value, taken as is — a braced word's content under the
+    /// `Str` rules, a bare or quoted word's escapes decoded under the `Esc`
+    /// rules, as Tcl substitutes them, so `lappend r a\x41` appends `aA` —
+    /// and a word that substitutes as written, read over the state. The one
+    /// rule [`crate::value_transfer::literal_token_value`] the lattice driver
+    /// and [`crate::value_transfer::LatticeDriver::word_in_state`] read too.
+    fn source_word<'t>(&self, text: &'t str, braced: bool) -> (std::borrow::Cow<'t, str>, bool) {
+        let kind = if braced {
+            tcl_lexer::TokenType::Str
+        } else if text.contains(['$', '[']) {
+            return (std::borrow::Cow::Borrowed(text), false);
+        } else {
+            tcl_lexer::TokenType::Esc
+        };
+        match self.driver.literal_value(text, kind) {
+            Some(value) => (value, true),
+            None => (std::borrow::Cow::Borrowed(text), false),
+        }
     }
 
     /// Run a `switch` over `state`: the registry's selection for the
