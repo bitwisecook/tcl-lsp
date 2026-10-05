@@ -106,6 +106,10 @@ the statement that owns it.  The one exception is a non-lowered `switch`
 (`-glob` / `-regexp`, or `-exact` with a fall-through arm): its arms stay
 inside a single opaque `Statement::Switch`, and `ssa::switch_reads` recovers
 the names they read so a variable used only in an arm is not reported unused.
+An opaque `catch` or `try` keeps its scripts inside one call too, whose reads
+are its words' as the statement scan finds them, less the names the marker
+ahead of it states the scripts write (`ssa::drop_reads_of_own_writes`): the
+arms' rule, a script's reads less its own writes.
 
 That recovery walk (`switch_reads` → `free_reads_in_script` →
 `reads_in_script` → `reads_in_stmt`) carries the **same `ClassifiedUses`

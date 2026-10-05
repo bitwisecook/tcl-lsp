@@ -3241,6 +3241,7 @@ impl RenameWalk {
             }
             if let Some(infos) = self.out.stmt_infos.get_mut(&bn) {
                 demote_reads_beside_writes(infos);
+                drop_reads_of_own_writes(infos);
             }
         }
 
@@ -3504,6 +3505,47 @@ fn demote_reads_beside_writes(infos: &mut [SsaStatement]) {
             }
         }
     }
+}
+
+/// A script a statement keeps inside itself reads a name it writes as its
+/// own: what it consumes of the frame is its reads less its writes, the rule
+/// an opaque `switch`'s arms are read by ([`free_reads_in_script`]). An
+/// opaque `catch` or a deferred `try` runs its scripts before the call
+/// assigns its result and options variables, so the CFG builder states what
+/// they write in the marker ahead of the call ([`arm_writes_host`]), and the
+/// call's reads of those names are dropped: `catch {set i 0; puts $i}` reads
+/// nothing of `i` from the frame. A read after the call reads the marker's
+/// may-definition, so a name the scripts only may write is still undefined
+/// there on the path where they did not. Like the arms' rule this is blind to
+/// order inside the script: a read before the script's own write of the name
+/// is dropped too.
+fn drop_reads_of_own_writes(infos: &mut [SsaStatement]) {
+    for marker in 0..infos.len() {
+        let Some(host) = arm_writes_host(infos, marker) else {
+            continue;
+        };
+        let written: Vec<Symbol> = infos[marker].defs.keys().copied().collect();
+        for symbol in written {
+            infos[host].uses.remove(&symbol);
+            infos[host].quoted_uses.remove(&symbol);
+            infos[host].name_only_uses.remove(&symbol);
+        }
+    }
+}
+
+/// The statement the [`crate::ir::SyntheticMarker::ArmWrites`] marker at
+/// `marker` states the writes of when it stands ahead of it — an opaque
+/// `catch` or a deferred `try`: the first statement after it that is no
+/// marker, when it shares the marker's span, as the CFG builder puts them.
+/// `None` for any other statement, and for the marker that follows an opaque
+/// `switch`, whose arms' reads are already free of their own writes.
+fn arm_writes_host(infos: &[SsaStatement], marker: usize) -> Option<usize> {
+    let statement = &infos.get(marker)?.statement;
+    if !is_arm_writes_marker(statement) {
+        return None;
+    }
+    let host = (marker + 1..infos.len()).find(|&i| !is_synthetic_statement(&infos[i].statement))?;
+    (infos[host].statement.span() == statement.span()).then_some(host)
 }
 
 /// The statement the effect call at `call` ([`crate::ir::SyntheticMarker::
@@ -5794,6 +5836,26 @@ mod tests {
             !call.defs.contains_key(&g),
             "the call defines no name its body writes"
         );
+    }
+
+    /// The call reads a name its body writes as the body's own: what the body
+    /// consumes of the frame is its reads less its writes, as an opaque
+    /// `switch`'s arms are read, so `catch {set i 0; puts $i}` reads nothing
+    /// of `i`, while a name the body only reads is still a read of the frame.
+    #[test]
+    fn an_opaque_catch_reads_its_own_writes_as_its_own() {
+        let ssa = ssa_of_function("catch {set i 0; puts $i; puts $j}\n", "::top");
+        let statements = ssa_statements(&ssa);
+        let call = statements
+            .iter()
+            .find(|statement| {
+                matches!(&statement.statement, Statement::Call { command, .. } if command == "catch")
+            })
+            .expect("the catch call");
+        let i = ssa.var_symbol("i").expect("i");
+        let j = ssa.var_symbol("j").expect("j");
+        assert!(!call.uses.contains_key(&i), "{:?}", call.uses);
+        assert_eq!(call.uses.get(&j), Some(&0), "{:?}", call.uses);
     }
 
     /// A call to a command the module cannot see reads its words before its

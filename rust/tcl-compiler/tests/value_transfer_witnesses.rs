@@ -7489,3 +7489,47 @@ fn a_range_from_a_comparison_narrows_only_a_proved_integer() {
         }
     }
 }
+
+/// The script an opaque `catch` keeps inside itself reads a name it writes
+/// as its own, by the rule an opaque `switch`'s arms are read by: its reads
+/// less its writes are what it reads of the frame. A body that sets a name
+/// and then reads it — a `set`, a `foreach` binder, a `for` counter in a
+/// procedure — draws no W210 under every dialect, where the marker ahead of
+/// the call had made each read one of a name that may be unset; tclsh 8.4
+/// to 9.1 print what the bodies print, before and after `tcl opt`. A name the
+/// body only may set is still undefined after the call on the path where it
+/// did not: `puts $x` past `catch {if {$c} {set x 1}}` draws W210, and tclsh
+/// raises on `p 0`.
+#[test]
+fn an_opaque_catch_reads_its_own_writes_as_its_own() {
+    for (source, printed) in [
+        ("catch {set i 0; puts $i}\n", "0\n"),
+        ("catch {foreach x {1 2} {puts $x}}\n", "1\n2\n"),
+        (
+            "proc p {} {catch {for {set i 0} {$i < 3} {incr i} {puts $i}}}\np\n",
+            "0\n1\n2\n",
+        ),
+    ] {
+        for dialect in DIALECTS {
+            assert!(
+                !reports(source, dialect, DiagCode::W210),
+                "{dialect}: {source}"
+            );
+        }
+        prints_under_every_release(source, printed);
+    }
+    let may_set = "proc p {c} {catch {if {$c} {set x 1}}; puts $x}\np 1\np 0\n";
+    for dialect in DIALECTS {
+        assert!(reports(may_set, dialect, DiagCode::W210), "{dialect}");
+    }
+    for (series, tclsh) in releases_on_path() {
+        let (rewritten, _) = optimised(may_set, &dialect_of(series));
+        for program in [may_set, rewritten.as_str()] {
+            assert_eq!(
+                run_script(&tclsh, program),
+                Some((false, "1\n".to_owned())),
+                "tclsh{series}:\n{program}"
+            );
+        }
+    }
+}

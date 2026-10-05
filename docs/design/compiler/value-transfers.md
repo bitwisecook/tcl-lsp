@@ -2118,7 +2118,12 @@ body that is not a straight line — a `catch` body is one opaque `Call`
 (`emit_opaque_catch` in `cfg_builder/mod.rs`): the call defines its result
 variable and its options variable, and what the body writes is a
 may-definition of a marker ahead of the call (`SyntheticMarker::ArmWrites`),
-since the body stops at its first error. What the commands of the body do to
+since the body stops at its first error. The call reads what the body reads
+less what it writes, the rule an opaque `switch`'s arms are read by
+(`drop_reads_of_own_writes` and `free_reads_in_script` in `ssa.rs`), so
+`catch {set i 0; puts $i}` reads nothing of `i` from the frame, and a read
+after the call reads the marker's may-definition, undefined on the path where
+a body that only may set the name did not. What the commands of the body do to
 the frame goes ahead of the call as it does after an opaque `switch`
 (`opaque_script_effects`): the names a callee writes through `upvar`, the
 caller-frame barrier for a command that may write any name, and the marker
