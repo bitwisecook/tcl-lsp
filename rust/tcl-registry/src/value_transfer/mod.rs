@@ -66,9 +66,9 @@ pub use answers::{
     Binder, BinderName, BindingKind, BodyPlan, CaseArms, CompletionOutcome, CompletionPath,
     CompletionProtocol, DependencyEvidence, EvalAnswer, ExactValue, ExactValueOrUnavailable,
     Existence, ExistenceOutcome, ExistenceTransfer, ExitRule, FactBounds, HandlerMatch,
-    HandlerPlan, InvocationOutcome, IterableKind, IterationPlan, NumericValue, PlanAnswer,
-    RangeModel, Reconcile, RepresentationEvidence, RouteIdentity, ScriptRegion, SegmentFacts,
-    SelectionContract, SelectionFact, StoreOutcome, TaintTransfer, TemplateWordPlan,
+    HandlerPlan, InvocationOutcome, IterableKind, IterationPlan, ListGroup, NumericValue,
+    PlanAnswer, RangeModel, Reconcile, RepresentationEvidence, RouteIdentity, ScriptRegion,
+    SegmentFacts, SelectionContract, SelectionFact, StoreOutcome, TaintTransfer, TemplateWordPlan,
     TransferAnswer, TypeFacts, ValueShape, VariableRead, validate_outcome,
 };
 pub use const_ops::{ConstOps, ConstValue, Needs, Representation, TargetSemantics, WorkUnits};

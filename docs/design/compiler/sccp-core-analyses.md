@@ -38,7 +38,8 @@ SCCP walks the SSA graph and propagates:
 - `Statement::AssignValue { value: "${x}", .. }` where `x₁ = Const(Int(42))` → `Const(Int(42))`
 - Phi nodes: `join(Const(42), Const(42))` → `Const(42)`
 - Phi nodes: `join(Const(42), Const(99))` → `ConstSet([42, 99])`, widening to `Overdefined` past the set cap
-- Loop-carried values: `Overdefined` (value changes per iteration)
+- Loop-carried values: `Overdefined` (value changes per iteration); after a
+  loop the solver runs to its exit, the value it leaves (§ *Bounded loops*)
 
 Only executable predecessors feed a phi (`sccp_process_phis` consults
 `SccpResult::executable_edges`), which is what makes the propagation
@@ -269,6 +270,60 @@ verdict replaces W242, the hint that a counter is never modified. A loop no
 unit decides — its header is not reached, its condition varies, a
 stub-declared loop command the CFG keeps as a call, a complexity-guarded
 body — keeps the verdict its text gives, reported after the pass.
+
+I230 reads a loop's own test structurally: the branch whose false edge enters
+the block the loop leaves to (`cfg.loop_nodes`) is the loop's test, and a
+decided true one — the idiomatic `while 1` — is not reported. A decided `if`
+in the loop's body, or right after the loop in the block it leaves to, is an
+`if` like any other, whatever its block's name.
+
+### Bounded loops (`SccpResult::loop_enumerations`)
+
+The solver runs a loop to its exit where it proves the state the loop starts
+from ([value-transfers.md](value-transfers.md) § *Bounded-loop
+enumeration*). The CFG builder records each `for`, `while` and `foreach` it
+lowers as a `LoopNode`, keyed by the block the loop leaves to and naming the
+block whose exit state its passes start from — the end of a `for`'s start
+script, the block before the loop otherwise. After the fixed point,
+`enumerate_loops` takes each loop whose blocks are executable, builds its
+start state (`start_state`: each value the settled lattice proves exact at
+that block's exit, under the refinements in force there, a scalar of unknown
+value or no binding where the existence rung proves it so) and runs
+`static_loops::enumerate_loop` over it. A loop that leaves normally — its
+iterable exhausted, its condition false, or `break` — states each place it
+wrote as an exact-value `EdgeRefinement` on every executable edge into the
+block it leaves to, for the version live there, and the solver runs again
+with those among the refinements it reads (`RefinementFlow`, where one fact
+stated on several edges is one fact, so a block every one of those edges
+enters holds it). The second run enumerates nothing, and its values only
+descend from the first's. Inside the loop nothing changes: the header φs
+widen as before, so a body statement still reads `ConstSet` or
+`Overdefined`.
+
+```text
+for {set i 0} {$i < 5} {incr i} {}
+if {$i == 5} {puts five}       ;# I230: always true; O101 folds the branch
+```
+
+A loop the enumeration declines — a read of a place the state holds no
+value of, a store to a place it does not hold or another actor may write, a
+statement no route evaluates exactly, more than
+`DEFAULT_MAX_STATIC_LOOP_ITERS` passes (`Budget(Iterations)`) — or one that
+leaves with an error or a `return`, publishes nothing, and the branch after
+it decides only as the widened lattice lets it. Each loop run is recorded
+as an `EnumeratedLoop { exit_block, span, iterations, exit, published }` in
+`SccpResult::loop_enumerations`, in the order of the blocks the loops leave
+to (`rebase_function_unit`-shifted), and the Explorer's `sccp` view prints
+it as `enumerated loop: 5 iterations, false condition`, with the block it
+leaves to and each value it published.
+
+An opaque `catch`'s body is run the same way at the marker that states its
+writes (`catch_body_answer`): over the exact state of the names the marker
+and its call read, the body runs to its end — the `catch` absorbs however it
+completes — and each name it wrote takes what it left, a value or no
+binding, while each name it did not write keeps what it held. A body the
+enumeration declines, or one that writes a name the marker does not state,
+leaves the marker to its may-definitions as before.
 
 ### Selection records (`SccpResult::selections`)
 

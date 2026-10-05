@@ -1733,6 +1733,34 @@ fn selection_json(
     })
 }
 
+/// One loop the solver ran to its exit: where it leaves to, its passes, how
+/// it left, and the value it published for each place it wrote.
+fn enumerated_loop_json(
+    record: &tcl_compiler::sccp::EnumeratedLoop,
+    ssa: &tcl_compiler::ssa::SsaFunction,
+    (li, source): (&LineIndex, &str),
+) -> Value {
+    use tcl_registry::value_transfer::ExitRule;
+    let exit = match record.exit {
+        ExitRule::Exhaustion => "exhaustion",
+        ExitRule::FalseCondition => "false condition",
+        ExitRule::Break => "break",
+        ExitRule::NonNormalCompletion => "non-normal completion",
+        ExitRule::EnumerationCap => "enumeration cap",
+    };
+    json!({
+        "exitBlock": ssa.block_name(record.exit_block),
+        "iterations": record.iterations,
+        "exit": exit,
+        "range": range_dict(record.span, li, source),
+        "published": record
+            .published
+            .iter()
+            .map(|(name, value)| json!({ "variable": name, "lattice": format_lattice(value) }))
+            .collect::<Vec<_>>(),
+    })
+}
+
 /// One edge refinement of the SCCP view: the edge, the place and version it
 /// narrows, the domain, and the fact as the view spells it — a value as a
 /// constant is (`'a'`), a finite set as its members, an existence, a type
@@ -1792,12 +1820,38 @@ fn refinement_json(
     })
 }
 
+/// The SCCP view's values of one function, by variable and version: each
+/// version's lattice value, with the folded type the producing evaluation
+/// states when it states one — the type with how the route built the value
+/// (`bytearray (constructed)`).
+fn lattice_values_json(unit: &tcl_compiler::compilation_unit::FunctionUnit) -> Vec<Value> {
+    let ssa = &unit.ssa;
+    let mut values: Vec<_> = unit.sccp.values.iter().collect();
+    values.sort_by(|(a, _), (b, _)| ssa.var_name(a.0).cmp(ssa.var_name(b.0)).then(a.1.cmp(&b.1)));
+    let folded = &unit.sccp.folded_types;
+    values
+        .into_iter()
+        .map(|(&(symbol, version), lattice)| {
+            let mut value = json!({
+                "variable": ssa.var_name(symbol),
+                "version": version,
+                "lattice": format_lattice(lattice),
+            });
+            if let Some(folded) = folded.get(&(symbol, version)) {
+                value["type"] = json!(folded.label());
+            }
+            value
+        })
+        .collect()
+}
+
 /// Serialise the complete SCCP lattice and executable CFG facts. The SSA CFG
 /// tab intentionally keeps a compact annotation; this view is the durable
 /// proof surface for constants, reachability, executable edges, each
-/// executable branch edge's refinements, each opaque case list's selection
-/// and — per statement — the value-transfer route the resolved invocation
-/// declared and how it answered.
+/// executable branch edge's refinements, each loop the solver ran to its
+/// exit, each opaque case list's selection and — per statement — the
+/// value-transfer route the resolved invocation declared and how it
+/// answered.
 #[must_use]
 pub fn serialise_sccp(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
     Value::Array(
@@ -1806,28 +1860,7 @@ pub fn serialise_sccp(result: &ExplorerResult, li: &LineIndex, source: &str) -> 
             .iter()
             .map(|snap| {
                 let ssa = &snap.unit.ssa;
-                let mut values: Vec<_> = snap.unit.sccp.values.iter().collect();
-                values.sort_by(|(a, _), (b, _)| {
-                    ssa.var_name(a.0).cmp(ssa.var_name(b.0)).then(a.1.cmp(&b.1))
-                });
-                let folded = &snap.unit.sccp.folded_types;
-                let values: Vec<Value> = values
-                    .into_iter()
-                    .map(|(&(symbol, version), lattice)| {
-                        let mut value = json!({
-                            "variable": ssa.var_name(symbol),
-                            "version": version,
-                            "lattice": format_lattice(lattice),
-                        });
-                        // The folded type the producing evaluation states,
-                        // when it states one: the type with how the route
-                        // built the value (`bytearray (constructed)`).
-                        if let Some(folded) = folded.get(&(symbol, version)) {
-                            value["type"] = json!(folded.label());
-                        }
-                        value
-                    })
-                    .collect();
+                let values = lattice_values_json(snap.unit);
                 let mut executable_blocks: Vec<String> = snap
                     .unit
                     .sccp
@@ -1885,6 +1918,13 @@ pub fn serialise_sccp(result: &ExplorerResult, li: &LineIndex, source: &str) -> 
                     })
                     .map(|refinement| refinement_json(refinement, &snap.unit.sccp, ssa))
                     .collect();
+                let loops: Vec<Value> = snap
+                    .unit
+                    .sccp
+                    .loop_enumerations
+                    .iter()
+                    .map(|record| enumerated_loop_json(record, ssa, (li, source)))
+                    .collect();
                 let tally = &snap.unit.sccp.route_tally;
                 json!({
                     "name": snap.name,
@@ -1894,6 +1934,7 @@ pub fn serialise_sccp(result: &ExplorerResult, li: &LineIndex, source: &str) -> 
                     "executableEdges": executable_edges,
                     "constantBranches": branches,
                     "refinements": refinements,
+                    "enumeratedLoops": loops,
                     "selections": selections,
                     "routes": routes,
                     "routeTally": {

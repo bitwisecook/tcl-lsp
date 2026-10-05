@@ -628,23 +628,22 @@ unknown.
 
 ```tcl
 for {set i 0} {$i < 5} {incr i} {}
-if {$i == 5} { puts five } else { puts other }   ;# today: O101 folds the condition and O107 removes the else
+if {$i == 5} { puts five } else { puts other }   ;# I230; O101 folds the condition and O107 removes the else
 ```
 
 ```tcl
 set t 0
 for {set i 0} {$i < 4} {incr i} { incr t $i }
-if {$t == 6} { puts six } else { puts other }    ;# today: O101 and O107 — the accumulator survives the simulation
+if {$t == 6} { puts six } else { puts other }    ;# I230; O101 and O107 — the accumulator survives the run
 ```
 
-Both decide today through `summarise_for_statement` and
-`loop_summary_decision`, and `tcl diag` reports no I230 for either: the
-optimiser and the diagnostic disagree on the same program, which is what
-one fact for every consumer removes.
+Both decide through the loop's enumeration, which states `i` 5 and `t` 6 on
+the loop's exit edges: `tcl diag` reports I230 and `tcl opt` folds the
+branch from the one fact.
 
 ```tcl
 for {set i 0} {$i < 10} {incr i} { if {$i == 3} break }
-if {$i == 3} { puts three } else { puts other }   ;# today: nothing — the simulation has no break
+if {$i == 3} { puts three } else { puts other }   ;# I230; O101 and O107
 ```
 
 ```tcl
@@ -653,20 +652,20 @@ puts $x                    ;# today: nothing — the zero-iteration path is not 
 ```
 
 `i` is `3` and `puts $x` raises `can't read "x": no such variable` in
-every release. Under the contracts `break` is a completion code the
-iteration plan absorbs and the exit state is published on the exit edge,
-so the branch decides; the binders of a zero-iteration `foreach` stay
-unbound, so the existence rung gives the read its W210.
+every release. `break` is a completion code the iteration plan absorbs and
+the exit state is published on the exit edges, so the branch decides. The
+existence rung already proves `x` unbound after the zero-iteration
+`foreach` (`[info exists x]` there is I230, always false); under the
+contracts the read gets its W210 too.
 
 ```tcl
 set n 0
 for {set i 0} {$i < 3} {incr i} { set i [expr {$i + 1}] ; incr n }
-if {$i == 4} { puts four } else { puts other }   ;# today: O114, then O101 and O107 decide it true
+if {$i == 4} { puts four } else { puts other }   ;# I230; O114, then O101 and O107 decide it true
 ```
 
-`i` is `4` and `n` is `2` in every release, which is what the tool answers
-today: a body that writes the loop variable is enumerated, not modelled.
-Under the contracts that stays true by construction, because every
+`i` is `4` and `n` is `2` in every release, which is what the tool answers:
+a body that writes the loop variable is enumerated, not modelled, and every
 statement of the body applies its own registry-owned `evaluate` over the
 enumeration's state.
 
@@ -675,18 +674,17 @@ enumeration's state.
 ```tcl
 set r 0
 foreach a {1 2} { set r [expr {$a * $a}] }
-if {$r == 4} { puts four } else { puts other }   ;# merged: the in-loop r is {1, 4}, never {1, 2, 4}; the branch waits on the loop's exit state
+if {$r == 4} { puts four } else { puts other }   ;# merged: the in-loop r is {1, 4}, never {1, 2, 4}; I230, O101 and O107 from the loop's exit state
 ```
 
-`r` is `4` in every release. Under the contracts `a` is one distinct SSA
-value with the finite set `{1, 2}`, so per-member evaluation answers
-`{1, 4}` — never `{1, 2, 4}` — and the loop's exit state decides the
-branch.
+`r` is `4` in every release. `a` is one distinct SSA value with the finite
+set `{1, 2}`, so per-member evaluation answers `{1, 4}` — never `{1, 2, 4}`
+— inside the loop, and the loop's exit state decides the branch.
 
 ```tcl
 set x 0
 foreach {a b} {1 10 2 20} { incr x [expr {$b / $a}] }
-if {$x == 20} { puts twenty } else { puts other }   ;# today: nothing
+if {$x == 20} { puts twenty } else { puts other }   ;# today: nothing — the enumeration runs no `[…]` amount
 set y 0
 foreach {a b} {1 20 2 10} { incr y [expr {$b / $a}] }
 if {$y == 25} { puts twentyfive } else { puts other }   ;# today: nothing — the mirror of the line above

@@ -457,7 +457,7 @@ impl CfgBuilder<'_> {
         // so a body-assigned variable read after the loop is no longer a false
         // read-before-set. `break`/`continue` stay real edges (partial-def exits
         // remain sound); `loop_nodes` + the init exit versions are unchanged, so
-        // the optimiser's IR-level static-for summary is unaffected.
+        // the solver enumerates the loop from the same state.
         let rotate = self.faithful_exceptions && self.for_runs_at_least_once(stmt);
         let step_tail = self.lower_script(next, &step_block);
         if let Some(step_tail) = step_tail {
@@ -482,16 +482,33 @@ impl CfgBuilder<'_> {
         }
 
         let entry_block = self.bid(block_name);
+        let start = self.bid(&init_tail);
         self.loop_nodes.insert(
             end_block.clone(),
             LoopNode {
                 entry_block,
+                start,
                 span: *span,
-                for_stmt: stmt.clone(),
+                statement: stmt.clone(),
             },
         );
 
         Some(end_block)
+    }
+
+    /// Record the loop `stmt`, which starts in `block_name` and leaves to
+    /// `end_block`, for the solver's enumeration ([`LoopNode`]).
+    fn record_loop(&mut self, stmt: &Statement, block_name: &str, end_block: &str) {
+        let entry_block = self.bid(block_name);
+        self.loop_nodes.insert(
+            end_block.to_owned(),
+            LoopNode {
+                entry_block,
+                start: entry_block,
+                span: stmt.span(),
+                statement: stmt.clone(),
+            },
+        );
     }
 
     // while
@@ -545,6 +562,7 @@ impl CfgBuilder<'_> {
             self.ensure_goto(&tail, &header, Some(*body_span));
         }
 
+        self.record_loop(stmt, block_name, &end_block);
         end_block
     }
 
@@ -655,6 +673,7 @@ impl CfgBuilder<'_> {
                 span: Some(*span),
                 condition_base: None,
             });
+            self.record_loop(stmt, block_name, &end_block);
             return end_block;
         }
 
@@ -679,6 +698,7 @@ impl CfgBuilder<'_> {
             self.ensure_goto(&tail, &header, Some(*body_span));
         }
 
+        self.record_loop(stmt, block_name, &end_block);
         end_block
     }
 

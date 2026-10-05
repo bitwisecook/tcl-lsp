@@ -474,6 +474,7 @@ Every command, subcommand, and declaring form, resolved through the value-transf
 | `fileutil::stripN` | command | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | — | pure, no route | — |
 | `fileutil::stripPwd` | command | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | — | pure, no route | — |
 | `fileutil::test` | command | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | `VarWrite@2` | writes a variable, no semantics | slice 7 — a declared implementation when the tcllib specs move to SpecTcl |
+| `for` | command | bpf, cadence-eda-tcl, expect, f5-iapps, f5-irules, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (command) · `iterate:for` | none (unauthored) | — | no | — | — | — |
 | `foreach` | command | bpf, cadence-eda-tcl, expect, f5-iapps, f5-irules, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (command) · `iterate:foreach` | none (unauthored) | — | no | — | — | — |
 | `foreachLine` | command | bpf, spectcl, sslictcl, tcl9.0, tcl9.1, tk | declared (command) · `iterate:foreach_line` | none (unauthored) | — | no | `VarWrite@0` | descriptor without a route | — |
 | `foreach_in_collection` | command | cadence-eda-tcl, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, synopsys-eda-tcl, xilinx-eda-tcl | declared (command) · `foreach_in_collection` | none (declared) | — | no | `VarWrite@0` | descriptor without a route | — |
@@ -1108,6 +1109,7 @@ Every command, subcommand, and declaring form, resolved through the value-transf
 | `variable` | command | bpf, cadence-eda-tcl, expect, f5-iapps, f5-irules, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | `VarWrite@0`, `assigns_variable_at 0` | writes a variable, no semantics | slice 13 — the binder's `Name` outcome with its frame level |
 | `virtual` | command | f5-irules, mentor-eda-tcl | none | — | — | no | — | pure, no route | — |
 | `vwait` | command | bpf, cadence-eda-tcl, expect, f5-iapps, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (command) · `may_write` | none (declared) | — | no | `VarWrite@0` | descriptor without a route | — |
+| `while` | command | bpf, cadence-eda-tcl, expect, f5-iapps, f5-irules, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (command) · `iterate:while` | none (unauthored) | — | no | — | — | — |
 | `yaml::list2yaml` | command | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | — | pure, no route | — |
 | `yencode::decode` | command | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | — | pure, no route | — |
 | `yencode::encode` | command | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | — | pure, no route | — |
@@ -1127,25 +1129,25 @@ Commands and subcommands that declare no semantics, write no variable, and decla
 
 | Dialect | Rows |
 |---|---|
-| bpf | 2621 |
-| cadence-eda-tcl | 1194 |
-| expect | 2538 |
-| f5-iapps | 1020 |
-| f5-irules | 1103 |
-| f5-tmsh | 1001 |
-| intel-quartus-eda-tcl | 2575 |
-| mentor-eda-tcl | 2835 |
-| microchip-libero-eda-tcl | 2756 |
-| spectcl | 2714 |
-| sslictcl | 2659 |
-| synopsys-eda-tcl | 2740 |
-| tcl8.4 | 971 |
-| tcl8.5 | 2350 |
-| tcl8.6 | 2524 |
-| tcl9.0 | 2597 |
-| tcl9.1 | 2613 |
-| tk | 2629 |
-| xilinx-eda-tcl | 3288 |
+| bpf | 2619 |
+| cadence-eda-tcl | 1192 |
+| expect | 2536 |
+| f5-iapps | 1018 |
+| f5-irules | 1101 |
+| f5-tmsh | 999 |
+| intel-quartus-eda-tcl | 2573 |
+| mentor-eda-tcl | 2833 |
+| microchip-libero-eda-tcl | 2754 |
+| spectcl | 2712 |
+| sslictcl | 2657 |
+| synopsys-eda-tcl | 2738 |
+| tcl8.4 | 969 |
+| tcl8.5 | 2348 |
+| tcl8.6 | 2522 |
+| tcl9.0 | 2595 |
+| tcl9.1 | 2611 |
+| tk | 2627 |
+| xilinx-eda-tcl | 3286 |
 
 ## Hand-written command knowledge outside the registry
 

@@ -178,19 +178,25 @@ impl Block {
 
 /// Metadata about a loop in the CFG.
 ///
-/// Maps from the loop's exit block name to its entry block name and
-/// the original `Statement::For` node. Used by loop analyses and the
-/// bottom-tested loop rewriter in codegen.
+/// Maps from the loop's exit block to the block it starts in and the
+/// original loop statement. Used by loop analyses: the solver enumerates a
+/// bounded loop from it and publishes the state the loop leaves on the edges
+/// into its exit block.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LoopNode {
-    /// Id of the loop header/entry block.
+    /// Id of the block the loop statement starts in: the block before its
+    /// header, which holds a `for`'s start script.
     pub entry_block: BlockId,
-    /// Source span of the original `for` statement.
+    /// Id of the block whose exit state the loop's passes start from: where
+    /// a `for`'s start script ends, the entry block for any other loop.
+    pub start: BlockId,
+    /// Source span of the original loop statement.
     pub span: Span,
-    /// The original `for` statement ([`Statement::For`]), retained so SCCP can
-    /// statically summarise a bounded loop and fold a branch that reads a
-    /// loop-carried variable *after* the loop (the static-loop → SCCP fold).
-    pub for_stmt: Statement,
+    /// The original loop statement ([`Statement::For`], [`Statement::While`]
+    /// or [`Statement::Foreach`]), retained so the solver can run the loop
+    /// over the state it starts from and fold a branch that reads a
+    /// loop-carried variable *after* the loop.
+    pub statement: Statement,
 }
 
 /// Source site and Tcl error context for a command body flattened into a CFG.
@@ -246,6 +252,10 @@ pub struct Function {
     pub blocks: HashMap<BlockId, Block>,
     /// Loop metadata: exit block → loop info.
     pub loop_nodes: HashMap<BlockId, LoopNode>,
+    /// The body of each opaque `catch`, by its call's span: the script the
+    /// solver runs over exact state where it can, so each name the body
+    /// writes takes what the body leaves it holding.
+    pub opaque_catch_bodies: HashMap<Span, crate::ir::Script>,
     /// `try` body→handler exception edges for control flow the single-
     /// successor terminator can't express.  Consumed by SSA (as extra phi
     /// predecessors so a handler sees the body's versions) and SCCP (as
@@ -332,6 +342,7 @@ impl Function {
             entry: BlockId(0),
             blocks: HashMap::new(),
             loop_nodes: HashMap::new(),
+            opaque_catch_bodies: HashMap::new(),
             exception_edges: Vec::new(),
             region_entries: Vec::new(),
             catch_ends: Vec::new(),
@@ -950,8 +961,9 @@ mod tests {
             for_end,
             LoopNode {
                 entry_block: for_header,
+                start: for_header,
                 span: Span::new(0, 30),
-                for_stmt: Statement::For {
+                statement: Statement::For {
                     span: Span::new(0, 30),
                     init: crate::ir::Script::new(),
                     init_span: Span::new(0, 0),

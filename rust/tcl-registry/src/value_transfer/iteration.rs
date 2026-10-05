@@ -48,7 +48,7 @@ use super::CommandSemantics;
 use super::answers::{
     Binder, BinderName, BindingKind, BodyPlan, CompletionOutcome, CompletionProtocol,
     ExactValueOrUnavailable, Existence, ExitRule, FactBounds, IterableKind, IterationPlan,
-    PlanAnswer,
+    ListGroup, PlanAnswer,
 };
 use super::const_ops::TargetSemantics;
 use super::decline::{DeclineReason, NoRouteReason};
@@ -163,25 +163,58 @@ impl LoopResult {
     }
 }
 
-/// The list-iteration specialisation.
+/// The iteration specialisation: a loop over lists, a counted loop or a
+/// conditional one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct IterationSemantics {
     /// Whether the loop collects each iteration's body result (`lmap`).
     pub collects: bool,
+    /// What the loop iterates.
+    iterates: Iterates,
+}
+
+/// What a loop iterates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Iterates {
+    /// One list, or several in lockstep.
+    Lists,
+    /// A start script, a condition and a step script.
+    Counted,
+    /// A condition alone.
+    Condition,
 }
 
 /// `foreach varList list ?varList list …? body`.
-pub static FOREACH: IterationSemantics = IterationSemantics { collects: false };
+pub static FOREACH: IterationSemantics = IterationSemantics {
+    collects: false,
+    iterates: Iterates::Lists,
+};
 
 /// `lmap varList list ?varList list …? body`.
-pub static LMAP: IterationSemantics = IterationSemantics { collects: true };
+pub static LMAP: IterationSemantics = IterationSemantics {
+    collects: true,
+    iterates: Iterates::Lists,
+};
+
+/// `for start test next body`.
+pub static FOR: IterationSemantics = IterationSemantics {
+    collects: false,
+    iterates: Iterates::Counted,
+};
+
+/// `while test body`.
+pub static WHILE: IterationSemantics = IterationSemantics {
+    collects: false,
+    iterates: Iterates::Condition,
+};
 
 impl CommandSemantics for IterationSemantics {
     fn identity(&self) -> &'static str {
-        if self.collects {
-            "iterate:lmap"
-        } else {
-            "iterate:foreach"
+        match (self.iterates, self.collects) {
+            (Iterates::Lists, true) => "iterate:lmap",
+            (Iterates::Lists, false) => "iterate:foreach",
+            (Iterates::Counted, _) => "iterate:for",
+            (Iterates::Condition, _) => "iterate:while",
         }
     }
 
@@ -193,8 +226,15 @@ impl CommandSemantics for IterationSemantics {
 
     fn structure(&self, input: &dyn AnalysisInputs) -> PlanAnswer {
         let view = input.invocation();
-        match view.layout {
-            InvocationLayout::LoopHeader { binders } => {
+        match (self.iterates, view.layout) {
+            // A counted or conditional loop's header is a branch, never a
+            // call: only its source words are asked for a plan.
+            (Iterates::Counted | Iterates::Condition, InvocationLayout::LoopHeader { .. }) => {
+                PlanAnswer::NoStructure
+            }
+            (Iterates::Counted, InvocationLayout::Source) => self.counted_plan(input),
+            (Iterates::Condition, InvocationLayout::Source) => self.condition_plan(input),
+            (Iterates::Lists, InvocationLayout::LoopHeader { binders }) => {
                 // One iterable per plan; a multi-list header is several
                 // iterables stepping in lockstep, which the plan does not
                 // yet describe.
@@ -217,7 +257,7 @@ impl CommandSemantics for IterationSemantics {
                     result: self.result(),
                 })
             }
-            InvocationLayout::Source => self.source_plan(input),
+            (Iterates::Lists, InvocationLayout::Source) => self.source_plan(input),
         }
     }
 }
@@ -233,13 +273,13 @@ impl IterationSemantics {
         }
     }
 
-    /// The plan of `foreach varList list body` in its source layout: one
-    /// binder per name of the var-list word, padded with the empty string
-    /// past the list's end, over the one list, the body run in the caller's
-    /// frame with `break` and `continue` absorbed, and no binder bound when
-    /// the list is empty. Several var-list and list pairs step several
-    /// iterables in lockstep, which one plan does not describe; a var-list
-    /// the analysis does not know exactly names no binders.
+    /// The plan of `foreach varList list ?varList list …? body` in its source
+    /// layout: one binder per name of each var-list word, in order, over one
+    /// list or several stepped in lockstep — each pass takes the next elements
+    /// of every list, and a list used up supplies the empty string, until
+    /// every list is — with the body run in the caller's frame, `break` and
+    /// `continue` absorbed, and no binder bound when every list is empty. A
+    /// var-list the analysis does not know exactly names no binders.
     fn source_plan(self, input: &dyn AnalysisInputs) -> PlanAnswer {
         let view = input.invocation();
         let first = view.argument_offset;
@@ -248,35 +288,31 @@ impl IterationSemantics {
         if words < 3 || words.is_multiple_of(2) {
             return PlanAnswer::Declined(DeclineReason::WrongRepresentation);
         }
-        if words > 3 {
-            return PlanAnswer::Declined(DeclineReason::Unsupported);
+        let mut binders = Vec::new();
+        let mut groups = Vec::new();
+        for pair in 0..(words - 1) / 2 {
+            let names = match var_list(input, OperandId(first + 2 * pair)) {
+                Ok(names) => names,
+                Err(reason) => return PlanAnswer::Declined(reason),
+            };
+            groups.push(ListGroup {
+                binders: names.len(),
+                list: OperandId(first + 2 * pair + 1),
+            });
+            binders.extend(names.into_iter().map(|name| Binder {
+                name: BinderName::Declared(name),
+                kind: BindingKind::Scalar,
+            }));
         }
-        let names = match input.operand(OperandId(first), FactDomain::ExactValue) {
-            FactView::Exact(value, _) => match String::from_utf8(value.bytes) {
-                Ok(text) => tcl_syntax::list::split_list(&text)
-                    .map(|names| names.iter().map(ToString::to_string).collect::<Vec<_>>()),
-                Err(_) => return PlanAnswer::Declined(DeclineReason::NotText),
-            },
-            FactView::Top(reason) => return PlanAnswer::Declined(reason),
-            FactView::Pending | FactView::Finite(..) | FactView::Domain(_) => {
-                return PlanAnswer::Declined(DeclineReason::NotExact);
-            }
-        };
-        // An empty or malformed var-list is the command's error.
-        let Some(names) = names.ok().filter(|names| !names.is_empty()) else {
-            return PlanAnswer::Declined(DeclineReason::WrongRepresentation);
+        let iterable = match groups.as_slice() {
+            [one] => IterableKind::List(one.list),
+            _ => IterableKind::Lockstep(groups),
         };
         PlanAnswer::Iterate(IterationPlan {
-            binders: names
-                .into_iter()
-                .map(|name| Binder {
-                    name: BinderName::Declared(name),
-                    kind: BindingKind::Scalar,
-                })
-                .collect(),
-            iterable: IterableKind::List(OperandId(first + 1)),
+            binders,
+            iterable,
             body: Some(BodyPlan {
-                body: OperandId(first + 2),
+                body: OperandId(first + words - 1),
                 frame: FrameLevel::Relative(0),
             }),
             exit: ExitRule::Exhaustion,
@@ -285,6 +321,77 @@ impl IterationSemantics {
             result: self.result(),
         })
     }
+
+    /// The plan of `for start test next body`: the start script runs once in
+    /// the caller's frame, the condition is tested before every pass and ends
+    /// the loop when false, and the step script runs after every pass whose
+    /// body completes normally or with `continue`; `break` ends the loop,
+    /// from the body or the step script alike. Nothing is bound per pass.
+    fn counted_plan(self, input: &dyn AnalysisInputs) -> PlanAnswer {
+        let view = input.invocation();
+        let first = view.argument_offset;
+        if view.operands.len().saturating_sub(first) != 4 {
+            return PlanAnswer::Declined(DeclineReason::WrongRepresentation);
+        }
+        PlanAnswer::Iterate(IterationPlan {
+            binders: Vec::new(),
+            iterable: IterableKind::Counted {
+                init: OperandId(first),
+                condition: OperandId(first + 1),
+                next: OperandId(first + 2),
+            },
+            body: Some(BodyPlan {
+                body: OperandId(first + 3),
+                frame: FrameLevel::Relative(0),
+            }),
+            exit: ExitRule::FalseCondition,
+            zero_iterations_bind: false,
+            completion: CompletionProtocol::Absorb(LOOP_ABSORBED),
+            result: self.result(),
+        })
+    }
+
+    /// The plan of `while test body`: the condition is tested before every
+    /// pass and ends the loop when false. Nothing is bound per pass.
+    fn condition_plan(self, input: &dyn AnalysisInputs) -> PlanAnswer {
+        let view = input.invocation();
+        let first = view.argument_offset;
+        if view.operands.len().saturating_sub(first) != 2 {
+            return PlanAnswer::Declined(DeclineReason::WrongRepresentation);
+        }
+        PlanAnswer::Iterate(IterationPlan {
+            binders: Vec::new(),
+            iterable: IterableKind::Condition(OperandId(first)),
+            body: Some(BodyPlan {
+                body: OperandId(first + 1),
+                frame: FrameLevel::Relative(0),
+            }),
+            exit: ExitRule::FalseCondition,
+            zero_iterations_bind: false,
+            completion: CompletionProtocol::Absorb(LOOP_ABSORBED),
+            result: self.result(),
+        })
+    }
+}
+
+/// The names a var-list word binds: its exact value read as a list. An empty
+/// or malformed var-list is the command's error.
+fn var_list(input: &dyn AnalysisInputs, id: OperandId) -> Result<Vec<String>, DeclineReason> {
+    let names = match input.operand(id, FactDomain::ExactValue) {
+        FactView::Exact(value, _) => match String::from_utf8(value.bytes) {
+            Ok(text) => tcl_syntax::list::split_list(&text)
+                .map(|names| names.iter().map(ToString::to_string).collect::<Vec<_>>()),
+            Err(_) => return Err(DeclineReason::NotText),
+        },
+        FactView::Top(reason) => return Err(reason),
+        FactView::Pending | FactView::Finite(..) | FactView::Domain(_) => {
+            return Err(DeclineReason::NotExact);
+        }
+    };
+    names
+        .ok()
+        .filter(|names| !names.is_empty())
+        .ok_or(DeclineReason::WrongRepresentation)
 }
 
 #[cfg(test)]

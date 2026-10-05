@@ -167,6 +167,12 @@ pub enum IterableKind {
     },
     /// A bare condition.
     Condition(OperandId),
+    /// Several lists stepped in lockstep (`foreach a $l1 b $l2 body`): each
+    /// group's binders, the next ones of the plan's own in order, take
+    /// consecutive elements of its list on every pass, a list too short for
+    /// a pass supplying the empty string, and the loop runs until every list
+    /// is used up.
+    Lockstep(Vec<ListGroup>),
     /// A vendor collection with its declared cardinality operand.
     Vendor {
         /// The collection operand.
@@ -174,6 +180,16 @@ pub enum IterableKind {
         /// The cardinality operand, when the pack declares one.
         cardinality: Option<OperandId>,
     },
+}
+
+/// One list of a lockstep iteration ([`IterableKind::Lockstep`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ListGroup {
+    /// How many of the plan's binders, after the groups before this one,
+    /// this list binds.
+    pub binders: usize,
+    /// The list operand.
+    pub list: OperandId,
 }
 
 /// What ends a loop.

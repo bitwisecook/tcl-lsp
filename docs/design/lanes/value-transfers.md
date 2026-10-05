@@ -8,10 +8,12 @@ plan for the rest. The review fixes of slices 9 and 10 are in, each its own
 commit (§ *Slice 10* › *Record (2026-10-04): review fixes for slices 9 and
 10*). Slice 11, predicate refinement, has landed (§ *Status (2026-10-04):
 slice 11 landed*), and its review fixes are in, each its own commit
-(§ *Slice 11* › *Record (2026-10-05): review fixes for slice 11*); the next
-slice is slice 12, bounded-loop enumeration: § *Slice 11* › *Record
-(2026-10-04): slice 11* › *What slice 12 starts from* is where to start,
-read with D258 to D267.
+(§ *Slice 11* › *Record (2026-10-05): review fixes for slice 11*). Slice 12,
+bounded-loop enumeration, is at its first checkpoint, the enumeration and the
+loop plans, with the post-loop branches deciding for I230 as for O101 (§
+*Slice 12* › *Record (2026-10-05): slice 12*, read with D268 to D274); the
+second checkpoint, where the loop simulator becomes the enumeration, is
+next.
 
 ## Goal
 
@@ -8204,6 +8206,186 @@ variable is checked by W240–W242.
 | the correlated `foreach` pairs decide (20, 25) | the correlated finite-set limit's rung (enumeration supplies them) |
 | W240–W242 seed from the plan | the exit |
 
+#### Record (2026-10-05): slice 12
+
+##### The first checkpoint: the enumeration and the loop plans
+
+`wip(value-transfers): slice 12 — the enumeration and the loop plans` holds
+VT12.1 and VT12.2, and from VT12.4 the solver's reading of the exit state:
+`loop_summary_decision` is gone (D273), and the post-loop branches of the
+eleven loop programs decide for I230 as for O101.
+
+- **The enumeration (VT12.1).** `static_loops::enumerate_loop` runs a `for`,
+  `while` or `foreach` statement to its exit over a `LoopState` of `Slot`s —
+  an exact value, a scalar of unknown value, or no binding — each statement
+  through the registry's routes over that state:
+  `LatticeDriver::invoke_in_state` for an assignment, an `incr` or a command
+  with a registry-owned route, its stores applied in order; `expression_in_state`
+  and `condition_in_state` for `expr` and a condition, through the expression
+  route and its services; `switch_selection` for a `switch`, the statement's
+  own `Selection` transfer over its subject's value; `loop_plan_in_state` for
+  the loop's plan, whose completion protocol (`IterationPlan::step`) reads how
+  each body completed. They read the state through `StateInputs`
+  (`value_transfer.rs`). A word that substitutes a command declines, and so
+  does a nested command in an expression. `BudgetLimit::Iterations` is the cap,
+  `DEFAULT_MAX_STATIC_LOOP_ITERS` (4096) passes in all, a nested loop's
+  included, and every statement is charged to the driver's evaluation
+  budget. The state is closed (D269): it holds what the solver proves, a read
+  of a value it does not hold declines, and so does a store to a place it
+  does not hold, to an element, or to a place another actor may write.
+  `LoopEnumeration` is `{ plan, entry, iterations, exit, state, completion }`:
+  the plan's `evidence` is the refinements' (the default
+  `DependencyEvidence`, as every edge refinement carries), and `completion`
+  says whether the state holds on the normal exit at all.
+- **The plans (VT12.2).** `iteration::FOR` and `WHILE`, declared on `for` and
+  `while`, answer `IterableKind::Counted { init, condition, next }` and
+  `IterableKind::Condition` with `CompletionProtocol::Absorb([Break,
+  Continue])`, `ExitRule::FalseCondition` and nothing bound per pass; the
+  CFG's loop header, a branch, asks neither (`NoStructure`). `foreach` with
+  several var-list and list pairs answers `IterableKind::Lockstep` over
+  `ListGroup`s, each group binding the next of the plan's binders from its
+  own list, a list used up supplying the empty string. The generated
+  inventory gains `for` and `while` as declared (`iterate:for`,
+  `iterate:while`) with no route (`none (unauthored)`), so each dialect's
+  count of commands declaring nothing falls by two, and the route-stamp pin
+  (`route_stamps_match_the_pinned_set`, `shipped_builtins_stay_on_the_direct_route`)
+  gains the two rows.
+- **The solver (D268, D270).** `cfg::LoopNode` records every `for`, `while`
+  and `foreach` the CFG builder lowers (it held the `for`s alone), with the
+  block whose exit state the passes start from (`start`: the end of a
+  `for`'s start script) and the statement (`statement`, was `for_stmt`).
+  After the first run settles, `enumerate_loops` runs each loop whose blocks
+  are executable from `start_state` — each value the settled lattice proves
+  exact at `start`'s exit, under the refinements in force there, and a
+  scalar or no binding where the existence rung proves it so — and states
+  what a loop that leaves normally wrote as `ExactValue` edge refinements
+  (`EdgeRefinement::loop_exit`) on every executable edge into the block it
+  leaves to, keyed by the version live there; the solver runs again with
+  them, enumerating nothing. `RefinementFlow` takes one fact stated on
+  several edges as one fact, so the block every exit edge enters holds it,
+  and keeps a loop's state apart from a branch's equal fact.
+  `SccpResult::loop_enumerations` records each run (`EnumeratedLoop {
+  exit_block, span, iterations, exit, published }`, `rebase_function_unit`
+  shifts the span).
+- **An opaque `catch` body (D271).** `catch_body_answer` runs the body of an
+  opaque `catch` whole at the marker ahead of it (`enumerate_script`, over
+  the exact state of the names the marker and its call read), and each name
+  the body wrote takes what it left — a value, or no binding — and each it
+  did not write keeps what it held. The eighth witness's `catch` at the top
+  level is opaque, so this is what runs its loop to the error.
+- **The trust stance (D272).** `enumeration_trusts`: a run with fold inputs
+  takes a head only under its stance — `ObservedBindings` in the unit's
+  lattice, `WholeModule` in the rewrite's — and a run without them takes the
+  registry's table, as the expression route and a math function's binding
+  are read there and as `loop_summary_decision` ran.
+- **I230's loop test (D274).** `emit_constant_branch_diagnostics` knows a
+  loop's own test as the branch whose false edge enters the block the loop
+  leaves to (`cfg.loop_nodes`), in place of the names of the branch's block
+  and targets (`for_`, `while_`, `foreach_`), which held a decided `if` in a
+  loop's body or right after it to be the loop's test and kept its I230 when
+  true. This is the loop side of the block-name classifier whose `switch`
+  side is #2375's; at the coordinator's ruling it is recorded here, not on
+  #2375, since the classifier replaced is not that one.
+- **The Explorer.** `tcl explore --show sccp --text` prints `enumerated loop:
+  N iterations, EXIT`, with the block the loop leaves to and each value it
+  published; the JSON view lists them under `enumeratedLoops`. For the plan's
+  `for` program the exit is `false condition`, not the plan's
+  `exhaustion`: a `for` leaves when its condition is false
+  (`ExitRule::FalseCondition`), and exhaustion is a list's.
+
+Found and fixed before the checkpoint, each the slice's own: a store the
+enumeration took to a place it holds nothing of — the `lassign` of
+`the_prefix_rule_holds_in_both_builds` onto an array in an opaque `catch` at
+the top level, which the run had written as scalars, so `$c` held `z` where
+tclsh prints `old` — now declines (D269), and so does a name the word gives as
+an element (`set a(k) $i`, `${a(k)}`), which `StateInputs` had read through
+`normalise_var_name` as the scalar `a`. A loop's state stated on a `foreach`
+latch's exit edge narrowed the counter while the solver's own value was still
+a transient constant it rules out, so the post-loop `if` opened both arms and
+I230 stayed silent though the branch decided (D270).
+
+Left for the next checkpoints: `static_loops.rs` keeps the
+`summarise_for_statement` simulator, `StaticValue`, `parse_literal_value` and
+`resolve_switch_subject`, read by their own tests alone; `intervals.rs`
+widens a loop header as before; the argument-sensitive O103 re-run, and
+`bounds_checks.rs` and IRULE5003's loop bound (VT12.5), are unchanged. A
+`[…]` amount or word is not run (`incr x [expr {$b / $a}]`), so the page's
+correlated pairs do not decide yet; `the_mirror_pairs_decline_as_correlated`,
+written with `set x [expr {$b / $a}]`, which the expression route runs,
+decides both branches false, `x` 10 and `y` 5, and tclsh prints `other`
+twice. A loop that starts from what an earlier loop left is not enumerated:
+one round finds each loop's start state before any loop's exit is stated
+(D268).
+
+Side effect outside the lane, reported: `bpf-tcl-ir`'s `first_loop_span`
+names the span of the first of `func.loop_nodes` in the map's order for
+BPF007, so a `while` loop's diagnostic, which carried `0..0`, now carries
+that loop's span; with two loops it names either, as it did for two `for`
+loops.
+
+Tests: `the_loop_plans_name_their_bound_and_step` and
+`several_lists_step_in_lockstep` (`tcl-registry`, new; the lockstep plan was
+a decline `the_source_layout_answers_an_iteration_plan` asserted, which no
+longer asks for it); `the_iteration_cap_publishes_nothing` (4096 passes
+enumerated and decided, 4097 publish nothing),
+`an_enumeration_runs_only_over_places_it_proves` (an array as a `foreach`
+binder, `${a(k)}` and `set a(k) …` on a scalar, each in an opaque `catch`;
+each fails with its fix reverted),
+`the_state_a_loop_leaves_decides_the_branch_after_it` (a `foreach` and a
+`while` counter, I230 on both, the `foreach`'s since D270),
+`a_loops_own_test_is_the_branch_that_leaves_it` (`while 1` silent, an `if`
+decided in a loop's body reported) and `the_mirror_pairs_decline_as_correlated`
+(each branch now decides false) in `value_transfer_witnesses.rs`, each under
+the five dialects and each program's output under tclsh 8.4 to 9.1 before
+and after `tcl opt`; `sccp_text_prints_each_enumerated_loop` (`tcl-explorer`,
+the plan's `for` program, and no line for a loop whose bound is a
+parameter). The `summarise_*` tests and
+`sccp_folds_post_loop_branch_via_static_summary` pass unchanged. The eleven
+loop programs, which the landing's `the_eleven_loop_witnesses` will hold,
+decide their post-loop branches through I230 and O101 under the checkpoint's
+binary, and each optimised program prints what tclsh 8.4 to 9.1 print; under
+the parent's, `tcl opt` decided six of them (the first, second, fifth, sixth
+and seventh through `loop_summary_decision`, the ninth through the existence
+rung) and I230 one, the ninth.
+
+Measured: `tcl diag` and `tcl opt --profile full` (`--dialect tcl8.6`,
+`f5-irules` for an `.irul` file), run by a binary built at the checkpoint and
+by one built at its parent's code (`07e68cc8`), over 1120 files: every `.tcl`
+file of tcllib 2.0's modules (794), and every `.tcl` and `.irul` file of
+`samples/` (137) and `editors/vscode/` (189). `tcl opt` prints the same for
+every file. `tcl diag` differs in three, each a new I230 that holds:
+`samples/tcl/02_control_flow_braced.tcl`'s `if {$total > 5}` after a `for`
+that leaves `total` at 10, and two decided `if`s the block-name test had kept
+silent (D274), `0 < $x` in the `for` loop's exit block of
+`samples/diagnostics/O110_canonicalise_expr/example.tcl` and `$fancy` in a
+`foreach` body of `samples/diagnostics/S101_shimmer_merge/example.tcl`, whose
+one call passes `1`; tclsh 8.4 to 9.1 print `total is 10`, `x is positive` and
+the `|` rows. `fumagic/filetypes.tcl` runs past the 300 s limit under both
+binaries, as a debug build.
+
+Green at the first checkpoint: `tcl-compiler` 10171 passed, 6 ignored across
+its binaries and doctests (the library 6731, `value_transfer_witnesses` 135,
+`intervals` 74), `tcl-registry` 1428 (the two new tests, run again after the
+route-stamp pin gained `for` and `while`), `tcl-explorer` 112 (the new test),
+`tcl-lsp-db` 139, 5 ignored, `tcl-lsp-core --lib` 2353, `tcl-cli` 205, `xtask`
+275, `tcl-spectcl` 476, 1 ignored (under a private `XDG_CACHE_HOME`), and
+`tcl-cmd-core` 143; the gates and `value_transfer_witnesses` (135) once more
+on the final tree, after the witness of the places the enumeration proves
+took an element write beside the element read; workspace clippy
+(`--all-targets -D warnings -A clippy::assert_is_empty`), no `#[allow]` added,
+`cargo fmt --check` and `cargo check --workspace --all-targets` clean;
+`value-transfers --check` (22 clean, 19 waived, 83 pinned across 34 files,
+6625 rows, the inventory regenerated) and `registry-axes --check` (7834
+vocabulary words, 16 clean, 37 waived, 893 pinned across 147 files);
+`pack-goldens`, `retired-api-gate`, `owner-resolution` and `kcs-index-links`
+pass; `dialect-drift` 8 sites, none new. Mutations, each reverted before the
+runs: `Enumerator::write` without its store check fails
+`an_enumeration_runs_only_over_places_it_proves` and
+`the_prefix_rule_holds_in_both_builds`; `StateInputs` naming a place, and
+`word_in_state` a braced read, through `normalise_var_name` fails the first;
+`refined_value` keeping a constant a loop's state rules out fails
+`the_state_a_loop_leaves_decides_the_branch_after_it`.
+
 ### Slice 7a — seedless return summaries
 
 #### Goal and exit
@@ -11451,6 +11633,16 @@ Taken in the review fixes of slice 11 (§ *Slice 11* › *Record (2026-10-05): r
 - **D265 — A range refinement narrows only a version proved an integer, and the bounds checks read nothing else** (S1 of the slice 11 review; correcting D262's ruling that W230's reading is #2368's to fix). D262 kept the guard walk's meaning — a range holds of the value when it is an integer — and left W230 reading every narrowed range as an integer fact; the slice's new rows, the false edge of `!=` and the `&&`, `||` and `!` compositions, widened that reading's reach, and the review's `g 7.0` drew W230 where tclsh raises `bad index "7.0"`. At the coordinator's ruling the rule lives in one place: `refine_interval` intersects the range refinements only for a version the type lattice types an integer or a type refinement in force at the block proves one (`proved_integer`), so a value that may compare as a double or a string keeps its own interval, which only integers reach. A numeric `==` proves a number and no integer — `7.0 == 7` holds — so its `Numeric` type refinement is no proof, against the ruling's list, whose `g 7.0` witness it would have left reported. #2368's `end` program falls under the same rule. W231, W232 and W233 read the same narrowing, so a divisor that `$d == 0` passes, which `0.0` does, is no longer read as the integer 0: `expr {1 / 0.0}` raises under 8.4 and is `Inf` from 8.5.
 - **D266 — A plain top-level name is refined on the terms the constant propagation gives it** (S3 of the slice 11 review, at the coordinator's ruling). `refinable_values` excludes a place through `is_externally_mutable` and the escaping set, which the value lattice reads too: in top-level code a call to a command the module cannot see gives a plain name a fresh version, and a name a procedure of the module declares `global` joins the escaping set (`scan_module_global_names`), so neither the constant nor the narrowing survives either. The review offered excluding the global frame's names from value refinement until its P1 is fixed; the ruling keeps them, since the refinement is no less sound than the propagation already applied to the same names, and corrects the I230 note, which had said a global is never narrowed. The one gap both share is P1: a `::z` write in the same body is no write to `z` (#2370), so `tcl opt` folds `set z a; set ::z c; set w $z; puts $w` to `puts a` and, in an arm of `if {$z eq "a"}`, decides `if {$z eq "c"}` false; it is filed and the lane does not fix it.
 - **D267 — A script a statement keeps inside itself reads what it writes as its own, for an opaque `catch` or `try` as for an opaque `switch`'s arms** (the lane's own defect from D205, found while preparing slice 12; the coordinator's ruling). D205 moved what an opaque `catch` body writes from the call's definitions to the marker ahead of it, a may-definition, and left the call's reads as the statement scan finds them; the call's own-definition filter had dropped a read of a name the body writes, and with the definitions gone the read named the marker's version, which joins the version before the `catch`, so W210 reported a body that sets a name and then reads it. The fix is the one rule the opaque `switch` applies to its arms (`free_reads_in_script`): a script's reads less its own writes are what it reads of the frame. The marker is the statement of what the scripts write, so the SSA drops the host's reads of the names the marker defines, finding the host as `effect_call_host` does; the marker after an opaque `switch` has no such host, and its arms' reads are free already. The marker stays ahead of the call, since the body runs before the call assigns its result variable. Like the arms' rule this is blind to order inside the script: `catch {puts $i; set i 0}` with `i` unset draws no W210, as before D205, where tclsh raises inside the body and `catch` returns 1.
+
+Taken in slice 12, bounded-loop enumeration (§ *Slice 12* › *Record (2026-10-05): slice 12* has the witnesses):
+
+- **D268 — The solver enumerates after a settled run and states the exit state as edge refinements for a second run** (VT12.1, VT12.4). The plan runs the enumeration "at a loop's pre-header when the plan and the state admit it" and publishes "the exit state on the exit edge only, while the header phis widen as today". The state the loop starts from is the settled lattice's at the start block, so the solver settles first; what the loop leaves is stated as slice 11's exact-value refinements, on every executable edge into the block the loop leaves to and keyed by the version live there, so the narrowing D261 built holds it after the loop and nowhere inside it, and a second run lets every reader — branches, definitions, the post-passes — see it. One round only: a loop whose start reads what an earlier loop left is not enumerated, its start state found before any exit is stated; a further round per such loop is a precision step left for later.
+- **D269 — The enumeration's state is what the solver proves, and a store needs a place whose kind it proves** (VT12.1; found on `the_prefix_rule_holds_in_both_builds`). The state holds an exact value the lattice proves, a scalar of unknown value the existence rung proves bound as one (`Slot::Scalar`), or no binding the rung proves. A store to a place the state does not hold declines: an array raises on a scalar store after the stores before it, which the run would have taken; so does a store to an element, and a name is read and written as the word gives it, never through `normalise_var_name`, which reads `a(k)` as `a`.
+- **D270 — A loop's exit state narrows monotonically, and a settled contradiction drops every loop's state** (VT12.1; found on a `foreach` counter). A branch's refinement holds on an edge the branch opened for the value it holds; a loop's state holds on its exit edges whatever the solver's value of the version is, and a `foreach` latch, whose test the solver cannot read, opens its exit edge while the counter is still a transient constant. `refined_value` kept a constant the facts rule out, so the branch after the loop decided on it, opened the arm the state rules out, and kept it open. For a loop's state (`EdgeRefinement::loop_exit`), a constant or set the fact rules out is now the optimistic bottom, so the narrowed value only descends; after the second run settles, a version whose settled value the state rules out would mean the enumeration and the lattice disagree, and the run is made a third time without any loop's state (`exit_state_contradicted`).
+- **D271 — An opaque `catch` body runs whole by the same engine** (VT12.1, beyond the plan). The eighth witness's `catch` at the top level is one call, whose body's writes are the marker's may-definitions (D205), so no loop node stands for its `for`. The marker's answer is the body run to its end over the exact state before it (`catch_body_answer`, `enumerate_script`): a `catch` absorbs however the body completes, so each name takes what the body left where it stopped, which is the plan's "an error path publishes its prefix only" for the path the `catch` makes normal. A body that declines, or that writes a name the marker does not state, leaves the marker to its may-definitions.
+- **D272 — The enumeration takes a head under the run's trust stance, and the registry's table where the run has none** (VT12.1, VT12.3). A run with fold inputs takes a head only as `trusted` says, as every route does. A run without them — the plain `sccp` entry, which `sccp_folds_post_loop_branch_via_static_summary` calls and which answers for no resolved command — takes the registry's table, as its expression route and a math function's binding are read and as `loop_summary_decision` ran the simulator there, so that test passes unchanged.
+- **D273 — `loop_summary_decision` goes at the first checkpoint** (VT12.4, brought forward). Kept beside the enumeration, it re-ran the simulator at every sweep visit to the branch after a loop: the cap witness's 4096-pass program took 23.6 s to analyse with the parent's binary and takes 2.3 s with the checkpoint's. The exit refinements decide every branch it decided, and the branches it could not.
+- **D274 — I230 knows a loop's test by its false edge into the loop's exit block** (the coordinator's ruling on the slice 11 review's note on #2375). The loop leg of `emit_constant_branch_diagnostics`'s block-name classifier took any branch whose block or targets were named `for_`, `while_` or `foreach_` for a loop's test and kept its I230 when true, so a decided `if` in a loop's body or right after the loop was silent. The CFG's loop records say which branch tests a loop: the one whose false edge enters the block the loop leaves to, in a `for` rotated to test at its step as in its header. A natural loop from the loop forest would not do: `while 1 { return x }` has no back edge.
 
 ### Open questions for the owner
 

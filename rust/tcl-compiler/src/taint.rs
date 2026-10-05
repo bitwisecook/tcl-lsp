@@ -6304,6 +6304,7 @@ mod tests {
             value_entries: HashMap::new(),
             query_places: Vec::new(),
             existence_guards: Vec::new(),
+            loop_enumerations: Vec::new(),
             values: HashMap::new(),
             executable_blocks: blocks.iter().copied().collect(),
             executable_edges: HashSet::new(),

@@ -5603,6 +5603,343 @@ impl AnalysisInputs for EnvInputs<'_> {
     }
 }
 
+/// What one invocation does when a loop enumeration runs it over its state
+/// ([`crate::static_loops`]): how it completes, and the stores it makes in
+/// execution order, each resolved to its place.
+#[derive(Debug, Clone)]
+pub(crate) struct StateStep {
+    /// How the invocation completes.
+    pub(crate) completion: CompletionOutcome,
+    /// The stores it makes, in order.
+    pub(crate) stores: Vec<(PlaceRef, StoreOutcome)>,
+}
+
+/// The inputs an invocation or an expression reads from a loop
+/// enumeration's state: an operand is a literal word or a whole-variable read
+/// of the state; a variable is exact where the state holds a value, unbound
+/// where it holds none, and unknown where the state does not hold it; a math
+/// function is the one the run's driver resolves, so one the module rebinds
+/// declines. A `[…]` substitution never runs here.
+struct StateInputs<'a> {
+    driver: &'a LatticeDriver<'a>,
+    view: ResolvedInvocationView<'a>,
+    state: &'a crate::static_loops::LoopState,
+}
+
+impl AnalysisInputs for StateInputs<'_> {
+    fn invocation(&self) -> &ResolvedInvocationView<'_> {
+        &self.view
+    }
+
+    fn operand(&self, id: OperandId, domain: FactDomain) -> FactView {
+        let Some(operand) = self.view.operand(id) else {
+            return FactView::Top(DeclineReason::NotExact);
+        };
+        if operand.kind == InvocationWordKind::Literal {
+            return match domain {
+                FactDomain::ExactValue => {
+                    FactView::Exact(ExactValue::from_literal(operand.text), None)
+                }
+                _ => FactView::Top(DeclineReason::Unavailable(AnalysisTier::Fast)),
+            };
+        }
+        match simple_var_ref_name(operand.text, self.driver.context.grammar.braced_var) {
+            Some(name) => self.variable(name, domain),
+            None => FactView::Top(DeclineReason::NotExact),
+        }
+    }
+
+    fn place(&self, id: OperandId) -> Result<PlaceRef, DeclineReason> {
+        let operand = self.view.operand(id).ok_or(DeclineReason::NotExact)?;
+        if operand.kind != InvocationWordKind::Literal {
+            return Err(DeclineReason::DynamicName);
+        }
+        // The word names the place as written: `a(k)` is an element of `a`,
+        // never the scalar `a`.
+        Ok(place_named(operand.text))
+    }
+
+    fn variable(&self, name: &str, domain: FactDomain) -> FactView {
+        use crate::static_loops::Slot;
+        match (self.state.get(name), domain) {
+            (Some(Slot::Value(value)), FactDomain::ExactValue) => {
+                FactView::Exact(value.clone(), None)
+            }
+            (Some(Slot::Value(_) | Slot::Scalar), FactDomain::Existence) => {
+                FactView::Domain(DomainFact::Existence(Existence::Bound(BindingKind::Scalar)))
+            }
+            (Some(Slot::Scalar), FactDomain::ExactValue) => FactView::Top(DeclineReason::NotExact),
+            (Some(Slot::Unbound), FactDomain::Existence) => {
+                FactView::Domain(DomainFact::Existence(Existence::Unbound))
+            }
+            (Some(Slot::Unbound), FactDomain::ExactValue) => {
+                FactView::Top(DeclineReason::UnboundPlace)
+            }
+            (None, FactDomain::ExactValue | FactDomain::Existence) => {
+                FactView::Top(DeclineReason::NotExact)
+            }
+            _ => FactView::Top(DeclineReason::Unavailable(AnalysisTier::Fast)),
+        }
+    }
+
+    fn prior_store(&self, place: &PlaceRef, domain: FactDomain) -> FactView {
+        self.variable(&place.name, domain)
+    }
+
+    fn word_structure(&self, _id: OperandId) -> Result<WordStructure, DeclineReason> {
+        Err(DeclineReason::Unsupported)
+    }
+
+    fn body(&self, _id: OperandId) -> Result<BodyRegion, DeclineReason> {
+        Err(DeclineReason::Unsupported)
+    }
+
+    fn nested(&self, _script: &str, _state: &mut EvaluationState) -> EvalAnswer {
+        EvalAnswer::Declined(DeclineReason::Unsupported)
+    }
+
+    fn math_function(&self, name: &str) -> Result<BindingIdentity, DeclineReason> {
+        self.driver.math_function(name)
+    }
+
+    fn context(&self) -> &AnalysisContext {
+        &self.driver.context
+    }
+}
+
+impl LatticeDriver<'_> {
+    /// Whether a loop enumeration may take `head` for the registry's command:
+    /// under the run's trust stance when it has one, and the registry's
+    /// table where it has none, as a math function's binding is read
+    /// ([`Self::math_function`]).
+    fn enumeration_trusts(&self, head: &str) -> bool {
+        self.folds.is_none() || self.trusted(head)
+    }
+
+    /// The commands the typed statement of `hook` stands for, when a loop
+    /// enumeration may take every one for the registry's: the head it is
+    /// resolved through first.
+    pub(crate) fn enumeration_typed_head(&self, hook: LoweringHookId) -> Option<&str> {
+        let heads = typed_node_commands(self.registry, hook);
+        (heads.iter().all(|head| self.enumeration_trusts(head)))
+            .then(|| heads.first().copied())
+            .flatten()
+    }
+
+    /// `head` with its source words, each with whether it was braced, run
+    /// over a loop enumeration's `state` through the registry's own route
+    /// ([`StateStep`]). `Err` with the reason when the head may not be the
+    /// registry's command, declares no registry-owned route, or the route
+    /// declines over the state.
+    pub(crate) fn invoke_in_state(
+        &self,
+        state: &crate::static_loops::LoopState,
+        head: &str,
+        words: &[(&str, bool)],
+        budget: &mut Budget,
+    ) -> Result<StateStep, DeclineReason> {
+        if !self.enumeration_trusts(head) {
+            return Err(DeclineReason::RebindingSuspected);
+        }
+        let texts: Vec<&str> = words.iter().map(|&(text, _)| text).collect();
+        let classified: Vec<InvocationWord<'_>> = words
+            .iter()
+            .map(|&(text, braced)| amount_word((text, braced)))
+            .collect();
+        let resolved = self
+            .resolve(head, &classified)
+            .ok_or(DeclineReason::NoSemantics)?;
+        let semantics = resolved
+            .semantics
+            .value
+            .semantics()
+            .ok_or(DeclineReason::NoSemantics)?;
+        match semantics.route() {
+            EvalRoute::Direct { id } if id.owner() == EvaluatorOwner::Registry => {}
+            EvalRoute::None { reason } => return Err(DeclineReason::NoRoute(reason)),
+            _ => return Err(DeclineReason::Unsupported),
+        }
+        let inputs = StateInputs {
+            driver: self,
+            view: view_of(&resolved, &texts, &classified, InvocationLayout::Source),
+            state,
+        };
+        let outcome = match semantics.evaluate(&inputs, budget) {
+            EvalAnswer::Evaluated(outcome) => outcome,
+            EvalAnswer::Pending => return Err(DeclineReason::NotExact),
+            EvalAnswer::Declined(reason) => return Err(reason),
+        };
+        let mut stores = outcome.nested_writes.clone();
+        for store in &outcome.ordered_stores {
+            stores.push((inputs.place(store.target().0)?, store.clone()));
+        }
+        Ok(StateStep {
+            completion: outcome.completion.clone(),
+            stores,
+        })
+    }
+
+    /// `node` evaluated by the expression route over a loop enumeration's
+    /// `state`: its value, how it completes when it does not complete
+    /// normally, or why it declines. `head` names the command the
+    /// expression's statement fused, when one did, which the run's trust
+    /// stance must take for the registry's.
+    pub(crate) fn expression_in_state(
+        &self,
+        state: &crate::static_loops::LoopState,
+        node: &ExprNode,
+        head: Option<(&str, &str)>,
+        budget: &mut Budget,
+    ) -> Result<Result<ExactValue, CompletionOutcome>, DeclineReason> {
+        if let Some((head, _)) = head
+            && !self.enumeration_trusts(head)
+        {
+            return Err(DeclineReason::RebindingSuspected);
+        }
+        let expression = ExpressionEvaluation {
+            expression: Expression::Parsed(node),
+            policy: self.policy,
+            nested: NestedPolicy::EffectFreeOnly,
+            head: head.map(|(head, identity)| binding_of(head, identity)),
+        };
+        let inputs = StateInputs {
+            driver: self,
+            view: ResolvedInvocationView {
+                canonical_command: "expr",
+                subcommand: None,
+                form: None,
+                layout: InvocationLayout::Source,
+                operands: Vec::new(),
+                argument_offset: 0,
+            },
+            state,
+        };
+        match expression.evaluate(&inputs, budget) {
+            EvalAnswer::Evaluated(outcome) => match (outcome.completion, outcome.result) {
+                (CompletionOutcome::Normal, ExactValueOrUnavailable::Exact(value)) => Ok(Ok(value)),
+                (CompletionOutcome::Normal, ExactValueOrUnavailable::Unavailable(_)) => {
+                    Err(DeclineReason::NotExact)
+                }
+                (completion, _) => Ok(Err(completion)),
+            },
+            EvalAnswer::Pending => Err(DeclineReason::NotExact),
+            EvalAnswer::Declined(reason) => Err(reason),
+        }
+    }
+
+    /// The iteration plan `head` with its source words declares, its operands
+    /// read over a loop enumeration's `state`.
+    pub(crate) fn loop_plan_in_state(
+        &self,
+        state: &crate::static_loops::LoopState,
+        head: &str,
+        words: &[(&str, bool)],
+    ) -> Result<IterationPlan, DeclineReason> {
+        if !self.enumeration_trusts(head) {
+            return Err(DeclineReason::RebindingSuspected);
+        }
+        let texts: Vec<&str> = words.iter().map(|&(text, _)| text).collect();
+        let classified: Vec<InvocationWord<'_>> = words
+            .iter()
+            .map(|&(text, braced)| amount_word((text, braced)))
+            .collect();
+        let resolved = self
+            .resolve(head, &classified)
+            .ok_or(DeclineReason::NoSemantics)?;
+        let semantics = resolved
+            .semantics
+            .value
+            .semantics()
+            .ok_or(DeclineReason::NoSemantics)?;
+        let inputs = StateInputs {
+            driver: self,
+            view: view_of(&resolved, &texts, &classified, InvocationLayout::Source),
+            state,
+        };
+        match semantics.structure(&inputs) {
+            PlanAnswer::Iterate(plan) => Ok(plan),
+            PlanAnswer::Declined(reason) => Err(reason),
+            _ => Err(DeclineReason::Unsupported),
+        }
+    }
+
+    /// A source word's value over a loop enumeration's `state`: a braced
+    /// word's text, a bare word with nothing to substitute cooked as Tcl
+    /// reads it, or a whole-variable read of the state. Any other word
+    /// substitutes a command or interpolates, which the enumeration does not
+    /// run.
+    pub(crate) fn word_in_state(
+        &self,
+        state: &crate::static_loops::LoopState,
+        text: &str,
+        braced: bool,
+    ) -> Result<ExactValue, DeclineReason> {
+        use crate::static_loops::Slot;
+        if braced {
+            return self
+                .literal_value(text, TokenType::Str)
+                .map(|value| ExactValue::from_literal(&value))
+                .ok_or(DeclineReason::NotExact);
+        }
+        if let Some(name) = simple_var_ref_name(text, self.context.grammar.braced_var) {
+            // `${a(k)}` reads the element, never the scalar `a`.
+            return match state.get(name) {
+                Some(Slot::Value(value)) => Ok(value.clone()),
+                Some(Slot::Unbound) => Err(DeclineReason::UnboundPlace),
+                Some(Slot::Scalar) | None => Err(DeclineReason::NotExact),
+            };
+        }
+        if text.contains(['$', '[']) {
+            return Err(DeclineReason::NotExact);
+        }
+        self.literal_value(text, TokenType::Esc)
+            .map(|value| ExactValue::from_literal(&value))
+            .ok_or(DeclineReason::NotExact)
+    }
+
+    /// The elements of a list value under the target's list rules, or `None`
+    /// for a text that is no list, on which a command reading it raises.
+    pub(crate) fn list_elements(&self, text: &str) -> Option<Vec<String>> {
+        self.policy
+            .word_rules
+            .split_list(text)
+            .ok()
+            .map(|elements| elements.into_iter().map(Cow::into_owned).collect())
+    }
+
+    /// The selection the lowered case-list statement `stmt` makes when its
+    /// subject holds `subject` ([`statement_selection`]).
+    pub(crate) fn switch_selection(
+        &self,
+        stmt: &Statement,
+        subject: &str,
+    ) -> Option<SelectionFact> {
+        statement_selection(self.registry, stmt, subject)
+    }
+
+    /// The budget a loop enumeration charges every statement of every
+    /// iteration to, within the run's request.
+    pub(crate) fn enumeration_budget(&self) -> Budget {
+        self.budget()
+    }
+
+    /// A condition's truth over a loop enumeration's `state`, as `if` and a
+    /// loop read it ([`Self::expression_in_state`]): `Err` when it declines or
+    /// does not complete normally, or when its value is no boolean.
+    pub(crate) fn condition_in_state(
+        &self,
+        state: &crate::static_loops::LoopState,
+        node: &ExprNode,
+        budget: &mut Budget,
+    ) -> Result<bool, DeclineReason> {
+        match self.expression_in_state(state, node, None, budget)? {
+            Ok(value) => truth_of(&ExactValueOrUnavailable::Exact(value))
+                .ok_or(DeclineReason::WrongRepresentation),
+            Err(_) => Err(DeclineReason::Unsupported),
+        }
+    }
+}
+
 /// The element `key` of the array `base` names: the place an element write
 /// lands on. An element of an element is no place — the command raises on
 /// it — so it declines.

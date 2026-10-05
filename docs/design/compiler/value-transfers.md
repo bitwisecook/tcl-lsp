@@ -989,71 +989,103 @@ quotients of the second are `20` and `5`; the cartesian product
 `{5, 10, 20}` is sound for both and exact for neither; only ordered
 enumeration answers `20` and `25`. The rule is in force for every evaluation
 over lattice inputs. `the_mirror_pairs_decline_as_correlated` pins the
-outcome: the loop header answers each binder of the two-binder `foreach`
-source with the elements it takes, so each `expr {$b / $a}` declines
-`CorrelatedSets`, neither loop folds `x`, and neither post-loop branch
-decides.
+outcome for the loops written with `set x [expr {$b / $a}]`: the loop header
+answers each binder of the two-binder `foreach` source with the elements it
+takes, so each `expr {$b / $a}` declines `CorrelatedSets` and no version
+inside either loop folds; the solver then runs each loop in order (§
+*Bounded-loop enumeration*) and states what it leaves on its exit — `x` 10
+and `y` 5, each loop's last quotient — so each post-loop branch decides.
 
 ### Bounded-loop enumeration
 
-`static_loops.rs` simulates a `for` loop concretely today:
-`summarise_for_statement` runs `init`, the condition, the body, and `next`
-through `exec_statement` with its own `StaticValue` lattice, its own
-`Incr` arm, and its own `parse_literal_value`, and
-`sccp::loop_summary_decision` folds a branch after the loop from the
-summarised environment. The design keeps the simulator and makes it a
-consumer of concrete semantics, as `LoopEnumeration`:
+`static_loops.rs` runs a loop to its exit over exact state, as
+`LoopEnumeration`. The CFG builder records each `for`, `while` and
+`foreach` it lowers (`cfg::LoopNode`, keyed by the block the loop leaves to,
+with the block whose exit state its passes start from — the end of a
+`for`'s start script), and the solver runs each loop whose start state it
+proves:
 
 ```rust,ignore
-/// Ordered execution of one iteration plan over exact state. Produced by
-/// the solver at a loop's pre-header when the plan and the state admit
-/// it; consumed by the post-loop lattice, `loop_summary_decision`,
-/// W240–W242, and `intervals.rs`.
-struct LoopEnumeration {
-    plan: IterationPlan,
-    /// Every place the loop reads or writes, with its exact value and
-    /// existence at the pre-header; an unbound binder stays unbound.
-    entry: Vec<(PlaceRef, ExactValueOrUnavailable, Existence)>,
-    /// Iterations run before the exit, the exit taken, and the state on
-    /// the exit edge: exact values and existence for every place touched.
-    iterations: u64,
-    exit: ExitRule,
-    state: Vec<(PlaceRef, ExactValueOrUnavailable, Existence)>,
-    evidence: DependencyEvidence,
+/// One loop run to its exit over exact state (`enumerate_loop`): produced by
+/// the solver from the state the loop starts from; read by the solver's
+/// second run, as the values it states on the loop's exit edges, and by the
+/// Explorer (`SccpResult::loop_enumerations`).
+pub struct LoopEnumeration {
+    pub plan: IterationPlan,
+    /// What each place the loop wrote held before it ran.
+    pub entry: Vec<(String, Slot)>,
+    /// The passes it ran, how it left, and what each place it wrote holds
+    /// where it left.
+    pub iterations: u64,
+    pub exit: ExitRule,
+    pub state: Vec<(String, Slot)>,
+    /// Normal, or the completion its plan does not absorb.
+    pub completion: CompletionOutcome,
+}
+
+/// What the enumeration holds of a place.
+pub enum Slot {
+    Value(ExactValue),
+    /// Bound to a scalar whose value the enumeration does not know.
+    Scalar,
+    Unbound,
 }
 ```
 
-- **Semantics come from the interface.** `exec_statement` applies each
-  statement's registry-owned `evaluate` over the enumeration's state —
-  the cell update, `expr` through the expression route, an assignment, a
-  call with a declared route and no world effect — and `exec_switch`
-  consumes the `Selection` fact; the simulator's private `Incr`
-  arithmetic, its `parse_literal_value`, and `resolve_switch_subject`
-  retire, and the state is exact values with existence rather than
-  `StaticValue`, so `foreach x {} {}` leaves `x` unbound and
-  `foreach {a b} {1 2 3} {}` leaves `b` the empty string.
-- **Bounds.** Iterations are capped at `DEFAULT_MAX_STATIC_LOOP_ITERS`,
-  every iteration's statements are charged to the request `Budget`, and
-  result bytes are bounded before allocation. A cap is a `Budget`
-  decline: nothing is published and the ordinary widened lattice stands.
-  A partial enumeration is never a post-loop fact.
-- **What is closed.** Every statement in the body, the condition, and
-  the `next` script evaluates through a declared route; no barrier, no
-  world effect, no write to an escaping or traced place, no dynamic name.
-  One unsupported statement declines the enumeration.
-- **Exit conditions.** Exhaustion of the iterable, a false condition
-  evaluated per iteration through the expression route, `break`, or a
-  non-normal completion of the body. `break` and `continue` are
-  completion codes the iteration plan absorbs; `return` and an error end
-  the enumeration with that completion and the state so far, published on
-  that path only — an error in the third iteration leaves the counter at
-  `2` on the error edge and nothing on the normal exit.
-- **Join.** The enumeration publishes the exit state on the loop's exit
-  edge as exact values; inside the loop the header phis widen exactly as
-  today, so a body statement still sees `ConstSet` or `Overdefined`, and
-  a value that is exact after the loop is not exact within it. A nested
-  loop is enumerated as one statement of the outer body under the same
-  budget.
+- **Semantics come from the interface.** The loop's iteration plan is the
+  registry's: `for` iterates `Counted` over its start script, condition and
+  step script, `while` over its condition, and `foreach` over one list or
+  several in lockstep, a list used up supplying the empty string; each
+  absorbs `break` and `continue` (`IterationPlan::step`), so `continue` ends
+  the pass and `break` the loop. Each statement of the body, the condition
+  and the step runs its registry-owned evaluation over the enumeration's
+  state through the run's driver: an assignment and an `incr` through their
+  command's route (`LatticeDriver::invoke_in_state`), with the stores the
+  route makes applied in order; `expr` and a condition through the
+  expression route and its services, so a math function the module rebinds
+  declines; a `switch` through the statement's own `Selection` transfer over
+  its subject's value; an `if` by its conditions in turn; a nested loop as
+  one statement under the same cap. So `foreach x {} {}` leaves `x` unbound
+  and `foreach {a b} {1 2 3} {}` leaves `b` the empty string.
+- **What is closed.** The state holds what the solver proves of the places
+  the loop finds: a value the settled lattice proves exact where the loop
+  starts, under the refinements in force there; a scalar of unknown value,
+  or no binding, where the existence rung proves it so. A read of a place it
+  holds no value of declines the enumeration, and so does a store to a place
+  it does not hold, which may be an array a scalar store raises on, and a
+  store to an element or to a place another actor may write — an escaping,
+  linked or traced place, or any once a computed name may write one. So does
+  a word that substitutes a command and any statement no route evaluates
+  exactly. A loop that declines publishes nothing, and the widened lattice
+  stands.
+- **Bounds.** At most `DEFAULT_MAX_STATIC_LOOP_ITERS` passes in all, a
+  nested loop's included, with every statement charged to the driver's
+  evaluation budget; a loop past the cap declines with `Budget(Iterations)`
+  (`the_iteration_cap_publishes_nothing`).
+- **Exit conditions.** Exhaustion of the iterable, a false condition,
+  `break` from the body or a `for`'s step script, or a completion the
+  iteration plan does not absorb — an error or a `return` — which ends the
+  run with the state so far. A loop that leaves that way publishes nothing,
+  since what it leaves holds on that path alone.
+- **Publication.** The solver runs twice. After the first run settles, each
+  loop it reaches is enumerated, and each place the loop wrote is stated, at
+  the version live in the block the loop leaves to, as an exact-value
+  `EdgeRefinement` on every executable edge into that block — the false edge
+  of its test and each `break` edge; the second run solves with those among
+  the other refinements, and the values only descend. A block every one of
+  those edges enters holds them, one fact stated on several edges being one
+  fact, so a branch after the loop decides, for I230 as for O101, while
+  inside the loop the header φs widen as before: a body statement sees
+  `ConstSet` or `Overdefined`, and a value exact after the loop is not exact
+  within it. The Explorer's `sccp` view prints each enumerated loop —
+  `enumerated loop: 5 iterations, false condition`, the block it leaves to
+  and each value it published.
+- **An opaque `catch` body.** The marker ahead of an opaque `catch` states
+  the names its body writes. Where the body runs to its end over the exact
+  state of the names the marker and its call read (`enumerate_script`), each
+  name it wrote holds what the body left — the `catch` absorbs however the
+  body completes, so a loop that raises leaves its counter where the error
+  left it — and each name it did not write holds what it held.
 
 Witnesses, identical in every tested release:
 
@@ -1071,21 +1103,11 @@ foreach {a b} {1 2 3} {}                                      ;# a is 3, b is th
 set n 0; foreach x {1 2 3} {if {$x == 2} break; incr n}       ;# n is 1, x is 2
 ```
 
-Today `tcl opt --profile full` folds `if {$i == 5}` after the first loop
-through `loop_summary_decision` and leaves `if {$x == 20}` after the
-correlated `foreach` undecided; the enumeration decides both. Consumers:
-`sccp::loop_summary_decision`; `bounds_checks.rs`, whose W240–W242
-seeding reads `set v INT` and `incr v ?INT?` textually and reads the
-iteration plan's bound and step instead; `intervals.rs`, whose
-loop-header widening (`MAX_ITERS`) is bypassed for an enumerated loop by
-the exact exit state; and the argument-sensitive O103 path, whose callee
-re-run enumerates the callee's loops under the call's seeds. Tests: the
-`summarise_*` tests in `static_loops.rs` and
-`sccp_folds_post_loop_branch_via_static_summary` pin today's answers, and
-the eleven witnesses above are the fixed additions, each under every
-release found on `PATH`. Migration: slice 12, sequenced after slices 2,
-3, and 6, whose exit criterion is that `static_loops.rs` performs no
-arithmetic of its own and the eleven witnesses fold.
+The `summarise_for_statement` simulator, with its own `StaticValue`
+lattice, `parse_literal_value` and `resolve_switch_subject`, remains in
+`static_loops.rs`, read by its own `summarise_*` tests alone.
+`bounds_checks.rs` seeds W240–W242 from `set v INT` and `incr v ?INT?` text,
+and `intervals.rs` widens a loop header as before (`MAX_ITERS`).
 
 ## Exact values, types, and representation
 
@@ -2881,7 +2903,7 @@ unit-level lattice evaluates.
 - `rust/tcl-registry/src/hooks.rs`, `return_type.rs` — `ReturnTypeHookId` and the intrep-guaranteeing return-type algorithms
 - `rust/tcl-registry/src/literal_validation.rs` — `LiteralArgumentValidator`, the validation pattern
 - `rust/tcl-registry/src/bpf_op.rs`, `commands/bpf/loop_.rs` — `BpfOpSpec`, the BPF descriptor
-- `rust/tcl-compiler/src/sccp.rs` — the transfer function, `evaluate_def_with_folds`, `evaluate_branch`, `env_from_uses`, `existence_constant_branches`, `scan_defined_and_unset`, `ExistenceFrame`, `loop_summary_decision`, `parse_literal_value`, `TraceInputs`
+- `rust/tcl-compiler/src/sccp.rs` — the transfer function, `evaluate_def_with_folds`, `evaluate_branch`, `env_from_uses`, `existence_constant_branches`, `scan_defined_and_unset`, `ExistenceFrame`, `enumerate_loops`, `start_state`, `catch_body_answer`, `parse_literal_value`, `TraceInputs`
 - `rust/tcl-compiler/src/const_subst.rs` — `ConstSubstCtx`, `ResolvedConstSubst` and its `command_bindings`
 - `rust/tcl-compiler/src/analyses.rs` — `LatticeValue`, `ConstValue`, `MAX_CONSTSET_SIZE`
 - `rust/tcl-compiler/src/command_binding.rs` — `ModuleCommandMutations`, `CommandTrustSnapshot`, binding validity
@@ -2899,7 +2921,7 @@ unit-level lattice evaluates.
 - `rust/tcl-compiler/src/lowering/mod.rs`, `specialise_factories.rs`, `subst_nocommands.rs` — `eval_subst_nocommands_body`, `SUBST_NOCOMMANDS_KINDS`, `extract_subst_nocommands_template`, `subst_nocommands`
 - `rust/tcl-lsp-core/src/refactor/extract_proc.rs`, `refactor/mod.rs` — `literal_word_holes`, `push_substituted_commands`, `same_frame_regions`
 - `rust/tcl-compiler/src/dynamic_names.rs` — `DynamicNameBarrier`, `template_word_is_substituted`
-- `rust/tcl-compiler/src/static_loops.rs` — `summarise_for_statement`, `exec_statement`, `exec_switch`, `DEFAULT_MAX_STATIC_LOOP_ITERS`
+- `rust/tcl-compiler/src/static_loops.rs` — `enumerate_loop`, `enumerate_script`, `LoopEnumeration`, `LoopState`, `Slot`, `DEFAULT_MAX_STATIC_LOOP_ITERS`, and the `summarise_for_statement` simulator
 - `rust/tcl-compiler/src/intervals.rs` — `transfer`, `widen`, `MAX_ITERS`, `refine_interval`
 - `rust/tcl-compiler/src/interprocedural.rs` — `ProcSummary`, `ProcArgTrait`, `ReturnKind`, `summarise_returns`, `MAX_INTERPROCEDURAL_WALK_DEPTH`
 - `rust/tcl-compiler/src/optimiser/propagation.rs` — `evaluate_proc_with_constants`, `seed_params_from_args`
@@ -2924,7 +2946,8 @@ unit-level lattice evaluates.
 - `rust/tcl-registry/tests/analyser_hooks.rs` — the pinned-set shape
 - `rust/tcl-compiler/src/analyser/diagnostics/tests.rs` — `info_exists_*`, `emit_cfg_ssa_diagnostics_w210_*`, `emit_cfg_ssa_diagnostics_w213_*`, `w102_*`: the existence, read-before-set, and template-word answers the rungs keep byte-identical
 - `rust/tcl-compiler/src/sccp.rs` — `existence_fold_abstains_*`, `upframe_body_models_*`, `sccp_folds_post_loop_branch_via_static_summary`
-- `rust/tcl-compiler/src/static_loops.rs` — `summarise_*`: today's bounded `for` simulation, the enumeration's baseline
+- `rust/tcl-compiler/src/static_loops.rs` — `summarise_*`: the bounded `for` simulation the enumeration replaced, its answers the enumeration's baseline
+- `rust/tcl-compiler/tests/value_transfer_witnesses.rs` — `the_iteration_cap_publishes_nothing`, `the_mirror_pairs_decline_as_correlated`
 - `rust/tcl-syntax/src/expr/eval.rs` — `short_circuit_logical`: the walker's ordering the evaluation state relies on
 - `rust/tcl-compiler/src/tcl_expr_eval.rs` — `command_substitution_evaluates_through_the_nested_service`: a nested command's answer under each nested policy
 - `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs` — `try_finally_creates_finally_block`, `try_with_handler`: the faithful-exceptions shape

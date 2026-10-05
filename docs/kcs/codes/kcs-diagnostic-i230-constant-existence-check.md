@@ -252,6 +252,40 @@ if {$z eq "a"} {
 }
 ```
 
+## A test after a loop
+
+Where the analyser knows exactly what a loop starts from — every variable it
+reads holds a known value there, and every one it writes is a plain local, or
+a plain name in top-level code, that nothing else can change — it runs the
+loop to its end, and what the loop leaves holds after it:
+
+```tcl
+proc count {} {
+    set n 0
+    foreach x {a b c} { incr n }
+    if {$n == 3} { return three }   ;# I230: always true
+    return other
+}
+```
+
+The same holds after `for` and `while`, after a `break` or a `continue`
+(`for {set i 0} {$i < 10} {incr i} {if {$i == 3} break}` leaves `i` at 3), and
+after a `catch` whose body raises part-way through a loop (`catch {for {set i
+0} {$i < 5} {incr i} {if {$i == 2} {error x}}}` leaves `i` at 2). Inside the
+loop nothing is decided from the run, since each pass sees a different value.
+
+A loop is not run, and the test after it is decided only as it is without
+the run, when it would run more than 4096 passes, reads a value the analyser
+does not know (`for {set i 0} {$i < $n} {incr i} {}` with `n` a parameter),
+runs a command the analyser does not evaluate (`puts`, a procedure, a
+command substitution other than `set v [expr …]`), or writes a `global`,
+traced or array variable.
+
+A loop's own condition is never reported as always true: `while 1 { … }`
+loops on purpose. That is the condition that leaves the loop when it is
+false; an `if` inside the loop's body, or right after the loop, is reported
+like any other.
+
 ## Fix
 
 To remember a value across calls, give it real cross-call storage instead of a

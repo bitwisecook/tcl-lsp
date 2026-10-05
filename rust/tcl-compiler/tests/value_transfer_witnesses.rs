@@ -1346,15 +1346,14 @@ fn the_square_of_one_finite_input_stays_correlated() {
 /// (`docs/design/compiler/value-transfers.md` § *The correlated
 /// finite-set limit*): `a` and `b` are the loop's two binders, so pairing
 /// them by position or taking their cartesian product would both be
-/// unsound, and neither post-loop branch decides — `x` is 20 and `y` is
-/// 25 in every release, but only ordered enumeration answers
-/// that, never the finite-set lift.
-///
-/// The loop header answers each binder of the two-binder
-/// source with the elements it takes (`a` is `{1 2}`, `b` is `{10 20}`),
-/// so each quotient sees the page's two distinct `Finite` identities and
-/// declines `CorrelatedSets`; `x`
-/// and `y` never fold and neither branch decides.
+/// unsound. The loop header answers each binder of the two-binder source
+/// with the elements it takes (`a` is `{1 2}`, `b` is `{10 20}`), so each
+/// quotient sees the page's two distinct `Finite` identities and declines
+/// `CorrelatedSets`, and the version each loop leaves `x` and `y` at holds
+/// no value of its own. Only ordered enumeration answers what the loops
+/// leave — `x` is 10 and `y` is 5, each loop's last quotient — which the
+/// solver states on each loop's exit, so each post-loop branch decides
+/// false: tclsh 8.4 to 9.1 print `other` twice.
 #[test]
 fn the_mirror_pairs_decline_as_correlated() {
     let source = "proc p {} {\n\
@@ -1381,15 +1380,18 @@ fn the_mirror_pairs_decline_as_correlated() {
             assert_eq!(last, LatticeValue::Overdefined, "{dialect}: {var}");
         }
         for condition in ["$x == 20", "$y == 25"] {
-            assert!(
-                function
-                    .sccp
-                    .constant_branches
-                    .iter()
-                    .all(|b| b.condition != condition),
-                "{dialect}: {condition} decided: {:?}",
-                function.sccp.constant_branches
-            );
+            let decided = function
+                .sccp
+                .constant_branches
+                .iter()
+                .find(|branch| branch.condition == condition)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "{dialect}: {condition} undecided: {:?}",
+                        function.sccp.constant_branches
+                    )
+                });
+            assert!(!decided.value, "{dialect}: {condition}");
         }
         // The two-binder source is lowered: `a` and `b` are two
         // distinct finite inputs, so each quotient declines as correlated.
@@ -1400,6 +1402,7 @@ fn the_mirror_pairs_decline_as_correlated() {
             "{dialect}"
         );
     }
+    prints_under_every_release(&format!("{source}p\n"), "other\nother\n");
 }
 
 /// A condition over a leading-zero digit string decides nothing under 8.x:
@@ -7532,4 +7535,135 @@ fn an_opaque_catch_reads_its_own_writes_as_its_own() {
             );
         }
     }
+}
+
+/// A loop that runs past the enumeration cap
+/// (`DEFAULT_MAX_STATIC_LOOP_ITERS` passes) declines: the solver publishes
+/// nothing on its exit, so the branch after it decides nothing and the
+/// widened lattice stands. A loop that runs to the cap is enumerated, and
+/// its branch decides. tclsh 8.4 to 9.1 print `yes` for both, before and
+/// after `tcl opt`.
+#[test]
+fn the_iteration_cap_publishes_nothing() {
+    let cap = tcl_compiler::static_loops::DEFAULT_MAX_STATIC_LOOP_ITERS;
+    for (bound, enumerated) in [(cap, true), (cap + 1, false)] {
+        let source = format!(
+            "proc p {{}} {{\n    for {{set i 0}} {{$i < {bound}}} {{incr i}} {{}}\n    \
+             if {{$i == {bound}}} {{puts yes}} else {{puts no}}\n}}\np\n"
+        );
+        let condition = format!("$i == {bound}");
+        for dialect in DIALECTS {
+            let unit = unit_of(&source, dialect);
+            let function = unit.procedures.get("::p").expect("the procedure");
+            let decided = function
+                .sccp
+                .constant_branches
+                .iter()
+                .find(|branch| branch.condition == condition)
+                .map(|branch| branch.value);
+            assert_eq!(decided, enumerated.then_some(true), "{dialect}: {bound}");
+            assert_eq!(
+                function.sccp.loop_enumerations.len(),
+                usize::from(enumerated),
+                "{dialect}: {bound}"
+            );
+        }
+        prints_under_every_release(&source, "yes\n");
+    }
+}
+
+/// The enumeration stores only to a place whose kind it proves — one it
+/// holds a scalar of, or holds unbound — and names an element as the word
+/// gives it: `foreach b` over an array `b` raises on its first binding, and
+/// `${a(k)}` and `set a(k) …` raise on a scalar `a`, so a `catch` body that
+/// does any of them leaves its counter where the error left it. Had the run
+/// bound the array as a scalar, or read and written `a(k)` as `a`, `$n == 0`
+/// would decide false and `i` would leave the `catch` at 3. tclsh 8.4 to 9.1
+/// print `zero` and `0` twice, before and after `tcl opt`.
+#[test]
+fn an_enumeration_runs_only_over_places_it_proves() {
+    let array_binder = "proc p {} {\n    array set b {k keep}\n    set n 0\n    \
+                        catch {foreach b {1 2} {incr n}}\n    \
+                        if {$n == 0} {puts zero} else {puts other}\n}\np\n";
+    let element = |command: &str| {
+        format!(
+            "proc p {{}} {{\n    set a 5\n    set i 9\n    \
+             catch {{for {{set i 0}} {{$i < 3}} {{incr i}} {{set y $a; {command}}}}}\n    \
+             puts $i\n}}\np\n"
+        )
+    };
+    let elements = [element("set x ${a(k)}"), element("set a(k) $i")];
+    for dialect in DIALECTS {
+        let unit = unit_of(array_binder, dialect);
+        let function = unit.procedures.get("::p").expect("the procedure");
+        assert!(
+            function
+                .sccp
+                .constant_branches
+                .iter()
+                .all(|branch| branch.condition != "$n == 0"),
+            "{dialect}: {:?}",
+            function.sccp.constant_branches
+        );
+        for source in &elements {
+            assert!(
+                !matches!(
+                    last_value(source, dialect, "::p", "i"),
+                    LatticeValue::Const(_)
+                ),
+                "{dialect}\n{source}"
+            );
+        }
+    }
+    prints_under_every_release(array_binder, "zero\n");
+    for source in &elements {
+        prints_under_every_release(source, "0\n");
+    }
+}
+
+/// The state a `foreach` or a `while` leaves decides the branch after it,
+/// for I230 as for `tcl opt`: the counter the solver keeps widened inside
+/// each loop is 3, then -2, on the loop's exit edges. The `foreach` leaves by
+/// its latch, whose test the analysis cannot read, so the solver reaches the
+/// block after it while the counter's own value is still a transient
+/// constant the loop's state rules out; that value decides nothing, and the
+/// arm the state rules out is never reached. tclsh 8.4 to 9.1 print `three`
+/// and `minus`, before and after `tcl opt`.
+#[test]
+fn the_state_a_loop_leaves_decides_the_branch_after_it() {
+    let source = "proc p {} {\n    set n 0\n    foreach x {a b c} { incr n }\n    \
+                  if {$n == 3} { puts three } else { puts other }\n    set i 10\n    \
+                  while {$i > 0} { incr i -3 }\n    \
+                  if {$i == -2} { puts minus } else { puts other }\n}\np\n";
+    for dialect in DIALECTS {
+        assert_eq!(condition_claims(source, dialect), [true, true], "{dialect}");
+        let unit = unit_of(source, dialect);
+        let function = unit.procedures.get("::p").expect("the procedure");
+        assert_eq!(
+            function
+                .sccp
+                .loop_enumerations
+                .iter()
+                .map(|record| record.iterations)
+                .collect::<Vec<_>>(),
+            [3, 4],
+            "{dialect}"
+        );
+    }
+    prints_under_every_release(source, "three\nminus\n");
+}
+
+/// A loop's own test is the branch that leaves the loop when false, wherever
+/// its block sits: `while 1` decided true draws no I230, and an `if` in a
+/// loop's body is an `if` like any other, so one decided true there draws
+/// one. tclsh 8.4 to 9.1 print `3` and `done`, before and after `tcl opt`.
+#[test]
+fn a_loops_own_test_is_the_branch_that_leaves_it() {
+    let source = "proc p {} {\n    set n 0\n    for {set i 0} {$i < 3} {incr i} {\n        \
+                  set k 1\n        if {$k == 1} { incr n }\n    }\n    puts $n\n}\n\
+                  proc q {} {\n    while 1 { return done }\n}\np\nputs [q]\n";
+    for dialect in DIALECTS {
+        assert_eq!(condition_claims(source, dialect), [true], "{dialect}");
+    }
+    prints_under_every_release(source, "3\ndone\n");
 }

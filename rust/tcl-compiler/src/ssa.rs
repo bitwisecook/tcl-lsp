@@ -3539,7 +3539,7 @@ fn drop_reads_of_own_writes(infos: &mut [SsaStatement]) {
 /// marker, when it shares the marker's span, as the CFG builder puts them.
 /// `None` for any other statement, and for the marker that follows an opaque
 /// `switch`, whose arms' reads are already free of their own writes.
-fn arm_writes_host(infos: &[SsaStatement], marker: usize) -> Option<usize> {
+pub(crate) fn arm_writes_host(infos: &[SsaStatement], marker: usize) -> Option<usize> {
     let statement = &infos.get(marker)?.statement;
     if !is_arm_writes_marker(statement) {
         return None;

@@ -69,6 +69,8 @@ pub enum BudgetLimit {
     Request,
     /// The request was cancelled.
     Cancelled,
+    /// The iterations a loop enumeration may run.
+    Iterations,
 }
 
 /// Why a specialisation has no route: the payload of

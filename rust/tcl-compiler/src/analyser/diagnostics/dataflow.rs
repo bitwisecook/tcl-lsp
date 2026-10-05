@@ -1887,6 +1887,10 @@ file; this call falls through to the 'unknown' handler."
     /// - Otherwise → I230 with the generic
     ///   ``"Branch condition '...' is constant"`` message.
     ///
+    /// A loop's own test decided true — the idiomatic `while 1` — is not
+    /// reported; a loop's test is the branch whose false edge enters the
+    /// block the loop leaves to.
+    ///
     /// Severity is mapped to ``Hint`` because the
     /// [`Severity`] enum has no ``Info`` variant — ``Hint`` is
     /// the closest non-actionable level.
@@ -1919,12 +1923,20 @@ file; this call falls through to the 'unknown' handler."
                 continue;
             };
             let Some(crate::cfg::Terminator::Branch {
-                span: Some(span), ..
+                span: Some(span),
+                false_target,
+                ..
             }) = &block.terminator
             else {
                 continue;
             };
             let span = fu.abs_span(*span);
+            // A loop's own test is the branch that leaves the loop when false:
+            // its false edge enters the block the loop leaves to
+            // (`cfg.loop_nodes`), wherever the test sits. A decided `if` in the
+            // loop's body, or right after the loop in the block it leaves to,
+            // is no loop test, whatever its block's name.
+            let is_loop = fu.cfg.loop_nodes.contains_key(false_target);
 
             let names = [
                 branch.block.as_str(),
@@ -1933,9 +1945,6 @@ file; this call falls through to the 'unknown' handler."
             ];
             let is_switch = names.iter().any(|n| n.starts_with("switch_"));
             let is_if = names.iter().any(|n| n.starts_with("if_"));
-            let is_loop = names.iter().any(|n| {
-                n.starts_with("while_") || n.starts_with("for_") || n.starts_with("foreach_")
-            });
             // Suppress the idiomatic infinite loop `while 1 { … }`:
             // a constant-TRUE loop condition is intentional, not a bug (a
             // constant-FALSE loop still flags its unreachable body).

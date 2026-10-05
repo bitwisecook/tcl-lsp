@@ -58,8 +58,18 @@ pub(crate) fn rebase_function_unit(fu: &mut FunctionUnit, delta: i64) {
     }
     for loop_node in fu.cfg.loop_nodes.values_mut() {
         shift(&mut loop_node.span, delta);
-        rebase_statement(&mut loop_node.for_stmt, delta);
+        rebase_statement(&mut loop_node.statement, delta);
     }
+    fu.cfg.opaque_catch_bodies = std::mem::take(&mut fu.cfg.opaque_catch_bodies)
+        .into_iter()
+        .map(|(mut span, mut body)| {
+            shift(&mut span, delta);
+            for stmt in &mut body.statements {
+                rebase_statement(stmt, delta);
+            }
+            (span, body)
+        })
+        .collect();
     // Inlined-body error sites carry absolute spans too; without shifting them
     // a cache-hit, offset-rebased unit keeps stale offsets for error-region
     // mapping and explorer views.
@@ -96,6 +106,10 @@ pub(crate) fn rebase_function_unit(fu: &mut FunctionUnit, delta: i64) {
         for span in &mut record.arm_pattern_spans {
             shift(span, delta);
         }
+    }
+    // An enumerated loop's statement span.
+    for record in &mut fu.sccp.loop_enumerations {
+        shift(&mut record.span, delta);
     }
 }
 

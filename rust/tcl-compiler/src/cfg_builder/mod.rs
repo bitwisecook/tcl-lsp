@@ -234,6 +234,9 @@ pub(crate) struct CfgBuilder<'a> {
     /// frozen [`Function`]'s interner reflects that order.
     block_ids: FxHashMap<String, BlockId>,
     loop_nodes: HashMap<String, LoopNode>,
+    /// The bodies of the opaque `catch` calls, by span
+    /// ([`Function::opaque_catch_bodies`]).
+    opaque_catch_bodies: HashMap<Span, Script>,
     inline_loops: bool,
     /// Whether the function being built is a procedure body rather than the
     /// top-level script. Only a procedure has a local variable table, so only
@@ -484,6 +487,7 @@ impl<'a> CfgBuilder<'a> {
             blocks: HashMap::new(),
             block_ids: FxHashMap::default(),
             loop_nodes: HashMap::new(),
+            opaque_catch_bodies: HashMap::new(),
             inline_loops,
             is_proc_body: false,
             top_level_is_proc_body: false,
@@ -2065,6 +2069,7 @@ impl<'a> CfgBuilder<'a> {
             .into_iter()
             .map(|(k, ln)| (self.bid(&k), ln))
             .collect();
+        func.opaque_catch_bodies = std::mem::take(&mut self.opaque_catch_bodies);
         self.finally_jump_edges.clear();
         self.plain_return_blocks.clear();
         self.split_parent.clear();
@@ -2783,6 +2788,7 @@ impl<'a> CfgBuilder<'a> {
             tokens: tokens.clone(),
             foreach_groups: None,
         });
+        self.opaque_catch_bodies.insert(*span, body.clone());
     }
 
     /// Dispatch `Try` — deferred opaque or inlined.

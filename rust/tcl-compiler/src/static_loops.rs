@@ -24,15 +24,21 @@
 //! iteration (capped by `DEFAULT_MAX_STATIC_LOOP_ITERS`) to
 //! catch pathological inputs.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use tcl_registry::CommandRegistry;
+use tcl_registry::hooks::LoweringHookId;
+use tcl_registry::value_transfer::{
+    Budget, BudgetLimit, CompletionOutcome, DeclineReason, ExactValue, ExitRule, IterationPlan,
+    LoopStep, PlaceKind, StoreOutcome,
+};
 
 use crate::expr_ast::ExprNode;
 use crate::ir::{IfClause, Script, Statement};
 use crate::naming::normalise_var_name;
 use crate::tcl_expr_eval::{Env, EnvValue, FoldPolicy, TclValue, eval_tcl_expr_with_policy};
 use crate::value_shapes::is_static_var_word;
+use crate::value_transfer::{LatticeDriver, StateStep};
 
 /// Default cap on iteration count — beyond this we give up and
 /// return `None` rather than simulate any further.
@@ -409,6 +415,675 @@ pub fn summarise_for_statement(
         max_iterations,
         semantics,
     )
+}
+
+// Bounded-loop enumeration
+
+/// What a loop enumeration holds of one place: bound to an exact value, a
+/// scalar whose value it does not know, or not bound.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Slot {
+    /// Bound to this exact value.
+    Value(ExactValue),
+    /// Bound to a scalar whose value the enumeration does not know: a store
+    /// replaces it, and a read of it declines.
+    Scalar,
+    /// Not bound.
+    Unbound,
+}
+
+/// The state a loop enumeration runs over: what it holds of each place it
+/// knows. A place it does not hold is one it knows nothing of — it may be an
+/// array — and a read of one, or a store to one, declines the enumeration.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct LoopState {
+    slots: BTreeMap<String, Slot>,
+}
+
+impl LoopState {
+    /// What the state holds of `name`.
+    #[must_use]
+    pub fn get(&self, name: &str) -> Option<&Slot> {
+        self.slots.get(name)
+    }
+
+    /// Hold `slot` for `name`.
+    pub fn set(&mut self, name: String, slot: Slot) {
+        self.slots.insert(name, slot);
+    }
+
+    /// Every place the state holds, in name order.
+    pub fn iter(&self) -> impl Iterator<Item = (&String, &Slot)> {
+        self.slots.iter()
+    }
+}
+
+/// One loop run to its exit over exact state
+/// (`docs/design/compiler/value-transfers.md` § *Bounded-loop enumeration*):
+/// the plan the registry declares for it, what it found and left of each
+/// place it wrote, how many passes it ran and how it left.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LoopEnumeration {
+    /// The loop's iteration plan.
+    pub plan: IterationPlan,
+    /// What each place the loop wrote held before it ran.
+    pub entry: Vec<(String, Slot)>,
+    /// The passes it ran.
+    pub iterations: u64,
+    /// How it left: exhaustion, a false condition, `break`, or a completion
+    /// the plan does not absorb.
+    pub exit: ExitRule,
+    /// What each place the loop wrote holds where it left.
+    pub state: Vec<(String, Slot)>,
+    /// How the loop completed: normally, or with the completion the plan does
+    /// not absorb (an error, a `return`), whose state holds only on that path.
+    pub completion: CompletionOutcome,
+}
+
+/// One enumeration's context: the run's driver, which places another actor
+/// may write, the budget every statement of every pass is charged to, the
+/// passes left, and every place written.
+struct Enumerator<'a> {
+    driver: &'a LatticeDriver<'a>,
+    external: &'a dyn Fn(&str) -> bool,
+    budget: Budget,
+    passes_left: u64,
+    written: BTreeSet<String>,
+    /// The head each typed statement kind resolves through, once asked.
+    heads: HashMap<LoweringHookId, Option<String>>,
+}
+
+/// Run the loop `stmt` — a `for`, `while` or `foreach` statement — to its exit
+/// over `state`, its every statement evaluated by the registry's routes through
+/// `driver`, under at most `max_iterations` passes in all, a nested loop's
+/// included. `state` holds what the loop finds before it runs, and for a `for`
+/// what its start script left when `start_ran` (the CFG runs it ahead of the
+/// loop). `external` names the places another actor may write: the enumeration
+/// writes none. A pass past the cap is the `Iterations` budget decline, and
+/// nothing is published; so is any statement no route evaluates exactly.
+pub(crate) fn enumerate_loop(
+    driver: &LatticeDriver<'_>,
+    stmt: &Statement,
+    mut state: LoopState,
+    (start_ran, max_iterations): (bool, u64),
+    external: &dyn Fn(&str) -> bool,
+) -> Result<LoopEnumeration, DeclineReason> {
+    let mut enumerator = Enumerator {
+        driver,
+        external,
+        budget: driver.enumeration_budget(),
+        passes_left: max_iterations,
+        written: BTreeSet::new(),
+        heads: HashMap::new(),
+    };
+    let before = state.clone();
+    let run = enumerator.run_loop(stmt, &mut state, start_ran)?;
+    let mut entry = Vec::new();
+    let mut after = Vec::new();
+    for name in &enumerator.written {
+        if let (Some(found), Some(left)) = (before.get(name), state.get(name)) {
+            entry.push((name.clone(), found.clone()));
+            after.push((name.clone(), left.clone()));
+        }
+    }
+    Ok(LoopEnumeration {
+        plan: run.plan,
+        entry,
+        iterations: run.iterations,
+        exit: run.exit,
+        state: after,
+        completion: run.completion,
+    })
+}
+
+/// What a script left when an enumeration ran it whole
+/// ([`enumerate_script`]): the state, every place it wrote, and how it
+/// completed.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ScriptRun {
+    /// The state it left.
+    pub state: LoopState,
+    /// Every place it wrote.
+    pub written: BTreeSet<String>,
+    /// How it completed.
+    pub completion: CompletionOutcome,
+}
+
+/// Run `script` to its end over `state` — the body of an opaque `catch`,
+/// whose completion the `catch` absorbs — as a loop's passes are run, under
+/// at most `max_iterations` passes of the loops it holds: what it leaves,
+/// written where it stopped when it completed otherwise.
+pub(crate) fn enumerate_script(
+    driver: &LatticeDriver<'_>,
+    script: &Script,
+    mut state: LoopState,
+    max_iterations: u64,
+    external: &dyn Fn(&str) -> bool,
+) -> Result<ScriptRun, DeclineReason> {
+    let mut enumerator = Enumerator {
+        driver,
+        external,
+        budget: driver.enumeration_budget(),
+        passes_left: max_iterations,
+        written: BTreeSet::new(),
+        heads: HashMap::new(),
+    };
+    let completion = enumerator.exec_script(script, &mut state)?;
+    Ok(ScriptRun {
+        state,
+        written: enumerator.written,
+        completion,
+    })
+}
+
+/// What one loop's run left: its plan, the passes, the exit and the
+/// completion.
+struct LoopRun {
+    plan: IterationPlan,
+    iterations: u64,
+    exit: ExitRule,
+    completion: CompletionOutcome,
+}
+
+impl Enumerator<'_> {
+    /// Run one loop statement over `state` to its exit.
+    fn run_loop(
+        &mut self,
+        stmt: &Statement,
+        state: &mut LoopState,
+        start_ran: bool,
+    ) -> Result<LoopRun, DeclineReason> {
+        let (hook, words) = loop_words(stmt)?;
+        let head = self.typed_head(hook)?;
+        let borrowed: Vec<(&str, bool)> = words
+            .iter()
+            .map(|(text, braced)| (text.as_str(), *braced))
+            .collect();
+        let plan = self.driver.loop_plan_in_state(state, &head, &borrowed)?;
+        match stmt {
+            Statement::For {
+                init,
+                condition,
+                next,
+                body,
+                ..
+            } => {
+                if !start_ran && self.exec_script(init, state)? != CompletionOutcome::Normal {
+                    return Err(DeclineReason::Unsupported);
+                }
+                self.run_passes(plan, state, |this, state| {
+                    if !this
+                        .driver
+                        .condition_in_state(state, condition, &mut this.budget)?
+                    {
+                        return Ok(Pass::Done(ExitRule::FalseCondition));
+                    }
+                    Ok(Pass::Body(body, Some(next)))
+                })
+            }
+            Statement::While {
+                condition, body, ..
+            } => self.run_passes(plan, state, |this, state| {
+                if !this
+                    .driver
+                    .condition_in_state(state, condition, &mut this.budget)?
+                {
+                    return Ok(Pass::Done(ExitRule::FalseCondition));
+                }
+                Ok(Pass::Body(body, None))
+            }),
+            Statement::Foreach {
+                iterators, body, ..
+            } => {
+                let groups = self.list_groups(iterators, state)?;
+                let passes = groups
+                    .iter()
+                    .map(|(vars, elements)| elements.len().div_ceil(vars.len().max(1)))
+                    .max()
+                    .unwrap_or(0);
+                let mut pass = 0;
+                self.run_passes(plan, state, |this, state| {
+                    if pass == passes {
+                        return Ok(Pass::Done(ExitRule::Exhaustion));
+                    }
+                    for (vars, elements) in &groups {
+                        for (at, var) in vars.iter().enumerate() {
+                            let element = elements
+                                .get(pass * vars.len() + at)
+                                .map_or("", String::as_str);
+                            this.write(state, var, Slot::Value(ExactValue::from_literal(element)))?;
+                        }
+                    }
+                    pass += 1;
+                    Ok(Pass::Body(body, None))
+                })
+            }
+            _ => Err(DeclineReason::Unsupported),
+        }
+    }
+
+    /// Each `foreach` group's variables and the elements of its list, read
+    /// over `state` under the target's list rules.
+    fn list_groups(
+        &self,
+        iterators: &[crate::ir::ForeachIterator],
+        state: &LoopState,
+    ) -> Result<Vec<ListGroupRun>, DeclineReason> {
+        iterators
+            .iter()
+            .map(|iterator| {
+                if iterator.vars.is_empty() {
+                    return Err(DeclineReason::WrongRepresentation);
+                }
+                let list =
+                    self.driver
+                        .word_in_state(state, &iterator.list_arg, iterator.list_braced)?;
+                let text = list.as_str().map_err(|_| DeclineReason::NotText)?;
+                let elements = self
+                    .driver
+                    .list_elements(text)
+                    .ok_or(DeclineReason::WrongRepresentation)?;
+                Ok((iterator.vars.clone(), elements))
+            })
+            .collect()
+    }
+
+    /// Run passes of a loop: `next_pass` decides whether another pass runs
+    /// (and binds what it binds) and names its body and step script; the
+    /// plan's completion protocol reads how each body completed.
+    fn run_passes<'s>(
+        &mut self,
+        plan: IterationPlan,
+        state: &mut LoopState,
+        mut next_pass: impl FnMut(&mut Self, &mut LoopState) -> Result<Pass<'s>, DeclineReason>,
+    ) -> Result<LoopRun, DeclineReason> {
+        let mut iterations = 0;
+        loop {
+            let (body, step) = match next_pass(self, state)? {
+                Pass::Done(exit) => {
+                    return Ok(LoopRun {
+                        plan,
+                        iterations,
+                        exit,
+                        completion: CompletionOutcome::Normal,
+                    });
+                }
+                Pass::Body(body, step) => (body, step),
+            };
+            if self.passes_left == 0 {
+                return Err(DeclineReason::Budget(BudgetLimit::Iterations));
+            }
+            self.passes_left -= 1;
+            iterations += 1;
+            let completion = self.exec_script(body, state)?;
+            match plan.step(&completion) {
+                LoopStep::Next | LoopStep::Skip => {}
+                LoopStep::Exit => {
+                    return Ok(LoopRun {
+                        plan,
+                        iterations,
+                        exit: ExitRule::Break,
+                        completion: CompletionOutcome::Normal,
+                    });
+                }
+                LoopStep::Leave => {
+                    return Ok(LoopRun {
+                        plan,
+                        iterations,
+                        exit: ExitRule::NonNormalCompletion,
+                        completion,
+                    });
+                }
+            }
+            if let Some(step) = step {
+                match self.exec_script(step, state)? {
+                    CompletionOutcome::Normal => {}
+                    // `break` in the step script ends the loop as in the body.
+                    completion if plan.step(&completion) == LoopStep::Exit => {
+                        return Ok(LoopRun {
+                            plan,
+                            iterations,
+                            exit: ExitRule::Break,
+                            completion: CompletionOutcome::Normal,
+                        });
+                    }
+                    _ => return Err(DeclineReason::Unsupported),
+                }
+            }
+        }
+    }
+
+    /// Run `script`'s statements in order until one completes otherwise:
+    /// how the script completed.
+    fn exec_script(
+        &mut self,
+        script: &Script,
+        state: &mut LoopState,
+    ) -> Result<CompletionOutcome, DeclineReason> {
+        for stmt in &script.statements {
+            let completion = self.exec_statement(stmt, state)?;
+            if completion != CompletionOutcome::Normal {
+                return Ok(completion);
+            }
+        }
+        Ok(CompletionOutcome::Normal)
+    }
+
+    /// Run one statement over `state` through the registry's routes: how it
+    /// completed.
+    fn exec_statement(
+        &mut self,
+        stmt: &Statement,
+        state: &mut LoopState,
+    ) -> Result<CompletionOutcome, DeclineReason> {
+        match stmt {
+            Statement::AssignConst { .. }
+            | Statement::AssignValue { .. }
+            | Statement::AssignExpr { .. }
+            | Statement::ExprEval { .. } => self.exec_assignment(stmt, state),
+            Statement::Incr { .. } | Statement::Call { .. } => self.exec_command(stmt, state),
+            Statement::If {
+                clauses, else_body, ..
+            } => {
+                for clause in clauses {
+                    if self
+                        .driver
+                        .condition_in_state(state, &clause.condition, &mut self.budget)?
+                    {
+                        return self.exec_script(&clause.body, state);
+                    }
+                }
+                match else_body {
+                    Some(body) => self.exec_script(body, state),
+                    None => Ok(CompletionOutcome::Normal),
+                }
+            }
+            Statement::Switch { .. } => self.exec_switch(stmt, state),
+            Statement::For { .. } | Statement::While { .. } | Statement::Foreach { .. } => {
+                Ok(self.run_loop(stmt, state, false)?.completion)
+            }
+            _ => Err(DeclineReason::Unsupported),
+        }
+    }
+
+    /// Run an assignment or an `expr` over `state`: the value a literal, a
+    /// word or the expression route gives, written through the registry's
+    /// cell write.
+    fn exec_assignment(
+        &mut self,
+        stmt: &Statement,
+        state: &mut LoopState,
+    ) -> Result<CompletionOutcome, DeclineReason> {
+        let (name, value) = match stmt {
+            Statement::AssignConst {
+                name,
+                name_braced,
+                value,
+                ..
+            } => {
+                let value = self
+                    .driver
+                    .literal_value(value, tcl_lexer::TokenType::Str)
+                    .ok_or(DeclineReason::NotExact)?
+                    .into_owned();
+                ((name.as_str(), *name_braced), value)
+            }
+            Statement::AssignValue {
+                name,
+                name_braced,
+                value,
+                ..
+            } => {
+                let value = self.driver.word_in_state(state, value, false)?;
+                let text = value.as_str().map_err(|_| DeclineReason::NotText)?;
+                ((name.as_str(), *name_braced), text.to_owned())
+            }
+            Statement::AssignExpr {
+                name,
+                name_braced,
+                expr,
+                command_binding,
+                ..
+            } => {
+                let head = command_binding
+                    .as_ref()
+                    .map(|binding| (binding.name.as_str(), binding.identity.as_str()));
+                match self
+                    .driver
+                    .expression_in_state(state, expr, head, &mut self.budget)?
+                {
+                    Ok(value) => {
+                        let text = value.as_str().map_err(|_| DeclineReason::NotText)?;
+                        ((name.as_str(), *name_braced), text.to_owned())
+                    }
+                    Err(completion) => return Ok(completion),
+                }
+            }
+            Statement::ExprEval {
+                expr,
+                command_binding,
+                ..
+            } => {
+                let head = Some((
+                    command_binding.name.as_str(),
+                    command_binding.identity.as_str(),
+                ));
+                return Ok(self
+                    .driver
+                    .expression_in_state(state, expr, head, &mut self.budget)?
+                    .err()
+                    .unwrap_or(CompletionOutcome::Normal));
+            }
+            _ => return Err(DeclineReason::Unsupported),
+        };
+        self.assign(state, name, (&value, true))
+    }
+
+    /// Run an `incr` or a command over `state` through the route its head
+    /// resolves to, applying the stores it makes.
+    fn exec_command(
+        &mut self,
+        stmt: &Statement,
+        state: &mut LoopState,
+    ) -> Result<CompletionOutcome, DeclineReason> {
+        let step = match stmt {
+            Statement::Incr {
+                name,
+                amount,
+                amount_braced,
+                ..
+            } => {
+                let head = self.typed_head(LoweringHookId::Incr)?;
+                let mut words = vec![(name.as_str(), true)];
+                words.extend(amount.as_deref().map(|text| (text, *amount_braced)));
+                self.driver
+                    .invoke_in_state(state, &head, &words, &mut self.budget)?
+            }
+            Statement::Call {
+                command,
+                canonical_command,
+                args,
+                tokens,
+                ..
+            } => {
+                let head = canonical_command.as_deref().unwrap_or(command);
+                let words: Vec<(&str, bool)> = args
+                    .iter()
+                    .enumerate()
+                    .map(|(at, text)| {
+                        let braced = tokens
+                            .as_ref()
+                            .is_some_and(|tokens| tokens.arg_is_braced_literal(at));
+                        (text.as_str(), braced)
+                    })
+                    .collect();
+                self.driver
+                    .invoke_in_state(state, head, &words, &mut self.budget)?
+            }
+            _ => return Err(DeclineReason::Unsupported),
+        };
+        self.apply(state, step)
+    }
+
+    /// Run a `switch` over `state`: the registry's selection for the
+    /// statement's own command and options, the subject holding the value
+    /// the state gives its word, chooses the body.
+    fn exec_switch(
+        &mut self,
+        stmt: &Statement,
+        state: &mut LoopState,
+    ) -> Result<CompletionOutcome, DeclineReason> {
+        let Statement::Switch {
+            subject,
+            subject_braced,
+            arms,
+            default_body,
+            ..
+        } = stmt
+        else {
+            return Err(DeclineReason::Unsupported);
+        };
+        let value = self.driver.word_in_state(state, subject, *subject_braced)?;
+        let text = value.as_str().map_err(|_| DeclineReason::NotText)?;
+        let fact = self
+            .driver
+            .switch_selection(stmt, text)
+            .ok_or(DeclineReason::NotExact)?;
+        let ([body], [writes]) = (fact.bodies.as_slice(), fact.writes.as_slice()) else {
+            return Err(DeclineReason::NotExact);
+        };
+        if !writes.is_empty() {
+            return Err(DeclineReason::Unsupported);
+        }
+        let chosen = match body {
+            None => return Ok(CompletionOutcome::Normal),
+            Some(arm) if *arm == arms.len() => default_body.as_ref(),
+            Some(arm) => arms.get(*arm).and_then(|arm| arm.body.as_ref()),
+        };
+        match chosen {
+            Some(script) => self.exec_script(script, state),
+            None => Err(DeclineReason::NotExact),
+        }
+    }
+
+    /// `set name value` through the registry's cell write.
+    fn assign(
+        &mut self,
+        state: &mut LoopState,
+        name: (&str, bool),
+        value: (&str, bool),
+    ) -> Result<CompletionOutcome, DeclineReason> {
+        let head = self.typed_head(LoweringHookId::Set)?;
+        let step = self
+            .driver
+            .invoke_in_state(state, &head, &[name, value], &mut self.budget)?;
+        self.apply(state, step)
+    }
+
+    /// Apply what an invocation did to `state`: each store its completion ran,
+    /// in order, to a scalar place no other actor may write; and how it
+    /// completed.
+    fn apply(
+        &mut self,
+        state: &mut LoopState,
+        step: StateStep,
+    ) -> Result<CompletionOutcome, DeclineReason> {
+        let ran = match &step.completion {
+            CompletionOutcome::Error { written, .. } => *written,
+            _ => step.stores.len(),
+        };
+        for (place, store) in step.stores.into_iter().take(ran) {
+            if !matches!(place.kind, PlaceKind::Scalar) || (self.external)(&place.name) {
+                return Err(DeclineReason::EscapingPlace);
+            }
+            match store {
+                StoreOutcome::Write { value, .. } => {
+                    self.write(state, &place.name, Slot::Value(value))?;
+                }
+                StoreOutcome::Unbind { .. } => self.write(state, &place.name, Slot::Unbound)?,
+                StoreOutcome::Preserve { .. } => {}
+                _ => return Err(DeclineReason::NotExact),
+            }
+        }
+        Ok(step.completion)
+    }
+
+    /// The head the typed statement of `hook` resolves through, asked of the
+    /// driver once per enumeration.
+    fn typed_head(&mut self, hook: LoweringHookId) -> Result<String, DeclineReason> {
+        let driver = self.driver;
+        self.heads
+            .entry(hook)
+            .or_insert_with(|| driver.enumeration_typed_head(hook).map(str::to_owned))
+            .clone()
+            .ok_or(DeclineReason::RebindingSuspected)
+    }
+
+    /// Hold `slot` for `name`, a place no other actor may write and whose
+    /// kind the state proves: one it holds a scalar of, or holds unbound. A
+    /// place it does not hold may be an array, on which a scalar store raises
+    /// after the stores before it, so the enumeration declines.
+    fn write(
+        &mut self,
+        state: &mut LoopState,
+        name: &str,
+        slot: Slot,
+    ) -> Result<(), DeclineReason> {
+        if (self.external)(name) {
+            return Err(DeclineReason::EscapingPlace);
+        }
+        if state.get(name).is_none() {
+            return Err(DeclineReason::NotExact);
+        }
+        self.written.insert(name.to_owned());
+        state.set(name.to_owned(), slot);
+        Ok(())
+    }
+}
+
+/// One `foreach` group as a run reads it: its variables, and the elements of
+/// its list.
+type ListGroupRun = (Vec<String>, Vec<String>);
+
+/// What one pass of a loop runs: its body and, for a `for`, its step script —
+/// or the exit the loop takes before the pass.
+enum Pass<'s> {
+    Body(&'s Script, Option<&'s Script>),
+    Done(ExitRule),
+}
+
+/// The lowering hook a loop statement is the typed form of, and its source
+/// words with whether each was braced, as its plan reads them.
+fn loop_words(stmt: &Statement) -> Result<(LoweringHookId, Vec<(String, bool)>), DeclineReason> {
+    match stmt {
+        Statement::For { raw_args, .. } | Statement::While { raw_args, .. } => {
+            let hook = if matches!(stmt, Statement::For { .. }) {
+                LoweringHookId::For
+            } else {
+                LoweringHookId::While
+            };
+            Ok((
+                hook,
+                raw_args.iter().map(|text| (text.clone(), true)).collect(),
+            ))
+        }
+        Statement::Foreach {
+            iterators,
+            raw_args,
+            is_dict_iteration: false,
+            is_array_iteration: false,
+            ..
+        } => {
+            let mut words: Vec<(String, bool)> = Vec::new();
+            for iterator in iterators {
+                words.push((tcl_syntax::list::join_list(&iterator.vars), true));
+                words.push((iterator.list_arg.clone(), iterator.list_braced));
+            }
+            words.push((raw_args.last().cloned().unwrap_or_default(), true));
+            Ok((LoweringHookId::Foreach, words))
+        }
+        _ => Err(DeclineReason::Unsupported),
+    }
 }
 
 #[cfg(test)]

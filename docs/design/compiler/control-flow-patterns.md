@@ -81,9 +81,12 @@ body and condition:
   done
 ```
 
-`Function::loop_nodes` records each `for` loop's exit block → `LoopNode`,
-which is what the bottom-tested reordering and SCCP's static-loop summary
-both read.
+`Function::loop_nodes` records each `for`, `while` and `foreach` loop's exit
+block → `LoopNode`, naming the block the loop starts in and the one whose
+exit state its passes start from (the end of a `for`'s start script): SCCP
+runs a bounded loop to its exit from there and states what it leaves on the
+edges into the exit block, and I230 knows a loop's own test as the branch
+whose false edge enters it.
 
 ### `foreach` (opaque vs inlined)
 

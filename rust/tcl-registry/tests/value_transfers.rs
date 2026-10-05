@@ -45,7 +45,7 @@ use tcl_registry::value_transfer::{
 };
 use tcl_registry::value_transfer::{
     BindingIdentity, BindingKind, DependencyEvidence, DomainFact, Existence, ExistenceOutcome,
-    FactBounds, InvocationOutcome, IterableKind, TypeFacts,
+    FactBounds, InvocationOutcome, IterableKind, ListGroup, TypeFacts,
 };
 use tcl_registry::value_transfer::{
     CompletionSupport, ContextDependency, DeclaredInput, EvaluatorCapability, Exactness, HostKind,
@@ -2893,6 +2893,7 @@ fn pinned_route_stamps() -> BTreeSet<(String, &'static str, &'static str)> {
         ("file lstat", "none:platform", "-"),
         ("file stat", "none:platform", "-"),
         ("file tempfile", "none:platform", "-"),
+        ("for", "none:unauthored", "-"),
         ("foreach", "none:unauthored", "-"),
         ("foreachLine", "none:unauthored", "-"),
         ("foreach_in_collection", "none:declared", "-"),
@@ -2922,6 +2923,7 @@ fn pinned_route_stamps() -> BTreeSet<(String, &'static str, &'static str)> {
         ("try", "none:unauthored", "-"),
         ("unset", "direct:variable-unset", "registry"),
         ("vwait", "none:declared", "-"),
+        ("while", "none:unauthored", "-"),
     ]
     .into_iter()
     .map(|(name, route, owner)| (name.to_owned(), route, owner))
@@ -4495,10 +4497,9 @@ fn an_odd_array_set_list_is_the_commands_error() {
 /// per name of the var-list word, padded past the list's end, over the one
 /// list, the body in the caller's frame with `break` and `continue`
 /// absorbed, nothing bound on the zero-iteration path, and the empty string
-/// (`foreach`) or the body's results (`lmap`) as the result. Several var-list
-/// and list pairs are several iterables, which one plan does not describe;
-/// a var-list the analysis does not know names no binders; an empty one is
-/// the command's error.
+/// (`foreach`) or the body's results (`lmap`) as the result. A var-list the
+/// analysis does not know names no binders; an empty one is the command's
+/// error.
 #[test]
 fn the_source_layout_answers_an_iteration_plan() {
     use tcl_registry::FrameLevel;
@@ -4564,6 +4565,21 @@ fn the_source_layout_answers_an_iteration_plan() {
             PlanAnswer::Declined(DeclineReason::NotExact),
             "{name}: an unknown var-list"
         );
+    }
+}
+
+/// Several var-list and list pairs step their lists in lockstep: the plan
+/// binds each group's names in order, the next of its binders from its own
+/// list, over the lists in the order the words give them, with the body the
+/// last word.
+#[test]
+fn several_lists_step_in_lockstep() {
+    use tcl_registry::FrameLevel;
+    use tcl_registry::value_transfer::{BinderName, BodyPlan};
+    let reg = CommandRegistry::build_default();
+    for name in ["foreach", "lmap"] {
+        let resolved = resolve_semantics(reg.get(name).expect(name), None, None);
+        let semantics = resolved.semantics().expect("declared");
         let lockstep = TestInputs::new(
             name,
             vec![
@@ -4574,10 +4590,129 @@ fn the_source_layout_answers_an_iteration_plan() {
                 literal("puts $a$b", Some(ArgRole::Body)),
             ],
         );
+        let PlanAnswer::Iterate(plan) = semantics.structure(&lockstep) else {
+            panic!("{name}: no lockstep plan");
+        };
         assert_eq!(
-            semantics.structure(&lockstep),
-            PlanAnswer::Declined(DeclineReason::Unsupported),
+            plan.binders
+                .iter()
+                .map(|binder| binder.name.clone())
+                .collect::<Vec<_>>(),
+            ["a", "b"].map(|name| BinderName::Declared(name.to_owned())),
+            "{name}"
+        );
+        assert_eq!(
+            plan.iterable,
+            IterableKind::Lockstep(vec![
+                ListGroup {
+                    binders: 1,
+                    list: OperandId(1),
+                },
+                ListGroup {
+                    binders: 1,
+                    list: OperandId(3),
+                },
+            ]),
             "{name}: two lists in lockstep"
+        );
+        assert_eq!(
+            plan.body,
+            Some(BodyPlan {
+                body: OperandId(4),
+                frame: FrameLevel::Relative(0),
+            }),
+            "{name}"
+        );
+    }
+}
+
+/// The counted and the conditional loop name the words their bound and step
+/// are read from: `for start test next body` iterates `Counted` over the start
+/// script, the condition and the step script, `while test body` over the
+/// condition alone, each with the body run in the caller's frame, `break` and
+/// `continue` absorbed, a false condition as the exit, nothing bound per
+/// pass, and the empty string as the result. Another word count is the
+/// command's error, and the CFG's loop header, a branch, asks neither.
+#[test]
+fn the_loop_plans_name_their_bound_and_step() {
+    use tcl_registry::FrameLevel;
+    use tcl_registry::value_transfer::{
+        BodyPlan, CompletionProtocol, ExitRule, IterationPlan, LoopResult,
+    };
+    let reg = CommandRegistry::build_default();
+    let absorbed = CompletionProtocol::Absorb(&[
+        tcl_registry::completion::CompletionCode::Break,
+        tcl_registry::completion::CompletionCode::Continue,
+    ]);
+    let plan_of = |name: &str, words: Vec<_>| {
+        let resolved = resolve_semantics(reg.get(name).expect(name), None, None);
+        let semantics = resolved.semantics().expect("declared");
+        semantics.structure(&TestInputs::new(name, words))
+    };
+    let counted = plan_of(
+        "for",
+        vec![
+            literal("set i 0", Some(ArgRole::Body)),
+            literal("$i < 10", Some(ArgRole::Expr)),
+            literal("incr i 2", Some(ArgRole::Body)),
+            literal("puts $i", Some(ArgRole::Body)),
+        ],
+    );
+    assert_eq!(
+        counted,
+        PlanAnswer::Iterate(IterationPlan {
+            binders: Vec::new(),
+            iterable: IterableKind::Counted {
+                init: OperandId(0),
+                condition: OperandId(1),
+                next: OperandId(2),
+            },
+            body: Some(BodyPlan {
+                body: OperandId(3),
+                frame: FrameLevel::Relative(0),
+            }),
+            exit: ExitRule::FalseCondition,
+            zero_iterations_bind: false,
+            completion: absorbed.clone(),
+            result: LoopResult::Empty,
+        })
+    );
+    let conditional = plan_of(
+        "while",
+        vec![
+            literal("$i < 10", Some(ArgRole::Expr)),
+            literal("incr i", Some(ArgRole::Body)),
+        ],
+    );
+    assert_eq!(
+        conditional,
+        PlanAnswer::Iterate(IterationPlan {
+            binders: Vec::new(),
+            iterable: IterableKind::Condition(OperandId(0)),
+            body: Some(BodyPlan {
+                body: OperandId(1),
+                frame: FrameLevel::Relative(0),
+            }),
+            exit: ExitRule::FalseCondition,
+            zero_iterations_bind: false,
+            completion: absorbed,
+            result: LoopResult::Empty,
+        })
+    );
+    assert_eq!(
+        plan_of("while", vec![literal("1", Some(ArgRole::Expr))]),
+        PlanAnswer::Declined(DeclineReason::WrongRepresentation)
+    );
+    for name in ["for", "while"] {
+        let resolved = resolve_semantics(reg.get(name).expect(name), None, None);
+        let semantics = resolved.semantics().expect("declared");
+        let binders = Vec::new();
+        let mut header = TestInputs::new(name, vec![literal("1", None)]);
+        header.view.layout = InvocationLayout::LoopHeader { binders: &binders };
+        assert_eq!(
+            semantics.structure(&header),
+            PlanAnswer::NoStructure,
+            "{name}"
         );
     }
 }

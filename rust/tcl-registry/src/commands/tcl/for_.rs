@@ -106,6 +106,7 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::iteration::FOR),
         ..CommandSpec::DEFAULT
     }
 }

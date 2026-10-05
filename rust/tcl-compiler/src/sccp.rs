@@ -379,6 +379,29 @@ pub struct SccpResult {
     /// `![info exists x]`'s false one) and the block the edge enters,
     /// whether or not the rung refines the place.
     pub existence_guards: Vec<(String, BlockId)>,
+    /// Each loop the solver ran to its exit over the exact state it starts
+    /// from (`docs/design/compiler/value-transfers.md` § *Bounded-loop
+    /// enumeration*), in the order of the blocks they leave to.
+    pub loop_enumerations: Vec<EnumeratedLoop>,
+}
+
+/// A loop the solver ran to its exit over the exact state it starts from,
+/// and what that published.
+#[derive(Debug, Clone, PartialEq)]
+pub struct EnumeratedLoop {
+    /// The block the loop leaves to.
+    pub exit_block: BlockId,
+    /// The loop statement's span.
+    pub span: tcl_lexer::Span,
+    /// The passes it ran.
+    pub iterations: u64,
+    /// How it left.
+    pub exit: tcl_registry::value_transfer::ExitRule,
+    /// The value each place it wrote holds where it leaves, exactly, which
+    /// the solver states on every executable edge into [`Self::exit_block`]
+    /// for the version live there; none when it left with a completion its
+    /// plan does not absorb, whose state holds on that path alone.
+    pub published: Vec<(String, LatticeValue)>,
 }
 
 /// A fact that holds on one CFG edge, and in the blocks every path into
@@ -394,7 +417,8 @@ pub struct EdgeRefinement {
     /// The guarded edge: the branch block and the block the edge enters.
     pub edge: (BlockId, BlockId),
     /// The version the refinement narrows: the place's version at the
-    /// branch block's exit.
+    /// branch block's exit, or, for the state an enumerated loop leaves, the
+    /// version live where it leaves to.
     pub key: ValueKey,
     /// The domain it narrows.
     pub domain: tcl_registry::value_transfer::FactDomain,
@@ -403,6 +427,10 @@ pub struct EdgeRefinement {
     pub fact: tcl_registry::value_transfer::FactView,
     /// What the refinement rests on.
     pub evidence: tcl_registry::value_transfer::DependencyEvidence,
+    /// Whether the fact is the state an enumerated loop leaves, which holds
+    /// of the version whatever its own value: a value of its own that the
+    /// fact rules out is one the solver has not settled yet.
+    pub loop_exit: bool,
 }
 
 impl SccpResult {
@@ -790,6 +818,84 @@ pub fn sccp_with_builtin_folds(
     trace: TraceInputs<'_>,
     folds: Option<BuiltinFoldInputs<'_>>,
 ) -> SccpResult {
+    let inputs = SolveInputs {
+        cfg,
+        ssa,
+        param_constants,
+        policy,
+        extra_escaping,
+        trace,
+        folds,
+    };
+    // A loop the first run proves the start state of is run to its exit, and
+    // the run is made again with the state it leaves stated on the edges it
+    // leaves by: the values only descend. The second run enumerates nothing.
+    // Where its settled values contradict a state a loop left, the loops'
+    // states are dropped and the run made once more without them.
+    let mut round = Round::First;
+    let mut loops = Vec::new();
+    loop {
+        match solve(&inputs, &round) {
+            Solved::Settled(result) => {
+                return SccpResult {
+                    loop_enumerations: loops,
+                    ..*result
+                };
+            }
+            Solved::Enumerated(enumerated, exits) => {
+                loops = enumerated;
+                round = Round::Published(exits);
+            }
+            Solved::Contradicted => {
+                loops = Vec::new();
+                round = Round::Published(Vec::new());
+            }
+        }
+    }
+}
+
+/// The inputs of one solver run.
+#[derive(Clone, Copy)]
+struct SolveInputs<'a> {
+    cfg: &'a CfgFunction,
+    ssa: &'a SsaFunction,
+    param_constants: Option<&'a HashMap<(String, crate::ssa::Version), LatticeValue>>,
+    policy: FoldPolicy,
+    extra_escaping: &'a HashSet<String>,
+    trace: TraceInputs<'a>,
+    folds: Option<BuiltinFoldInputs<'a>>,
+}
+
+/// Which run of the solver this is.
+enum Round {
+    /// The first: the loops whose start state it proves are enumerated.
+    First,
+    /// The second, with the refinements the first run's loops published.
+    Published(Vec<EdgeRefinement>),
+}
+
+/// What a run of the solver answers.
+enum Solved {
+    /// The settled result.
+    Settled(Box<SccpResult>),
+    /// The first run enumerated loops whose exits publish state: the loops
+    /// and the refinements their exits state, for the second run.
+    Enumerated(Vec<EnumeratedLoop>, Vec<EdgeRefinement>),
+    /// The second run's settled values contradict a state a loop left.
+    Contradicted,
+}
+
+/// One run of the solver ([`sccp_with_builtin_folds`]).
+fn solve(inputs: &SolveInputs<'_>, round: &Round) -> Solved {
+    let SolveInputs {
+        cfg,
+        ssa,
+        param_constants,
+        policy,
+        extra_escaping,
+        trace,
+        folds,
+    } = *inputs;
     let trace = trace.with_callback_writes_as_traces();
     let preds = compute_predecessors(cfg);
     let mut values = seeded_values(ssa, param_constants);
@@ -824,11 +930,13 @@ pub fn sccp_with_builtin_folds(
     }
     // Every refinement, in order: the existence rung's, which it carries
     // itself, and every other domain's, which the sweep reads through the
-    // blocks they hold in.
-    let refinements = ordered_refinements(
-        existence.as_mut(),
-        refinable_values((cfg, ssa), &facts, &trace, (&escaping, config)),
-    );
+    // blocks they hold in, the state enumerated loops leave among them.
+    let external = external_places((cfg, &trace), (&escaping, config));
+    let mut others = value_refinements(&facts, ssa, &external);
+    if let Round::Published(exits) = round {
+        others.extend_from_slice(exits);
+    }
+    let refinements = ordered_refinements(existence.as_mut(), others);
 
     let executable_blocks = entry_block_set(cfg);
     let order = cfg_order(cfg);
@@ -839,12 +947,11 @@ pub fn sccp_with_builtin_folds(
         preds: &preds,
         escaping: &escaping,
         has_dynamic_variable_trace: trace.has_dynamic_variable_trace,
-        policy,
         grammar,
-        registry: trace.registry,
         driver: &driver,
         regions: &regions,
         refinements: &refinements,
+        external: &external,
     };
     let mut state = SweepState {
         values,
@@ -864,26 +971,78 @@ pub fn sccp_with_builtin_folds(
         refined,
     } = state;
     let refinements_at = refined.map(RefinementFlow::settled).unwrap_or_default();
+    if matches!(round, Round::Published(_))
+        && exit_state_contradicted(&refinements, &refinements_at, &values)
+    {
+        return Solved::Contradicted;
+    }
+    if matches!(round, Round::First) {
+        let (loops, exits) = enumerate_loops(
+            (cfg, ssa, &preds),
+            (&mut values, Narrowing::new(&refinements, &refinements_at)),
+            (&executable_blocks, &executable_edges),
+            existence.as_ref().map(|run| &run.exits),
+            (&driver, &external),
+        );
+        if !exits.is_empty() {
+            return Solved::Enumerated(loops, exits);
+        }
+    }
+    Solved::Settled(Box::new(settled_result(
+        (cfg, ssa, &order),
+        (&driver, grammar),
+        SettledRun {
+            values,
+            executable_blocks,
+            executable_edges,
+            existence,
+            refinements,
+            refinements_at,
+        },
+    )))
+}
+
+/// What a run's sweep settled on, before the post-passes read it.
+struct SettledRun {
+    values: HashMap<ValueKey, LatticeValue>,
+    executable_blocks: HashSet<BlockId>,
+    executable_edges: HashSet<(BlockId, BlockId)>,
+    existence: Option<ExistenceRun>,
+    refinements: Vec<EdgeRefinement>,
+    refinements_at: HashMap<BlockId, Vec<usize>>,
+}
+
+/// A settled run's result: the constant branches and the post-passes over
+/// the settled lattice, each block under the refinements in force there, and
+/// every fact the run recorded.
+fn settled_result(
+    (cfg, ssa, order): (&CfgFunction, &SsaFunction, &[BlockId]),
+    (driver, grammar): (&LatticeDriver<'_>, tcl_dialect::LexerGrammar),
+    run: SettledRun,
+) -> SccpResult {
+    let SettledRun {
+        mut values,
+        executable_blocks,
+        executable_edges,
+        existence,
+        refinements,
+        refinements_at,
+    } = run;
     let narrowing = Narrowing::new(&refinements, &refinements_at);
     let mut constant_branches = collect_constant_branches(
         cfg,
         ssa,
         (&mut values, narrowing),
         &executable_blocks,
-        &order,
-        BranchFold {
-            policy,
-            grammar,
-            registry: trace.registry,
-            driver: &driver,
-        },
+        order,
+        BranchFold { grammar, driver },
         existence.as_ref().map(|run| &run.exits),
     );
     let rung = existence.map_or_else(RungResults::default, |run| run.finish(ssa));
     // The post-passes read the settled lattice, each block under the
     // refinements in force there, before it moves in.
     let (template_plans, selections, unreached_arms) = settled_statements(
-        (&driver, cfg, ssa),
+        (driver, cfg, ssa),
         (&mut values, narrowing),
         &executable_blocks,
     );
@@ -943,14 +1102,14 @@ struct SweepContext<'a> {
     preds: &'a HashMap<BlockId, HashSet<BlockId>>,
     escaping: &'a HashSet<String>,
     has_dynamic_variable_trace: bool,
-    policy: FoldPolicy,
     grammar: tcl_dialect::LexerGrammar,
-    registry: &'a CommandRegistry,
     driver: &'a LatticeDriver<'a>,
     /// Where the function's exception edges leave from.
     regions: &'a RegionShape,
     /// The run's refinements, which the refinement flow indexes.
     refinements: &'a [EdgeRefinement],
+    /// Which places another actor may write.
+    external: &'a dyn Fn(&str) -> bool,
 }
 
 /// Where a function's exception edges leave from, which decides what a
@@ -1109,6 +1268,10 @@ impl SweepContext<'_> {
                 escaping: self.escaping,
                 has_dynamic_variable_trace: self.has_dynamic_variable_trace,
                 clobbers: self.ssa.value_clobbers.get(&bn),
+                catches: Some(CatchBodies {
+                    bodies: &self.cfg.opaque_catch_bodies,
+                    external: self.external,
+                }),
             },
             self.driver,
             at.as_mut(),
@@ -1124,9 +1287,7 @@ impl SweepContext<'_> {
             cfg: self.cfg,
             ssa: self.ssa,
             values: &state.values,
-            policy: self.policy,
             grammar: self.grammar,
-            registry: self.registry,
             driver: self.driver,
             exit: run.exit,
             entry_edges: &self.regions.entry_edges,
@@ -1882,6 +2043,7 @@ fn existence_refinements(
             domain: fact.domain,
             fact: fact.fact.clone(),
             evidence: DependencyEvidence::default(),
+            loop_exit: false,
         });
     }
     out.sort_by_key(|refinement| (refinement.edge.0.0, refinement.edge.1.0, refinement.key.0.0));
@@ -1904,24 +2066,22 @@ fn existence_guards(facts: &[BranchFact]) -> Vec<(String, BlockId)> {
         .collect()
 }
 
-/// Every domain's refinements but the existence rung's
-/// ([`value_refinements`]), for the places no other actor may write: none
-/// externally mutable ([`is_externally_mutable`]) or an element of an
-/// escaping array, none linked to state another invocation, the object or
-/// the host holds ([`linked_elsewhere`], named where the run computes
-/// existence), and none at all once a computed name anywhere in the
-/// function may write or destroy any place.
-fn refinable_values(
-    (cfg, ssa): (&CfgFunction, &SsaFunction),
-    facts: &[BranchFact],
-    trace: &TraceInputs<'_>,
-    (escaping, config): (&HashSet<String>, tcl_lexer::LexerConfig),
-) -> Vec<EdgeRefinement> {
+/// Whether another actor may write a place, so that no refinement narrows
+/// it and no enumerated loop writes it: one externally mutable
+/// ([`is_externally_mutable`]) or an element of an escaping array, one
+/// linked to state another invocation, the object or the host holds
+/// ([`linked_elsewhere`], named where the run computes existence), and every
+/// place once a computed name anywhere in the function may write or destroy
+/// any.
+fn external_places<'a>(
+    (cfg, trace): (&'a CfgFunction, &'a TraceInputs<'a>),
+    (escaping, config): (&'a HashSet<String>, tcl_lexer::LexerConfig),
+) -> impl Fn(&str) -> bool + 'a {
     let dialect = Some(tcl_registry::special_vars::surface_query_for_profile(
         trace.registry.profile(),
     ));
     let computed_names = std::cell::OnceCell::new();
-    let external = |name: &str| {
+    move |name: &str| {
         is_externally_mutable(name, escaping, trace.has_dynamic_variable_trace)
             || escaping.contains(place_base(name))
             || trace
@@ -1931,8 +2091,150 @@ fn refinable_values(
                 let names = crate::dynamic_names::dynamic_name_barrier(cfg, trace.registry, config);
                 names.writes || names.destroys
             })
+    }
+}
+
+/// Run each loop whose start state the settled run proves to its exit
+/// ([`crate::static_loops::enumerate_loop`]), and state what it leaves as an
+/// exact-value refinement on every executable edge into the block it leaves
+/// to, for the version of each place it wrote that is live there: the loops
+/// run, and the refinements their exits publish. A loop that leaves with a
+/// completion its plan does not absorb publishes nothing, since what it
+/// leaves holds on that path alone, and one that declines is not run.
+fn enumerate_loops(
+    (cfg, ssa, preds): (
+        &CfgFunction,
+        &SsaFunction,
+        &HashMap<BlockId, HashSet<BlockId>>,
+    ),
+    (values, narrowing): (&mut HashMap<ValueKey, LatticeValue>, Narrowing<'_>),
+    (executable, edges): (&HashSet<BlockId>, &HashSet<(BlockId, BlockId)>),
+    existence_exits: Option<&HashMap<BlockId, Vec<Existence>>>,
+    (driver, external): (&LatticeDriver<'_>, &dyn Fn(&str) -> bool),
+) -> (Vec<EnumeratedLoop>, Vec<EdgeRefinement>) {
+    let mut loops: Vec<(BlockId, &crate::cfg::LoopNode)> = cfg
+        .loop_nodes
+        .iter()
+        .map(|(&end, node)| (end, node))
+        .filter(|(end, node)| executable.contains(end) && executable.contains(&node.start))
+        .collect();
+    loops.sort_by_key(|(end, _)| end.0);
+    let mut records = Vec::new();
+    let mut published = Vec::new();
+    for (end, node) in loops {
+        let narrowed = narrowing.narrow(values, node.start);
+        let state = start_state(
+            ssa,
+            node.start,
+            values,
+            existence_exits.and_then(|exits| exits.get(&node.start)),
+        );
+        restore_values(values, narrowed);
+        let Ok(run) = crate::static_loops::enumerate_loop(
+            driver,
+            &node.statement,
+            state,
+            (true, crate::static_loops::DEFAULT_MAX_STATIC_LOOP_ITERS),
+            external,
+        ) else {
+            continue;
+        };
+        let mut left = Vec::new();
+        if run.completion == tcl_registry::value_transfer::CompletionOutcome::Normal
+            && let Some(entry) = ssa.blocks.get(&end).map(|block| &block.entry_versions)
+        {
+            for (name, slot) in &run.state {
+                let crate::static_loops::Slot::Value(value) = slot else {
+                    continue;
+                };
+                let Some(symbol) = ssa.var_symbol(name) else {
+                    continue;
+                };
+                let Some(&version) = entry.get(&symbol) else {
+                    continue;
+                };
+                for &pred in preds.get(&end).into_iter().flatten() {
+                    if edges.contains(&(pred, end)) {
+                        published.push(EdgeRefinement {
+                            edge: (pred, end),
+                            key: (symbol, version),
+                            domain: FactDomain::ExactValue,
+                            fact: FactView::Exact(value.clone(), None),
+                            evidence: DependencyEvidence::default(),
+                            loop_exit: true,
+                        });
+                    }
+                }
+                left.push((
+                    name.clone(),
+                    LatticeValue::Const(crate::value_transfer::exact_to_const(value)),
+                ));
+            }
+        }
+        records.push(EnumeratedLoop {
+            exit_block: end,
+            span: node.span,
+            iterations: run.iterations,
+            exit: run.exit,
+            published: left,
+        });
+    }
+    (records, published)
+}
+
+/// The exact state a loop starts from: what the block `start` leaves in each
+/// place — the value the settled lattice proves exact at its exit, under the
+/// refinements in force there, a scalar of unknown value where the existence
+/// rung proves it bound as one, and unbound where the rung proves it so. A
+/// place the run proves none of is not held, and a read of it or a store to
+/// it declines the enumeration.
+fn start_state(
+    ssa: &SsaFunction,
+    start: BlockId,
+    values: &HashMap<ValueKey, LatticeValue>,
+    exits: Option<&Vec<Existence>>,
+) -> crate::static_loops::LoopState {
+    use crate::static_loops::Slot;
+    let mut state = crate::static_loops::LoopState::default();
+    let Some(block) = ssa.blocks.get(&start) else {
+        return state;
     };
-    value_refinements(facts, ssa, &external)
+    for (slot, name) in ssa.var_names().iter().enumerate() {
+        let Ok(index) = u32::try_from(slot) else {
+            continue;
+        };
+        let symbol = Symbol(index);
+        let version = block.exit_versions.get(&symbol).copied().unwrap_or(0);
+        match values.get(&(symbol, version)) {
+            Some(LatticeValue::Const(constant)) => state.set(
+                name.clone(),
+                Slot::Value(crate::value_transfer::const_to_exact(constant)),
+            ),
+            _ => {
+                if let Some(slot) = exits
+                    .and_then(|facts| facts.get(slot))
+                    .copied()
+                    .and_then(slot_of_existence)
+                {
+                    state.set(name.clone(), slot);
+                }
+            }
+        }
+    }
+    state
+}
+
+/// What a loop enumeration holds of a place whose value the lattice does not
+/// prove exact, from the existence rung's fact: a scalar of unknown value
+/// where it is proven bound as one, unbound where it is proven so, and
+/// nothing otherwise.
+fn slot_of_existence(fact: Existence) -> Option<crate::static_loops::Slot> {
+    use crate::static_loops::Slot;
+    match fact {
+        Existence::Bound(BindingKind::Scalar) => Some(Slot::Scalar),
+        Existence::Unbound => Some(Slot::Unbound),
+        _ => None,
+    }
 }
 
 /// Every other domain's refinements: each branch edge's fact about a
@@ -1957,6 +2259,7 @@ fn value_refinements(
                 domain: fact.domain,
                 fact: fact.fact.clone(),
                 evidence: DependencyEvidence::default(),
+                loop_exit: false,
             })
         })
         .collect()
@@ -2010,13 +2313,30 @@ struct RefinementFlow {
 
 impl RefinementFlow {
     /// The flow over `refinements`, or none when no refinement outside the
-    /// existence domain exists.
+    /// existence domain exists. Refinements stating one fact about one
+    /// version on several edges — the state an enumerated loop leaves, on
+    /// every edge it may leave by — are one fact, so a block every one of
+    /// those edges enters holds it; a loop's state and a branch's fact stay
+    /// two, since they narrow differently ([`refined_value`]).
     fn new(cfg: &CfgFunction, refinements: &[EdgeRefinement]) -> Option<Self> {
         let mut by_edge: HashMap<(BlockId, BlockId), Vec<usize>> = HashMap::new();
+        let mut alike: HashMap<(ValueKey, FactDomain, bool), Vec<usize>> = HashMap::new();
         for (index, refinement) in refinements.iter().enumerate() {
-            if refinement.domain != FactDomain::Existence {
-                by_edge.entry(refinement.edge).or_default().push(index);
+            if refinement.domain == FactDomain::Existence {
+                continue;
             }
+            let same = alike
+                .entry((refinement.key, refinement.domain, refinement.loop_exit))
+                .or_default();
+            let earlier = same
+                .iter()
+                .copied()
+                .find(|&earlier| refinements[earlier].fact == refinement.fact);
+            let fact = earlier.unwrap_or_else(|| {
+                same.push(index);
+                index
+            });
+            by_edge.entry(refinement.edge).or_default().push(fact);
         }
         if by_edge.is_empty() {
             return None;
@@ -2141,16 +2461,13 @@ fn narrow_values(
     refinements: &[EdgeRefinement],
     in_force: impl IntoIterator<Item = usize>,
 ) -> Vec<(ValueKey, Option<LatticeValue>)> {
-    let mut by_key: HashMap<ValueKey, Vec<&FactView>> = HashMap::new();
+    let mut by_key: HashMap<ValueKey, Vec<&EdgeRefinement>> = HashMap::new();
     for refinement in in_force
         .into_iter()
         .filter_map(|index| refinements.get(index))
     {
         if refinement.domain == FactDomain::ExactValue {
-            by_key
-                .entry(refinement.key)
-                .or_default()
-                .push(&refinement.fact);
+            by_key.entry(refinement.key).or_default().push(refinement);
         }
     }
     let mut narrowed = Vec::new();
@@ -2191,13 +2508,10 @@ fn refined_values(
 ) -> HashMap<(BlockId, ValueKey), LatticeValue> {
     let mut out = HashMap::new();
     for (&block, indices) in refinements_at {
-        let mut by_key: HashMap<ValueKey, Vec<&FactView>> = HashMap::new();
+        let mut by_key: HashMap<ValueKey, Vec<&EdgeRefinement>> = HashMap::new();
         for refinement in indices.iter().filter_map(|&index| refinements.get(index)) {
             if refinement.domain == FactDomain::ExactValue {
-                by_key
-                    .entry(refinement.key)
-                    .or_default()
-                    .push(&refinement.fact);
+                by_key.entry(refinement.key).or_default().push(refinement);
             }
         }
         for (key, facts) in by_key {
@@ -2211,19 +2525,47 @@ fn refined_values(
     out
 }
 
-/// What a version holding `own` holds where every value-domain fact of
+/// Whether the settled value of a version some loop's exit state narrows, at
+/// a block where that state is in force, is one the state rules out: the
+/// enumeration and the lattice disagree about what the loop leaves, and
+/// neither is read.
+fn exit_state_contradicted(
+    refinements: &[EdgeRefinement],
+    refinements_at: &HashMap<BlockId, Vec<usize>>,
+    values: &HashMap<ValueKey, LatticeValue>,
+) -> bool {
+    refinements_at
+        .values()
+        .flatten()
+        .filter_map(|&index| refinements.get(index))
+        .filter(|refinement| refinement.loop_exit && refinement.domain == FactDomain::ExactValue)
+        .any(|refinement| {
+            let own = held_value(values, refinement.key);
+            own != LatticeValue::Unknown
+                && refined_value(&own, [refinement]) == LatticeValue::Unknown
+        })
+}
+
+/// What a version holding `own` holds where every value-domain refinement of
 /// `facts` holds: the members of its finite set the facts allow, or, for a
 /// value the lattice cannot pin, the facts' own exact value or finite set.
 /// A constant stays itself, as does a set the facts leave no member of — a
 /// branch the solver could not decide although its operand is known —
 /// and a version the solver has not reached stays the optimistic bottom.
+/// The state an enumerated loop leaves holds of the version's settled value
+/// exactly, so a constant or a set of its own the fact rules out is a value
+/// the solver has not settled yet, and the version stays the optimistic
+/// bottom until it has: the narrowed value then only descends, as the
+/// solver's values do, and no branch decides on the unsettled one.
 fn refined_value<'f>(
     own: &LatticeValue,
-    facts: impl IntoIterator<Item = &'f FactView>,
+    facts: impl IntoIterator<Item = &'f EdgeRefinement>,
 ) -> LatticeValue {
     let mut allowed: Option<Vec<&'f ExactValue>> = None;
-    for fact in facts {
-        let members: Vec<&ExactValue> = match fact {
+    let mut loop_exit = false;
+    for refinement in facts {
+        loop_exit |= refinement.loop_exit;
+        let members: Vec<&ExactValue> = match &refinement.fact {
             FactView::Exact(value, _) => vec![value],
             FactView::Finite(values, _) => values.iter().collect(),
             _ => continue,
@@ -2247,11 +2589,13 @@ fn refined_value<'f>(
         LatticeValue::ConstSet(members) => {
             let kept: Vec<ConstValue> = members.iter().filter(|c| permits(c)).cloned().collect();
             match kept.as_slice() {
+                [] if loop_exit => LatticeValue::Unknown,
                 [] => own.clone(),
                 [one] => LatticeValue::Const(one.clone()),
                 _ => LatticeValue::constset(kept),
             }
         }
+        LatticeValue::Const(constant) if loop_exit && !permits(constant) => LatticeValue::Unknown,
         LatticeValue::Overdefined => match allowed.as_slice() {
             [] => LatticeValue::Overdefined,
             [one] => LatticeValue::Const(crate::value_transfer::exact_to_const(one)),
@@ -2905,6 +3249,18 @@ struct StatementInputs<'a> {
     escaping: &'a HashSet<String>,
     has_dynamic_variable_trace: bool,
     clobbers: Option<&'a crate::ssa::BlockValueClobbers>,
+    /// The opaque `catch` bodies the enumeration may run, when the run has
+    /// them.
+    catches: Option<CatchBodies<'a>>,
+}
+
+/// The bodies of a function's opaque `catch` calls, by span, and which
+/// places another actor may write, which a body the enumeration runs writes
+/// none of.
+#[derive(Clone, Copy)]
+struct CatchBodies<'a> {
+    bodies: &'a HashMap<tcl_lexer::Span, crate::ir::Script>,
+    external: &'a dyn Fn(&str) -> bool,
 }
 
 /// Evaluate each statement's defs for one block, widening across barriers.
@@ -2926,6 +3282,7 @@ fn sccp_process_statements(
         escaping,
         has_dynamic_variable_trace,
         clobbers,
+        catches,
     } = inputs;
     let (mut changed, mut prepared) = (false, None);
     let mut exit = BlockExit::NORMAL;
@@ -2974,14 +3331,26 @@ fn sccp_process_statements(
             );
             continue;
         }
+        // An opaque `catch` body the enumeration runs gives the names it
+        // writes what it leaves, before the marker that states them widens.
+        let body_run = catches.and_then(|catches| {
+            catch_body_answer(
+                (ssa_block, index),
+                (values, ssa),
+                (driver, catches),
+                before_marker.as_deref(),
+            )
+        });
         let _entry = driver.body_entry_scope(scripts_start);
         // The statement is evaluated once, when a definition first needs
         // it: a call's ordered stores give each definition its own value.
-        let mut evaluated = driver
-            .evaluate_catch_end((ssa_block, index), values, ssa, |entry| {
-                existence
-                    .as_deref()
-                    .and_then(|at| at.run.exits.get(&entry).cloned())
+        let mut evaluated = body_run
+            .or_else(|| {
+                driver.evaluate_catch_end((ssa_block, index), values, ssa, |entry| {
+                    existence
+                        .as_deref()
+                        .and_then(|at| at.run.exits.get(&entry).cloned())
+                })
             })
             .or_else(|| pair_answer(&mut prepared, (ssa_block, index), values, (ssa, driver)));
         // Where a throw leaves from, whether the statement raises is part of
@@ -3015,6 +3384,105 @@ fn sccp_process_statements(
         }
     }
     StatementsRun { changed, exit }
+}
+
+/// What the names an opaque `catch` body writes hold after it, when the
+/// enumeration runs the body to its end over the exact state before it
+/// ([`crate::static_loops::enumerate_script`]): the `catch` absorbs however
+/// the body completes, so each name holds what the body left — a value, or
+/// unbound — and one it never wrote holds what it held. The marker at
+/// `index` states the body's writes, reading each name's version before it,
+/// and the call it stands ahead of reads the rest of what the body reads;
+/// `existence` is the rung's state before the marker. `None` for any other
+/// statement and for a body the enumeration does not run.
+fn catch_body_answer(
+    (ssa_block, index): (&crate::ssa::SsaBlock, usize),
+    (values, ssa): (&HashMap<ValueKey, LatticeValue>, &SsaFunction),
+    (driver, catches): (&LatticeDriver<'_>, CatchBodies<'_>),
+    existence: Option<&[Existence]>,
+) -> Option<DefValues> {
+    use crate::static_loops::Slot;
+    use crate::value_transfer::{DefAnswer, ExistenceStep};
+    let marker = ssa_block.statements.get(index)?;
+    if !crate::ssa::is_arm_writes_marker(&marker.statement) {
+        return None;
+    }
+    let host = &ssa_block.statements[crate::ssa::arm_writes_host(&ssa_block.statements, index)?];
+    let body = catches.bodies.get(&host.statement.span())?;
+    let mut state = crate::static_loops::LoopState::default();
+    for (&symbol, &version) in marker.uses.iter().chain(&host.uses) {
+        let name = ssa.var_name(symbol);
+        match values.get(&(symbol, version)) {
+            Some(LatticeValue::Const(constant)) => state.set(
+                name.to_owned(),
+                Slot::Value(crate::value_transfer::const_to_exact(constant)),
+            ),
+            _ => {
+                if let Some(slot) = existence
+                    .and_then(|facts| facts.get(symbol.0 as usize))
+                    .copied()
+                    .and_then(slot_of_existence)
+                {
+                    state.set(name.to_owned(), slot);
+                }
+            }
+        }
+    }
+    let run = crate::static_loops::enumerate_script(
+        driver,
+        body,
+        state,
+        crate::static_loops::DEFAULT_MAX_STATIC_LOOP_ITERS,
+        catches.external,
+    )
+    .ok()?;
+    // The marker states every name the body writes; a write it does not
+    // state is one the solver has no definition for.
+    let stated: HashSet<&str> = marker
+        .defs
+        .keys()
+        .map(|&symbol| ssa.var_name(symbol))
+        .collect();
+    if run
+        .written
+        .iter()
+        .any(|name| !stated.contains(name.as_str()))
+    {
+        return None;
+    }
+    let answers = marker
+        .defs
+        .iter()
+        .map(|(&symbol, &version)| {
+            let key = (symbol, version);
+            let name = ssa.var_name(symbol);
+            match (run.written.contains(name), run.state.get(name)) {
+                (true, Some(Slot::Value(value))) => Some(DefAnswer {
+                    stated: true,
+                    existence: ExistenceStep::Set(Existence::Bound(BindingKind::Scalar)),
+                    ..DefAnswer::untyped(
+                        key,
+                        LatticeValue::Const(crate::value_transfer::exact_to_const(value)),
+                    )
+                }),
+                (true, Some(Slot::Unbound)) => Some(DefAnswer {
+                    stated: true,
+                    existence: ExistenceStep::Set(Existence::Unbound),
+                    ..DefAnswer::untyped(key, LatticeValue::Overdefined)
+                }),
+                (true, _) => None,
+                (false, _) => {
+                    let prior = marker.uses.get(&symbol).copied().unwrap_or(0);
+                    Some(DefAnswer {
+                        preserved: true,
+                        existence: ExistenceStep::PRESERVE,
+                        ..DefAnswer::untyped(key, held_value(values, (symbol, prior)))
+                    })
+                }
+            }
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some(DefValues::PerDef(answers))
 }
 
 /// The fresh versions the marker for a call to code the module cannot see at
@@ -3386,12 +3854,9 @@ struct TerminatorInputs<'a> {
     cfg: &'a CfgFunction,
     ssa: &'a SsaFunction,
     values: &'a HashMap<ValueKey, LatticeValue>,
-    policy: FoldPolicy,
     /// The document's lexer grammar — the branch condition's `Raw` operand
     /// texts are re-read under it when their variables are collected.
     grammar: tcl_dialect::LexerGrammar,
-    /// The registry the bounded-loop simulator resolves against.
-    registry: &'a CommandRegistry,
     /// The run's value-transfer driver: a condition's nested commands and
     /// finite inputs are evaluated through it.
     driver: &'a LatticeDriver<'a>,
@@ -3417,9 +3882,7 @@ fn sccp_process_terminator(
         cfg,
         ssa,
         values,
-        policy,
         grammar,
-        registry,
         driver,
         exit,
         entry_edges,
@@ -3456,19 +3919,12 @@ fn sccp_process_terminator(
                 return changed;
             };
             driver.explaining(*span);
-            let decision = branch_decision(
-                cfg,
-                ssa,
-                bn,
+            let decision = evaluate_branch(
                 ssa_block,
                 condition,
                 values,
-                BranchFold {
-                    policy,
-                    grammar,
-                    registry,
-                    driver,
-                },
+                ssa,
+                BranchFold { grammar, driver },
             );
             driver.explaining(None);
             let targets: Vec<BlockId> = match decision {
@@ -3523,8 +3979,7 @@ fn sccp_process_terminator(
 /// Post-fixpoint sweep that records every reachable branch whose
 /// condition evaluated to a constant lattice value, and the definitions a
 /// condition the shared engine decided left untouched
-/// ([`record_condition_preserves`]; a `for` loop's static summary is not
-/// the engine's). Extracted from [`sccp`].
+/// ([`record_condition_preserves`]). Extracted from [`sccp`].
 fn collect_constant_branches(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
@@ -3561,11 +4016,11 @@ fn collect_constant_branches(
             fold.driver.existence_enter(exit.clone());
         }
         let narrowed = narrowing.narrow(values, *bn);
-        let decision = branch_decision(cfg, ssa, *bn, ssa_block, condition, values, fold);
+        let decision = evaluate_branch(ssa_block, condition, values, ssa, fold);
         restore_values(values, narrowed);
         fold.driver.existence_leave();
         fold.driver.explaining(None);
-        if decision.is_some() && !cfg.loop_nodes.contains_key(bn) {
+        if decision.is_some() {
             record_condition_preserves(cfg, ssa, *bn, fold.driver);
         }
         let cond_text = crate::expr_ast::expr_text(condition);
@@ -3971,86 +4426,15 @@ fn simple_var_ref_key<S: std::hash::BuildHasher>(
     Some((sym, ver))
 }
 
-/// Resolve a branch decision, preferring a *static-loop summary* when the
-/// branch's block is the exit of a bounded `for` loop.
-///
-/// SCCP alone cannot fold a branch that reads a loop-carried variable *after*
-/// the loop — the variable's post-loop phi is a CONSTSET or `Overdefined`, not
-/// a single constant. Simulating the loop instead yields its exact final
-/// values (`for {set i 0} {$i < 10} {incr i} {}` leaves `i == 10`), so a
-/// following `if {$i == 10}` folds. The summary is conservative: it bails to
-/// `None` on non-constant bounds, side effects, or runaway iteration, falling
-/// back to the lattice fold.
-/// The two dialect facts a branch fold needs: what the target release folds
-/// (`policy`) and the grammar its condition text was written under
-/// (`grammar`). Bundled so the fold entry points stay inside clippy's
-/// argument budget and neither fact can be threaded without the other.
+/// What a branch fold needs: the grammar its condition text was written
+/// under, and the run's driver, whose services (and the target release's
+/// fold policy) the condition is evaluated through.
 #[derive(Clone, Copy)]
 pub(crate) struct BranchFold<'a> {
-    policy: FoldPolicy,
     grammar: tcl_dialect::LexerGrammar,
-    /// The registry the bounded-loop simulator resolves its cell updates
-    /// against.
-    registry: &'a CommandRegistry,
     /// The run's value-transfer driver, whose services the condition is
     /// evaluated through.
     driver: &'a LatticeDriver<'a>,
-}
-
-fn branch_decision(
-    cfg: &CfgFunction,
-    ssa: &SsaFunction,
-    bn: BlockId,
-    ssa_block: &crate::ssa::SsaBlock,
-    condition: &ExprNode,
-    values: &HashMap<ValueKey, LatticeValue>,
-    fold: BranchFold<'_>,
-) -> Option<bool> {
-    loop_summary_decision(cfg, ssa, bn, condition, values, fold.policy, fold.registry)
-        .or_else(|| evaluate_branch(ssa_block, condition, values, ssa, fold))
-}
-
-/// Convert an SCCP [`ConstValue`] to the static simulator's
-/// [`crate::static_loops::StaticValue`].
-fn const_to_static(c: &ConstValue) -> crate::static_loops::StaticValue {
-    use crate::static_loops::StaticValue;
-    match c {
-        ConstValue::Int(i) => StaticValue::Int(*i),
-        ConstValue::Float(f) => StaticValue::Float(*f),
-        ConstValue::Bool(b) => StaticValue::Bool(*b),
-        ConstValue::String(s) => StaticValue::Str(s.clone()),
-    }
-}
-
-/// Fold `condition` via a static summary of the `for` loop whose exit block is
-/// `bn`, or `None` when `bn` is not a loop exit or the loop cannot be
-/// summarised. The simulation is seeded with the constants known at the
-/// pre-loop block's exit and run by [`crate::static_loops::summarise_for_statement`].
-fn loop_summary_decision(
-    cfg: &CfgFunction,
-    ssa: &SsaFunction,
-    bn: BlockId,
-    condition: &ExprNode,
-    values: &HashMap<ValueKey, LatticeValue>,
-    policy: FoldPolicy,
-    registry: &CommandRegistry,
-) -> Option<bool> {
-    let node = cfg.loop_nodes.get(&bn)?;
-    let start_ssa = ssa.blocks.get(&node.entry_block)?;
-    let mut start_env = crate::static_loops::StaticEnv::new();
-    for (&sym, &ver) in &start_ssa.exit_versions {
-        if let Some(LatticeValue::Const(c)) = values.get(&(sym, ver)) {
-            start_env.insert(ssa.var_name(sym).to_owned(), const_to_static(c));
-        }
-    }
-    let summarised = crate::static_loops::summarise_for_statement(
-        &node.for_stmt,
-        &start_env,
-        crate::static_loops::DEFAULT_MAX_STATIC_LOOP_ITERS,
-        crate::static_loops::LoopSemantics { policy, registry },
-    )?;
-    let v = crate::static_loops::evaluate_expr_with_constants(condition, &summarised, policy)?;
-    Some(v != 0)
 }
 
 /// Evaluate a branch condition.
@@ -5354,6 +5738,7 @@ mod tests {
                     escaping: &escaping,
                     has_dynamic_variable_trace: false,
                     clobbers: None,
+                    catches: None,
                 },
                 &LatticeDriver::detached(None, FoldPolicy::default()),
                 None,

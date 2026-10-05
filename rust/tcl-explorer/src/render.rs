@@ -324,6 +324,30 @@ mod tests {
         );
     }
 
+    /// The `sccp` text names each loop the solver ran to its exit — its
+    /// passes, how it left, the block it leaves to and each value it
+    /// published — the line `tcl explore --show sccp --text` prints; a loop
+    /// whose bound the analysis does not know is not run, and names none.
+    #[test]
+    fn sccp_text_prints_each_enumerated_loop() {
+        let sccp = |src: &str| {
+            render_all(
+                &serialise_result(&run_pipeline(src, "tcl8.6")),
+                &["sccp".to_owned()],
+                false,
+            )
+        };
+        let text = sccp("for {set i 0} {$i < 5} {incr i} {}; if {$i == 5} {puts five}");
+        assert!(
+            text.contains("enumerated loop: 5 iterations, false condition"),
+            "{text}"
+        );
+        assert!(text.contains("· exit block: for_end_"), "{text}");
+        assert!(text.contains("· i: const(5)"), "{text}");
+        let text = sccp("proc p {n} {for {set i 0} {$i < $n} {incr i} {}}");
+        assert!(!text.contains("enumerated loop"), "{text}");
+    }
+
     const SEALED_ADD: &str =
         "proc add {b c} {return [expr {$b + $c}]}\nset d 2\nset e 4\nputs [add $d $e]\n";
 
