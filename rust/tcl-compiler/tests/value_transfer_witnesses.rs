@@ -40,8 +40,7 @@ use tcl_compiler::optimiser::manager::{
     optimise_raw, optimise_source_multipass, optimise_with_dialect,
 };
 use tcl_compiler::static_loops::{
-    DEFAULT_MAX_STATIC_LOOP_ITERS, LoopSemantics, StaticEnv, StaticValue, parse_literal_value,
-    summarise_for_statement,
+    DEFAULT_MAX_STATIC_LOOP_ITERS, LoopSemantics, StaticEnv, StaticValue, summarise_for_statement,
 };
 use tcl_compiler::tcl_expr_eval::FoldPolicy;
 use tcl_core_types::DiagCode;
@@ -442,7 +441,15 @@ fn lattice_text(value: LatticeValue) -> Option<String> {
     }
 }
 
-/// The loop simulator's answer for `x` after `statement` runs once as the
+/// A seed as the literal ingress reads it: a canonical integer is the
+/// integer, and any other text is its text.
+fn seeded(text: &str) -> StaticValue {
+    tcl_registry::value_transfer::ExactValue::from_literal(text)
+        .as_int()
+        .map_or_else(|| StaticValue::Str(text.to_owned()), StaticValue::Int)
+}
+
+/// The loop enumeration's answer for `x` after `statement` runs once as the
 /// body of `for {set i 0} {$i < 1} {incr i} {…}`, seeded as the solver
 /// seeds it — `x` from `init` and `n` from 3 through the literal ingress.
 fn simulated_text(dialect: &str, init: &str, statement: &str) -> Option<String> {
@@ -461,8 +468,8 @@ fn simulated_text(dialect: &str, init: &str, statement: &str) -> Option<String> 
         .find(|stmt| matches!(stmt, Statement::For { .. }))
         .expect("the loop");
     let mut seed = StaticEnv::new();
-    seed.insert("x".to_owned(), parse_literal_value(init));
-    seed.insert("n".to_owned(), parse_literal_value("3"));
+    seed.insert("x".to_owned(), seeded(init));
+    seed.insert("n".to_owned(), seeded("3"));
     let env = summarise_for_statement(
         for_stmt,
         &seed,
@@ -7703,4 +7710,83 @@ fn a_may_written_element_reads_the_store_to_its_array() {
     prints_under_every_release(catch_body, "5\n");
     prints_under_every_release(never_set_catch, "1\n");
     prints_under_every_release(never_set_switch, "1\n0\n");
+}
+
+/// A loop condition's math function is the one the module binds: with `abs`
+/// rebound by `proc ::tcl::mathfunc::abs`, `$i < abs(-3)` runs the loop to
+/// 99 under 8.5 to 9.1, so the enumeration declines — the shared lattice
+/// under the module's observed bindings, the rewrite under its whole-module
+/// trust — rather than stop at 3, and the branch after the loop decides
+/// nothing. tclsh 8.5 to 9.1 print `other` at the top level and in a
+/// procedure, before and after `tcl opt`.
+#[test]
+fn a_loop_condition_reads_the_math_binding() {
+    let top_level = "proc ::tcl::mathfunc::abs {x} {return 99}\n\
+                     for {set i 0} {$i < abs(-3)} {incr i} {}\n\
+                     if {$i == 3} {puts three} else {puts other}\n";
+    let in_a_procedure = "proc p {} {\n    for {set i 0} {$i < abs(-3)} {incr i} {}\n    \
+                          if {$i == 3} {puts three} else {puts other}\n}\n\
+                          proc ::tcl::mathfunc::abs {x} {return 99}\np\n";
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        for source in [top_level, in_a_procedure] {
+            assert!(
+                !reports(source, dialect, DiagCode::I230),
+                "{dialect}\n{source}"
+            );
+        }
+        let unit = unit_of(top_level, dialect);
+        assert!(
+            unit.top_level.sccp.loop_enumerations.is_empty(),
+            "{dialect}"
+        );
+        let unit = unit_of(in_a_procedure, dialect);
+        let function = unit.procedures.get("::p").expect("the procedure");
+        assert!(function.sccp.loop_enumerations.is_empty(), "{dialect}");
+    }
+    prints_under_releases_from(top_level, "other\n", "8.5");
+    prints_under_releases_from(in_a_procedure, "other\n", "8.5");
+}
+
+/// The argument-sensitive re-run that O103 folds a call from runs the
+/// callee's loop under the call's seeds: `[f 3]` runs `f`'s `for` three times
+/// and returns `t` at 6, which the loop's exit state holds where the return
+/// reads it, so the call folds to 6. tclsh 8.4 to 9.1 print `6`, before and
+/// after `tcl opt`.
+#[test]
+fn the_argument_sensitive_rerun_runs_the_callees_loop() {
+    let source = "proc f {n} {\n    set t 0\n    for {set i 0} {$i < $n} {incr i} {incr t 2}\n    \
+                  return $t\n}\nset r [f 3]\nputs $r\n";
+    for dialect in DIALECTS {
+        let (rewritten, applied) = optimised(source, dialect);
+        assert!(
+            applied
+                .iter()
+                .any(|rewrite| rewrite.code == DiagCode::O103 && rewrite.replacement == "6"),
+            "{dialect}: {applied:?}"
+        );
+        assert!(!rewritten.contains("[f 3]"), "{dialect}:\n{rewritten}");
+    }
+    prints_under_every_release(source, "6\n");
+}
+
+/// The state an enumerated loop leaves bounds its counter past the loop
+/// header's widening: after `for {set i 0} {$i < 5} {incr i} {}`, `i` is
+/// exactly 5, so `lindex` of a three-element list at `$i` is past the end and
+/// W230 says so, at the top level and in a procedure. tclsh 8.4 to 9.1 print
+/// an empty line, before and after `tcl opt`.
+#[test]
+fn an_enumerated_loop_bounds_its_counter_after_it() {
+    let top_level = "set l {a b c}\nfor {set i 0} {$i < 5} {incr i} {}\nputs [lindex $l $i]\n";
+    let in_a_procedure = "proc p {} {\n    set l {a b c}\n    for {set i 0} {$i < 5} {incr i} {}\n    \
+                          puts [lindex $l $i]\n}\np\n";
+    for dialect in DIALECTS {
+        for source in [top_level, in_a_procedure] {
+            assert!(
+                reports(source, dialect, DiagCode::W230),
+                "{dialect}\n{source}"
+            );
+        }
+    }
+    prints_under_every_release(top_level, "\n");
+    prints_under_every_release(in_a_procedure, "\n");
 }

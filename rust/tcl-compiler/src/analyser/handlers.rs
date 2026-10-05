@@ -6416,9 +6416,9 @@ impl Analyser {
             .strip_prefix('{')
             .and_then(|value| value.strip_suffix('}'))
             .unwrap_or(word.trim());
-        crate::static_loops::evaluate_expr_with_constants(
+        crate::tcl_expr_eval::evaluate_expr_with_constants(
             &crate::parse_expr_for_profile(expr, Some(self.profile)),
-            &crate::static_loops::StaticEnv::new(),
+            &crate::tcl_expr_eval::Env::new(),
             crate::tcl_expr_eval::FoldPolicy::default(),
         )
         .map(|value| value != 0)
@@ -8467,18 +8467,20 @@ impl Analyser {
             let folded = self.static_word_value(substitution, proc_qname, env, stack, depth)?;
             expr.replace_range(start..end, &folded);
         }
-        let static_env: crate::static_loops::StaticEnv = env
+        // Each value is its text, which the expression engine reads as Tcl
+        // reads a literal operand.
+        let constants: crate::tcl_expr_eval::Env = env
             .iter()
             .map(|(name, value)| {
                 (
                     name.clone(),
-                    crate::static_loops::parse_literal_value(value),
+                    crate::tcl_expr_eval::EnvValue::Str(value.clone()),
                 )
             })
             .collect();
-        crate::static_loops::evaluate_expr_with_constants(
+        crate::tcl_expr_eval::evaluate_expr_with_constants(
             &crate::parse_expr_for_profile(&expr, Some(self.profile)),
-            &static_env,
+            &constants,
             crate::tcl_expr_eval::FoldPolicy::default(),
         )
         .map(|value| value != 0)

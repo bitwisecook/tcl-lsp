@@ -347,6 +347,43 @@ pub fn eval_tcl_expr_with_policy(
     )
 }
 
+/// Evaluate an expression under `env` to an integer: `Some(int)` when the
+/// result folds to an integer or an integer-valued float, `None` otherwise.
+/// A boolean answers 0 or 1.
+#[must_use]
+pub fn evaluate_expr_with_constants(expr: &ExprNode, env: &Env, policy: FoldPolicy) -> Option<i64> {
+    match eval_tcl_expr_with_policy(expr, env, policy)? {
+        TclValue::Int(i) => Some(i),
+        // A beyond-wide value is pathological here — decline rather than
+        // saturate.
+        TclValue::Big(_) => None,
+        TclValue::Float(f) => {
+            if !f.is_finite() || f.fract() != 0.0 {
+                return None;
+            }
+            // Finite integral float: saturate to the `i64` range.
+            Some(saturating_f64_to_i64(f))
+        }
+    }
+}
+
+/// Convert a finite, integer-valued `f64` to `i64`, saturating to
+/// `i64::MIN` / `i64::MAX` when the value is out of range.
+///
+/// Avoids a lossy `as` cast: the value is rendered to its exact integer
+/// decimal (`f` is integral by contract) and parsed. Out-of-range
+/// magnitudes fail to parse and saturate by sign, as an `f as i64` cast
+/// does.
+fn saturating_f64_to_i64(f: f64) -> i64 {
+    // `+ 0.0` normalises `-0.0` to `0.0` so it renders/parses as `0`, as an
+    // `as i64` cast does.
+    match format!("{:.0}", f + 0.0).parse::<i64>() {
+        Ok(i) => i,
+        Err(_) if f.is_sign_negative() => i64::MIN,
+        Err(_) => i64::MAX,
+    }
+}
+
 /// Whether `profile`'s target widens an integer past a wide and reads an
 /// infinity as a value: from 8.5, and for a caller that names no dialect
 /// (read as 9.0). An 8.4 runtime computes something else — `1 << 70` wraps
@@ -2546,6 +2583,70 @@ mod tests {
 
     use super::*;
     use crate::expr_parser::parse_expr;
+
+    // evaluate_expr_with_constants
+
+    #[test]
+    fn evaluate_expr_integer() {
+        let mut env = Env::new();
+        env.insert("x".into(), EnvValue::Int(5));
+        assert_eq!(
+            evaluate_expr_with_constants(&parse_expr("$x + 3", None), &env, FoldPolicy::default()),
+            Some(8)
+        );
+    }
+
+    #[test]
+    fn evaluate_expr_integer_valued_float() {
+        assert_eq!(
+            evaluate_expr_with_constants(
+                &parse_expr("6.0 / 2", None),
+                &Env::new(),
+                FoldPolicy::default()
+            ),
+            Some(3)
+        );
+    }
+
+    #[test]
+    fn evaluate_expr_fractional_float_none() {
+        assert_eq!(
+            evaluate_expr_with_constants(
+                &parse_expr("1.5", None),
+                &Env::new(),
+                FoldPolicy::default()
+            ),
+            None
+        );
+    }
+
+    /// A string binding is decoded as Tcl reads a literal: a boolean word is
+    /// 1 or 0, an integer's text is the integer.
+    #[test]
+    fn evaluate_expr_decodes_a_string_binding() {
+        let mut env = Env::new();
+        env.insert("flag".into(), EnvValue::Str("true".into()));
+        env.insert("n".into(), EnvValue::Str("42".into()));
+        let value = |text: &str| {
+            evaluate_expr_with_constants(&parse_expr(text, None), &env, FoldPolicy::default())
+        };
+        assert_eq!(value("$flag"), Some(1));
+        assert_eq!(value("$n + 1"), Some(43));
+    }
+
+    #[test]
+    fn saturating_f64_to_i64_in_range_and_saturates() {
+        // In-range integral floats convert exactly.
+        assert_eq!(saturating_f64_to_i64(0.0), 0);
+        assert_eq!(saturating_f64_to_i64(42.0), 42);
+        assert_eq!(saturating_f64_to_i64(-42.0), -42);
+        // `-0.0` normalises to 0 (tclsh `int(-0.0)` == 0), not "-0".
+        assert_eq!(saturating_f64_to_i64(-0.0), 0);
+        // Out-of-range magnitudes saturate by sign, as an `as i64` cast
+        // does.
+        assert_eq!(saturating_f64_to_i64(1e30), i64::MAX);
+        assert_eq!(saturating_f64_to_i64(-1e30), i64::MIN);
+    }
 
     /// The half-line an ordered comparison with an integer proves, on each
     /// edge: the false edge reads the operator's inverse (`$x < 5` failing

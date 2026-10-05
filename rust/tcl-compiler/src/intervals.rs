@@ -410,6 +410,11 @@ fn dominates(ssa: &SsaFunction, ancestor: BlockId, node: BlockId) -> bool {
 /// narrow only a version proved an integer at `block` ([`proved_integer`]),
 /// and every other version keeps its own interval, which only integers
 /// reach.
+///
+/// The state an enumerated loop leaves is the version's exact value where it
+/// is in force (`EdgeRefinement::loop_exit`), past the loop header's
+/// widening: an integer there is the version's interval, a point within its
+/// own.
 #[must_use]
 pub fn refine_interval<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     base: &HashMap<ValueKey, Interval, S1>,
@@ -429,6 +434,25 @@ pub fn refine_interval<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     };
     let key = (sym, version);
     let mut iv = base.get(&key).copied().unwrap_or(TOP);
+    let left = sccp
+        .refinements_in(block)
+        .find_map(|refinement| match &refinement.fact {
+            tcl_registry::value_transfer::FactView::Exact(value, _)
+                if refinement.loop_exit && refinement.key == key =>
+            {
+                value.as_int()
+            }
+            _ => None,
+        });
+    if let Some(point) = left {
+        let point = Interval {
+            lo: Some(point),
+            hi: Some(point),
+        };
+        if intersect(iv, point) == point {
+            return point;
+        }
+    }
     if !proved_integer((sccp, types), block, key) {
         return iv;
     }

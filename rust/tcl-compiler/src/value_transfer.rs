@@ -823,14 +823,6 @@ fn fact_to_lattice(view: &FactView) -> LatticeValue {
     }
 }
 
-/// The value an outcome writes to `target`, when it writes one.
-fn written_value(outcome: &InvocationOutcome, target: TargetId) -> Option<&ExactValue> {
-    outcome.ordered_stores.iter().find_map(|store| match store {
-        StoreOutcome::Write { target: t, value } if *t == target => Some(value),
-        _ => None,
-    })
-}
-
 /// One solver run's request budget: [`Budget::request`], or the smaller
 /// one a test sets to watch a run exhaust it.
 fn request_budget() -> Budget {
@@ -1718,6 +1710,23 @@ impl<'a> LatticeDriver<'a> {
             Some(f) => f.registry,
             None => tcl_registry::default_registry(),
         };
+        Self::outside_a_run(registry, folds, policy)
+    }
+
+    /// A driver for a loop enumeration outside a run, over `registry` with no
+    /// fold inputs, so it takes the registry's table for every head
+    /// ([`Self::enumeration_trusts`]).
+    pub(crate) fn over_registry(registry: &'a CommandRegistry, policy: FoldPolicy) -> Self {
+        Self::outside_a_run(registry, None, policy)
+    }
+
+    /// A driver with no run around it: no traced place, no escaping one, no
+    /// deferred write and no existence rung.
+    fn outside_a_run(
+        registry: &'a CommandRegistry,
+        folds: Option<BuiltinFoldInputs<'a>>,
+        policy: FoldPolicy,
+    ) -> Self {
         Self::new(
             TraceInputs {
                 registry,
@@ -5358,66 +5367,6 @@ fn exact_of_bytes(bytes: Vec<u8>) -> ExactValue {
     }
 }
 
-/// The bounded-loop simulator's typed `Incr`: the command whose lowering
-/// the node is, `name ?amount?` resolved through `registry` and evaluated
-/// by the registry's declared route over `env`, the simulator's constant
-/// environment. The written value replaces the target's entry; a decline
-/// leaves `env` untouched and answers `false`, which ends the simulation.
-/// `amount` carries whether its word was braced, as [`LatticeDriver::evaluate_incr`] reads it.
-pub(crate) fn exec_cell_update_in_env(
-    registry: &CommandRegistry,
-    profile: Option<&'static tcl_dialect::DialectProfile>,
-    name: &str,
-    amount: Option<(&str, bool)>,
-    env: &mut crate::static_loops::StaticEnv,
-) -> bool {
-    let Some(&command) = typed_node_commands(registry, LoweringHookId::Incr).first() else {
-        return false;
-    };
-    let texts: Vec<&str> = std::iter::once(name)
-        .chain(amount.map(|(text, _)| text))
-        .collect();
-    let words: Vec<InvocationWord<'_>> = std::iter::once(InvocationWord::Literal(name))
-        .chain(amount.map(amount_word))
-        .collect();
-    let Some(resolved) = registry
-        .resolve_structured_invocation(
-            InvocationWords::structured(InvocationWord::Literal(command), &words),
-            registry.own_surface_query(),
-        )
-        .resolved()
-    else {
-        return false;
-    };
-    let Some(semantics) = resolved.semantics.value.semantics() else {
-        return false;
-    };
-    let context = AnalysisContext::detached(profile);
-    let inputs = EnvInputs {
-        view: view_of(&resolved, &texts, &words, InvocationLayout::Source),
-        env,
-        context: &context,
-    };
-    let PlanAnswer::CellReadModifyWrite { target, .. } = semantics.structure(&inputs) else {
-        return false;
-    };
-    let route = semantics.route();
-    if !matches!(route, EvalRoute::Direct { id } if id.owner() == EvaluatorOwner::Registry) {
-        return false;
-    }
-    let (place, value) = match semantics.evaluate(&inputs, &mut Budget::evaluation()) {
-        EvalAnswer::Evaluated(outcome) => {
-            match (inputs.place(target.0), written_value(&outcome, target)) {
-                (Ok(place), Some(value)) => (place, static_of_exact(value)),
-                _ => return false,
-            }
-        }
-        EvalAnswer::Pending | EvalAnswer::Declined(_) => return false,
-    };
-    env.insert(place.name, value);
-    true
-}
-
 /// Whether a typed `Incr` over an absent place completes under every
 /// release `registry`'s profile names — the release rule's
 /// `creates_absent`, read from the declaration the typed node lowers from:
@@ -5490,116 +5439,6 @@ pub(crate) fn cell_update_range_model(
     match semantics.transfer(FactDomain::Range, &inputs, &mut Budget::evaluation()) {
         TransferAnswer::Range(model) => Some(model),
         _ => None,
-    }
-}
-
-/// A simulator value from an exact value: the classification when it has
-/// one, else the exact text.
-fn static_of_exact(value: &ExactValue) -> crate::static_loops::StaticValue {
-    use crate::static_loops::StaticValue;
-    match value.numeric {
-        Some(NumericValue::Int(i)) => StaticValue::Int(i),
-        Some(NumericValue::Float(f)) => StaticValue::Float(f),
-        Some(NumericValue::Bool(b)) => StaticValue::Bool(b),
-        None => StaticValue::Str(String::from_utf8_lossy(&value.bytes).into_owned()),
-    }
-}
-
-/// An exact value from a simulator value: the value's canonical text with
-/// its classification.
-fn exact_of_static(value: &crate::static_loops::StaticValue) -> ExactValue {
-    use crate::static_loops::StaticValue;
-    match value {
-        StaticValue::Int(i) => ExactValue::int(*i),
-        StaticValue::Float(f) => ExactValue {
-            bytes: f.to_string().into_bytes(),
-            numeric: Some(NumericValue::Float(*f)),
-            representation: tcl_registry::value_transfer::RepresentationEvidence::Unknown,
-        },
-        StaticValue::Bool(b) => ExactValue {
-            bytes: (if *b { "1" } else { "0" }).as_bytes().to_vec(),
-            numeric: Some(NumericValue::Bool(*b)),
-            representation: tcl_registry::value_transfer::RepresentationEvidence::Unknown,
-        },
-        StaticValue::Str(s) => ExactValue::text(s.clone()),
-    }
-}
-
-/// The analyser's inputs over the bounded-loop simulator's constant
-/// environment: a literal word is exact, a `$var` word is the environment's
-/// value, and a place's prior value is its entry.
-struct EnvInputs<'a> {
-    view: ResolvedInvocationView<'a>,
-    env: &'a crate::static_loops::StaticEnv,
-    context: &'a AnalysisContext,
-}
-
-impl AnalysisInputs for EnvInputs<'_> {
-    fn invocation(&self) -> &ResolvedInvocationView<'_> {
-        &self.view
-    }
-
-    fn operand(&self, id: OperandId, domain: FactDomain) -> FactView {
-        if domain != FactDomain::ExactValue {
-            return FactView::Top(DeclineReason::Unavailable(AnalysisTier::Fast));
-        }
-        let Some(operand) = self.view.operand(id) else {
-            return FactView::Top(DeclineReason::NotExact);
-        };
-        if let Some(name) = simple_var_ref_name(operand.text, self.context.grammar.braced_var) {
-            return self.variable(name, domain);
-        }
-        if operand.text.contains('$') || operand.text.contains('[') {
-            return FactView::Top(DeclineReason::NotExact);
-        }
-        FactView::Exact(ExactValue::from_literal(operand.text), None)
-    }
-
-    fn place(&self, id: OperandId) -> Result<PlaceRef, DeclineReason> {
-        let text = self
-            .view
-            .operand(id)
-            .map(|operand| operand.text)
-            .ok_or(DeclineReason::NotExact)?;
-        if text.contains('$') || text.contains('[') {
-            return Err(DeclineReason::DynamicName);
-        }
-        Ok(place_named(crate::naming::normalise_var_name(text)))
-    }
-
-    fn variable(&self, name: &str, domain: FactDomain) -> FactView {
-        if domain != FactDomain::ExactValue {
-            return FactView::Top(DeclineReason::Unavailable(AnalysisTier::Fast));
-        }
-        self.env
-            .get(name)
-            .map_or(FactView::Top(DeclineReason::NotExact), |value| {
-                FactView::Exact(exact_of_static(value), None)
-            })
-    }
-
-    fn prior_store(&self, place: &PlaceRef, domain: FactDomain) -> FactView {
-        self.variable(&place.name, domain)
-    }
-
-    fn word_structure(&self, _id: OperandId) -> Result<WordStructure, DeclineReason> {
-        Err(DeclineReason::Unsupported)
-    }
-
-    fn body(&self, _id: OperandId) -> Result<BodyRegion, DeclineReason> {
-        Err(DeclineReason::Unsupported)
-    }
-
-    fn nested(&self, _script: &str, _state: &mut EvaluationState) -> EvalAnswer {
-        EvalAnswer::Declined(DeclineReason::Unsupported)
-    }
-
-    fn math_function(&self, _name: &str) -> Result<BindingIdentity, DeclineReason> {
-        Err(DeclineReason::Unsupported)
-    }
-
-    fn context(&self) -> &AnalysisContext {
-        self.context
     }
 }
 

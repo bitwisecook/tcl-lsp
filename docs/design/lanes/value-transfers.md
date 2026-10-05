@@ -9,12 +9,13 @@ commit (§ *Slice 10* › *Record (2026-10-04): review fixes for slices 9 and
 10*). Slice 11, predicate refinement, has landed (§ *Status (2026-10-04):
 slice 11 landed*), and its review fixes are in, each its own commit
 (§ *Slice 11* › *Record (2026-10-05): review fixes for slice 11*). Slice 12,
-bounded-loop enumeration, is at its first checkpoint, the enumeration and the
-loop plans, with the post-loop branches deciding for I230 as for O101 (§
-*Slice 12* › *Record (2026-10-05): slice 12*, read with D268 to D275), and
-the lane's own defect found there, a may-written element's base, is fixed in
-its own commit after it; the second checkpoint, where the loop simulator
-becomes the enumeration, is next.
+bounded-loop enumeration, is at its second checkpoint (§ *Slice 12* ›
+*Record (2026-10-05): slice 12*, read with D268 to D279): the enumeration and
+the loop plans, with the post-loop branches deciding for I230 as for O101;
+the lane's own defect found there, a may-written element's base, fixed in its
+own commit; and the simulator become the enumeration, whose exit state the
+ranges and the O103 re-run read. The landing — W240–W242 and the iRules loop
+bound reading the plan, the slice's witnesses and the pages — is next.
 
 ## Goal
 
@@ -8413,11 +8414,12 @@ cleanly. That map now skips a refreshed base, which W210 reads as the
 definition it was before the fix, so W210 says what it said before for every
 base.
 
-Found beside it and pre-existing, reported, not fixed here: W210 takes `array
-size` and `array names` of an array that may be unset for a read that raises,
-which in tclsh they are not: `puts [array size a]` alone, and `proc p {c} {if
-{$c} {set a(k) 1}; puts [array size a]}`, draw W210 under the landed slice 11
-binary and this one, where tclsh 8.4 to 9.1 print `0`, and `1` and `0`.
+Found beside it and pre-existing, reported, not fixed here (#2379): W210 takes
+`array size`, `array names` and `array get` of an array that may be unset
+for a read that raises, which in tclsh they are not: `puts [array size a]`
+alone, and `proc p {c} {if {$c} {set a(k) 1}; puts [array size a]}`, draw
+W210 under the landed slice 11 binary and this one, where tclsh 8.4 to 9.1
+print `0`, and `1` and `0`.
 
 Tests: `a_may_written_element_reads_the_store_to_its_array`
 (`value_transfer_witnesses.rs`, new: the two programs and the two never-set
@@ -8436,6 +8438,90 @@ clippy, `cargo fmt --check` and `cargo check --workspace --all-targets` clean;
 `pack-goldens`, `retired-api-gate`, `owner-resolution` and `kcs-index-links`
 pass, and `dialect-drift` stays at its 8 sites. Each mutation was reverted
 before the runs.
+
+##### The second checkpoint: the simulator is the enumeration
+
+`wip(value-transfers): slice 12 — the simulator is the enumeration` holds
+VT12.3 and the rest of VT12.4: the loop simulator's own arithmetic, ingress
+and subject resolution are gone, and the ranges and the O103 re-run read the
+state an enumerated loop leaves.
+
+- **The summaries (VT12.3, D276).** `summarise_for_statement` and
+  `summarise_static_for` answer from `enumerate_loop`, over a driver on the
+  summary's registry with no fold inputs (`LatticeDriver::over_registry`, so
+  the registry's table for every head, as the simulator read it). The
+  environment's constants are the state's values, and a name the loop's
+  scripts write (`ssa::nested_writes`) that the environment does not hold is
+  a scalar of unknown value, which a statement may write and none may read —
+  the simulator's rule for a name its environment lacked. A statement built
+  without its words stands for the same loop: the counted plan reads four
+  words, so the summary gives it four empty ones. The `summarise_*` tests pass
+  with their source unchanged, `summarise_respects_iteration_cap` now the
+  `Iterations` decline. `StaticValue`, `StaticEnv` and `LoopSemantics` stay as
+  the summaries' boundary; the simulator's `exec_statement`, `exec_script`,
+  `exec_if`, `exec_switch`, `resolve_switch_subject`, `strip_word_delimiters`
+  and `parse_literal_value` are gone, with `parse_literal_value`'s two tests,
+  and so is its `Incr` arm, `value_transfer::exec_cell_update_in_env` over
+  `EnvInputs`. `the_three_incr_models_agree` seeds the summary through the
+  exact-value ingress (`ExactValue::from_literal`) and still finds the
+  lattice, the enumeration and the ranges agreeing on every release.
+- **The analyser's static conditions (D277).** `evaluate_expr_with_constants`
+  and its saturating conversion moved, with their four tests, to
+  `tcl_expr_eval.rs`, over the engine's own `Env`. `handlers.rs`'s two static
+  evaluators — a literal `if` condition, and a condition over the provenance
+  evaluator's text environment — give it each variable's text as a string
+  binding, which the engine reads as Tcl reads a literal operand
+  (`parse_literal`: a boolean word is 1 or 0, a numeral its number), where
+  `parse_literal_value` had classified the text first
+  (`evaluate_expr_decodes_a_string_binding`, new).
+- **A rebound math function (VT12.3).** A condition's math function resolves
+  through the driver's `math_function` service, so `abs` rebound by `proc
+  ::tcl::mathfunc::abs` declines the enumeration under the unit's observed
+  bindings and the rewrite's whole-module trust alike:
+  `a_loop_condition_reads_the_math_binding` (the slice 3 review fixes'
+  found-and-left program, at the top level and in a procedure; no I230, no
+  enumerated loop, and tclsh 8.5 to 9.1 print `other` before and after `tcl
+  opt`; 8.4 cannot create the procedure).
+- **The ranges (VT12.4, D278).** `intervals::refine_interval` takes an
+  integer an enumerated loop's state holds (`EdgeRefinement::loop_exit`,
+  `ExactValue::as_int`) as the version's interval where the state is in
+  force, when it lies within the version's own, before the proof of an
+  integer the range refinements need: an exact value is its own proof. W230
+  now bounds a counter after its loop: after `for {set i 0} {$i < 5} {incr i}
+  {}`, `lindex $l $i` of a three-element list is past the end
+  (`an_enumerated_loop_bounds_its_counter_after_it`).
+- **The O103 re-run (VT12.4, D279).** The argument-sensitive re-run already
+  enumerated the callee's loops, since it solves through
+  `sccp_with_builtin_folds`, but `resolve_return_constant` read a return's
+  value as the version's own, which the loop's state narrows only at the
+  blocks it holds in. `fold_var_ref_under_lattice` and
+  `fold_expr_under_lattice` read `SccpResult::value_at` at the return's block,
+  so `set r [f 3]` folds to `6` where `f` counts `t` up in a `for`
+  (`the_argument_sensitive_rerun_runs_the_callees_loop`). O100's own fold of
+  a `return $i` still reads the version's value: a refined read is never
+  rewritten (slice 11).
+
+Measured, for the fix before this checkpoint: `tcl diag` and `tcl opt
+--profile full`, run by the fix's binary and by the first checkpoint's over
+the first checkpoint's 1120 files, print the same for every file. This
+checkpoint's own comparison against the fix runs with the landing, whose
+record holds it.
+
+Green at the second checkpoint: `tcl-compiler` 10174 passed, 6 ignored
+across its binaries and doctests (the library 6730, `parse_literal_value`'s
+two tests gone and the string binding's added; `value_transfer_witnesses`
+139, the three new; `intervals` 74), `tcl-registry` 1428, `tcl-explorer` 112,
+`tcl-lsp-db` 139, 5 ignored, `tcl-lsp-core --lib` 2353, `tcl-cli` 205,
+`xtask` 275, `tcl-spectcl` 476, 1 ignored (under a private
+`XDG_CACHE_HOME`), and `tcl-cmd-core` 143; workspace clippy, no `#[allow]`
+added, `cargo fmt --check` and `cargo check --workspace --all-targets` clean;
+`value-transfers --check` and `registry-axes --check` unchanged,
+`pack-goldens`, `retired-api-gate`, `owner-resolution` and `kcs-index-links`
+pass, and `dialect-drift` stays at its 8 sites. Mutations, each reverted
+before the runs: `refine_interval` passing over the loop's exit point fails
+`an_enumerated_loop_bounds_its_counter_after_it`; `fold_var_ref_under_lattice`
+reading the version's own value in place of `value_at` fails
+`the_argument_sensitive_rerun_runs_the_callees_loop`.
 
 ### Slice 7a — seedless return summaries
 
@@ -11696,6 +11782,11 @@ Taken in slice 12, bounded-loop enumeration (§ *Slice 12* › *Record (2026-10-
 - **D274 — I230 knows a loop's test by its false edge into the loop's exit block** (the coordinator's ruling on the slice 11 review's note on #2375). The loop leg of `emit_constant_branch_diagnostics`'s block-name classifier took any branch whose block or targets were named `for_`, `while_` or `foreach_` for a loop's test and kept its I230 when true, so a decided `if` in a loop's body or right after the loop was silent. The CFG's loop records say which branch tests a loop: the one whose false edge enters the block the loop leaves to, in a `for` rotated to test at its step as in its header. A natural loop from the loop forest would not do: `while 1 { return x }` has no back edge.
 
 - **D275 — A may-written element's base refresh reads the base's prior version, and W210 reads the base as before** (the lane's own defect from slice 6's review fixes, found while preparing slice 12; the coordinator's ruling). `expand_defs` refreshes an array's base for every element a statement defines, reading nothing, which stands for a write that certainly runs: an extra read there would make every element write an observation of the whole array. A may-definition — an opaque `switch` arm's write, an opaque `catch` body's, a callee's through the `ArmWrites` marker — leaves the base as it was on the paths where the write does not land, so its refresh is a may-definition too, and takes the quoted read the element's already takes: liveness keeps the store that feeds it and the solver joins the two. W210's φ map of the may-definitions skips the refreshed base, so read-before-set reads it as the definition it was before the fix rather than as a name the statement may leave unset: the coordinator's check that a base never set before draws no W210, which the φ reading broke at `array size`, a read W210 already takes for one that raises.
+
+- **D276 — The summaries answer from the enumeration, with their types as the boundary** (VT12.3, whose preserve is every `summarise_*` answer). VT12.3 has `StaticValue` and `StaticEnv` "give way to `ExactValue` and `Existence`", and R6 has every `summarise_*` test byte-identical; the tests construct and read `StaticValue` and `StaticEnv`, so the two types stay as the summaries' arguments and answers while the run is the enumeration's, over exact values and existence. A name the loop writes that the summary's environment does not hold is held as a scalar of unknown value, the simulator's rule; the solver's own start state never does that (D269).
+- **D277 — The analyser's static conditions read a variable's text through the engine's literal rule** (VT12.3, with `parse_literal_value` gone). `handlers.rs` built its expression environment with the simulator's ingress; it now hands the engine each text as a string binding, which `parse_literal` reads as Tcl reads an operand, so a canonical integer is the integer and a boolean word 1 or 0 as before, and an unpadded `true` in arithmetic no longer evaluates where Tcl raises.
+- **D278 — The ranges take a loop's exact exit integer as its point, without a proof of an integer** (VT12.4; D265 keeps its rule for the range refinements). D265 narrows by a range refinement only a version proved an integer, since a comparison holds of a double or a string too; a loop's exit state is the version's exact value, and a canonical integer's text is an integer, so it bounds the version by itself. It is taken only where it lies within the version's own interval, so a contradiction keeps the widened one.
+- **D279 — O103's return fold reads the value at the return's block** (VT12.4). The re-run's lattice holds the loop's state as a refinement, not as a version's value, so `resolve_return_constant` reads `value_at` for a `$var` return and for the variables of a returned `expr`; a refinement in force at a return is a proof there, a branch's as much as a loop's, and every executable return must still agree.
 
 ### Open questions for the owner
 

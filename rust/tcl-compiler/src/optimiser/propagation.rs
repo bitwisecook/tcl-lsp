@@ -1910,7 +1910,9 @@ fn fold_return_under_lattice(
 /// `foreach`) is a phi whose exit value is Overdefined, even though an
 /// earlier `set total 0` left a stale Const(0) under another version.
 /// Reading the precise version is what makes us bail on `sum_list` /
-/// `fibonacci` instead of mis-folding to the pre-loop value.
+/// `fibonacci` instead of mis-folding to the pre-loop value. The value is
+/// the one the version holds at `bn` ([`crate::sccp::SccpResult::value_at`]),
+/// so the state an enumerated loop leaves, in force past it, is read.
 ///
 /// Shared by [`fold_return_under_lattice`]'s Path 2 (`return $var`) and
 /// [`fold_tail_statement_under_lattice`]'s fall-through case (a trailing
@@ -1930,7 +1932,7 @@ fn fold_var_ref_under_lattice(
         .get(&bn)
         .and_then(|b| b.exit_versions.get(&sym).copied())
         .unwrap_or(0);
-    match result.values.get(&(sym, ver)) {
+    match result.value_at(bn, (sym, ver)) {
         Some(LatticeValue::Const(c)) if result.materialises((sym, ver)) => Some(c.clone()),
         _ => None,
     }
@@ -1939,9 +1941,10 @@ fn fold_var_ref_under_lattice(
 /// Evaluate `expr` under the SCCP lattice for block `bn`'s exit
 /// environment. Built FLOW-SENSITIVELY: bind each variable the expr
 /// references at *this block's exit version* (the precise state reaching
-/// this point), and only when that version is a lattice constant. A
-/// variable absent from `exit_versions` (a never-reassigned parameter)
-/// falls back to version 0, where interproc-seeded param constants live.
+/// this point), and only when that version is a lattice constant at `bn`
+/// ([`crate::sccp::SccpResult::value_at`]). A variable absent from
+/// `exit_versions` (a never-reassigned parameter) falls back to version 0,
+/// where interproc-seeded param constants live.
 ///
 /// The flow-INsensitive alternative ("every Const lattice entry,
 /// preferring the newest version, then overlay exit versions") miscompiled:
@@ -1980,7 +1983,7 @@ fn fold_expr_under_lattice(
                 continue;
             };
             let ver = ssa_block.exit_versions.get(&sym).copied().unwrap_or(0);
-            if let Some(LatticeValue::Const(c)) = result.values.get(&(sym, ver)) {
+            if let Some(LatticeValue::Const(c)) = result.value_at(bn, (sym, ver)) {
                 constants.insert(
                     fu.ssa.var_name(sym).to_owned(),
                     crate::value_transfer::const_to_exact(c),

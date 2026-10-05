@@ -1103,11 +1103,16 @@ foreach {a b} {1 2 3} {}                                      ;# a is 3, b is th
 set n 0; foreach x {1 2 3} {if {$x == 2} break; incr n}       ;# n is 1, x is 2
 ```
 
-The `summarise_for_statement` simulator, with its own `StaticValue`
-lattice, `parse_literal_value` and `resolve_switch_subject`, remains in
-`static_loops.rs`, read by its own `summarise_*` tests alone.
-`bounds_checks.rs` seeds W240–W242 from `set v INT` and `incr v ?INT?` text,
-and `intervals.rs` widens a loop header as before (`MAX_ITERS`).
+Consumers past the solver read the same state. `intervals.rs` takes an
+integer an enumerated loop leaves as the version's interval where the state
+is in force (`refine_interval`), past the loop header's widening at
+`MAX_ITERS`, so W230 bounds the counter at 5 after
+`for {set i 0} {$i < 5} {incr i} {}`. The argument-sensitive O103 re-run
+runs the callee's loops under the call's seeds and reads each return's value
+at its block, so a call whose callee counts in a loop folds.
+`summarise_for_statement` and `summarise_static_for` answer a `for` loop's
+post-loop constants from the same run. `bounds_checks.rs` seeds W240–W242
+from `set v INT` and `incr v ?INT?` text.
 
 ## Exact values, types, and representation
 
@@ -2922,7 +2927,7 @@ unit-level lattice evaluates.
 - `rust/tcl-compiler/src/lowering/mod.rs`, `specialise_factories.rs`, `subst_nocommands.rs` — `eval_subst_nocommands_body`, `SUBST_NOCOMMANDS_KINDS`, `extract_subst_nocommands_template`, `subst_nocommands`
 - `rust/tcl-lsp-core/src/refactor/extract_proc.rs`, `refactor/mod.rs` — `literal_word_holes`, `push_substituted_commands`, `same_frame_regions`
 - `rust/tcl-compiler/src/dynamic_names.rs` — `DynamicNameBarrier`, `template_word_is_substituted`
-- `rust/tcl-compiler/src/static_loops.rs` — `enumerate_loop`, `enumerate_script`, `LoopEnumeration`, `LoopState`, `Slot`, `DEFAULT_MAX_STATIC_LOOP_ITERS`, and the `summarise_for_statement` simulator
+- `rust/tcl-compiler/src/static_loops.rs` — `enumerate_loop`, `enumerate_script`, `LoopEnumeration`, `LoopState`, `Slot`, `DEFAULT_MAX_STATIC_LOOP_ITERS`, and the `summarise_for_statement` summaries over the enumeration
 - `rust/tcl-compiler/src/intervals.rs` — `transfer`, `widen`, `MAX_ITERS`, `refine_interval`
 - `rust/tcl-compiler/src/interprocedural.rs` — `ProcSummary`, `ProcArgTrait`, `ReturnKind`, `summarise_returns`, `MAX_INTERPROCEDURAL_WALK_DEPTH`
 - `rust/tcl-compiler/src/optimiser/propagation.rs` — `evaluate_proc_with_constants`, `seed_params_from_args`
@@ -2947,8 +2952,8 @@ unit-level lattice evaluates.
 - `rust/tcl-registry/tests/analyser_hooks.rs` — the pinned-set shape
 - `rust/tcl-compiler/src/analyser/diagnostics/tests.rs` — `info_exists_*`, `emit_cfg_ssa_diagnostics_w210_*`, `emit_cfg_ssa_diagnostics_w213_*`, `w102_*`: the existence, read-before-set, and template-word answers the rungs keep byte-identical
 - `rust/tcl-compiler/src/sccp.rs` — `existence_fold_abstains_*`, `upframe_body_models_*`, `sccp_folds_post_loop_branch_via_static_summary`
-- `rust/tcl-compiler/src/static_loops.rs` — `summarise_*`: the bounded `for` simulation the enumeration replaced, its answers the enumeration's baseline
-- `rust/tcl-compiler/tests/value_transfer_witnesses.rs` — `the_iteration_cap_publishes_nothing`, `the_mirror_pairs_decline_as_correlated`
+- `rust/tcl-compiler/src/static_loops.rs` — `summarise_*`: the bounded `for` simulation's answers, which the enumeration gives unchanged
+- `rust/tcl-compiler/tests/value_transfer_witnesses.rs` — `the_iteration_cap_publishes_nothing`, `the_mirror_pairs_decline_as_correlated`, `a_loop_condition_reads_the_math_binding`, `the_argument_sensitive_rerun_runs_the_callees_loop`, `an_enumerated_loop_bounds_its_counter_after_it`
 - `rust/tcl-syntax/src/expr/eval.rs` — `short_circuit_logical`: the walker's ordering the evaluation state relies on
 - `rust/tcl-compiler/src/tcl_expr_eval.rs` — `command_substitution_evaluates_through_the_nested_service`: a nested command's answer under each nested policy
 - `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs` — `try_finally_creates_finally_block`, `try_with_handler`: the faithful-exceptions shape

@@ -315,7 +315,11 @@ as an `EnumeratedLoop { exit_block, span, iterations, exit, published }` in
 `SccpResult::loop_enumerations`, in the order of the blocks the loops leave
 to (`rebase_function_unit`-shifted), and the Explorer's `sccp` view prints
 it as `enumerated loop: 5 iterations, false condition`, with the block it
-leaves to and each value it published.
+leaves to and each value it published. The ranges read the state too: an
+integer a loop leaves is the version's interval where the state is in force
+(`intervals::refine_interval`), past the loop header's widening; and the
+argument-sensitive O103 re-run, which solves the callee under the call's
+seeds, reads each return's value at its block (`SccpResult::value_at`).
 
 An opaque `catch`'s body is run the same way at the marker that states its
 writes (`catch_body_answer`): over the exact state of the names the marker

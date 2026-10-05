@@ -16,13 +16,16 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Conservative static evaluation of simple Tcl `for`-loops.
+//! Bounded-loop enumeration: a loop run to its exit over exact state.
 //!
-//! Supports a narrow, side-effect-free subset so callers can
-//! infer post-loop constants without changing semantics. Uses
-//! the expression evaluator to fold conditions and bounded
-//! iteration (capped by `DEFAULT_MAX_STATIC_LOOP_ITERS`) to
-//! catch pathological inputs.
+//! [`enumerate_loop`] runs a `for`, `while` or `foreach` statement in order
+//! over the exact values and existence the solver proves where the loop
+//! starts, each statement through the registry's routes, under at most
+//! [`DEFAULT_MAX_STATIC_LOOP_ITERS`] passes (`docs/design/compiler/value-transfers.md`
+//! § *Bounded-loop enumeration*); [`enumerate_script`] runs an opaque
+//! `catch` body the same way. [`summarise_static_for`] and
+//! [`summarise_for_statement`] answer a `for` loop's post-loop constants from
+//! the same run.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
@@ -30,13 +33,13 @@ use tcl_registry::CommandRegistry;
 use tcl_registry::hooks::LoweringHookId;
 use tcl_registry::value_transfer::{
     Budget, BudgetLimit, CompletionOutcome, DeclineReason, ExactValue, ExitRule, IterationPlan,
-    LoopStep, PlaceKind, StoreOutcome,
+    LoopStep, NumericValue, PlaceKind, RepresentationEvidence, StoreOutcome,
 };
 
 use crate::expr_ast::ExprNode;
-use crate::ir::{IfClause, Script, Statement};
+use crate::ir::{Script, Statement};
 use crate::naming::normalise_var_name;
-use crate::tcl_expr_eval::{Env, EnvValue, FoldPolicy, TclValue, eval_tcl_expr_with_policy};
+use crate::tcl_expr_eval::FoldPolicy;
 use crate::value_shapes::is_static_var_word;
 use crate::value_transfer::{LatticeDriver, StateStep};
 
@@ -44,8 +47,8 @@ use crate::value_transfer::{LatticeDriver, StateStep};
 /// return `None` rather than simulate any further.
 pub const DEFAULT_MAX_STATIC_LOOP_ITERS: u64 = 4096;
 
-/// A value the static simulator tracks: integer, float, boolean,
-/// or string.
+/// A constant a `for`-loop summary reports: integer, float, boolean, or
+/// string.
 #[derive(Debug, Clone, PartialEq)]
 pub enum StaticValue {
     /// Integer.
@@ -58,102 +61,18 @@ pub enum StaticValue {
     Str(String),
 }
 
-impl StaticValue {
-    fn to_env_value(&self) -> EnvValue {
-        match self {
-            Self::Int(i) => EnvValue::Int(*i),
-            Self::Float(f) => EnvValue::Float(*f),
-            Self::Bool(b) => EnvValue::Int(i64::from(*b)),
-            Self::Str(s) => EnvValue::Str(s.clone()),
-        }
-    }
-}
-
-/// Environment tracked by the simulator — variable name → current
-/// constant value.
+/// The constants a `for`-loop summary starts from and reports — variable
+/// name → current constant value.
 pub type StaticEnv = HashMap<String, StaticValue>;
 
-/// What a simulation evaluates under: the fold policy for its expressions
-/// and the registry whose declared routes evaluate its cell updates.
+/// What a summary evaluates under: the fold policy for its expressions
+/// and the registry whose declared routes evaluate its statements.
 #[derive(Clone, Copy)]
 pub struct LoopSemantics<'a> {
     /// The expression fold policy.
     pub policy: FoldPolicy,
-    /// The registry the cell updates resolve against.
+    /// The registry the statements resolve against.
     pub registry: &'a CommandRegistry,
-}
-
-fn env_as_tcl_env(env: &StaticEnv) -> Env {
-    env.iter()
-        .map(|(k, v)| (k.clone(), v.to_env_value()))
-        .collect()
-}
-
-/// Parse a literal text as [`StaticValue`]: an integer under the one
-/// value-ingress rule (`ExactValue::from_literal` — the canonical spelling
-/// round-trips, so `010` and `+5` stay text for the release's numeral
-/// grammar to read), then `true`/`false`, then the exact text.
-#[must_use]
-pub fn parse_literal_value(text: &str) -> StaticValue {
-    if let Some(i) = tcl_registry::value_transfer::ExactValue::from_literal(text).as_int() {
-        return StaticValue::Int(i);
-    }
-    match text.trim().to_ascii_lowercase().as_str() {
-        "true" => return StaticValue::Bool(true),
-        "false" => return StaticValue::Bool(false),
-        _ => {}
-    }
-    StaticValue::Str(text.to_owned())
-}
-
-/// Evaluate an expression string under `env`.
-///
-/// Returns `Some(int)` when the result folds to an integer (or an
-/// integer-valued float), `None` otherwise. Booleans collapse into
-/// `i64` (0/1) for simpler call-sites.
-#[must_use]
-pub fn evaluate_expr_with_constants(
-    expr: &ExprNode,
-    env: &StaticEnv,
-    policy: FoldPolicy,
-) -> Option<i64> {
-    let tcl_env = env_as_tcl_env(env);
-    let v = eval_tcl_expr_with_policy(expr, &tcl_env, policy)?;
-    match v {
-        TclValue::Int(i) => Some(i),
-        // A beyond-wide loop bound is pathological — decline static
-        // unrolling rather than saturate.
-        TclValue::Big(_) => None,
-        TclValue::Float(f) => {
-            if !f.is_finite() {
-                return None;
-            }
-            if f.fract() == 0.0 {
-                // Finite integral float: saturate to the `i64` range, an
-                // acceptable cap for loop-bound evaluation.
-                Some(saturating_f64_to_i64(f))
-            } else {
-                None
-            }
-        }
-    }
-}
-
-/// Convert a finite, integer-valued `f64` to `i64`, saturating to
-/// `i64::MIN` / `i64::MAX` when the value is out of range.
-///
-/// Avoids a lossy `as` cast: the value is rendered to its exact integer
-/// decimal (`f` is integral by contract) and parsed. Out-of-range
-/// magnitudes fail to parse and saturate by sign, as an `f as i64` cast
-/// does.
-fn saturating_f64_to_i64(f: f64) -> i64 {
-    // `+ 0.0` normalises `-0.0` to `0.0` so it renders/parses as `0`, as an
-    // `as i64` cast does.
-    match format!("{:.0}", f + 0.0).parse::<i64>() {
-        Ok(i) => i,
-        Err(_) if f.is_sign_negative() => i64::MIN,
-        Err(_) => i64::MAX,
-    }
 }
 
 /// Extract a simple variable reference. `$name` / `${name}` with
@@ -180,176 +99,11 @@ pub fn simple_var_ref(text: &str) -> Option<String> {
     Some(normalise_var_name(name).to_owned())
 }
 
-fn strip_word_delimiters(text: &str) -> String {
-    let stripped = text.trim();
-    if stripped.len() >= 2 {
-        let bytes = stripped.as_bytes();
-        let first = bytes[0];
-        let last = bytes[stripped.len() - 1];
-        if (first == b'"' && last == b'"') || (first == b'{' && last == b'}') {
-            return stripped[1..stripped.len() - 1].to_owned();
-        }
-    }
-    stripped.to_owned()
-}
+// For-loop summaries
 
-/// The value a `switch` subject holds in the simulator: a braced word's
-/// own text, a lone `$name` read from the environment, or a word with no
-/// substitution as written.
-fn resolve_switch_subject(text: &str, braced: bool, env: &StaticEnv) -> Option<String> {
-    if braced {
-        return Some(text.to_owned());
-    }
-    let stripped = text.trim();
-    if stripped.contains('$') || stripped.contains('[') {
-        let name = simple_var_ref(stripped)?;
-        let v = env.get(&name)?;
-        return Some(match v {
-            StaticValue::Int(i) => i.to_string(),
-            StaticValue::Float(f) => f.to_string(),
-            StaticValue::Bool(b) => (if *b { "1" } else { "0" }).to_string(),
-            StaticValue::Str(s) => s.clone(),
-        });
-    }
-    Some(strip_word_delimiters(stripped))
-}
-
-// Simulator
-
-/// Execute one IR statement in the simulator, updating `env`.
-///
-/// Returns `true` when the statement is in the supported subset;
-/// `false` when it should abort the whole summarisation (call,
-/// barrier, unhandled structured form, etc.).
-fn exec_statement(stmt: &Statement, env: &mut StaticEnv, semantics: LoopSemantics<'_>) -> bool {
-    let policy = semantics.policy;
-    match stmt {
-        Statement::AssignConst { name, value, .. } => {
-            env.insert(name.clone(), parse_literal_value(value));
-            true
-        }
-        Statement::AssignExpr { name, expr, .. } => {
-            match evaluate_expr_with_constants(expr, env, policy) {
-                Some(v) => {
-                    env.insert(name.clone(), StaticValue::Int(v));
-                    true
-                }
-                None => false,
-            }
-        }
-        Statement::AssignValue { name, value, .. } => {
-            if value.contains('[') {
-                return false;
-            }
-            if let Some(var) = simple_var_ref(value) {
-                let Some(existing) = env.get(&var).cloned() else {
-                    return false;
-                };
-                env.insert(name.clone(), existing);
-                return true;
-            }
-            env.insert(name.clone(), parse_literal_value(value));
-            true
-        }
-        // The typed cell update: the registry's declared route evaluates
-        // it over the environment, under the same target semantics as the
-        // lattice — one increment model, not a second one here.
-        Statement::Incr {
-            name,
-            amount,
-            amount_braced,
-            ..
-        } => crate::value_transfer::exec_cell_update_in_env(
-            semantics.registry,
-            policy.dialect,
-            name,
-            amount.as_deref().map(|text| (text, *amount_braced)),
-            env,
-        ),
-        Statement::If {
-            clauses, else_body, ..
-        } => exec_if(clauses, else_body.as_ref(), env, semantics),
-        Statement::Switch { .. } => exec_switch(stmt, env, semantics),
-        // Calls, barriers, returns, loops (other than the
-        // top-level summarised `for`) — out of supported subset.
-        _ => false,
-    }
-}
-
-fn exec_script(script: &Script, env: &mut StaticEnv, semantics: LoopSemantics<'_>) -> bool {
-    for stmt in &script.statements {
-        if !exec_statement(stmt, env, semantics) {
-            return false;
-        }
-    }
-    true
-}
-
-fn exec_if(
-    clauses: &[IfClause],
-    else_body: Option<&Script>,
-    env: &mut StaticEnv,
-    semantics: LoopSemantics<'_>,
-) -> bool {
-    let policy = semantics.policy;
-    for clause in clauses {
-        let Some(cond) = evaluate_expr_with_constants(&clause.condition, env, policy) else {
-            return false;
-        };
-        if cond != 0 {
-            return exec_script(&clause.body, env, semantics);
-        }
-    }
-    match else_body {
-        None => true,
-        Some(body) => exec_script(body, env, semantics),
-    }
-}
-
-/// Run a `switch` over the environment: the registry's selection for the
-/// statement's own command and options, with the subject holding the value
-/// the environment gives it, chooses the body — mode, case folding and
-/// fall-through as the command reads them. A selection the registry does not
-/// make (a pattern the environment cannot state, an error the command
-/// raises) ends the simulation.
-fn exec_switch(stmt: &Statement, env: &mut StaticEnv, semantics: LoopSemantics<'_>) -> bool {
-    let Statement::Switch {
-        subject,
-        subject_braced,
-        arms,
-        default_body,
-        ..
-    } = stmt
-    else {
-        return false;
-    };
-    let Some(value) = resolve_switch_subject(subject, *subject_braced, env) else {
-        return false;
-    };
-    let Some(fact) = crate::value_transfer::statement_selection(semantics.registry, stmt, &value)
-    else {
-        return false;
-    };
-    let ([body], [writes]) = (fact.bodies.as_slice(), fact.writes.as_slice()) else {
-        return false;
-    };
-    if !writes.is_empty() {
-        return false;
-    }
-    let chosen = match body {
-        None => return true,
-        Some(arm) if *arm == arms.len() => default_body.as_ref(),
-        Some(arm) => arms.get(*arm).and_then(|arm| arm.body.as_ref()),
-    };
-    chosen.is_some_and(|script| exec_script(script, env, semantics))
-}
-
-// For-loop summarisation
-
-/// Summarise a simple static `for`-loop from its structured IR
-/// form. Returns the post-loop variable environment on success,
-/// `None` if the loop escapes the supported subset or exceeds
-/// `max_iterations`.
+/// Summarise a simple static `for`-loop from its structured IR form: the
+/// post-loop variable environment, or `None` where the loop's enumeration
+/// declines ([`enumerate_loop`]) or exceeds `max_iterations` passes.
 #[must_use]
 pub fn summarise_static_for(
     init: &Script,
@@ -360,35 +114,31 @@ pub fn summarise_static_for(
     max_iterations: u64,
     semantics: LoopSemantics<'_>,
 ) -> Option<StaticEnv> {
-    let mut env: StaticEnv = initial_constants.clone();
-    let policy = semantics.policy;
-
-    if !exec_script(init, &mut env, semantics) {
-        return None;
-    }
-    let mut iterations: u64 = 0;
-    loop {
-        let cond = evaluate_expr_with_constants(condition, &env, policy)?;
-        if cond == 0 {
-            break;
-        }
-        iterations += 1;
-        if iterations > max_iterations {
-            return None;
-        }
-        if !exec_script(body, &mut env, semantics) {
-            return None;
-        }
-        if !exec_script(next_script, &mut env, semantics) {
-            return None;
-        }
-    }
-    Some(env)
+    let nowhere = tcl_lexer::Span::new(0, 0);
+    let stmt = Statement::For {
+        span: nowhere,
+        init: init.clone(),
+        init_span: nowhere,
+        condition: condition.clone(),
+        condition_span: nowhere,
+        next: next_script.clone(),
+        next_span: nowhere,
+        body: body.clone(),
+        body_span: nowhere,
+        raw_args: Vec::new(),
+        raw_tokens: None,
+        condition_base: None,
+    };
+    summarise_for_statement(&stmt, initial_constants, max_iterations, semantics)
 }
 
-/// Convenience entry point that extracts the init/condition/next/
-/// body from a [`Statement::For`] and forwards to
-/// [`summarise_static_for`].
+/// The post-loop variable environment of the [`Statement::For`] `stmt`, run
+/// from `initial_constants` by [`enumerate_loop`] under `semantics`: each
+/// constant the loop leaves replaces its entry, and a place it leaves unbound
+/// leaves the environment. A name the loop writes that the environment does
+/// not hold is a scalar of unknown value, as a statement reading it finds it.
+/// `None` where the loop is not a `for`, or its enumeration declines, or it
+/// leaves with a completion the plan does not absorb.
 #[must_use]
 pub fn summarise_for_statement(
     stmt: &Statement,
@@ -398,23 +148,83 @@ pub fn summarise_for_statement(
 ) -> Option<StaticEnv> {
     let Statement::For {
         init,
-        condition,
         next,
         body,
+        raw_args,
         ..
     } = stmt
     else {
         return None;
     };
-    summarise_static_for(
-        init,
-        condition,
-        next,
-        body,
-        initial_constants,
-        max_iterations,
-        semantics,
-    )
+    // The plan reads the counted loop's four words; a statement built without
+    // them stands for the same loop.
+    let words: Vec<String> = if raw_args.len() == 4 {
+        raw_args.clone()
+    } else {
+        vec![String::new(); 4]
+    };
+    let mut stmt = stmt.clone();
+    if let Statement::For { raw_args, .. } = &mut stmt {
+        *raw_args = words;
+    }
+    let mut written = BTreeSet::new();
+    for script in [init, next, body] {
+        crate::ssa::nested_writes(script, semantics.registry, &mut written);
+    }
+    let mut state = LoopState::default();
+    for name in written {
+        state.set(name, Slot::Scalar);
+    }
+    for (name, value) in initial_constants {
+        state.set(name.clone(), Slot::Value(exact_of_static(value)));
+    }
+    let driver = LatticeDriver::over_registry(semantics.registry, semantics.policy);
+    let run = enumerate_loop(&driver, &stmt, state, (false, max_iterations), &|_| false).ok()?;
+    if run.completion != CompletionOutcome::Normal {
+        return None;
+    }
+    let mut env = initial_constants.clone();
+    for (name, slot) in run.state {
+        match slot {
+            Slot::Value(value) => {
+                env.insert(name, static_of_exact(&value));
+            }
+            Slot::Scalar | Slot::Unbound => {
+                env.remove(&name);
+            }
+        }
+    }
+    Some(env)
+}
+
+/// A summary's constant from an exact value: the classification when it has
+/// one, else the exact text.
+fn static_of_exact(value: &ExactValue) -> StaticValue {
+    match value.numeric {
+        Some(NumericValue::Int(i)) => StaticValue::Int(i),
+        Some(NumericValue::Float(f)) => StaticValue::Float(f),
+        Some(NumericValue::Bool(b)) => StaticValue::Bool(b),
+        None => StaticValue::Str(String::from_utf8_lossy(&value.bytes).into_owned()),
+    }
+}
+
+/// An exact value from a summary's constant: the value's canonical text with
+/// its classification.
+fn exact_of_static(value: &StaticValue) -> ExactValue {
+    match value {
+        StaticValue::Int(i) => ExactValue::int(*i),
+        StaticValue::Float(f) => ExactValue {
+            bytes: f.to_string().into_bytes(),
+            numeric: Some(NumericValue::Float(*f)),
+            representation: RepresentationEvidence::Unknown,
+        },
+        StaticValue::Bool(b) => ExactValue {
+            bytes: (if *b { "1" } else { "0" }).as_bytes().to_vec(),
+            numeric: Some(NumericValue::Bool(*b)),
+            representation: RepresentationEvidence::Unknown,
+        },
+        StaticValue::Str(s) => ExactValue::text(s.clone()),
+    }
 }
 
 // Bounded-loop enumeration
@@ -1090,7 +900,7 @@ fn loop_words(stmt: &Statement) -> Result<(LoweringHookId, Vec<(String, bool)>),
 mod tests {
     use super::*;
     use crate::expr_parser::parse_expr;
-    use crate::ir::{SwitchArm, SwitchMode};
+    use crate::ir::{IfClause, SwitchArm, SwitchMode};
     use tcl_lexer::Span;
 
     fn registry() -> CommandRegistry {
@@ -1172,50 +982,6 @@ mod tests {
         assert_eq!(under("tcl9.0"), Some(Some(StaticValue::Int(20))));
         assert_eq!(under("f5-irules"), Some(Some(StaticValue::Int(20))));
         assert_eq!(under("tcl"), None, "no release: the counter is ambiguous");
-    }
-
-    /// The literal ingress is the one rule: a leading-zero or signed
-    /// numeral stays text for the release's grammar to read, and nothing
-    /// is trimmed.
-    #[test]
-    fn parse_literal_value_keeps_release_dependent_spellings_as_text() {
-        assert_eq!(parse_literal_value("42"), StaticValue::Int(42));
-        assert_eq!(parse_literal_value("-7"), StaticValue::Int(-7));
-        assert_eq!(parse_literal_value("010"), StaticValue::Str("010".into()));
-        assert_eq!(parse_literal_value("+5"), StaticValue::Str("+5".into()));
-        assert_eq!(parse_literal_value(" 5"), StaticValue::Str(" 5".into()));
-        assert_eq!(parse_literal_value("true"), StaticValue::Bool(true));
-        assert_eq!(parse_literal_value(" a "), StaticValue::Str(" a ".into()));
-    }
-
-    // saturating_f64_to_i64
-
-    #[test]
-    fn saturating_f64_to_i64_in_range_and_saturates() {
-        // In-range integral floats convert exactly.
-        assert_eq!(saturating_f64_to_i64(0.0), 0);
-        assert_eq!(saturating_f64_to_i64(42.0), 42);
-        assert_eq!(saturating_f64_to_i64(-42.0), -42);
-        // `-0.0` normalises to 0 (tclsh `int(-0.0)` == 0), not "-0".
-        assert_eq!(saturating_f64_to_i64(-0.0), 0);
-        // Out-of-range magnitudes saturate by sign, as an `as i64` cast
-        // does.
-        assert_eq!(saturating_f64_to_i64(1e30), i64::MAX);
-        assert_eq!(saturating_f64_to_i64(-1e30), i64::MIN);
-    }
-
-    // parse_literal_value
-
-    #[test]
-    fn parse_literal_int_bool_string() {
-        assert_eq!(parse_literal_value("42"), StaticValue::Int(42));
-        assert_eq!(parse_literal_value("-7"), StaticValue::Int(-7));
-        assert_eq!(parse_literal_value("true"), StaticValue::Bool(true));
-        assert_eq!(parse_literal_value("False"), StaticValue::Bool(false));
-        assert_eq!(
-            parse_literal_value("hello"),
-            StaticValue::Str("hello".into())
-        );
     }
 
     // simple_var_ref
@@ -1613,41 +1379,5 @@ mod tests {
         )
         .expect("summarised");
         assert_eq!(env.get("i"), Some(&StaticValue::Int(2)));
-    }
-
-    // evaluate_expr_with_constants
-
-    #[test]
-    fn evaluate_expr_integer() {
-        let mut env = StaticEnv::new();
-        env.insert("x".into(), StaticValue::Int(5));
-        assert_eq!(
-            evaluate_expr_with_constants(&parse_expr("$x + 3", None), &env, FoldPolicy::default()),
-            Some(8)
-        );
-    }
-
-    #[test]
-    fn evaluate_expr_integer_valued_float() {
-        assert_eq!(
-            evaluate_expr_with_constants(
-                &parse_expr("6.0 / 2", None),
-                &StaticEnv::new(),
-                FoldPolicy::default()
-            ),
-            Some(3)
-        );
-    }
-
-    #[test]
-    fn evaluate_expr_fractional_float_none() {
-        assert_eq!(
-            evaluate_expr_with_constants(
-                &parse_expr("1.5", None),
-                &StaticEnv::new(),
-                FoldPolicy::default()
-            ),
-            None
-        );
     }
 }
