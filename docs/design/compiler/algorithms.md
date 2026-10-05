@@ -160,7 +160,10 @@ terminate at `[0, +inf)` instead of an iteration cap.  The header set comes from
 Constant-bound branch guards narrow through the range refinements the
 condition's own `Selection` transfer states on its edges (`refine_interval`
 over `SccpResult::refinements_in`: `if {$i < 10}` ⇒ `i ∈ [lo, 9]` in every
-block each executable path into which crosses the true edge).  A *symbolic*
+block each executable path into which crosses the true edge), for a version the
+type lattice or a `string is integer -strict` test proves an integer — a range
+from a comparison holds of an integer, and `end` passes `$i > 5` as a string.
+A *symbolic*
 bound (`$i < [llength $l]`) is left unrefined — the transfer refines a range
 only against an integer numeral, and a non-relational interval domain cannot
 relate the index to the list length: a deliberately-documented precision

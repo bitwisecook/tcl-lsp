@@ -49,6 +49,8 @@ use crate::analyses::{ConstValue, LatticeValue};
 use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::ssa::{SsaFunction, ValueKey, Version};
+use crate::types::{TypeKind, TypeLattice};
+use tcl_registry::TclType;
 
 /// A bound is an `i64`, or `None` for an infinity (sign given by position).
 pub type Bound = Option<i64>;
@@ -400,13 +402,22 @@ fn dominates(ssa: &SsaFunction, ancestor: BlockId, node: BlockId) -> bool {
 /// conditions every executable path into `block` crossed prove of the
 /// version — `if {$i < 10}` puts `i` at 9 or below in its arm — stated by the
 /// condition's own `Selection` transfer, which reads a bound under the
-/// target's numeral grammar. A range refinement, like an [`Interval`], holds
-/// of the value when it is an integer.
+/// target's numeral grammar.
+///
+/// A range refinement holds of the value when it is an integer: a value
+/// that is not compares as a double or a string, so `7.0` takes the false
+/// edge of `$i != 7` and `end` the true edge of `$i > 5`. So the refinements
+/// narrow only a version proved an integer at `block` ([`proved_integer`]),
+/// and every other version keeps its own interval, which only integers
+/// reach.
 #[must_use]
-pub fn refine_interval<S1: std::hash::BuildHasher>(
+pub fn refine_interval<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     base: &HashMap<ValueKey, Interval, S1>,
     ssa: &SsaFunction,
-    sccp: &crate::sccp::SccpResult,
+    (sccp, types): (
+        &crate::sccp::SccpResult,
+        &HashMap<ValueKey, TypeLattice, S2>,
+    ),
     block: BlockId,
     name: &str,
     version: Version,
@@ -418,6 +429,9 @@ pub fn refine_interval<S1: std::hash::BuildHasher>(
     };
     let key = (sym, version);
     let mut iv = base.get(&key).copied().unwrap_or(TOP);
+    if !proved_integer((sccp, types), block, key) {
+        return iv;
+    }
     for refinement in sccp.refinements_in(block) {
         if refinement.key != key {
             continue;
@@ -430,6 +444,33 @@ pub fn refine_interval<S1: std::hash::BuildHasher>(
         }
     }
     iv
+}
+
+/// Whether the version `key` is an integer at `block`: the type lattice
+/// types it one (an integer literal, an `incr`, a route that builds an
+/// integer), or a type refinement in force there does (`string is integer
+/// -strict`). A numeric `==` proves a number, never an integer — `7.0 == 7`
+/// holds — so its type refinement is no proof.
+fn proved_integer<S: std::hash::BuildHasher>(
+    (sccp, types): (&crate::sccp::SccpResult, &HashMap<ValueKey, TypeLattice, S>),
+    block: BlockId,
+    key: ValueKey,
+) -> bool {
+    let integer =
+        |ty: &TypeLattice| ty.kind() == TypeKind::Known && ty.tcl_type() == Some(TclType::Int);
+    types.get(&key).is_some_and(integer)
+        || sccp.refinements_in(block).any(|refinement| {
+            refinement.key == key
+                && matches!(
+                    refinement.fact,
+                    tcl_registry::value_transfer::FactView::Domain(
+                        tcl_registry::value_transfer::DomainFact::Type {
+                            intrep: Some(TclType::Int),
+                            ..
+                        }
+                    )
+                )
+        })
 }
 
 /// Seed a `[c, c]` interval from a constant-integer SCCP value, else `None`.

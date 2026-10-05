@@ -7,9 +7,11 @@ with the records and the decisions behind it; § *Plan for slices 2–13* is the
 plan for the rest. The review fixes of slices 9 and 10 are in, each its own
 commit (§ *Slice 10* › *Record (2026-10-04): review fixes for slices 9 and
 10*). Slice 11, predicate refinement, has landed (§ *Status (2026-10-04):
-slice 11 landed*); the next slice is slice 12, bounded-loop enumeration:
-§ *Slice 11* › *Record (2026-10-04): slice 11* › *What slice 12 starts
-from* is where to start, read with D258 to D264.
+slice 11 landed*), and its review fixes come first, each its own commit
+(§ *Slice 11* › *Record (2026-10-05): review fixes for slice 11*); the next
+slice is slice 12, bounded-loop enumeration: § *Slice 11* › *Record
+(2026-10-04): slice 11* › *What slice 12 starts from* is where to start,
+read with D258 to D265.
 
 ## Goal
 
@@ -7930,6 +7932,42 @@ What slice 11 built, which slice 12's loop enumeration reads or changes:
   (`tests/intervals.rs`'s guard tests read a `while` loop's body for that
   reason).
 
+#### Record (2026-10-05): review fixes for slice 11
+
+The review of slice 11 on the landed tree (`f608abe7`) found no blocking
+defect: its hand-written programs and 420 generated ones print what tclsh 8.4
+to 9.1 print under the matching dialect. It asks for three fixes before slice
+12: the bounds checks read a range from a comparison for a value that may be
+no integer, which the slice's new rows widened (S1, with #2368's `end`); the
+twelve witnesses read no arm's narrowed value, so an exact value where the
+table says "never the string" would pass them (S2, with the nits N1 and N2);
+and the I230 note says top-level names are never narrowed, which the code
+does not hold to (S3, with the page edits S4, S5, N4 and N5). N3 and N6 are
+not taken; the review's P1 to P7 are filed as issues. Each fix is its own
+commit; the decisions are D265 onward in § *Decisions taken*, in the
+paragraph headed *Taken in the review fixes of slice 11*.
+
+| Item | Commit | What landed | Its tests |
+|---|---|---|---|
+| S1 | ``wip(value-transfers): slice 11 — review fixes: a range from a comparison holds of an integer`` | **A range refinement narrows only a version proved an integer (D265).** `intervals::refine_interval` takes the type lattice beside the solver's result and intersects the range refinements in force at a block only where `proved_integer` holds: the type lattice types the version an integer (an integer literal, an `incr`, a route that builds one), or a type refinement in force there does (`string is integer -strict`). `interval_bounds::find_interval_bounds_with` and `find_divide_by_zero_with` take the pair, from `dataflow.rs` and the Explorer's bounds view. The slice's `!=` false edge and its `&&`, `\|\|` and `!` compositions had reached W230 for a value that passes a comparison as a double or a string, as the guard walk's half-lines already had (#2368): the review's `g 7.0` drew "index $i is 7, past the end" where tclsh raises `bad index "7.0"`, and `end` past `$i > 5` drew "past the end" where tclsh prints `c`. | `a_range_from_a_comparison_narrows_only_a_proved_integer` (`value_transfer_witnesses.rs`, new: the review's `g 7.0` program and #2368's, its `gets stdin` a parameter, draw no W230 under the five dialects, which the landed tree's binary reports on both; `end` prints `c` and `7.0` raises under tclsh 8.4 to 9.1 before and after `tcl opt`; `9` proved an integer draws W230 where tclsh prints `<>`; with the proof check disabled the test fails on the `end` program); in `tests/intervals.rs`, `a_guard_narrows_an_index_proved_an_integer` (was `a_numeric_guard_narrows_the_index`, now under a `string is integer -strict` proof), `a_guard_narrows_no_index_not_proved_an_integer` (new: `$i > 5` and the false edge of `$i != 7` over a string) and `a_boolean_word_bounds_no_index` (now under the proof, so the boolean word is still what it reads); the loop and numeral tests pass unchanged, their counters typed integers |
+
+Green at S1: `tcl-compiler` 10165 passed, 6 ignored across its binaries and
+doctests (the library 6730, `value_transfer_witnesses` 130, `intervals` 74),
+`tcl-registry` 1426, `tcl-explorer` 111, `tcl-lsp-db` 139, 5 ignored,
+`tcl-lsp-core --lib` 2353, `tcl-cli` 205, `xtask` 275, `tcl-spectcl` 476, 1
+ignored (under a private `XDG_CACHE_HOME`), and `tcl-cmd-core` 143; the gates,
+the compiler's `interval` unit tests, `intervals`, `value_transfer_witnesses`
+and `tcl-explorer` once more after `refine_interval`,
+`find_interval_bounds_with` and `find_divide_by_zero_with` took the type map
+under any hasher (clippy's `implicit_hasher`); workspace clippy
+(`--all-targets -D warnings -A clippy::assert_is_empty`), no `#[allow]`
+added, `cargo fmt --check` and `cargo check --workspace --all-targets` clean;
+`value-transfers --check` (22 clean, 19 waived, 83 pinned across 34 files,
+6625 rows) and `registry-axes --check` (7834 vocabulary words, 16 clean, 37
+waived, 893 pinned across 147 files) unchanged; `pack-goldens`,
+`retired-api-gate`, `owner-resolution` and `kcs-index-links` pass;
+`dialect-drift` 8 sites, none new.
+
 ### Slice 12 — bounded-loop enumeration
 
 #### Goal and exit
@@ -11366,6 +11404,10 @@ Taken in slice 11, predicate refinement (§ *Slice 11* › *Record (2026-10-04):
 - **D262 — The ranges read the range refinements, and an ordered comparison states its half-line** (VT11.3; R1). `intervals::refine_interval` read the dominating conditions itself (`build_guard_index`, `guard_constraint`, `guard_interval`), matching operators outside the condition tree, which R1 forbids; it now intersects the range refinements in force at the use's block (`SccpResult::refinements_in`). The condition transfer gains the rows the ranges read: `<`, `<=`, `>` and `>=` against an integer numeral, either side (`turned_round`), state the half-line an integer operand lies on, on each edge (`ordering_facts`; the false edge reads `BinOp::inverse`, saturating at the 64-bit edge). The literal is read as `==` reads one (`classify_operand`), so a word — `true` and `false` among them, which a comparison reads as a string — a double, a bignum and an open leading zero state nothing: the guard's own reading took a boolean word as 0 or 1 (`literal_int`), and `set i [string trim $s]; if {$i < false} {lindex {a b} $i}` reported W230 where tclsh 8.4 to 9.1 print `b` for `1` (#2369, closed by this landing at the coordinator's ruling). A range from a comparison holds of an integer operand: a value that is not one compares as a double or a string, so `end` passes `$i > 5` and indexes the last element, and W230's reading such a value as an integer is #2368's to fix, outside the lane; the refinement keeps the condition's semantics as it found them. The ranges now take a refinement only for a plain local no other actor may write, in a block that holds no barrier, where the guard walk took any dominating condition.
 - **D263 — W210 takes an existence guard's word from the condition's transfer, by the dominance the walk tested** (VT11.3; the delta "the existence guard is the refinement lookup (byte-identical effect)"). VT11.3 has the walk's three callers read "the block-qualified existence fact", the rung's. The rung refines no place another actor may write — a global, an alias, and every name of a module whose callbacks the analyser cannot read — and the walk narrowed W210 for every place; reading the rung alone, the landing's first form drew W210 on `return $answer` after `if {![info exists answer]} {set answer …}` in tcllib's `ident.tcl` and on `loggerUtils.tcl`'s `appender`, which the walk had kept silent and tclsh never raises. So the walk's reading of the condition goes — `collect_existence_guards` with `existence_query::in_expr`, and `block_dominated_by` and `existence_exempt` — and its answer stays: the solver records each place a guarded edge proves bound from the condition transfer's existence facts (`SccpResult::existence_guards`, every place, the rung's own and the rest), and W210 asks whether the edge's block dominates the read's, the predecessor's or the return's (`SccpResult::guarded`), by name as the walk did. The transfer states a guard under `&&` and `||` too, which the walk did not read, so a read those forms guard is no longer reported for a place the rung does not refine, as it already was not for one it does (slice 8). The rung's last word at every W210 stays as it was; `UndefSuppressionSemantics` loses the lexer configuration only the walk read.
 - **D264 — The type lattice reads the type refinements, and so do the shimmer use checks** (VT11.3). `propagate_types` types each block under the type refinements in force there (`type_refined_statements`, over `types_at`: the proved type, or the version's own where that is the proved one or narrower), so a definition there takes it, and gives each version its own type back past the block; `types_in_force` keeps the per-block answer, which the use-site and expression shimmer checks read through `shimmer::BlockTypes`. That is where `string is` typing its arm shows: S100 on an index read of `i` inside `if {[string is integer -strict $i]}` is gone, since the test left `i` an integer. Every shimmer check skips a version-0 read, so a parameter's refinement changes no report.
+
+Taken in the review fixes of slice 11 (§ *Slice 11* › *Record (2026-10-05): review fixes for slice 11*):
+
+- **D265 — A range refinement narrows only a version proved an integer, and the bounds checks read nothing else** (S1 of the slice 11 review; correcting D262's ruling that W230's reading is #2368's to fix). D262 kept the guard walk's meaning — a range holds of the value when it is an integer — and left W230 reading every narrowed range as an integer fact; the slice's new rows, the false edge of `!=` and the `&&`, `||` and `!` compositions, widened that reading's reach, and the review's `g 7.0` drew W230 where tclsh raises `bad index "7.0"`. At the coordinator's ruling the rule lives in one place: `refine_interval` intersects the range refinements only for a version the type lattice types an integer or a type refinement in force at the block proves one (`proved_integer`), so a value that may compare as a double or a string keeps its own interval, which only integers reach. A numeric `==` proves a number and no integer — `7.0 == 7` holds — so its `Numeric` type refinement is no proof, against the ruling's list, whose `g 7.0` witness it would have left reported. #2368's `end` program falls under the same rule. W231, W232 and W233 read the same narrowing, so a divisor that `$d == 0` passes, which `0.0` does, is no longer read as the integer 0: `expr {1 / 0.0}` raises under 8.4 and is `Inf` from 8.5.
 
 ### Open questions for the owner
 

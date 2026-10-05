@@ -526,9 +526,13 @@ own type again past the arm. The ranges read the range refinements in
 place of a reading of the condition of their own
 (`intervals::refine_interval`), and through them W230 to W233 narrow an
 index or a divisor. A range from a comparison holds of a value that is an
-integer: one that is not compares as a double or a string, so `end` passes
-`$i > 5`, and an index check that reads such a value as an integer reads
-past the fact (#2368).
+integer — one that is not compares as a double or a string, so `end` passes
+`$i > 5` and `7.0` fails `$i != 7` — so the ranges take a range refinement
+only for a version proved an integer at the block (`proved_integer`): the
+type lattice types it one (an integer literal, an `incr`, a route that
+builds an integer), or a `string is integer -strict` refinement in force
+there does. A numeric `==` proves a number, which `7.0` is, and no
+integer.
 
 ### Preserve outcomes (`SccpResult::preserved`)
 

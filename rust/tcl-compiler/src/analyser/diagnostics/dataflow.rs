@@ -2240,7 +2240,7 @@ file; this call falls through to the 'unknown' handler."
         for finding in crate::interval_bounds::find_divide_by_zero_with(
             &fu.cfg,
             &fu.ssa,
-            &fu.sccp,
+            (&fu.sccp, &fu.types),
             &executable,
             // The document's own numeral grammar: a divisor literal means what
             // this dialect says it means (`0755` is 493 up to 8.6, 755 from
@@ -2289,7 +2289,7 @@ file; this call falls through to the 'unknown' handler."
         let findings = crate::interval_bounds::find_interval_bounds_with(
             &fu.cfg,
             &fu.ssa,
-            &fu.sccp,
+            (&fu.sccp, &fu.types),
             &executable,
             self.profile.character_model(),
             // The document's own numeral grammar, alongside the character model

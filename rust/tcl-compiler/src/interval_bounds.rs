@@ -48,6 +48,7 @@ use crate::ir::Statement;
 use crate::sccp::SccpResult;
 use crate::segmenter::segment_commands_with_offset_and_config;
 use crate::ssa::{Phi, SsaFunction, Symbol, ValueKey, Version};
+use crate::types::TypeLattice;
 
 /// `(name, version) → Phi` index over every block, for length resolution
 /// through loop-header phis.
@@ -599,9 +600,10 @@ fn has_candidate(cfg: &CfgFunction, ssa: &SsaFunction, grammar: tcl_dialect::Lex
 }
 
 /// Dynamic out-of-range findings for this function (empty if none), over
-/// the solver's result `sccp`: its lattice seeds the intervals and its range
-/// refinements narrow an index where it is read. `executable` restricts to
-/// SCCP-reachable blocks.
+/// the solver's result `sccp` and the type lattice `types`: the lattice seeds
+/// the intervals, and its range refinements narrow an index the types prove
+/// an integer where it is read ([`refine_interval`]). `executable` restricts
+/// to SCCP-reachable blocks.
 ///
 /// `numbers` is the target release's numeric-literal grammar, threaded from the
 /// analyser's dialect alongside `characters` (the same shape of dialect-derived
@@ -609,10 +611,10 @@ fn has_candidate(cfg: &CfgFunction, ssa: &SsaFunction, grammar: tcl_dialect::Lex
 /// `0755` is 493 up to 8.6 and 755 from 9.0 — so a version-blind read can prove
 /// a range that reality never has.
 #[must_use]
-pub fn find_interval_bounds_with<S>(
+pub fn find_interval_bounds_with<S, T>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    sccp: &SccpResult,
+    (sccp, types): (&SccpResult, &HashMap<ValueKey, TypeLattice, T>),
     executable: &std::collections::HashSet<BlockId, S>,
     characters: Option<StringCharacterModel>,
     numbers: NumberSyntax,
@@ -620,6 +622,7 @@ pub fn find_interval_bounds_with<S>(
 ) -> Vec<BoundsFinding>
 where
     S: std::hash::BuildHasher,
+    T: std::hash::BuildHasher,
 {
     if !has_candidate(cfg, ssa, grammar) {
         return Vec::new();
@@ -627,6 +630,7 @@ where
     let ctx = BoundsCtx {
         ssa,
         sccp,
+        types,
         intervals: compute_intervals_with(cfg, ssa, &sccp.values, numbers),
         lengths: list_length_map(ssa, grammar),
         grammar,
@@ -679,11 +683,13 @@ where
 
 /// Read-only analysis state shared by the per-candidate bounds checks,
 /// borrowed for the duration of [`find_interval_bounds`].
-struct BoundsCtx<'a> {
+struct BoundsCtx<'a, T> {
     ssa: &'a SsaFunction,
     /// The solver's result, whose range refinements in force at a block
     /// narrow an index read there ([`refine_interval`]).
     sccp: &'a SccpResult,
+    /// The type lattice, which proves an index an integer.
+    types: &'a HashMap<ValueKey, TypeLattice, T>,
     intervals: HashMap<ValueKey, Interval>,
     lengths: HashMap<ValueKey, i64>,
     str_lengths: HashMap<ValueKey, i64>,
@@ -706,7 +712,7 @@ struct CandidateSite<'a> {
     stmt_idx: usize,
 }
 
-impl BoundsCtx<'_> {
+impl<T: std::hash::BuildHasher> BoundsCtx<'_, T> {
     /// Resolve the list length backing `cand` at one call site, if known.
     fn length_for_list(&self, cand: &Candidate, site: &CandidateSite) -> Option<i64> {
         let ssa = self.ssa;
@@ -782,7 +788,7 @@ impl BoundsCtx<'_> {
         let iv = refine_interval(
             &self.intervals,
             ssa,
-            self.sccp,
+            (self.sccp, self.types),
             site.bn,
             &index_var,
             index_version,
@@ -945,7 +951,8 @@ fn has_division(cfg: &CfgFunction, ssa: &SsaFunction) -> bool {
 /// Divisions / modulo whose divisor is provably `[0, 0]` (a runtime error).
 ///
 /// Sound: the divisor's interval (narrowed at the use site by the range
-/// refinements of the solver's result `sccp` in force there) must be
+/// refinements of the solver's result `sccp` in force there, for a divisor
+/// the type lattice `types` proves an integer) must be
 /// exactly `[0, 0]`, and the block must be SCCP-executable. Shares the same
 /// interval machinery (`compute_intervals_with` / `refine_interval` /
 /// `eval_expr`) as [`find_interval_bounds_with`], including its `numbers`
@@ -953,15 +960,16 @@ fn has_division(cfg: &CfgFunction, ssa: &SsaFunction) -> bool {
 /// spelling that is not a numeral there (`0o0` under 8.4) proves nothing.
 /// Findings are returned in source-span order for deterministic output.
 #[must_use]
-pub fn find_divide_by_zero_with<S>(
+pub fn find_divide_by_zero_with<S, T>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    sccp: &SccpResult,
+    (sccp, types): (&SccpResult, &HashMap<ValueKey, TypeLattice, T>),
     executable: &std::collections::HashSet<BlockId, S>,
     numbers: NumberSyntax,
 ) -> Vec<DivZeroFinding>
 where
     S: std::hash::BuildHasher,
+    T: std::hash::BuildHasher,
 {
     if !has_division(cfg, ssa) {
         return Vec::new();
@@ -976,7 +984,7 @@ where
                     let name = ssa.var_name(sym);
                     (
                         name.to_owned(),
-                        refine_interval(&intervals, ssa, sccp, bn, name, ver),
+                        refine_interval(&intervals, ssa, (sccp, types), bn, name, ver),
                     )
                 })
                 .collect()
@@ -1088,7 +1096,7 @@ mod tests {
         super::find_divide_by_zero_with(
             &fu.cfg,
             &fu.ssa,
-            &fu.sccp,
+            (&fu.sccp, &fu.types),
             &fu.sccp.executable_blocks,
             tcl_dialect::NumberSyntax::default(),
         )

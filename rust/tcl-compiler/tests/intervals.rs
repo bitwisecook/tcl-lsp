@@ -213,22 +213,36 @@ mod dynamic_lindex_out_of_range {
     }
 
     #[test]
-    fn a_numeric_guard_narrows_the_index() {
-        // `$i > 5` holding puts an integer `i` at 6 or more, past a
-        // three-element list (tclsh: `lindex {a b c} 9` → ""). The range holds
-        // of an integer `i`: `end` passes the guard as a string and indexes
-        // the last element, the reading #2368 records.
-        let src = "proc f {s} {\n    set i [string trim $s]\n    if {$i > 5} { set x [lindex {a b c} $i] }\n}";
+    fn a_guard_narrows_an_index_proved_an_integer() {
+        // `string is integer -strict $i` proves `i` an integer, and `$i > 5`
+        // then puts it at 6 or more, past a three-element list (tclsh:
+        // `lindex {a b c} 9` → "").
+        let src = "proc f {s} {\n    set i [string trim $s]\n    if {[string is integer -strict $i] && $i > 5} { set x [lindex {a b c} $i] }\n}";
         assert_eq!(count(src, "W230"), 1);
+    }
+
+    #[test]
+    fn a_guard_narrows_no_index_not_proved_an_integer() {
+        // A range from a comparison holds of an integer, and nothing proves
+        // `i` one: `end` passes `$i > 5` as a string and indexes the last
+        // element (tclsh: `lindex {a b c} end` → "c"; #2368), and `7.0` fails
+        // `$i != 7` and is no index at all (tclsh raises `bad index "7.0"`).
+        for guard in [
+            "if {$i > 5} { set x [lindex {a b c} $i] }",
+            "if {$i != 7} {} else { set x [lindex {a b c} $i] }",
+        ] {
+            let src = format!("proc f {{s}} {{\n    set i [string trim $s]\n    {guard}\n}}");
+            assert_eq!(count(&src, "W230"), 0, "{guard}");
+        }
     }
 
     #[test]
     fn a_boolean_word_bounds_no_index() {
         // `$i < false` compares as strings — an ordered comparison reads no
-        // boolean word as a number — so it bounds nothing (#2369). tclsh 8.4
-        // to 9.1: with `i` 1, `expr {$i < false}` → 1 ("1" sorts before
-        // "false") and `lindex {a b} 1` → "b".
-        let src = "proc f {s} {\n    set i [string trim $s]\n    if {$i < false} { set x [lindex {a b} $i] }\n}";
+        // boolean word as a number — so it bounds nothing (#2369), even for
+        // an `i` proved an integer. tclsh 8.4 to 9.1: with `i` 1, `expr {$i <
+        // false}` → 1 ("1" sorts before "false") and `lindex {a b} 1` → "b".
+        let src = "proc f {s} {\n    set i [string trim $s]\n    if {[string is integer -strict $i] && $i < false} { set x [lindex {a b} $i] }\n}";
         assert_eq!(count(src, "W230"), 0);
     }
 
@@ -862,7 +876,7 @@ mod guard_narrowing {
         let fu = cu.procedures.get(&key).unwrap();
         let iv = compute_intervals_with(&fu.cfg, &fu.ssa, &fu.sccp.values, numbers());
         let (body, version) = body_read(fu);
-        let r = refine_interval(&iv, &fu.ssa, &fu.sccp, body, "i", version);
+        let r = refine_interval(&iv, &fu.ssa, (&fu.sccp, &fu.types), body, "i", version);
         assert_eq!(
             r,
             Interval {
@@ -888,7 +902,7 @@ mod guard_narrowing {
         let sym = fu.ssa.var_symbol("i").expect("i interned");
         let base = iv.get(&(sym, version)).copied().expect("the φ's interval");
         assert_eq!(base.hi, None, "the loop widens i above: {base:?}");
-        let r = refine_interval(&iv, &fu.ssa, &fu.sccp, body, "i", version);
+        let r = refine_interval(&iv, &fu.ssa, (&fu.sccp, &fu.types), body, "i", version);
         assert_eq!(r, base, "a symbolic bound leaves the interval as it was");
         assert!(
             r.lo.is_some_and(|lo| lo >= 0),
@@ -1008,7 +1022,7 @@ mod dialect_numerals {
         })?;
         let sym = fu.ssa.var_symbol("i").expect("i interned");
         let version = *fu.ssa.blocks.get(&body)?.entry_versions.get(&sym)?;
-        let refined = refine_interval(&iv, &fu.ssa, &fu.sccp, body, "i", version);
+        let refined = refine_interval(&iv, &fu.ssa, (&fu.sccp, &fu.types), body, "i", version);
         if refined.is_bottom() {
             return None;
         }

@@ -7441,3 +7441,35 @@ fn a_definition_in_a_refined_arm_takes_the_arms_value() {
     }
     prints_under_every_release(source, "a\na\n");
 }
+
+/// A range from a comparison holds of an integer operand, and the bounds
+/// checks take one only for an index proved an integer: `end` passes `$i > 5`
+/// as a string and indexes `c` (#2368's program, its `gets stdin` a
+/// parameter here), and `7.0` fails `$i != 7` and is no index, `lindex`
+/// raising `bad index "7.0"` (the review's program), so W230 reports
+/// neither, under every dialect. Proved an integer by `string is integer
+/// -strict`, `9` past `$i > 5` is past the end: W230 reports it, and tclsh
+/// prints `<>`.
+#[test]
+fn a_range_from_a_comparison_narrows_only_a_proved_integer() {
+    let end = "proc q {s} {\n    set i [string trim $s]\n    if {$i > 5} {\n        set x [lindex {a b c} $i]\n        puts $x\n    }\n}\nq end\n";
+    let point = "proc g {s} {\n    set i [string trim $s]\n    if {$i != 7} { puts no } else { set x [lindex {a b c} $i]; puts $x }\n}\ng 7.0\n";
+    let proved = "proc h {s} {\n    set i [string trim $s]\n    if {[string is integer -strict $i] && $i > 5} {\n        set x [lindex {a b c} $i]\n        puts <$x>\n    }\n}\nh 9\n";
+    for dialect in DIALECTS {
+        assert!(!reports(end, dialect, DiagCode::W230), "{dialect}: end");
+        assert!(!reports(point, dialect, DiagCode::W230), "{dialect}: 7.0");
+        assert!(reports(proved, dialect, DiagCode::W230), "{dialect}: 9");
+    }
+    prints_under_every_release(end, "c\n");
+    prints_under_every_release(proved, "<>\n");
+    for (series, tclsh) in releases_on_path() {
+        let (rewritten, _) = optimised(point, &dialect_of(series));
+        for program in [point, rewritten.as_str()] {
+            assert_eq!(
+                run_script(&tclsh, program),
+                Some((false, String::new())),
+                "tclsh{series}:\n{program}"
+            );
+        }
+    }
+}

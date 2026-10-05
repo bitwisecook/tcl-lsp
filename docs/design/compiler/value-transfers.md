@@ -2445,11 +2445,11 @@ type lattice through `string is` and the numeric `==`, and the shimmer
 checks that read it; the existence rung, and for W210 the guard's region
 (`SccpResult::existence_guards`, whose block a read's block lies under),
 which holds for a place the rung does not refine; the range domain, which
-W230 to W233 read. O100 reads a
-version's own value, so a definition the arm made from the refined
-variable is inlined where it is read (`set y $x; puts $y` becomes `puts
-a`), and a read of the variable itself is not. Taint never reads values
-and is untouched. Tests:
+W230 to W233 read for a version the type lattice or a `string is` test
+proves an integer. O100 reads a version's own value, so a definition the
+arm made from the refined variable is inlined where it is read (`set y $x;
+puts $y` becomes `puts a`), and a read of the variable itself is not.
+Taint never reads values and is untouched. Tests:
 `info_exists_guard_narrows_read_in_then_arm`,
 `info_exists_negated_guard_narrows_false_arm`, and
 `info_exists_read_outside_guard_still_flags_w210` pin the precedent; the
