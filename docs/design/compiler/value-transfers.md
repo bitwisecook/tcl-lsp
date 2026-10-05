@@ -2075,10 +2075,11 @@ The contract has four parts:
    command and substitution, `incr`, `append`, `lappend`, `lset`, `dict set`,
    `array set`, `unset` and the `global`, `upvar` and `variable` bindings
    (`ssa::switch_may_defs`, the same walk `collapsed_extra_defs` makes). The
-   statement also uses the version each name held before it, as a quoted
-   use — real for liveness, so the store feeding it stays, and never a read
-   for read-before-set — and the solver's value is the join of that version
-   and the written one, which no transfer states: `Overdefined`. A place
+   statement also uses the version each name held before it, and for an
+   element the version its array's base held, as a quoted use — real for
+   liveness, so the store feeding it stays, and never a read for
+   read-before-set — and the solver's value is the join of that version and
+   the written one, which no transfer states: `Overdefined`. A place
    only an arm binds is may-bound afterwards, a binding an arm makes marks its
    name in the alias lattice (`var_observability::stmt_gen`), taint keeps
    what the name held before, and W210 reads the may-definition as a φ with

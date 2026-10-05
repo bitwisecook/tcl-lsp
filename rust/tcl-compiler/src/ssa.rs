@@ -918,6 +918,29 @@ pub(crate) fn switch_may_defs(stmt: &Statement, registry: &CommandRegistry) -> V
     written.into_iter().collect()
 }
 
+/// The bases a statement with arm may-definitions refreshes only because it
+/// may write one of their elements: the array `set a(k) …` names in an
+/// opaque `switch` arm or `catch` body, where the statement states no write
+/// of the base itself ([`switch_may_defs`]). The rename walk gives each a
+/// quoted read of its prior version, for liveness and the solver's join;
+/// read-before-set reads such a base as the definition it is, never as a
+/// name the statement may leave unset.
+pub(crate) fn refreshed_bases(stmt: &Statement, registry: &CommandRegistry) -> Vec<String> {
+    bases_refreshed_by(&switch_may_defs(stmt, registry))
+}
+
+/// The bases of the elements of `stated` that `stated` does not name itself.
+fn bases_refreshed_by(stated: &[String]) -> Vec<String> {
+    let mut bases: Vec<String> = stated
+        .iter()
+        .filter_map(|name| name.find('(').map(|open| name[..open].to_owned()))
+        .filter(|base| !stated.contains(base))
+        .collect();
+    bases.sort();
+    bases.dedup();
+    bases
+}
+
 /// Every name any statement of `script`, however deeply nested, or any `[…]`
 /// substitution in one of its words, may write.
 pub(crate) fn nested_writes(
@@ -3141,11 +3164,15 @@ impl RenameWalk {
         // no arm runs, so the statement uses it: liveness keeps the store that
         // feeds it and the solver joins the two. The use is `Quoted` — real
         // for liveness, but not a read the source states, so read-before-set
-        // never reports it.
-        for var in &switch_may {
-            let sym = self.interner.intern(var);
+        // never reports it. An element's base refresh is a may-def of the
+        // same kind: where no arm writes the element, the array — or the
+        // scalar the write would have raised on — holds what it held, so the
+        // store before it is used too ([`refreshed_bases`]).
+        let may_bases = bases_refreshed_by(&switch_may);
+        for var in switch_may.iter().cloned().chain(may_bases) {
+            let sym = self.interner.intern(&var);
             if let std::collections::hash_map::Entry::Vacant(slot) = uses_map.entry(sym) {
-                slot.insert(self.top(var));
+                slot.insert(self.top(&var));
                 quoted_uses.insert(sym);
             }
         }

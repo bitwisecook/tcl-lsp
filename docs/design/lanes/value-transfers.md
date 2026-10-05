@@ -11,9 +11,10 @@ slice 11 landed*), and its review fixes are in, each its own commit
 (§ *Slice 11* › *Record (2026-10-05): review fixes for slice 11*). Slice 12,
 bounded-loop enumeration, is at its first checkpoint, the enumeration and the
 loop plans, with the post-loop branches deciding for I230 as for O101 (§
-*Slice 12* › *Record (2026-10-05): slice 12*, read with D268 to D274); the
-second checkpoint, where the loop simulator becomes the enumeration, is
-next.
+*Slice 12* › *Record (2026-10-05): slice 12*, read with D268 to D275), and
+the lane's own defect found there, a may-written element's base, is fixed in
+its own commit after it; the second checkpoint, where the loop simulator
+becomes the enumeration, is next.
 
 ## Goal
 
@@ -8386,6 +8387,56 @@ runs: `Enumerator::write` without its store check fails
 `refined_value` keeping a constant a loop's state rules out fails
 `the_state_a_loop_leaves_decides_the_branch_after_it`.
 
+##### The lane's own: a may-written element's base
+
+`wip(value-transfers): slice 12 — a may-written element reads the store to
+its array`, straight after the first checkpoint at the coordinator's ruling
+(D275). Found while preparing the checkpoint's witnesses, and the lane's own:
+the may-definitions of slice 6's review fixes (`5af7169e`, `a47701ee`). An
+element write an opaque `switch` arm or an opaque `catch` body may make
+defines the element and, through `expand_defs`, refreshes its array's base;
+the may-definition rule gave the element a quoted read of its version before
+the statement and the base none, so the store to the base before it had no
+reader where no arm runs or the body raises first. W220 called `set a 5`
+unread in `proc p {x} {set a 5; switch -glob -- $x {x* {set a(k) 1}}; puts
+$a}` and at the top level in `set a 5; catch {set a(k) 1}; puts $a`, and O109
+deleted it: tclsh 8.4 to 9.1 print `5`, and the optimised programs raised
+`can't read "a": no such variable`. The landed slice 11 binary does the same.
+`rename_statement` now gives the base refresh of a may-written element the
+same quoted read of the base's prior version (`ssa::refreshed_bases`), so the
+store stays and W220 is silent. Read-before-set never reports a quoted read,
+but its map of the may-definitions it reads as a φ with one operand
+(`build_phi_undef_index`) takes every may-definition with a prior read, and
+took the refreshed base too: `catch {set a(k) 1}; puts [array size a]`, whose
+base was never set, drew W210 at the `array size` read, which tclsh runs
+cleanly. That map now skips a refreshed base, which W210 reads as the
+definition it was before the fix, so W210 says what it said before for every
+base.
+
+Found beside it and pre-existing, reported, not fixed here: W210 takes `array
+size` and `array names` of an array that may be unset for a read that raises,
+which in tclsh they are not: `puts [array size a]` alone, and `proc p {c} {if
+{$c} {set a(k) 1}; puts [array size a]}`, draw W210 under the landed slice 11
+binary and this one, where tclsh 8.4 to 9.1 print `0`, and `1` and `0`.
+
+Tests: `a_may_written_element_reads_the_store_to_its_array`
+(`value_transfer_witnesses.rs`, new: the two programs and the two never-set
+shapes, a `catch` at the top level and a `switch` in a procedure, under the
+five dialects, no W220 and no W210, each printing what tclsh 8.4 to 9.1 print
+before and after `tcl opt`; with the base's read removed the test fails on
+the `switch` program, and with the map's skip removed on the never-set
+`catch`).
+
+Green at the fix: `tcl-compiler` 10172 passed, 6 ignored (the new witness),
+`tcl-registry` 1428, `tcl-explorer` 112, `tcl-lsp-db` 139, 5 ignored,
+`tcl-lsp-core --lib` 2353, `tcl-cli` 205, `xtask` 275, `tcl-spectcl` 476, 1
+ignored (under a private `XDG_CACHE_HOME`), and `tcl-cmd-core` 143; workspace
+clippy, `cargo fmt --check` and `cargo check --workspace --all-targets` clean;
+`value-transfers --check` and `registry-axes --check` unchanged,
+`pack-goldens`, `retired-api-gate`, `owner-resolution` and `kcs-index-links`
+pass, and `dialect-drift` stays at its 8 sites. Each mutation was reverted
+before the runs.
+
 ### Slice 7a — seedless return summaries
 
 #### Goal and exit
@@ -11643,6 +11694,8 @@ Taken in slice 12, bounded-loop enumeration (§ *Slice 12* › *Record (2026-10-
 - **D272 — The enumeration takes a head under the run's trust stance, and the registry's table where the run has none** (VT12.1, VT12.3). A run with fold inputs takes a head only as `trusted` says, as every route does. A run without them — the plain `sccp` entry, which `sccp_folds_post_loop_branch_via_static_summary` calls and which answers for no resolved command — takes the registry's table, as its expression route and a math function's binding are read and as `loop_summary_decision` ran the simulator there, so that test passes unchanged.
 - **D273 — `loop_summary_decision` goes at the first checkpoint** (VT12.4, brought forward). Kept beside the enumeration, it re-ran the simulator at every sweep visit to the branch after a loop: the cap witness's 4096-pass program took 23.6 s to analyse with the parent's binary and takes 2.3 s with the checkpoint's. The exit refinements decide every branch it decided, and the branches it could not.
 - **D274 — I230 knows a loop's test by its false edge into the loop's exit block** (the coordinator's ruling on the slice 11 review's note on #2375). The loop leg of `emit_constant_branch_diagnostics`'s block-name classifier took any branch whose block or targets were named `for_`, `while_` or `foreach_` for a loop's test and kept its I230 when true, so a decided `if` in a loop's body or right after the loop was silent. The CFG's loop records say which branch tests a loop: the one whose false edge enters the block the loop leaves to, in a `for` rotated to test at its step as in its header. A natural loop from the loop forest would not do: `while 1 { return x }` has no back edge.
+
+- **D275 — A may-written element's base refresh reads the base's prior version, and W210 reads the base as before** (the lane's own defect from slice 6's review fixes, found while preparing slice 12; the coordinator's ruling). `expand_defs` refreshes an array's base for every element a statement defines, reading nothing, which stands for a write that certainly runs: an extra read there would make every element write an observation of the whole array. A may-definition — an opaque `switch` arm's write, an opaque `catch` body's, a callee's through the `ArmWrites` marker — leaves the base as it was on the paths where the write does not land, so its refresh is a may-definition too, and takes the quoted read the element's already takes: liveness keeps the store that feeds it and the solver joins the two. W210's φ map of the may-definitions skips the refreshed base, so read-before-set reads it as the definition it was before the fix rather than as a name the statement may leave unset: the coordinator's check that a base never set before draws no W210, which the φ reading broke at `array size`, a read W210 already takes for one that raises.
 
 ### Open questions for the owner
 

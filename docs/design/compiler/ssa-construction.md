@@ -131,7 +131,12 @@ writes rather than writes the statement performs itself — the base refresh
 alongside an element write (`set arr(k) v` also defs `arr`), and the element
 fan of a dynamic-key write.  Type inference **joins** across a may-def;
 write-sensitive passes (shimmer oscillation, dead-store) must not count one
-as a real write.  `quoted_uses` is the subset of `uses` carried only by a
+as a real write.  A statement whose writes may not land at all — an opaque
+`switch`'s arm writes, the names an `ArmWrites` marker states for an opaque
+`catch` body or a callee — also reads, as a quoted use, the version each such
+name held before it, and for an element the version its array's base held,
+so the store before it stays live where the write does not land; W210 reads
+such a base as the definition it is (`ssa::refreshed_bases`).  `quoted_uses` is the subset of `uses` carried only by a
 brace-quoted word the statement does not substitute — see
 [def-use-chains.md](def-use-chains.md).
 

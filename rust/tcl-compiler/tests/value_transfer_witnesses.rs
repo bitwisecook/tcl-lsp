@@ -7667,3 +7667,40 @@ fn a_loops_own_test_is_the_branch_that_leaves_it() {
     }
     prints_under_every_release(source, "3\ndone\n");
 }
+
+/// A store before an opaque `switch` arm or an opaque `catch` body that may
+/// write an element of the array it names is read by the statement: where
+/// no arm runs, or the body raises before the element write lands, the base
+/// holds what it held, so `set a 5` stays live, W220 does not report it, and
+/// O109 does not delete it — which made `puts $a` raise `can't read "a": no
+/// such variable` where tclsh prints `5`. The read is quoted, and
+/// read-before-set reads the base as the definition it was, so a base never
+/// set before draws no W210. tclsh 8.4 to 9.1 print `5` twice, `5`, `1`, and
+/// `1` and `0`, before and after `tcl opt`.
+#[test]
+fn a_may_written_element_reads_the_store_to_its_array() {
+    let switch_arm = "proc p {x} {\n    set a 5\n    switch -glob -- $x { x* {set a(k) 1} }\n    \
+                      puts $a\n}\np y\np z\n";
+    let catch_body = "set a 5\ncatch {set a(k) 1}\nputs $a\n";
+    let never_set_catch = "catch {set a(k) 1}\nputs [array size a]\n";
+    let never_set_switch = "proc p {x} {\n    switch -glob -- $x { x* {set a(k) 1} }\n    \
+                            puts [array size a]\n}\np x\np y\n";
+    for dialect in DIALECTS {
+        for source in [switch_arm, catch_body] {
+            assert!(
+                !reports(source, dialect, DiagCode::W220),
+                "{dialect}\n{source}"
+            );
+        }
+        for source in [never_set_catch, never_set_switch] {
+            assert!(
+                !reports(source, dialect, DiagCode::W210),
+                "{dialect}\n{source}"
+            );
+        }
+    }
+    prints_under_every_release(switch_arm, "5\n5\n");
+    prints_under_every_release(catch_body, "5\n");
+    prints_under_every_release(never_set_catch, "1\n");
+    prints_under_every_release(never_set_switch, "1\n0\n");
+}

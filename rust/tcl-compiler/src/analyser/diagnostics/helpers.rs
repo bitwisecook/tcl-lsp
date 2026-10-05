@@ -695,7 +695,17 @@ pub(super) fn build_phi_undef_index(
         }
         for s in &sblock.statements {
             if crate::ssa::has_arm_may_defs(&s.statement) {
+                // A base the statement refreshes only for an element it may
+                // write reads its prior version for liveness alone: it stays
+                // the definition it is here.
+                let refreshed = crate::ssa::refreshed_bases(
+                    &s.statement,
+                    registry.unwrap_or_else(|| tcl_registry::default_registry()),
+                );
                 for symbol in &s.may_defs {
+                    if refreshed.iter().any(|base| base == ssa.var_name(*symbol)) {
+                        continue;
+                    }
                     if let (Some(&version), Some(&prior)) = (s.defs.get(symbol), s.uses.get(symbol))
                     {
                         may_defs.insert((ssa.var_name(*symbol).to_owned(), version), (bn, prior));
