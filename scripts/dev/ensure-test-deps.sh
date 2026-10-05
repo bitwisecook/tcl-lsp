@@ -1163,7 +1163,7 @@ ensure_rgxg() {
 # install the same uv from the same script.  Re-pin both together:
 #   curl -fsSL https://astral.sh/uv/<version>/install.sh | sha256sum
 UV_VERSION="0.12.23"
-UV_INSTALLER_SHA256="a3196b75f697a1adaa5e4af34ffba7629c710931ab1dac33bab59ecf228080bb"
+UV_INSTALLER_SHA256="b8e6c43099ee9f9a550984d3ad56948457c689e7a99c090b35377234ac241491"
 
 ensure_uv() {
     if [ "${SKIP_UV:-}" = "1" ]; then info "SKIP_UV=1 — skipping uv"; return 0; fi

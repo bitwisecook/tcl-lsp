@@ -2557,7 +2557,7 @@ jobs:
         if: env.RUN_PY == 'true'
         env:
           UV_VERSION: "0.12.23"
-          UV_INSTALLER_SHA256: "a3196b75f697a1adaa5e4af34ffba7629c710931ab1dac33bab59ecf228080bb"
+          UV_INSTALLER_SHA256: "b8e6c43099ee9f9a550984d3ad56948457c689e7a99c090b35377234ac241491"
         run: |
           set -euo pipefail
           curl -LsSf --max-time 120 -o /tmp/uv-installer.sh \
@@ -2571,7 +2571,7 @@ jobs:
         run: |
           actual="$(uv --version | awk '{print $2}')"
           echo "uv $actual"
-          [ "$actual" = "0.12.10" ] || { echo "::error::expected uv 0.12.10, got $actual"; exit 1; }
+          [ "$actual" = "0.12.23" ] || { echo "::error::expected uv 0.12.23, got $actual"; exit 1; }
 
       - name: ruff (format --check + check)
         if: env.RUN_PY == 'true'
