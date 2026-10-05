@@ -101,7 +101,7 @@ Every other scanned file with an unwaived site, and its count, which is the pin 
 | `rust/tcl-cli/src/commands/spec.rs` | 1 |
 | `rust/tcl-cli/src/commands/transform.rs` | 2 |
 | `rust/tcl-cli/src/lib.rs` | 1 |
-| `rust/tcl-compiler/src/analyser/bounds_checks.rs` | 34 |
+| `rust/tcl-compiler/src/analyser/bounds_checks.rs` | 32 |
 | `rust/tcl-compiler/src/analyser/class_lattice.rs` | 5 |
 | `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` | 7 |
 | `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs` | 1 |
@@ -112,7 +112,7 @@ Every other scanned file with an unwaived site, and its count, which is the pin 
 | `rust/tcl-compiler/src/analyser/diagnostics/var_command.rs` | 7 |
 | `rust/tcl-compiler/src/analyser/diagnostics/version_gate.rs` | 1 |
 | `rust/tcl-compiler/src/analyser/handlers.rs` | 9 |
-| `rust/tcl-compiler/src/analyser/irules_event_checks.rs` | 8 |
+| `rust/tcl-compiler/src/analyser/irules_event_checks.rs` | 7 |
 | `rust/tcl-compiler/src/analyser/oo.rs` | 5 |
 | `rust/tcl-compiler/src/analyser/param_traits.rs` | 16 |
 | `rust/tcl-compiler/src/analyser/per_item.rs` | 4 |

@@ -25,7 +25,9 @@ comparison.
 
 The condition need not be a literal. When the analyser proves it is false the
 first time the loop is reached — a variable that holds `0`, the first test of a
-`for` counter — the loop is just as dead.
+`for` counter, whether its start script writes a literal or a variable the
+analyser knows (`set start 20; for {set i $start} {$i < 10} …`) — the loop is
+just as dead.
 
 ## Example that triggers it
 

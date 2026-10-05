@@ -271,6 +271,24 @@ unit decides — its header is not reached, its condition varies, a
 stub-declared loop command the CFG keeps as a call, a complexity-guarded
 body — keeps the verdict its text gives, reported after the pass.
 
+What the text gives includes the loop's counter, as its iteration plan states
+it (`LoopCounter`): the condition compares one variable with a literal bound,
+and every pass adds one literal step — the counted plan's step script, or the
+one increment at the top level of a conditional plan's body, each the
+registry's integer cell update run over its words — with nothing else in the
+loop writing the variable and nothing in the body leaving it, however the
+word that holds the exit or the write is written. A counter that never
+reaches its bound from the integer a `for`'s start script writes is W241 by
+the text alone. A loop the unit holds and does not decide reads the integer
+the solver proves the counter holds at the block its passes start from
+instead (`LoopTerminationCandidate::seed`), so `set i $start` before the loop
+is checked as `set i 5` is, a `while` among them:
+
+```text
+set start 5; set i $start
+while {$i < 10} {incr i -1}    ;# W241: counter $i starts at 5, moves by -1 per step
+```
+
 I230 reads a loop's own test structurally: the branch whose false edge enters
 the block the loop leaves to (`cfg.loop_nodes`) is the loop's test, and a
 decided true one — the idiomatic `while 1` — is not reported. A decided `if`
@@ -289,7 +307,11 @@ script, the block before the loop otherwise. After the fixed point,
 start state (`start_state`: each value the settled lattice proves exact at
 that block's exit, under the refinements in force there, a scalar of unknown
 value or no binding where the existence rung proves it so) and runs
-`static_loops::enumerate_loop` over it. A loop that leaves normally — its
+`static_loops::enumerate_loop` over it. A statement's word is read over the
+state: a literal word as its value, a variable as the state holds it, and a
+`[…]` script as the one command it names, run by its route under the
+effect-free policy, so `incr x [expr {$b / $a}]` adds the quotient the
+state's `a` and `b` give, and a script that stores declines the loop. A loop that leaves normally — its
 iterable exhausted, its condition false, or `break` — states each place it
 wrote as an exact-value `EdgeRefinement` on every executable edge into the
 block it leaves to, for the version live there, and the solver runs again
@@ -382,7 +404,7 @@ caller-frame barrier ([value-transfers.md](value-transfers.md) § `switch`).
 Consumers read the one decision. O112 folds a `switch` only from it: the
 record at the statement's span for an opaque form, the `Applied` facts of the
 chain for a flattened one. The analyser's `switch_body_is_selected` and the
-loop simulator's `exec_switch`, which hold words rather than a lattice, ask
+loop enumeration's `exec_switch`, which hold words rather than a lattice, ask
 the same `Selection` transfer through `value_transfer::literal_selection` and
 `statement_selection`. I231 reports each `Selected` arm. A selection never
 applies reachability, because no block stands for an arm: O107 does not fire

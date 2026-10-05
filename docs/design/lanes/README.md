@@ -136,8 +136,18 @@ checkpoint compiling.
   a store ahead of a write that may stop part-way only where every path
   through the body overwrites it; and the prefix programs run under both
   builds and every release, through the registry's routes and through `tcl
-  opt`) have landed; the slices after them are planned item by item in the
-  tracking document's § *Plan for slices 2–13*.
+  opt`), slice 11 (predicate refinement: what a decided comparison, a
+  `switch` arm, a type test or an existence guard proves holds on its edges,
+  so a nested condition over a refined variable decides, the ranges and the
+  shimmer checks read the facts in force, and W210 reads the guard), and
+  slice 12 (bounded-loop enumeration: the solver runs a loop whose start
+  state it proves to its exit over exact values and existence, each statement
+  through the registry's routes, and states what the loop leaves on its exit
+  edges, so the branch after it decides for I230 as for O101, W230 bounds its
+  counter and the argument-sensitive O103 re-run folds a callee that counts;
+  W240–W242 and IRULE5003 read the iteration plan) have landed; the slices
+  after them are planned item by item in the tracking document's § *Plan for
+  slices 2–13*.
 - [consumer-contracts.md](consumer-contracts.md) — steps 1 to 10 of
   [registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
   § *Build order*: step 1 (the four rulings taken as decided, and the

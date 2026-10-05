@@ -24,7 +24,8 @@ W242 is the counterpart to [W241](kcs-diagnostic-w241-loop-provably-infinite.md)
 W241 fires when the analyser can **prove** the loop runs forever.
 W242 fires when the analyser can prove neither termination nor
 non-termination: the counter variable in the condition is never
-visibly assigned by the step or body.
+visibly assigned by the step or body. An assignment in a body word written
+bare or quoted counts (`if {$c} "incr n"`), as one in a braced word does.
 
 It is reported at hint severity. Turn it on when you want every loop
 whose termination is not obvious from the surrounding source flagged.

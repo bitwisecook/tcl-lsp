@@ -67,6 +67,45 @@ fn header_fact(
     })
 }
 
+/// The integer `var` holds where the loop whose condition word spans `span`
+/// in `fu` starts its passes — the end of a `for`'s start script, the block
+/// before any other loop ([`crate::cfg::LoopNode::start`]) — when the unit's
+/// solver proves it there, on a path that reaches the loop.
+fn loop_start_integer(
+    fu: &crate::compilation_unit::FunctionUnit,
+    span: tcl_lexer::Span,
+    var: &str,
+) -> Option<i64> {
+    use crate::analyses::{ConstValue, LatticeValue};
+    use crate::ir::Statement;
+    let node = fu
+        .cfg
+        .loop_nodes
+        .values()
+        .find(|node| match &node.statement {
+            Statement::For { condition_span, .. } | Statement::While { condition_span, .. } => {
+                fu.abs_span(*condition_span) == span
+            }
+            _ => false,
+        })?;
+    if !fu.sccp.executable_blocks.contains(&node.start) {
+        return None;
+    }
+    let symbol = fu.ssa.var_symbol(var)?;
+    let version = fu
+        .ssa
+        .blocks
+        .get(&node.start)?
+        .exit_versions
+        .get(&symbol)
+        .copied()
+        .unwrap_or(0);
+    match fu.sccp.value_at(node.start, (symbol, version))? {
+        LatticeValue::Const(ConstValue::Int(start)) => Some(*start),
+        _ => None,
+    }
+}
+
 /// Whether an executable path leaves the loop whose body starts at block
 /// `body` and whose exit is block `end`: a `break` reaches `end` (the
 /// header's own false edge is never taken, the branch being decided), or a
@@ -2023,17 +2062,27 @@ file; this call falls through to the 'unknown' handler."
     /// ([`crate::analyser::bounds_checks::LoopTerminationCandidate::resolve`]).
     /// A header false at entry is W240, one true at every test with no
     /// executable exit is W241, and either suppresses W242. A loop the unit
-    /// does not decide stays queued for another unit, or for
-    /// [`Self::flush_loop_terminations`].
+    /// holds and does not decide reads its counter from the integer the
+    /// unit's state proves it starts at
+    /// ([`crate::analyser::bounds_checks::LoopTerminationCandidate::seed`]),
+    /// and stays queued, as one the unit does not hold does, for another
+    /// unit or for [`Self::flush_loop_terminations`].
     pub(super) fn resolve_loop_terminations(&mut self, fu: &crate::compilation_unit::FunctionUnit) {
-        for candidate in std::mem::take(&mut self.loop_candidates) {
-            match header_fact(fu, candidate.condition_span) {
-                Some(header) => self
-                    .result
+        for mut candidate in std::mem::take(&mut self.loop_candidates) {
+            if let Some(header) = header_fact(fu, candidate.condition_span) {
+                self.result
                     .diagnostics
-                    .extend(candidate.resolve(Some(header))),
-                None => self.loop_candidates.push(candidate),
+                    .extend(candidate.resolve(Some(header)));
+                continue;
             }
+            if let Some(start) = candidate
+                .counter
+                .as_ref()
+                .and_then(|counter| loop_start_integer(fu, candidate.condition_span, &counter.var))
+            {
+                candidate.seed(start);
+            }
+            self.loop_candidates.push(candidate);
         }
     }
 

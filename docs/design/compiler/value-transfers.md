@@ -461,7 +461,7 @@ enum PlanAnswer {
     /// An iteration protocol: produced for `foreach`, `lmap`, `dict for`,
     /// `for`, `while`, and a vendor loop; consumed by the CFG builder's
     /// loop nodes, the solver's per-element transfer, bounded-loop
-    /// enumeration, W240–W242, and the vendor-loop fixture.
+    /// enumeration, W240–W242, IRULE5003, and the vendor-loop fixture.
     Iterate(IterationPlan),
     /// A case list with its selection contract: produced from
     /// `CaseListSpec` for `switch` and for any command that declares the
@@ -995,6 +995,9 @@ takes, so each `expr {$b / $a}` declines `CorrelatedSets` and no version
 inside either loop folds; the solver then runs each loop in order (§
 *Bounded-loop enumeration*) and states what it leaves on its exit — `x` 10
 and `y` 5, each loop's last quotient — so each post-loop branch decides.
+`the_correlated_pairs_decide_by_enumeration` pins the page's own form: the
+enumeration runs each `incr` amount's `[expr …]` over its state, so the loops
+leave 20 and 25.
 
 ### Bounded-loop enumeration
 
@@ -1111,8 +1114,15 @@ is in force (`refine_interval`), past the loop header's widening at
 runs the callee's loops under the call's seeds and reads each return's value
 at its block, so a call whose callee counts in a loop folds.
 `summarise_for_statement` and `summarise_static_for` answer a `for` loop's
-post-loop constants from the same run. `bounds_checks.rs` seeds W240–W242
-from `set v INT` and `incr v ?INT?` text.
+post-loop constants from the same run. W240–W242 and IRULE5003 read the
+iteration plan as well: W241's counter is the plan's bound and step, each
+command the registry's cell update run over its words, from the integer a
+`for`'s start script writes or the solver proves the counter starts at, so
+`set i $start; while {$i < 10} {incr i -1}` is W241; IRULE5003 takes the
+loop whose plan is a bare condition and a decrement the registry's cell
+update states. A statement's `[…]` word runs over the state as the one
+command it names, effect-free, so the page's correlated pairs written with
+`incr x [expr {$b / $a}]` leave 20 and 25.
 
 ## Exact values, types, and representation
 
@@ -1518,9 +1528,9 @@ inside it, so `info exists` decides nothing there — a guarded unit
 answers `Unavailable(ComplexityGuarded)`, and a point the run never
 reached answers `Pending`; W210, W213 and the `return` pass read through
 it, and S100 reads the per-version map, where an absent entry is never
-`Unbound`. The detached inputs — a condition re-proved without SSA, the
-loop simulator's environment, a literal-word evaluation — answer
-`Unavailable` for every existence read. An empty
+`Unbound`. The detached inputs — a condition re-proved without SSA, a
+literal-word evaluation — answer `Unavailable` for every existence read; a
+loop enumeration's state answers from what it holds of each place. An empty
 reachable-block set has no universal meaning outside its producing
 analysis — missing or deferred analysis, no normal successor, and a
 proved unreachable branch are different answers, and each is typed as
@@ -1963,10 +1973,11 @@ interface:
   evaluated per member: all true → taken, all false → not taken, mixed →
   open.
 
-Loop-carried values still widen at the header phi. The three disagreeing
-`incr` models — `static_loops::exec_statement`, `intervals::transfer`, and
-the SCCP arm — become consumers of one registry-described integer add: the
-simulator applies it concretely, the interval domain applies its abstract
+Loop-carried values still widen at the header phi; past a bounded loop the
+solver states what the loop leaves (§ *Bounded-loop enumeration*). The
+`incr` models — the enumeration's run of the route, `intervals::transfer`,
+and the SCCP arm — are consumers of one registry-described integer add: the
+enumeration applies it concretely, the interval domain applies its abstract
 model, and both answer the leading-zero and overflow questions through the
 same target rules.
 
@@ -2872,8 +2883,8 @@ derived from the same `CellUpdate` the native lowering declares, so a new
 read-modify-write command adds one `CellUpdate` variant and gets both
 consumers, the same relationship `SemanticOperationId::StructuredLowering`
 has to `LoweringHookId`. The `Statement::Incr` sites that encode
-*semantics* — the transfer in `sccp.rs`, the simulator arm in
-`static_loops.rs`, the interval arm in `intervals.rs`, the removability and
+*semantics* — the transfer in `sccp.rs`, the enumeration's run of the
+route in `static_loops.rs`, the interval arm in `intervals.rs`, the removability and
 hidden-read arms in `elimination.rs`, the tail fold in `propagation.rs`,
 the global-write rule in `interprocedural.rs` — become consumers of the
 resolved semantics; the sites that encode shape do not change.

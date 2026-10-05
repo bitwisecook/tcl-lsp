@@ -169,6 +169,11 @@ beside the value (`h#1 = const('ABCDEF')` · `type: bytearray
   `tcl explore --show sccp` prints the reason (`declined:
   release-ambiguous: numeral-grammar`, `declined: rebinding-suspected`)
 - **Loop-carried values**: `phi(CONST, ...)` from a loop → `OVERDEFINED`
+  inside the loop; past a loop the solver runs to its exit from exact state,
+  the version holds what the loop leaves (`sccp-core-analyses.md` § *Bounded
+  loops*), and a loop it cannot run — a statement no route evaluates
+  exactly, more than `DEFAULT_MAX_STATIC_LOOP_ITERS` passes — leaves the
+  widened value
 - **Impure commands**: result cannot be known at compile time
 - **Unbraced expressions**: `ExprNode::Raw` — no AST to fold
 - **Variable traces**: tclsh does not fold through variables (observable side

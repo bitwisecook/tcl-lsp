@@ -7781,6 +7781,148 @@ fn a_loop_word_is_its_value_with_its_escapes_decoded() {
     }
 }
 
+/// The eleven loop programs of the interface page (§ *Bounded-loop
+/// enumeration*), one each at the top level: the solver runs each loop to
+/// its exit over exact state — a `for` to its false condition, after a
+/// `break`, past a `continue`, against a fractional bound, from an empty
+/// start script and with its counter written in its body; a `for` the error
+/// path of an opaque `catch` leaves; a `foreach` over no elements, over a
+/// list too short for its last pass, and to a `break` — and the branch after
+/// it decides on what the loop leaves, for the lattice, for I230 and for
+/// `tcl opt`, which keeps only the arm that runs: `i` 5; `t` 6; `i` 3 after
+/// `break`; `t` 3 with `continue`; `i` 3 for `$i < 2.5`; `i` 4 for the
+/// empty start; `i` 4 and `n` 2; `i` 2 on the error path; `x` unbound after
+/// `foreach x {} {}`; `a` 3 and `b` empty; `n` 1 and `x` 2. tclsh 8.4 to
+/// 9.1 print each program's answer before and after `tcl opt`.
+#[test]
+fn the_eleven_loop_witnesses() {
+    let witnesses = [
+        ("for {set i 0} {$i < 5} {incr i} {}\n", "$i == 5", "five"),
+        (
+            "set t 0; for {set i 0} {$i < 4} {incr i} {incr t $i}\n",
+            "$t == 6",
+            "six",
+        ),
+        (
+            "for {set i 0} {$i < 10} {incr i} {if {$i == 3} break}\n",
+            "$i == 3",
+            "three",
+        ),
+        (
+            "set t 0; for {set i 0} {$i < 4} {incr i} {if {$i == 1} continue; incr t}\n",
+            "$t == 3",
+            "three",
+        ),
+        ("for {set i 0} {$i < 2.5} {incr i} {}\n", "$i == 3", "three"),
+        (
+            "set i 0; for {} {$i < 3} {} {incr i 2}\n",
+            "$i == 4",
+            "four",
+        ),
+        (
+            "set n 0; for {set i 0} {$i < 3} {incr i} {set i [expr {$i + 1}]; incr n}\n",
+            "$i == 4 && $n == 2",
+            "yes",
+        ),
+        (
+            "catch {for {set i 0} {$i < 5} {incr i} {if {$i == 2} {error x}}}\n",
+            "$i == 2",
+            "two",
+        ),
+        ("foreach x {} {}\n", "[info exists x]", ""),
+        ("foreach {a b} {1 2 3} {}\n", "$a == 3 && $b eq \"\"", "yes"),
+        (
+            "set n 0; foreach x {1 2 3} {if {$x == 2} break; incr n}\n",
+            "$n == 1 && $x == 2",
+            "yes",
+        ),
+    ];
+    for (program, condition, taken) in witnesses {
+        // The ninth program's test is the one that holds false.
+        let holds = !taken.is_empty();
+        let (then, otherwise) = if holds {
+            (taken, "other")
+        } else {
+            ("bound", "unbound")
+        };
+        let source =
+            format!("{program}if {{{condition}}} {{puts {then}}} else {{puts {otherwise}}}\n");
+        let printed = if holds { then } else { otherwise };
+        let dropped = if holds { otherwise } else { then };
+        for dialect in DIALECTS {
+            let unit = unit_of(&source, dialect);
+            assert!(
+                unit.top_level
+                    .sccp
+                    .constant_branches
+                    .iter()
+                    .any(|branch| { branch.condition == condition && branch.value == holds }),
+                "{dialect}: {source}{:?}",
+                unit.top_level.sccp.constant_branches
+            );
+            assert_eq!(
+                condition_claims(&source, dialect),
+                [holds],
+                "{dialect}: {source}"
+            );
+            let (rewritten, _) = optimised(&source, dialect);
+            assert!(
+                !rewritten.contains(&format!("puts {dropped}")),
+                "{dialect}: {source}{rewritten}"
+            );
+        }
+        prints_under_every_release(&source, &format!("{printed}\n"));
+    }
+}
+
+/// The interface page's correlated pairs (§ *The correlated finite-set
+/// limit*) as the page writes them, `incr x [expr {$b / $a}]`: the
+/// enumeration runs the amount's `[expr …]` over its state, so each loop
+/// leaves what ordered execution leaves — `x` 20 and `y` 25 — where pairing
+/// the binders by position would answer 20 for both and their cartesian
+/// product neither, and each branch after a loop decides true. Inside each
+/// loop the lattice still proves no amount — the quotient pairs two distinct
+/// finite inputs, which it declines as correlated — so each `incr` declines.
+/// tclsh 8.4 to 9.1 print `twenty` and `twentyfive`, before and after `tcl
+/// opt`.
+#[test]
+fn the_correlated_pairs_decide_by_enumeration() {
+    let source = "proc p {} {\n\
+                   set x 0\n\
+                   foreach {a b} {1 10 2 20} { incr x [expr {$b / $a}] }\n\
+                   if {$x == 20} { puts twenty } else { puts other }\n\
+                   set y 0\n\
+                   foreach {a b} {1 20 2 10} { incr y [expr {$b / $a}] }\n\
+                   if {$y == 25} { puts twentyfive } else { puts other }\n\
+                  }\n";
+    for dialect in DIALECTS {
+        assert_eq!(condition_claims(source, dialect), [true, true], "{dialect}");
+        let unit = unit_of(source, dialect);
+        let function = unit.procedures.get("::p").expect("the procedure");
+        let published: Vec<(String, LatticeValue)> = function
+            .sccp
+            .loop_enumerations
+            .iter()
+            .flat_map(|record| record.published.iter().cloned())
+            .filter(|(name, _)| name == "x" || name == "y")
+            .collect();
+        assert_eq!(
+            published,
+            [
+                ("x".to_owned(), LatticeValue::Const(ConstValue::Int(20))),
+                ("y".to_owned(), LatticeValue::Const(ConstValue::Int(25))),
+            ],
+            "{dialect}"
+        );
+        assert_eq!(
+            answers_for(&unit, "::p", "incr"),
+            ["declined: not-exact", "declined: not-exact"],
+            "{dialect}"
+        );
+    }
+    prints_under_every_release(&format!("{source}p\n"), "twenty\ntwentyfive\n");
+}
+
 /// A loop condition's math function is the one the module binds: with `abs`
 /// rebound by `proc ::tcl::mathfunc::abs`, `$i < abs(-3)` runs the loop to
 /// 99 under 8.5 to 9.1, so the enumeration declines — the shared lattice

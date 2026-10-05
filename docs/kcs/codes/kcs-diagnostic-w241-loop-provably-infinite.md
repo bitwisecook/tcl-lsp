@@ -31,8 +31,13 @@ terminate. It reports **`W241`** in these cases:
   the body (a `break` inside a `catch` body, say), keeps the loop from being
   reported, however the word that holds it is written: `if {$i < 0} break`
   and `if {$i < 0} "break"` leave the loop as `if {$i < 0} {break}` does.
-- A `for {set v INT} {$v OP INT} {incr v INT}` where the
-  counter cannot reach the bound:
+- A loop whose counter cannot reach its bound. The condition compares the
+  counter with a literal (`$v OP N`), and every pass adds the same literal
+  step: a `for`'s step script `incr v STEP`, or the one `incr v STEP` at the
+  top level of a `while` body. The counter starts where the `for`'s start
+  script leaves it, or at the value the analyser proves it holds when the
+  loop is reached — `set start 5; for {set i $start} …` and `set i 5; while
+  {$i < 10} {incr i -1}` are read like `for {set i 5} …`:
   - `incr v 0` — the counter never changes.
   - The counter moves *away* from the bound (`$v < N` with a
     negative step, `$v > N` with a positive step).
@@ -40,8 +45,9 @@ terminate. It reports **`W241`** in these cases:
     direction or magnitude never lands exactly on `N`).
 
 If the body assigns the counter itself (`set v ...`, nested
-`incr v`, `lset`, ..., in a braced, quoted or bare body word alike) the
-analyser backs off — it cannot reason about arbitrary rewrites.
+`incr v`, `lset`, a second `incr v` in a `while` body, ..., in a braced,
+quoted or bare body word alike) the analyser backs off — it cannot reason
+about arbitrary rewrites.
 
 The proof is about the value the condition's variable holds, so a write the
 analyser cannot place leaves the loop undecided and draws no `W241`: a
@@ -79,6 +85,12 @@ for {set i 0} {$i < 10} {incr i -1} {
 
 for {set i 0} {$i != 10} {incr i 3} {
     puts "skips 10"
+}
+
+set start 5
+set i $start
+while {$i < 10} {
+    incr i -1
 }
 
 set go 1

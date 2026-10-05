@@ -1316,3 +1316,79 @@ fn the_nested_equality_decides_through_diag_and_opt() {
         }
     }
 }
+
+/// The eleven loop programs of the interface page (§ *Bounded-loop
+/// enumeration*) through the shipped binary: each loop runs to its exit over
+/// exact state, so `tcl diag` reports I230 on the branch after it (line 2) and
+/// `tcl opt --profile full` keeps only the arm that runs, under every release
+/// the analysis names; the original and the optimised program print the same
+/// under every tclsh release on the oracle's path.
+#[test]
+fn the_eleven_loop_witnesses() {
+    let witnesses = [
+        ("for {set i 0} {$i < 5} {incr i} {}", "$i == 5", true),
+        (
+            "set t 0; for {set i 0} {$i < 4} {incr i} {incr t $i}",
+            "$t == 6",
+            true,
+        ),
+        (
+            "for {set i 0} {$i < 10} {incr i} {if {$i == 3} break}",
+            "$i == 3",
+            true,
+        ),
+        (
+            "set t 0; for {set i 0} {$i < 4} {incr i} {if {$i == 1} continue; incr t}",
+            "$t == 3",
+            true,
+        ),
+        ("for {set i 0} {$i < 2.5} {incr i} {}", "$i == 3", true),
+        ("set i 0; for {} {$i < 3} {} {incr i 2}", "$i == 4", true),
+        (
+            "set n 0; for {set i 0} {$i < 3} {incr i} {set i [expr {$i + 1}]; incr n}",
+            "$i == 4 && $n == 2",
+            true,
+        ),
+        (
+            "catch {for {set i 0} {$i < 5} {incr i} {if {$i == 2} {error x}}}",
+            "$i == 2",
+            true,
+        ),
+        ("foreach x {} {}", "[info exists x]", false),
+        ("foreach {a b} {1 2 3} {}", "$a == 3 && $b eq \"\"", true),
+        (
+            "set n 0; foreach x {1 2 3} {if {$x == 2} break; incr n}",
+            "$n == 1 && $x == 2",
+            true,
+        ),
+    ];
+    let tclshs = tclshs_from("8.4");
+    for (program, condition, holds) in witnesses {
+        let source = format!("{program}\nif {{{condition}}} {{puts yes}} else {{puts no}}\n");
+        let (printed, dropped) = if holds { ("yes", "no") } else { ("no", "yes") };
+        for series in RELEASES {
+            let dialect = format!("tcl{series}");
+            let found = diagnostics_at(&source, &dialect, &[]);
+            assert!(
+                found
+                    .iter()
+                    .any(|(line, _, code)| *line == 2 && code == "I230"),
+                "{dialect}: {source}{found:?}"
+            );
+            let optimised = statements_of(&opt_under(&source, series));
+            assert!(
+                !optimised.contains(&format!("puts {dropped}")),
+                "{dialect}: {source}{optimised}"
+            );
+            for (_, tclsh) in tclshs.iter().filter(|(found, _)| *found == series) {
+                for text in [source.as_str(), optimised.as_str()] {
+                    assert_eq!(
+                        run_tclsh(tclsh, text),
+                        Some((true, format!("{printed}\n"))),
+                        "tclsh{series}:\n{text}"
+                    );
+                }
+            }
+        }
+    }
+}

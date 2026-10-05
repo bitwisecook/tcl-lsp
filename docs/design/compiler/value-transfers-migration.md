@@ -291,7 +291,10 @@ executes that runtime.
     of its own — its `Incr` arm, `parse_literal_value`, and
     `resolve_switch_subject` are gone — the eleven witnesses fold under
     every release found on `PATH`, and `bounds_checks.rs` seeds W240–W242
-    from the plan's bound and step rather than from `set v INT` text.
+    from the plan's bound and step rather than from `set v INT` text. Landed
+    2026-10-05; the record and the decisions (D268–D284) are
+    [value-transfers.md (lane)](../lanes/value-transfers.md) § *Plan for
+    slices 2–13* › *Slice 12*.
 13. **Proc-level transfer summaries.** `TransferSummary` beside
     `ProcSummary`: parameter roles with a `Name` parameter's frame level
     and ordered outcomes, the global places a callee may write, the
@@ -437,7 +440,7 @@ for each, with the tool's observed behaviour today.
 | W303 | verbatim `args[idx]` in pattern collection | `set re {(a+)+$}; regexp $re $s` — the analyser already resolves that shape for highlighting and not for the ReDoS check |
 | W230, W232 (syntactic half) | `has_subst` / `!is_literal_index` | `set l {a b c}; lindex $l 9` through a computed container length |
 | W102 | a computed switch word makes the call unreadable, so `substitutions_performed` answers `SubstitutionKinds::ALL` and the narrowing advice names every kind | `set opt -novariables; subst $opt {hello $name}` narrows to `$var` exactly as the literal spelling does, from the template-word plan's `kinds` (slice 5) |
-| W240–W242 | the loop header's branch fact decides a header the solver proves — `set n 0; while {$n} {…}` is W240, `set go 1; while {$go} {…}` is W241, neither W242 — and a header nothing decides keeps the condition text's verdict; `bounds_checks.rs` still seeds a `for` counter's bound from `set v INT` and `incr v ?INT?` read as text, so `set i $start` disables that check | the iteration plan's bound and step in place of the text scan |
+| W240–W242 | the loop header's branch fact decides a header the solver proves — `set n 0; while {$n} {…}` is W240, `set go 1; while {$go} {…}` is W241, neither W242 — and a header nothing decides keeps the condition text's verdict, its counter read from the iteration plan since slice 12: the bound a literal in the condition and the step a literal amount of the registry's cell update, from the integer a `for`'s start script writes or the solver proves where the loop starts, so `set i $start` is checked | a bound or a step the solver proves (`set n 10; while {$i < $n} {incr i -1}`) |
 | W138, W200, W202 | literal format strings | a computed `format` / `binary format` template |
 | IRULE4004 | `value.contains('$') \|\| value.contains('[')` | a `set x [string range CONST 0 3]` in a per-request event becomes hoistable |
 
@@ -504,11 +507,12 @@ the fully typed implementations the rest should copy.
 Sixty-two sites across the tiers evaluate a command's value by hand, and
 each is a consumer of the interface once it exists:
 
-- **Loop-bound readers.** `analyser/bounds_checks.rs` reads `set v INT`
-  and `incr v ?INT?` to seed W240–W242, so `set i $start` silently
-  disables the check, and slice 12's iteration plan supplies the bound and
-  the step instead; `analyser/irules_event_checks.rs` decides
-  `body_decrements` by substring-scanning the body for `incr`.
+- **Loop-bound readers.** `analyser/bounds_checks.rs` seeds W240–W242
+  from the iteration plan's bound and step, each command read through the
+  registry's cell update, and from the integer the solver proves the counter
+  starts at, so `set i $start` is checked; `analyser/irules_event_checks.rs`
+  takes IRULE5003's loop from its plan and a decrement from the registry's
+  cell update.
 - **`[list …]` evaluators.** `analyser/handlers.rs` and
   `analyser/commands.rs` (body words and `[list namespace unknown …]`),
   `lowering/mod.rs` (`eval_list_literal_body`), `value_provenance.rs`,
@@ -808,7 +812,7 @@ generated inventory's route *owner* column is the same fact read from
 
 | Handler | Where | Keyed by | Retires in | Waiver |
 |---|---|---|---|---|
-| the loop header's per-element `ConstSet` transfer over a literal, lattice, or folded list, one set per binder of the plan (slice 5, VT5.7: the source layout answers the plan too) | `rust/tcl-compiler/src/value_transfer.rs`, `evaluate_call` | `PlanAnswer::Iterate` from the explicit `foreach` / `lmap` declaration | slice 12 — the exact exit state | none needed: generic over the plan |
+| the loop header's per-element `ConstSet` transfer over a literal, lattice, or folded list, one set per binder of the plan (slice 5, VT5.7: the source layout answers the plan too) | `rust/tcl-compiler/src/value_transfer.rs`, `evaluate_call` | `PlanAnswer::Iterate` from the explicit `foreach` / `lmap` declaration | not retired: slice 12 states the exact exit state past the loop and keeps this transfer as the binders' value inside it, where the header still widens | none needed: generic over the plan |
 
 Every run consults the module's command trust, under one of two stances
 (`FoldTrust` in `rust/tcl-compiler/src/sccp.rs`). The shared per-unit
@@ -849,7 +853,7 @@ which waives the sites by axis.
 | `rust/tcl-compiler/src/analyser/diagnostics/helpers.rs` | 4 | slice 13 — the binder checks: `global`, `variable` and `upvar`, with the `unset` the global-write harvest skips beside them |
 | `rust/tcl-compiler/src/analyser/diagnostics/security.rs` | 2 | the `return_type` axis — a `pattern_type` conditional on `-regexp` absorbs the `switch`-specific ReDoS scan |
 | `rust/tcl-compiler/src/analyser/diagnostics/validity.rs` | 2 | the `traits` axis — `unset` beside the `DESTROYS_VARIABLE` query, `matchclass` by its lifecycle field |
-| `rust/tcl-compiler/src/analyser/irules_event_checks.rs` | 7 | slice 12 — the loop-bound reader; the `static::`, `log`, and `global` checks are `special_vars` / `side_effects` debt |
+| `rust/tcl-compiler/src/analyser/irules_event_checks.rs` | 6 | the `special_vars` and `side_effects` axes — the `static::`, `log`, and `global` checks |
 | `rust/tcl-compiler/src/analyser/param_traits.rs` | 1 | slice 13 — the summary's `Name` outcomes replace the two-command copy tracker |
 | `rust/tcl-compiler/src/auto_path_eval.rs` | 3 | slice 7 — the direct routes for `file dirname` / `normalize` / `join` replace the private path folder |
 | `rust/tcl-compiler/src/codegen/cmd_subst.rs` | 3 | the `native_lowering` axis — instruction selection for `set` and the `array` intrinsics |

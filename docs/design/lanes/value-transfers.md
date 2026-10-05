@@ -9,17 +9,14 @@ commit (§ *Slice 10* › *Record (2026-10-04): review fixes for slices 9 and
 10*). Slice 11, predicate refinement, has landed (§ *Status (2026-10-04):
 slice 11 landed*), and its review fixes are in, each its own commit
 (§ *Slice 11* › *Record (2026-10-05): review fixes for slice 11*). Slice 12,
-bounded-loop enumeration, is at its second checkpoint (§ *Slice 12* ›
-*Record (2026-10-05): slice 12*, read with D268 to D281): the enumeration and
-the loop plans, with the post-loop branches deciding for I230 as for O101;
-the lane's own defect found there, a may-written element's base, fixed in its
-own commit; the simulator become the enumeration, whose exit state the
-ranges and the O103 re-run read; #2381, a body word written bare or quoted
-that the W241 scans did not read, fixed in its own commit ahead of the
-landing, which would have widened it; and the lane's own escape defect, a
-loop statement's word handed on as written, fixed in its own commit. The
-landing — W240–W242 and the iRules loop bound reading the plan, the slice's
-witnesses and the pages — is next.
+bounded-loop enumeration, has landed (§ *Status (2026-10-05): slice 12
+landed*; § *Slice 12* › *Record (2026-10-05): slice 12*, read with D268 to
+D284): the enumeration and the loop plans, with the post-loop branches
+deciding for I230 as for O101; the simulator become the enumeration, whose
+exit state the ranges and the O103 re-run read; W240–W242 and the iRules loop
+bound reading the plan; and three fixes, each its own commit — a may-written
+element's base and a loop word's escapes, the lane's own, and #2381, a body
+word written bare or quoted that the W241 scans did not read.
 
 ## Goal
 
@@ -1133,6 +1130,57 @@ $i]}` draws W230 though `end` passes the guard as a string and indexes `c`
 rewritten to the arm's constant, so in `switch -- $x {a {return [string
 length $x]} default {return 0}}` the arm's `[string length $x]` is not
 folded (`value-transfers-examples.md`'s `q`).
+
+## Status (2026-10-05): slice 12 landed
+
+One implementer ran the slice in six commits: the plan's two checkpoints,
+`c1d24182` (VT12.1 and VT12.2, the enumeration and the loop plans) and
+`fb2b3109` (VT12.3 and VT12.4, the simulator become the enumeration); three
+fixes, each its own commit at the coordinator's ruling — `08d5acf3` (a
+may-written element's base, the lane's own from slice 6's review fixes),
+`c3af84d8` (#2381, a body word written bare or quoted, which the landing
+would have widened) and `25ead4f1` (a loop word's escapes, the lane's own
+from the first checkpoint); and this commit, `wip(value-transfers): slice 12
+— bounded-loop enumeration` (VT12.5 to VT12.7). The decisions are D268 to
+D284 in § *Decisions taken*, the records § *Plan for slices 2–13* › *Slice
+12* › *Record (2026-10-05): slice 12*.
+
+Behaviour changes, as the plan's landing message states them: the eleven
+loop programs decide their post-loop branches for the diagnostics as for the
+optimiser (I230 and O101 on what each loop leaves); the correlated `foreach`
+pairs decide by enumeration, 20 and 25; a loop counter seeded from a
+variable is checked by W240–W242 (`set start 5; for {set i $start} {$i < 10}
+{incr i -1} {}` is W241). Beyond them: W230 bounds a counter after its loop;
+the argument-sensitive O103 re-run folds a call whose callee counts in a
+loop; a `while` whose body's one increment moves its counter away from its
+bound is W241, named as a `while` loop; IRULE5003 takes its loop and its
+decrement from the registry; a `[…]` word in a loop runs over its state; a
+body word written bare or quoted is an exit or a write for W241 and W242
+(#2381); and a loop word's escapes are decoded.
+
+Things the plan did not say. The solver enumerates after a settled run and
+states the exit state as edge refinements for a second run (D268), over the
+places it proves (D269), narrowing monotonically (D270); an opaque `catch`
+body runs by the same engine (D271); the enumeration takes a head under the
+run's trust stance (D272); `loop_summary_decision` went at the first
+checkpoint (D273); I230 knows a loop's test structurally (D274); the
+summaries keep their types as the boundary (D276); the analyser's static
+conditions read the engine's literal rule (D277); the ranges take a loop's
+exact exit integer without a proof of an integer (D278); O103's return fold
+reads the value at its block (D279); the counter's start is read where it
+can be (D282); and a substituted word runs over the state (D283).
+
+Green at the landing: the record's Green paragraph lists the suites and
+gates, run on the tree this commit commits.
+
+Left open, each with its program: a single-pass `for` — `for {set i 0} {$i <
+1} {incr i} {set r q}; puts $r` — is folded to `for … {0} …` by O101, which
+reads the rotated loop's step test at its condition word (#2382, outside the
+lane); a loop that starts from what an earlier loop left is not enumerated,
+since one round finds every start state before any exit is stated (D268); a
+bound or a step the solver proves rather than a literal does not seed W241
+(`set n 10; while {$i < $n} {incr i -1}`); and the `summarise_*` entry points
+keep `StaticValue` and `StaticEnv` at their boundary (D276).
 
 ## Plan for slices 2–13
 
@@ -8611,6 +8659,132 @@ before the runs. This fix's own comparison over the corpus, `tcl diag` and
 `tcl opt --profile full` against the second checkpoint's, runs with the
 landing, whose record holds it.
 
+##### The landing: W240–W242 and the iRules loop bound read the plan
+
+`wip(value-transfers): slice 12 — bounded-loop enumeration` holds VT12.5 to
+VT12.7, with the plan's message.
+
+- **W240–W242 (VT12.5, D282).** A conditional loop's counter is what its
+  iteration plan states (`LoopCounter`, from `plan_words` over
+  `value_transfer::resolved_iteration_plan`): the condition compares one
+  variable with a literal (`$v OP INT`), and every pass adds one step — the
+  counted plan's step script, or the one increment at the top level of a
+  conditional plan's body — each the registry's integer cell update
+  (`resolved_cell_update`, `CellUpdate::Increment`) whose amount is what its
+  route stores when run from 0 (`command_increment`), with nothing else in the
+  loop writing the variable (`command_writes`) and nothing in the body
+  leaving it. The walk proves a loop infinite from a `for`'s start script
+  that is the registry's write of a value word, run over its words
+  (`literal_start`, through `value_transfer::resolved_literal_semantics`); at
+  the per-function pass a loop the unit holds, reaches and does not decide
+  reads the integer the solver proves the counter holds at the block its
+  passes start from (`LoopTerminationCandidate::seed`, `loop_start_integer`),
+  so `set start 5; for {set i $start} {$i < 10} {incr i -1} {}` and `set i 5;
+  while {$i < 10} {incr i -1}` are W241. The `set v INT` / `incr v ?INT?`
+  scan (`parse_init_var_value`, `parse_step_incr`,
+  `for_is_provably_infinite`) is gone, with `LoopShape`'s start position,
+  which only it read, and W241 names the loop's command in its message
+  (`while loop is provably infinite: …`) where it said `for loop`. Tests:
+  `w240_seeds_from_the_iteration_plan` (the two loops and two more W241, and
+  seven silent loops: a start the unit does not prove, twice; a counter that
+  reaches its bound; a second write of the counter, and a second increment;
+  an increment that does not run on every pass; and a bare `if {$i < 0}
+  break`, which the body scan reads as a script since #2381) and
+  `the_start_and_the_step_run_their_routes`, which replaces the text scan's
+  parser test.
+- **IRULE5003 (VT12.5, D284).** The loop is the one whose plan is a bare
+  condition (`IterableKind::Condition`), its condition and body the plan's
+  words, and the body decrements the variable when a command at any depth of
+  it is the registry's integer cell update of the variable adding a negative
+  amount (`body_decrements` over `bounds_checks::command_increment` and the
+  body walk). The `cmd_name != "while"` site goes, so
+  `irules_event_checks.rs`'s pin is 6 and its ledger row belongs to the
+  `special_vars` and `side_effects` axes
+  (`irule5003_reads_the_plan_and_the_cell_update`: a decrement in a nested
+  `if`, a `::incr`, and the text `incr count -1` as a `log` argument, which
+  the substring scan took for a decrement).
+- **A substituted word over the state (D283).** `StateInputs` reads a word
+  that substitutes by its parts — a variable from the state, a `[…]` script
+  as the one command it names, run by its declared route over the state
+  under the effect-free policy — and the expression engine's `nested`
+  service runs a script the same way, so `incr x [expr {$b / $a}]` adds the
+  quotient the state's `a` and `b` give, and a script that stores declines
+  the loop. `the_correlated_pairs_decide_by_enumeration`: the interface
+  page's mirror programs, as the page writes them, leave 20 and 25 on their
+  exits, each branch after a loop decides true, and inside each loop the
+  `incr` still declines, its quotient correlated.
+- **The witnesses (VT12.6).** `the_eleven_loop_witnesses`, in
+  `value_transfer_witnesses.rs` — each program's branch after its loop
+  decided in the lattice, claimed by I230 and its other arm dropped by `tcl
+  opt` under the five dialects, and each printing its answer under tclsh 8.4
+  to 9.1 before and after `tcl opt` — and in `value_transfers_cli.rs` — I230
+  on line 2 from `tcl diag` and the other arm gone from `tcl opt --profile
+  full` under every release's dialect, the original and the optimised
+  program printing alike under that release's tclsh. None is a single-pass
+  `for`, which `tcl opt` folds wrongly (#2382).
+- **The pages (VT12.7).** `sccp-core-analyses.md` (the counter in § *Loop
+  headers*, the substituted word in § *Bounded loops*, the enumeration's
+  `exec_switch`), `constant-folding-type-inference.md` (a loop-carried value
+  past its loop), `optimisation-passes.md` (the O100–O103 row),
+  `pass-fact-ownership-matrix.md` (the W240–W242 row),
+  `value-transfers-migration.md` (slice 12 landed; the W240–W242 row and the
+  loop-bound readers; the iRules pin; and the loop header's `ConstSet`
+  transfer, which the ledger had retiring here and which stays as the
+  binders' value inside the loop), `value-transfers.md` (the plan's
+  consumers, the correlated pairs, the `incr` models, the detached inputs),
+  and the W240, W241 and W242 KCS notes.
+
+Things the plan did not say. The walk has no lattice, so the counter's start
+is read twice — the literal start script at the walk, the solver's integer
+at the per-function pass — and a loop no unit holds keeps the walk's reading
+(D282). A conditional plan has no step script; a `while` body's one
+top-level increment is its step. The correlated pairs needed the enumeration
+to run a `[…]` amount (D283). The Explorer line the exit evidence names
+reads `enumerated loop: 5 iterations, false condition`, with `i: const(5)`:
+a `for` leaves by its false condition, and exhaustion is a `foreach`'s exit
+rule.
+
+Rows for the diagnostic-policy lane's owner documents (B-DP4), drafted here:
+
+- `diagnostics-calculation.md`, § *Deep tier*, the compiler-checks row: the
+  lattice those checks read holds, past a bounded loop the solver runs to its
+  exit over exact state, what the loop leaves, so I230 and O101 decide a
+  branch after it and W230 bounds its counter; W241 reads a loop's counter
+  from its iteration plan, its start from the solver where the walk's text
+  gives none.
+
+Measured: `tcl diag` and `tcl opt --profile full` over the corpus's 1120
+files. The second checkpoint's binary prints what the may-definition fix's
+prints for every file, and the escape fix's what the second checkpoint's
+prints (#2381's fix ran `tcl diag` alone, the same for every file); the
+landing's binary prints what the escape fix's prints for every file — the
+corpus has no counter started from a variable that never reaches its bound,
+no `[…]` amount in a loop a later branch turns on, and no IRULE5003 the plan's
+reading changes. `fumagic/filetypes.tcl` runs past the 300 s limit under
+every binary, as a debug build.
+
+Green at the landing: `tcl-compiler` 10181 passed, 6 ignored across its
+binaries and doctests (the library 6733, the three new tests;
+`value_transfer_witnesses` 143, the two new), `tcl-registry` 1428,
+`tcl-explorer` 112, `tcl-lsp-db` 139, 5 ignored, `tcl-lsp-core --lib` 2353,
+`tcl-cli` 206 (the new witness), `xtask` 275, `tcl-spectcl` 476, 1 ignored
+(under a private `XDG_CACHE_HOME`), and `tcl-cmd-core` 143; workspace clippy,
+no `#[allow]` added, `cargo fmt --check` and `cargo check --workspace
+--all-targets` clean; `value-transfers --check` (22 clean, 19 waived, 82
+pinned across 34 files with `irules_event_checks.rs` at 6, 6625 rows, the
+inventory regenerated) and `registry-axes --check` (7834 vocabulary words, 16
+clean, 37 waived, 890 pinned across 147 files: `bounds_checks.rs` 34 → 32 and
+`irules_event_checks.rs` 8 → 7, the sites the landing removes, the report
+regenerated); `pack-goldens`, `retired-api-gate`, `owner-resolution` and
+`kcs-index-links` pass; `dialect-drift` 8 sites, none new. Mutations, run
+after the suites, each reverted and the tree compared unchanged after them:
+the per-function pass not seeding the counter fails
+`w240_seeds_from_the_iteration_plan`; `StateInputs` reading no substituted
+word fails `the_correlated_pairs_decide_by_enumeration`; IRULE5003 taking a
+positive amount for a decrement fails `irule5003_fires_for_ne_zero_decrement_loop`,
+`irule5003_fires_for_zero_ne_braced_form` and
+`irule5003_reads_the_plan_and_the_cell_update`.
+
 ### Slice 7a — seedless return summaries
 
 #### Goal and exit
@@ -11877,6 +12051,9 @@ Taken in slice 12, bounded-loop enumeration (§ *Slice 12* › *Record (2026-10-
 - **D279 — O103's return fold reads the value at the return's block** (VT12.4). The re-run's lattice holds the loop's state as a refinement, not as a version's value, so `resolve_return_constant` reads `value_at` for a `$var` return and for the variables of a returned `expr`; a refinement in force at a return is a proof there, a branch's as much as a loop's, and every executable return must still agree.
 - **D280 — The body scans descend into every script word the registry names, however it is written** (the coordinator's ruling on #2381, found while seeding slice 12's counter). W241's exit scan and the counter's write scan read a loop's body through one walk, which took a braced word for a nested script and nothing else, where Tcl runs an `if`'s bare or quoted body as it runs a braced one. The walk descends into a word the registry gives a `Body` role whatever its quoting, and into every braced word as before, so both scans find more exits and more writes, each of which keeps W241 silent. It is the lane's fix rather than an issue left open because the landing extends the counter to a `while` loop's increment and would otherwise widen a false report to a new loop shape.
 - **D281 — The enumeration hands a statement's literal word on as its value** (the lane's own defect from slice 12's first checkpoint, c1d24182; the coordinator's ruling). `invoke_in_state` reads a word given as braced as a literal of its text and classifies any other by its spelling, which is right for a value the run computed and for a braced word, but a bare or quoted word's value is its spelling with its escapes decoded. `exec_command` therefore cooks each literal word of a call, and an `incr` amount, before handing it on — `literal_token_value` under the `Str` rules for a braced word and the `Esc` rules for a bare or quoted one, the one rule the lattice driver and `word_in_state` read — and passes the value as a literal; a word that substitutes goes on as written, which the run reads over its state.
+- **D282 — W241's counter is the plan's, and its start is read where it can be** (VT12.5). The plan has W240–W242 seed from "the iteration plan's bound and step"; the counted plan names a step script and the conditional plan none, so a `while` body's one top-level increment is its step — what "`set i $start; while {$i < 10} {incr i}` is checked" needs — and each step is the registry's integer cell update, its amount what the route stores run from 0. The bound stays the literal the condition compares with. The walk that queues the loop has no lattice, so the start is read twice: the walk proves a loop infinite from a `for`'s start script that is the registry's write of a value word, and the per-function pass reads the integer the solver proves at the block the loop's passes start from, for a loop the unit holds, reaches and does not decide (`LoopTerminationCandidate::seed`). A loop no unit holds — inside a body the flow graph does not lower — keeps the walk's reading. The counter's write scan reads a `VarWrite` role beside a first-argument writer, so `lassign {20} i` in the body is a write.
+- **D283 — A substituted word runs over the enumeration's state** (VT12.6, for the correlated pairs). The page writes the mirror programs with `incr x [expr {$b / $a}]`, whose amount the enumeration could not read: `StateInputs` read a substituting word only when it was one whole variable. It now reads such a word by its parts, as the lattice's own inputs do — a variable from the state, a `[…]` script as the one command it names, run by its declared route (a registry-owned evaluator, or the expression engine once a pack's option row lets it) under the effect-free policy — and the expression engine's `nested` service runs a script the same way. A script that stores, or does not complete normally, declines the loop, so no nested write is taken out of its order.
+- **D284 — IRULE5003 reads its loop and its decrement through the registry** (VT12.5). The loop is the one whose iteration plan is a bare condition, its condition and body the plan's words; a decrement is a command at any depth of the body that is the registry's integer cell update of the variable adding a negative amount, so the text `incr count -1` as a `log` argument is no decrement, where the substring scan took it for one.
 
 ### Open questions for the owner
 

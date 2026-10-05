@@ -5420,6 +5420,67 @@ pub(crate) fn resolved_cell_update(
     }
 }
 
+/// The declaration a `head args…` call over literal words resolves to under
+/// `registry`, its form selected by those words, with the role the resolver
+/// gives each word: what a consumer runs over the call's own words, or asks
+/// whether the call writes its value word
+/// ([`tcl_registry::value_transfer::ResolvedSemantics::writes_value_word`]).
+pub(crate) fn resolved_literal_semantics(
+    registry: &CommandRegistry,
+    head: &str,
+    args: &[&str],
+) -> Option<(
+    tcl_registry::value_transfer::ResolvedSemantics,
+    Vec<(usize, ArgRole)>,
+)> {
+    let words: Vec<InvocationWord<'_>> =
+        args.iter().copied().map(InvocationWord::Literal).collect();
+    let resolved = registry
+        .resolve_structured_invocation(
+            InvocationWords::structured(InvocationWord::Literal(head), &words),
+            registry.own_surface_query(),
+        )
+        .resolved()?;
+    let roles = view_of(&resolved, args, &words, InvocationLayout::Source)
+        .operands
+        .iter()
+        .enumerate()
+        .filter_map(|(index, operand)| operand.role.map(|role| (index, role)))
+        .collect();
+    Some((resolved.semantics.value, roles))
+}
+
+/// The iteration plan a `head args…` call declares in its source layout
+/// under `registry`, when it declares one: which word is a counted loop's
+/// start script, condition and step script, or a conditional loop's
+/// condition, and which is the body. The question the loop checks ask —
+/// W240 to W242's counter and IRULE5003's bound — answered from the
+/// registry's declaration rather than a command's spelling.
+pub(crate) fn resolved_iteration_plan(
+    registry: &CommandRegistry,
+    head: &str,
+    args: &[String],
+) -> Option<IterationPlan> {
+    let texts: Vec<&str> = args.iter().map(String::as_str).collect();
+    let words: Vec<InvocationWord<'_>> = texts.iter().copied().map(word_of).collect();
+    let resolved = registry
+        .resolve_structured_invocation(
+            InvocationWords::structured(InvocationWord::Literal(head), &words),
+            registry.own_surface_query(),
+        )
+        .resolved()?;
+    let semantics = resolved.semantics.value.semantics()?;
+    let context = AnalysisContext::detached(registry.profile());
+    let inputs = StructureInputs::new(
+        view_of(&resolved, &texts, &words, InvocationLayout::Source),
+        &context,
+    );
+    match semantics.structure(&inputs) {
+        PlanAnswer::Iterate(plan) => Some(plan),
+        _ => None,
+    }
+}
+
 /// The interval domain's model of a typed cell update with `operands`
 /// post-head words: the registry-described operation the domain
 /// interprets, from the specialisation the descriptor derives — the typed
@@ -5454,11 +5515,12 @@ pub(crate) struct StateStep {
 }
 
 /// The inputs an invocation or an expression reads from a loop
-/// enumeration's state: an operand is a literal word or a whole-variable read
-/// of the state; a variable is exact where the state holds a value, unbound
-/// where it holds none, and unknown where the state does not hold it; a math
-/// function is the one the run's driver resolves, so one the module rebinds
-/// declines. A `[…]` substitution never runs here.
+/// enumeration's state: an operand is a literal word, or a word substituted
+/// over the state — a variable exact where the state holds a value, unbound
+/// where it holds none, and unknown where the state does not hold it, and a
+/// `[…]` script one command run over the state by its route, under the
+/// effect-free policy; a math function is the one the run's driver resolves,
+/// so one the module rebinds declines.
 struct StateInputs<'a> {
     driver: &'a LatticeDriver<'a>,
     view: ResolvedInvocationView<'a>,
@@ -5484,6 +5546,9 @@ impl AnalysisInputs for StateInputs<'_> {
         }
         match simple_var_ref_name(operand.text, self.driver.context.grammar.braced_var) {
             Some(name) => self.variable(name, domain),
+            None if domain == FactDomain::ExactValue => self
+                .substituted(operand.text)
+                .map_or_else(FactView::Top, |value| FactView::Exact(value, None)),
             None => FactView::Top(DeclineReason::NotExact),
         }
     }
@@ -5533,8 +5598,11 @@ impl AnalysisInputs for StateInputs<'_> {
         Err(DeclineReason::Unsupported)
     }
 
-    fn nested(&self, _script: &str, _state: &mut EvaluationState) -> EvalAnswer {
-        EvalAnswer::Declined(DeclineReason::Unsupported)
+    fn nested(&self, script: &str, state: &mut EvaluationState) -> EvalAnswer {
+        if state.policy != NestedPolicy::EffectFreeOnly {
+            return EvalAnswer::Declined(DeclineReason::StatefulNested);
+        }
+        self.run_nested(script)
     }
 
     fn math_function(&self, name: &str) -> Result<BindingIdentity, DeclineReason> {
@@ -5543,6 +5611,132 @@ impl AnalysisInputs for StateInputs<'_> {
 
     fn context(&self) -> &AnalysisContext {
         &self.driver.context
+    }
+}
+
+impl StateInputs<'_> {
+    /// A substituted word's value over the state: its parts concatenated —
+    /// each literal run decoded under the document's grammar, each variable
+    /// read from the state, each script run as one command ([`Self::run_nested`]).
+    /// Any part the state does not decide declines the word.
+    fn substituted(&self, text: &str) -> Result<ExactValue, DeclineReason> {
+        use tcl_lexer::word_parts::{SubstFlags, WordBody, WordPart as Part, decompose};
+        let parts = match decompose(
+            text.as_bytes(),
+            SubstFlags::default(),
+            self.driver.lexer_config,
+        ) {
+            WordBody::Literal(bytes) => return Ok(exact_of_bytes(bytes.to_vec())),
+            WordBody::Parts(parts) => parts,
+        };
+        let mut bytes = Vec::with_capacity(text.len());
+        for part in parts {
+            let value = match part {
+                Part::Text(run) => {
+                    bytes.extend_from_slice(&run);
+                    continue;
+                }
+                Part::Variable(reference) => {
+                    let name = variable_name(&reference)?;
+                    match self.variable(&name, FactDomain::ExactValue) {
+                        FactView::Exact(value, _) => value,
+                        FactView::Top(reason) => return Err(reason),
+                        _ => return Err(DeclineReason::NotExact),
+                    }
+                }
+                Part::Command(script) => {
+                    let script = std::str::from_utf8(script).map_err(|_| DeclineReason::NotText)?;
+                    match self.run_nested(script) {
+                        EvalAnswer::Evaluated(outcome)
+                            if outcome.completion == CompletionOutcome::Normal =>
+                        {
+                            match outcome.result {
+                                ExactValueOrUnavailable::Exact(value) => value,
+                                ExactValueOrUnavailable::Unavailable(_) => {
+                                    return Err(DeclineReason::NotExact);
+                                }
+                            }
+                        }
+                        // A script that does not complete normally ends the
+                        // word, which the enumeration does not follow.
+                        EvalAnswer::Evaluated(_) => return Err(DeclineReason::StatefulNested),
+                        EvalAnswer::Pending => return Err(DeclineReason::NotExact),
+                        EvalAnswer::Declined(reason) => return Err(reason),
+                    }
+                }
+                Part::ParseError(_) => return Err(DeclineReason::WrongRepresentation),
+            };
+            bytes.extend_from_slice(&value.bytes);
+        }
+        Ok(exact_of_bytes(bytes))
+    }
+
+    /// The one command of `script` run over the state by its declared route —
+    /// a registry-owned evaluator or the expression engine — under the
+    /// effect-free policy: a command that stores declines, as one with no
+    /// route or a head the run may not take for the registry's does.
+    fn run_nested(&self, script: &str) -> EvalAnswer {
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+            script,
+            0,
+            self.driver.lexer_config,
+        );
+        let [seg] = commands.as_slice() else {
+            return EvalAnswer::Declined(DeclineReason::Unsupported);
+        };
+        let head = seg.name();
+        if split_head(script).0 != head {
+            return EvalAnswer::Declined(DeclineReason::Unsupported);
+        }
+        if !self.driver.enumeration_trusts(head) {
+            return EvalAnswer::Declined(DeclineReason::RebindingSuspected);
+        }
+        let cooked = self.driver.cooked_args(seg);
+        let texts: Vec<&str> = cooked.iter().map(|arg| arg.text.as_ref()).collect();
+        let words: Vec<InvocationWord<'_>> = cooked.iter().map(ArgWord::word).collect();
+        let Some(resolved) = self.driver.resolve(head, &words) else {
+            return EvalAnswer::Declined(DeclineReason::NoSemantics);
+        };
+        let Some(semantics) = resolved.semantics.value.semantics() else {
+            return EvalAnswer::Declined(DeclineReason::NoSemantics);
+        };
+        let inputs = StateInputs {
+            driver: self.driver,
+            view: view_of(&resolved, &texts, &words, InvocationLayout::Source),
+            state: self.state,
+        };
+        let mut budget = self.driver.budget();
+        let answer = match semantics.route() {
+            EvalRoute::Direct { id } if id.owner() == EvaluatorOwner::Registry => {
+                semantics.evaluate(&inputs, &mut budget)
+            }
+            // A pack's option row can switch the declared route off, as the
+            // lattice driver asks before it runs the engine.
+            EvalRoute::Expression { language } => match semantics
+                .as_declared()
+                .and_then(|declared| declared.option_decline(&inputs))
+            {
+                Some(EvalAnswer::Pending) => EvalAnswer::Pending,
+                Some(EvalAnswer::Declined(reason)) => EvalAnswer::Declined(reason),
+                Some(EvalAnswer::Evaluated(_)) | None => ExpressionEvaluation {
+                    expression: Expression::Assembled(ExpressionRoute { language }),
+                    policy: self.driver.policy,
+                    nested: NestedPolicy::EffectFreeOnly,
+                    head: Some(binding_of(head, resolved.canonical_command)),
+                }
+                .evaluate(&inputs, &mut budget),
+            },
+            EvalRoute::None { reason } => EvalAnswer::Declined(DeclineReason::NoRoute(reason)),
+            _ => EvalAnswer::Declined(DeclineReason::Unsupported),
+        };
+        match answer {
+            EvalAnswer::Evaluated(outcome)
+                if !outcome.ordered_stores.is_empty() || !outcome.nested_writes.is_empty() =>
+            {
+                EvalAnswer::Declined(DeclineReason::StatefulNested)
+            }
+            answer => answer,
+        }
     }
 }
 
@@ -5704,9 +5898,9 @@ impl LatticeDriver<'_> {
 
     /// A source word's value over a loop enumeration's `state`: a braced
     /// word's text, a bare word with nothing to substitute cooked as Tcl
-    /// reads it, or a whole-variable read of the state. Any other word
-    /// substitutes a command or interpolates, which the enumeration does not
-    /// run.
+    /// reads it, a whole-variable read of the state, or a word that
+    /// substitutes, its parts read over the state and its scripts run as one
+    /// command each ([`StateInputs::substituted`]).
     pub(crate) fn word_in_state(
         &self,
         state: &crate::static_loops::LoopState,
@@ -5729,7 +5923,19 @@ impl LatticeDriver<'_> {
             };
         }
         if text.contains(['$', '[']) {
-            return Err(DeclineReason::NotExact);
+            let inputs = StateInputs {
+                driver: self,
+                view: ResolvedInvocationView {
+                    canonical_command: "",
+                    subcommand: None,
+                    form: None,
+                    layout: InvocationLayout::Source,
+                    operands: Vec::new(),
+                    argument_offset: 0,
+                },
+                state,
+            };
+            return inputs.substituted(text);
         }
         self.literal_value(text, TokenType::Esc)
             .map(|value| ExactValue::from_literal(&value))
