@@ -122,10 +122,10 @@ intellijPlatform {
             // the JCEF dependency alias bridging the pre- and post-extraction
             // layouts, so the floor and that bridge now coincide.
             create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2025.3.6.1")
-            create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2026.2.2")
+            create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2026.2.3")
             // This exact product/version is where JCEF is isolated behind
             // the bundled Web Browser plugin.
-            create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.CLion, "2026.2.2")
+            create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.CLion, "2026.2.3.1")
         }
     }
 
