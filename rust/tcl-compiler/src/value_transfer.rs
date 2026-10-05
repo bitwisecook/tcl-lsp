@@ -4743,12 +4743,13 @@ fn lattice_to_fact(value: &LatticeValue, identity: Option<ValueIdentity>) -> Fac
 }
 
 /// A lattice constant as an exact value: the text the constant renders
-/// as, with its classification as the additional fact.
+/// as, with its classification as the additional fact. A double is spelled
+/// as Tcl spells it (`3.0`, `1e+301`), never as Rust does (`3`).
 pub(crate) fn const_to_exact(c: &ConstValue) -> ExactValue {
     match c {
         ConstValue::Int(i) => ExactValue::int(*i),
         ConstValue::Float(f) => ExactValue {
-            bytes: f.to_string().into_bytes(),
+            bytes: tcl_syntax::number::format_double(*f).into_bytes(),
             numeric: Some(NumericValue::Float(*f)),
             representation: tcl_registry::value_transfer::RepresentationEvidence::Unknown,
         },

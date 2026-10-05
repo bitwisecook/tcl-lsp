@@ -8134,3 +8134,28 @@ fn an_enumerated_loop_bounds_its_counter_after_it() {
     prints_under_every_release(top_level, "\n");
     prints_under_every_release(in_a_procedure, "\n");
 }
+
+/// A double the lattice computes is spelled as Tcl spells it: `[expr {1.0 *
+/// 3}]` is `3.0` and `[expr {1e300 * 10.0}]` is `1e+301`, so `string length`
+/// of each is 3 and 6. The lattice had spelled them as Rust does, `3` and a
+/// 302-digit integer, and `tcl opt` folded the calls to `1` and `302`. tclsh
+/// 8.4 to 9.1 print `3` and `6`, before and after `tcl opt`.
+#[test]
+fn a_computed_double_is_spelled_as_tcl_spells_it() {
+    let source = "proc p {} {\n    set x [expr {1.0 * 3}]\n    set n [string length $x]\n    \
+                  return $n\n}\nproc q {} {\n    set y [expr {1e300 * 10.0}]\n    \
+                  set m [string length $y]\n    return $m\n}\nputs [p]\nputs [q]\n";
+    for dialect in DIALECTS {
+        assert_eq!(
+            last_value(source, dialect, "::p", "n"),
+            LatticeValue::Const(ConstValue::Int(3)),
+            "{dialect}"
+        );
+        assert_eq!(
+            last_value(source, dialect, "::q", "m"),
+            LatticeValue::Const(ConstValue::Int(6)),
+            "{dialect}"
+        );
+    }
+    prints_under_every_release(source, "3\n6\n");
+}

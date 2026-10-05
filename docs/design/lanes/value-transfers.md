@@ -8999,6 +8999,64 @@ tcl-compiler`; R7: a seed-dependent value never enters the summary.
 |---|---|
 | O103's summary path folds a computed constant return | slice 7's `summarise_returns` sentence |
 
+#### Record (2026-10-05): slice 7a
+
+The slice lands in four commits at the coordinator's rulings: the lane's own
+defect from slice 1 that the summary would read (F); two pre-existing O103
+defects the summary would otherwise carry further, #2389 (C) and #2393 (H);
+and the slice, `wip(value-transfers): slice 7a — seedless return summaries`,
+VT7a.1 and VT7a.2 with the plan's message, closing #2388 and #2392. The
+decisions are D287 onward in § *Decisions taken*, in the paragraph headed
+*Taken in slice 7a*.
+
+##### The lane's own: a lattice double is spelled as Tcl spells it
+
+`wip(value-transfers): slice 7a — a lattice double is spelled as Tcl spells
+it`, first at the coordinator's ruling (D287). Found while reading the values
+the summary would take, and the lane's own: slice 1 (`3e6d341f`) gave
+`const_to_exact` a double's bytes in Rust's `Display` spelling, so every
+reader of a lattice double through `FactView::Exact` or `const_text` read `3`
+for `3.0` and a 302-digit integer for `1e+301`. In `proc p {} {set x [expr
+{1.0 * 3}]; set n [string length $x]; return $n}; puts [p]` the lattice held
+`n` at 1, and `tcl opt --profile full` rewrote the return to `return 1` and
+the call to `puts 1`, as it rewrote `1e300 * 10.0`'s to 302, under every
+dialect; tclsh 8.4 to 9.1 print 3 and 6. `const_to_exact` spells a double with
+`format_double`, the port of `Tcl_PrintDouble` O103's re-run already renders
+one with (D58).
+
+Tests: `a_computed_double_is_spelled_as_tcl_spells_it`
+(`value_transfer_witnesses.rs`, new: the two procedures under the five
+dialects, `n` and `m` at 3 and 6 in the lattice, and the program printing 3
+and 6 under tclsh 8.4 to 9.1 before and after `tcl opt`).
+
+Left open, outside the fix: under `tcl8.4` a double that is not short is
+spelled in 8.5's shortest form where 8.4's `tcl_precision` of 12 prints twelve
+digits, so `set y [expr {1.0/3}]` folds to `set y 0.3333333333333333` and
+`string length $y` to 18, where tclsh 8.4 prints `0.333333333333` and 14
+(#2395). The fix does not move it: the two spellings agree for such a value,
+and the ones it changes — an integral double, an exponent — 8.4 spells as 8.5
+does.
+
+Measured, and committed at the coordinator's ruling while the device's
+second failure is repaired: `make rust-check` passed whole and
+`dialect-drift` reports its 8 sites, none new, and the witness passed under
+tclsh 8.4 to 9.1 before the failure, the two mutations below failing it. The
+device then failed reads again (`I/O error, dev vda`), and
+`tmp/tcl8.5.19/unix/tclsh` could not be read: the compiler suite's run at this
+commit — 10053 passed, 133 failed, 6 ignored — failed in
+`value_transfer_witnesses` alone, every failure the oracle lookup's "no
+tclsh8.5 … `TCL_LSP_REQUIRE_TCLSH` requires it", which the lookup keeps for
+the process, and nothing else; the other crates did not run. The suite's
+re-run at this commit follows once the oracle is rebuilt. Over the corpus the
+landing's differential read, `tcl diag` and `tcl opt --profile full` print
+under this commit's binary what they print under the landing's (`5bf6eb1b`),
+which the parent's binary prints for every file (the slice 12 review fixes'
+record; this commit's own run of the parent's binary agrees for its first 269
+files), for each of the first 200 files compared; the rest of the comparison
+is recorded with the next commit's. Mutations, each reverted: the double
+spelled with Rust's `Display` fails `a_computed_double_is_spelled_as_tcl_spells_it`
+(`n` at 1); spelled with Rust's `Debug`, `1e301`, the same test (`m` at 5).
+
 ### Slice 13 — proc-level transfer summaries
 
 #### Goal and exit
@@ -12187,6 +12245,10 @@ Taken in the review fixes of slice 12 (§ *Slice 12* › *Record (2026-10-05): r
 
 - **D285 — What may write a loop's counter is the unit's answer, read alike by W241 and W242** (B1 of the slice 12 review, at the coordinator's ruling; amending D282). D282 kept the walk's text scan for "nothing else writes the counter" and its literal start; a text scan sees a command that names the variable in its first word or a `VarWrite` role, and none of the writes the compiler already states — the nested writes slice 9 records, binders and destructuring targets, opaque statements' may-definitions, a procedure's write through `uplevel` or `upvar` — nor a call to code the module cannot see, which W123 already reports as widening the variables held at it. The per-function pass reads them from the unit that holds the loop, over the blocks its passes may run, and a definition beyond the plan's step, or anything unseen, declines W241's counter; W242 reads the same fact and declines on any of it, so its claim that nothing modifies the variable is never made where a call the module cannot see may. The start is the solver's alone, so a loop no unit holds has no counter verdict and no W242.
 - **D286 — A loop's state is stated only at a version the loop defines, and a contradiction drops only the contradicted loops' states** (S1 of the slice 12 review, with N6, at the coordinator's ruling; amending D270). The exit state keyed each place the run held by the version live where the loop leaves, which for a name the loop rebinds and that is dead after it is the version from before the loop, since no φ is placed for a dead name: the state described a value the version never holds, the settled run contradicted it, and D270's rule dropped every loop's state in the unit, the unrelated loops' with it. A place is stated only where the version live where the loop leaves is not the one live where its passes start, and a contradiction drops the states of the loops it contradicts, the run made again with the others'. A `foreach` binder's store takes the store rule every store takes (N6), so a binder that names an element declines.
+
+Taken in slice 7a, seedless return summaries (§ *Slice 7a* › *Record (2026-10-05): slice 7a* has the witnesses):
+
+- **D287 — A lattice double is spelled as Tcl spells it** (the lane's own defect from slice 1, found while preparing slice 7a; the coordinator's ruling, before the slice). `const_to_exact` is the one projection of a lattice constant into the exact value the routes, the refinements, the loop state and the return folds read; it spelled a double with Rust's `Display`, which drops an integral double's `.0` and never writes an exponent, so `string length` of `[expr {1.0 * 3}]` read `3`. It spells a double with `format_double`, as O103 renders one (D58). The spelling's release axis — 8.4's twelve-digit `tcl_precision` — is not modelled here (#2395).
 
 ### Open questions for the owner
 
