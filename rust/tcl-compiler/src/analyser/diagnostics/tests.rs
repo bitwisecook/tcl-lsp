@@ -12260,23 +12260,25 @@ fn tcltest_test_body_is_walked_when_imported() {
 
 #[test]
 fn tcltest_shared_frame_preserves_the_reported_setup_body_cleanup_reads() {
-    for source in [
-        include_str!("../../../tests/data/diagnostics/tcltest-shared-frame/1.tcl"),
-        include_str!("../../../tests/data/diagnostics/tcltest-shared-frame/2.tcl"),
-        include_str!("../../../tests/data/diagnostics/tcltest-shared-frame/3.tcl"),
-        include_str!("../../../tests/data/diagnostics/tcltest-shared-frame/4.tcl"),
-    ] {
-        let result = crate::provider_fixtures::analyse(
-            source,
-            "tcl8.6",
-            &[crate::provider_fixtures::Provider::Tcltest],
-        );
-        let undefined = result
-            .diagnostics
-            .iter()
-            .filter(|diagnostic| diagnostic.code == DiagCode::W210)
-            .collect::<Vec<_>>();
-        assert!(undefined.is_empty(), "{source}\n{undefined:?}");
+    for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        for source in [
+            include_str!("../../../tests/data/diagnostics/tcltest-shared-frame/1.tcl"),
+            include_str!("../../../tests/data/diagnostics/tcltest-shared-frame/2.tcl"),
+            include_str!("../../../tests/data/diagnostics/tcltest-shared-frame/3.tcl"),
+            include_str!("../../../tests/data/diagnostics/tcltest-shared-frame/4.tcl"),
+        ] {
+            let result = crate::provider_fixtures::analyse(
+                source,
+                profile,
+                &[crate::provider_fixtures::Provider::Tcltest],
+            );
+            let undefined = result
+                .diagnostics
+                .iter()
+                .filter(|diagnostic| diagnostic.code == DiagCode::W210)
+                .collect::<Vec<_>>();
+            assert!(undefined.is_empty(), "{profile}/{source}\n{undefined:?}");
+        }
     }
 }
 
@@ -12289,18 +12291,23 @@ fn tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque() {
                   -body {puts $prepared; puts $absent} \
                   -cleanup {puts $prepared} -result {[puts $data_only]}\n\
                   }\nexercise\n";
-    let result = crate::provider_fixtures::analyse(
-        source,
-        "tcl8.6",
-        &[crate::provider_fixtures::Provider::Tcltest],
-    );
-    let undefined = result
-        .diagnostics
-        .iter()
-        .filter(|diagnostic| diagnostic.code == DiagCode::W210)
-        .collect::<Vec<_>>();
-    assert_eq!(undefined.len(), 1, "{undefined:?}");
-    assert!(undefined[0].message.contains("absent"), "{undefined:?}");
+    for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let result = crate::provider_fixtures::analyse(
+            source,
+            profile,
+            &[crate::provider_fixtures::Provider::Tcltest],
+        );
+        let undefined = result
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == DiagCode::W210)
+            .collect::<Vec<_>>();
+        assert_eq!(undefined.len(), 1, "{profile}/{undefined:?}");
+        assert!(
+            undefined[0].message.contains("absent"),
+            "{profile}/{undefined:?}"
+        );
+    }
     assert_eq!(
         count_code(source, "W210"),
         0,

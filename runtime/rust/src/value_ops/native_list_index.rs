@@ -23,8 +23,8 @@ use crate::{
     obj::{self, TclObj},
 };
 use tcl_cmd_core::{
-    native_list_index::{self, NativeListIndexOps},
     CmdError,
+    native_list_index::{self, NativeListIndexOps},
 };
 use tcl_dialect::TclVersion;
 use tcl_syntax::{

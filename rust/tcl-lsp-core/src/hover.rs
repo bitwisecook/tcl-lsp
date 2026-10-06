@@ -224,11 +224,10 @@ pub fn qualified_variable_hover(
     defining_analysis: &AnalysisResult,
     qualified: &str,
 ) -> Option<Hover> {
-    let target = qualified.trim_start_matches("::");
     let (qualified, var_def) =
         tcl_compiler::analyser::namespace_variables(&defining_analysis.global_scope)
             .into_iter()
-            .find(|(q, _)| q.trim_start_matches("::") == target)?;
+            .find(|(q, _)| q == qualified)?;
     // The qualified name, not the tail: the cursor is in a *different*
     // document, so `palette` alone would not say which cell was found.  The
     // reference count is the declaring document's own, and says so — the
@@ -3780,6 +3779,18 @@ mod tests {
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();
         a.analyse(source, "tcl8.6").clone()
+    }
+
+    #[test]
+    fn qualified_colon_variable_hover_keeps_the_empty_cell_separate() {
+        let source = "set {} EMPTY; set : COLON; puts ${}; puts $:";
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse(source, dialect);
+            let hover = qualified_variable_hover(&analysis, ":::").unwrap();
+            assert!(hover.value.contains("`:::`"), "{dialect}: {}", hover.value);
+            assert!(!hover.value.contains("`::`"), "{dialect}: {}", hover.value);
+        }
     }
 
     fn position_of(source: &str, needle: &str) -> (u32, u32) {

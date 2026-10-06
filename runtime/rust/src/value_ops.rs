@@ -52,7 +52,7 @@ use tcl_syntax::number::{self, Number};
 use tcl_syntax::value::IntegerMagnitude;
 use tcl_syntax::value::{ValueError, ValueOps};
 
-use crate::interp::{obj_bytes, Interp};
+use crate::interp::{Interp, obj_bytes};
 use crate::list;
 use crate::obj::{self, TclObj};
 
@@ -573,6 +573,35 @@ impl tcl_cmd_core::native_append::NativeAppendObjects for RuntimeAppendObjects {
 }
 
 impl tcl_cmd_core::native_cat::NativeCatObjects for RuntimeAppendObjects {
+    fn empty_binary(
+        &self,
+        value: &Self::Value,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+    ) -> Result<Rc<[u8]>, ValueError> {
+        let version = protocol
+            .tcl_version()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "C compiled concat binary getter",
+            ))?;
+        let recipe = self
+            .binary_recipe
+            .filter(|recipe| recipe.protocol() == protocol)
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "native compiled concat binary issuer",
+            ))?;
+        crate::bytearray::native_binary_bytes(
+            value.as_ptr(),
+            tcl_registry::native_binary_value::NativeBinaryByteConversion::Narrow(
+                version.string_character_model(),
+            ),
+            true,
+            recipe,
+        )
+        .map(Rc::from)
+        .map_err(|_| {
+            ValueError::CommandProtocolUnavailable("native compiled concat empty binary conversion")
+        })
+    }
     fn is_shared(&self, value: &Self::Value) -> bool {
         obj::is_shared(value.as_ptr())
     }

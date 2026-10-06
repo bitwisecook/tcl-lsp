@@ -1032,20 +1032,14 @@ fn proc_arity(
     (usize::from(arity.min), max)
 }
 
-/// The project's cross-file command-resolution domain, keyed by **tail** name,
-/// each carrying the `(min, max)` arities of any **procs** with that tail.
-/// A bare command `foo` is resolved cross-file if some
-/// project declaration has tail `foo` — procs, classes (the class command),
-/// `interp alias`es, and ensembles, matching the analyser's *local* suppression
-/// domains (`proc_tail_names` / `class_tail_names` / `alias_names` /
-/// `ensemble_cmds`).  Non-proc kinds carry an **empty** arity list (resolved, but
-/// no arg-count signature), so they suppress W123 without ever drawing an arity error.
+/// Project declaration arities keyed by complete constructed declaration names.
+/// Bare-tail entries separately retain legacy unresolved-command assistance.
+/// Positioned callbacks use their retained ordered lookup candidates; a qualified
+/// callback cannot borrow another namespace's same-tailed declaration.
 ///
-/// **Mixed tails are arity-less.**  If a tail is claimed by *both* a proc and a
-/// non-proc command (e.g. `oo::class create Widget` plus `proc ns::Widget`), a
-/// call to it may dispatch to the class/alias/ensemble — which has no fixed
-/// arity — so the proc arities are dropped (empty list): the tail still suppresses
-/// W123 but never draws a (possibly wrong) arity error.
+/// A key shared by a proc and a non-proc command carries an empty arity list,
+/// because the class, alias or ensemble has no proc signature to validate.
+/// The table supplies no reached command, provider or runtime binding proof.
 ///
 /// Depends only on each file's `item_sigs` (the signature firewall), so a body
 /// edit anywhere recomputes nothing here.
@@ -1055,7 +1049,7 @@ pub fn project_command_arities(
     project: Project,
 ) -> Arc<HashMap<String, Vec<(usize, usize)>>> {
     use tcl_compiler::analyser::ItemKind;
-    // tail -> (proc arities, has a non-proc command claiming this tail).
+    // Complete declaration keys and bare-tail assistance remain separate entries.
     let mut acc: HashMap<String, (Vec<(usize, usize)>, bool)> = HashMap::new();
     for &file in project.files(db) {
         for sig in item_sigs(db, file).iter() {
@@ -1065,15 +1059,32 @@ pub fn project_command_arities(
                 sig.id.kind,
                 ItemKind::Proc | ItemKind::Class | ItemKind::Alias | ItemKind::Ensemble
             );
-            if resolvable
-                && let Some((_, tail)) = sig.id.key.rsplit_once("::")
-                && !tail.is_empty()
-            {
-                let entry = acc.entry(tail.to_owned()).or_default();
-                if sig.id.kind == ItemKind::Proc {
-                    entry.0.push(proc_arity(&sig.params, sig.params_computed));
-                } else {
-                    entry.1 = true;
+            if resolvable {
+                let tail = tcl_compiler::naming::key_tail(&sig.id.key);
+                for name in [sig.id.key.as_str(), tail] {
+                    if name.is_empty() {
+                        continue;
+                    }
+                    // A qualified procedure key can draw arity diagnostics only
+                    // when its original publication and global lookup select the
+                    // same exact retained slot. Bare tails remain assistance.
+                    if name == sig.id.key
+                        && sig.id.kind == ItemKind::Proc
+                        && sig
+                            .source_name
+                            .as_ref()
+                            .and_then(|source| source.source_spelling())
+                            .as_deref()
+                            != Some(name)
+                    {
+                        continue;
+                    }
+                    let entry = acc.entry(name.to_owned()).or_default();
+                    if sig.id.kind == ItemKind::Proc {
+                        entry.0.push(proc_arity(&sig.params, sig.params_computed));
+                    } else {
+                        entry.1 = true;
+                    }
                 }
             }
         }
@@ -1090,8 +1101,8 @@ pub fn project_command_arities(
     Arc::new(map)
 }
 
-/// Interned identity of a single command **tail** name — the key for the
-/// per-symbol cross-file resolution accessor [`command_arity`].
+/// Interned declaration key or legacy bare-tail assistance key for the
+/// per-symbol cross-file accessor [`command_arity`].
 #[salsa::interned]
 pub struct CommandTail<'db> {
     #[returns(ref)]
@@ -1103,9 +1114,9 @@ pub struct CommandTail<'db> {
 /// precision.
 ///
 /// Reads the firewalled whole-project [`project_command_arities`] table and
-/// projects out **one** tail: `Some(arities)` when the workspace resolves a
-/// command with this tail (`arities` empty ⇒ resolved by a non-proc — class /
-/// alias / ensemble — so it suppresses W123 but draws no arity error); `None`
+/// projects out one exact declaration or bare-tail assistance key:
+/// `Some(arities)` when the workspace contains that key. An empty list is
+/// non-proc assistance (class / alias / ensemble), without an arity error. `None`
 /// when nothing in the project claims it.
 ///
 /// Why this is its own query: [`project_diagnostics`] for a file demands
@@ -1319,9 +1330,10 @@ fn apply_callback_arity<S: std::hash::BuildHasher>(
         if !appended.is_checkable() {
             continue;
         }
-        // Tail-resolve the callback head against the project arity table.
-        let tail = inv.name.rsplit("::").next().unwrap_or(&inv.name);
-        let Some(candidates) = arities.get(tail) else {
+        let Some(candidates) = callback_command_keys(inv)
+            .iter()
+            .find_map(|name| arities.get(name))
+        else {
             continue;
         };
         if candidates.is_empty() {
@@ -1347,6 +1359,28 @@ fn apply_callback_arity<S: std::hash::BuildHasher>(
             out.push(diag);
         }
     }
+}
+
+/// Qualified callback lookup keeps its complete retained candidate keys. Bare
+/// tails remain assistance only for legacy callback records without a lookup.
+fn callback_command_keys(
+    invocation: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
+) -> Vec<String> {
+    if let Some(reference) = &invocation.resolved_command_reference {
+        return vec![reference.slot().to_owned()];
+    }
+    if !invocation.resolution_candidates.is_empty() {
+        return invocation.resolution_candidates.clone();
+    }
+    if invocation.name.contains("::") {
+        return invocation
+            .name
+            .starts_with("::")
+            .then(|| tcl_compiler::naming::canonical_written_command(&invocation.name))
+            .into_iter()
+            .collect();
+    }
+    vec![invocation.name.clone()]
 }
 
 /// Legacy standalone analyser diagnostics for `file` resolved against the
@@ -1390,29 +1424,29 @@ pub fn project_diagnostics(
     // resolutions rather than the whole `project_command_arities` table is what
     // stops an unrelated proc's signature edit from re-running this file's
     // cross-file diagnostics (see `command_arity`).
-    let mut tails: BTreeSet<&str> = BTreeSet::new();
+    let mut tails: BTreeSet<String> = BTreeSet::new();
     for diag in &analysis.diagnostics {
         if diag.code == DiagCode::W123
             && let Some(name) = w123_command(&diag.message)
         {
-            tails.insert(name);
+            tails.insert(name.to_owned());
         }
     }
     for (_, name) in &analysis.unresolved_command_sites {
-        tails.insert(name.as_str());
+        tails.insert(name.clone());
     }
     // Command-prefix callback heads (`lsort -command myCompare`) resolve (they
     // are not W123/unresolved), so their target proc's arity would not be
     // loaded — pull each callback tail in so `apply_callback_arity` can check it.
     for inv in &analysis.command_invocations {
         if inv.callback_arity.is_some() {
-            tails.insert(inv.name.rsplit("::").next().unwrap_or(&inv.name));
+            tails.extend(callback_command_keys(inv));
         }
     }
     let mut arities: HashMap<String, Vec<(usize, usize)>> = HashMap::new();
     for tail in tails {
-        if let Some(resolved) = command_arity(db, project, CommandTail::new(db, tail.to_owned())) {
-            arities.insert(tail.to_owned(), (*resolved).clone());
+        if let Some(resolved) = command_arity(db, project, CommandTail::new(db, tail.clone())) {
+            arities.insert(tail, (*resolved).clone());
         }
     }
 
@@ -1440,16 +1474,16 @@ pub fn project_callback_diagnostics(
 ) -> Arc<Vec<tcl_compiler::analyser::types::Diagnostic>> {
     let disabled = config.disabled_diagnostics(db);
     let analysis = file_analysis_incremental(db, file, config);
-    let mut tails: BTreeSet<&str> = BTreeSet::new();
+    let mut tails: BTreeSet<String> = BTreeSet::new();
     for inv in &analysis.command_invocations {
         if inv.callback_arity.is_some() {
-            tails.insert(inv.name.rsplit("::").next().unwrap_or(&inv.name));
+            tails.extend(callback_command_keys(inv));
         }
     }
     let mut arities: HashMap<String, Vec<(usize, usize)>> = HashMap::new();
     for tail in tails {
-        if let Some(resolved) = command_arity(db, project, CommandTail::new(db, tail.to_owned())) {
-            arities.insert(tail.to_owned(), (*resolved).clone());
+        if let Some(resolved) = command_arity(db, project, CommandTail::new(db, tail.clone())) {
+            arities.insert(tail, (*resolved).clone());
         }
     }
     Arc::new(apply_project_callback_arity(
@@ -7070,6 +7104,29 @@ mod tests {
             .iter()
             .map(|d| (d.code.as_str().to_owned(), d.message.clone()))
             .collect()
+    }
+
+    #[test]
+    fn qualified_callback_arity_keeps_same_tailed_namespaces_separate() {
+        let diagnostics = callback_arity_codes(
+            "namespace eval a {proc cb {one} {return 0}}\n\
+             namespace eval b {proc cb {one two} {return 0}}\n\
+             lsort -command ::a::cb {3 1 2}\n",
+        );
+        assert!(
+            diagnostics.iter().any(|(code, _)| code == "E003"),
+            "{diagnostics:?}"
+        );
+        let absent = callback_arity_codes(
+            "namespace eval b {proc cb {one} {return 0}}\n\
+             lsort -command ::absent::cb {3 1 2}\n",
+        );
+        assert!(
+            absent
+                .iter()
+                .all(|(code, _)| !matches!(code.as_str(), "E002" | "E003" | "E005")),
+            "{absent:?}"
+        );
     }
 
     #[test]

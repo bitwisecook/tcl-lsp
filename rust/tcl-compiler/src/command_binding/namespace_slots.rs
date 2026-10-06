@@ -147,7 +147,7 @@ impl ModuleCommandBindings {
             )));
         }
         let entry = self.baseline.native_entry.as_ref()?;
-        let protocol = entry.name_protocol?.recipe();
+        let protocol = entry.command_name_policy()?.recipe();
         let path = current.exact_native_path()?;
         if protocol.is_jim084() {
             let context = current.native_context()?;
@@ -199,7 +199,7 @@ impl ModuleCommandBindings {
             return None;
         };
         let entry = self.baseline.native_entry.as_ref()?;
-        let protocol = entry.name_protocol?.recipe();
+        let protocol = entry.command_name_policy()?.recipe();
         let input = protocol
             .namespace_address_input(
                 NativeNameContext::new(current.exact_native_path()?),
@@ -265,7 +265,10 @@ impl ModuleCommandBindings {
         if !entry.closed {
             return Err(Unavailable::OpenTable);
         }
-        let protocol = entry.name_protocol.ok_or(Unavailable::NamePolicy)?.recipe();
+        let protocol = entry
+            .command_name_policy()
+            .ok_or(Unavailable::NamePolicy)?
+            .recipe();
         if let SourceNamespaceKey::Native(context) = current
             && (context.interpreter != entry.interpreter
                 || entry.retained_namespace_context(context.token)? != *context)
@@ -426,7 +429,7 @@ impl ModuleCommandBindings {
             return Some(SourceCommandKey::authored(key));
         }
         let entry = self.baseline.native_entry.as_ref()?;
-        let protocol = entry.name_protocol?.recipe();
+        let protocol = entry.command_name_policy()?.recipe();
         let path = current.exact_native_path()?;
         let jim_object = if protocol.is_jim084() {
             Some(

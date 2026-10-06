@@ -9,7 +9,10 @@ use super::{ends_with_separator, is_qualified, qualifier_segments, written_comma
 use crate::native_string::NativeStringProtocol;
 use std::borrow::Cow;
 use tcl_core_types::{ByteCommandSlot, ByteNamespacePath, NameBytes, c_string_extent};
-use tcl_dialect::{TclVersion, model::DialectPoint};
+use tcl_dialect::{
+    TclVersion,
+    model::{BuildProfileId, DialectPoint, Family, Release},
+};
 
 /// Audited native name recipe, independent of numeric engine availability.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -169,6 +172,25 @@ pub enum NativeNameQualification {
     Unqualified,
     Relative,
     Absolute,
+}
+
+/// Exact source namespace of a purpose-selected namespace pattern.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum NativeNamespacePatternSource {
+    /// C namespace component geometry, independent of its display name.
+    C(ByteNamespacePath),
+    /// Jim's retained flat namespace-object bytes.
+    Jim(NameBytes),
+}
+
+/// Original pattern extent, source namespace and final counted pattern tail.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeNamespacePatternParts {
+    pub original: NameBytes,
+    pub selected: NameBytes,
+    pub source: Option<NativeNamespacePatternSource>,
+    pub tail: NameBytes,
+    pub purpose: NativeNamePurpose,
 }
 
 /// Actual current namespace context; constructed paths must not be reparsed.
@@ -372,10 +394,15 @@ impl NativeNameProtocol {
     /// Select actual engine/build identity; vendors and unknown points abstain.
     #[must_use]
     pub fn for_point(point: DialectPoint) -> Option<Self> {
-        NativeStringProtocol::for_point(point).map(|recipe| match recipe {
-            NativeStringProtocol::C(version) => Self::C(version),
-            NativeStringProtocol::Jim084 => Self::Jim084,
-        })
+        match (point.family(), point.build()) {
+            (Family::Tcl, BuildProfileId::Canonical) => point.tcl_version().map(Self::C),
+            (Family::Jim, BuildProfileId::Canonical | BuildProfileId::JimFull)
+                if point.release() == Release::JIM_0_84 =>
+            {
+                Some(Self::Jim084)
+            }
+            _ => None,
+        }
     }
     #[must_use]
     pub const fn tcl_version(self) -> Option<TclVersion> {
@@ -742,6 +769,12 @@ impl NativeNameProtocol {
             return Err(NameProjectionUnavailable::PurposeNotModelled);
         }
         let selected = self.namespace_address_input(context, original)?;
+        if selected.selected().is_empty()
+            && selected.qualification() != NativeNameQualification::Absolute
+            && !context.namespace.is_root()
+        {
+            return Err(NameProjectionUnavailable::PurposeNotModelled);
+        }
         let mut path = if selected.qualification() == NativeNameQualification::Absolute {
             ByteNamespacePath::root()
         } else {
@@ -1034,6 +1067,46 @@ impl NativeNameProtocol {
             Cow::Borrowed(c_string_extent(original)),
             None,
         ))
+    }
+
+    /// Split a namespace pattern after its purpose selects the input extent.
+    /// Constructed C context components are never rendered or reparsed; Jim
+    /// uses its own namespace helper and original namespace object instead.
+    ///
+    /// # Errors
+    /// Refuses unsupported purposes and missing actual Jim namespace context.
+    pub fn namespace_pattern_parts(
+        self,
+        context: NativeNameContext<'_>,
+        original: &[u8],
+        purpose: NativeNamePurpose,
+    ) -> Result<NativeNamespacePatternParts, NameProjectionUnavailable> {
+        let mut input = self.namespace_pattern_input(original, purpose)?;
+        let selected = NameBytes::from(input.selected());
+        let (source, tail) = if !is_qualified(input.selected()) {
+            (None, selected.clone())
+        } else if self.is_jim084() {
+            let qualifier = self.namespace_qualifier_bytes(input.selected());
+            let source = self.jim_namespace_canonical_input(context, qualifier)?;
+            (
+                Some(NativeNamespacePatternSource::Jim(source.selected().into())),
+                self.namespace_tail_bytes(input.selected()).into(),
+            )
+        } else {
+            input.context = Some(context);
+            let slot = slot_for_projection(&input)?;
+            (
+                Some(NativeNamespacePatternSource::C(slot.namespace)),
+                slot.simple,
+            )
+        };
+        Ok(NativeNamespacePatternParts {
+            original: original.into(),
+            selected,
+            source,
+            tail,
+            purpose,
+        })
     }
 
     /// Jim helper canonicalisation preserves relative object bytes, while an
@@ -1916,7 +1989,23 @@ pub fn native_command_source_spelling(
     let selected = protocol
         .command_publication_slot(NativeNameContext::root(), spelling.as_bytes())
         .ok()?;
-    (selected == *slot).then_some(spelling)
+    if selected != *slot {
+        return None;
+    }
+    let lookup_agrees = if protocol.is_jim084() {
+        slot.namespace.is_root()
+            && protocol
+                .jim_command_lookup_keys(NativeNameContext::root(), spelling.as_bytes())
+                .ok()?
+                .as_slice()
+                == std::slice::from_ref(&slot.simple)
+    } else {
+        protocol
+            .command_lookup_slot(NativeNameContext::root(), spelling.as_bytes())
+            .ok()?
+            == *slot
+    };
+    lookup_agrees.then_some(spelling)
 }
 
 /// `TclGetCommandFullName` reporting bytes from an already selected native slot.
@@ -3089,4 +3178,38 @@ fn rename_alias_loop_diagnostic_uses_selected_release_and_original_slot() {
         NativeNameProtocol::Jim084.rename_alias_loop_name(b"source", b"destination"),
         None
     );
+}
+
+#[test]
+fn empty_relative_namespace_address_does_not_select_nonroot_caller() {
+    let mut parent = ByteNamespacePath::root();
+    parent.push(b"outer");
+    for version in [
+        TclVersion::V8_4,
+        TclVersion::V8_5,
+        TclVersion::V8_6,
+        TclVersion::V9_0,
+        TclVersion::V9_1,
+    ] {
+        let recipe = NativeNameProtocol::C(version);
+        for written in [b"".as_slice(), b"\0suffix"] {
+            assert!(
+                recipe
+                    .namespace_address_path(NativeNameContext::new(&parent), written)
+                    .is_err()
+            );
+            assert_eq!(
+                recipe
+                    .namespace_address_path(NativeNameContext::root(), written)
+                    .unwrap(),
+                ByteNamespacePath::root()
+            );
+        }
+        assert_eq!(
+            recipe
+                .namespace_address_path(NativeNameContext::new(&parent), b"::outer::")
+                .unwrap(),
+            parent
+        );
+    }
 }

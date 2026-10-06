@@ -554,7 +554,7 @@ pub(crate) fn request_yieldto(vm: &mut Vm, words: &[Value]) -> Result<(), Comple
 
 fn check_relay_boundary(vm: &mut Vm) -> Result<(), Completion<Value>> {
     check_yieldable(vm, "yieldto")?;
-    if vm.namespace_is_dying(vm.current_ns()) {
+    if vm.namespace_token_is_dying(vm.current_ns_id()) {
         return Err(crate::command::err_with_code(
             "yieldto called in deleted namespace",
             "TCL COROUTINE YIELDTO_IN_DELETED",
@@ -805,4 +805,34 @@ pub(crate) fn eval_retained_activation(
         vm.fire_parked_unset_traces(&mut parked, &mut Vec::new());
     }
     outcome
+}
+
+#[cfg(test)]
+mod retirement_tests {
+    use tcl_syntax::value::ValueOps;
+
+    #[test]
+    fn yieldto_retains_deleted_entered_namespace_when_its_spelling_is_recreated() {
+        for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            for relay in ["yieldto target", "$relay target"] {
+                let profile = tcl_dialect::DialectProfile::find(engine).unwrap();
+                let mut vm = crate::native_fixture::interpreter(profile);
+                let source = format!(
+                    "namespace eval N {{proc generator {{relay}} {{\
+                     namespace delete ::N; namespace eval ::N {{proc target {{}} {{return NEW}}}}; \
+                     {relay}}}}}; \
+                     set status [catch {{coroutine c N::generator yieldto}} message]; \
+                     list $status $message $::errorCode"
+                );
+                let completion = vm.try_eval_source(&source).unwrap();
+                assert_eq!(completion.code, crate::Code::Ok, "{engine}/{relay}");
+                assert_eq!(
+                    vm.native_string_bytes(&completion.result).unwrap().as_ref(),
+                    b"1 {yieldto called in deleted namespace} {TCL COROUTINE YIELDTO_IN_DELETED}",
+                    "{engine}/{relay}"
+                );
+                assert!(vm.refused_completion().is_none(), "{engine}/{relay}");
+            }
+        }
+    }
 }

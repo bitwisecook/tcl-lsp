@@ -414,12 +414,9 @@ pub enum Op {
     IRULE_EQUALS,
     IRULE_MATCHES_GLOB,
     IRULE_MATCHES_REGEX,
-    /// `iruleMatches` — the F5 trunk's bare `matches` word operator. Its
-    /// presence is measured
-    /// (`docs/design/f5/bigip-irule-parser-measurements.md` §4a `e_matches`);
-    /// its discriminating semantics are not yet confirmed, so the VM
-    /// answers it as a string equality — the reading the measured cell
-    /// exercises — and the compiler declines to constant-fold it.
+    /// The authored F5 bare `matches` operator: case-sensitive whole-string
+    /// glob matching, admitted by the independently installed F5 parser policy.
+    /// The discriminators are measured on BIG-IP 21.1.0.1 build 0.0.26.
     IRULE_MATCHES,
     IRULE_WORD_AND,
     IRULE_WORD_OR,

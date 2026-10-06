@@ -27,6 +27,12 @@ impl CompilerTraversal<'_> {
         context: SourceExecutionContext<'_>,
     ) -> Option<SourceNativeCompilationFailure> {
         let (steps, generic, rejection) = match recipe {
+            NativeInstructionPlan::DictionaryScope(recipe) => (
+                recipe.preparations.as_slice(),
+                matches!(recipe.outcome, NativeControlOutcome::Generic),
+                None,
+            ),
+            NativeInstructionPlan::GenericPreparation(steps) => (steps.as_slice(), true, None),
             NativeInstructionPlan::Control(recipe) => (
                 recipe.preparations.as_slice(),
                 matches!(recipe.outcome, NativeControlOutcome::Generic),
@@ -144,6 +150,12 @@ impl CompilerTraversal<'_> {
                     _ => None,
                 }), context,
             ),
+            NativeInstructionPlan::NamedInvocation(named) => {
+                self.control_preparations(words, offset, recipe, context, OriginalControlPreparations {steps: &named.preparations, generic: true, rejection: None})
+            }
+            NativeInstructionPlan::DictionaryMutation(dictionary) => {
+                self.original_operands(words, dictionary.operands.iter().cloned(), context)
+            }
             NativeInstructionPlan::DictionaryLookup(dictionary) => {
                 self.original_operands(words, dictionary.operands.iter().cloned(), context)
             }
@@ -161,6 +173,9 @@ impl CompilerTraversal<'_> {
             NativeInstructionPlan::Introspection(recipe) => {
                 self.original_operands(words, recipe.operands.iter().cloned(), context)
             }
+            NativeInstructionPlan::MathOperator(mathop) => self.original_operands(words, mathop.steps.iter().filter_map(|step| match step {
+                tcl_registry::native_mathop_compilation::NativeMathopStep::Word(operand) => Some(operand.clone()), _ => None,
+            }), context),
             NativeInstructionPlan::Scalar(recipe) => {
                 self.original_operands(words, recipe.operands.iter().cloned(), context)
             }

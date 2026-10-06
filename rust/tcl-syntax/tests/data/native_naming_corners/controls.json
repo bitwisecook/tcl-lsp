@@ -1,0 +1,202 @@
+[
+  {
+    "case": "command-colon-runs",
+    "purpose": "command-lookup-publication",
+    "body": "namespace eval ::n {}; proc ::n:::leaf {} {return FOUND}; list [::n:::leaf] [namespace which -command ::n:::leaf]"
+  },
+  {
+    "case": "command-counted-nul",
+    "purpose": "command-lookup-publication",
+    "body": "set name \"leaf[format %c 0]tail\"; proc $name {} {return FULL}; list [eval [list $name]] [info commands leaf*]"
+  },
+  {
+    "case": "command-distinct-unicode",
+    "purpose": "command-lookup-publication",
+    "body": "set one [format %c 233]; set two \"e[format %c 769]\"; proc $one {} {return ONE}; proc $two {} {return TWO}; list [eval [list $one]] [eval [list $two]]"
+  },
+  {
+    "case": "command-path-precedence",
+    "purpose": "command-search-path",
+    "body": "namespace eval ::n {}; namespace eval ::path {proc leaf {} {return PATH}}; proc ::leaf {} {return ROOT}; namespace eval ::n {namespace path ::path; leaf}"
+  },
+  {
+    "case": "namespace-colon-construction",
+    "purpose": "namespace-addressing",
+    "body": "namespace eval ::n::::child {list [namespace current] [namespace parent] [namespace tail ::n::::child]}"
+  },
+  {
+    "case": "namespace-counted-nul",
+    "purpose": "namespace-addressing",
+    "body": "set name \"::n[format %c 0]tail\"; namespace eval $name {namespace current}"
+  },
+  {
+    "case": "namespace-import-forget",
+    "purpose": "namespace-import-export-forget",
+    "body": "namespace eval ::source {proc leaf {} {return SRC}; namespace export leaf}; namespace eval ::target {namespace import ::source::leaf; set before [leaf]; namespace forget ::source::leaf; list $before [info commands leaf]}"
+  },
+  {
+    "case": "namespace-import-force-rename",
+    "purpose": "namespace-import-export-forget",
+    "body": "namespace eval ::source {proc leaf {} {return SRC}; namespace export leaf}; namespace eval ::target {proc leaf {} {return OLD}; namespace import -force ::source::leaf}; rename ::source::leaf ::source::moved; list [::target::leaf] [namespace origin ::target::leaf]"
+  },
+  {
+    "case": "procedure-colon-tail",
+    "purpose": "procedure-publication",
+    "body": "namespace eval ::n {}; proc ::n:::edge {} {return EDGE}; list [::n:::edge] [info procs ::n::*]"
+  },
+  {
+    "case": "procedure-formal-counted-nul",
+    "purpose": "procedure-formal-storage",
+    "body": "set formal \"x[format %c 0]tail\"; proc p [list $formal] {list [info locals] [info exists x]}; p VALUE"
+  },
+  {
+    "case": "procedure-formal-colon",
+    "purpose": "procedure-formal-storage",
+    "body": "proc p {:odd n::q} {list ${:odd} ${n::q} [info locals]}; p A B"
+  },
+  {
+    "case": "procedure-rename-namespace",
+    "purpose": "procedure-live-lookup-context",
+    "body": "namespace eval ::a {variable value A; proc p {} {variable value; return $value}}; namespace eval ::b {variable value B}; rename ::a::p ::b::p; ::b::p"
+  },
+  {
+    "case": "alias-c-style-rebind",
+    "purpose": "alias-target-lookup",
+    "body": "proc target args {return OLD}; interp alias {} a {} target; rename target original; proc target args {return NEW}; a"
+  },
+  {
+    "case": "alias-jim-prefix-rebind",
+    "purpose": "alias-target-lookup",
+    "body": "proc target args {return OLD}; alias a target PREFIX; rename target original; proc target args {return NEW}; a ARG"
+  },
+  {
+    "case": "rename-colon-destination",
+    "purpose": "rename-lookup-publication",
+    "body": "proc leaf {} {return ORIGINAL}; namespace eval ::n {}; rename leaf ::n:::moved; list [::n:::moved] [info commands ::leaf]"
+  },
+  {
+    "case": "rename-counted-nul",
+    "purpose": "rename-lookup-publication",
+    "body": "proc leaf {} {return ORIGINAL}; set dest \"moved[format %c 0]tail\"; rename leaf $dest; eval [list $dest]"
+  },
+  {
+    "case": "child-c-style-alias",
+    "purpose": "cross-interpreter-alias",
+    "body": "set child [interp create]; proc target args {return [list PARENT $args]}; interp alias $child a {} target PREFIX; set result [interp eval $child {a ARG}]; interp delete $child; set result"
+  },
+  {
+    "case": "child-jim-handle-alias",
+    "purpose": "cross-interpreter-alias",
+    "body": "set child [interp]; $child alias a list PREFIX; set result [$child eval {a ARG}]; $child delete; set result"
+  },
+  {
+    "case": "upvar-local-colon",
+    "purpose": "upvar-target-local-alias",
+    "body": "set ::target ROOT; proc p {} {upvar #0 ::target :alias; list ${:alias} [info locals]}; p"
+  },
+  {
+    "case": "upvar-counted-nul-target",
+    "purpose": "upvar-target-local-alias",
+    "body": "set name \"target[format %c 0]tail\"; set $name FULL; set target SHORT; proc p {name} {upvar #0 $name alias; set alias}; p $name"
+  },
+  {
+    "case": "upvar-array-element",
+    "purpose": "upvar-target-local-alias",
+    "body": "set a(k) OLD; proc p {} {upvar #0 a(k) alias; set alias NEW; list [set ::a(k)] [info exists alias]}; p"
+  },
+  {
+    "case": "uplevel-caller-chain",
+    "purpose": "frame-selection-uplevel",
+    "body": "proc outer {} {set local OUTER; inner}; proc inner {} {set local INNER; list [uplevel 1 {set local}] [uplevel #0 {namespace current}]}; outer"
+  },
+  {
+    "case": "namespace-upvar-qualification",
+    "purpose": "namespace-upvar",
+    "body": "namespace eval ::n {variable x VALUE}; proc p {} {namespace upvar ::n x alias; set alias}; p"
+  },
+  {
+    "case": "global-rooted-local",
+    "purpose": "global-local-alias",
+    "body": "set ::n VALUE; proc p {} {global ::n; list [info locals] [info exists n] [set ::n]}; p"
+  },
+  {
+    "case": "global-counted-nul",
+    "purpose": "global-local-alias",
+    "body": "set name \"v[format %c 0]tail\"; set $name FULL; set v SHORT; proc p {name} {global $name; list [info locals] [set $name]}; p $name"
+  },
+  {
+    "case": "variable-qualified-target",
+    "purpose": "namespace-variable-local-alias",
+    "body": "namespace eval ::n {variable x VALUE}; proc p {} {variable ::n::x; list [info locals] [set x]}; p"
+  },
+  {
+    "case": "variable-array-qualified",
+    "purpose": "namespace-variable-local-alias",
+    "body": "namespace eval ::n {variable a; set a(k) VALUE}; proc p {} {variable ::n::a; set a(k)}; p"
+  },
+  {
+    "case": "array-counted-nul-index",
+    "purpose": "array-root-element-identity",
+    "body": "set key \"k[format %c 0]tail\"; set a($key) FULL; set a(k) SHORT; list [set a($key)] [set a(k)] [llength [array names a]]"
+  },
+  {
+    "case": "array-counted-nul-root",
+    "purpose": "array-root-element-identity",
+    "body": "set root \"a[format %c 0]tail\"; set ${root}(k) FULL; set a(k) SHORT; list [set ${root}(k)] [set a(k)]"
+  },
+  {
+    "case": "trace-legacy-linked-report",
+    "purpose": "variable-trace-receiver-report",
+    "body": "set a(k) VALUE; set log {}; proc observe {n e op} {lappend ::log [list $n $e $op]}; proc p {} {upvar #0 a(k) alias; trace variable alias r observe; set alias}; list [p] $log"
+  },
+  {
+    "case": "trace-modern-linked-report",
+    "purpose": "variable-trace-receiver-report",
+    "body": "set a(k) VALUE; set log {}; proc observe {n e op} {lappend ::log [list $n $e $op]}; proc p {} {upvar #0 a(k) alias; trace add variable alias read observe; set alias}; list [p] $log"
+  },
+  {
+    "case": "trace-command-rename-report",
+    "purpose": "command-trace-lifecycle-report",
+    "body": "set log {}; proc observe {old new op} {lappend ::log [list $old $new $op]}; proc leaf {} {return VALUE}; trace add command leaf rename observe; rename leaf moved; list [moved] $log"
+  },
+  {
+    "case": "trace-execution-target-rebind",
+    "purpose": "execution-trace-selection",
+    "body": "proc before {command operation} {rename leaf original; proc leaf {} {return NEW}}; proc leaf {} {return OLD}; trace add execution leaf enter before; leaf"
+  },
+  {
+    "case": "package-counted-nul-key",
+    "purpose": "package-name-key",
+    "body": "set name \"Pkg[format %c 0]Tail\"; package provide $name 1.0; list [package present $name] [catch {package present Pkg}]"
+  },
+  {
+    "case": "package-unicode-keys",
+    "purpose": "package-name-key",
+    "body": "set one [format %c 233]; set two \"e[format %c 769]\"; package provide $one 1.0; package provide $two 2.0; list [package require $one] [package require $two]"
+  },
+  {
+    "case": "package-loader-namespace",
+    "purpose": "package-loader-lookup-context",
+    "body": "namespace eval ::n {variable stage BEFORE}; package ifneeded Demo 1.0 {namespace eval ::n {set stage LOADED; proc leaf {} {return INSTALLED}}; package provide Demo 1.0}; namespace eval ::n {list [package require Demo] $stage [leaf]}"
+  },
+  {
+    "case": "autoload-qualified-name",
+    "purpose": "autoload-command-publication",
+    "body": "namespace eval ::n {}; set auto_index(::n::leaf) {proc ::n::leaf {} {return LOADED}}; ::n::leaf"
+  },
+  {
+    "case": "oo-object-namespace-variable",
+    "purpose": "oo-method-variable-owner",
+    "body": "oo::class create C {variable x; constructor {} {set x VALUE}; method get {} {return $x}}; C create object; object get"
+  },
+  {
+    "case": "oo-method-colon-name",
+    "purpose": "oo-method-name-selection",
+    "body": "oo::class create C {method :odd {} {return VALUE}; export :odd}; C create object; object :odd"
+  },
+  {
+    "case": "oo-counted-nul-object",
+    "purpose": "oo-object-name-publication",
+    "body": "oo::class create C {method get {} {return VALUE}}; set name \"object[format %c 0]tail\"; C create $name; eval [list $name get]"
+  }
+]

@@ -675,7 +675,8 @@ fn proc_indices_with_trait(
 /// name, and the qualified name without its leading `::`.
 fn proc_name_keys(proc: &ProcDef) -> Vec<String> {
     let mut keys = vec![proc.name.clone()];
-    let stripped = proc.qualified_name.trim_start_matches("::");
+    let stripped =
+        tcl_syntax::naming::unroot_rooted_key(&proc.qualified_name).unwrap_or(&proc.qualified_name);
     if stripped != proc.name {
         keys.push(stripped.to_owned());
     }
@@ -2960,12 +2961,9 @@ fn insert_definer_class_name_override(
 }
 
 /// Resolve a class name *as written* at a definer head to a qualified key in
-/// `hierarchy`: an exact match, its global-qualified form, or — as a last
-/// resort — the unique class sharing its tail name.  `None` when unresolved or
-/// the tail is ambiguous (no wrong-resolution from a homonym).
+/// `hierarchy` through retained root source receipts. Missing or ambiguous
+/// byte geometry withdraws the class identity.
 fn resolve_class_in_hierarchy(hierarchy: &ClassHierarchy, name: &str) -> Option<String> {
-    // The shared call-site resolver — exact, canonical global-qualified (the
-    // colon-run rule), then unique-tail.
     tcl_compiler::analyser::class_hierarchy::resolve_written_class_name(name, &hierarchy.classes)
 }
 
@@ -3050,11 +3048,7 @@ fn user_constructor_class_of_head(
     {
         return None;
     }
-    let qualified = format!("::{}", cmd.trim_start_matches("::"));
-    [cmd.as_str(), qualified.as_str()]
-        .into_iter()
-        .find(|c| hierarchy.classes.contains_key(*c))
-        .map(String::from)
+    resolve_class_in_hierarchy(hierarchy, &cmd)
 }
 
 /// Registry-known closed-set argument values → `EnumMember`.  The registry
@@ -5678,7 +5672,10 @@ fn bind_object_handle(
             if type_name.is_empty() || type_name.contains(['$', '[', ' ']) {
                 return;
             }
-            let qualified = format!("::{}", type_name.trim_start_matches("::"));
+            let Some(hierarchy) = classes else { return };
+            let Some(qualified) = resolve_class_in_hierarchy(hierarchy, type_name) else {
+                return;
+            };
             handles
                 .entry(bound.name.to_owned())
                 .or_default()

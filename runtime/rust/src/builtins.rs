@@ -27,7 +27,7 @@
 //! `argv[0]` is the command name (Tcl's `objv` convention).
 
 use crate::frame::VarError;
-use crate::interp::{obj_bytes, Code, Interp};
+use crate::interp::{Code, Interp, obj_bytes};
 // The transient `1` of a tower `incr` is the only fresh object left to drop
 // by hand; every other path now stores through `store_var_result`.
 use crate::interp::drop_fresh;
@@ -235,6 +235,30 @@ fn make_constant_error(interp: &mut Interp, name: &[u8], reason: &[u8]) -> Code 
 
 /// `set varName ?value?` — write (returns the value) or read (returns it).
 fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if interp.observed_name_policy_selected() && matches!(argv.len(), 2 | 3) {
+        let name = obj_bytes(argv[1]);
+        let level = interp.frames.borrow().current_level();
+        return match argv.len() {
+            2 => match interp.observed_variable_get(&name, level) {
+                Ok(Some(value)) => {
+                    interp.set_result(value);
+                    Code::Ok
+                }
+                Ok(None) => {
+                    let _ = interp.observed_refusal::<()>();
+                    Code::Error
+                }
+                Err(_) => Code::Error,
+            },
+            _ => match interp.observed_variable_set(&name, level, argv[2]) {
+                Ok(()) => {
+                    interp.set_result(argv[2]);
+                    Code::Ok
+                }
+                Err(_) => Code::Error,
+            },
+        };
+    }
     match argv.len() {
         2 => {
             let name = obj_bytes(argv[1]);
@@ -497,6 +521,19 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let i = options.names_from + 1;
     let nocomplain = !options.complain;
     for &a in &argv[i..] {
+        if interp.observed_name_policy_selected() {
+            let name = obj_bytes(a);
+            let level = interp.frames.borrow().current_level();
+            match interp.observed_variable_unset(&name, level) {
+                Ok(true) => continue,
+                Ok(false) if nocomplain => continue,
+                Ok(false) => {
+                    let _ = interp.observed_refusal::<()>();
+                    return Code::Error;
+                }
+                Err(_) => return Code::Error,
+            }
+        }
         if interp.native_c_variable_name_protocol().is_some() {
             if let Err(code) = interp.unset_original_c_variable(a, !nocomplain) {
                 return code;
@@ -694,6 +731,13 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
     }
     fn invocation_dialect(&self) -> tcl_registry::InvocationDialect {
         self.interp.native_invocation_dialect()
+    }
+    fn f5_string_predicate_provider(
+        &self,
+    ) -> Option<tcl_syntax::expr::operators::AuthoredF5StringPredicateProvider> {
+        tcl_registry::native_expression_program::authored_f5_string_predicate_provider(
+            self.interp.expression_evaluation_policy().as_ref(),
+        )
     }
     fn read_var(&mut self, name: &str) -> Result<crate::obj::Owned, crate::expr_error::ExprError> {
         let (base, elem) = self
@@ -1388,6 +1432,60 @@ fn parse_runtime_expr_cached(
 
 #[cfg(test)]
 mod tests {
+    #[cfg(have_tommath)]
+    #[test]
+    fn measured_bare_matches_runtime_requires_independent_authored_policy() {
+        use tcl_registry::invocation_words::LogicalExpressionParseProvider;
+        let fixture =
+            include_str!("../../../rust/tcl-syntax/tests/data/f5-matches-21.1.0.1-0.0.26.tsv");
+        leak_free(|interp| {
+            interp.set_dialect_profile(tcl_dialect::DialectProfile::irules());
+            assert!(super::parse_runtime_expr(interp, b"\"abcd\" matches \"a*\"").is_err());
+            assert!(interp.set_logical_expression_parse_provider(
+                LogicalExpressionParseProvider::Tcl84CoreSimulation,
+                crate::environment::profile_for_dialect("tcl9.0"),
+            ));
+            for row in fixture.lines().take(6) {
+                let fields = row.split('\t').collect::<Vec<_>>();
+                assert_eq!(
+                    super::eval_expr_prepared_source(interp, None, fields[0].as_bytes()),
+                    Code::Ok,
+                    "{row}"
+                );
+                assert_eq!(interp.result_bytes(), fields[2].as_bytes(), "{row}");
+            }
+            for (expression, expected) in [
+                (r#""foobar" contains "oob""#, "1"),
+                (r#""foobar" starts_with "foo""#, "1"),
+                (r#""foobar" ends_with "foo""#, "0"),
+                (r#""foobar" matches_glob "f?o*""#, "1"),
+            ] {
+                assert_eq!(
+                    super::eval_expr_prepared_source(interp, None, expression.as_bytes()),
+                    Code::Ok
+                );
+                assert_eq!(interp.result_bytes(), expected.as_bytes());
+            }
+            assert_eq!(
+                super::eval_expr_prepared_source(interp, None, br#""foobar" matches_regex "o+b""#),
+                Code::Error
+            );
+        });
+        for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            leak_free(|interp| {
+                interp.set_dialect_profile(crate::environment::profile_for_dialect(name));
+                for row in fixture.lines() {
+                    let expression = row.split('\t').next().unwrap();
+                    assert_eq!(
+                        super::eval_expr_prepared_source(interp, None, expression.as_bytes()),
+                        Code::Error,
+                        "{name}: {row}"
+                    );
+                }
+            });
+        }
+    }
+
     use crate::counters;
     use crate::interp::{Code, Interp};
 
@@ -1436,12 +1534,14 @@ mod tests {
                 .expect("explicit logical parsing");
             let dialect = interp.native_invocation_dialect();
             assert!(crate::expr::cached_expr(object.as_ptr(), dialect, None).is_none());
-            assert!(crate::expr::cached_expr(
-                object.as_ptr(),
-                dialect,
-                interp.logical_expression_parse_policy()
-            )
-            .is_some());
+            assert!(
+                crate::expr::cached_expr(
+                    object.as_ptr(),
+                    dialect,
+                    interp.logical_expression_parse_policy()
+                )
+                .is_some()
+            );
             assert_eq!(crate::interp::obj_bytes(object.as_ptr()), b"{\xff\0tail}");
             assert!(dialect.execution_point().is_none());
         });
@@ -1490,9 +1590,11 @@ mod tests {
                 &reparsed,
                 &crate::expr::cached_expr(pointer, dialect, current_policy).unwrap(),
             ));
-            assert!(interp
-                .native_compiler_cache_epochs(crate::namespace::GLOBAL)
-                .is_none());
+            assert!(
+                interp
+                    .native_compiler_cache_epochs(crate::namespace::GLOBAL)
+                    .is_none()
+            );
         });
     }
 
@@ -1516,12 +1618,14 @@ mod tests {
             super::parse_runtime_expr_cached(interp, Some(object.as_ptr()), b"IGNORED")
                 .expect("actual host byte-array materialisation and logical syntax");
             assert_eq!(crate::obj::bytes_of(object.as_ptr()), b"1+2");
-            assert!(crate::expr::cached_expr(
-                object.as_ptr(),
-                interp.native_invocation_dialect(),
-                interp.logical_expression_parse_policy()
-            )
-            .is_some());
+            assert!(
+                crate::expr::cached_expr(
+                    object.as_ptr(),
+                    interp.native_invocation_dialect(),
+                    interp.logical_expression_parse_policy()
+                )
+                .is_some()
+            );
         });
     }
 
@@ -1731,10 +1835,12 @@ mod tests {
                 interp.do_expression_subst(br"\u0000", false),
                 Ok(vec![0xc0, 0x80])
             );
-            assert!(interp
-                .native_invocation_dialect()
-                .execution_point()
-                .is_none());
+            assert!(
+                interp
+                    .native_invocation_dialect()
+                    .execution_point()
+                    .is_none()
+            );
         });
     }
 

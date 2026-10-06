@@ -440,6 +440,9 @@ impl SignatureRename {
 /// The namespace is a constructed key; the tail is pattern input, not a key.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SignatureNamespaceImportSource {
+    /// Exact selected authored geometry when a naming policy was available.
+    /// This is not a live namespace allocation or a completed import.
+    pub native_source: Option<tcl_syntax::naming::NativeNamespacePatternSource>,
     /// Constructed source namespace, including the one global root marker.
     pub namespace: String,
     /// Pattern matched against the literal command tail.
@@ -447,6 +450,66 @@ pub struct SignatureNamespaceImportSource {
 }
 
 impl SignatureNamespaceImportSource {
+    /// Retain the selected namespace geometry and pattern without another parse.
+    #[must_use]
+    pub fn from_native_pattern(parts: &tcl_syntax::naming::NativeNamespacePatternParts) -> Option<Self> {
+        use tcl_syntax::naming::NativeNamespacePatternSource;
+        let source = parts.source.as_ref()?;
+        let namespace = match source {
+            NativeNamespacePatternSource::C(path) => crate::naming::root_unrooted_key(
+                &tcl_syntax::naming::checked_namespace_path_utf8(path).ok()?.join("::"),
+            ),
+            NativeNamespacePatternSource::Jim(value) => {
+                crate::naming::root_unrooted_key(value.try_utf8().ok()?)
+            }
+        };
+        Some(Self {
+            native_source: Some(source.clone()),
+            namespace,
+            tail_pattern: parts.tail.try_utf8().ok()?.to_owned(),
+        })
+    }
+
+    /// Query an explicitly authored presentation namespace under selected policy.
+    /// Non-addressable constructed geometry remains opaque instead of being reparsed.
+    #[must_use]
+    pub fn from_written_with_policy(
+        current: &str,
+        written: &str,
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+    ) -> Option<Self> {
+        let parts = Self::pattern_parts_with_policy(
+            current, written, policy, tcl_syntax::naming::NativeNamePurpose::NamespaceImportPattern,
+        )?;
+        Self::from_native_pattern(&parts)
+    }
+
+    /// Shared authored projection for import and forget recording.
+    #[must_use]
+    pub fn pattern_parts_with_policy(
+        current: &str,
+        written: &str,
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+        purpose: tcl_syntax::naming::NativeNamePurpose,
+    ) -> Option<tcl_syntax::naming::NativeNamespacePatternParts> {
+        use tcl_syntax::naming::{NativeNameContext, NativeNameProtocol};
+        let root = tcl_core_types::ByteNamespacePath::root();
+        match policy.recipe() {
+            recipe @ NativeNameProtocol::C(_) => {
+                let path = tcl_core_types::ByteNamespacePath::from_segments(crate::naming::key_segments(current));
+                let addressable = tcl_syntax::naming::native_namespace_source_spelling(recipe, &path)?;
+                if addressable != current {
+                    return None;
+                }
+                recipe.namespace_pattern_parts(NativeNameContext::new(&path), written.as_bytes(), purpose).ok()
+            }
+            recipe @ NativeNameProtocol::Jim084 => {
+                let namespace = crate::naming::unroot_rooted_key(current)?;
+                recipe.namespace_pattern_parts(NativeNameContext::with_jim_namespace(&root, namespace.as_bytes()), written.as_bytes(), purpose).ok()
+            }
+        }
+    }
+
     /// Project a written pattern under an explicitly constructed namespace.
     #[must_use]
     pub fn from_written(current: &str, written: &str) -> Option<Self> {
@@ -461,6 +524,7 @@ impl SignatureNamespaceImportSource {
             Qualifier::Unqualified => return None,
         };
         Some(Self {
+            native_source: None,
             namespace,
             tail_pattern: std::str::from_utf8(tail(written.as_bytes()))
                 .ok()?

@@ -423,6 +423,8 @@ impl ProcArgTrait {
 /// param shape, same parser.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProcDef {
+    /// Exact authored publication geometry, independent of this declaration's report.
+    pub source_name: Option<crate::signature_scan::scope::SignatureSourceCommand>,
     /// Proc name as written (no namespace qualifiers).
     pub name: String,
     /// Fully-qualified proc name with leading ``::``.
@@ -486,6 +488,11 @@ pub struct ProcDef {
 }
 
 impl ProcDef {
+    /// Callable source spelling only when both publication and lookup round-trip.
+    #[must_use]
+    pub fn source_spelling(&self) -> Option<String> {
+        self.source_name.as_ref()?.source_spelling()
+    }
     /// The proc's declared argument arity — or the **abstaining**
     /// `0..unlimited` when its parameter list was computed
     /// ([`Self::params_computed`]).
@@ -1249,6 +1256,15 @@ pub enum MetaclassProvenance {
 /// the full record.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClassDef {
+    /// Retained original object publication geometry; no runtime class token.
+    pub source_name: Option<crate::signature_scan::scope::SignatureSourceCommand>,
+    /// Distinct component slots share this record's rendered map key.
+    pub source_name_ambiguous: bool,
+    /// Original metaclass-head lookup; supplies no reached provider identity.
+    pub metaclass_lookup: Option<crate::signature_scan::scope::SignatureSourceLookup>,
+    /// Original caller contexts of relation words; ambiguity remains unavailable.
+    pub relation_lookups:
+        HashMap<String, Option<crate::signature_scan::scope::SignatureSourceLookup>>,
     /// Class name as written.
     pub name: String,
     /// Fully-qualified class name with leading ``::``.
@@ -1618,6 +1634,10 @@ impl ClassDef {
         // `ClassDef` fails to compile here until it has been classified,
         // rather than being quietly dropped by every join.
         let Self {
+            source_name,
+            source_name_ambiguous,
+            metaclass_lookup,
+            relation_lookups,
             name: _,
             qualified_name: _,
             name_span: _,
@@ -1655,6 +1675,25 @@ impl ClassDef {
         // When *this* record is the stub the ordering is simply reversed:
         // `other` ran first and only fills what this one never mentions.
         let other_ran_second = *via_define && !self.via_define;
+        if self.source_name.is_none() {
+            self.source_name.clone_from(source_name);
+        }
+        self.source_name_ambiguous |= *source_name_ambiguous;
+        if self.metaclass_lookup.is_none() {
+            self.metaclass_lookup.clone_from(metaclass_lookup);
+        }
+        for (written, lookup) in relation_lookups {
+            match self.relation_lookups.entry(written.clone()) {
+                std::collections::hash_map::Entry::Vacant(entry) => {
+                    entry.insert(lookup.clone());
+                }
+                std::collections::hash_map::Entry::Occupied(mut entry) => {
+                    if entry.get() != lookup {
+                        entry.insert(None);
+                    }
+                }
+            }
+        }
         for (key, def) in methods {
             insert_declaration(&mut self.methods, key, def, other_ran_second);
         }
@@ -1812,6 +1851,10 @@ impl Default for ClassDef {
     fn default() -> Self {
         let zero = Span::new(0, 0);
         Self {
+            source_name: None,
+            source_name_ambiguous: false,
+            metaclass_lookup: None,
+            relation_lookups: HashMap::new(),
             name: String::new(),
             qualified_name: String::new(),
             name_span: zero,
@@ -1879,6 +1922,8 @@ impl ClassCommandFallback {
 /// tree, not rewrite back-pointers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Scope {
+    /// Retained authored namespace geometry; supplies no actual activation or token.
+    pub naming_scope: Option<crate::signature_scan::scope::SignatureNamespaceScope>,
     /// Scope kind (global, namespace, proc).
     pub kind: ScopeKind,
     /// Scope identifier — namespace name for namespace/global
@@ -1971,6 +2016,7 @@ impl Scope {
     pub fn new(kind: ScopeKind, name: impl Into<String>) -> Self {
         Self {
             kind,
+            naming_scope: None,
             name: name.into(),
             body_span: None,
             name_span: None,
@@ -2529,7 +2575,11 @@ impl AnalysisResult {
     /// Publish a class assistance record while retaining original declarations
     /// for navigation. Updating members of the same declaration does not mint
     /// a second declaration or a positioned execution fact.
-    pub(crate) fn retain_class_declaration(&mut self, qualified: String, class: ClassDef) {
+    pub(crate) fn retain_class_declaration(&mut self, qualified: String, mut class: ClassDef) {
+        if let Some(previous) = self.all_classes.get(&qualified) {
+            class.source_name_ambiguous |= previous.source_name_ambiguous
+                || matches!((&class.source_name, &previous.source_name), (Some(left), Some(right)) if left.slot() != right.slot() || left.policy() != right.policy());
+        }
         if let Some(previous) = self.all_classes.insert(qualified.clone(), class)
             && self.all_classes[&qualified].name_span != previous.name_span
         {
@@ -2949,6 +2999,17 @@ pub struct QualifiedVarRef {
 /// words at global scope answer `0`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NamespaceRef {
+    /// Exact namespace context before interpreting the original operand.
+    pub source_context: Option<crate::signature_scan::scope::SignatureNamespaceScope>,
+    /// Original selected word value, retained before any report rendering.
+    pub original_name: String,
+    /// Candidate literal value range. Consumers verify these exact original bytes
+    /// against source before projecting editable subranges; escaped/computed words decline.
+    pub source_span: Option<Span>,
+    /// Exact original namespace selection, independent of its rendered report.
+    pub source_namespace: Option<crate::signature_scan::scope::SignatureNamespaceScope>,
+    /// Independently selected naming policy for the original namespace operand.
+    pub name_policy: Option<tcl_syntax::naming::NamePolicyProtocol>,
     /// The `::`-rooted namespace the occurrence names, with a relative
     /// spelling already rooted against the occurrence's own namespace.
     pub qualified_name: String,
@@ -2959,6 +3020,107 @@ pub struct NamespaceRef {
     /// (`namespace eval`).  Go-to-definition answers with these; the
     /// reference set is everything else.
     pub declares: bool,
+}
+
+impl NamespaceRef {
+    /// Select the original namespace operand using independently retained context.
+    /// The report fallback supplies presentation only when that context is absent.
+    #[must_use]
+    pub(crate) fn from_original(
+        source_context: Option<crate::signature_scan::scope::SignatureNamespaceScope>,
+        name_policy: Option<tcl_syntax::naming::NamePolicyProtocol>,
+        original_name: &str,
+        span: Span,
+        content_offset: u16,
+        declares: bool,
+        report_fallback: String,
+    ) -> Self {
+        let source_namespace = source_context
+            .as_ref()
+            .and_then(|current| current.child(original_name, name_policy));
+        let qualified_name = source_namespace
+            .as_ref()
+            .and_then(crate::signature_scan::scope::SignatureNamespaceScope::display)
+            .unwrap_or(report_fallback);
+        let source_span = span
+            .start()
+            .checked_add(u32::from(content_offset))
+            .and_then(|start| {
+                Some(Span::new(
+                    start,
+                    start.checked_add(u32::try_from(original_name.len()).ok()?)?,
+                ))
+            });
+        Self {
+            source_context,
+            original_name: original_name.to_owned(),
+            source_span,
+            source_namespace,
+            name_policy,
+            qualified_name,
+            span,
+            declares,
+        }
+    }
+
+    fn original_extent_span(
+        &self,
+        source: &str,
+        wanted: &crate::signature_scan::scope::SignatureNamespaceScope,
+        member: bool,
+    ) -> Option<Span> {
+        let source_span = self.source_span?;
+        if source.get(source_span.start() as usize..source_span.end() as usize)?
+            != self.original_name
+        {
+            return None;
+        }
+        let protocol = self.name_policy?.recipe();
+        let current = self.source_context.as_ref()?.context()?;
+        let wanted = wanted.context()?;
+        let extent = if member {
+            tcl_syntax::naming::native_written_namespace_member_extent(
+                protocol,
+                current,
+                self.original_name.as_bytes(),
+                wanted,
+            )?
+        } else {
+            tcl_syntax::naming::native_written_namespace_prefix_extent(
+                protocol,
+                current,
+                self.original_name.as_bytes(),
+                wanted,
+            )?
+        };
+        let start = source_span
+            .start()
+            .checked_add(u32::try_from(extent.start).ok()?)?;
+        let end = source_span
+            .start()
+            .checked_add(u32::try_from(extent.end).ok()?)?;
+        source.get(start as usize..end as usize)?;
+        Some(Span::new(start, end))
+    }
+
+    /// Covering original prefix for an exact retained ancestor namespace.
+    #[must_use]
+    pub fn written_ancestor_span(
+        &self,
+        source: &str,
+        wanted: &crate::signature_scan::scope::SignatureNamespaceScope,
+    ) -> Option<Span> {
+        self.original_extent_span(source, wanted, false)
+    }
+    /// Original component range for an exact retained namespace.
+    #[must_use]
+    pub fn written_member_span(
+        &self,
+        source: &str,
+        wanted: &crate::signature_scan::scope::SignatureNamespaceScope,
+    ) -> Option<Span> {
+        self.original_extent_span(source, wanted, true)
+    }
 }
 
 /// One variable-name argument whose word is **computed at run time** — a

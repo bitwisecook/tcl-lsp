@@ -300,6 +300,17 @@ mod tests {
         let mut traced = state.clone();
         traced.traced.insert(crate::var_resolve::cell_key(&x));
         assert!(resolve_literal_place("x", &traced, false, registry).observed);
+        let mut unknown_write = state.clone();
+        unknown_write.record_contents_write(&crate::place::unknown_top(), 0, true);
+        assert!(
+            !unknown_write
+                .closed_observer_allocations
+                .contains(&allocation)
+        );
+        assert!(resolve_literal_place("x", &unknown_write, false, registry).observed);
+        let mut mixed = state.clone();
+        mixed.join(&unknown_write);
+        assert!(resolve_literal_place("x", &mixed, false, registry).observed);
         state.mark_unenumerated_variable_observers();
         assert!(resolve_literal_place("x", &state, false, registry).observed);
         let mut retired = incoming.enter_called_frame(&frame);

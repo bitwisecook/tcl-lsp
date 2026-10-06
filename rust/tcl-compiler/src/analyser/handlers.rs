@@ -1287,6 +1287,56 @@ impl Analyser {
             .unwrap_or_else(|| tcl_registry::InvocationDialect::of_profile(self.profile))
     }
 
+    pub(super) fn declaration_name_policy(&self) -> Option<tcl_syntax::naming::NamePolicyProtocol> {
+        match self.source_analysis_entry.as_deref() {
+            Some(entry) => match entry.native_entry.as_deref() {
+                Some(native) => native.command_name_policy(),
+                None => match entry.execution_name_policy {
+                    Some(tcl_syntax::naming::ExecutionNamePolicy::ObservedBigIp(_)) => {
+                        entry.invocation_dialect?.authored_name_policy()
+                    }
+                    Some(tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe(policy)) => {
+                        Some(policy)
+                    }
+                    None => self.declaration_name_dialect().authored_name_policy(),
+                },
+            },
+            None => self.declaration_name_dialect().authored_name_policy(),
+        }
+    }
+
+    pub(super) fn declaration_namespace_scope(
+        &self,
+        path: &[usize],
+    ) -> Option<crate::signature_scan::scope::SignatureNamespaceScope> {
+        use crate::signature_scan::scope::SignatureNamespaceScope;
+        let policy = self.declaration_name_policy()?;
+        let mut current = match self
+            .source_analysis_entry
+            .as_deref()
+            .and_then(|entry| entry.native_entry.as_deref())
+        {
+            Some(entry) => {
+                let row = entry.namespace_context(entry.current_namespace).ok()?;
+                match policy.recipe() {
+                    tcl_syntax::naming::NativeNameProtocol::C(_) => {
+                        SignatureNamespaceScope::C(row.path.clone())
+                    }
+                    tcl_syntax::naming::NativeNameProtocol::Jim084 => {
+                        SignatureNamespaceScope::Jim(row.jim_namespace_object.clone()?)
+                    }
+                }
+            }
+            None => SignatureNamespaceScope::root(Some(policy)),
+        };
+        let mut scope = &self.result.global_scope;
+        for &index in path {
+            scope = scope.children.get(index)?;
+            current = scope.naming_scope.clone()?;
+        }
+        Some(current)
+    }
+
     fn declaration_alias_target(&self, namespace: &str, name: &str) -> Option<String> {
         let dialect = self.declaration_name_dialect();
         if dialect.native_name_protocol().is_none()
@@ -1968,8 +2018,21 @@ impl Analyser {
         // `qualify` takes the constructed (rooted) namespace key verbatim and
         // `key_tail` inverts the construction — a `char`-pattern colon trim or
         // an `rsplit("::")` here would collapse a lone-colon name.
-        let qualified = qualify(&ns_prefix, &resolved_name);
-        let simple = crate::naming::key_tail(&qualified).to_string();
+        let source_name = self.declaration_name_policy().and_then(|policy| {
+            crate::signature_scan::scope::SignatureSourceCommand::procedure_in_context(
+                policy,
+                &self.declaration_namespace_scope(scope_path)?,
+                &resolved_name,
+            )
+        });
+        let qualified = source_name
+            .as_ref()
+            .and_then(crate::signature_scan::scope::SignatureSourceCommand::reported_full_name)
+            .unwrap_or_else(|| qualify(&ns_prefix, &resolved_name));
+        let simple = source_name
+            .as_ref()
+            .and_then(crate::signature_scan::scope::SignatureSourceCommand::simple_name)
+            .unwrap_or_else(|| crate::naming::key_tail(&qualified).to_string());
         let name_span = name_tok.span;
         let body_tok = arg_tokens[words.body];
         let body_span = body_tok.span;
@@ -2028,6 +2091,7 @@ impl Analyser {
             self.infer_proc_param_traits(&params, body_text, body_tok.span);
 
         let proc = ProcDef {
+            source_name,
             name: simple,
             qualified_name: qualified.clone(),
             params: params.clone(),
@@ -2172,6 +2236,12 @@ impl Analyser {
             .expect("scope_path resolved when registering proc must still resolve");
         let mut child = super::types::Scope::new(super::types::ScopeKind::Proc, name.to_owned());
         child.body_span = Some(span);
+        child.naming_scope = parent
+            .procs
+            .values()
+            .find(|proc| proc.body_span == span)
+            .and_then(|proc| proc.source_name.as_ref())
+            .and_then(crate::signature_scan::scope::SignatureSourceCommand::body_scope);
         let index = parent.children.len();
         parent.children.push(child);
         let mut child_path = path.to_vec();
@@ -2365,6 +2435,7 @@ impl Analyser {
             self.infer_proc_param_traits(&combined_params, body_text, body_tok.span);
 
         let proc = ProcDef {
+            source_name: None,
             name: simple,
             qualified_name: qualified.clone(),
             params: real_params,
@@ -2760,11 +2831,21 @@ impl Analyser {
                 ns_tok.span.end(),
             );
             if span.start() < span.end() {
-                self.result.namespace_refs.push(super::types::NamespaceRef {
-                    qualified_name: body_ns.clone(),
-                    span,
-                    declares: false,
-                });
+                self.result
+                    .namespace_refs
+                    .push(super::types::NamespaceRef::from_original(
+                        self.declaration_name_policy().map(|policy| {
+                            crate::signature_scan::scope::SignatureNamespaceScope::root(Some(
+                                policy,
+                            ))
+                        }),
+                        self.declaration_name_policy(),
+                        ns_text,
+                        span,
+                        0,
+                        false,
+                        body_ns.clone(),
+                    ));
             }
         }
 
@@ -2976,11 +3057,17 @@ impl Analyser {
             // in `record_namespace_name_refs` skips dynamic words, so the
             // identity is recorded here, where it has just been settled.
             let here = self.command_resolution_namespace(scope_path);
-            self.result.namespace_refs.push(super::types::NamespaceRef {
-                qualified_name: crate::naming::qualify(&here, resolved),
-                span: tok.span,
-                declares: true,
-            });
+            self.result
+                .namespace_refs
+                .push(super::types::NamespaceRef::from_original(
+                    self.declaration_namespace_scope(scope_path),
+                    self.declaration_name_policy(),
+                    resolved,
+                    tok.span,
+                    u16::from(tok.content_offset),
+                    true,
+                    crate::naming::qualify(&here, resolved),
+                ));
         }
         let scope_name = match resolved_dynamic {
             Some(resolved) => resolved,
@@ -2991,11 +3078,19 @@ impl Analyser {
             None => ns_name,
         };
 
+        let naming_scope = (!crate::naming::is_dynamic_word(&scope_name)
+            && !scope_name.starts_with("@dynns@"))
+        .then(|| {
+            self.declaration_namespace_scope(scope_path)?
+                .child(&scope_name, self.declaration_name_policy())
+        })
+        .flatten();
         let path = scope_path.to_vec();
         let child_scope_idx = {
             let mut child =
                 super::types::Scope::new(super::types::ScopeKind::Namespace, scope_name);
             child.body_span = body_span;
+            child.naming_scope = naming_scope;
             // The written `NAME` word, so the outline can point its
             // `selectionRange` at the name rather than the whole body.
             // Recorded even for a dynamic `$ns` target: the
@@ -3638,7 +3733,13 @@ impl Analyser {
             return;
         };
         let entries: Vec<String> = elements.iter().map(ToString::to_string).collect();
-        self.record_namespace_path_element_refs(&args[1], arg_tokens.get(1), braced, &ns);
+        self.record_namespace_path_element_refs(
+            &args[1],
+            arg_tokens.get(1),
+            braced,
+            &ns,
+            scope_path,
+        );
         self.namespace_paths.insert(ns, entries);
     }
 
@@ -3668,20 +3769,23 @@ impl Analyser {
         token: Option<&Token>,
         word_braced: bool,
         here: &str,
+        scope_path: &[usize],
     ) {
         let Some(token) = token else { return };
+        let Ok(decoded) = self.word_rules().split_list(raw) else {
+            return;
+        };
+        let mut decoded = decoded.into_iter();
         let base = token.span.start() + u32::from(token.content_offset);
         let mut scan = 0usize;
         while let Ok(Some(el)) = tcl_syntax::list::find_element(raw, scan) {
+            let Some(text) = decoded.next() else { break };
             let (start, end) = (el.value.start, el.value.end);
             if el.next <= scan {
                 break;
             }
             scan = el.next;
-            let Some(text) = raw.get(start..end) else {
-                continue;
-            };
-            if text.is_empty() || tcl_syntax::naming::word_is_dynamic(text, word_braced) {
+            if text.is_empty() || tcl_syntax::naming::word_is_dynamic(&text, word_braced) {
                 continue;
             }
             let Ok(start_u32) = u32::try_from(start) else {
@@ -3690,11 +3794,17 @@ impl Analyser {
             let Ok(end_u32) = u32::try_from(end) else {
                 continue;
             };
-            self.result.namespace_refs.push(super::types::NamespaceRef {
-                qualified_name: crate::naming::qualify(here, text),
-                span: tcl_lexer::Span::new(base + start_u32, base + end_u32),
-                declares: false,
-            });
+            self.result
+                .namespace_refs
+                .push(super::types::NamespaceRef::from_original(
+                    self.declaration_namespace_scope(scope_path),
+                    self.declaration_name_policy(),
+                    &text,
+                    tcl_lexer::Span::new(base + start_u32, base + end_u32),
+                    0,
+                    false,
+                    crate::naming::qualify(here, &text),
+                ));
         }
     }
 
@@ -5866,6 +5976,7 @@ impl Analyser {
                     &inline_tokens,
                     object_class,
                     Some(self.analysis_context().context().authoring_query()),
+                    scope_path,
                 );
                 self.record_member_command_references(
                     grammar,
@@ -9244,15 +9355,9 @@ impl Analyser {
     /// by exactly the grammar the language gives them without the walker
     /// naming a metaclass command.
     ///
-    /// A `superclass` word is written as the *declaring* class sees it, so
-    /// a relative name (`superclass Meta` inside `::n::DerivedMeta`) is
-    /// resolved through the shared owner-aware class-name resolution
-    /// ([`super::class_hierarchy::resolve_class_name`]) — the same
-    /// current-namespace-then-global rule the class lattice and the MRO
-    /// builder already implement, never a re-derivation of it here.  That
-    /// keeps this chain walk sound-by-abstention in the same places they
-    /// are: an ambiguous simple name resolves to nothing rather than
-    /// cross-linking a same-named class in an unrelated namespace.
+    /// Superclass words retain the original definition caller's namespace,
+    /// independently of the manufactured class's holder or reported name.
+    /// Missing relation context supplies no superclass identity.
     ///
     /// Chain walking is depth-bounded and visited-checked, so a cyclic
     /// `superclass` declaration (rejected by real Tcl, but writable in a
@@ -9260,12 +9365,8 @@ impl Analyser {
     fn user_metaclass_of_class(&self, qualified: &str, seed: &ClassDef) -> Option<UserMetaclass> {
         let registry = self.registry.as_ref()?;
         let seed_key = qualified.to_string();
-        let tail_index = super::class_hierarchy::build_tail_index(
-            self.result
-                .all_classes
-                .keys()
-                .chain(std::iter::once(&seed_key)),
-        );
+        let mut classes = self.result.all_classes.clone();
+        classes.insert(seed_key.clone(), seed.clone());
         let mut visited: std::collections::HashSet<String> = std::collections::HashSet::new();
         let mut queue: Vec<String> = vec![seed_key.clone()];
         // Bounded by the recorded class count — every class is visited once.
@@ -9284,28 +9385,41 @@ impl Analyser {
                 class
             };
             for parent in &class.superclasses {
-                // The registry seed: `oo::class` and its siblings are named
-                // as commands, so a leading `::` is the same command.
-                let bare = parent.strip_prefix("::").unwrap_or(parent);
-                if let Some(spec) = registry.get(bare)
-                    && spec.traits.contains(tcl_registry::Traits::IS_OO_METACLASS)
-                    && let Some(grammar) = spec.definition_body
-                    && grammar.family == tcl_registry::definer::DefinerFamily::TclOo
-                {
-                    return Some(UserMetaclass {
-                        root_command: bare.to_string(),
-                        grammar,
-                    });
-                }
-                if let Some(next) = super::class_hierarchy::resolve_class_name(
-                    parent,
-                    &class_qname,
-                    |candidate| {
-                        candidate == qualified || self.result.all_classes.contains_key(candidate)
-                    },
-                    &tail_index,
-                ) {
+                let Some(lookup) = class.relation_lookups.get(parent).and_then(Option::as_ref)
+                else {
+                    continue;
+                };
+                if let Some(next) = super::class_hierarchy::resolve_class_lookup(lookup, &classes) {
                     queue.push(next);
+                    continue;
+                }
+                for candidate in lookup.candidates().unwrap_or_default() {
+                    if self.result.all_procs.values().any(|proc| {
+                        proc.source_name.as_ref().is_some_and(|source| {
+                            source.policy() == lookup.policy() && source.slot() == &candidate
+                        })
+                    }) {
+                        break;
+                    }
+                    let Some(written) = tcl_syntax::naming::native_command_source_spelling(
+                        lookup.policy().recipe(),
+                        &candidate,
+                    ) else {
+                        continue;
+                    };
+                    let Some(bare) = crate::naming::unroot_rooted_key(&written) else {
+                        continue;
+                    };
+                    if let Some(spec) = registry.get(bare)
+                        && spec.traits.contains(tcl_registry::Traits::IS_OO_METACLASS)
+                        && let Some(grammar) = spec.definition_body
+                        && grammar.family == tcl_registry::definer::DefinerFamily::TclOo
+                    {
+                        return Some(UserMetaclass {
+                            root_command: bare.to_owned(),
+                            grammar,
+                        });
+                    }
                 }
             }
         }
@@ -9481,15 +9595,37 @@ impl Analyser {
         // not the lexical global, so it can't overwrite a same-named global
         // class in `all_classes`.
         let ns_prefix = self.command_resolution_namespace(scope_path);
-        let qualified = qualify(&ns_prefix, raw_name);
-        let simple = crate::naming::key_tail(&qualified).to_string();
+        let source_name = self.declaration_name_policy().and_then(|policy| {
+            crate::signature_scan::scope::SignatureSourceCommand::object_in_context(
+                policy,
+                &self.declaration_namespace_scope(scope_path)?,
+                raw_name,
+            )
+        });
+        let qualified = source_name
+            .as_ref()
+            .and_then(crate::signature_scan::scope::SignatureSourceCommand::reported_full_name)
+            .unwrap_or_else(|| qualify(&ns_prefix, raw_name));
+        let simple = source_name
+            .as_ref()
+            .and_then(crate::signature_scan::scope::SignatureSourceCommand::simple_name)
+            .unwrap_or_else(|| crate::naming::key_tail(&qualified).to_string());
         let name_span = arg_tokens[layout.name_arg].span;
         // **W314** — the class name has no absolute written form.
         self.emit_w314_no_absolute_name(raw_name, name_span);
         let body_tok_opt = arg_tokens.get(layout.body_arg).copied();
         let body_span = body_tok_opt.map_or(name_span, |t| t.span);
         let doc = std::mem::take(&mut self.last_comment);
+        let metaclass_lookup = self.declaration_name_policy().and_then(|policy| {
+            crate::signature_scan::scope::SignatureSourceLookup::new(
+                policy,
+                self.declaration_namespace_scope(scope_path)?,
+                cmd_name.to_owned(),
+            )
+        });
         let mut class = super::types::ClassDef {
+            source_name,
+            metaclass_lookup,
             name: simple,
             qualified_name: qualified.clone(),
             name_span,
@@ -9809,8 +9945,18 @@ impl Analyser {
                 |token| self.mint_synthetic_offset_name("@dynclass@", token.span.start()),
             )
         });
+        if dynamic_key.is_none()
+            && let Some(selected) = self.resolve_user_class_in(raw, scope_path)
+        {
+            return selected;
+        }
         let namespace = self.command_resolution_namespace(scope_path);
-        qualify(&namespace, dynamic_key.as_deref().unwrap_or(raw))
+        let presentation = qualify(&namespace, dynamic_key.as_deref().unwrap_or(raw));
+        if self.result.all_classes.contains_key(&presentation) {
+            let offset = arg_tokens.first().map_or(0, |token| token.span.start());
+            return self.mint_synthetic_offset_name("@unresolvedclass@", offset);
+        }
+        presentation
     }
 
     /// Apply an `oo::define` inline member or braced body through the selected
@@ -9853,6 +9999,7 @@ impl Analyser {
                     &inline_tokens,
                     class_def,
                     Some(self.analysis_context().context().authoring_query()),
+                    scope_path,
                 );
                 self.record_member_command_references(
                     grammar,
@@ -9994,22 +10141,30 @@ impl Analyser {
             // ``foo``) qualify against the *current* namespace
             // — inside ``namespace eval my { namespace import
             // bar::* }`` this becomes ``::my::bar::*``.
-            let source = crate::signature_scan::types::SignatureNamespaceImportSource::from_written(
-                &importing_ns,
-                &pat_raw,
-            );
-            let pat = if pat_raw.starts_with("::") {
-                pat_raw
-            } else if importing_ns == "::" {
-                format!("::{pat_raw}")
-            } else {
-                format!("{importing_ns}::{pat_raw}")
+            let source = self.declaration_name_policy().and_then(|policy| {
+                let namespace = self.declaration_namespace_scope(scope_path)?;
+                let parts = policy
+                    .recipe()
+                    .namespace_pattern_parts(
+                        namespace.context()?,
+                        pat_raw.as_bytes(),
+                        tcl_syntax::naming::NativeNamePurpose::NamespaceImportPattern,
+                    )
+                    .ok()?;
+                crate::signature_scan::types::SignatureNamespaceImportSource::from_native_pattern(
+                    &parts,
+                )
+            });
+            let Some(source) = source else {
+                idx += 1;
+                continue;
             };
+            let pat = source.constructed_pattern();
             self.result.namespace_imports.push(
                 crate::signature_scan::types::SignatureNamespaceImport {
                     ns: importing_ns.clone(),
                     pattern: pat,
-                    source,
+                    source: Some(source),
                     range: arg_tokens[idx].span,
                     conjectured: false,
                     forced,
@@ -10069,26 +10224,35 @@ impl Analyser {
                 idx += 1;
                 continue;
             }
-            let (source_ns, pattern) = match raw.rsplit_once("::") {
-                Some((prefix, tail)) => {
-                    let prefix = if prefix.is_empty() {
-                        "::".to_string()
-                    } else if prefix.starts_with("::") {
-                        prefix.to_string()
-                    } else if forgetting_ns == "::" {
-                        format!("::{prefix}")
-                    } else {
-                        format!("{forgetting_ns}::{prefix}")
-                    };
-                    (Some(prefix), tail.to_string())
-                }
-                None => (None, raw.clone()),
+            let parts = self.declaration_name_policy().and_then(|policy| {
+                let namespace = self.declaration_namespace_scope(scope_path)?;
+                policy
+                    .recipe()
+                    .namespace_pattern_parts(
+                        namespace.context()?,
+                        raw.as_bytes(),
+                        tcl_syntax::naming::NativeNamePurpose::NamespaceForgetPattern,
+                    )
+                    .ok()
+            });
+            let Some(parts) = parts else {
+                idx += 1;
+                continue;
+            };
+            let source_ns =
+                crate::signature_scan::types::SignatureNamespaceImportSource::from_native_pattern(
+                    &parts,
+                )
+                .map(|source| source.namespace);
+            let Ok(pattern) = parts.tail.try_utf8() else {
+                idx += 1;
+                continue;
             };
             self.result.namespace_forgets.push(
                 crate::signature_scan::types::SignatureNamespaceForget {
                     ns: forgetting_ns.clone(),
                     source_ns,
-                    pattern,
+                    pattern: pattern.to_owned(),
                     range: arg_tokens[idx].span,
                 },
             );
@@ -10176,6 +10340,27 @@ impl Analyser {
                 idx += 1;
                 continue;
             }
+            let selected = self
+                .declaration_name_dialect()
+                .authored_name_policy()
+                .and_then(|policy| {
+                    policy
+                        .recipe()
+                        .namespace_pattern_input(
+                            pattern.as_bytes(),
+                            tcl_syntax::naming::NativeNamePurpose::NamespaceExportPattern,
+                        )
+                        .ok()
+                        .and_then(|projection| {
+                            std::str::from_utf8(projection.selected())
+                                .ok()
+                                .map(str::to_owned)
+                        })
+                });
+            let Some(pattern) = selected else {
+                idx += 1;
+                continue;
+            };
             // `NamespaceExportCmd` calls `Tcl_Export` per pattern and
             // `return`s on the first failure, so a qualified pattern aborts
             // the loop: every *later* word is never exported at all. The
@@ -10336,6 +10521,7 @@ impl Analyser {
                 pattern: format!("{source_ns}::*"),
                 source: Some(
                     crate::signature_scan::types::SignatureNamespaceImportSource {
+                        native_source: None,
                         namespace: crate::naming::qualify_namespace(&current_ns, stripped),
                         tail_pattern: "*".to_owned(),
                     },
@@ -14999,6 +15185,7 @@ mod tests {
         a.result.all_procs.insert(
             "::a::b".to_string(),
             super::ProcDef {
+                source_name: None,
                 name: "b".to_string(),
                 qualified_name: "::a::b".to_string(),
                 params: Vec::new(),
@@ -15028,6 +15215,7 @@ mod tests {
             a.result.all_procs.insert(
                 qname.to_string(),
                 super::ProcDef {
+                    source_name: None,
                     name: "inner".to_string(),
                     qualified_name: qname.to_string(),
                     params: Vec::new(),

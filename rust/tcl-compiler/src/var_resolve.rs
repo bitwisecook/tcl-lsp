@@ -403,6 +403,8 @@ pub struct ResolveContext {
     pub namespace_inventory: NamespaceInventoryClosure,
     /// Selected native variable-name input recipe.
     pub namespace_name_protocol: Option<tcl_syntax::naming::NativeNameProtocol>,
+    /// Name input issuer retained independently of namespace tokens and string producers.
+    pub execution_name_policy: Option<tcl_syntax::naming::ExecutionNamePolicy>,
     /// Actual Jim namespace-object bytes retained from the entry snapshot.
     pub namespace_objects:
         HashMap<crate::command_binding::SourceNamespaceKey, tcl_core_types::NameBytes>,
@@ -1112,6 +1114,7 @@ fn restore_namespace_bindings(restored: &mut ResolveContext, child: &ResolveCont
         .clone_from(&child.namespace_addressable_identities);
     restored.namespace_inventory = child.namespace_inventory;
     restored.namespace_name_protocol = child.namespace_name_protocol;
+    restored.execution_name_policy = child.execution_name_policy;
     let retained_current = restored.namespace_identity.as_ref().and_then(|key| {
         restored
             .namespace_objects
@@ -1337,6 +1340,7 @@ impl Hash for ResolveContext {
         hash_set(&self.namespace_addressable_identities, state);
         self.namespace_inventory.hash(state);
         self.namespace_name_protocol.hash(state);
+        self.execution_name_policy.hash(state);
         hash_map(&self.namespace_objects, state);
         self.authored_tmm_static.hash(state);
         self.namespace_known.hash(state);
@@ -1402,6 +1406,7 @@ impl Default for ResolveContext {
             namespace_addressable_identities: HashSet::new(),
             namespace_inventory: NamespaceInventoryClosure::Open,
             namespace_name_protocol: None,
+            execution_name_policy: None,
             namespace_objects: HashMap::new(),
             authored_tmm_static: None,
             namespace_known: true,
@@ -1460,6 +1465,31 @@ impl Default for ResolveContext {
 }
 
 impl ResolveContext {
+    /// Pure purpose-selected naming advice. This supplies no cell or native slot.
+    ///
+    /// # Errors
+    /// Missing issuers and unsupported observed inputs remain unavailable.
+    pub fn execution_variable_name_projection<'a>(
+        &self,
+        original: tcl_syntax::naming::NativeVariableInputForm<'a>,
+        purpose: tcl_syntax::naming::ObservedVariableNamePurpose,
+    ) -> Result<
+        tcl_syntax::naming::ExecutionVariableNameProjection<'a>,
+        tcl_syntax::naming::NameProjectionUnavailable,
+    > {
+        self.execution_name_policy
+            .ok_or(tcl_syntax::naming::NameProjectionUnavailable::PurposeNotModelled)?
+            .variable_input(original, purpose)
+    }
+
+    pub(super) fn observed_variable_storage_unavailable(&self) -> bool {
+        // Runtime event arenas do not issue a source/native frame allocation token.
+        matches!(
+            self.execution_name_policy,
+            Some(tcl_syntax::naming::ExecutionNamePolicy::ObservedBigIp(_))
+        )
+    }
+
     /// Whether bare names address the current namespace table.
     #[must_use]
     pub const fn namespace_scope(&self) -> bool {
@@ -1618,6 +1648,7 @@ impl ResolveContext {
             .clone_from(&self.namespace_addressable_identities);
         selected.namespace_inventory = self.namespace_inventory;
         selected.namespace_name_protocol = self.namespace_name_protocol;
+        selected.execution_name_policy = self.execution_name_policy;
         selected
             .namespace_objects
             .clone_from(&self.namespace_objects);
@@ -2987,6 +3018,9 @@ impl ResolveContext {
         if self.namespace_name_protocol != other.namespace_name_protocol {
             self.namespace_name_protocol = None;
         }
+        if self.execution_name_policy != other.execution_name_policy {
+            self.execution_name_policy = None;
+        }
         self.namespace_objects
             .retain(|key, object| other.namespace_objects.get(key) == Some(object));
         if self.authored_tmm_static != other.authored_tmm_static {
@@ -3162,6 +3196,7 @@ impl ResolveContext {
 
     fn withdraw_activation_contents_closure(&mut self) {
         self.activation_observers_closed = false;
+        self.closed_observer_allocations.clear();
         if self.activation_contents_world.is_some() {
             self.activation_contents_world = Some(ContentsWorld::Unknown);
         }
@@ -3564,6 +3599,9 @@ fn bind_scalar_receiver(
     observed: Option<bool>,
     registry: &CommandRegistry,
 ) -> Place {
+    if ctx.observed_variable_storage_unavailable() {
+        return place::unknown_top();
+    }
     let obs = observed.unwrap_or_else(|| ctx.traced.contains(base));
     if ctx.unknown_bindings.contains(base) {
         return place::unknown_top();
@@ -4290,6 +4328,9 @@ fn resolve_place_value(
     literal_base: bool,
     literal_index: bool,
 ) -> Place {
+    if ctx.observed_variable_storage_unavailable() {
+        return place::unknown_top();
+    }
     if reference.is_empty() && !literal_base {
         return place::unknown_top();
     }
@@ -4776,6 +4817,55 @@ mod tests {
         assert!(!resolve_literal_place("other", &state, false, &registry).observed);
         state.mark_unenumerated_variable_observers();
         assert!(resolve_literal_place("other", &state, false, &registry).observed);
+    }
+
+    #[test]
+    fn observed_names_project_finite_bytes_without_donating_authored_storage() {
+        use tcl_syntax::naming::{
+            ExecutionNamePolicy, MeasuredBigIpNameScope, NamePolicyProtocol,
+            NativeVariableInputForm, ObservedBigIpNamePolicy, ObservedVariableNamePurpose,
+        };
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.4").commands();
+        let mut context = ResolveContext::for_function("::p");
+        let original = "__tcl_lsp_2286_r2286m_nul_A\0B";
+        context.execution_name_policy = Some(ExecutionNamePolicy::ObservedBigIp(
+            ObservedBigIpNamePolicy::for_measured_scope(
+                MeasuredBigIpNameScope::BigIp21_1_0_1Build0_0_26TmmHttpRequest,
+            ),
+        ));
+        assert_eq!(
+            context
+                .execution_variable_name_projection(
+                    NativeVariableInputForm::Combined(original.as_bytes()),
+                    ObservedVariableNamePurpose::ScalarReceiver
+                )
+                .unwrap()
+                .root(),
+            original.as_bytes()
+        );
+        assert_eq!(
+            resolve_literal_place(original, &context, false, registry).kind,
+            PlaceKind::Unknown
+        );
+        assert_eq!(
+            context.namespace_place(original, true, false).kind,
+            PlaceKind::Unknown
+        );
+        assert!(
+            context
+                .execution_variable_name_projection(
+                    NativeVariableInputForm::Combined(b"qualified::unmeasured\0name"),
+                    ObservedVariableNamePurpose::ScalarReceiver
+                )
+                .is_err()
+        );
+        context.execution_name_policy = Some(ExecutionNamePolicy::NativeRecipe(
+            NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_4),
+        ));
+        assert_eq!(
+            resolve_literal_place("plain", &context, false, registry).kind,
+            PlaceKind::Scalar
+        );
     }
 
     #[test]

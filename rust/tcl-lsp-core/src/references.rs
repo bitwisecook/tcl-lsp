@@ -210,16 +210,13 @@ fn forced_shadow_takes_the_call(
     if inv.name != def_name {
         return false;
     }
-    let owner = def_qualified
-        .trim_start_matches("::")
-        .rsplit_once("::")
-        .map_or("", |(ns, _)| ns);
+    let (owner, _) = tcl_syntax::naming::key_holder_and_tail(def_qualified);
     let call_ns = crate::definition::namespace_context_at(
         &analysis.global_scope,
         inv.range.start(),
         &analysis.namespace_overrides,
     );
-    if call_ns.trim_start_matches("::") != owner {
+    if call_ns != owner {
         return false;
     }
     crate::definition::forced_import_shadows(analysis, ctx, &call_ns, def_name, inv.range.start())
@@ -352,17 +349,14 @@ fn invocation_references_via_wildcard_import(
     if inv.name != def_name {
         return false;
     }
-    let target_ns = def_qualified
-        .trim_start_matches("::")
-        .rsplit_once("::")
-        .map_or(String::new(), |(ns, _)| ns.to_owned());
+    let (target_ns, _) = tcl_syntax::naming::key_holder_and_tail(def_qualified);
     let call_ns = crate::definition::namespace_context_at(
         &analysis.global_scope,
         inv.range.start(),
         &analysis.namespace_overrides,
     );
     crate::definition::import_chain_target(analysis, ctx, &call_ns, def_name, inv.range.start())
-        .is_some_and(|source_ns| source_ns.trim_start_matches("::") == target_ns)
+        .is_some_and(|source_ns| source_ns == target_ns)
 }
 
 /// Whether a single call site `inv` references a named proc/class
@@ -382,8 +376,8 @@ fn invocation_references_via_wildcard_import(
 /// the global guess (`::helper`) — when it sits in this definition's own
 /// namespace; that namespace gate keeps `helper` inside `namespace eval b`
 /// from matching `::a::helper`. Qualified spellings and a
-/// resolved-qualified-name hit always count. Comparisons ignore the leading
-/// `::`.
+/// resolved-qualified-name hit always count. Constructed keys preserve every
+/// component; only compatibility presentation removes one root marker.
 #[must_use]
 pub(crate) fn invocation_references_named(
     analysis: &AnalysisResult,
@@ -397,26 +391,20 @@ pub(crate) fn invocation_references_named(
         return definition.is_some_and(|definition| {
             analysis
                 .proc_for_definition(definition, source)
-                .is_some_and(|selected| {
-                    selected.qualified_name.trim_start_matches("::")
-                        == def_qualified.trim_start_matches("::")
-                })
+                .is_some_and(|selected| selected.qualified_name == def_qualified)
                 || analysis
                     .class_for_definition(definition, source)
-                    .is_some_and(|selected| {
-                        selected.qualified_name.trim_start_matches("::")
-                            == def_qualified.trim_start_matches("::")
-                    })
+                    .is_some_and(|selected| selected.qualified_name == def_qualified)
         });
     }
     let qname_no_prefix = qname.strip_prefix("::").unwrap_or(qname);
-    let target_q = def_qualified.trim_start_matches("::");
-    // The definition's own namespace (`a::helper` → `a`; top-level → ``).
-    let target_ns = target_q.rsplit_once("::").map_or("", |(ns, _)| ns);
+    let target_q = tcl_syntax::naming::unroot_rooted_key(def_qualified).unwrap_or(def_qualified);
+    let (holder, _) = tcl_syntax::naming::key_holder_and_tail(def_qualified);
+    let target_ns = tcl_syntax::naming::unroot_rooted_key(holder).unwrap_or(holder);
     let resolved_norm = inv
         .resolved_qualified_name
         .as_deref()
-        .map(|r| r.trim_start_matches("::"));
+        .map(|r| tcl_syntax::naming::unroot_rooted_key(r).unwrap_or(r));
     let call_ns = crate::definition::innermost_namespace_at(
         &analysis.global_scope,
         inv.range.start(),
@@ -459,11 +447,11 @@ pub(crate) fn invocation_references_named(
                 && (analysis
                     .all_procs
                     .keys()
-                    .any(|k| k.trim_start_matches("::") == r)
+                    .any(|k| tcl_syntax::naming::unroot_rooted_key(k).unwrap_or(k) == r)
                     || analysis
                         .all_classes
                         .keys()
-                        .any(|k| k.trim_start_matches("::") == r))
+                        .any(|k| tcl_syntax::naming::unroot_rooted_key(k).unwrap_or(k) == r))
         });
         return !shadowed_by_other;
     }
@@ -554,9 +542,7 @@ fn retained_definition<'a>(
             reference
                 .linked_definition()
                 .or_else(|| reference.definition())
-        } else if reference.is_direct_definition()
-            && reference.slot().trim_start_matches("::") == qualified.trim_start_matches("::")
-        {
+        } else if reference.is_direct_definition() && reference.slot() == qualified {
             reference.definition()
         } else {
             None
@@ -619,16 +605,14 @@ pub(crate) fn invocation_calls_named(
             return false;
         }
         if let Some(selected) = analysis.proc_for_definition(definition, source) {
-            return selected.qualified_name.trim_start_matches("::")
-                == def_qualified.trim_start_matches("::");
+            return selected.qualified_name == def_qualified;
         }
         if matches!(definition.allocation().site.source.kind(),
             tcl_compiler::command_binding::SourceOriginKind::Authored(authored) if authored.as_ref() == source.as_bytes())
         {
             return false;
         }
-        return definition.allocation().command.trim_start_matches("::")
-            == def_qualified.trim_start_matches("::");
+        return definition.allocation().command == def_qualified;
     }
     invocation_references_named(analysis, inv, qname, def_name, def_qualified, source)
 }
@@ -1792,16 +1776,14 @@ pub fn method_next_dispatch_spans(
 /// registry's own `resolve_class_name`, so a cross-module `pub(crate)`
 /// promotion would cost more than it saves). Falls back to the written name
 /// when nothing resolves, so the caller's MRO lookup simply finds no match.
-fn canonicalise_class_name(analysis: &AnalysisResult, owner: &str, name: &str) -> String {
-    let tail_index =
-        tcl_compiler::analyser::class_hierarchy::build_tail_index(analysis.all_classes.keys());
-    tcl_compiler::analyser::class_hierarchy::resolve_class_name(
+fn canonicalise_class_name(analysis: &AnalysisResult, at: u32, name: &str) -> Option<String> {
+    let namespace =
+        tcl_compiler::analyser::class_hierarchy::source_namespace_at(&analysis.global_scope, at)?;
+    tcl_compiler::analyser::class_hierarchy::resolve_written_class_name_in_scope(
         name,
-        owner,
-        |n| analysis.all_classes.contains_key(n),
-        &tail_index,
+        namespace,
+        &analysis.all_classes,
     )
-    .unwrap_or_else(|| name.to_owned())
 }
 
 /// Every `next` / `nextto` call site — across every other class in this
@@ -1845,7 +1827,16 @@ pub(crate) fn constructor_next_chain_references(
         };
         for (span, target) in scan_next_dispatch_sites_with_target(source, dialect, ctor.body_span)
         {
-            let start_from = target.map(|t| canonicalise_class_name(analysis, other_q, &t));
+            let start_from = match target {
+                Some(target) => {
+                    let Some(target) = canonicalise_class_name(analysis, span.start(), &target)
+                    else {
+                        continue;
+                    };
+                    Some(target)
+                }
+                None => None,
+            };
             if hierarchy.constructor_next_provider(other_q, start_from.as_deref(), source)
                 == Some(class_q)
             {
@@ -1877,7 +1868,16 @@ pub(crate) fn destructor_next_chain_references(
         };
         for (span, target) in scan_next_dispatch_sites_with_target(source, dialect, dtor.body_span)
         {
-            let start_from = target.map(|t| canonicalise_class_name(analysis, other_q, &t));
+            let start_from = match target {
+                Some(target) => {
+                    let Some(target) = canonicalise_class_name(analysis, span.start(), &target)
+                    else {
+                        continue;
+                    };
+                    Some(target)
+                }
+                None => None,
+            };
             if hierarchy.destructor_next_provider(other_q, start_from.as_deref()) == Some(class_q) {
                 call_spans.push(span);
             }
@@ -4183,6 +4183,23 @@ mod tests {
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();
         a.analyse(source, "tcl8.6").clone()
+    }
+
+    #[test]
+    fn retained_colon_procedure_does_not_reference_the_empty_name() {
+        let source = "proc {} {} {return EMPTY}; proc : {} {return COLON}; :";
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse(source, dialect);
+            let invocation = execution_at(&analysis, source, ":");
+            assert!(invocation.resolved_definition.is_some(), "{dialect}");
+            assert!(invocation_calls_named(
+                &analysis, invocation, ":::", ":", ":::", source
+            ));
+            assert!(!invocation_calls_named(
+                &analysis, invocation, "::", "", "::", source
+            ));
+        }
     }
 
     fn execution_at<'a>(

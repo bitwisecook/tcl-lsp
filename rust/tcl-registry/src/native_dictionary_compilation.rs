@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Original native dictionary lookup operand and stack geometry.
+//! Original native dictionary compiler operands and stack geometry.
 
 use crate::native_compiler_word_projection::{
     NativeCompilerWordOperand, project_native_compiler_words,
@@ -86,6 +86,214 @@ pub fn compile_native_dictionary_lookup(
         operands: operands.iter().map(|word| word.operand.clone()).collect(),
         key_count,
     })
+}
+
+/// Actual dictionary mutation opcode operating on one retained compiled local.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum NativeDictionaryMutationKind {
+    /// Store the final value through an ordered key path.
+    Set,
+    /// Remove the final member through an ordered key path.
+    Unset,
+    /// Concatenate the original values before appending one prepared object.
+    Append,
+    /// Append exactly one original element to a member list.
+    Lappend,
+    /// Increment the original member by the compiler's signed immediate.
+    Incr(i32),
+}
+
+/// Original receiver and stack operands accepted by a native mutation compiler.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct NativeDictionaryMutationInstruction {
+    /// Actual native instruction.
+    pub kind: NativeDictionaryMutationKind,
+    /// Counted original scalar name selecting the genuine physical local slot.
+    pub receiver: Vec<u8>,
+    /// Original keys followed by the original value operands, in visit order.
+    pub operands: Vec<NativeCompilerWordOperand>,
+    /// Number of original path keys consumed by the mutation instruction.
+    pub key_count: u32,
+}
+
+/// Retain original mutation preparation, including declarations before decline.
+/// This compiler receipt grants neither physical slot nor variable authority.
+///
+/// # Errors
+/// Refuses missing original parser geometry or an unknown native frame.
+pub fn compile_native_dictionary_mutation(
+    command: NativeDictionaryCommand,
+    words: &NativeCompilerWords<'_>,
+    operand_from: usize,
+    version: TclVersion,
+    context: crate::native_compilation::NativeCompilationContext,
+) -> Result<
+    crate::native_control_compilation::NativeControlCompilation<
+        NativeDictionaryMutationInstruction,
+    >,
+    NativeDictionaryCompilationUnavailable,
+> {
+    use crate::native_compilation::{
+        NativeCompilationFrame as Frame, NativeCompilationWordShape as Shape,
+    };
+    use crate::native_control_compilation::{
+        NativeControlCompilation as Compilation, NativeControlOutcome as Outcome,
+        NativeControlPreparationStep as Step,
+    };
+    use NativeDictionaryCommand as Command;
+    use NativeDictionaryCompilationUnavailable as Error;
+    let mut preparations = Vec::new();
+    let declined = |preparations| {
+        Ok(Compilation {
+            outcome: Outcome::Generic,
+            preparations,
+        })
+    };
+    if !matches!(
+        command,
+        Command::Set | Command::Unset | Command::Append | Command::Lappend | Command::Incr
+    ) {
+        return Err(Error::Unavailable);
+    }
+    if version < command.hook_from() {
+        return declined(preparations);
+    }
+    let original = project_native_compiler_words(words, version).map_err(|_| Error::Unavailable)?;
+    let operands = original.get(operand_from..).ok_or(Error::Unavailable)?;
+    if operands.iter().any(|word| word.shape == Shape::Expanded) {
+        return declined(preparations);
+    }
+    let count = operands.len();
+    let valid = mutation_operand_count(command, count, version);
+    if !valid {
+        return declined(preparations);
+    }
+    if context.frame == Frame::Unknown {
+        return Err(Error::Unavailable);
+    }
+    if context.frame != Frame::ProcedureCode {
+        return declined(preparations);
+    }
+    let mut immediate = None;
+    if command == Command::Incr && version > TclVersion::V8_5 {
+        immediate = mutation_increment_amount(operands, version);
+        if immediate.is_none() {
+            return declined(preparations);
+        }
+    }
+    let Some(name) = mutation_receiver(&operands[0], version, &mut preparations)? else {
+        return declined(preparations);
+    };
+    if command == Command::Incr && version == TclVersion::V8_5 {
+        immediate = mutation_increment_amount(operands, version);
+        if immediate.is_none() {
+            return declined(preparations);
+        }
+    }
+    let kind = match command {
+        Command::Set => NativeDictionaryMutationKind::Set,
+        Command::Unset => NativeDictionaryMutationKind::Unset,
+        Command::Append => NativeDictionaryMutationKind::Append,
+        Command::Lappend => NativeDictionaryMutationKind::Lappend,
+        Command::Incr => NativeDictionaryMutationKind::Incr(immediate.ok_or(Error::Unavailable)?),
+        _ => return Err(Error::Unavailable),
+    };
+    let stack = if command == Command::Incr {
+        &operands[1..2]
+    } else {
+        &operands[1..]
+    };
+    let operands = stack
+        .iter()
+        .map(|word| word.operand.clone())
+        .collect::<Vec<_>>();
+    preparations.extend(operands.iter().cloned().map(Step::Word));
+    let keys = match command {
+        Command::Set => count - 2,
+        Command::Unset => count - 1,
+        _ => 1,
+    };
+    Ok(Compilation {
+        outcome: Outcome::Inline(NativeDictionaryMutationInstruction {
+            kind,
+            receiver: name.to_vec(),
+            operands,
+            key_count: u32::try_from(keys).map_err(|_| Error::Unavailable)?,
+        }),
+        preparations,
+    })
+}
+
+fn mutation_receiver<'a>(
+    operand: &'a crate::native_compiler_word_projection::NativeProjectedCompilerWord,
+    version: TclVersion,
+    preparations: &mut Vec<crate::native_control_compilation::NativeControlPreparationStep>,
+) -> Result<Option<&'a [u8]>, NativeDictionaryCompilationUnavailable> {
+    use crate::native_compilation::NativeCompilationWordShape as Shape;
+    use crate::native_control_compilation::{
+        NativeControlPreparationStep as Step, project_native_local_scalar,
+    };
+    if !matches!(
+        operand.shape,
+        Shape::Literal | Shape::QuotedLiteral | Shape::BracedLiteral
+    ) {
+        return Ok(None);
+    }
+    let name = operand
+        .literal
+        .as_deref()
+        .ok_or(NativeDictionaryCompilationUnavailable::Unavailable)?;
+    let scalar = project_native_local_scalar(name, version);
+    if let Some(declaration) = scalar.declaration {
+        preparations.push(Step::DeclareLocal(declaration.to_vec()));
+    }
+    Ok(scalar.scalar.then_some(name))
+}
+
+fn mutation_operand_count(
+    command: NativeDictionaryCommand,
+    count: usize,
+    version: TclVersion,
+) -> bool {
+    use NativeDictionaryCommand as Command;
+    match command {
+        Command::Set => count >= 3,
+        Command::Unset => count >= 2,
+        Command::Append => {
+            (3..=if version == TclVersion::V8_5 { 257 } else { 99 }).contains(&count)
+        }
+        Command::Lappend => count == 3,
+        Command::Incr => (2..=3).contains(&count),
+        _ => false,
+    }
+}
+
+fn mutation_increment_amount(
+    operands: &[crate::native_compiler_word_projection::NativeProjectedCompilerWord],
+    version: TclVersion,
+) -> Option<i32> {
+    use crate::native_compilation::NativeCompilationWordShape as Shape;
+    use tcl_syntax::scalar_getter::{
+        NativeScalarGetterKind, NativeScalarGetterProtocol, NativeScalarGetterValue,
+    };
+    if operands.len() == 2 {
+        return Some(1);
+    }
+    let word = &operands[2];
+    if matches!(version, TclVersion::V8_6 | TclVersion::V9_0)
+        && !matches!(
+            word.shape,
+            Shape::Literal | Shape::QuotedLiteral | Shape::BracedLiteral
+        )
+    {
+        return None;
+    }
+    let conversion = NativeScalarGetterProtocol::for_tcl_version(version)
+        .fresh_conversion(NativeScalarGetterKind::Int, word.literal.as_deref()?)?;
+    let NativeScalarGetterValue::Wide(value) = conversion.outcome().ok()? else {
+        return None;
+    };
+    i32::try_from(value).ok()
 }
 
 #[cfg(test)]
@@ -195,6 +403,145 @@ mod tests {
                     ]
                 );
             }
+        }
+    }
+    fn mutation(
+        source: &[u8],
+        command: NativeDictionaryCommand,
+        version: TclVersion,
+    ) -> crate::native_control_compilation::NativeControlCompilation<
+        NativeDictionaryMutationInstruction,
+    > {
+        let original = original(source, version);
+        let words =
+            NativeCompilerWords::capture(&original, NativeStringProtocol::C(version)).unwrap();
+        compile_native_dictionary_mutation(
+            command,
+            &words,
+            2,
+            version,
+            crate::native_compilation::NativeCompilationContext {
+                frame: crate::native_compilation::NativeCompilationFrame::ProcedureCode,
+                ..Default::default()
+            },
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn original_dictionary_mutations_retain_receiver_then_ordered_key_value_visits() {
+        use crate::native_control_compilation::{
+            NativeControlOutcome as Outcome, NativeControlPreparationStep as Step,
+        };
+        for version in [
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ] {
+            let compiled = mutation(
+                b"dict set d $first $second $value",
+                NativeDictionaryCommand::Set,
+                version,
+            );
+            let Outcome::Inline(recipe) = compiled.outcome else {
+                panic!("native set compiler");
+            };
+            assert_eq!(recipe.kind, NativeDictionaryMutationKind::Set);
+            assert_eq!(recipe.receiver, b"d");
+            assert_eq!(recipe.key_count, 2);
+            assert_eq!(
+                compiled.preparations,
+                [
+                    Step::DeclareLocal(b"d".to_vec()),
+                    Step::Word(NativeCompilerWordOperand::Original(3)),
+                    Step::Word(NativeCompilerWordOperand::Original(4)),
+                    Step::Word(NativeCompilerWordOperand::Original(5))
+                ]
+            );
+            let declined = mutation(
+                b"dict set a(element) k v",
+                NativeDictionaryCommand::Set,
+                version,
+            );
+            assert_eq!(declined.outcome, Outcome::Generic);
+            assert_eq!(declined.preparations, [Step::DeclareLocal(b"a".to_vec())]);
+        }
+    }
+
+    #[test]
+    fn original_dictionary_increment_decline_preserves_actual_release_declaration_order() {
+        use crate::native_control_compilation::{
+            NativeControlOutcome as Outcome, NativeControlPreparationStep as Step,
+        };
+        for version in [
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ] {
+            let declined = mutation(
+                b"dict incr d k $amount",
+                NativeDictionaryCommand::Incr,
+                version,
+            );
+            assert_eq!(declined.outcome, Outcome::Generic);
+            assert_eq!(
+                declined.preparations,
+                if version == TclVersion::V8_5 {
+                    vec![Step::DeclareLocal(b"d".to_vec())]
+                } else {
+                    Vec::new()
+                }
+            );
+            let compiled = mutation(
+                b"dict incr d k 0xffffffff",
+                NativeDictionaryCommand::Incr,
+                version,
+            );
+            let Outcome::Inline(recipe) = compiled.outcome else {
+                panic!("actual native Int probe");
+            };
+            assert_eq!(recipe.kind, NativeDictionaryMutationKind::Incr(-1));
+            assert_eq!(recipe.operands, [NativeCompilerWordOperand::Original(3)]);
+            let compiled = mutation(
+                b"dict incr d k \\x32",
+                NativeDictionaryCommand::Incr,
+                version,
+            );
+            assert_eq!(
+                matches!(compiled.outcome, Outcome::Inline(_)),
+                matches!(version, TclVersion::V8_5 | TclVersion::V9_1)
+            );
+        }
+    }
+
+    #[test]
+    fn original_dictionary_lappend_arity_and_unset_hook_are_actual_compiler_frontiers() {
+        use crate::native_control_compilation::NativeControlOutcome as Outcome;
+        for version in [
+            TclVersion::V8_4,
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ] {
+            assert_eq!(
+                mutation(
+                    b"dict lappend d k v w",
+                    NativeDictionaryCommand::Lappend,
+                    version
+                )
+                .outcome,
+                Outcome::Generic
+            );
+            assert_eq!(
+                matches!(
+                    mutation(b"dict unset d k", NativeDictionaryCommand::Unset, version).outcome,
+                    Outcome::Inline(_)
+                ),
+                version >= TclVersion::V8_6
+            );
         }
     }
 }

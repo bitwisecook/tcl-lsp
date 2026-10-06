@@ -1,6 +1,6 @@
 //! C hidden error-variable traces retain private objects independently of globals.
 
-use super::{new_string, Interp, TraceAccess, GLOBAL};
+use super::{GLOBAL, Interp, TraceAccess, new_string};
 use crate::obj;
 use tcl_registry::special_vars::{NativeErrorStorageVariable as Variable, NativeErrorVariableRead};
 
@@ -249,6 +249,21 @@ impl Interp {
         // Tcl_SetObjErrorCode ignores setter failure and sets this flag after
         // the actual callback, independently of projected -errorcode bytes.
         self.exc.borrow_mut().native.global_code_set = true;
+    }
+
+    /// A nonempty C8.4 error info argument extends the current result through
+    /// AddObjErrorInfo before the explicit code and final message setters.
+    pub(crate) fn publish_c84_error_command_info(&mut self, info: &[u8], code: &[u8]) -> bool {
+        if !self.uses_c84_global_error_info() {
+            return false;
+        }
+        self.set_error_state(code);
+        let mut bytes = self.result_bytes();
+        bytes.extend_from_slice(info);
+        self.exc.borrow_mut().info = Some(bytes);
+        self.update_native_error_info();
+        self.exc.borrow_mut().already_logged = true;
+        true
     }
 
     pub(super) fn replace_native_error_code(&mut self, bytes: &[u8]) {
@@ -508,7 +523,7 @@ impl Interp {
 
 #[cfg(test)]
 mod tests {
-    use super::super::{default_host, obj_bytes, ExceptionState};
+    use super::super::{ExceptionState, default_host, obj_bytes};
     use super::*;
     use crate::{counters, environment::profile_for_dialect};
     use tcl_registry::special_vars::NativeBootstrapInputs;
@@ -721,6 +736,48 @@ mod tests {
             (
                 "structured-getter",
                 b"catch {lindex {} BAD} m;list $m $::errorCode",
+            ),
+        ];
+        for row in controls.lines() {
+            let fields: Vec<_> = row.split('\t').collect();
+            let source = sources
+                .iter()
+                .find(|(name, _)| *name == fields[0])
+                .unwrap()
+                .1;
+            let mut interp = c84_code_interpreter();
+            assert_eq!(
+                interp.eval_str(source).as_int().to_string(),
+                fields[1],
+                "{row}"
+            );
+            let result: String = interp
+                .result_bytes()
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect();
+            assert_eq!(result, fields[2], "{row}");
+            C84_CODE_EVENTS
+                .with(|events| assert_eq!(events.borrow().join(";"), fields[3], "{row}"));
+            assert!(!interp.host_refusal_pending(), "{row}");
+        }
+    }
+
+    #[test]
+    fn c84_nonempty_error_info_publication_matches_original_callback_controls() {
+        let controls = include_str!("../../tests/data/native_c84_error_code/nonempty/controls.tsv");
+        let sources: &[(&str, &[u8])] = &[
+            (
+                "info-no-code",
+                b"catch {error FAIL INFO} m;list $m $::errorInfo $::errorCode",
+            ),
+            (
+                "info-NONE",
+                b"catch {error FAIL INFO NONE} m;list $m $::errorInfo $::errorCode",
+            ),
+            (
+                "info-structured",
+                b"catch {error FAIL INFO {CUSTOM DETAIL}} m;list $m $::errorInfo $::errorCode",
             ),
         ];
         for row in controls.lines() {
@@ -1164,24 +1221,32 @@ mod tests {
                 )
                 .unwrap();
                 assert_eq!(interp.eval_str(b"proc hook {args} {}; trace add variable ::errorInfo read hook; trace remove variable ::errorInfo read hook"), super::super::Code::Ok);
-                assert!(interp
-                    .native_error_variable_at(&interp.trace_identity(b"::errorInfo"))
-                    .is_some());
+                assert!(
+                    interp
+                        .native_error_variable_at(&interp.trace_identity(b"::errorInfo"))
+                        .is_some()
+                );
                 assert_eq!(
                     interp.eval_str(b"array set ::errorInfo {k value}; unset ::errorInfo"),
                     super::super::Code::Ok
                 );
-                assert!(interp
-                    .native_error_variable_at(&interp.trace_identity(b"::errorInfo"))
-                    .is_some());
+                assert!(
+                    interp
+                        .native_error_variable_at(&interp.trace_identity(b"::errorInfo"))
+                        .is_some()
+                );
                 assert!(!interp.var_unset(b"::errorInfo"));
                 interp.delete_namespace_by_id(GLOBAL);
-                assert!(interp
-                    .native_error_variable_at(&interp.trace_identity(b"::errorInfo"))
-                    .is_some());
-                assert!(interp
-                    .native_error_variable_at(&interp.trace_identity(b"::errorCode"))
-                    .is_some());
+                assert!(
+                    interp
+                        .native_error_variable_at(&interp.trace_identity(b"::errorInfo"))
+                        .is_some()
+                );
+                assert!(
+                    interp
+                        .native_error_variable_at(&interp.trace_identity(b"::errorCode"))
+                        .is_some()
+                );
             }
             assert_eq!(counters::finalize(), 0, "{profile}");
         }

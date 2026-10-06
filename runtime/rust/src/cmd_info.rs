@@ -27,7 +27,7 @@
 //! introspection `body`/`args`/`default`. `info errorstack` (TIP 348) is the
 //! remaining `CmdFrame`-adjacent item.
 
-use crate::interp::{new_string, obj_bytes, Code, Interp};
+use crate::interp::{Code, Interp, new_string, obj_bytes};
 use crate::obj::TclObj;
 
 /// Register `info`.
@@ -609,6 +609,17 @@ fn info_exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // Tcl's existence query fires read traces and ignores their errors. The
     // resolved variable owner includes native linked-variable callbacks.
     let name = obj_bytes(argv[2]);
+    if interp.observed_name_policy_selected() {
+        let level = interp.frames.borrow().current_level();
+        return match interp.observed_variable_exists(&name, level) {
+            Ok(found) => {
+                let result = crate::obj::new_boolean_obj(i32::from(found));
+                interp.set_result(result);
+                Code::Ok
+            }
+            Err(_) => Code::Error,
+        };
+    }
     let _ = interp.fire_var_traces_for(&name, b"read");
     // The shared Family-B core over `VarStore::exists`.
     let result = crate::obj::new_boolean_obj(i32::from(interp.var_exists(&name)));
@@ -627,9 +638,15 @@ fn info_level(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         _ => return interp.wrong_args_for_prefix(argv, 2, b"?number?"),
     };
     let dialect = interp.native_invocation_dialect();
-    let result = if dialect.native_error_log_protocol().is_some() && dialect.tcl_version.is_some_and(|version| version >= tcl_dialect::TclVersion::V8_6) {
+    let result = if dialect.native_error_log_protocol().is_some()
+        && dialect
+            .tcl_version
+            .is_some_and(|version| version >= tcl_dialect::TclVersion::V8_6)
+    {
         interp.native_info_level(number)
-    } else { tcl_cmd_core::info::level(interp, number) };
+    } else {
+        tcl_cmd_core::info::level(interp, number)
+    };
     match result {
         Ok(v) => {
             interp.set_result(v);

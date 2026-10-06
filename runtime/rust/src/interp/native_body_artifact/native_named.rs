@@ -37,6 +37,7 @@ impl Builder<'_> {
         >,
         depth: u32,
     ) -> Result<NamedOperation, ValueError> {
+        self.prepare_control_steps(captured, &recipe.preparations, depth)?;
         let direct = recipe.protocol == NativeNamedInvocationProtocol::Direct;
         let head = if direct {
             Some(self.named_command_literal(&recipe.name, prerequisite)?)

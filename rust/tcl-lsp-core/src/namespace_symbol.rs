@@ -160,7 +160,9 @@ pub fn namespace_cell_at_offset(
     if crate::inert_text::offset_in_comment(source, cursor_off) {
         return None;
     }
-    Some(hit.qualified_name.clone())
+    let (scope, policy) = retained_namespace_for_report(analysis, &hit.qualified_name)?;
+    (hit.source_namespace.as_ref() == Some(&scope) && hit.name_policy == Some(policy))
+        .then(|| hit.qualified_name.clone())
 }
 
 /// Whether `a` and `b` name the same namespace.
@@ -181,11 +183,77 @@ pub fn namespace_cell_at_offset(
 /// about a namespace that cannot exist with the enclosing namespace's
 /// declarations.
 fn normalise_namespace(name: &str) -> &str {
-    match name.trim_start_matches("::") {
-        // The root, however it was spelled (`::`, `` ``, `::::`).
-        root if root.is_empty() || root.chars().all(|c| c == ':') => "",
-        other => other,
+    tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name)
+}
+
+/// Select one exact original namespace receipt behind a presentation query.
+/// A display shared by distinct scopes cannot identify a navigable namespace.
+#[must_use]
+pub fn retained_namespace_for_report(
+    analysis: &AnalysisResult,
+    cell: &str,
+) -> Option<(
+    tcl_compiler::signature_scan::scope::SignatureNamespaceScope,
+    tcl_syntax::naming::NamePolicyProtocol,
+)> {
+    retained_namespace_from_refs(analysis.namespace_refs.iter(), cell)
+}
+
+/// Select exact geometry across retained rows, including report collisions.
+#[must_use]
+pub fn retained_namespace_from_refs<'a>(
+    references: impl IntoIterator<Item = &'a tcl_compiler::analyser::types::NamespaceRef>,
+    cell: &str,
+) -> Option<(
+    tcl_compiler::signature_scan::scope::SignatureNamespaceScope,
+    tcl_syntax::naming::NamePolicyProtocol,
+)> {
+    let mut selected = None;
+    for reference in references {
+        let Some(policy) = reference.name_policy else {
+            if same_namespace(&reference.qualified_name, cell) {
+                return None;
+            }
+            continue;
+        };
+        let Some(mut scope) = reference.source_namespace.clone() else {
+            if same_namespace(&reference.qualified_name, cell) {
+                return None;
+            }
+            continue;
+        };
+        loop {
+            if scope
+                .display()
+                .is_some_and(|report| same_namespace(&report, cell))
+            {
+                let candidate = (scope.clone(), policy);
+                match &selected {
+                    Some(previous) if previous != &candidate => return None,
+                    None => selected = Some(candidate),
+                    Some(_) => {}
+                }
+            }
+            scope = match scope {
+                tcl_compiler::signature_scan::scope::SignatureNamespaceScope::C(path) => {
+                    let Some(parent) = path.parent() else { break };
+                    tcl_compiler::signature_scan::scope::SignatureNamespaceScope::C(parent)
+                }
+                tcl_compiler::signature_scan::scope::SignatureNamespaceScope::Jim(value) => {
+                    if value.as_bytes().is_empty() || value.as_bytes().contains(&0) {
+                        break;
+                    }
+                    let parent = policy.recipe().namespace_qualifier_bytes(value.as_bytes());
+                    if parent == value.as_bytes() {
+                        break;
+                    }
+                    tcl_compiler::signature_scan::scope::SignatureNamespaceScope::Jim(parent.into())
+                }
+                tcl_compiler::signature_scan::scope::SignatureNamespaceScope::Symbolic(_) => break,
+            };
+        }
     }
+    selected
 }
 
 fn same_namespace(a: &str, b: &str) -> bool {
@@ -199,10 +267,17 @@ fn same_namespace(a: &str, b: &str) -> bool {
 /// implicit-parent case described in the module docs.
 #[must_use]
 pub fn namespace_declaration_spans(analysis: &AnalysisResult, cell: &str) -> Vec<Span> {
+    let Some((scope, policy)) = retained_namespace_for_report(analysis, cell) else {
+        return Vec::new();
+    };
     analysis
         .namespace_refs
         .iter()
-        .filter(|r| r.declares && same_namespace(&r.qualified_name, cell))
+        .filter(|r| {
+            r.declares
+                && r.source_namespace.as_ref() == Some(&scope)
+                && r.name_policy == Some(policy)
+        })
         .map(|r| r.span)
         .collect()
 }
@@ -228,6 +303,12 @@ pub fn namespace_implicit_parent_spans(
     analysis: &AnalysisResult,
     cell: &str,
 ) -> Vec<Span> {
+    let Some((scope, policy)) = retained_namespace_for_report(analysis, cell) else {
+        return Vec::new();
+    };
+    if scope.source_spelling(Some(policy)).is_none() {
+        return Vec::new();
+    }
     let wanted = normalise_namespace(cell);
     if wanted.is_empty() {
         // The global namespace is created by the interpreter, not by any
@@ -238,7 +319,8 @@ pub fn namespace_implicit_parent_spans(
         .namespace_refs
         .iter()
         .filter(|r| r.declares)
-        .filter_map(|r| namespace_implicit_parent_span_in(source, r.span, &r.qualified_name, cell))
+        .filter(|r| r.name_policy == Some(policy))
+        .filter_map(|r| namespace_implicit_parent_span_in(source, r, &scope))
         .collect()
 }
 
@@ -287,60 +369,13 @@ pub fn namespace_strictly_contains(parent: &str, child: &str) -> bool {
 #[must_use]
 pub fn namespace_implicit_parent_span_in(
     source: &str,
-    span: Span,
-    declared_qualified: &str,
-    cell: &str,
+    reference: &tcl_compiler::analyser::types::NamespaceRef,
+    wanted: &tcl_compiler::signature_scan::scope::SignatureNamespaceScope,
 ) -> Option<Span> {
-    let wanted = normalise_namespace(cell);
-    if wanted.is_empty() {
+    if reference.source_namespace.as_ref() == Some(wanted) {
         return None;
     }
-    if !namespace_strictly_contains(cell, declared_qualified) {
-        return None;
-    }
-    covering_prefix_span(
-        source,
-        span,
-        normalise_namespace(declared_qualified),
-        wanted.split("::").count(),
-    )
-}
-
-/// The leading sub-range of the name word at `span` that spells the first
-/// `wanted_depth` segments of `declared`.
-///
-/// The word may be written relatively (`namespace eval q::r` inside `::p`
-/// declares `::p::q::r` from two written segments), so the written text
-/// covers only the *last* N segments of the qualified name; a prefix shorter
-/// than that offset is not written here at all and yields `None`.
-fn covering_prefix_span(
-    source: &str,
-    span: Span,
-    declared: &str,
-    wanted_depth: usize,
-) -> Option<Span> {
-    let text = source.get(span.start() as usize..span.end() as usize)?;
-    let rooted = text.starts_with("::");
-    let written = text.trim_start_matches("::");
-    let written_depth = written.split("::").count();
-    let declared_depth = declared.split("::").count();
-    // How many leading segments of `declared` this word does not spell.
-    let unwritten = declared_depth.checked_sub(written_depth)?;
-    let take = wanted_depth.checked_sub(unwritten)?;
-    if take == 0 || take > written_depth {
-        return None;
-    }
-    // Byte offset of the end of the `take`-th written segment.
-    let mut end = 0usize;
-    for (i, segment) in written.split("::").take(take).enumerate() {
-        if i > 0 {
-            end += 2;
-        }
-        end += segment.len();
-    }
-    let lead = u32::try_from(usize::from(rooted) * 2).ok()?;
-    let end = u32::try_from(end).ok()?;
-    Some(Span::new(span.start(), span.start() + lead + end))
+    reference.written_ancestor_span(source, wanted)
 }
 
 /// Every **non-declaring** occurrence of `cell` in this document, in source
@@ -348,10 +383,17 @@ fn covering_prefix_span(
 /// are not asked for.
 #[must_use]
 pub fn namespace_reference_spans(analysis: &AnalysisResult, cell: &str) -> Vec<Span> {
+    let Some((scope, policy)) = retained_namespace_for_report(analysis, cell) else {
+        return Vec::new();
+    };
     analysis
         .namespace_refs
         .iter()
-        .filter(|r| !r.declares && same_namespace(&r.qualified_name, cell))
+        .filter(|r| {
+            !r.declares
+                && r.source_namespace.as_ref() == Some(&scope)
+                && r.name_policy == Some(policy)
+        })
         .map(|r| r.span)
         .collect()
 }
@@ -364,10 +406,17 @@ pub fn namespace_all_spans(
     cell: &str,
     include_declaration: bool,
 ) -> Vec<Span> {
+    let Some((scope, policy)) = retained_namespace_for_report(analysis, cell) else {
+        return Vec::new();
+    };
     analysis
         .namespace_refs
         .iter()
-        .filter(|r| (include_declaration || !r.declares) && same_namespace(&r.qualified_name, cell))
+        .filter(|r| {
+            (include_declaration || !r.declares)
+                && r.source_namespace.as_ref() == Some(&scope)
+                && r.name_policy == Some(policy)
+        })
         .map(|r| r.span)
         .collect()
 }
@@ -791,7 +840,8 @@ mod tests {
             .expect("the declaring row");
         for cell in ["::p::q", "::p"] {
             assert_eq!(
-                namespace_implicit_parent_span_in(src, row.span, &row.qualified_name, cell)
+                retained_namespace_for_report(&analysis, cell)
+                    .and_then(|(wanted, _)| namespace_implicit_parent_span_in(src, row, &wanted))
                     .map(|s| texts(src, &[s])),
                 Some(texts(
                     src,
@@ -804,7 +854,8 @@ mod tests {
         // implicit creator, and a segment prefix is a different namespace.
         for cell in ["::p::q::r", "::", "", "::pq"] {
             assert_eq!(
-                namespace_implicit_parent_span_in(src, row.span, &row.qualified_name, cell),
+                retained_namespace_for_report(&analysis, cell)
+                    .and_then(|(wanted, _)| namespace_implicit_parent_span_in(src, row, &wanted)),
                 None,
                 "{cell} must have no implicit site here",
             );
@@ -881,6 +932,46 @@ mod tests {
     // The global namespace's real name is the empty string and `::` is its
     // accepted synonym everywhere (`namespace current` prints `::` at top
     // level on both interpreters), so the two spellings must be one symbol.
+    #[test]
+    fn namespace_navigation_withdraws_colliding_display_receipts() {
+        let source =
+            "namespace eval a: {namespace eval b {}}; namespace eval a {namespace eval :b {}}";
+        for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut analyser = tcl_compiler::analyser::Analyser::new();
+            let analysis = analyser.analyse(source, engine);
+            assert!(
+                retained_namespace_for_report(&analysis, "::a:::b").is_none(),
+                "{engine}"
+            );
+            assert!(
+                namespace_declaration_spans(&analysis, "::a:::b").is_empty(),
+                "{engine}"
+            );
+        }
+    }
+
+    #[test]
+    fn constructed_colon_namespace_is_distinct_from_the_root() {
+        let source = "namespace eval : {}; namespace eval :: {}";
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse(source, dialect);
+            assert_eq!(
+                texts(source, &namespace_all_spans(&analysis, ":::", true)),
+                [":"],
+                "{dialect}"
+            );
+            assert_eq!(
+                texts(source, &namespace_all_spans(&analysis, "::", true)),
+                ["::"],
+                "{dialect}"
+            );
+        }
+        assert!(!same_namespace(":::", "::"));
+        assert!(!namespace_strictly_contains(":::", "::"));
+        assert!(namespace_strictly_contains("::", ":::"));
+    }
+
     #[test]
     fn tp_global_namespace_spellings_are_one_symbol() {
         let src = "namespace eval :: {}\nnamespace children ::\n";

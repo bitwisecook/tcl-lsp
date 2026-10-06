@@ -345,10 +345,12 @@ pub(super) fn handle_namespace_eval(
 /// [`crate::signature_scan::types::SignatureNamespaceForget`] for the
 /// semantics. Dynamic patterns are skipped (revoking an alias
 /// on a guess would silently drop real references).
-pub(super) fn handle_namespace_forget(
+pub(super) fn handle_namespace_forget_in_context(
     texts: &[String],
     argv: &[Token],
     ns_prefix: &str,
+    policy: Option<tcl_syntax::naming::NamePolicyProtocol>,
+    namespace: Option<&super::scope::SignatureNamespaceScope>,
     sub_spec: Option<&tcl_registry::SubCommand>,
     result: &mut SignatureScanResult,
 ) {
@@ -360,25 +362,23 @@ pub(super) fn handle_namespace_forget(
             i += 1;
             continue;
         }
-        let (source_ns, pattern) = match raw.rsplit_once("::") {
-            Some((prefix, tail)) => {
-                let prefix = if prefix.is_empty() {
-                    "::".to_string()
-                } else if prefix.starts_with("::") {
-                    prefix.to_string()
-                } else if forgetting_ns == "::" {
-                    format!("::{prefix}")
-                } else {
-                    format!("{forgetting_ns}::{prefix}")
-                };
-                (Some(prefix), tail.to_string())
-            }
-            None => (None, raw.clone()),
+        let Some(parts) = selected_namespace_pattern(
+            &forgetting_ns, raw, policy, namespace,
+            tcl_syntax::naming::NativeNamePurpose::NamespaceForgetPattern,
+        ) else {
+            i += 1;
+            continue;
+        };
+        let source_ns = SignatureNamespaceImportSource::from_native_pattern(&parts)
+            .map(|source| source.namespace);
+        let Ok(pattern) = parts.tail.try_utf8() else {
+            i += 1;
+            continue;
         };
         result.namespace_forgets.push(SignatureNamespaceForget {
             ns: forgetting_ns.clone(),
             source_ns,
-            pattern,
+            pattern: pattern.to_owned(),
             range: argv[i].span,
         });
         i += 1;
@@ -393,10 +393,12 @@ pub(super) fn handle_namespace_forget(
 /// resolve them to a source namespace). Patterns without a leading
 /// `::` are resolved relative to the *current* namespace, mirroring
 /// Tcl's own rule.
-pub(super) fn handle_namespace_import(
+pub(super) fn handle_namespace_import_in_context(
     texts: &[String],
     argv: &[Token],
     ns_prefix: &str,
+    policy: Option<tcl_syntax::naming::NamePolicyProtocol>,
+    namespace: Option<&super::scope::SignatureNamespaceScope>,
     sub_spec: Option<&tcl_registry::SubCommand>,
     result: &mut SignatureScanResult,
 ) {
@@ -415,23 +417,64 @@ pub(super) fn handle_namespace_import(
             i += 1;
             continue;
         }
-        let pattern = if pattern_raw.starts_with("::") {
-            pattern_raw.clone()
-        } else if importing_ns == "::" {
-            format!("::{pattern_raw}")
-        } else {
-            format!("{importing_ns}::{pattern_raw}")
+        let Some(parts) = selected_namespace_pattern(
+            &importing_ns, pattern_raw, policy, namespace,
+            tcl_syntax::naming::NativeNamePurpose::NamespaceImportPattern,
+        ) else {
+            i += 1;
+            continue;
         };
+        let Some(source) = SignatureNamespaceImportSource::from_native_pattern(&parts) else {
+            i += 1;
+            continue;
+        };
+        let pattern = source.constructed_pattern();
         result.namespace_imports.push(SignatureNamespaceImport {
             ns: importing_ns.clone(),
             pattern,
-            source: SignatureNamespaceImportSource::from_written(&importing_ns, pattern_raw),
+            source: Some(source),
             range: argv[i].span,
             conjectured: false,
             forced,
         });
         i += 1;
     }
+}
+
+fn selected_namespace_pattern(
+    current: &str,
+    written: &str,
+    policy: Option<tcl_syntax::naming::NamePolicyProtocol>,
+    namespace: Option<&super::scope::SignatureNamespaceScope>,
+    purpose: tcl_syntax::naming::NativeNamePurpose,
+) -> Option<tcl_syntax::naming::NativeNamespacePatternParts> {
+    let policy = policy?;
+    match namespace {
+        Some(namespace) => policy.recipe().namespace_pattern_parts(
+            namespace.context()?, written.as_bytes(), purpose,
+        ).ok(),
+        None => SignatureNamespaceImportSource::pattern_parts_with_policy(current, written, policy, purpose),
+    }
+}
+
+#[cfg(test)]
+fn handle_namespace_import(
+    texts: &[String], argv: &[Token], ns_prefix: &str,
+    sub_spec: Option<&tcl_registry::SubCommand>, result: &mut SignatureScanResult,
+) {
+    handle_namespace_import_in_context(texts, argv, ns_prefix,
+        Some(tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6)),
+        None, sub_spec, result);
+}
+
+#[cfg(test)]
+fn handle_namespace_forget(
+    texts: &[String], argv: &[Token], ns_prefix: &str,
+    sub_spec: Option<&tcl_registry::SubCommand>, result: &mut SignatureScanResult,
+) {
+    handle_namespace_forget_in_context(texts, argv, ns_prefix,
+        Some(tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6)),
+        None, sub_spec, result);
 }
 
 /// Handler for `package require ?-exact? NAME ?requirement ...?`.
@@ -716,6 +759,7 @@ pub(super) fn maybe_handle_import_wrapper(
         ns: alias_ns,
         pattern: format!("{source_ns}::*"),
         source: Some(SignatureNamespaceImportSource {
+            native_source: None,
             namespace: crate::naming::qualify_namespace(ns_prefix, source_ns_raw),
             tail_pattern: "*".to_owned(),
         }),

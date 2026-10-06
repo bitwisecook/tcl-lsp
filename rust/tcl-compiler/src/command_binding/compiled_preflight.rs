@@ -829,8 +829,8 @@ impl CompilerTraversal<'_> {
                 false,
                 self.structured_compilation(words, offset, &recipe, context),
             )),
-            super::ensemble_compilation::ActualEnsemblePlan::Generic
-            | super::ensemble_compilation::ActualEnsemblePlan::Named { .. } => Some((true, None)),
+            super::ensemble_compilation::ActualEnsemblePlan::Generic => Some((true, None)),
+            super::ensemble_compilation::ActualEnsemblePlan::Named { preparations, .. } => Some((false, self.structured_compilation(words, offset, &tcl_registry::native_instruction_plan::NativeInstructionPlan::GenericPreparation(preparations), context))),
             super::ensemble_compilation::ActualEnsemblePlan::Unknown => {
                 // A registered recipe can describe the delegated compiler
                 // only after the original map and every private compiler

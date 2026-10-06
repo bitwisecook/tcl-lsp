@@ -371,9 +371,14 @@ mod tests {
                 };
                 assert_eq!(
                     recipe(source.as_bytes(), version, kind).is_ok(),
-                    fields[7]
-                        .split(',')
-                        .any(|observed| observed.split(':').next() == Some(opcode)),
+                    fields[7].split(',').any(|observed| {
+                        let instruction = observed.split(':').next();
+                        if kind == NativeListOperationKind::Set {
+                            matches!(instruction, Some("lsetList" | "lsetFlat"))
+                        } else {
+                            instruction == Some(opcode)
+                        }
+                    }),
                     "{version:?}/{case}"
                 );
                 count += 1;

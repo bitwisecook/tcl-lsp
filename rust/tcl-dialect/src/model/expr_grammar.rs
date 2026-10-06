@@ -295,11 +295,10 @@ const TCL_WORDS_90: &[WordOperator] = &[
 /// table. The iRules offshoot overrides nothing here — it answers with
 /// this same slice along the fork edge.
 ///
-/// The bare `matches` is the tenth and was added last: §4a's `e_matches`
-/// case (`expr {"abc" matches "abc"}`) answered `1` in all three F5
-/// contexts and failed on both host builds, and §4b's model
-/// recommendation lists it beside `matches_glob`/`matches_regex` among
-/// the trunk's `expr` extensions.
+/// Bare `matches` is measured as a whole-string glob on BIG-IP 21.1.0.1
+/// build 0.0.26 in HTTP_REQUEST, tmsh CLI scripts, iApp implementation
+/// actions and triggered iCall scripts. Presentation/APL and other iCall
+/// forms have no expression execution receipt from that payload.
 const F5_TCL_WORDS: &[WordOperator] = &[
     word("eq", Release::TCL_8_4),
     word("ne", Release::TCL_8_4),
@@ -386,13 +385,9 @@ const TCL_PRECEDENCE_ROWS: &[(&str, u16, u16)] = &[
 // extensions at the equality level. A trunk fact: tmsh and iApp accept
 // the identical operator set (measurements §4a).
 //
-// `matches` sits at the equality level with its siblings by
-// **inference, not measurement**: the transcripts pin only that the
-// operator parses and answers `1` for `expr {"abc" matches "abc"}` (§4a
-// `e_matches`), a single-operator expression that exercises no binding
-// power at all. §12 carries the discriminating re-probe; until it is
-// run, the operator takes the class every other F5 string-comparison
-// word form was measured at.
+// The exact BIG-IP 21.1.0.1 build 0.0.26 payload establishes `matches`
+// above `or`, and prefix `not` above `starts_with`. Equality-level binding
+// remains an authored grammar choice; that payload does not uniquely pin it.
 const F5_TCL_PRECEDENCE_ROWS: &[(&str, u16, u16)] = &[
     ("||", 4, 5),
     ("or", 4, 5),

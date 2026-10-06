@@ -1118,7 +1118,7 @@ fn next_dispatch_target(
         let line_start = byte_offset_at(line_index, source, line, 0);
         let cursor_in_line = cursor.saturating_sub(line_start) as usize;
         let target = word_after(source, line, cursor_in_line, keyword)?;
-        Some(canonicalise_class(analysis, &class_q, &target))
+        Some(canonicalise_class(analysis, cursor, &target)?)
     } else {
         None
     };
@@ -1210,16 +1210,14 @@ fn word_after(source: &str, line: u32, cursor_in_line: usize, keyword: &str) -> 
 /// bare from a sibling in the same namespace, instead of only matching a
 /// global `::Base`.  Falls back to the written name when nothing resolves so
 /// the caller's `next_provider` lookup simply finds no target.
-fn canonicalise_class(analysis: &AnalysisResult, owner: &str, name: &str) -> String {
-    let tail_index =
-        tcl_compiler::analyser::class_hierarchy::build_tail_index(analysis.all_classes.keys());
-    tcl_compiler::analyser::class_hierarchy::resolve_class_name(
+fn canonicalise_class(analysis: &AnalysisResult, at: u32, name: &str) -> Option<String> {
+    let namespace =
+        tcl_compiler::analyser::class_hierarchy::source_namespace_at(&analysis.global_scope, at)?;
+    tcl_compiler::analyser::class_hierarchy::resolve_written_class_name_in_scope(
         name,
-        owner,
-        |cand| analysis.all_classes.contains_key(cand),
-        &tail_index,
+        namespace,
+        &analysis.all_classes,
     )
-    .unwrap_or_else(|| name.to_string())
 }
 
 /// Detect a `$obj method ...` / `[$obj method ...]` or
@@ -1841,7 +1839,7 @@ pub(crate) fn lookup_var_in_scope_chain<'a>(
         // command/bareword resolution only) — `&[]` keeps this call
         // provably unaffected; `scope` alone (no `analysis`) is available
         // here regardless.
-        let here = innermost_namespace_at(scope, byte_offset, &[]);
+        let here = namespace_context_at(scope, byte_offset, &[]);
         let qualified = tcl_compiler::naming::qualify(&here, name);
         let (target_ns, base_name) = tcl_compiler::naming::key_holder_and_tail(&qualified);
         if let Some(v) =
@@ -2046,7 +2044,7 @@ pub fn qualified_variable_cell_at(
         if !base.contains("::") {
             return None;
         }
-        let here = innermost_namespace_at(&analysis.global_scope, cursor_off, &[]);
+        let here = namespace_context_at(&analysis.global_scope, cursor_off, &[]);
         return Some(tcl_compiler::naming::qualify(&here, base));
     }
     // A bareword sitting on a namespace-scoped declaration (or a later
@@ -2451,11 +2449,14 @@ pub(crate) fn innermost_namespace_at(
         .filter(|(span, _)| span.start() <= byte_offset && byte_offset < span.end())
         .min_by_key(|(span, _)| span.end() - span.start());
     if let Some((_, ns)) = pinned {
-        return ns.trim_start_matches("::").to_string();
+        return tcl_syntax::naming::unroot_rooted_key(ns)
+            .unwrap_or(ns)
+            .to_owned();
     }
-    tcl_compiler::analyser::command_resolution_namespace_at(scope, byte_offset)
-        .trim_start_matches("::")
-        .to_string()
+    let namespace = tcl_compiler::analyser::command_resolution_namespace_at(scope, byte_offset);
+    tcl_syntax::naming::unroot_rooted_key(&namespace)
+        .unwrap_or(&namespace)
+        .to_owned()
 }
 
 /// The `::`-prefixed namespace context at `byte_offset` (`"::"` at global
@@ -2469,11 +2470,7 @@ pub(crate) fn namespace_context_at(
     overrides: &[(tcl_lexer::Span, String)],
 ) -> String {
     let ns = innermost_namespace_at(scope, byte_offset, overrides);
-    if ns.is_empty() {
-        "::".to_owned()
-    } else {
-        format!("::{ns}")
-    }
+    tcl_syntax::naming::root_unrooted_key(&ns)
 }
 
 /// The bare command word at `(line, character)` together with the
@@ -2524,7 +2521,7 @@ fn proc_visible_from_namespace<'a>(
         .namespace_paths
         .get(namespace)
         .map_or(&[][..], Vec::as_slice);
-    tcl_syntax::naming::command_resolution_candidates(namespace, path, word)
+    tcl_syntax::naming::command_resolution_candidates_from_namespace_keys(namespace, path, word)
         .into_iter()
         .find_map(|qname| analysis.all_procs.get(&qname))
 }
@@ -2564,7 +2561,7 @@ pub(crate) fn resolved_command_name(
         .namespace_paths
         .get(namespace)
         .map_or(&[][..], Vec::as_slice);
-    tcl_syntax::naming::command_resolution_candidates(namespace, path, word)
+    tcl_syntax::naming::command_resolution_candidates_from_namespace_keys(namespace, path, word)
         .into_iter()
         .find(|qname| exists(qname))
 }
@@ -2990,11 +2987,11 @@ fn export_verdict(
 /// still reads the gap as a fact — is precisely what the oracle removes when
 /// one is available, and what remains, deliberately, when one is not.
 fn namespace_exports_observable(analysis: &AnalysisResult, source_ns: &str) -> bool {
-    let bare = source_ns.trim_start_matches("::");
+    let bare = tcl_syntax::naming::unroot_rooted_key(source_ns).unwrap_or(source_ns);
     analysis
         .namespace_exports
         .iter()
-        .any(|e| e.ns.trim_start_matches("::") == bare)
+        .any(|e| tcl_syntax::naming::unroot_rooted_key(&e.ns).unwrap_or(&e.ns) == bare)
 }
 
 /// Shared candidate walk behind [`proc_visible_via_wildcard_import`],
@@ -3091,7 +3088,9 @@ fn import_hop<S: AsRef<str>>(
     call_off: u32,
     query: ImportQuery,
 ) -> Option<String> {
-    let candidates = tcl_syntax::naming::command_resolution_candidates(namespace, path, word);
+    let candidates = tcl_syntax::naming::command_resolution_candidates_from_namespace_keys(
+        namespace, path, word,
+    );
     live_import_over_candidates(
         analysis,
         ctx,
@@ -3114,9 +3113,7 @@ fn live_import_over_candidates<'c>(
     query: ImportQuery,
 ) -> Option<String> {
     for candidate in candidates {
-        let Some((prefix, tail)) = candidate.rsplit_once("::") else {
-            continue;
-        };
+        let (prefix, tail) = tcl_syntax::naming::key_holder_and_tail(candidate);
         if tail != word {
             continue;
         }
@@ -3168,8 +3165,7 @@ impl SlotEvent<'_> {
 
 /// Whether a forget event covers an alias taken from `source_ns`.
 fn forget_covers(forget_source: Option<&str>, source_ns: &str) -> bool {
-    forget_source
-        .is_none_or(|src| src.trim_start_matches("::") == source_ns.trim_start_matches("::"))
+    forget_source.is_none_or(|src| same_namespace(src, source_ns))
 }
 
 /// The source namespace of the import alias `importing_ns` holds for `word`
@@ -3736,9 +3732,7 @@ fn only_route_is_a_dead_import(
     if word.contains("::") {
         return false;
     }
-    let Some((target_ns, tail)) = target_qname.rsplit_once("::") else {
-        return false;
-    };
+    let (target_ns, tail) = tcl_syntax::naming::key_holder_and_tail(target_qname);
     if tail != word {
         return false;
     }
@@ -3752,18 +3746,16 @@ fn only_route_is_a_dead_import(
         .get(namespace)
         .map_or(&[][..], Vec::as_slice);
     let in_scope: Vec<String> =
-        tcl_syntax::naming::command_resolution_candidates(namespace, path, word)
-            .into_iter()
-            .filter_map(|cand| {
-                cand.rsplit_once("::").map(|(prefix, _)| {
-                    if prefix.is_empty() {
-                        "::".to_owned()
-                    } else {
-                        prefix.to_owned()
-                    }
-                })
-            })
-            .collect();
+        tcl_syntax::naming::command_resolution_candidates_from_namespace_keys(
+            namespace, path, word,
+        )
+        .into_iter()
+        .map(|candidate| {
+            tcl_syntax::naming::key_holder_and_tail(&candidate)
+                .0
+                .to_owned()
+        })
+        .collect();
     let covered = analysis.namespace_imports.iter().any(|imp| {
         in_scope.contains(&imp.ns)
             && imp.source.as_ref().is_some_and(|source| {
@@ -4055,6 +4047,28 @@ mod tests {
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();
         a.analyse(source, "tcl8.6").clone()
+    }
+
+    #[test]
+    fn constructed_colon_namespace_context_survives_editor_projection() {
+        let source = "namespace eval : {namespace eval : {list HERE}}";
+        let offset = u32::try_from(source.find("list HERE").unwrap()).unwrap();
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse(source, dialect);
+            assert_eq!(
+                namespace_context_at(&analysis.global_scope, offset, &[]),
+                "::::::",
+                "{dialect}"
+            );
+        }
+        for namespace in ["::", ":::", "::a:::b", "::::::"] {
+            let overrides = [(tcl_lexer::Span::new(0, 100), namespace.to_owned())];
+            assert_eq!(
+                namespace_context_at(&tcl_compiler::analyser::Scope::global(), 1, &overrides),
+                namespace
+            );
+        }
     }
 
     /// The document-only resolution context: no registry, no whole-program
@@ -5434,7 +5448,7 @@ mod tests {
             name: &str,
             _import_site: RunPoint<'_>,
         ) -> ExportVerdict {
-            let bare = source_ns.trim_start_matches("::");
+            let bare = tcl_syntax::naming::unroot_rooted_key(source_ns).unwrap_or(source_ns);
             match self.0.iter().find(|(ns, _)| *ns == bare) {
                 None => ExportVerdict::Unknown,
                 Some((_, names)) if names.contains(&name) => ExportVerdict::Exported,

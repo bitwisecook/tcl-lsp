@@ -46,6 +46,7 @@ pub(crate) enum NativeDeletionEffects {
 
 /// An interpreter's authoritative native namespace and command-address tables.
 pub(crate) struct NativeNameWorld {
+    pub(super) execution_name_policy: Option<tcl_syntax::naming::ExecutionNamePolicy>,
     owner: u64,
     interpreter: u64,
     live: bool,
@@ -100,6 +101,7 @@ impl NativeNameWorld {
     pub(super) fn new(owner: u64, interpreter: u64) -> Self {
         let root = ByteNamespacePath::root();
         Self {
+            execution_name_policy: None,
             owner,
             interpreter,
             live: true,

@@ -112,6 +112,7 @@ fails.
   the LSP diagnostics publication and suppression model.
 - [lsp-feature-providers.md](contracts/lsp-feature-providers.md) — the
   non-diagnostics LSP provider contracts and their failure modes.
+- [naming-consumer-matrix.md](contracts/naming-consumer-matrix.md) — shared naming interfaces, consumer purposes and bounded appliance evidence.
 - [lsp-source-store.md](contracts/lsp-source-store.md) — the `SourceStore`
   seam every closed file reaches the server through, why `NativeStore` stays
   a literal `std::fs` delegation, the virtual `.tclspec` mount a browser host

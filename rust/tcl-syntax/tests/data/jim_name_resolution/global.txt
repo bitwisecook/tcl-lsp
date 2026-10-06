@@ -1,0 +1,20 @@
+# id | counted namespace bytes (hex) | original name bytes (hex)
+global-0||
+global-1||3a
+global-2||3a3a
+global-3||3a3a3a
+global-4||3a3a3a3a
+global-5||6c656166
+global-6||3a6c656166
+global-7||6e3a3a6c656166
+global-8||6e3a3a3a6c656166
+global-9||6e3a3a3a3a6c656166
+global-10||3a3a6e3a3a3a6c656166
+global-11||6c656166007461696c
+global-12||6e3a3a6c656166007461696c
+global-13||6c656166006e3a3a7461696c
+global-14||3a3a6c656166007461696c
+global-15||c3a9
+global-16||65cc81
+global-17||6c656166ff
+global-18||6e3a3a6c656166ff

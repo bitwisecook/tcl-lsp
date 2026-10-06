@@ -58,6 +58,7 @@
 pub mod corpus;
 pub mod evidence;
 pub mod execution_context;
+pub mod naming;
 pub mod iapp_metadata;
 pub mod rule_identity;
 pub mod storage;

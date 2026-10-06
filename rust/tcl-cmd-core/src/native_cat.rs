@@ -15,6 +15,12 @@ use tcl_syntax::value::ValueError;
 pub trait NativeCatObjects: NativeAppendObjects {
     /// Observe actual original sharing before retaining the result handle.
     fn is_shared(&self, value: &Self::Value) -> bool;
+    /// Reach the canonical empty original's binary getter, retaining its string.
+    fn empty_binary(
+        &self,
+        value: &Self::Value,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+    ) -> Result<Rc<[u8]>, ValueError>;
     /// Install resident string bytes with NULL primary representation.
     fn set_plain_string(&self, value: &Self::Value, bytes: Rc<[u8]>) -> Result<(), ValueError>;
 }
@@ -259,6 +265,91 @@ pub fn concatenate<O: NativeCatObjects>(
                 )?;
             }
         }
+    }
+    Ok(result)
+}
+
+/// Execute the original C string-concatenation instruction over original objects.
+/// Tail access precedes the first getter; an empty tail retains the first header.
+///
+/// # Errors
+/// Preserves reached native storage, updater and capacity failures.
+pub fn concatenate_compiled<O: NativeCatObjects>(
+    ops: &O,
+    string: tcl_syntax::native_string::NativeStringProtocol,
+    inputs: &[O::Value],
+) -> Result<O::Value, ValueError> {
+    use tcl_dialect::TclVersion;
+    let version = string
+        .tcl_version()
+        .ok_or(ValueError::CommandProtocolUnavailable(
+            "C compiled string concatenation",
+        ))?;
+    if let Some(protocol) = NativeObjectCatProtocol::for_string_protocol(string) {
+        return concatenate(ops, protocol, inputs, true);
+    }
+    let Some((first, tail)) = inputs.split_first() else {
+        return Ok(ops.new_string(Rc::from(&b""[..])));
+    };
+    if tail.is_empty() {
+        return Ok(first.clone());
+    }
+    let snapshots = inputs
+        .iter()
+        .map(|value| ops.snapshot(value))
+        .collect::<Result<Vec<_>, _>>()?;
+    let binary = version >= TclVersion::V8_6
+        && snapshots.iter().all(|snapshot| {
+            if matches!(snapshot.cache, Cache::ByteArray { proper: true, .. }) {
+                snapshot.resident.is_none()
+            } else {
+                snapshot.storage
+                    == Some(tcl_syntax::native_string::NativeStringStorageIdentity::CanonicalEmpty)
+            }
+        });
+    let mut appended = Vec::new();
+    for (value, snapshot) in tail.iter().zip(&snapshots[1..]) {
+        if binary {
+            if let Cache::ByteArray {
+                bytes,
+                proper: true,
+            } = &snapshot.cache
+            {
+                checked_size(appended.len(), bytes.len(), false)?;
+                appended.extend_from_slice(bytes);
+            }
+        } else {
+            let bytes = ops.string(value, string)?;
+            checked_size(appended.len(), bytes.len(), false)?;
+            appended.extend_from_slice(&bytes);
+        }
+    }
+    if appended.is_empty() {
+        return Ok(first.clone());
+    }
+    let reuse = !ops.is_shared(first);
+    let mut bytes = if binary {
+        match &snapshots[0].cache {
+            Cache::ByteArray {
+                bytes,
+                proper: true,
+            } => bytes.to_vec(),
+            _ => ops.empty_binary(first, string)?.to_vec(),
+        }
+    } else {
+        ops.string(first, string)?.to_vec()
+    };
+    checked_size(bytes.len(), appended.len(), false)?;
+    bytes.extend_from_slice(&appended);
+    let result = if reuse {
+        first.clone()
+    } else {
+        ops.new_string(Rc::from(&b""[..]))
+    };
+    if binary {
+        ops.set_binary(&result, string, Rc::from(bytes))?;
+    } else {
+        ops.set_plain_string(&result, Rc::from(bytes))?;
     }
     Ok(result)
 }

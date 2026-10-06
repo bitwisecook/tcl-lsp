@@ -170,34 +170,8 @@ impl ScanCtx<'_> {
                 None,
             ));
         };
-        let recipe = policy.recipe();
-        let context = namespace.context()?;
-        if let tcl_syntax::naming::NativeNameProtocol::C(version) = recipe {
-            let selected = recipe
-                .command_lookup_slot(context, written.as_bytes())
-                .ok()?;
-            tcl_registry::native_procedure::procedure_name_creation_error(
-                tcl_registry::InvocationDialect::for_version(version),
-                selected.namespace.is_root(),
-                selected.simple.as_bytes(),
-            )?
-            .ok()?;
-        }
-        let slot = recipe
-            .command_publication_slot(context, written.as_bytes())
-            .ok()?;
-        let qualified = match recipe {
-            tcl_syntax::naming::NativeNameProtocol::C(_) => {
-                String::from_utf8(tcl_syntax::naming::native_command_full_name_bytes(&slot)).ok()?
-            }
-            tcl_syntax::naming::NativeNameProtocol::Jim084 => {
-                let reported = recipe
-                    .jim_namespace_canonical_input(context, written.as_bytes())
-                    .ok()?;
-                format!("::{}", std::str::from_utf8(reported.selected()).ok()?)
-            }
-        };
-        let source_name = SignatureSourceCommand::new(policy, slot);
+        let source_name = SignatureSourceCommand::procedure_in_context(policy, namespace, written)?;
+        let qualified = source_name.reported_full_name()?;
         let body_scope = source_name.body_scope()?;
         let simple = source_name.simple_name()?;
         Some((qualified, simple, body_scope, Some(source_name)))

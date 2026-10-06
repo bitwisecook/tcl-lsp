@@ -128,6 +128,9 @@ pub(super) fn scope_at_mut<'a>(root: &'a mut Scope, path: &[usize]) -> Option<&'
 /// by byte offset, for post-walk LSP consumers with no `scope_path`) so
 /// the two traversal mechanisms can never disagree on the underlying rule.
 fn advance_command_resolution_namespace(ns: &str, child: &Scope) -> String {
+    if let Some(display) = child.naming_scope.as_ref().and_then(crate::signature_scan::scope::SignatureNamespaceScope::display) {
+        return display;
+    }
     match child.kind {
         ScopeKind::Namespace => join_namespace(ns, &child.name),
         // A `TclOO` method body executes with the *object's* namespace current

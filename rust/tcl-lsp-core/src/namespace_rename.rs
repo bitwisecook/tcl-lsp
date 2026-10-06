@@ -105,6 +105,20 @@ pub fn namespace_rename_edits(
     new_tail: &str,
 ) -> Result<Vec<TextEdit>, RenameRefusal> {
     let line_index = LineIndex::new(source);
+    let selected = crate::namespace_symbol::retained_namespace_for_report(analysis, cell);
+    if selected
+        .as_ref()
+        .is_none_or(|(scope, policy)| scope.source_spelling(Some(*policy)).is_none())
+    {
+        return Err(RenameRefusal::at(
+            format!(
+                "cannot rename `{cell}`: its exact original namespace is unavailable or the displayed name is ambiguous"
+            ),
+            source,
+            &line_index,
+            None,
+        ));
+    }
     let mut considered: Vec<Span> = Vec::new();
     let mut spans: Vec<Span> = Vec::new();
     let mut record = |word: Span, resolved: &str, considered: &mut Vec<Span>| {
@@ -239,8 +253,8 @@ pub fn namespace_segment_at(
 
 /// Whether `candidate` is the namespace `cell` itself or one beneath it.
 fn names_at_or_under(cell: &str, candidate: &str) -> bool {
-    let cell = cell.trim_start_matches("::");
-    let candidate = candidate.trim_start_matches("::");
+    let cell = tcl_syntax::naming::unroot_rooted_key(cell).unwrap_or(cell);
+    let candidate = tcl_syntax::naming::unroot_rooted_key(candidate).unwrap_or(candidate);
     candidate == cell || crate::namespace_symbol::namespace_strictly_contains(cell, candidate)
 }
 
@@ -461,6 +475,14 @@ mod tests {
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();
         a.analyse(source, "tcl8.6").clone()
+    }
+
+    #[test]
+    fn constructed_colon_namespace_membership_keeps_the_root_separate() {
+        assert!(names_at_or_under(":::", ":::"));
+        assert!(!names_at_or_under(":::", "::"));
+        assert!(names_at_or_under(":::", "::::::"));
+        assert!(!names_at_or_under(":::", "::other"));
     }
 
     /// The document rewritten by applying the tier's edits, or the refusal

@@ -945,6 +945,7 @@ fn select_target(
                 target,
                 selected,
                 RegisteredNamedInvocation {
+                    preparations: result.structured.as_ref().and_then(|prepared|match prepared.recipe() {tcl_registry::native_instruction_plan::NativeInstructionPlan::NamedInvocation(recipe)=>Some(recipe.preparations.clone()),_=>None}).unwrap_or_default(),
                     lookup,
                     arguments_from,
                     protocol,
@@ -1299,6 +1300,7 @@ fn select_actual_ensemble_target(
             result.unknown = true;
         }
         ActualEnsemblePlan::Named {
+            preparations,
             name,
             replacement_words,
             prerequisite,
@@ -1311,6 +1313,7 @@ fn select_actual_ensemble_target(
                 return;
             };
             let proof = super::SourceNamedInvocationProof {
+                preparations,
                 lookup: None,
                 captured_name: name,
                 compiler_prerequisite: Some(Arc::from(prerequisite)),
@@ -1444,6 +1447,7 @@ fn select_inline_target(
 }
 
 struct RegisteredNamedInvocation {
+    preparations: Vec<tcl_registry::native_control_compilation::NativeControlPreparationStep>,
     lookup: &'static tcl_registry::native_compilation::NativeCompilerImplementationLookup,
     arguments_from: usize,
     protocol: tcl_registry::native_compilation::NativeNamedInvocationProtocol,
@@ -1474,6 +1478,7 @@ fn select_named_target(
         ..
     } = selected;
     let RegisteredNamedInvocation {
+        preparations,
         lookup,
         arguments_from,
         protocol,
@@ -1497,6 +1502,7 @@ fn select_named_target(
         })
         .unwrap_or_else(|| lookup.slot.to_owned());
     let proof = super::SourceNamedInvocationProof {
+        preparations,
         lookup: Some(lookup),
         captured_name,
         compiler_prerequisite: compiler_prerequisite.map(Arc::new),

@@ -20,7 +20,7 @@ pub enum SignatureNamespaceScope {
 }
 
 impl SignatureNamespaceScope {
-    pub(super) fn root(policy: Option<NamePolicyProtocol>) -> Self {
+    pub(crate) fn root(policy: Option<NamePolicyProtocol>) -> Self {
         match policy.map(NamePolicyProtocol::recipe) {
             Some(NativeNameProtocol::C(_)) => Self::C(ByteNamespacePath::root()),
             Some(NativeNameProtocol::Jim084) => Self::Jim(NameBytes::from(b"".as_slice())),
@@ -43,7 +43,9 @@ impl SignatureNamespaceScope {
         }
     }
 
-    pub(super) fn context(&self) -> Option<NativeNameContext<'_>> {
+    /// Retained projection context only; it grants no namespace existence or token.
+    #[must_use]
+    pub fn context(&self) -> Option<NativeNameContext<'_>> {
         match self {
             Self::C(path) => Some(NativeNameContext::new(path)),
             Self::Jim(value) => Some(NativeNameContext::with_jim_namespace(
@@ -51,6 +53,15 @@ impl SignatureNamespaceScope {
                 value.as_bytes(),
             )),
             Self::Symbolic(_) => None,
+        }
+    }
+
+    fn context_for_policy(&self, policy: NamePolicyProtocol) -> Option<NativeNameContext<'_>> {
+        match (self, policy.recipe()) {
+            (Self::C(_), NativeNameProtocol::C(_)) | (Self::Jim(_), NativeNameProtocol::Jim084) => {
+                self.context()
+            }
+            _ => None,
         }
     }
 
@@ -69,7 +80,7 @@ impl SignatureNamespaceScope {
         }
     }
 
-    pub(super) fn child(&self, written: &str, policy: Option<NamePolicyProtocol>) -> Option<Self> {
+    pub(crate) fn child(&self, written: &str, policy: Option<NamePolicyProtocol>) -> Option<Self> {
         let Some(policy) = policy else {
             let Self::Symbolic(namespace) = self else {
                 return None;
@@ -101,13 +112,106 @@ static ROOT: ByteNamespacePath = ByteNamespacePath::root();
 
 /// A selected authored declaration slot. This retains naming policy and
 /// component geometry, never an actual command token or entered lookup proof.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SourceCommandPublication {
+    /// Ordinary named-command publication from original source.
+    NamedCommand,
+    /// TclOO object publication using its independent naming purpose.
+    TclOoObject,
+    /// Registry provider grammar's authored assistance, without native allocation.
+    ProviderAdvice,
+}
+
+/// An original source publication and its retained naming coordinates.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SignatureSourceCommand {
+    publication: SourceCommandPublication,
     policy: NamePolicyProtocol,
     slot: ByteCommandSlot,
 }
 
 impl SignatureSourceCommand {
+    /// Authored procedure publication in retained source namespace geometry.
+    /// Name creation validation and publication remain distinct from lookup.
+    #[must_use]
+    pub(crate) fn procedure_in_context(
+        policy: NamePolicyProtocol,
+        namespace: &SignatureNamespaceScope,
+        written: &str,
+    ) -> Option<Self> {
+        let recipe = policy.recipe();
+        let context = namespace.context_for_policy(policy)?;
+        if let NativeNameProtocol::C(version) = recipe {
+            let selected = recipe
+                .command_lookup_slot(context, written.as_bytes())
+                .ok()?;
+            tcl_registry::native_procedure::procedure_name_creation_error(
+                tcl_registry::InvocationDialect::for_version(version),
+                selected.namespace.is_root(),
+                selected.simple.as_bytes(),
+            )?
+            .ok()?;
+        }
+        Some(Self::new(
+            policy,
+            recipe
+                .command_publication_slot(context, written.as_bytes())
+                .ok()?,
+        ))
+    }
+
+    /// Authored TclOO object publication, without provider or object-token authority.
+    #[must_use]
+    pub(crate) fn object_in_context(
+        policy: NamePolicyProtocol,
+        namespace: &SignatureNamespaceScope,
+        written: &str,
+    ) -> Option<Self> {
+        Some(Self {
+            publication: SourceCommandPublication::TclOoObject,
+            policy,
+            slot: policy
+                .recipe()
+                .oo_object_publication_slot(
+                    namespace.context_for_policy(policy)?,
+                    written.as_bytes(),
+                )
+                .ok()?,
+        })
+    }
+
+    /// Explicit registry-provider declaration advice. The byte recipe selects
+    /// geometry; neither native recipe authority nor this advice proves loading.
+    #[must_use]
+    pub(crate) fn provider_advice_in_context(
+        policy: NamePolicyProtocol,
+        namespace: &SignatureNamespaceScope,
+        written: &str,
+    ) -> Option<Self> {
+        Some(Self {
+            publication: SourceCommandPublication::ProviderAdvice,
+            policy,
+            slot: policy
+                .recipe()
+                .command_publication_slot(namespace.context_for_policy(policy)?, written.as_bytes())
+                .ok()?,
+        })
+    }
+
+    /// The publication purpose, independent of actual provider allocation.
+    #[must_use]
+    pub const fn publication(&self) -> SourceCommandPublication {
+        self.publication
+    }
+
+    /// Counted publication presentation, carrying no written-lookup authority.
+    #[must_use]
+    pub(crate) fn reported_full_name(&self) -> Option<String> {
+        String::from_utf8(tcl_syntax::naming::native_command_full_name_bytes(
+            &self.slot,
+        ))
+        .ok()
+    }
     /// Select an authored alias publication from its original global-root
     /// operand. This supplies no actual publication or command-token authority.
     #[must_use]
@@ -120,7 +224,11 @@ impl SignatureSourceCommand {
     }
 
     pub(super) fn new(policy: NamePolicyProtocol, slot: ByteCommandSlot) -> Self {
-        Self { policy, slot }
+        Self {
+            publication: SourceCommandPublication::NamedCommand,
+            policy,
+            slot,
+        }
     }
 
     /// Selected authored slot, independent of the command's reported full name.
@@ -141,7 +249,7 @@ impl SignatureSourceCommand {
         tcl_syntax::naming::native_command_source_spelling(self.policy.recipe(), &self.slot)
     }
 
-    pub(super) fn body_scope(&self) -> Option<SignatureNamespaceScope> {
+    pub(crate) fn body_scope(&self) -> Option<SignatureNamespaceScope> {
         match self.policy.recipe() {
             NativeNameProtocol::C(_) => {
                 Some(SignatureNamespaceScope::C(self.slot.namespace.clone()))
@@ -156,7 +264,7 @@ impl SignatureSourceCommand {
         }
     }
 
-    pub(super) fn simple_name(&self) -> Option<String> {
+    pub(crate) fn simple_name(&self) -> Option<String> {
         let bytes = self.slot.simple.as_bytes();
         let simple = match self.body_scope()? {
             SignatureNamespaceScope::Jim(home) if !home.as_bytes().is_empty() => {
@@ -189,6 +297,75 @@ impl SignatureSourceCommand {
                 .and_then(|keys| keys.into_iter().next())
                 .is_some_and(|key| self.slot.namespace.is_root() && self.slot.simple == key),
             _ => false,
+        }
+    }
+}
+
+/// Original source command lookup and exact caller geometry. Candidate naming
+/// supplies no command existence, class kind, token or provider survival.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SignatureSourceLookup {
+    policy: NamePolicyProtocol,
+    namespace: SignatureNamespaceScope,
+    written: String,
+}
+
+impl SignatureSourceLookup {
+    /// Retain original lookup bytes in a context supported by this naming policy.
+    /// Returns `None` when the original namespace context is unavailable.
+    #[must_use]
+    pub fn new(
+        policy: NamePolicyProtocol,
+        namespace: SignatureNamespaceScope,
+        written: String,
+    ) -> Option<Self> {
+        namespace.context_for_policy(policy)?;
+        Some(Self {
+            policy,
+            namespace,
+            written,
+        })
+    }
+
+    /// The independently selected naming policy for this source lookup.
+    #[must_use]
+    pub fn policy(&self) -> NamePolicyProtocol {
+        self.policy
+    }
+
+    /// Ordered current/global geometry, without namespace-path or import authority.
+    #[must_use]
+    pub fn candidates(&self) -> Option<Vec<ByteCommandSlot>> {
+        let recipe = self.policy.recipe();
+        let context = self.namespace.context_for_policy(self.policy)?;
+        match recipe {
+            NativeNameProtocol::C(_) => {
+                let mut slots = vec![
+                    recipe
+                        .command_lookup_slot(context, self.written.as_bytes())
+                        .ok()?,
+                ];
+                if !self.written.starts_with("::") {
+                    let global = recipe
+                        .command_lookup_slot(NativeNameContext::root(), self.written.as_bytes())
+                        .ok()?;
+                    if !slots.contains(&global) {
+                        slots.push(global);
+                    }
+                }
+                Some(slots)
+            }
+            NativeNameProtocol::Jim084 => Some(
+                recipe
+                    .jim_command_lookup_keys(context, self.written.as_bytes())
+                    .ok()?
+                    .into_iter()
+                    .map(|simple| ByteCommandSlot {
+                        namespace: ByteNamespacePath::root(),
+                        simple,
+                    })
+                    .collect(),
+            ),
         }
     }
 }

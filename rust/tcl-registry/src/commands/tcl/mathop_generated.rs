@@ -116,6 +116,18 @@ fn push_spellings(out: &mut Vec<CommandSpec>, spec: OperatorSpec) {
             // user-visible noise rather than a fact about the command.
             traits: Traits::OPERATOR_COMMAND.union(Traits::PURE),
             arity,
+            native_compilation:
+                crate::native_mathop_compilation::NativeMathOperator::from_spelling(spec.spelling)
+                    .map(
+                        |operator| crate::native_compilation::NativeCompilationSpec {
+                            grammar:
+                                crate::native_compilation::NativeCompilationGrammar::MathOperator(
+                                    operator,
+                                ),
+                            operation: crate::semantic_operation::SemanticOperationId::Invoke,
+                            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+                        },
+                    ),
             hover: Some(HoverSnippet {
                 summary: spec.summary,
                 synopsis: leak_slice(vec![synopsis]),

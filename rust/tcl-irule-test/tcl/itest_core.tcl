@@ -49,13 +49,17 @@ namespace eval ::itest {
         return ""
     }
 
-    proc create_worker {worker} {
+    proc create_worker {worker {tmm 0}} {
         ::tmm::_orig_interp create $worker
+        if {[llength [::tmm::_orig_info commands ::tmm::_observed_event_enroll]]} {
+            ::tmm::_observed_event_enroll $worker $tmm
+        }
         ::tmm::_orig_interp eval $worker {
             namespace eval ::static {}
             namespace eval ::tmm {}
             namespace eval ::itest {
                 variable _flow_script ""
+                variable _flow_event ""
                 variable _flow_code 0
                 variable _flow_result ""
                 variable _flow_error_info ""
@@ -121,7 +125,7 @@ namespace eval ::itest {
             set completion [list $code $result]
             if {$code == 1} { lappend completion $::errorInfo }
         } else {
-            set host_code [catch {_fire_in_connection_frame $body} completion]
+            set host_code [catch {_fire_in_connection_frame $body $event} completion]
             if {$host_code} { set completion [list $host_code $completion $::errorInfo] }
         }
         if {[llength [::tmm::_orig_info commands ::tmm::_timer_context_leave]]} {
@@ -300,6 +304,7 @@ namespace eval ::itest {
     # coroutine command is private: it is not an iRules language capability.
     # No user variable is snapshotted, so aliases and traces retain their cells.
     variable _flow_script ""
+    variable _flow_event ""
     variable _flow_code 0
     variable _flow_result ""
     variable _flow_error_info ""
@@ -320,20 +325,28 @@ namespace eval ::itest {
 
     proc _execute_flow_script {} {
         variable _flow_script
+        variable _flow_event
         variable _flow_code
         variable _flow_result
         variable _flow_error_info
         variable _flow_options
         # uplevel executes in the retained proc activation, not this helper.
-        set _flow_code [::tmm::_host_catch {uplevel 1 $_flow_script} _flow_result _flow_options]
+        if {[llength [::tmm::_orig_info commands ::tmm::_observed_event_source]]} {
+            set _flow_code [::tmm::_host_catch {
+                uplevel 1 [list ::tmm::_observed_event_source $_flow_event $_flow_script]
+            } _flow_result _flow_options]
+        } else {
+            set _flow_code [::tmm::_host_catch {uplevel 1 $_flow_script} _flow_result _flow_options]
+        }
         # A real Tcl procedure consumes return levels and handles illegal
         # break/continue at the event boundary; no completion-code guess.
         set _flow_code [catch {::_irh_event_completion $_flow_result $_flow_options} _flow_result]
         if {$_flow_code == 1} { set _flow_error_info $::errorInfo }
     }
 
-    proc _fire_in_connection_frame {body} {
+    proc _fire_in_connection_frame {body {event ""}} {
         variable _flow_script
+        variable _flow_event
         variable _flow_code
         variable _flow_result
         variable _flow_error_info
@@ -345,6 +358,7 @@ namespace eval ::itest {
             ::tmm::_orig_coroutine ::_irh_connection_frame ::_irh_connection_runner
         }
         set _flow_script $body
+        set _flow_event $event
         ::_irh_connection_frame
         return [list $_flow_code $_flow_result $_flow_error_info]
     }

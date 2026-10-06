@@ -2263,6 +2263,7 @@ impl Analyser {
         commands: &[crate::segmenter::SegmentedCommand],
         ghost_recovery_applied: bool,
     ) {
+        self.result.global_scope.naming_scope = self.declaration_namespace_scope(&[]);
         self.record_path_constant_candidates(commands);
         let total = commands.len();
         let mut cmd_idx: usize = 0;
@@ -2783,6 +2784,7 @@ impl Analyser {
     /// commands at the current scope path.  Covers the dispatch
     /// portion that's load-bearing for incremental analysis.
     fn analyse_commands_inner(&mut self, commands: &[crate::segmenter::SegmentedCommand]) {
+        self.result.global_scope.naming_scope = self.declaration_namespace_scope(&[]);
         self.record_path_constant_candidates(commands);
         let scope_path = self.current_scope_path.clone();
         let total = commands.len();

@@ -24,7 +24,7 @@
 //! (`Interp::call_proc`) pushes a frame, binds the args, and runs the body —
 //! see `proc-call-and-stack-traces.md`. `puts` writes to stdout/stderr.
 
-use crate::interp::{obj_bytes, CallMeta, Code, Interp, Param, ProcFrame};
+use crate::interp::{CallMeta, Code, Interp, Param, ProcFrame, obj_bytes};
 use crate::obj::TclObj;
 use crate::obj::{self, Owned};
 use tcl_cmd_core::CmdError;
@@ -138,7 +138,7 @@ fn proc_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                         "procedure name validation",
                     )
                     .into(),
-                )
+                );
             }
         }
     }
@@ -187,7 +187,7 @@ fn prepare_static_variables(
     interp: &mut Interp,
     source: &[u8],
 ) -> Result<crate::frame::StaticVariables, Vec<u8>> {
-    use tcl_registry::native_procedure::{parse_static_variables, StaticVariableInitialiser};
+    use tcl_registry::native_procedure::{StaticVariableInitialiser, parse_static_variables};
     let source = core::str::from_utf8(source)
         .map_err(|_| b"invalid statics list (not valid UTF-8)".to_vec())?;
     let declarations =
@@ -250,7 +250,12 @@ fn split_formal_objects(
     protocol: tcl_syntax::naming::NativeNameProtocol,
 ) -> Result<Vec<Owned>, CmdError> {
     let pointer = value.as_ptr();
-    let string_protocol = protocol.string_protocol();
+    let string_protocol = interp
+        .native_invocation_dialect()
+        .native_string_protocol()
+        .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "formal list producer",
+        ))?;
     if matches!(
         protocol.tcl_version(),
         Some(tcl_dialect::TclVersion::V8_4 | tcl_dialect::TclVersion::V8_5)
@@ -285,7 +290,7 @@ pub(crate) fn parse_params_object(
     spec: *mut TclObj,
     procedure: &[u8],
 ) -> Result<Vec<Param>, CmdError> {
-    use tcl_syntax::formal_params::{parse_formal_parameter_values, FormalParameterValueError};
+    use tcl_syntax::formal_params::{FormalParameterValueError, parse_formal_parameter_values};
     let protocol = interp
         .name_policy_protocol()
         .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(

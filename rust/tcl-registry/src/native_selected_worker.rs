@@ -248,8 +248,32 @@ pub fn compile_original_selected_worker(
     }
     let selection =
         spec.select_registered_worker_native_words(words, operand_from, Some(dialect), context);
+    let preparations = match dialect.tcl_version.and_then(|version| {
+        crate::native_instruction_plan::original_dictionary_preparations(
+            spec,
+            words,
+            operand_from,
+            version,
+            context,
+        )
+    }) {
+        Some(Ok(preparations)) => preparations,
+        Some(Err(_)) => return Result::Unavailable,
+        None => Vec::new(),
+    };
     match selection {
-        NativeCompilationSelection::Generic => fallback(),
+        NativeCompilationSelection::Generic => match fallback() {
+            Result::Named(mut recipe) => {
+                recipe.preparations = preparations;
+                Result::Named(recipe)
+            }
+            Result::PublicGeneric if !preparations.is_empty() => Result::Operation {
+                spec,
+                selection,
+                plan: Box::new(NativeInstructionPlan::GenericPreparation(preparations)),
+            },
+            result => result,
+        },
         NativeCompilationSelection::NamedInvocation { .. } => {
             crate::native_instruction_plan::native_named_invocation_instruction(
                 words,
@@ -259,7 +283,10 @@ pub fn compile_original_selected_worker(
                 NativeNamedInvocationProtocol::Direct,
                 &[],
             )
-            .map_or(Result::Unavailable, Result::Named)
+            .map_or(Result::Unavailable, |mut recipe| {
+                recipe.preparations = preparations;
+                Result::Named(recipe)
+            })
         }
         NativeCompilationSelection::Inline { .. } | NativeCompilationSelection::CompileError => {
             crate::native_instruction_plan::native_registered_worker_instruction_plan(

@@ -111,12 +111,14 @@ pub mod native_control_instructions;
 pub mod native_coroutine_compilation;
 pub mod native_dictionary;
 pub mod native_dictionary_compilation;
+pub mod native_dictionary_scope_compilation;
 pub mod native_each_compilation;
 #[cfg(test)]
 mod native_each_try_compilation_tests;
 pub mod native_error_compilation;
 pub mod native_expression_program;
 pub mod native_introspection_compilation;
+pub mod native_mathop_compilation;
 pub mod native_namespace_binding_compilation;
 pub mod native_namespace_upvar_compilation;
 pub mod native_scalar_compilation;

@@ -694,6 +694,24 @@ impl<'a> SsaSourceView<'a> {
             .source_tokens_at(block, index)
     }
 
+    /// Whether an activation-owned dependency belongs to this operation's
+    /// actual frame. Callee summaries retain their private cells for effects;
+    /// those cells do not become lexical reads in the caller. Missing frame
+    /// provenance and non-activation cells provide no membership conclusion.
+    #[must_use]
+    pub(crate) fn owns_activation_cell(self, symbol: Symbol) -> Option<bool> {
+        let VariableCellKey::Activation { identity, .. } = self.ssa.cell_key(symbol).root() else {
+            return None;
+        };
+        let (block, index) = self.point?;
+        let context = self
+            .ssa
+            .point_contexts
+            .as_ref()?
+            .context_before(block, index)?;
+        Some(context.activation.as_ref()? == identity)
+    }
+
     /// Query a substitution's canonical read without borrowing another read's context.
     #[must_use]
     pub fn read_reference(self, source: &SourceSite, spelling: &str) -> Option<SsaReadReference> {

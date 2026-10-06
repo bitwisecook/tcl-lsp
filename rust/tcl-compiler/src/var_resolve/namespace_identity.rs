@@ -181,6 +181,9 @@ impl ResolveContext {
     }
 
     pub(super) fn namespace_place(&self, name: &str, global: bool, observed: bool) -> Place {
+        if self.observed_variable_storage_unavailable() {
+            return place::unknown_top();
+        }
         let Some(current) = self.namespace_identity.as_ref() else {
             return authored_namespace_place(
                 name,
@@ -209,6 +212,9 @@ impl ResolveContext {
         namespace: &SourceNamespaceKey,
         observed: bool,
     ) -> Place {
+        if self.observed_variable_storage_unavailable() {
+            return place::unknown_top();
+        }
         let Some(protocol) = self.namespace_name_protocol else {
             return place::unknown_top();
         };

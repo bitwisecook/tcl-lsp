@@ -27,7 +27,7 @@
 use std::collections::{HashMap, HashSet};
 
 use tcl_compiler::analyser::AnalysisResult;
-use tcl_compiler::analyser::class_hierarchy::{build_tail_index, resolve_class_name};
+use tcl_compiler::analyser::class_hierarchy::build_tail_index;
 use tcl_compiler::analyser::types::ClassDef;
 use tcl_lexer::LineIndex;
 
@@ -153,12 +153,24 @@ fn resolve_class<'a>(
     analysis: &'a AnalysisResult,
     tail_index: &HashMap<String, Vec<String>>,
 ) -> Option<&'a ClassDef> {
-    let q = resolve_class_name(
-        name,
-        owner,
-        |cand| analysis.all_classes.contains_key(cand),
-        tail_index,
-    )?;
+    let _ = tail_index;
+    let q = if owner.is_empty() {
+        tcl_compiler::analyser::class_hierarchy::resolve_written_class_name(
+            name,
+            &analysis.all_classes,
+        )?
+    } else {
+        let lookup = analysis
+            .all_classes
+            .get(owner)?
+            .relation_lookups
+            .get(name)?
+            .as_ref()?;
+        tcl_compiler::analyser::class_hierarchy::resolve_class_lookup(
+            lookup,
+            &analysis.all_classes,
+        )?
+    };
     analysis.all_classes.get(&q)
 }
 

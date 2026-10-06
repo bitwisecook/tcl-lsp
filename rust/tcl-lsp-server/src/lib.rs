@@ -4844,7 +4844,7 @@ async fn reindex_unopened_factory_consumers(
     };
     let keys: HashSet<&str> = affected_factory_names
         .iter()
-        .map(|k| k.trim_start_matches("::"))
+        .map(|k| tcl_compiler::naming::unroot_rooted_key(k).unwrap_or(k))
         .collect::<HashSet<&str>>();
     let candidates = handles
         .workspace_index
@@ -6518,10 +6518,7 @@ fn orphaned_fact_consumers(
     let tails: Vec<&str> = change
         .command_names
         .iter()
-        .map(|name| {
-            let qualified = name.trim_start_matches("::");
-            qualified.rsplit("::").next().unwrap_or(qualified)
-        })
+        .map(|name| tcl_compiler::naming::key_tail(name))
         .filter(|tail| !tail.is_empty())
         .collect();
     docs.iter()
@@ -6545,20 +6542,23 @@ fn command_diagnostic_consumers(
     }
     let qualified: HashSet<&str> = changed_names
         .iter()
-        .map(|name| name.trim_start_matches("::"))
+        .map(|name| tcl_compiler::naming::unroot_rooted_key(name).unwrap_or(name))
         .collect();
-    let tails: HashSet<&str> = qualified
+    // Constructed declaration keys and their bare tails are invalidation
+    // dependencies. They supply no command binding or editable occurrence.
+    let tails: HashSet<&str> = changed_names
         .iter()
-        .map(|name| name.rsplit("::").next().unwrap_or(name))
+        .map(|name| tcl_compiler::naming::key_tail(name))
         .collect();
     index
         .invocations()
         .filter(|invocation| {
-            tails.contains(invocation.name.trim_start_matches("::"))
-                || invocation
-                    .resolution_candidates
-                    .iter()
-                    .any(|candidate| qualified.contains(candidate.trim_start_matches("::")))
+            tails.contains(invocation.name.as_str())
+                || invocation.resolution_candidates.iter().any(|candidate| {
+                    qualified.contains(
+                        tcl_compiler::naming::unroot_rooted_key(candidate).unwrap_or(candidate),
+                    )
+                })
         })
         .map(|invocation| invocation.uri.clone())
         .collect()
@@ -13315,7 +13315,7 @@ impl Backend {
         // Rows whose name is a strict descendant of the cell, captured while
         // the lock is held so the (possibly disk-reading) text lookups below
         // happen outside it.
-        let descendants: Vec<(String, String, tcl_lexer::Span)> = {
+        let descendants: Vec<(String, tcl_compiler::analyser::types::NamespaceRef)> = {
             let index = self.workspace_index.read().await;
             targets.extend(
                 index
@@ -13326,7 +13326,7 @@ impl Backend {
             index
                 .namespace_declarations_under(cell, uri.as_str())
                 .into_iter()
-                .map(|n| (n.uri.clone(), n.qualified_name.clone(), n.span))
+                .map(|n| (n.uri.clone(), n.source.clone()))
                 .collect()
         };
         drop(rehoming_guard);
@@ -13339,7 +13339,7 @@ impl Backend {
                     .into_iter()
                     .map(|span| (uri.as_str().to_owned(), span)),
             );
-            for (row_uri, qualified, span) in descendants {
+            for (row_uri, reference) in descendants {
                 let Ok(parsed) = Uri::from_str(&row_uri) else {
                     continue;
                 };
@@ -13348,9 +13348,14 @@ impl Backend {
                 };
                 // The covering prefix is a sub-range of the written word, so
                 // it can only be computed against that document's own text.
-                if let Some(prefix) = core_namespace_symbol::namespace_implicit_parent_span_in(
-                    &doc.text, span, &qualified, cell,
-                ) {
+                if let Some(prefix) = core_namespace_symbol::retained_namespace_for_report(
+                    analysis, cell,
+                )
+                .and_then(|(wanted, _)| {
+                    core_namespace_symbol::namespace_implicit_parent_span_in(
+                        &doc.text, &reference, &wanted,
+                    )
+                }) {
                     targets.push((row_uri, prefix));
                 }
             }
@@ -14953,8 +14958,10 @@ impl Backend {
             .collect();
         family_uris.sort();
         family_uris.dedup();
-        let family_norm: std::collections::HashSet<&str> =
-            family.iter().map(|s| s.trim_start_matches("::")).collect();
+        let family_norm: std::collections::HashSet<&str> = family
+            .iter()
+            .map(|s| tcl_compiler::naming::unroot_rooted_key(s).unwrap_or(s))
+            .collect();
         // The index answers with a `HashSet`; sort so the per-document scan
         // order (and so the emitted edit / location order) does not ride on
         // hash iteration order.
@@ -15539,8 +15546,8 @@ impl Backend {
         }
         let candidates: Vec<String> = {
             let _rehoming_guard = self.rehomed_index_guard().await;
-            let namespace = cell.rsplit_once("::").map_or("::", |(ns, _)| ns);
-            let new_cell = format!("{namespace}::{new_name}");
+            let (namespace, _) = tcl_compiler::naming::key_holder_and_tail(&cell);
+            let new_cell = tcl_compiler::naming::qualify(namespace, new_name);
             let index = self.workspace_index.read().await;
             // Collision gate: the target cell already exists, so the rename
             // would silently merge two distinct namespace variables.
@@ -15577,10 +15584,10 @@ impl Backend {
                 return Err(core_rename_safety::RenameRefusal {
                     reason: format!(
                         "cannot rename `{cell}`: `{u}` aliases a namespace variable whose \
-                         cell is computed at run time, so this rename can neither prove \
-                         that alias names `{cell}` nor prove it does not. Renaming the \
-                         declaration would leave it bound to a variable that no longer \
-                         exists."
+                             cell is computed at run time, so this rename can neither prove \
+                             that alias names `{cell}` nor prove it does not. Renaming the \
+                             declaration would leave it bound to a variable that no longer \
+                             exists."
                     ),
                     range: None,
                 });
@@ -28965,7 +28972,9 @@ fn settle_call_against_workspace<'a>(
         .iter()
         .map(String::as_str)
         .find(|cand| {
-            let has_builtin = registry.get(cand.trim_start_matches("::")).is_some();
+            let has_builtin = registry
+                .get(tcl_compiler::naming::unroot_rooted_key(cand).unwrap_or(cand))
+                .is_some();
             if core_definition::indirection_pending_at(analysis, cand, call_off) {
                 return false;
             }
@@ -29078,8 +29087,8 @@ fn workspace_proc_arities(
     index: &core_workspace_index::WorkspaceIndex,
     qualified_name: &str,
 ) -> Option<ProcArityUnion> {
-    let target = qualified_name.trim_start_matches("::");
-    let same = |q: &str| q.trim_start_matches("::") == target;
+    let target = qualified_name;
+    let same = |q: &str| q == target;
     if index.live_classes().any(|c| same(&c.qualified_name)) {
         return None;
     }
@@ -29088,11 +29097,7 @@ fn workspace_proc_arities(
     // any) are not what the call reaches — and an alias may bind leading
     // arguments, shifting the count the callee sees. `resolve_command_target`
     // returns the name unchanged when it is not linked, which is the test.
-    if index
-        .resolve_command_target(target)
-        .trim_start_matches("::")
-        != target
-    {
+    if index.resolve_command_target(target) != target {
         return None;
     }
     let mut ranges: Vec<(u32, Option<u32>)> = index

@@ -227,6 +227,7 @@ mod tests {
 
     fn proc(name: &str) -> ProcDef {
         ProcDef {
+            source_name: None,
             name: name.to_string(),
             qualified_name: format!("::{name}"),
             params: Vec::new(),

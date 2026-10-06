@@ -241,6 +241,9 @@ impl Vm {
             let mut prepared = objects
                 .prepare(current)
                 .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+            if !keys.is_empty() {
+                prepared.invalidate_string();
+            }
             for (key, slot) in keys.iter().zip(target_slots) {
                 if let Ok(value) = vm.read_compiled_variable_result(*slot, None) {
                     let value = if prepared.is_same_object(&value) {

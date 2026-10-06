@@ -22,7 +22,7 @@
 use tcl_dialect::TclVersion;
 use tcl_test_support::{
     JimCapability, available_tclshs, locate_jimsh, reference_patchlevel, require_jimsh,
-    run_script_fixture,
+    run_script_fixture, tcltest_reference_package_version,
 };
 
 macro_rules! fixture {
@@ -274,15 +274,6 @@ const CASES: &[CaseSpec] = &[
     },
 ];
 
-fn package_version(version: TclVersion) -> &'static str {
-    match version {
-        TclVersion::V8_4 => "2.2.11",
-        TclVersion::V8_5 => "2.3.8",
-        TclVersion::V8_6 | TclVersion::V9_0 => "2.5.11",
-        TclVersion::V9_1 => "2.6.0",
-    }
-}
-
 fn assert_observations(actual: &str, wanted: &str, case: &str, reference: &str) -> usize {
     let actual: Vec<_> = actual.lines().collect();
     let wanted: Vec<_> = wanted.trim().lines().collect();
@@ -334,7 +325,7 @@ fn c_tcl_matches_versioned_body_and_completion_contracts() {
             reference_patchlevel(reference.version),
             "body corpus requires its audited C source release"
         );
-        let package = package_version(reference.version);
+        let package = tcltest_reference_package_version(reference.version);
         let mut count = 0;
         for case in CASES {
             let Some(wanted) = case.c_want(reference.version) else {

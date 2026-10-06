@@ -169,35 +169,98 @@ mod tests {
     fn compiled_scalars_preserve_forty_one_native_original_header_windows() {
         let mut windows = 0;
         for (engine, table) in [
-            ("tcl8.4", include_str!("../../../../../rust/tcl-registry/tests/data/native_scalar_compilation/8.4.20.tsv")),
-            ("tcl8.5", include_str!("../../../../../rust/tcl-registry/tests/data/native_scalar_compilation/8.5.19.tsv")),
-            ("tcl8.6", include_str!("../../../../../rust/tcl-registry/tests/data/native_scalar_compilation/8.6.18.tsv")),
-            ("tcl9.0", include_str!("../../../../../rust/tcl-registry/tests/data/native_scalar_compilation/9.0.4.tsv")),
-            ("tcl9.1", include_str!("../../../../../rust/tcl-registry/tests/data/native_scalar_compilation/9.1.0.tsv")),
+            (
+                "tcl8.4",
+                include_str!(
+                    "../../../../../rust/tcl-registry/tests/data/native_scalar_compilation/8.4.20.tsv"
+                ),
+            ),
+            (
+                "tcl8.5",
+                include_str!(
+                    "../../../../../rust/tcl-registry/tests/data/native_scalar_compilation/8.5.19.tsv"
+                ),
+            ),
+            (
+                "tcl8.6",
+                include_str!(
+                    "../../../../../rust/tcl-registry/tests/data/native_scalar_compilation/8.6.18.tsv"
+                ),
+            ),
+            (
+                "tcl9.0",
+                include_str!(
+                    "../../../../../rust/tcl-registry/tests/data/native_scalar_compilation/9.0.4.tsv"
+                ),
+            ),
+            (
+                "tcl9.1",
+                include_str!(
+                    "../../../../../rust/tcl-registry/tests/data/native_scalar_compilation/9.1.0.tsv"
+                ),
+            ),
         ] {
             let mut interp = super::super::tests::interpreter(engine);
             for row in table.lines() {
                 let fields: Vec<_> = row.split('\t').collect();
-                if !fields[9].split(',').any(|op| matches!(op, "streq" | "strlen" | "listlength" | "listLength")) { continue; }
+                if !fields[9]
+                    .split(',')
+                    .any(|op| matches!(op, "streq" | "strlen" | "listlength" | "listLength"))
+                {
+                    continue;
+                }
                 let case = fields[0].parse::<usize>().unwrap();
-                assert_eq!(interp.eval_str(format!("proc p {{left right}} {{{}}}", CASES[case]).as_bytes()), Code::Ok);
-                let left = if matches!(case, 7..=9) { b"a b".as_slice() } else { b"A\0x".as_slice() };
-                let words = [b"p".as_slice(), left, b"A\0y".as_slice()].map(|bytes| obj::Owned::fresh(obj::new_string_bytes(bytes)));
+                assert_eq!(
+                    interp
+                        .eval_str(format!("proc p {{left right}} {{{}}}", CASES[case]).as_bytes()),
+                    Code::Ok
+                );
+                let left = if matches!(case, 7..=9) {
+                    b"a b".as_slice()
+                } else {
+                    b"A\0x".as_slice()
+                };
+                let words = [b"p".as_slice(), left, b"A\0y".as_slice()]
+                    .map(|bytes| obj::Owned::fresh(obj::new_string_bytes(bytes)));
                 let argv = words.each_ref().map(obj::Owned::as_ptr);
                 let code = interp.eval_original_object_vector(&argv);
-                assert!(!interp.host_refusal_pending(), "{engine}/{case}: {:?}", interp.native_access_refusal());
+                assert!(
+                    !interp.host_refusal_pending(),
+                    "{engine}/{case}: {:?}",
+                    interp.native_access_refusal()
+                );
                 assert_eq!(code.as_int().to_string(), fields[1], "{engine}/{case}");
                 let result = interp.get_obj_result();
                 assert_eq!(primary(result), fields[2], "{engine}/{case}");
                 // SAFETY: interpreter result and genuine external argv owners are live.
                 unsafe {
-                    assert_eq!(usize::from(!(*result).bytes.is_null()).to_string(), fields[3], "{engine}/{case}");
-                    assert_eq!((*result).ref_count.to_string(), fields[4], "{engine}/{case}");
-                    assert_eq!(usize::from(!(*argv[1]).bytes.is_null()).to_string(), fields[6], "{engine}/{case}");
+                    assert_eq!(
+                        usize::from(!(*result).bytes.is_null()).to_string(),
+                        fields[3],
+                        "{engine}/{case}"
+                    );
+                    assert_eq!(
+                        (*result).ref_count.to_string(),
+                        fields[4],
+                        "{engine}/{case}"
+                    );
+                    assert_eq!(
+                        usize::from(!(*argv[1]).bytes.is_null()).to_string(),
+                        fields[6],
+                        "{engine}/{case}"
+                    );
                 }
                 assert_eq!(primary(argv[1]), fields[5], "{engine}/{case}");
-                assert_eq!(usize::from(result == argv[1]).to_string(), fields[7], "{engine}/{case}");
-                assert_eq!(interp.native_object_string_bytes(result).unwrap().as_ref(), unhex(fields[8]), "{engine}/{case}");
+                assert_eq!(
+                    usize::from(result == argv[1]).to_string(),
+                    fields[7],
+                    "{engine}/{case}"
+                );
+                assert_eq!(
+                    interp.native_object_string_bytes(result).unwrap().as_ref(),
+                    unhex(fields[8]),
+                    "{engine}/{case}"
+                );
                 windows += 1;
             }
         }

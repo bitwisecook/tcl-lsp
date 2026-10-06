@@ -20,7 +20,7 @@
 
 use super::*;
 use tcl_registry::native_compiler_pass::{
-    native_compiler_replays, NativeCompilerPassHazard as Hazard,
+    NativeCompilerPassHazard as Hazard, native_compiler_replays,
 };
 use tcl_runtime_api::native_compiler_pass::{
     NativeCompilerPassEnvironment, NativeCompilerPassOwner, NativeCompilerPassProcedure,
@@ -278,12 +278,16 @@ impl Operation {
                 tcl_registry::native_namespace_binding_compilation::NativeNamespaceBindingKind::Global => Hazard::NamespaceUpvar,
                 tcl_registry::native_namespace_binding_compilation::NativeNamespaceBindingKind::Upvar => Hazard::Upvar,
             }],
+            Self::DictionaryScope(_) => vec![Hazard::ScriptEvaluation],
             Self::Array(recipe) => recipe.compaction_hazards(),
             Self::Coroutine(recipe) => recipe.compaction_hazards(),
             Self::Expression(recipe) => recipe.compaction_hazards(),
             Self::Control(recipe) => recipe.compaction_hazards(),
             Self::Try(recipe) => recipe.compaction_hazards(),
-            Self::Scalar(_) | Self::Introspection(_) | Self::ListIndex(_) | Self::ListOperations(_) | Self::StringTrim(_) | Self::StringMatch(_) | Self::Error(_) | Self::DictionaryLookup(_) | Self::Break | Self::Continue | Self::Each(_) | Self::InfoExists(_) | Self::Switch(_) | Self::TclOoHelper(..) | Self::List(..) | Self::Concat{..} | Self::Unset(_) | Self::Load(_) | Self::Store(..) | Self::Increment(..) | Self::Append(..) | Self::SelectedReturn(..) => Vec::new(),
+            // Arithmetic stack steps add no compaction hazard. Substitutions in
+            // actually visited operands are already collected from self.scripts.
+            Self::MathOperator(_) => Vec::new(),
+            Self::Scalar(_) | Self::Introspection(_) | Self::ListIndex(_) | Self::ListOperations(_) | Self::StringTrim(_) | Self::StringMatch(_) | Self::Error(_) | Self::DictionaryLookup(_) | Self::DictionaryMutation(_) | Self::Break | Self::Continue | Self::Each(_) | Self::InfoExists(_) | Self::Switch(_) | Self::TclOoHelper(..) | Self::List(..) | Self::Concat{..} | Self::Unset(_) | Self::Load(_) | Self::Store(..) | Self::Increment(..) | Self::Append(..) | Self::SelectedReturn(..) => Vec::new(),
         }
     }
 }
@@ -295,9 +299,24 @@ mod tests {
     #[test]
     fn enabling_native_limit_preserves_warm_original_bytecode_and_local_table() {
         for (engine, native) in [
-            ("tcl8.6", include_str!("../../../../../rust/tcl-registry/tests/data/native_compiler_pass/warm_limit/8.6.18.tsv")),
-            ("tcl9.0", include_str!("../../../../../rust/tcl-registry/tests/data/native_compiler_pass/warm_limit/9.0.4.tsv")),
-            ("tcl9.1", include_str!("../../../../../rust/tcl-registry/tests/data/native_compiler_pass/warm_limit/9.1.0.tsv")),
+            (
+                "tcl8.6",
+                include_str!(
+                    "../../../../../rust/tcl-registry/tests/data/native_compiler_pass/warm_limit/8.6.18.tsv"
+                ),
+            ),
+            (
+                "tcl9.0",
+                include_str!(
+                    "../../../../../rust/tcl-registry/tests/data/native_compiler_pass/warm_limit/9.0.4.tsv"
+                ),
+            ),
+            (
+                "tcl9.1",
+                include_str!(
+                    "../../../../../rust/tcl-registry/tests/data/native_compiler_pass/warm_limit/9.1.0.tsv"
+                ),
+            ),
         ] {
             let native: Vec<_> = native.trim_end().split('\t').collect();
             let mut interp = super::super::tests::interpreter(engine);
@@ -333,9 +352,17 @@ mod tests {
                 interp.original_procedure_artifact_is_current(&procedure),
                 "{engine}"
             );
-            assert_eq!(interp.eval_str(b"p").as_int().to_string(), native[0], "{engine}");
+            assert_eq!(
+                interp.eval_str(b"p").as_int().to_string(),
+                native[0],
+                "{engine}"
+            );
             let after = super::super::cache(original).expect("same warm procedure Bytecode");
-            assert_eq!(usize::from(Rc::ptr_eq(&before, &after)).to_string(), native[5], "{engine}");
+            assert_eq!(
+                usize::from(Rc::ptr_eq(&before, &after)).to_string(),
+                native[5],
+                "{engine}"
+            );
             assert_eq!(
                 after.compiled_local_layout().unwrap().names.len(),
                 native[4].parse::<usize>().unwrap(),

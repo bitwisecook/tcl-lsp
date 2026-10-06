@@ -450,6 +450,9 @@ pub struct NativeCompilationEntry {
     /// Audited native name-input issuer. This remains independent of logical
     /// handler simulation and source grammar; missing evidence stays unknown.
     pub name_protocol: Option<tcl_syntax::naming::NamePolicyProtocol>,
+    /// Independent execution naming issuer, including narrowly measured contexts.
+    /// Its unknown purposes cannot borrow the physical host's native recipe.
+    pub execution_name_policy: Option<tcl_syntax::naming::ExecutionNamePolicy>,
     /// Independently selected compiler-local recipe. A missing live policy
     /// remains unknown, even when the physical host compiler point is known.
     pub compiled_variable_protocol: Option<tcl_syntax::naming::NativeCompiledVariableProtocol>,
@@ -603,6 +606,24 @@ impl NativeCommandLookupCursor<'_> {
 }
 
 impl NativeCompilationEntry {
+    /// Independent execution naming selection. Older native snapshots retain
+    /// their explicitly supplied name recipe; a measured issuer takes precedence.
+    #[must_use]
+    pub fn execution_name_policy(&self) -> Option<tcl_syntax::naming::ExecutionNamePolicy> {
+        self.execution_name_policy.or_else(|| {
+            self.name_protocol
+                .map(tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe)
+        })
+    }
+
+    /// Command purposes require their own supported native or authored recipe.
+    /// A separately supplied native or authored command provider keeps its own
+    /// authority. Variable observations cannot donate command, cache or CPP recipes.
+    #[must_use]
+    pub fn command_name_policy(&self) -> Option<tcl_syntax::naming::NamePolicyProtocol> {
+        self.name_protocol
+            .or_else(|| self.execution_name_policy()?.native_recipe())
+    }
     /// Compare actual compilation world for reuse of an already retained artifact.
     /// Original map primary observations affect a new compiler lookup, but
     /// harmless target shimmering does not invalidate existing native bytecode.
@@ -619,6 +640,7 @@ impl NativeCompilationEntry {
             && self.expression_policy == other.expression_policy
             && self.execution_point == other.execution_point
             && self.name_protocol == other.name_protocol
+            && self.execution_name_policy == other.execution_name_policy
             && self.compiled_variable_protocol == other.compiled_variable_protocol
             && self.source_string_protocol == other.source_string_protocol
             && self.compiled_local_layout == other.compiled_local_layout
@@ -710,7 +732,7 @@ impl NativeCompilationEntry {
             return Err(NativeCommandLookupUnavailable::OpenTable);
         }
         let protocol = self
-            .name_protocol
+            .command_name_policy()
             .ok_or(NativeCommandLookupUnavailable::NamePolicy)?
             .recipe();
         let context = self.namespace_by_token(lookup_namespace)?;

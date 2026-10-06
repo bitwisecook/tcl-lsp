@@ -403,6 +403,8 @@ pub struct Namespaces {
     pub(crate) variable_lookup_policy: tcl_dialect::VariableLookupPolicy,
     /// Selected byte-name recipe; absence is a host capability withdrawal.
     pub(crate) variable_name_protocol: Option<tcl_syntax::naming::NativeNameProtocol>,
+    pub(crate) variable_string_protocol: Option<tcl_syntax::native_string::NativeStringProtocol>,
+    pub(crate) execution_name_policy: Option<tcl_syntax::naming::ExecutionNamePolicy>,
     pub(crate) variable_link_binding: tcl_dialect::VariableLinkBinding,
 }
 
@@ -1094,6 +1096,10 @@ impl Namespaces {
             variable_container_model: tcl_dialect::VariableContainerModel::DistinctArray,
             variable_hash_recipe: None,
             variable_lookup_policy: tcl_dialect::VariableLookupPolicy::Tcl,
+            execution_name_policy: None,
+            variable_string_protocol: Some(tcl_syntax::native_string::NativeStringProtocol::C(
+                tcl_dialect::TclVersion::V9_0,
+            )),
             variable_name_protocol: Some(tcl_syntax::naming::NativeNameProtocol::for_tcl_version(
                 tcl_dialect::TclVersion::V9_0,
             )),
@@ -2147,11 +2153,9 @@ impl Namespaces {
         self.arena[ns]
             .vars
             .set_hash_recipe(self.variable_hash_recipe);
-        self.arena[ns].vars.set_container_model(
-            self.variable_container_model,
-            self.variable_name_protocol
-                .map(|protocol| protocol.string_protocol()),
-        );
+        self.arena[ns]
+            .vars
+            .set_container_model(self.variable_container_model, self.variable_string_protocol);
         &self.arena[ns].vars
     }
 
@@ -2160,11 +2164,9 @@ impl Namespaces {
         self.arena[ns]
             .vars
             .set_hash_recipe(self.variable_hash_recipe);
-        self.arena[ns].vars.set_container_model(
-            self.variable_container_model,
-            self.variable_name_protocol
-                .map(|protocol| protocol.string_protocol()),
-        );
+        self.arena[ns]
+            .vars
+            .set_container_model(self.variable_container_model, self.variable_string_protocol);
         &mut self.arena[ns].vars
     }
 

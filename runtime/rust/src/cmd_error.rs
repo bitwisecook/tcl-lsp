@@ -423,6 +423,8 @@ fn error_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let msg = obj_bytes(argv[1]);
     let rc = if info.is_empty() {
         interp.set_error_state(&ecode)
+    } else if interp.publish_c84_error_command_info(&info, &ecode) {
+        Code::Error
     } else {
         interp.raise_with_info(&msg, &info, &ecode)
     };
@@ -430,10 +432,7 @@ fn error_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         interp.publish_original_c84_error_code(argv[3]);
         interp.mark_error_code_explicit();
     }
-    if info.is_empty() {
-        // C8.4 publishes an explicit original code before installing message.
-        interp.set_result(argv[1]);
-    }
+    interp.set_result(argv[1]);
     rc
 }
 

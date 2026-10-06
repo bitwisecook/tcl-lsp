@@ -47,7 +47,7 @@ impl Interp {
     pub(crate) fn native_c_variable_name_protocol(
         &self,
     ) -> Option<tcl_syntax::native_variable_name::NativeVariableNameProtocol> {
-        let selected = self.name_policy_protocol()?;
+        let selected = self.execution_name_policy()?.native_recipe()?;
         let protocol = self
             .native_invocation_dialect()
             .native_variable_name_protocol()?;

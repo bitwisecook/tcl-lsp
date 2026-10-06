@@ -305,7 +305,7 @@ impl Analyser {
         if self.site_in_child_interp(site.cmd_span.start()) {
             return None;
         }
-        let class_qn = self.canonicalise_class_name(class_name?);
+        let class_qn = self.canonicalise_class_name(class_name?)?;
         let is_tcloo = self.result.all_classes.get(&class_qn).is_some_and(|cd| {
             super::validity::is_tcloo_metaclass(self.registry.as_deref(), &cd.metaclass)
         });
@@ -1040,7 +1040,9 @@ impl Analyser {
                     && let (Some(method), Some(class_name)) =
                         (site.method_name.as_ref(), ret_type.class_name().as_ref())
                 {
-                    let cls_qn = self.canonicalise_class_name(class_name);
+                    let Some(cls_qn) = self.canonicalise_class_name(class_name) else {
+                        continue;
+                    };
                     let cd = self.result.all_classes.get(&cls_qn).cloned();
                     // `[Dog new] m` dispatches through the produced object's
                     // own command, so only its exported surface is reachable.
@@ -1453,11 +1455,9 @@ impl Analyser {
     /// Resolve a possibly-bare class name to its fully-qualified form keyed
     /// in `result.all_classes` — the shared call-site resolver
     /// ([`super::class_hierarchy::resolve_written_class_name`]), so this
-    /// keying can never diverge from the LSP's.  Falls back to the
-    /// written name on a miss (callers treat an unkeyed class as external).
-    fn canonicalise_class_name(&self, name: &str) -> String {
+    /// keying can never diverge from the LSP's. Missing source identity withdraws.
+    fn canonicalise_class_name(&self, name: &str) -> Option<String> {
         super::class_hierarchy::resolve_written_class_name(name, &self.result.all_classes)
-            .unwrap_or_else(|| name.to_string())
     }
 
     /// Decide whether `method` is callable on `class_name` through a

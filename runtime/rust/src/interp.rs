@@ -42,9 +42,9 @@ mod jim_teardown;
 mod native_append;
 pub(crate) mod native_body_artifact;
 mod native_command_names;
-mod native_introspection;
 mod native_compilation;
 mod native_dictionary;
+mod native_introspection;
 pub(crate) use native_dictionary::DictionaryScopeRead;
 mod native_ensemble_objects;
 mod native_error_variables;
@@ -62,6 +62,7 @@ mod native_procedure_relocation_tests;
 mod native_procedure_resources;
 pub use native_procedure_resources::NativeProcedureCommand;
 pub(crate) use native_procedure_resources::{NativeCallableProcedure, NativeProcedureDefinition};
+mod execution_name_policy;
 mod native_command_rename;
 mod native_object_vector;
 mod native_script;
@@ -84,13 +85,13 @@ use tcl_runtime_api::guard::{
     OwnedGuardManager,
 };
 use tcl_runtime_api::jim_error_stack::{
-    capture_jim_error_frames, JimErrorStack, JimErrorTrace, JimEvaluationFrame, JimScriptLocation,
-    NativeErrorStackProtocol,
+    JimErrorStack, JimErrorTrace, JimEvaluationFrame, JimScriptLocation, NativeErrorStackProtocol,
+    capture_jim_error_frames,
 };
 
 use crate::builtins;
 use crate::frame::{FrameStack, Link, VarError};
-use crate::namespace::{CommandBinding, Namespaces, NsId, RenameOutcome, GLOBAL};
+use crate::namespace::{CommandBinding, GLOBAL, Namespaces, NsId, RenameOutcome};
 use crate::obj::{self, TclObj};
 use crate::parse::{self, WordBody, WordPart};
 
@@ -1012,7 +1013,8 @@ struct ArrayOperationTarget {
 pub struct InterpState {
     /// Owned native cache authority; neither allocation addresses nor display names issue it.
     native_command_interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
-    native_compiler_pass_owner: std::cell::OnceCell<tcl_runtime_api::native_compiler_pass::NativeCompilerPassOwner>,
+    native_compiler_pass_owner:
+        std::cell::OnceCell<tcl_runtime_api::native_compiler_pass::NativeCompilerPassOwner>,
     native_literal_world:
         Rc<RefCell<tcl_runtime_api::native_literal::NativeLiteralWorld<obj::Owned>>>,
     native_literal_arrays:
@@ -1268,6 +1270,9 @@ pub struct InterpState {
     /// modern grammar; [`Interp::set_runtime_version`] pins the matching
     /// plain-Tcl profile.
     dialect_profile: Cell<&'static tcl_dialect::DialectProfile>,
+    observed_names: RefCell<Option<execution_name_policy::ObservedNameSelection>>,
+    observed_frame_storage: RefCell<Option<execution_name_policy::ObservedFrameStorage>>,
+    logical_name_provider: Cell<Option<tcl_syntax::naming::NamePolicyProtocol>>,
     logical_eval_object_provider: Cell<
         Option<(
             tcl_registry::native_eval_object::LogicalEvalObjectProvider,
@@ -1709,6 +1714,9 @@ impl Interp {
             // whose unit profile is the permissive fallback that hides
             // nothing. `set_dialect_profile` replaces all three together.
             dialect_profile: Cell::new(profile),
+            observed_names: RefCell::new(None),
+            observed_frame_storage: RefCell::new(None),
+            logical_name_provider: Cell::new(None),
             logical_expression_parse_provider: Cell::new(None),
             logical_source_word_provider: Cell::new(None),
             logical_eval_object_provider: Cell::new(None),
@@ -1726,9 +1734,10 @@ impl Interp {
         interp.frames.borrow_mut().variable_lookup_policy = profile
             .variable_lookup_policy()
             .unwrap_or(tcl_dialect::VariableLookupPolicy::Tcl);
-        interp.frames.borrow_mut().variable_string_protocol = interp
-            .name_policy_protocol()
-            .map(|policy| policy.recipe().string_protocol());
+        interp.frames.borrow_mut().variable_string_protocol =
+            interp.native_invocation_dialect().native_string_protocol();
+        interp.namespaces.borrow_mut().variable_string_protocol =
+            interp.native_invocation_dialect().native_string_protocol();
         interp.namespaces.borrow_mut().variable_container_model =
             profile.variable_container_model().unwrap_or_default();
         interp.namespaces.borrow_mut().variable_lookup_policy = profile
@@ -2102,10 +2111,11 @@ impl Interp {
         self.frames.borrow_mut().variable_hash_recipe = variable_hash_recipe;
         self.namespaces.borrow_mut().variable_hash_recipe = variable_hash_recipe;
         self.frames.borrow_mut().variable_container_model = container_model;
-        self.frames.borrow_mut().variable_string_protocol = self
-            .name_policy_protocol()
-            .map(|policy| policy.recipe().string_protocol());
+        self.frames.borrow_mut().variable_string_protocol =
+            self.native_invocation_dialect().native_string_protocol();
         self.namespaces.borrow_mut().variable_container_model = container_model;
+        self.namespaces.borrow_mut().variable_string_protocol =
+            self.native_invocation_dialect().native_string_protocol();
         self.frames.borrow_mut().variable_lookup_policy = variable_policy;
         self.namespaces.borrow_mut().variable_lookup_policy = variable_policy;
         self.namespaces.borrow_mut().variable_link_binding = profile
@@ -4834,6 +4844,10 @@ impl Interp {
 
     /// `set name` — borrowed value (the table keeps its +1), or `None`.
     pub(crate) fn var_get(&self, name: &[u8]) -> Option<*mut TclObj> {
+        if self.observed_names.borrow().is_some() {
+            let level = self.frames.borrow().current_level();
+            return self.observed_variable_get(name, level).ok().flatten();
+        }
         self.require_variable_name_protocol().ok()?;
         crate::vars::get(
             &self.frames.borrow(),
@@ -4847,6 +4861,13 @@ impl Interp {
     /// element key through trace dispatch, lookup and failure presentation.
     /// The returned value remains borrowed from the selected variable cell.
     pub(crate) fn read_named_variable(&mut self, name: &[u8]) -> Result<*mut TclObj, Code> {
+        if self.observed_names.borrow().is_some() {
+            let level = self.frames.borrow().current_level();
+            return self
+                .observed_variable_get(name, level)
+                .map_err(|_| Code::Error)?
+                .ok_or(Code::Error);
+        }
         let input = self
             .combined_variable_input(name)
             .map_err(|_| Code::Error)?;
@@ -4869,6 +4890,10 @@ impl Interp {
         name: &[u8],
         value: *mut TclObj,
     ) -> Result<(), VarError> {
+        if self.observed_names.borrow().is_some() {
+            let level = self.frames.borrow().current_level();
+            return self.observed_variable_set(name, level, value);
+        }
         let input = self.combined_variable_input(name)?;
         match input.element() {
             Some(element) => self.var_set_elem(input.root().selected(), element.selected(), value),
@@ -4883,6 +4908,9 @@ impl Interp {
 
     /// Frame-addressed [`var_get`](Self::var_get).
     pub(crate) fn var_get_at(&self, name: &[u8], level: usize) -> Option<*mut TclObj> {
+        if self.observed_names.borrow().is_some() {
+            return self.observed_variable_get(name, level).ok().flatten();
+        }
         self.require_variable_name_protocol().ok()?;
         crate::vars::get_at(
             &self.frames.borrow(),
@@ -4917,6 +4945,9 @@ impl Interp {
         obj: *mut TclObj,
         level: usize,
     ) -> Result<(), VarError> {
+        if self.observed_names.borrow().is_some() {
+            return self.observed_variable_set(name, level, obj);
+        }
         self.require_variable_name_protocol()?;
         self.associate_native_jim_variable_value(obj)?;
         crate::vars::set_at(
@@ -4950,6 +4981,9 @@ impl Interp {
 
     /// Frame-addressed [`var_unset`](Self::var_unset).
     pub(crate) fn var_unset_at(&mut self, name: &[u8], level: usize) -> bool {
+        if self.observed_names.borrow().is_some() {
+            return self.observed_variable_unset(name, level).unwrap_or(false);
+        }
         if self.require_variable_name_protocol().is_err() {
             return false;
         };
@@ -4977,6 +5011,9 @@ impl Interp {
 
     /// Frame-addressed [`var_exists`](Self::var_exists).
     pub(crate) fn var_exists_at(&self, name: &[u8], level: usize) -> bool {
+        if self.observed_names.borrow().is_some() {
+            return self.observed_variable_exists(name, level).unwrap_or(false);
+        }
         if self.require_variable_name_protocol().is_err() {
             return false;
         };
@@ -5002,6 +5039,10 @@ impl Interp {
 
     /// `set name value` — the cell takes a **+1** on `obj`.
     pub(crate) fn var_set(&mut self, name: &[u8], obj: *mut TclObj) -> Result<(), VarError> {
+        if self.observed_names.borrow().is_some() {
+            let level = self.frames.borrow().current_level();
+            return self.observed_variable_set(name, level, obj);
+        }
         self.require_variable_name_protocol()?;
         self.associate_native_jim_variable_value(obj)?;
         crate::vars::set(
@@ -5158,6 +5199,10 @@ impl Interp {
     /// Ensure `name` is an array (creating an empty one if unset) — backs
     /// `array set name {}` with an empty value list. A scalar `name` errors.
     pub(crate) fn ensure_array(&self, name: &[u8]) -> Result<(), VarError> {
+        if self.observed_names.borrow().is_some() {
+            let level = self.frames.borrow().current_level();
+            return self.observed_ensure_array(name, level);
+        }
         self.require_variable_name_protocol()?;
         crate::vars::ensure_array(
             &mut self.frames.borrow_mut(),
@@ -5397,6 +5442,11 @@ impl Interp {
 
     /// `unset name` — returns whether it existed.
     pub(crate) fn var_unset(&mut self, name: &[u8]) -> bool {
+        if self.observed_name_policy_selected() {
+            return self
+                .observed_variable_unset(name, self.frames.borrow().current_level())
+                .unwrap_or(false);
+        }
         // Resolve the trace key BEFORE removing the variable. Resolution can
         // depend on the cell still existing — the 8.x namespace-scope fallback
         // only reaches the global when the global cell is present — so
@@ -6019,6 +6069,13 @@ impl Interp {
         name: &[u8],
         operation: impl FnOnce(&mut Self, &tcl_runtime_api::ArrayTarget) -> Code,
     ) -> Code {
+        if self.observed_name_policy_selected() {
+            let level = self.frames.borrow().current_level();
+            return match self.observed_array_target(name, level) {
+                Ok(target) => operation(self, &target),
+                Err(error) => self.report_cmd_error(error.into()),
+            };
+        }
         if self.require_variable_name_protocol().is_err() {
             return Code::Error;
         }
@@ -6096,9 +6153,7 @@ impl Interp {
             )?;
             return (protocol.recipe() == recipe).then_some(protocol);
         }
-        dialect.authored_logical_name_simulation(
-            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_4),
-        )
+        dialect.authored_logical_name_simulation(self.logical_name_provider.get()?)
     }
 
     pub(crate) fn array_search_keys_at_target(
@@ -7376,6 +7431,10 @@ impl Interp {
     /// `info exists name` — whether a scalar/array/element variable is set
     /// (splitting `arr(key)`).
     pub(crate) fn var_exists(&self, name: &[u8]) -> bool {
+        if self.observed_names.borrow().is_some() {
+            let level = self.frames.borrow().current_level();
+            return self.observed_variable_exists(name, level).unwrap_or(false);
+        }
         let Ok(input) = self.combined_variable_input(name) else {
             return false;
         };
@@ -7491,6 +7550,9 @@ impl Interp {
 
     /// Capture the selected target cell before installing an element alias.
     pub(crate) fn prepare_upvar_target(&mut self, target: &mut Link) -> Result<(), VarError> {
+        if self.observed_names.borrow().is_some() {
+            return self.observed_refusal();
+        }
         crate::vars::prepare_upvar_target(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
@@ -7839,7 +7901,8 @@ impl Interp {
             return self.refuse_native_access(error);
         }
         let details = error.into_byte_details();
-        let explicit_code_store = matches!(details.error_code, tcl_cmd_core::CmdErrorCodeUpdate::Set(_));
+        let explicit_code_store =
+            matches!(details.error_code, tcl_cmd_core::CmdErrorCodeUpdate::Set(_));
         let update = match details.error_code.resolve(|| {
             self.native_invocation_dialect()
                 .wrong_arguments_protocol(Some(tcl_registry::native_wrong_arguments::LogicalWrongArgumentsProvider::Tcl84CoreSimulation))
@@ -10301,7 +10364,7 @@ impl Interp {
     /// by owner+prefix handles recursion: only the outermost installs). Returns
     /// how many were pushed (the last `n` of `step_active`, popped on exit).
     fn install_step_traces(&mut self, fqn: &[u8], token: Option<u64>) -> usize {
-        use crate::cmd_trace::{ops, StepActive};
+        use crate::cmd_trace::{StepActive, ops};
         let to_install: Vec<(u8, Vec<u8>)> = {
             let t = self.traces.borrow();
             t.cmd_traces
@@ -10493,7 +10556,7 @@ impl Interp {
         origin: tcl_registry::command_lookup::CommandLookupOrigin,
     ) -> Result<Box<PreparedMissingCommand>, Code> {
         use tcl_registry::command_lookup::{
-            native_lookup_fallback_policy, UnknownHandlerNamespace,
+            UnknownHandlerNamespace, native_lookup_fallback_policy,
         };
         use tcl_syntax::value::ValueOps;
         let Some(policy) = native_lookup_fallback_policy(self.native_invocation_dialect(), origin)
@@ -12230,15 +12293,23 @@ impl Interp {
                 self.set_result_bytes(b"");
                 return Code::Return;
             }
-            let namespace=match tcl_cmd_core::namespace::current_original(self) {
-                Ok(original)=>crate::obj::Owned::fresh(original),
-                Err(error)=>return self.report_cmd_error(error),
+            let namespace = match tcl_cmd_core::namespace::current_original(self) {
+                Ok(original) => crate::obj::Owned::fresh(original),
+                Err(error) => return self.report_cmd_error(error),
             };
-            let Some(strings)=self.native_invocation_dialect().native_string_protocol() else { return self.report_cmd_error(tcl_syntax::value::ValueError::CommandProtocolUnavailable("original tailcall List issuer").into()); };
-            let mut members=Vec::with_capacity(words.len()+1);
+            let Some(strings) = self.native_invocation_dialect().native_string_protocol() else {
+                return self.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "original tailcall List issuer",
+                    )
+                    .into(),
+                );
+            };
+            let mut members = Vec::with_capacity(words.len() + 1);
             members.push(namespace.as_ptr());
             members.extend_from_slice(words);
-            let original=crate::obj::Owned::fresh(crate::list::new_list_obj_native(&members,strings));
+            let original =
+                crate::obj::Owned::fresh(crate::list::new_list_obj_native(&members, strings));
             return self.schedule_original_tailcall_list(original);
         }
         self.set_result_bytes(b"");
@@ -12273,7 +12344,12 @@ impl Interp {
             return self.error(b"tailcall can only be called from a proc, lambda or method");
         }
         let Some(protocol) = self.native_invocation_dialect().native_string_protocol() else {
-            return self.report_cmd_error(tcl_syntax::value::ValueError::CommandProtocolUnavailable("original tailcall List issuer").into());
+            return self.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original tailcall List issuer",
+                )
+                .into(),
+            );
         };
         let members = match crate::list::list_elements_native_checked(original.as_ptr(), protocol) {
             Ok(members) => members,
@@ -12300,8 +12376,14 @@ impl Interp {
     fn replace_pending_tailcall(&mut self, request: Option<crate::frame::PendingTailcall>) -> bool {
         let retired = { self.frames.borrow_mut().replace_tailcall(request) };
         match retired {
-            Ok(previous) => { drop(previous); true }
-            Err(rejected) => { drop(rejected); false }
+            Ok(previous) => {
+                drop(previous);
+                true
+            }
+            Err(rejected) => {
+                drop(rejected);
+                false
+            }
         }
     }
 
@@ -12309,7 +12391,11 @@ impl Interp {
         if let Some(original) = request.original_list.as_ref() {
             return self.invoke_original_namespace_list(original.as_ptr());
         }
-        let words: Vec<_> = request.words.iter().map(crate::obj::Owned::as_ptr).collect();
+        let words: Vec<_> = request
+            .words
+            .iter()
+            .map(crate::obj::Owned::as_ptr)
+            .collect();
         let lookup = {
             let namespaces = self.namespaces.borrow();
             if namespaces.namespace_is_live(request.namespace) {
@@ -12319,8 +12405,14 @@ impl Interp {
             }
         };
         let Some(lookup) = lookup else {
-            let message = [b"namespace \"".as_slice(), &request.namespace_name, b"\" not found"].concat();
-            let error_code = error_code_list(&[b"TCL", b"LOOKUP", b"NAMESPACE", &request.namespace_name]);
+            let message = [
+                b"namespace \"".as_slice(),
+                &request.namespace_name,
+                b"\" not found",
+            ]
+            .concat();
+            let error_code =
+                error_code_list(&[b"TCL", b"LOOKUP", b"NAMESPACE", &request.namespace_name]);
             return self.error_with_code(&message, &error_code);
         };
         self.dispatch_original_words_at(&words, lookup)
@@ -12328,14 +12420,24 @@ impl Interp {
 
     pub(crate) fn invoke_original_namespace_list(&mut self, original: *mut TclObj) -> Code {
         let Some(protocol) = self.native_invocation_dialect().native_string_protocol() else {
-            return self.report_cmd_error(tcl_syntax::value::ValueError::CommandProtocolUnavailable("original coroutine List issuer").into());
+            return self.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original coroutine List issuer",
+                )
+                .into(),
+            );
         };
         let members = match crate::list::list_elements_native_checked(original, protocol) {
             Ok(members) => members,
             Err(error) => return self.report_cmd_error(error.into()),
         };
         let Some((namespace, words)) = members.split_first() else {
-            return self.report_cmd_error(tcl_syntax::value::ValueError::CommandProtocolUnavailable("original coroutine namespace operand").into());
+            return self.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original coroutine namespace operand",
+                )
+                .into(),
+            );
         };
         if words.is_empty() {
             self.set_result_bytes(b"");
@@ -12343,9 +12445,13 @@ impl Interp {
         }
         let lookup = match self.native_namespace_object_lookup(*namespace) {
             Ok(Some(namespace)) => namespace,
-            Ok(None) => return crate::cmd_namespace::ns_operation_not_found(
-                self, *namespace, tcl_syntax::naming::NativeNamespaceLookupOperation::ObjectLookup,
-            ),
+            Ok(None) => {
+                return crate::cmd_namespace::ns_operation_not_found(
+                    self,
+                    *namespace,
+                    tcl_syntax::naming::NativeNamespaceLookupOperation::ObjectLookup,
+                );
+            }
             Err(error) => return self.report_cmd_error(error.into()),
         };
         self.dispatch_original_words_at(words, lookup)
@@ -15089,10 +15195,12 @@ mod tests {
                 assert_interpreter_guard_stale(interp, policy);
                 assert!(interp.check_command_guard(command, b"guarded"));
                 assert!(interp.native_compiler_cache_epochs(GLOBAL).is_none());
-                assert!(interp
-                    .native_invocation_dialect()
-                    .execution_point()
-                    .is_none());
+                assert!(
+                    interp
+                        .native_invocation_dialect()
+                        .execution_point()
+                        .is_none()
+                );
                 assert!(interp.release_command_guard(policy));
                 assert!(interp.release_command_guard(command));
             });
@@ -15902,7 +16010,7 @@ mod tests {
 
     #[test]
     fn original_variable_word_vectors_match_the_selected_native_interpreter() {
-        use tcl_syntax::execution_conformance::{vectors, ExecutionDomain};
+        use tcl_syntax::execution_conformance::{ExecutionDomain, vectors};
         let cases: Vec<_> = vectors(ExecutionDomain::CommandBinding)
             .into_iter()
             .filter(|case| case.id.starts_with("variable_word_"))
@@ -16362,7 +16470,7 @@ mod tests {
     /// here rather than inherited from another test.
     #[test]
     fn completion_code_integers_follow_the_release_selected_number_grammar() {
-        use tcl_syntax::number::{set_runtime_syntax, NumberSyntax};
+        use tcl_syntax::number::{NumberSyntax, set_runtime_syntax};
 
         // Release-independent: decimal, hex, the full signed *and* unsigned
         // 32-bit window, and its reduction to an `int`.

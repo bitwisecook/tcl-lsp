@@ -145,6 +145,51 @@ mod tests {
         assert_eq!(count, 60);
     }
 
+    #[test]
+    fn original_mathop_compilation_matches_all_84_native_controls() {
+        let rows = include_str!("../../tcl-cmd-core/tests/data/native_mathop_compilation/rows.txt");
+        let decode = |text: &str| {
+            text.as_bytes()
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect::<Vec<_>>()
+        };
+        let mut count = 0;
+        for row in rows.lines() {
+            let fields: Vec<_> = row.split('\t').collect();
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(fields[0]).unit_profile();
+            let mut vm = crate::native_fixture::interpreter(profile);
+            let source = String::from_utf8(decode(fields[4])).unwrap();
+            let completion = vm.eval_source(&source).unwrap_or_else(|error| {
+                panic!(
+                    "{}/{} native mathop source: {error:?}",
+                    fields[0], fields[1]
+                )
+            });
+            assert_eq!(
+                completion.code.as_int(),
+                fields[2].parse::<i64>().unwrap(),
+                "{}/{}",
+                fields[0],
+                fields[1]
+            );
+            assert_eq!(
+                vm.native_name_operand_bytes(&completion.result)
+                    .unwrap()
+                    .as_ref(),
+                decode(fields[3]),
+                "{}/{}",
+                fields[0],
+                fields[1]
+            );
+            count += 1;
+        }
+        assert_eq!(count, 84);
+    }
+
     /// Operator spellings owned by the shared expression grammar, compared
     /// against the installed command set.
     fn expected_mathop_spellings() -> Vec<&'static str> {

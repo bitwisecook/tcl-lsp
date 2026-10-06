@@ -68,6 +68,8 @@ pub fn run() -> Result<ExitCode> {
     problems.extend(validate_native_coroutine_consumers(&root)?);
     problems.extend(validate_native_string_trim_consumers(&root)?);
     problems.extend(validate_native_list_storage_consumers(&root)?);
+    problems.extend(validate_execution_name_policy_consumers(&root)?);
+    problems.extend(validate_f5_string_predicate_consumers(&root)?);
     if problems.is_empty() {
         let owner_count = parse_manifest(&contract)
             .map(|rows| rows.len())
@@ -89,6 +91,75 @@ pub fn run() -> Result<ExitCode> {
 fn read(root: &Path, relative: &str) -> Result<String> {
     std::fs::read_to_string(root.join(relative))
         .with_context(|| format!("read owner-resolution input `{relative}`"))
+}
+
+fn validate_f5_string_predicate_consumers(root: &Path) -> Result<Vec<String>> {
+    let mut problems = Vec::new();
+    for (path, owners) in [
+        (
+            "rust/tcl-compiler/src/tcl_expr_eval.rs",
+            &[
+                "f5_predicates:Option<",
+                "provider.predicate(op)",
+                "predicate.evaluate(left,right)",
+            ][..],
+        ),
+        (
+            "rust/tcl-vm/src/expr.rs",
+            &[
+                "authored_f5_string_predicate_provider(",
+                ".predicate(op)",
+                ".evaluate(&subject,&operand)",
+            ][..],
+        ),
+        (
+            "rust/tcl-vm/src/exec.rs",
+            &[
+                "authored_f5_string_predicate_provider(",
+                "expr::irule_binary(provider,op,&a,&b)",
+            ][..],
+        ),
+        (
+            "runtime/rust/src/expr.rs",
+            &[
+                ".f5_string_predicate_provider()",
+                "provider.predicate(op)",
+                "predicate.evaluate(&left,&right)",
+            ][..],
+        ),
+        (
+            "runtime/rust/src/builtins.rs",
+            &[
+                "authored_f5_string_predicate_provider(",
+                "self.interp.expression_evaluation_policy().as_ref()",
+            ][..],
+        ),
+        (
+            "runtime/rust/src/interp/native_body_artifact/native_control.rs",
+            &[
+                "authored_f5_string_predicate_provider(",
+                "self.artifact.stamp.expression_policy.as_ref()",
+            ][..],
+        ),
+    ] {
+        let source = read(root, path)?;
+        let compact: String = source.split_whitespace().collect();
+        if path == "rust/tcl-vm/src/exec.rs"
+            && compact.contains("AuthoredF5StringPredicateProvider::F5Trunk")
+        {
+            problems.push(
+                "F5 predicate opcode constructs a provider without the installed policy".into(),
+            );
+        }
+        for owner in owners {
+            if !compact.contains(owner) {
+                problems.push(format!(
+                    "F5 string predicate consumer `{path}` omits shared typed owner `{owner}`"
+                ));
+            }
+        }
+    }
+    Ok(problems)
 }
 
 fn validate_manifest(root: &Path, contract: &str, makefile: &str, xtask_main: &str) -> Vec<String> {
@@ -1161,6 +1232,70 @@ fn compiled_trim_operand_order_is_owned(source: &str) -> bool {
     let characters = section.find("ops.native_concat_string_bytes(characters)");
     let subject = section.find("ops.native_concat_string_bytes(subject)");
     matches!((characters, subject), (Some(characters), Some(subject)) if characters < subject)
+}
+
+fn validate_execution_name_policy_consumers(root: &Path) -> Result<Vec<String>> {
+    let mut problems = Vec::new();
+    let dialect = read(
+        root,
+        "rust/tcl-registry/src/native_string_materialization.rs",
+    )?;
+    let name_issuer = dialect
+        .split_once("pub fn native_name_protocol(")
+        .and_then(|(_, body)| body.split_once("pub fn authored_name_policy("))
+        .map(|(body, _)| body);
+    if name_issuer.is_none_or(|body| {
+        body.contains("native_string_protocol(") || body.contains("NativeStringProtocol")
+    }) {
+        problems.push("native naming issuer depends on producer-string protocol".to_owned());
+    }
+    let snapshot = read(root, "rust/tcl-runtime-api/src/native_compilation.rs")?;
+    if !snapshot.contains("pub fn execution_name_policy(")
+        || !snapshot.contains("self.name_protocol")
+        || !snapshot.contains("self.execution_name_policy()?.native_recipe()")
+    {
+        problems
+            .push("native entry does not retain independent naming purpose admission".to_owned());
+    }
+    for path in [
+        "rust/tcl-compiler/src/codegen/values.rs",
+        "rust/tcl-compiler/src/codegen/native_control.rs",
+        "rust/tcl-compiler/src/codegen/statements.rs",
+        "rust/tcl-compiler/src/command_binding/native_variable_tables.rs",
+    ] {
+        let source = read(root, path)?;
+        if source.contains("entry.name_protocol") || !source.contains("entry.command_name_policy()")
+        {
+            problems.push(format!(
+                "native compiler `{path}` bypasses independent naming admission"
+            ));
+        }
+    }
+    let observed = read(root, "rust/tcl-registry/src/f5/naming.rs")?;
+    for required in [
+        "build == BigIpBuild::MEASURED_21_1_0_1",
+        "context == BigIpExecutionContext::TmmIRule",
+        "event == BigIpNameEvent::HttpRequest",
+    ] {
+        if !observed.contains(required) {
+            problems.push(format!(
+                "observed naming issuer loses exact context: `{required}`"
+            ));
+        }
+    }
+    let class_queries = read(root, "rust/tcl-compiler/src/analyser/class_hierarchy.rs")?;
+    let written_query = class_queries
+        .split_once("pub fn resolve_written_class_name_in_context(")
+        .or_else(|| class_queries.split_once("pub fn resolve_written_class_name_in_context<"));
+    if written_query.is_none()
+        || !class_queries.contains("resolve_class_lookup(&lookup, classes)")
+        || !class_queries.contains("source_name_ambiguous")
+    {
+        problems.push(
+            "source class queries lose retained lookup geometry or collision withdrawal".to_owned(),
+        );
+    }
+    Ok(problems)
 }
 
 fn parse_manifest(markdown: &str) -> Result<Vec<OwnerRow>, String> {

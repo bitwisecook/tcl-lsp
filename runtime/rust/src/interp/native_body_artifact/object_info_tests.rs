@@ -20,10 +20,12 @@ fn nested_info_artifact_retains_original_maps_and_late_worker_binding() {
         assert_eq!(interp.eval_str(b"p"), Code::Ok, "{engine}");
         assert_eq!(interp.result_bytes(), b"::oo::object", "{engine}");
         let original = cache(declaration.body.as_ptr()).expect("original nested ensemble artifact");
-        assert!(original.scripts.values().any(|script| script
-            .commands
-            .iter()
-            .any(|command| matches!(command.operation, Operation::NamedInvocation(_)))));
+        assert!(original.scripts.values().any(|script| {
+            script
+                .commands
+                .iter()
+                .any(|command| matches!(command.operation, Operation::NamedInvocation(_)))
+        }));
         interp.register_builtin(b"::oo::InfoClass::superclasses", replacement);
         assert_eq!(interp.eval_str(b"p"), Code::Ok, "{engine}");
         assert_eq!(interp.result_bytes(), b"REPLACED", "{engine}");

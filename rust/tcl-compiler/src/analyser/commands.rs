@@ -3107,11 +3107,17 @@ impl Analyser {
             if crate::naming::is_dynamic_word(name) {
                 continue;
             }
-            self.result.namespace_refs.push(super::types::NamespaceRef {
-                qualified_name: crate::naming::qualify(&here, name),
-                span: tok.span,
-                declares,
-            });
+            self.result
+                .namespace_refs
+                .push(super::types::NamespaceRef::from_original(
+                    self.declaration_namespace_scope(scope_path),
+                    self.declaration_name_policy(),
+                    name,
+                    tok.span,
+                    u16::from(tok.content_offset),
+                    declares,
+                    crate::naming::qualify(&here, name),
+                ));
         }
     }
 
@@ -4482,7 +4488,7 @@ impl Analyser {
         // above).
         if cmd_name == "set"
             && args.len() >= 2
-            && let Some(class_q) = self.class_from_constructor_subst(&args[1])
+            && let Some(class_q) = self.class_from_constructor_subst(&args[1], site_offset)
         {
             self.result
                 .instance_classes
@@ -4493,7 +4499,7 @@ impl Analyser {
         // not the method spelling, selects the word that becomes the new
         // instance command.
         if let Some(method_word) = args.first() {
-            if let Some(class_q) = self.resolve_user_class(cmd_name)
+            if let Some(class_q) = self.resolve_user_class_at(cmd_name, site_offset)
                 && let Some(method) = self.class_manufacturer_method(&class_q, method_word)
                 && let Some(name_at) = method.names_instance_at.map(usize::from)
                 && let Some(name) = args.get(name_at)
@@ -4726,51 +4732,24 @@ impl Analyser {
         !known
     }
 
-    /// Resolve a class reference (`Dog`, `::Dog`, or a
-    /// namespace-relative form) to its qualified name when it
-    /// names a user-defined class.
-    pub(super) fn resolve_user_class(&self, name: &str) -> Option<String> {
-        // Exact / canonical-global / unique-tail via the shared call-site
-        // resolver.  A first-`HashMap`-hit `c.name == name` scan instead
-        // picks an arbitrary same-tailed class across namespaces.
-        if let Some(q) =
-            super::class_hierarchy::resolve_written_class_name(name, &self.result.all_classes)
-        {
-            return Some(q);
-        }
-        // Cross-file: a class defined elsewhere in the workspace (the oracle is
-        // empty for the normal single-file analysis).  Exact / `::`-prefixed
-        // spelling, else a *globally-unique* simple-name (tail) match — the same
-        // abstain-on-ambiguity discipline the local tail match uses, so a name
-        // shared by two workspace namespaces is left unresolved rather than
-        // guessed.
-        if self.workspace_classes.is_empty() {
-            return None;
-        }
-        if self.workspace_classes.contains(name) {
-            return Some(name.to_string());
-        }
-        // The same canonical global-qualified spelling the shared resolver
-        // tries (colon-run rule).
-        let canonical = crate::naming::canonical_written_command(name);
-        let qualified = if canonical.starts_with("::") {
-            canonical
-        } else {
-            format!("::{canonical}")
-        };
-        if self.workspace_classes.contains(&qualified) {
-            return Some(qualified);
-        }
-        let mut tail_hits = self
-            .workspace_classes
-            .iter()
-            .filter(|q| crate::naming::key_tail(q) == name);
-        if let Some(only) = tail_hits.next()
-            && tail_hits.next().is_none()
-        {
-            return Some(only.clone());
-        }
-        None
+    pub(super) fn resolve_user_class_in(&self, name: &str, path: &[usize]) -> Option<String> {
+        super::class_hierarchy::resolve_written_class_name_in_context(
+            name,
+            &self.declaration_namespace_scope(path)?,
+            self.declaration_name_policy()?,
+            &self.result.all_classes,
+        )
+    }
+
+    fn resolve_user_class_at(&self, name: &str, offset: u32) -> Option<String> {
+        let namespace =
+            super::class_hierarchy::source_namespace_at(&self.result.global_scope, offset)?;
+        super::class_hierarchy::resolve_written_class_name_in_context(
+            name,
+            namespace,
+            self.declaration_name_policy()?,
+            &self.result.all_classes,
+        )
     }
 
     /// Parse a `[CLASS ...]` command-substitution value and return the
@@ -4780,13 +4759,13 @@ impl Analyser {
     /// Which words construct is [`Self::class_command_constructs_with`]'s
     /// question, and it is answered from registry + proved-factory data —
     /// never from the `new` / `create` spelling alone.
-    fn class_from_constructor_subst(&self, value: &str) -> Option<String> {
+    fn class_from_constructor_subst(&self, value: &str, site_offset: u32) -> Option<String> {
         let inner = value.trim();
         let inner = inner.strip_prefix('[')?.strip_suffix(']')?;
         let mut words = inner.split_whitespace();
         let class = words.next()?;
         if let Some(subcmd) = words.next()
-            && let Some(uc) = self.resolve_user_class(class)
+            && let Some(uc) = self.resolve_user_class_at(class, site_offset)
             && self.class_command_constructs_with(&uc, subcmd)
         {
             return Some(uc);
@@ -4928,12 +4907,9 @@ impl Analyser {
     /// picking one.
     pub(super) fn metaclass_def(&self, class_q: &str) -> Option<&super::types::ClassDef> {
         let class = self.result.all_classes.get(class_q)?;
-        let tail_index = super::class_hierarchy::build_tail_index(self.result.all_classes.keys());
-        let resolved = super::class_hierarchy::resolve_class_name(
-            &class.metaclass,
-            class_q,
-            |candidate| self.result.all_classes.contains_key(candidate),
-            &tail_index,
+        let resolved = super::class_hierarchy::resolve_class_lookup(
+            class.metaclass_lookup.as_ref()?,
+            &self.result.all_classes,
         )?;
         self.result.all_classes.get(&resolved)
     }
@@ -4945,7 +4921,6 @@ impl Analyser {
     ///
     /// Bounded by the recorded class count: every class is visited once.
     fn metaclass_chain_declares_method(&self, meta: &super::types::ClassDef, method: &str) -> bool {
-        let tail_index = super::class_hierarchy::build_tail_index(self.result.all_classes.keys());
         let mut visited: std::collections::HashSet<String> = std::collections::HashSet::new();
         let mut queue: Vec<&super::types::ClassDef> = vec![meta];
         while let Some(class) = queue.pop() {
@@ -4956,12 +4931,17 @@ impl Analyser {
                 return true;
             }
             for parent in &class.superclasses {
-                if let Some(resolved) = super::class_hierarchy::resolve_class_name(
-                    parent,
-                    &class.qualified_name,
-                    |candidate| self.result.all_classes.contains_key(candidate),
-                    &tail_index,
-                ) && let Some(def) = self.result.all_classes.get(&resolved)
+                if let Some(resolved) = class
+                    .relation_lookups
+                    .get(parent)
+                    .and_then(Option::as_ref)
+                    .and_then(|lookup| {
+                        super::class_hierarchy::resolve_class_lookup(
+                            lookup,
+                            &self.result.all_classes,
+                        )
+                    })
+                    && let Some(def) = self.result.all_classes.get(&resolved)
                 {
                     queue.push(def);
                 }
@@ -4988,7 +4968,12 @@ impl Analyser {
     ) {
         if cmd_name != "set"
             || args.len() < 2
-            || self.class_from_constructor_subst(&args[1]).is_some()
+            || self
+                .class_from_constructor_subst(
+                    &args[1],
+                    arg_tokens.first().map_or(0, |token| token.span.start()),
+                )
+                .is_some()
         {
             return;
         }
@@ -5053,7 +5038,7 @@ impl Analyser {
                     resolved = None;
                     break;
                 }
-                let Some(qc) = self.resolve_user_class(value) else {
+                let Some(qc) = self.resolve_user_class_at(value, site.span.start()) else {
                     resolved = None;
                     break;
                 };

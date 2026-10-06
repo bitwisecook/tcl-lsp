@@ -1641,7 +1641,12 @@ pub(crate) fn compare_in<'a>(
 /// matcher, the `regexp` ARE engine, and this module's string comparison — so
 /// the dialect operators cannot drift from `[string match]` / `[regexp]` /
 /// `[string equal]`.
-pub(crate) fn irule_binary(op: BinOp, left: &Value, right: &Value) -> Result<Value, TclError> {
+pub(crate) fn irule_binary(
+    provider: Option<tcl_syntax::expr::operators::AuthoredF5StringPredicateProvider>,
+    op: BinOp,
+    left: &Value,
+    right: &Value,
+) -> Result<Value, TclError> {
     use BinOp::{
         Contains, EndsWith, Matches, MatchesGlob, MatchesRegex, StartsWith, StrEquals, WordAnd,
         WordOr,
@@ -1653,27 +1658,21 @@ pub(crate) fn irule_binary(op: BinOp, left: &Value, right: &Value) -> Result<Val
         WordOr => return word_or(left, right).map(Value::bool),
         _ => {}
     }
+    let predicate = if matches!(op, Contains | StartsWith | EndsWith | Matches | MatchesGlob) {
+        Some(provider.and_then(|provider| provider.predicate(op)).ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "authored F5 string predicate policy",
+            ),
+        )?)
+    } else {
+        None
+    };
     let (subject, operand) = (left.try_to_str()?, right.try_to_str()?);
     let truth = match op {
-        Contains => subject.contains(&*operand),
-        StartsWith => subject.starts_with(&*operand),
-        EndsWith => subject.ends_with(&*operand),
-        // `equals` is the word spelling of `eq`: always a string
-        // comparison. The bare `matches` shares that answer, but not for
-        // the same reason, and the difference is deliberately recorded
-        // rather than hidden behind the shared arm: only the operator's
-        // *presence* is measured
-        // (`docs/design/f5/bigip-irule-parser-measurements.md` §4a
-        // `e_matches`: `expr {"abc" matches "abc"}` → `1`), and that cell
-        // is an exact-equality case, so equality is the one reading the
-        // evidence actually exercises. §12 carries the discriminating
-        // re-probe; until it runs the compiler deliberately refuses to
-        // constant-fold `matches` (`tcl_compiler::tcl_expr_eval`), so no
-        // unmeasured semantics is ever baked into a rewrite.
-        StrEquals | Matches => compare(BinOp::StrEq, left, right)?,
-        // Case-sensitive `string match` / `regexp` — the dialect operators have
-        // no `-nocase` form.
-        MatchesGlob => tcl_syntax::glob::string_match(&operand, &subject),
+        StrEquals => compare(BinOp::StrEq, left, right)?,
+        Contains | StartsWith | EndsWith | Matches | MatchesGlob => predicate
+            .expect("selected F5 string predicate")
+            .evaluate(&subject, &operand),
         // iRules embeds Tcl 8.4, whose ARE has no `\z`.
         MatchesRegex => crate::cmd_regexp::regexp_matches(
             &operand,
@@ -2096,6 +2095,20 @@ impl ExprOps for ExprEval<'_> {
         native_boolean_result(self.vm.numeric_context(), b)
     }
 
+    fn binary_other(&mut self, op: BinOp, left: Value, right: Value) -> Result<Value, TclError> {
+        let provider =
+            tcl_registry::native_expression_program::authored_f5_string_predicate_provider(
+                self.vm.expression_evaluation_policy().as_ref(),
+            )
+            .ok_or_else(|| self.unsupported("operator"))?;
+        let predicate = provider
+            .predicate(op)
+            .ok_or_else(|| self.unsupported("operator"))?;
+        let left = left.try_to_str()?;
+        let right = right.try_to_str()?;
+        Ok(Value::bool(predicate.evaluate(&left, &right)))
+    }
+
     fn unsupported(&mut self, what: &str) -> TclError {
         TclError::new(what)
     }
@@ -2103,6 +2116,67 @@ impl ExprOps for ExprEval<'_> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn measured_bare_matches_tree_evaluation_requires_independent_authored_policy() {
+        use tcl_registry::invocation_words::LogicalExpressionParseProvider;
+        let mut vm = Vm::new();
+        vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
+        assert!(vm.set_native_engine_profile(crate::environment::profile_for_dialect("tcl9.0")));
+        assert!(vm.eval_expr("\"abcd\" matches \"a*\"").is_err());
+        assert!(vm.set_logical_expression_parse_provider(
+            LogicalExpressionParseProvider::Tcl84CoreSimulation
+        ));
+        assert!(vm.set_logical_numeric_provider(
+            tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation::Tcl84Core,
+        ));
+        for row in include_str!("../../tcl-syntax/tests/data/f5-matches-21.1.0.1-0.0.26.tsv")
+            .lines()
+            .take(6)
+        {
+            let fields = row.split('\t').collect::<Vec<_>>();
+            let result = vm.eval_expr(fields[0]);
+            if fields[1] == "0" {
+                assert_eq!(
+                    result.unwrap().to_str().as_ref(),
+                    fields[2],
+                    "{}",
+                    fields[0]
+                );
+            } else {
+                assert_eq!(
+                    result.unwrap_err().message_bytes().unwrap().as_ref(),
+                    fields[2].as_bytes(),
+                    "{}",
+                    fields[0]
+                );
+            }
+        }
+        for (expression, expected) in [
+            (r#""foobar" contains "oob""#, "1"),
+            (r#""foobar" starts_with "foo""#, "1"),
+            (r#""foobar" ends_with "foo""#, "0"),
+            (r#""foobar" matches_glob "f?o*""#, "1"),
+        ] {
+            assert_eq!(
+                vm.eval_expr(expression).unwrap().to_str().as_ref(),
+                expected
+            );
+        }
+        assert!(vm.eval_expr(r#""foobar" matches_regex "o+b""#).is_err());
+        for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let mut vm = Vm::new();
+            vm.set_dialect_profile(crate::environment::profile_for_dialect(name));
+            for row in
+                include_str!("../../tcl-syntax/tests/data/f5-matches-21.1.0.1-0.0.26.tsv").lines()
+            {
+                assert!(
+                    vm.eval_expr(row.split('\t').next().unwrap()).is_err(),
+                    "{name}: {row}"
+                );
+            }
+        }
+    }
+
     use super::*;
     use crate::command::Command;
     use crate::interp::{Vm, ok};

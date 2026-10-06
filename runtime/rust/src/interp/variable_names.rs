@@ -9,9 +9,18 @@ use tcl_syntax::naming::{NativeNameProtocol, NativeVariableProjection};
 
 impl Interp {
     pub(crate) fn require_variable_name_protocol(&self) -> Result<NativeNameProtocol, VarError> {
+        if self.observed_names.borrow().is_some() {
+            self.clone().refuse_native_access(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "unmeasured observed variable purpose",
+                ),
+            );
+            return Err(VarError::NameProtocolUnavailable);
+        }
         let protocol = self.name_policy_protocol().map(|policy| policy.recipe());
         if self.namespaces.borrow().variable_name_protocol != protocol {
             self.namespaces.borrow_mut().variable_name_protocol = protocol;
+            self.namespaces.borrow_mut().execution_name_policy = self.execution_name_policy();
         }
         protocol.ok_or_else(|| {
             self.clone().refuse_native_access(
@@ -38,9 +47,18 @@ impl Interp {
         &self,
         original: &'a [u8],
     ) -> Result<NativeVariableProjection<'a>, VarError> {
-        Ok(self
-            .require_variable_name_protocol()?
-            .combined_variable_input(original))
+        self.require_variable_name_protocol()?;
+        self.execution_name_policy()
+            .and_then(|policy| {
+                policy
+                    .variable_input(
+                        tcl_syntax::naming::NativeVariableInputForm::Combined(original),
+                        tcl_syntax::naming::ObservedVariableNamePurpose::ScalarReceiver,
+                    )
+                    .ok()
+            })
+            .and_then(|projection| projection.native_projection().cloned())
+            .ok_or(VarError::NameProtocolUnavailable)
     }
 
     pub(crate) fn separate_variable_input<'a>(
@@ -48,9 +66,18 @@ impl Interp {
         root: &'a [u8],
         element: Option<&'a [u8]>,
     ) -> Result<NativeVariableProjection<'a>, VarError> {
-        Ok(self
-            .require_variable_name_protocol()?
-            .separate_variable_input(root, element))
+        self.require_variable_name_protocol()?;
+        self.execution_name_policy()
+            .and_then(|policy| {
+                policy
+                    .variable_input(
+                        tcl_syntax::naming::NativeVariableInputForm::Separate { root, element },
+                        tcl_syntax::naming::ObservedVariableNamePurpose::ScalarReceiver,
+                    )
+                    .ok()
+            })
+            .and_then(|projection| projection.native_projection().cloned())
+            .ok_or(VarError::NameProtocolUnavailable)
     }
 }
 

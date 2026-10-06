@@ -2350,6 +2350,11 @@ fn proc_completions(
         .collect();
     names.sort_unstable_by_key(|(qname, _)| *qname);
     for (qname, proc_def) in names {
+        // Insertion is callable source, so retain the declaration owner's
+        // publication and lookup round-trip instead of rendering a map key.
+        let Some(spelling) = proc_def.source_spelling() else {
+            continue;
+        };
         let count = usage
             .get(proc_def.name.as_str())
             .copied()
@@ -2357,7 +2362,7 @@ fn proc_completions(
             .unwrap_or(0);
         items.push(CompletionItem {
             label: proc_def.name.clone(),
-            insert_text: qname.to_owned(),
+            insert_text: tcl_syntax::list::list_element(&spelling),
             kind: CompletionKind::Function,
             detail: Some(proc_signature_str(proc_def)),
             sort_text: Some(proc_sort_text(&proc_def.name, count)),
@@ -4901,6 +4906,39 @@ mod tests {
             "fuzzy method must not pad a prefix-matching response: {labels:?}",
         );
         assert!(items.iter().all(|i| i.filter_text.is_none()));
+    }
+
+    #[test]
+    fn proc_completion_quotes_retained_callable_source() {
+        let source = "proc {odd name} {} {}";
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse(source, engine);
+            let items = proc_completions(&analysis, "odd", &FxHashMap::default());
+            assert_eq!(items.len(), 1, "{engine}: {items:?}");
+            assert_eq!(items[0].insert_text, "{::odd name}", "{engine}");
+        }
+    }
+
+    #[test]
+    fn proc_completion_withdraws_without_retained_source_geometry() {
+        let mut analysis = analyse("proc greet {} {}");
+        analysis.all_procs.get_mut("::greet").unwrap().source_name = None;
+        assert!(proc_completions(&analysis, "gre", &FxHashMap::default()).is_empty());
+    }
+
+    #[test]
+    fn proc_completion_withdraws_unaddressable_colon_publication() {
+        let source = "namespace eval N {proc :f {} {return LOCAL}}";
+        for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse(source, engine);
+            assert!(analysis.all_procs.contains_key("::N:::f"), "{engine}");
+            assert!(
+                proc_completions(&analysis, ":f", &FxHashMap::default()).is_empty(),
+                "{engine}"
+            );
+        }
     }
 
     #[test]

@@ -7,7 +7,7 @@ use tcl_lexer::Span;
 
 /// Original literal predicate observed by the native compiler before pruning.
 /// Retaining this metadata allocates no native header or executable operand.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NativeControlBooleanProbe {
     /// Exact original compiler operand, including parser expansion provenance.
     pub operand: NativeCompilerWordOperand,
@@ -36,7 +36,7 @@ impl NativeControlBooleanProbe {
 }
 
 /// A compiler visit, distinct from execution and native handler authority.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum NativeControlPreparationStep {
     /// Retain an original predicate decision at this position. This produces
     /// no literal, local, child visit, getter side effect or runtime header.

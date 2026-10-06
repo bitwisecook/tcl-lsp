@@ -1190,6 +1190,7 @@ mod tests {
                     profile, point,
                 ),
             execution_point: Some(point),
+            execution_name_policy: None,
             name_protocol: tcl_syntax::naming::NamePolicyProtocol::for_native_point(point),
             compiled_variable_protocol:
                 tcl_syntax::naming::NativeCompiledVariableProtocol::for_native_point(point),
@@ -1425,6 +1426,7 @@ mod tests {
             invocation_policy: Some(profile.cache_key()),
             expression_policy: None,
             execution_point: tcl_registry::InvocationDialect::of_profile(profile).core_point,
+            execution_name_policy: None,
             name_protocol: tcl_registry::InvocationDialect::of_profile(profile)
                 .core_point
                 .and_then(tcl_syntax::naming::NamePolicyProtocol::for_native_point),

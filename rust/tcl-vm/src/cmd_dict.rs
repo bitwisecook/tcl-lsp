@@ -482,12 +482,28 @@ pub(crate) fn increment_dictionary_member(
     tcl_cmd_core::native_increment::increment(&objects, original, amount)
 }
 
-pub(crate) fn append_member_value(
-    vm: &mut Vm,
+/// A compiled append adopts its already concatenated input on a missing member.
+pub(crate) fn append_compiled_member_value(
+    vm: &Vm,
     original: Option<&Value>,
     source: &Value,
 ) -> Result<Value, tcl_cmd_core::CmdError> {
-    append_member_values(vm, original, std::slice::from_ref(source))
+    let Some(original) = original else {
+        return Ok(source.clone());
+    };
+    let issued = vm
+        .native_invocation_dialect()
+        .native_object_append_protocol(None)
+        .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "native compiled dictionary append",
+        ))?;
+    tcl_cmd_core::native_append::append_dictionary_operands(
+        &crate::value::VmAppendObjects,
+        issued.recipe(),
+        Some(original),
+        std::slice::from_ref(source),
+    )
+    .map_err(Into::into)
 }
 
 pub(crate) fn append_member_values(

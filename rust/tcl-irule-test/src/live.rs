@@ -30,16 +30,18 @@
 //! the same order `runner.tcl` does, then exposes a thin Rust API over the
 //! `::orch::` command surface.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::io::Write;
 use std::path::Path;
 use std::rc::Rc;
 
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_dialect::DialectProfile;
+use tcl_registry::f5::{BigIpExecutionContext, evidence::BigIpBuild, naming::BigIpNameEvent};
+use tcl_runtime_api::authored_tmm::AuthoredObservedFrameStorageContext;
 use tcl_runtime_api::{Completion, NativeExecutionError};
 use tcl_syntax::list::{join_list, list_element};
-use tcl_vm::{Code, Vm};
+use tcl_vm::{Code, NativeCommand, Value, Vm};
 
 /// The framework files the orchestrator depends on, in source order — mirrors
 /// the `source` block at the top of `runner.tcl`. `_mock_stubs.tcl` is sourced
@@ -130,11 +132,103 @@ impl Write for Capture {
     }
 }
 
+#[derive(Default)]
+struct MeasuredEventNames {
+    build: Cell<Option<BigIpBuild>>,
+    next_domain: Cell<u64>,
+}
+
+struct EventSourceHook {
+    selection: Rc<MeasuredEventNames>,
+    tmm: u64,
+    domain: u64,
+}
+
+impl NativeCommand for EventSourceHook {
+    fn invoke(&self, vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+        let [event, source] = args else {
+            return vm
+                .refuse_host_command("event source hook requires original event and body".into());
+        };
+        let event = match event.try_to_str() {
+            Ok(event) => event,
+            Err(error) => return vm.refuse_host_command(error.to_string()),
+        };
+        let Some(build) = self
+            .selection
+            .build
+            .get()
+            .filter(|_| event.as_ref() == "HTTP_REQUEST")
+        else {
+            return match vm.try_eval_original_source_value(source) {
+                Ok(completion) => completion,
+                Err(error) => vm.refuse_host_command(error.to_string()),
+            };
+        };
+        let event = BigIpNameEvent::HttpRequest;
+        let context = BigIpExecutionContext::TmmIRule;
+        let Some(policy) = tcl_registry::f5::naming::observed_name_policy(build, context, event)
+        else {
+            return vm.refuse_host_command("measured event naming issuer is unavailable".into());
+        };
+        let storage = AuthoredObservedFrameStorageContext {
+            policy,
+            tmm: self.tmm,
+            domain: self.domain,
+        };
+        match vm.with_observed_name_policy(build, context, event, |vm| {
+            vm.with_observed_frame_storage(storage, |vm| vm.try_eval_original_source_value(source))
+        }) {
+            Ok(Ok(Ok(completion))) => completion,
+            Ok(Ok(Err(error))) => vm.refuse_host_command(error.to_string()),
+            Ok(Err(error)) | Err(error) => vm.refuse_host_command(error.to_string()),
+        }
+    }
+}
+
+struct EnrollEventHook(Rc<MeasuredEventNames>);
+impl NativeCommand for EnrollEventHook {
+    fn invoke(&self, vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+        let [child, tmm] = args else {
+            return vm.refuse_host_command(
+                "event worker enrolment requires actual child and worker".into(),
+            );
+        };
+        let child = match child.try_to_str() {
+            Ok(child) => child,
+            Err(error) => return vm.refuse_host_command(error.to_string()),
+        };
+        let tmm = match tmm
+            .try_to_str()
+            .ok()
+            .and_then(|text| text.parse::<u64>().ok())
+        {
+            Some(tmm) => tmm,
+            None => return vm.refuse_host_command("event worker identity is unavailable".into()),
+        };
+        let domain = self.0.next_domain.get();
+        let Some(next) = domain.checked_add(1) else {
+            return vm.refuse_host_command("event domain identity is exhausted".into());
+        };
+        self.0.next_domain.set(next);
+        let command = Rc::new(EventSourceHook {
+            selection: Rc::clone(&self.0),
+            tmm,
+            domain,
+        });
+        if !vm.register_child_native_command(&child, "::tmm::_observed_event_source", command) {
+            return vm.refuse_host_command("actual event worker is unavailable".into());
+        }
+        Completion::new(Code::Ok, Value::empty(), Value::empty())
+    }
+}
+
 /// A live orchestrator session running on a bytecode VM.
 pub struct LiveSession {
     vm: Vm,
     output: Rc<RefCell<Vec<u8>>>,
     measured_loader: Option<tcl_registry::irules_policy::MeasuredIrulesLoaderProfile>,
+    measured_names: Rc<MeasuredEventNames>,
 }
 
 impl LiveSession {
@@ -210,15 +304,48 @@ impl LiveSession {
         ] {
             assert!(vm.register_framework_builtin(alias, native, host_profile));
         }
+        let measured_names = Rc::new(MeasuredEventNames {
+            build: Cell::new(None),
+            next_domain: Cell::new(1),
+        });
+        vm.register_native_command(
+            "::tmm::_observed_event_source",
+            Rc::new(EventSourceHook {
+                selection: Rc::clone(&measured_names),
+                tmm: 0,
+                domain: 0,
+            }),
+        );
+        vm.register_native_command(
+            "::tmm::_observed_event_enroll",
+            Rc::new(EnrollEventHook(Rc::clone(&measured_names))),
+        );
         let mut session = Self {
             vm,
             output,
             measured_loader: None,
+            measured_names,
         };
         session.bootstrap(lib_dir)?;
         session.eval_host_initialization("::tmm::_static_enroll")?;
         session.eval_host_initialization("::orch::init")?;
         Ok(session)
+    }
+
+    /// Select an independently measured event naming issuer. Only the exact
+    /// supported build/TMM/HTTP_REQUEST context enters counted frame storage.
+    /// An unsupported selection clears the previous issuer and returns false.
+    pub fn set_measured_event_name_build(&mut self, build: Option<BigIpBuild>) -> bool {
+        let selected = build.filter(|build| {
+            tcl_registry::f5::naming::observed_name_policy(
+                *build,
+                BigIpExecutionContext::TmmIRule,
+                BigIpNameEvent::HttpRequest,
+            )
+            .is_some()
+        });
+        self.measured_names.build.set(selected);
+        build.is_none() || selected.is_some()
     }
 
     /// Stand a session up against the framework Tcl embedded in the binary
@@ -502,6 +629,23 @@ mod tests {
     use std::path::PathBuf;
 
     #[test]
+    fn measured_event_names_enter_the_actual_connection_frame_and_restore_policy() {
+        let mut session = LiveSession::new(&lib_dir()).expect("session");
+        let baseline = session.vm.execution_name_policy();
+        assert!(session.set_measured_event_name_build(Some(BigIpBuild::MEASURED_21_1_0_1)));
+        session.eval("::itest::_execute_event_body HTTP_REQUEST {set {__tcl_lsp_2286_r2286m_nul_A\0B} counted}").expect("counted event write");
+        assert_eq!(session.eval("::itest::_execute_event_body HTTP_REQUEST {set {__tcl_lsp_2286_r2286m_nul_A\0B}}").expect("same connection read"), "0 counted {}");
+        assert_eq!(session.vm.execution_name_policy(), baseline);
+        let failed = session
+            .eval("::itest::_execute_event_body HTTP_REQUEST {error EXPECTED}")
+            .expect("guest error completion");
+        assert!(failed.starts_with("1 EXPECTED"));
+        assert_eq!(session.vm.execution_name_policy(), baseline);
+        assert!(session.set_measured_event_name_build(None));
+        assert_eq!(session.vm.execution_name_policy(), baseline);
+    }
+
+    #[test]
     fn completion_api_preserves_guest_bytes_before_text_projection() {
         fn byte_error(_: &mut Vm, _: &[tcl_vm::Value]) -> Completion<tcl_vm::Value> {
             Completion::new(
@@ -517,6 +661,7 @@ mod tests {
             vm: Vm::new(),
             output: Rc::default(),
             measured_loader: None,
+            measured_names: Rc::default(),
         };
         session.vm.set_compiler(Box::new(Svc::default()));
         session.vm.register("byte_error", byte_error);
@@ -546,6 +691,7 @@ mod tests {
             vm: Vm::new(),
             output: Rc::default(),
             measured_loader: None,
+            measured_names: Rc::default(),
         };
         assert!(matches!(
             session.eval_completion("set reached 1"),

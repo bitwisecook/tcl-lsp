@@ -74,11 +74,14 @@ impl crate::InvocationDialect {
     /// Actual native name recipe, issued independently of numeral grammars.
     #[must_use]
     pub fn native_name_protocol(self) -> Option<tcl_syntax::naming::NativeNameProtocol> {
-        use tcl_syntax::naming::NativeNameProtocol;
-        Some(match self.native_string_protocol()? {
-            NativeStringProtocol::C(version) => NativeNameProtocol::C(version),
-            NativeStringProtocol::Jim084 => NativeNameProtocol::Jim084,
-        })
+        let point = self.execution_point()?;
+        if self
+            .tcl_version
+            .is_some_and(|version| point.tcl_version() != Some(version))
+        {
+            return None;
+        }
+        tcl_syntax::naming::NativeNameProtocol::for_point(point)
     }
 
     /// Select a pure authored naming recipe, without issuing native authority.

@@ -186,7 +186,10 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             [name] => {
                 if vm.native_c_variable_name_protocol().is_some() {
                     return match vm.exists_original_c_parts(name, None) {
-                        Ok(found) => ok(Value::bool(found)),
+                        Ok(found) => match vm.original_existence_result(found) {
+                            Ok(value) => ok(value),
+                            Err(failure) => failure,
+                        },
                         Err(failure) => failure,
                     };
                 }
@@ -200,6 +203,14 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                             .refuse_host_command(format!("variable name is unavailable: {error}"));
                     }
                 };
+                if vm.observed_name_policy_selected() {
+                    return match vm.observed_variable_exists(&name, vm.current_level()) {
+                        Ok(found) => ok(Value::bool(found)),
+                        Err(error) => vm.refuse_host_command(format!(
+                            "observed variable storage is unavailable: {error}"
+                        )),
+                    };
+                }
                 ok(Value::bool(vm.exists_var_traced_bytes(&name)))
             }
             _ => crate::command::native_wrong_arguments_message(

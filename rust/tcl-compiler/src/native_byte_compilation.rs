@@ -70,6 +70,13 @@ struct OriginalRegisteredRecipe {
 impl NativeByteRegisteredCommand {
     /// Consume the original factory recipe without changing its compiler purpose.
     /// A different source vector or selection basis cannot reuse its preparation.
+    pub(crate) fn has_generic_preparation(&self) -> bool {
+        matches!(
+            self.recipe.instruction,
+            NativeInstructionPlan::GenericPreparation(_)
+        )
+    }
+
     pub(crate) fn original_instruction(
         &self,
         words: &[NativeWord],
@@ -166,7 +173,7 @@ pub(crate) fn native_byte_command_plan(
     {
         return ensemble_command_plan(&captured, binding, entry, registry, dialect, context);
     }
-    registered_command_plan(&captured, binding, dialect, registry, context)
+    registered_command_plan(&captured, binding, entry, dialect, registry, context)
 }
 
 fn ensemble_command_plan(
@@ -316,7 +323,7 @@ fn compiler_dialect(
         .execution_point
         .ok_or(NativeByteCommandUnavailable::Entry)?;
     let policy = entry
-        .name_protocol
+        .command_name_policy()
         .ok_or(NativeByteCommandUnavailable::Entry)?;
     if tcl_syntax::naming::NamePolicyProtocol::for_native_point(point) != Some(policy) {
         return Err(NativeByteCommandUnavailable::Entry);
@@ -330,6 +337,7 @@ fn compiler_dialect(
 fn registered_command_plan(
     captured: &NativeCompilerWords<'_>,
     binding: &NativeCompilationBinding,
+    entry: &NativeCompilationEntry,
     dialect: InvocationDialect,
     registry: &CommandRegistry,
     context: NativeCompilationContext,
@@ -374,9 +382,18 @@ fn registered_command_plan(
     {
         return Ok(NativeByteCommandPlan::Generic);
     }
+    let generic_preparation = dialect
+        .tcl_version
+        .and_then(|version| {
+            tcl_registry::native_instruction_plan::original_dictionary_preparations(
+                spec, captured, 1, version, context,
+            )
+        })
+        .is_some();
     match selection {
         NativeCompilationSelection::Generic
-            if spec.namespace_binding_kind().is_none()
+            if !generic_preparation
+                && spec.namespace_binding_kind().is_none()
                 && !matches!(
                     spec.grammar,
                     NativeCompilationGrammar::Array { .. }
@@ -389,6 +406,41 @@ fn registered_command_plan(
                 ) =>
         {
             Ok(NativeByteCommandPlan::Generic)
+        }
+        NativeCompilationSelection::NamedInvocation { .. } => {
+            let tcl_registry::native_instruction_plan::NativeInstructionPlan::NamedInvocation(
+                mut recipe,
+            ) = tcl_registry::native_instruction_plan::native_instruction_plan(
+                spec, selection, captured, 1, dialect, context,
+            )
+            .map_err(|_| NativeByteCommandUnavailable::Recipe)?
+            else {
+                return Err(NativeByteCommandUnavailable::Recipe);
+            };
+            recipe.name = tcl_syntax::naming::native_command_full_name_bytes(&binding.slot);
+            let prerequisite =
+                tcl_runtime_api::native_compilation::NativeCommandCompilerPrerequisite {
+                    interpreter: entry.interpreter,
+                    lookup_namespace_token: entry.current_namespace,
+                    invocation_word: captured
+                        .literal(0)
+                        .ok_or(NativeByteCommandUnavailable::Recipe)?
+                        .into(),
+                    slot: binding.slot.clone(),
+                    namespace_token: binding.namespace_token,
+                    token: binding.token,
+                    implementation_generation: binding.implementation_generation,
+                    compiler: compiler.clone(),
+                    selected_worker: None,
+                    nested_compilers: Vec::new(),
+                    guard: tcl_runtime_api::CommandBindingGuard::BeforeArguments,
+                };
+            Ok(NativeByteCommandPlan::Named(Box::new(
+                NativeByteNamedInvocation {
+                    recipe,
+                    prerequisite,
+                },
+            )))
         }
         NativeCompilationSelection::Generic | NativeCompilationSelection::Inline { .. } => {
             let instruction = tcl_registry::native_instruction_plan::native_instruction_plan(
@@ -1026,6 +1078,7 @@ mod tests {
                     profile, point,
                 ),
             execution_point: Some(point),
+            execution_name_policy: None,
             name_protocol: tcl_syntax::naming::NamePolicyProtocol::for_native_point(point),
             compiled_variable_protocol:
                 tcl_syntax::naming::NativeCompiledVariableProtocol::for_native_point(point),

@@ -147,15 +147,22 @@ mod tests {
             catch_depth: Some(0),
         }
     }
-    fn capture(source: &[u8], version: TclVersion) -> Vec<tcl_lexer::NativeWord> {
+    fn capture_plan(source: &[u8], version: TclVersion) -> tcl_lexer::NativeScriptWordsPlan {
         let dialect = crate::InvocationDialect::for_version(version);
-        let script = native_script_words_in(
+        native_script_words_in(
             SourceImage::native(source),
             Span::new(0, u32::try_from(source.len()).unwrap()),
             LexerConfig::from_grammar(dialect.lexer_grammar),
         )
-        .unwrap();
-        script.commands.into_iter().next().unwrap().words
+        .unwrap()
+    }
+    fn capture(source: &[u8], version: TclVersion) -> Vec<tcl_lexer::NativeWord> {
+        capture_plan(source, version)
+            .commands
+            .into_iter()
+            .next()
+            .unwrap()
+            .words
     }
     #[test]
     fn original_upvar_keeps_ordered_targets_and_opaque_local_names() {
@@ -269,17 +276,41 @@ mod tests {
             let spec = registry
                 .native_compilation_for_registration("upvar", dialect)
                 .unwrap();
+            assert_eq!(
+                spec.compiler_hook_presence(dialect),
+                Some(version >= TclVersion::V8_5)
+            );
             for row in table.lines().filter(|row| row.starts_with("R|")) {
                 let fields: Vec<_> = row.split('|').collect();
                 let case = fields[1].parse::<usize>().unwrap();
                 if !CASES[case].starts_with("upvar ") {
                     continue;
                 }
-                let original = capture(CASES[case].as_bytes(), version);
+                let plan = capture_plan(CASES[case].as_bytes(), version);
+                if let Some(tail) = plan.fatal_tail {
+                    assert_eq!(version, TclVersion::V8_4);
+                    assert_eq!(case, 10);
+                    assert!(plan.commands.is_empty());
+                    assert_eq!(tail.command_start, 0);
+                    assert_eq!(tail.cut.command, 0);
+                    assert_eq!(tail.cut.message, "extra characters after close-brace");
+                    assert_eq!(fields[2], "1");
+                    assert_eq!(
+                        fields[6],
+                        "6578747261206368617261637465727320616674657220636c6f73652d6272616365"
+                    );
+                    assert!(fields[7].is_empty());
+                    checked += 1;
+                    continue;
+                }
+                let original = plan.commands.into_iter().next().unwrap().words;
                 let words =
                     NativeCompilerWords::capture(&original, NativeStringProtocol::C(version))
                         .unwrap();
                 let selected = spec.select_native_words(&words, 1, Some(dialect), context());
+                if version == TclVersion::V8_4 {
+                    assert_eq!(selected, NativeCompilationSelection::Generic);
+                }
                 assert_eq!(
                     matches!(selected, NativeCompilationSelection::Inline { .. }),
                     fields[7].contains("upvar:"),

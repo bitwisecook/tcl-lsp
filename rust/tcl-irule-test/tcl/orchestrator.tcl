@@ -1335,7 +1335,7 @@ namespace eval ::orch {
         set _tmm_interpreters [list]
         set _tmm_init_done [list]
         for {set i 0} {$i < $_tmm_count} {incr i} {
-            lappend _tmm_interpreters [::itest::create_worker "_irh_worker_$i"]
+            lappend _tmm_interpreters [::itest::create_worker "_irh_worker_$i" $i]
             lappend _tmm_init_done 0
         }
     }

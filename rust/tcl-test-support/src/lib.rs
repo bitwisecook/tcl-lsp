@@ -88,6 +88,19 @@ pub fn reference_source_tag(version: TclVersion) -> &'static str {
     version.reference_source_tag()
 }
 
+/// Stock tcltest package version in the pinned C Tcl reference distribution.
+/// This selects fixture metadata; it neither discovers an installed package
+/// nor supplies a package-loader or execution capability.
+#[must_use]
+pub const fn tcltest_reference_package_version(version: TclVersion) -> &'static str {
+    match version {
+        TclVersion::V8_4 => "2.2.11",
+        TclVersion::V8_5 => "2.3.8",
+        TclVersion::V8_6 | TclVersion::V9_0 => "2.5.11",
+        TclVersion::V9_1 => "2.6.0",
+    }
+}
+
 /// A successfully validated Tcl interpreter.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Tclsh {

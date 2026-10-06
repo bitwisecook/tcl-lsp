@@ -20,6 +20,8 @@ use tcl_syntax::native_variable_words::{
 /// Executable operation selected from one original complete word vector.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NativeInstructionPlan {
+    /// Original mathematical compiler stack, operand visits and anonymous cell.
+    MathOperator(crate::native_mathop_compilation::NativeMathopInstruction),
     /// Original scalar operands followed by the selected native getter.
     Scalar(crate::native_scalar_compilation::NativeScalarInstruction),
     /// Original namespace/frame operands and actual selected native operation.
@@ -42,6 +44,16 @@ pub enum NativeInstructionPlan {
     Coroutine(crate::native_coroutine_compilation::NativeCoroutineInstruction),
     /// Original native dictionary/key/default stack operands.
     DictionaryLookup(crate::native_dictionary_compilation::NativeDictionaryLookupInstruction),
+    /// Original dictionary mutation operands and physical receiver.
+    DictionaryMutation(crate::native_dictionary_compilation::NativeDictionaryMutationInstruction),
+    /// Original dictionary scope slots, auxiliaries and protected writeback.
+    DictionaryScope(
+        crate::native_control_compilation::NativeControlCompilation<
+            crate::native_dictionary_scope_compilation::NativeDictionaryScopeInstruction,
+        >,
+    ),
+    /// Original compiler visits retained when ordinary dispatch is selected.
+    GenericPreparation(Vec<crate::native_control_compilation::NativeControlPreparationStep>),
     /// A compile-selected private name followed by independently guarded late lookup.
     NamedInvocation(NativeNamedInvocationInstruction),
     /// Original static tree or authentic substituted `EXPR_STK` operand recipe.
@@ -254,6 +266,8 @@ pub enum NativeNamedInvocationWord {
 /// Pure stack/usage layout; its caller must retain the actual compiler selection.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeNamedInvocationInstruction {
+    /// Actual original compiler visits preceding the selected named fallback.
+    pub preparations: Vec<crate::native_control_compilation::NativeControlPreparationStep>,
     /// Name fixed at compilation, not an implementation selected after argv.
     pub name: Vec<u8>,
     /// Native direct invocation or original ensemble usage rewrite.
@@ -386,6 +400,7 @@ pub fn native_named_invocation_instruction(
         return Err(NativeInstructionPlanUnavailable::OperandGeometry);
     }
     Ok(NativeNamedInvocationInstruction {
+        preparations: Vec::new(),
         name: name.to_vec(),
         protocol,
         arguments_from,
@@ -652,6 +667,12 @@ fn native_instruction_plan_for_purpose(
     if purpose.select(spec, words, operand_from, dialect, context) != selection {
         return Err(Unavailable::Selection);
     }
+    if selection == NativeCompilationSelection::Generic
+        && let Some(preparations) =
+            original_dictionary_preparations(spec, words, operand_from, version, context)
+    {
+        return preparations.map(NativeInstructionPlan::GenericPreparation);
+    }
     if matches!(
         selection,
         NativeCompilationSelection::NamedInvocation { .. }
@@ -694,6 +715,18 @@ fn native_instruction_plan_for_purpose(
         )
         .map(NativeInstructionPlan::Coroutine)
         .map_err(|_| Unavailable::OperandGeometry);
+    }
+    if let NativeCompilationGrammar::MathOperator(operator) = spec.grammar {
+        return crate::native_mathop_compilation::compile_native_mathop(
+            words,
+            operand_from,
+            operator,
+            version,
+            context,
+        )
+        .map_err(|_| Unavailable::OperandGeometry)?
+        .map(NativeInstructionPlan::MathOperator)
+        .ok_or(Unavailable::Selection);
     }
     if spec.grammar == NativeCompilationGrammar::Error {
         return crate::native_error_compilation::compile_native_error(words, operand_from, version)
@@ -788,7 +821,18 @@ fn selected_named_instruction_plan(
         protocol,
         &replacements,
     )
-    .map(NativeInstructionPlan::NamedInvocation)
+    .and_then(|mut recipe| {
+        if let Some(preparations) = original_dictionary_preparations(
+            spec,
+            words,
+            operand_from,
+            dialect.tcl_version.ok_or(Unavailable::CompilerPoint)?,
+            context,
+        ) {
+            recipe.preparations = preparations?;
+        }
+        Ok(NativeInstructionPlan::NamedInvocation(recipe))
+    })
 }
 
 fn selected_uplevel_instruction(
@@ -894,10 +938,46 @@ fn selected_container_and_string_instruction_plan(
     words: &NativeCompilerWords<'_>,
     operand_from: usize,
     version: tcl_dialect::TclVersion,
+    context: NativeCompilationContext,
 ) -> Option<Result<NativeInstructionPlan, NativeInstructionPlanUnavailable>> {
     use NativeInstructionPlanUnavailable as Unavailable;
     Some(match spec.grammar {
         NativeCompilationGrammar::Dictionary { command, ensemble } => {
+            let from = operand_from + usize::from(ensemble);
+            if matches!(
+                command,
+                crate::native_dictionary::NativeDictionaryCommand::Update
+                    | crate::native_dictionary::NativeDictionaryCommand::With
+            ) {
+                return Some(
+                    crate::native_dictionary_scope_compilation::compile_native_dictionary_scope(
+                        command, words, from, version, context,
+                    )
+                    .map(NativeInstructionPlan::DictionaryScope)
+                    .map_err(|_| Unavailable::OperandGeometry),
+                );
+            }
+            if matches!(
+                command,
+                crate::native_dictionary::NativeDictionaryCommand::Set
+                    | crate::native_dictionary::NativeDictionaryCommand::Unset
+                    | crate::native_dictionary::NativeDictionaryCommand::Append
+                    | crate::native_dictionary::NativeDictionaryCommand::Lappend
+                    | crate::native_dictionary::NativeDictionaryCommand::Incr
+            ) {
+                return Some(
+                    crate::native_dictionary_compilation::compile_native_dictionary_mutation(
+                        command, words, from, version, context,
+                    )
+                    .map_err(|_| Unavailable::OperandGeometry)
+                    .and_then(|recipe| match recipe.outcome {
+                        crate::native_control_compilation::NativeControlOutcome::Inline(recipe) => {
+                            Ok(NativeInstructionPlan::DictionaryMutation(recipe))
+                        }
+                        _ => Err(Unavailable::Selection),
+                    }),
+                );
+            }
             crate::native_dictionary_compilation::compile_native_dictionary_lookup(
                 command,
                 words,
@@ -966,7 +1046,7 @@ fn selected_nonvariable_instruction_plan(
         return Some(plan);
     }
     if let Some(plan) =
-        selected_container_and_string_instruction_plan(spec, words, operand_from, version)
+        selected_container_and_string_instruction_plan(spec, words, operand_from, version, context)
     {
         return Some(plan);
     }
@@ -1920,3 +2000,33 @@ mod tests {
 
 #[cfg(test)]
 mod registered_worker_tests;
+
+/// Actual original dictionary preparation preceding the selected operation or fallback.
+/// This supplies no selected compiler registration or command authority.
+pub fn original_dictionary_preparations(
+    spec: NativeCompilationSpec,
+    words: &NativeCompilerWords<'_>,
+    operand_from: usize,
+    version: tcl_dialect::TclVersion,
+    context: NativeCompilationContext,
+) -> Option<
+    Result<
+        Vec<crate::native_control_compilation::NativeControlPreparationStep>,
+        NativeInstructionPlanUnavailable,
+    >,
+> {
+    if let NativeCompilationGrammar::WithImplementationPath { compiler, .. } = spec.grammar {
+        return original_dictionary_preparations(*compiler, words, operand_from, version, context);
+    }
+    let NativeCompilationGrammar::Dictionary { command, ensemble } = spec.grammar else {
+        return None;
+    };
+    command
+        .original_preparations(
+            words,
+            operand_from + usize::from(ensemble),
+            version,
+            context,
+        )
+        .map(|selected| selected.map_err(|_| NativeInstructionPlanUnavailable::OperandGeometry))
+}

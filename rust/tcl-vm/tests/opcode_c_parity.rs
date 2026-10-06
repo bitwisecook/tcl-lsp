@@ -1130,6 +1130,59 @@ fn str_map_matches_string_map_command() {
 
 // iRules dialect operators.
 
+fn authored_f5_vm() -> Vm {
+    let mut vm = Vm::new();
+    vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
+    assert!(vm.set_native_engine_profile(
+        tcl_registry::model::resolve_environment("tcl9.0").unit_profile()
+    ));
+    assert!(vm.set_logical_expression_parse_provider(
+        tcl_registry::invocation_words::LogicalExpressionParseProvider::Tcl84CoreSimulation,
+    ));
+    vm
+}
+
+fn run_f5_module(vm: &mut Vm, asm: Asm) -> Completion<Value> {
+    let module = tcl_bytecode::ModuleAsm {
+        profile: vm.dialect_profile(),
+        source: tcl_lexer::SourceImage::default(),
+        source_namespace: tcl_runtime_api::ByteNamespacePath::root(),
+        plain_command_dispatch: false,
+        top_level: asm.build(),
+        top_level_body: FunctionAsm::default(),
+        procedures: HashMap::new(),
+        procedure_provenance: HashMap::new(),
+    };
+    vm.run_module(&module)
+}
+
+#[test]
+fn bare_matches_opcode_withdraws_without_authored_policy() {
+    for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+        let mut vm = Vm::new();
+        vm.set_dialect_profile(tcl_registry::model::resolve_environment(name).unit_profile());
+        let mut asm = Asm::new();
+        asm.push("abcd").push("a*").op(Op::IRULE_MATCHES, &[]);
+        let module = tcl_bytecode::ModuleAsm {
+            profile: vm.dialect_profile(),
+            source: tcl_lexer::SourceImage::default(),
+            source_namespace: tcl_runtime_api::ByteNamespacePath::root(),
+            plain_command_dispatch: false,
+            top_level: asm.build(),
+            top_level_body: FunctionAsm::default(),
+            procedures: HashMap::new(),
+            procedure_provenance: HashMap::new(),
+        };
+        assert!(vm.try_run_module(&module).is_err(), "{name}");
+    }
+}
+
+fn run_authored_f5(asm: Asm) -> (Vm, Completion<Value>) {
+    let mut vm = authored_f5_vm();
+    let completion = run_f5_module(&mut vm, asm);
+    (vm, completion)
+}
+
 /// The dialect string tests (`contains` / `starts_with` / `ends_with` /
 /// `equals` / `matches`), both outcomes each. The operands sit on the stack subject-first
 /// with the needle on top — the order `Op::from_binop` codegen pushes a binary
@@ -1151,21 +1204,20 @@ fn irule_string_tests_both_outcomes() {
         // comparison even when both operands look numeric.
         (Op::IRULE_EQUALS, "foobar", "FOOBAR", "0"),
         (Op::IRULE_EQUALS, "1", "1.0", "0"),
-        // The bare `matches`. Row one is the measured appliance cell
-        // (`docs/design/f5/bigip-irule-parser-measurements.md` §4a
-        // `e_matches`: `expr {"abc" matches "abc"}` → `1`); the rest
-        // record the reading the VM takes — a string equality, the one
-        // that measured cell exercises. §12 carries the discriminating
-        // re-probe, and until it is run the compiler refuses to
-        // constant-fold this operator rather than commit a fold to an
-        // unmeasured semantics.
+        // Exact BIG-IP 21.1.0.1 build 0.0.26 wildcard discriminators.
+        (Op::IRULE_MATCHES, "abcd", "a*", "1"),
+        (Op::IRULE_MATCHES, "a*", "a*", "1"),
+        (Op::IRULE_MATCHES, "a*", "abcd", "0"),
+        (Op::IRULE_MATCHES, "abcd", "a.*", "0"),
+        (Op::IRULE_MATCHES, "abcd", "bc", "0"),
+        (Op::IRULE_MATCHES, "abcd", "abcd", "1"),
         (Op::IRULE_MATCHES, "abc", "abc", "1"),
         (Op::IRULE_MATCHES, "foobar", "oob", "0"),
         (Op::IRULE_MATCHES, "foobar", "FOOBAR", "0"),
     ] {
         let mut a = Asm::new();
         a.push(subject).push(operand).op(op, &[]);
-        let (_, c) = run_fresh(a);
+        let (_, c) = run_authored_f5(a);
         assert_eq!(ok_str(&c), want, "{} {subject} {operand}", op.mnemonic());
     }
 }
@@ -1191,7 +1243,7 @@ fn irule_glob_and_regex_matching() {
     ] {
         let mut a = Asm::new();
         a.push(subject).push(pattern).op(op, &[]);
-        let (_, c) = run_fresh(a);
+        let (_, c) = run_authored_f5(a);
         assert_eq!(ok_str(&c), want, "{} {subject} {pattern}", op.mnemonic());
     }
 }
@@ -1311,6 +1363,7 @@ fn irule_word_not_negates_truthiness() {
 fn irule_operators_agree_with_the_core_commands() {
     let mut vm = Vm::new();
     vm.set_compiler(Box::new(compiler::svc()));
+    let mut predicate_vm = authored_f5_vm();
     for (op, subject, operand, cmd) in [
         (
             Op::IRULE_CONTAINS,
@@ -1357,7 +1410,7 @@ fn irule_operators_agree_with_the_core_commands() {
             .to_string();
         let mut a = Asm::new();
         a.push(subject).push(operand).op(op, &[]);
-        let c = run(&mut vm, a);
+        let c = run_f5_module(&mut predicate_vm, a);
         assert_eq!(ok_str(&c), want, "{} vs [{cmd}]", op.mnemonic());
     }
 }

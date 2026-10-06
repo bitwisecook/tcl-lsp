@@ -334,17 +334,21 @@ fn dispatch_signature_handler(
                 ctx,
             );
         }
-        Some(AnalyserHookId::NamespaceImport) => handlers::handle_namespace_import(
+        Some(AnalyserHookId::NamespaceImport) => handlers::handle_namespace_import_in_context(
             texts,
             argv,
             compatibility_namespace,
+            ctx.name_policy(),
+            ctx.namespace_scope.as_ref(),
             dispatch.subcommand,
             &mut ctx.result,
         ),
-        Some(AnalyserHookId::NamespaceForget) => handlers::handle_namespace_forget(
+        Some(AnalyserHookId::NamespaceForget) => handlers::handle_namespace_forget_in_context(
             texts,
             argv,
             compatibility_namespace,
+            ctx.name_policy(),
+            ctx.namespace_scope.as_ref(),
             dispatch.subcommand,
             &mut ctx.result,
         ),

@@ -518,6 +518,7 @@ mod tests {
             invocation_policy: Some(tcl_dialect::DialectProfile::plain_tcl().cache_key()),
             expression_policy: None,
             execution_point: None,
+            execution_name_policy: None,
             name_protocol: None,
             compiled_variable_protocol: None,
             compiled_local_layout: None,

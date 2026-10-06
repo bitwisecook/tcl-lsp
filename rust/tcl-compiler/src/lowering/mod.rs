@@ -908,6 +908,7 @@ pub struct Lowerer<'r> {
     invocation_realm: tcl_dialect::model::InvocationRealm,
     /// Invocation policy snapshot supplied by the driver.
     invocation_dialect: Option<tcl_registry::InvocationDialect>,
+    execution_name_policy: Option<tcl_syntax::naming::ExecutionNamePolicy>,
     compiled_variable_provider:
         Option<tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider>,
     /// Evaluation protocol, independent of the runtime variable frame.
@@ -1182,6 +1183,7 @@ impl<'r> Lowerer<'r> {
             )),
             native_compilation: crate::environment_ingress::authoring_native_compilation(),
             compiled_variable_provider: None,
+            execution_name_policy: None,
             native_entry: None,
             source_channel: tcl_lexer::SourceChannel::Document,
             incoming_formals: Vec::new(),
@@ -1399,6 +1401,7 @@ impl<'r> Lowerer<'r> {
         }
         self.module.plain_command_dispatch = self.target.is_trace_visible();
         self.module.source_entry = crate::command_binding::SourceAnalysisEntry {
+            execution_name_policy: self.execution_name_policy,
             compilation_scope: self.compilation_scope,
             invocation_realm: self.invocation_realm,
             declared_commands: self
@@ -1631,6 +1634,7 @@ impl<'r> Lowerer<'r> {
         self.invocation_dialect = options.source_invocation_dialect(self.config);
         self.native_compilation = options.native_compilation;
         self.compiled_variable_provider = options.compiled_variable_provider;
+        self.execution_name_policy = options.execution_name_policy();
         self.native_entry = options
             .native_entry
             .map(|entry| std::sync::Arc::new(entry.clone()));
@@ -1682,6 +1686,7 @@ impl<'r> Lowerer<'r> {
             self.config,
             self.registry,
             SourceAnalysisOptions {
+                execution_name_policy: self.execution_name_policy,
                 compilation_scope: self.compilation_scope,
                 invocation_realm: self.invocation_realm,
                 declared_commands: self

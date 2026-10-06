@@ -526,19 +526,9 @@ fn resolve_super_name(
         .unwrap_or_else(|| name.to_string())
 }
 
-/// Owner-aware resolution of a written class / superclass / mixin `name` to
-/// a qualified class name, mirroring how Tcl resolves a command: an exact
-/// hit, then `::name`, then a walk **outward from the owning class's
-/// namespace** to the global namespace, and finally — only when the simple
-/// (tail) name is *globally unique* — that single class (the `namespace
-/// import` idiom).  Returns `None` when nothing resolves or the tail is
-/// ambiguous, so callers stay **sound-by-abstention** (never manufacture a
-/// wrong cross-file link).
-///
-/// `is_known` tests membership of a candidate qualified name in the class
-/// universe (a `HashMap`/`HashSet` `contains`); `tail_index` maps each
-/// simple name to the qualified names sharing it — build it once with
-/// [`build_tail_index`] and reuse across many resolutions.
+/// Compatibility assistance for explicitly constructed class graph keys.
+/// Source declarations require original caller lookup receipts instead. This
+/// adapter supplies no native class, provider, import or execution authority.
 pub fn resolve_class_name<S: std::hash::BuildHasher>(
     name: &str,
     owner_qname: &str,
@@ -564,61 +554,138 @@ pub fn resolve_class_name<S: std::hash::BuildHasher>(
             return Some(cand);
         }
     }
-    // Globally-unique simple-name match (the `namespace import` case).
-    //
-    // Tradeoff (deliberate): this can manufacture a *wrong* edge
-    // when `name` refers to a base that isn't in the class universe (e.g. an
-    // external/library class the index never saw) yet exactly one *unrelated*
-    // indexed class happens to share the tail — the fallback then links to
-    // that unrelated class.  We keep it because (a) it is the only thing that
-    // resolves the common `namespace import` idiom where a subclass names a
-    // namespaced base bare (the `SpiceGenTcl` `superclass Device` shape), and
-    // (b) it stays sound-by-abstention on the far more common failure mode: a
-    // tail shared by two or more indexed classes never links (returns `None`).
-    // The precondition — a globally *unique* tail that is nonetheless the
-    // wrong class — is rare in practice.
-    let tail = name.rsplit("::").next().unwrap_or(name);
-    match tail_index.get(tail) {
-        Some(qs) if qs.len() == 1 => Some(qs[0].clone()),
-        _ => None,
-    }
+    // Constructed graph compatibility has no source import/context receipt.
+    let _ = tail_index;
+    None
 }
 
-/// Resolve a class name *as written at a call site* (no owning-class
-/// context — `resolve_class_name` is the owner-aware variant for
-/// superclass / mixin edges) to a key of `classes`: an exact hit, the
-/// global-qualified form of its canonical spelling (colon-run rule),
-/// or — last — the unique class sharing its tail (the `namespace import`
-/// idiom).  `None` when unresolved or the tail is ambiguous, so callers
-/// stay sound-by-abstention.  The single implementation behind the
-/// analyser's method-validation keying and the LSP's definer-head
-/// resolution, so the two cannot drift.
-pub fn resolve_written_class_name<V, S: std::hash::BuildHasher>(
-    name: &str,
-    classes: &HashMap<String, V, S>,
+/// Resolve original source naming against retained class publication slots.
+/// Missing, colliding or foreign-policy records do not establish class identity.
+#[must_use]
+pub fn resolve_class_lookup<S: std::hash::BuildHasher>(
+    lookup: &crate::signature_scan::scope::SignatureSourceLookup,
+    classes: &HashMap<String, ClassDef, S>,
 ) -> Option<String> {
-    if classes.contains_key(name) {
-        return Some(name.to_owned());
+    for candidate in lookup.candidates()? {
+        if classes.values().any(|class| {
+            class.source_name_ambiguous
+                && class.source_name.as_ref().is_some_and(|source| {
+                    source.policy() == lookup.policy() && source.slot() == &candidate
+                })
+        }) {
+            return None;
+        }
+        let mut matches = classes.iter().filter(|(_, class)| {
+            !class.source_name_ambiguous
+                && class.source_name.as_ref().is_some_and(|source| {
+                    source.policy() == lookup.policy() && source.slot() == &candidate
+                })
+        });
+        if let Some((key, _)) = matches.next() {
+            return matches.next().is_none().then(|| key.clone());
+        }
     }
-    let canonical = tcl_syntax::naming::canonical_written_command(name);
-    let qualified = if canonical.starts_with("::") {
-        canonical.clone()
-    } else {
-        format!("::{canonical}")
-    };
-    if classes.contains_key(&qualified) {
-        return Some(qualified);
-    }
-    let tail = name.rsplit("::").next().unwrap_or(name);
-    let mut matches = classes
-        .keys()
-        .filter(|k| tcl_syntax::naming::key_tail(k) == tail);
-    let first = matches.next()?;
-    matches.next().is_none().then_some(first.clone())
+    None
 }
 
-/// Build the simple-name (tail) → qualified-names index that
-/// [`resolve_class_name`] consults for the unique-tail fallback.
+/// Source lookup in an independently supplied original caller context.
+#[must_use]
+pub fn resolve_written_class_name_in_context<S: std::hash::BuildHasher>(
+    name: &str,
+    namespace: &crate::signature_scan::scope::SignatureNamespaceScope,
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+    classes: &HashMap<String, ClassDef, S>,
+) -> Option<String> {
+    let lookup = crate::signature_scan::scope::SignatureSourceLookup::new(
+        policy,
+        namespace.clone(),
+        name.to_owned(),
+    )?;
+    resolve_class_lookup(&lookup, classes)
+}
+
+/// Source query in a retained scope, without guessing a missing object frame.
+#[must_use]
+pub fn resolve_written_class_name_in_scope<S: std::hash::BuildHasher>(
+    name: &str,
+    namespace: &crate::signature_scan::scope::SignatureNamespaceScope,
+    classes: &HashMap<String, ClassDef, S>,
+) -> Option<String> {
+    let policies: HashSet<_> = classes
+        .values()
+        .filter_map(|class| {
+            class
+                .source_name
+                .as_ref()
+                .map(crate::signature_scan::scope::SignatureSourceCommand::policy)
+        })
+        .collect();
+    let mut selected = None;
+    for policy in policies {
+        if let Some(key) = resolve_written_class_name_in_context(name, namespace, policy, classes) {
+            if selected.as_ref().is_some_and(|previous| previous != &key) {
+                return None;
+            }
+            selected = Some(key);
+        }
+    }
+    selected
+}
+
+/// Exact innermost source scope containing a written query position.
+#[must_use]
+pub fn source_namespace_at(
+    scope: &super::types::Scope,
+    offset: u32,
+) -> Option<&crate::signature_scan::scope::SignatureNamespaceScope> {
+    let mut children = scope.children.iter().filter(|child| {
+        child
+            .body_span
+            .is_some_and(|span| span.start() <= offset && offset < span.end())
+    });
+    if let Some(child) = children.next() {
+        if children.next().is_some() {
+            return None;
+        }
+        return source_namespace_at(child, offset);
+    }
+    scope.naming_scope.as_ref()
+}
+
+/// Unpositioned root lookup using retained declaration policies only.
+/// A missing original caller context cannot borrow a globally unique tail.
+#[must_use]
+pub fn resolve_written_class_name<S: std::hash::BuildHasher>(
+    name: &str,
+    classes: &HashMap<String, ClassDef, S>,
+) -> Option<String> {
+    let policies: HashSet<_> = classes
+        .values()
+        .filter_map(|class| {
+            class
+                .source_name
+                .as_ref()
+                .map(crate::signature_scan::scope::SignatureSourceCommand::policy)
+        })
+        .collect();
+    let mut selected = None;
+    for policy in policies {
+        if let Some(key) = resolve_written_class_name_in_context(
+            name,
+            &crate::signature_scan::scope::SignatureNamespaceScope::root(Some(policy)),
+            policy,
+            classes,
+        ) {
+            if selected.as_ref().is_some_and(|previous| previous != &key) {
+                return None;
+            }
+            selected = Some(key);
+        }
+    }
+    selected
+}
+
+/// Presentation-only simple-name index; it grants no class lookup authority.
 pub fn build_tail_index<'a>(
     qnames: impl Iterator<Item = &'a String>,
 ) -> HashMap<String, Vec<String>> {
@@ -640,18 +707,24 @@ fn build_supers_mixins_maps(
 ) -> (HashMap<String, Vec<String>>, HashMap<String, Vec<String>>) {
     let mut supers_map: HashMap<String, Vec<String>> = HashMap::new();
     let mut mixins_map: HashMap<String, Vec<String>> = HashMap::new();
-    // tail (simple name) → qualified class names sharing it.
-    let tail_index = build_tail_index(classes.keys());
-    let normalise = |owner: &str, names: &[String]| -> Vec<String> {
-        names
-            .iter()
-            .map(|p| resolve_super_name(p, owner, classes, &tail_index))
-            .collect()
-    };
-    for (qname, cd) in classes {
-        supers_map.insert(qname.clone(), normalise(qname, &cd.superclasses));
-        if !cd.mixins.is_empty() {
-            mixins_map.insert(qname.clone(), normalise(qname, &cd.mixins));
+    for (qname, class) in classes {
+        let normalise = |names: &[String]| -> Vec<String> {
+            names
+                .iter()
+                .map(|written| match class.relation_lookups.get(written) {
+                    Some(Some(lookup)) => resolve_class_lookup(lookup, classes)
+                        .unwrap_or_else(|| format!("@unresolvedclass@{qname} {written}")),
+                    Some(None) => format!("@unresolvedclass@{qname} {written}"),
+                    None if class.source_name.is_none() => {
+                        resolve_super_name(written, qname, classes, &HashMap::new())
+                    }
+                    None => format!("@unresolvedclass@{qname} {written}"),
+                })
+                .collect()
+        };
+        supers_map.insert(qname.clone(), normalise(&class.superclasses));
+        if !class.mixins.is_empty() {
+            mixins_map.insert(qname.clone(), normalise(&class.mixins));
         }
     }
     (supers_map, mixins_map)
@@ -1463,17 +1536,15 @@ mod tests {
         assert_eq!(got.as_deref(), Some("::Base"));
     }
 
-    /// TP (regression guard): the cross-file `namespace import` idiom — a
-    /// subclass names a namespaced base bare when the base is unique — still
-    /// links via the sound-by-abstention unique-tail fallback.
+    /// A globally unique tail supplies no retained import or caller receipt.
     #[test]
-    fn superclass_cross_file_unique_tail_links() {
+    fn superclass_cross_file_unique_tail_withdraws() {
         let got = resolve_from(
             "Device",
             "::spice::sub::Sub",
             &["::spice::Device", "::spice::sub::Sub"],
         );
-        assert_eq!(got.as_deref(), Some("::spice::Device"));
+        assert_eq!(got, None);
     }
 
     /// TN: an absolute `::`-qualified name is taken exactly.
@@ -1481,5 +1552,90 @@ mod tests {
     fn superclass_absolute_name_is_exact() {
         let got = resolve_from("::a::Base", "::x::Sub", &["::a::Base", "::x::Sub"]);
         assert_eq!(got.as_deref(), Some("::a::Base"));
+    }
+}
+
+#[cfg(test)]
+mod source_naming_tests {
+    use super::*;
+    use crate::signature_scan::scope::{
+        SignatureNamespaceScope, SignatureSourceCommand, SignatureSourceLookup,
+    };
+    use tcl_syntax::naming::NamePolicyProtocol;
+
+    fn source_class(
+        policy: NamePolicyProtocol,
+        scope: &SignatureNamespaceScope,
+        written: &str,
+    ) -> ClassDef {
+        ClassDef {
+            source_name: SignatureSourceCommand::object_in_context(policy, scope, written),
+            ..ClassDef::default()
+        }
+    }
+
+    #[test]
+    fn class_lookup_requires_original_context_and_does_not_borrow_unique_tail() {
+        let policy = NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6);
+        let root = SignatureNamespaceScope::root(Some(policy));
+        let left = root.child("left", Some(policy)).unwrap();
+        let right = root.child("right", Some(policy)).unwrap();
+        let classes = HashMap::from([(
+            "::left::Base".to_owned(),
+            source_class(policy, &left, "Base"),
+        )]);
+        assert_eq!(
+            resolve_written_class_name_in_context("Base", &left, policy, &classes).as_deref(),
+            Some("::left::Base")
+        );
+        assert_eq!(
+            resolve_written_class_name_in_context("Base", &right, policy, &classes),
+            None
+        );
+        assert_eq!(resolve_written_class_name("Base", &classes), None);
+        let caller = SignatureSourceLookup::new(policy, left, "Base".to_owned()).unwrap();
+        assert_eq!(
+            resolve_class_lookup(&caller, &classes).as_deref(),
+            Some("::left::Base")
+        );
+        assert!(
+            SignatureSourceLookup::new(
+                NamePolicyProtocol::authored_jim084(),
+                right,
+                "Base".to_owned()
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn class_report_collisions_withdraw_instead_of_selecting_another_slot() {
+        let policy = NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6);
+        let root = SignatureNamespaceScope::root(Some(policy));
+        let left = root
+            .child("a:", Some(policy))
+            .unwrap()
+            .child("b", Some(policy))
+            .unwrap();
+        let right = root
+            .child("a", Some(policy))
+            .unwrap()
+            .child(":b", Some(policy))
+            .unwrap();
+        assert_eq!(left.display(), right.display());
+        let mut result = super::super::types::AnalysisResult::default();
+        result.retain_class_declaration(
+            "::a:::b::Base".to_owned(),
+            source_class(policy, &left, "Base"),
+        );
+        result.retain_class_declaration(
+            "::a:::b::Base".to_owned(),
+            source_class(policy, &right, "Base"),
+        );
+        assert!(result.all_classes["::a:::b::Base"].source_name_ambiguous);
+        assert_eq!(
+            resolve_written_class_name_in_context("Base", &right, policy, &result.all_classes),
+            None
+        );
     }
 }

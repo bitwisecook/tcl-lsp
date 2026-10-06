@@ -80,7 +80,6 @@ use crate::source_graph::RunPoint;
 use crate::workspace_symbols::{
     IndexedWorkspaceSymbol, WorkspaceSymbolKind, matches_query, namespace_of,
 };
-use tcl_compiler::analyser::class_hierarchy::{build_tail_index, resolve_class_name};
 use tcl_compiler::analyser::{AnalysisResult, MemberRetractionRecord, MemberSide};
 use tcl_lexer::Span;
 use tcl_syntax::naming::{key_holder_and_tail, root_unrooted_key, unroot_rooted_key};
@@ -88,6 +87,8 @@ use tcl_syntax::naming::{key_holder_and_tail, root_unrooted_key, unroot_rooted_k
 /// One proc definition recorded in the workspace index.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspaceProc {
+    /// Exact original command publication receipt; report keys grant no identity.
+    pub source_name: Option<tcl_compiler::signature_scan::scope::SignatureSourceCommand>,
     /// Document the proc is defined in (the `analyses` map key).
     pub uri: String,
     /// Simple (tail) name, e.g. `greet`.
@@ -126,6 +127,15 @@ pub struct WorkspaceProc {
 /// One class definition recorded in the workspace index.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspaceClass {
+    /// Original object-command publication and relation lookup receipts.
+    pub source_name: Option<tcl_compiler::signature_scan::scope::SignatureSourceCommand>,
+    /// Whether declaration reports collide across distinct retained source slots.
+    pub source_name_ambiguous: bool,
+    /// Original caller contexts for superclass and mixin name lookups.
+    pub relation_lookups: std::collections::HashMap<
+        String,
+        Option<tcl_compiler::signature_scan::scope::SignatureSourceLookup>,
+    >,
     /// Document the class is defined in.
     pub uri: String,
     /// Simple (tail) name.
@@ -599,7 +609,7 @@ pub struct WorkspaceVariableAlias {
 
 /// One occurrence of a word naming a **namespace**, recorded workspace-wide —
 /// the cross-document half of the namespace tier, lifted verbatim from
-/// [`tcl_compiler::analyser::NamespaceRef`].
+/// [`tcl_compiler::analyser::types::NamespaceRef`].
 ///
 /// One table, not two, because a namespace's declaring site *is* one of its
 /// spellings: the `::tomato` of `namespace eval ::tomato { … }` is both the
@@ -613,6 +623,8 @@ pub struct WorkspaceVariableAlias {
 /// spellable from any document.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspaceNamespaceRef {
+    /// Original source operand and independently retained geometry.
+    pub source: tcl_compiler::analyser::types::NamespaceRef,
     /// Document the occurrence is in.
     pub uri: String,
     /// `::`-rooted namespace the occurrence names.
@@ -840,6 +852,8 @@ pub struct WorkspaceCommandLink {
 /// to be installed at all — see [`WorkspaceCommandLink::import_gate`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspaceImportGate {
+    /// Exact original selected namespace geometry; never parsed from its display.
+    pub native_source: Option<tcl_syntax::naming::NativeNamespacePatternSource>,
     /// The pattern's source namespace, with leading `::` (`::src` for
     /// `::src::p`).
     pub source_ns: String,
@@ -869,6 +883,8 @@ pub struct WorkspaceImportGate {
 /// why an exact pattern still takes the `WorkspaceCommandLink` path.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspaceGlobImport {
+    /// Exact original selected namespace geometry; never parsed from its display.
+    pub native_source: Option<tcl_syntax::naming::NativeNamespacePatternSource>,
     /// Document the `namespace import` is in.
     pub uri: String,
     /// Importing namespace, with leading `::` — the namespace a bare call
@@ -1393,6 +1409,7 @@ impl DocumentRecords {
         // records take effect in when the file is sourced.
         for proc_def in sorted_by_span(analysis.all_procs.values(), |p| p.name_span) {
             self.procs.push(WorkspaceProc {
+                source_name: proc_def.source_name.clone(),
                 uri: uri.to_owned(),
                 name: proc_def.name.clone(),
                 qualified_name: proc_def.qualified_name.clone(),
@@ -1542,6 +1559,9 @@ impl DocumentRecords {
                     )
                     .collect();
             self.classes.push(WorkspaceClass {
+                source_name: class_def.source_name.clone(),
+                source_name_ambiguous: class_def.source_name_ambiguous,
+                relation_lookups: class_def.relation_lookups.clone(),
                 uri: uri.to_owned(),
                 name: class_def.name.clone(),
                 qualified_name: class_def.qualified_name.clone(),
@@ -1654,6 +1674,7 @@ impl DocumentRecords {
     fn index_namespace_refs(&mut self, uri: &str, analysis: &AnalysisResult) {
         for nref in &analysis.namespace_refs {
             self.namespace_refs.push(WorkspaceNamespaceRef {
+                source: nref.clone(),
                 uri: uri.to_owned(),
                 qualified_name: nref.qualified_name.clone(),
                 span: nref.span,
@@ -1679,6 +1700,7 @@ impl DocumentRecords {
             };
             if source.tail_pattern.contains(['*', '?', '[']) {
                 self.glob_imports.push(WorkspaceGlobImport {
+                    native_source: source.native_source.clone(),
                     uri: uri.to_owned(),
                     ns: imp.ns.clone(),
                     source_ns: source.namespace.clone(),
@@ -1711,6 +1733,7 @@ impl DocumentRecords {
                 (!imp.conjectured)
                     .then_some(source_ns)
                     .map(|source_ns| WorkspaceImportGate {
+                        native_source: source.native_source.clone(),
                         source_ns: global_rooted(source_ns).to_owned(),
                         name: tail.clone(),
                         at: imp.range.start(),
@@ -2629,6 +2652,55 @@ impl WorkspaceIndex {
         }
     }
 
+    fn import_source_matches(
+        &self,
+        report: &str,
+        source: Option<&tcl_syntax::naming::NativeNamespacePatternSource>,
+        name: &str,
+    ) -> bool {
+        use tcl_syntax::naming::{NativeNameProtocol, NativeNamespacePatternSource};
+        let Some(source) = source else { return false };
+        let declarations: Vec<_> = self
+            .procs()
+            .filter(|p| p.qualified_name == report)
+            .map(|p| p.source_name.as_ref())
+            .chain(
+                self.classes()
+                    .filter(|c| c.qualified_name == report)
+                    .map(|c| {
+                        if c.source_name_ambiguous {
+                            None
+                        } else {
+                            c.source_name.as_ref()
+                        }
+                    }),
+            )
+            .collect();
+        !declarations.is_empty()
+            && declarations.into_iter().all(|receipt| {
+                receipt.is_some_and(|receipt| {
+                    let slot = receipt.slot();
+                    match (source, receipt.policy().recipe()) {
+                        (NativeNamespacePatternSource::C(namespace), NativeNameProtocol::C(_)) => {
+                            &slot.namespace == namespace
+                                && slot.simple.as_bytes() == name.as_bytes()
+                        }
+                        (
+                            NativeNamespacePatternSource::Jim(namespace),
+                            NativeNameProtocol::Jim084,
+                        ) => {
+                            let recipe = receipt.policy().recipe();
+                            recipe.namespace_qualifier_bytes(slot.simple.as_bytes())
+                                == namespace.as_bytes()
+                                && recipe.namespace_tail_bytes(slot.simple.as_bytes())
+                                    == name.as_bytes()
+                        }
+                        _ => false,
+                    }
+                })
+            })
+    }
+
     /// The command name-links that are actually installed — every `interp
     /// alias` / `rename` link, plus each exact `namespace import` link whose
     /// [`WorkspaceCommandLink::import_gate`] its source namespace's export
@@ -2658,6 +2730,15 @@ impl WorkspaceIndex {
             self.command_links()
                 .map(|l| {
                     l.import_gate.as_ref().is_none_or(|g| {
+                        if self.defines_command(&l.target_qname)
+                            && !self.import_source_matches(
+                                &l.target_qname,
+                                g.native_source.as_ref(),
+                                &g.name,
+                            )
+                        {
+                            return false;
+                        }
                         if !observable
                             .contains(unroot_rooted_key(&g.source_ns).unwrap_or(&g.source_ns))
                         {
@@ -3259,20 +3340,39 @@ impl WorkspaceIndex {
             .collect()
     }
 
-    /// The `(qualified-name set, tail index)` over every indexed class —
-    /// the inputs [`resolve_class_name`] needs, built once per query so
-    /// owner-aware resolution is O(1) membership rather than a linear scan
-    /// per candidate.
-    fn class_name_universe(
-        &self,
-    ) -> (
-        std::collections::HashSet<&str>,
-        std::collections::HashMap<String, Vec<String>>,
-    ) {
-        let known: std::collections::HashSet<&str> =
-            self.classes().map(|c| c.qualified_name.as_str()).collect();
-        let tail_index = build_tail_index(self.classes().map(|c| &c.qualified_name));
-        (known, tail_index)
+    fn resolve_class_relation(&self, owner: &WorkspaceClass, written: &str) -> Option<String> {
+        let lookup = owner.relation_lookups.get(written)?.as_ref()?;
+        for candidate in lookup.candidates()? {
+            let mut reports = self
+                .classes()
+                .filter(|c| {
+                    !c.source_name_ambiguous
+                        && c.source_name.as_ref().is_some_and(|source| {
+                            source.policy() == lookup.policy() && source.slot() == &candidate
+                        })
+                })
+                .map(|c| c.qualified_name.as_str());
+            let Some(report) = reports.next() else {
+                continue;
+            };
+            if reports.any(|other| other != report) {
+                return None;
+            }
+            if self
+                .classes()
+                .filter(|c| c.qualified_name == report)
+                .any(|c| {
+                    c.source_name_ambiguous
+                        || c.source_name.as_ref().is_none_or(|source| {
+                            source.policy() != lookup.policy() || source.slot() != &candidate
+                        })
+                })
+            {
+                return None;
+            }
+            return Some(report.to_owned());
+        }
+        None
     }
 
     /// The owner-aware direct parents (superclasses + mixins) of `qname`,
@@ -3282,18 +3382,12 @@ impl WorkspaceIndex {
     /// being hidden when such a stub happens to be the first match (without
     /// the union the parent walk picks an arbitrary duplicate and silently
     /// drops the hierarchy).
-    fn resolved_parents_of(
-        &self,
-        qname: &str,
-        known: &std::collections::HashSet<&str>,
-        tail_index: &std::collections::HashMap<String, Vec<String>>,
-    ) -> Vec<String> {
+    fn resolved_parents_of(&self, qname: &str) -> Vec<String> {
         let mut out: Vec<String> = Vec::new();
         let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
         for c in self.classes().filter(|c| c.qualified_name == qname) {
             for s in c.superclasses.iter().chain(c.mixins.iter()) {
-                if let Some(p) =
-                    resolve_class_name(s, qname, |cand| known.contains(cand), tail_index)
+                if let Some(p) = self.resolve_class_relation(c, s)
                     && seen.insert(p.clone())
                 {
                     out.push(p);
@@ -3310,16 +3404,10 @@ impl WorkspaceIndex {
     /// cross-file **supertype** resolution.
     #[must_use]
     pub fn supertype_classes<'a>(&'a self, wc: &WorkspaceClass) -> Vec<&'a WorkspaceClass> {
-        let (known, tail_index) = self.class_name_universe();
         let mut out: Vec<&WorkspaceClass> = Vec::new();
         let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
         for name in wc.superclasses.iter().chain(wc.mixins.iter()) {
-            let Some(q) = resolve_class_name(
-                name,
-                &wc.qualified_name,
-                |cand| known.contains(cand),
-                &tail_index,
-            ) else {
+            let Some(q) = self.resolve_class_relation(wc, name) else {
                 continue;
             };
             if !seen.insert(q.clone()) {
@@ -3337,19 +3425,12 @@ impl WorkspaceIndex {
     /// resolution.
     #[must_use]
     pub fn subclasses_of<'a>(&'a self, class_qname: &str) -> Vec<&'a WorkspaceClass> {
-        let (known, tail_index) = self.class_name_universe();
         self.classes()
             .filter(|c| {
-                c.superclasses.iter().chain(c.mixins.iter()).any(|s| {
-                    resolve_class_name(
-                        s,
-                        &c.qualified_name,
-                        |cand| known.contains(cand),
-                        &tail_index,
-                    )
-                    .as_deref()
-                        == Some(class_qname)
-                })
+                c.superclasses
+                    .iter()
+                    .chain(c.mixins.iter())
+                    .any(|s| self.resolve_class_relation(c, s).as_deref() == Some(class_qname))
             })
             .collect()
     }
@@ -3393,7 +3474,6 @@ impl WorkspaceIndex {
     /// [`Self::subclass_provided_methods`] for what per-call rebuilding costs
     /// the diagnostics worker).
     fn class_edges(&self) -> ClassEdges {
-        let (known, tail_index) = self.class_name_universe();
         // Build the resolved edge maps over the classes reachable from
         // `class_q` (bounded: every indexed class at worst).
         let mut supers_map: std::collections::HashMap<String, Vec<String>> =
@@ -3402,9 +3482,7 @@ impl WorkspaceIndex {
             std::collections::HashMap::new();
         for c in self.classes() {
             let owner = c.qualified_name.as_str();
-            let resolve = |name: &str| {
-                resolve_class_name(name, owner, |cand| known.contains(cand), &tail_index)
-            };
+            let resolve = |name: &str| self.resolve_class_relation(c, name);
             let supers = supers_map.entry(owner.to_owned()).or_default();
             for s in c.superclasses.iter().filter_map(|s| resolve(s)) {
                 if !supers.contains(&s) {
@@ -3449,16 +3527,13 @@ impl WorkspaceIndex {
     pub fn subclass_provided_methods(
         &self,
     ) -> std::collections::BTreeMap<String, std::collections::BTreeSet<String>> {
-        let (known, tail_index) = self.class_name_universe();
         let mut supers_map: std::collections::HashMap<String, Vec<String>> =
             std::collections::HashMap::new();
         let mut mixins_map: std::collections::HashMap<String, Vec<String>> =
             std::collections::HashMap::new();
         for c in self.classes() {
             let owner = c.qualified_name.as_str();
-            let resolve = |name: &str| {
-                resolve_class_name(name, owner, |cand| known.contains(cand), &tail_index)
-            };
+            let resolve = |name: &str| self.resolve_class_relation(c, name);
             let supers = supers_map.entry(owner.to_owned()).or_default();
             for s in c.superclasses.iter().filter_map(|s| resolve(s)) {
                 if !supers.contains(&s) {
@@ -3983,8 +4058,7 @@ impl WorkspaceIndex {
         }
         let family_set: std::collections::HashSet<&str> =
             family.iter().map(String::as_str).collect();
-        let (known, tail_index) = self.class_name_universe();
-        let parents = |qname: &str| self.resolved_parents_of(qname, &known, &tail_index);
+        let parents = |qname: &str| self.resolved_parents_of(qname);
         let defines = |qname: &str| {
             self.classes()
                 .any(|c| c.qualified_name == qname && c.defines_method(method))
@@ -4025,11 +4099,10 @@ impl WorkspaceIndex {
     /// defined nor inherited from any indexed class reachable from
     /// `seed_class`.
     fn method_family_qnames(&self, seed_class: &str, method: &str) -> Vec<String> {
-        let (known, tail_index) = self.class_name_universe();
         // Owner-aware direct parents (superclasses + mixins) of each class,
         // unioned across every indexed definition (a cross-file `oo::define`
         // stub must not hide the real class's parents).
-        let parents = |qname: &str| self.resolved_parents_of(qname, &known, &tail_index);
+        let parents = |qname: &str| self.resolved_parents_of(qname);
         // `parent` is a (transitive) ancestor of `child`.
         let is_ancestor = |child: &str, parent: &str| -> bool {
             let mut stack = parents(child);
@@ -4338,6 +4411,21 @@ impl WorkspaceIndex {
         self.docs.iter().flat_map(|doc| doc.namespace_refs.iter())
     }
 
+    /// Exact retained namespace selected from all indexed source receipts.
+    #[must_use]
+    pub fn retained_namespace(
+        &self,
+        report: &str,
+    ) -> Option<(
+        tcl_compiler::signature_scan::scope::SignatureNamespaceScope,
+        tcl_syntax::naming::NamePolicyProtocol,
+    )> {
+        crate::namespace_symbol::retained_namespace_from_refs(
+            self.namespace_refs().map(|row| &row.source),
+            report,
+        )
+    }
+
     /// **Declaring** sites of the namespace `qualified_name` — the name word
     /// of each `namespace eval` block that creates or extends it — excluding
     /// any in `exclude_uri` (pass `""` to exclude nothing).
@@ -4356,10 +4444,15 @@ impl WorkspaceIndex {
         qualified_name: &str,
         exclude_uri: &str,
     ) -> Vec<&'a WorkspaceNamespaceRef> {
-        let target = unroot_rooted_key(qualified_name).unwrap_or(qualified_name);
+        let Some((scope, policy)) = self.retained_namespace(qualified_name) else {
+            return Vec::new();
+        };
         self.namespace_refs()
             .filter(|n| n.declares && n.uri != exclude_uri)
-            .filter(|n| unroot_rooted_key(&n.qualified_name).unwrap_or(&n.qualified_name) == target)
+            .filter(|n| {
+                n.source.source_namespace.as_ref() == Some(&scope)
+                    && n.source.name_policy == Some(policy)
+            })
             .collect()
     }
 
@@ -4383,20 +4476,22 @@ impl WorkspaceIndex {
         qualified_name: &str,
         exclude_uri: &str,
     ) -> Vec<&'a WorkspaceNamespaceRef> {
-        // The global namespace is created by the interpreter, not by any
-        // block, so it has no implicit creator — the same bound the
-        // in-document tier keeps.  Without it every declaring row in the
-        // workspace would count as creating `::`.
-        if qualified_name == "::" || qualified_name.is_empty() {
+        let Some((scope, policy)) = self.retained_namespace(qualified_name) else {
             return Vec::new();
-        }
+        };
         self.namespace_refs()
             .filter(|n| n.declares && n.uri != exclude_uri)
             .filter(|n| {
-                crate::namespace_symbol::namespace_strictly_contains(
+                n.source.name_policy == Some(policy)
+                    && n.source.source_namespace.as_ref() != Some(&scope)
+            })
+            .filter(|n| {
+                crate::namespace_symbol::retained_namespace_from_refs(
+                    std::iter::once(&n.source),
                     qualified_name,
-                    &n.qualified_name,
                 )
+                .as_ref()
+                    == Some(&(scope.clone(), policy))
             })
             .collect()
     }
@@ -4410,10 +4505,15 @@ impl WorkspaceIndex {
         qualified_name: &str,
         exclude_uri: &str,
     ) -> Vec<&'a WorkspaceNamespaceRef> {
-        let target = unroot_rooted_key(qualified_name).unwrap_or(qualified_name);
+        let Some((scope, policy)) = self.retained_namespace(qualified_name) else {
+            return Vec::new();
+        };
         self.namespace_refs()
             .filter(|n| !n.declares && n.uri != exclude_uri)
-            .filter(|n| unroot_rooted_key(&n.qualified_name).unwrap_or(&n.qualified_name) == target)
+            .filter(|n| {
+                n.source.source_namespace.as_ref() == Some(&scope)
+                    && n.source.name_policy == Some(policy)
+            })
             .collect()
     }
 
@@ -5074,6 +5174,11 @@ impl WorkspaceIndex {
         // stable source order breaks the tie.
         imports
             .admitting(word)
+            .filter(|row| {
+                let target = tcl_syntax::naming::qualify(&row.imp.source_ns, word);
+                !self.workspace_command_exists(&target)
+                    || self.import_source_matches(&target, row.imp.native_source.as_ref(), word)
+            })
             .filter(|row| {
                 let target = tcl_syntax::naming::qualify(ns, word);
                 row.imp.forced

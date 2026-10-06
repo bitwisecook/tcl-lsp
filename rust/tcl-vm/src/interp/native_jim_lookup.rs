@@ -88,6 +88,9 @@ impl native_name_world::NativeNameWorld {
 
 impl Vm {
     pub(crate) fn uses_native_jim_lookup(&self) -> bool {
+        if self.observed_name_policy_selected() {
+            return false;
+        }
         self.name_policy_protocol().is_some_and(|policy| {
             policy.authority() == tcl_syntax::naming::NamePolicyAuthority::Native
                 && policy.recipe().is_jim084()

@@ -61,6 +61,7 @@ mod authored_math;
 mod authored_package;
 mod authored_rule_callables;
 mod authored_tmm_static;
+mod execution_name_policy;
 pub(crate) mod jim_local;
 mod jim_teardown;
 mod native_append;
@@ -1046,6 +1047,7 @@ struct NativeErrorState {
     native_return_options: Option<Value>,
     native_c_return_state: NativeCReturnState,
     native_error_legacy_copy: bool,
+    c84_global_code_set: bool,
     /// Primitive interpreter error-code state, separate from guest globals.
     /// None is the fresh interpreter's native NONE state.
     primitive_error_code: Option<Value>,
@@ -1070,6 +1072,7 @@ impl Default for NativeErrorState {
             native_return_options: None,
             native_c_return_state: NativeCReturnState::default(),
             native_error_legacy_copy: false,
+            c84_global_code_set: false,
             primitive_error_code: None,
             error_logged: false,
             error_stack: NativeErrorStack::default(),
@@ -1185,6 +1188,8 @@ pub struct InterpState {
     native_execution_booleans: Option<[Value; 2]>,
     jim_teardown_started: bool,
     logical_providers: LogicalProviders,
+    observed_names: Option<execution_name_policy::ObservedNameSelection>,
+    observed_frame_storage: Option<execution_name_policy::ObservedFrameStorage>,
     authored_math: Option<authored_math::AuthoredMathState>,
     /// The availability registry for [`Self::command_surface_profile`] —
     /// its environment's registry generation, resolved once at pin time
@@ -1633,6 +1638,7 @@ pub(crate) struct ParkedFlow {
     native_return_options: Option<Value>,
     native_c_return_state: NativeCReturnState,
     native_error_legacy_copy: bool,
+    c84_global_code_set: bool,
     /// Primitive interpreter error-code state, separate from guest globals.
     /// None is the fresh interpreter's native NONE state.
     primitive_error_code: Option<Value>,
@@ -2936,11 +2942,18 @@ impl InterpState {
         &self,
         value: &Value,
     ) -> Result<Rc<[u8]>, tcl_syntax::native_string::NativeStringUnavailable> {
+        if !value.native_object_is_live() {
+            return Err(tcl_syntax::native_string::NativeStringUnavailable::StringUpdater);
+        }
+        if let Some(bytes) = value.resident_string_bytes() {
+            return Ok(bytes);
+        }
         let protocol = self
-            .name_policy_protocol()
+            .actual_native_invocation_dialect()
+            .native_string_protocol()
             .ok_or(tcl_syntax::native_string::NativeStringUnavailable::ProtocolUnavailable)?;
         value.native_string_bytes_with_integer_formatter(
-            protocol.string_protocol(),
+            protocol,
             self.host.native_integer_formatter(),
         )
     }
@@ -3129,6 +3142,8 @@ impl InterpState {
             native_execution_booleans: None,
             jim_teardown_started: false,
             logical_providers: LogicalProviders::default(),
+            observed_names: None,
+            observed_frame_storage: None,
             authored_math: None,
             command_surface_point: Some(environment.surface),
             profile_registry: None,
@@ -10231,14 +10246,11 @@ impl Vm {
             && (path.is_empty() || self.name_world.borrow().namespaces.contains(path))
     }
 
-    /// Whether the exact namespace token is currently being torn down.
-    pub(crate) fn namespace_is_dying(&self, ns: &str) -> bool {
-        let path = NamespacePath::from_segments(tcl_syntax::naming::key_segments(ns));
-        self.name_world
-            .borrow()
-            .ns_intern
-            .get(&path)
-            .is_some_and(|id| self.name_world.borrow().dying_namespaces.contains(id))
+    /// Whether this entered namespace token is deleted or being torn down.
+    /// A same-spelled recreation owns a different token and lifetime.
+    pub(crate) fn namespace_token_is_dying(&self, namespace: NsId) -> bool {
+        let world = self.name_world.borrow();
+        world.dying_namespaces.contains(&namespace) || world.dead_namespaces.contains(&namespace)
     }
 
     /// Whether `ns` lies at or below a namespace whose token is currently
@@ -12839,6 +12851,11 @@ impl Vm {
         command: Value,
         old_style: bool,
     ) {
+        if self.observed_names.is_some() {
+            let _ = self
+                .refuse_host_command("observed variable trace registration is unavailable".into());
+            return;
+        }
         if self.registered_trace_cell_bytes(name).is_none() {
             let _ = self.ensure_trace_variable_bytes(name);
         }
@@ -12871,6 +12888,11 @@ impl Vm {
         &mut self,
         original: &[u8],
     ) -> Result<(), Completion<Value>> {
+        if self.observed_names.is_some() {
+            return Err(
+                self.refuse_host_command("observed variable trace operation is unavailable".into())
+            );
+        }
         let Some(policy) = self.name_policy_protocol() else {
             return Err(
                 self.refuse_host_command("native variable trace name policy is unavailable".into())
@@ -13599,6 +13621,13 @@ impl Vm {
         &mut self,
         name: &[u8],
     ) -> Result<Option<Value>, Completion<Value>> {
+        if self.observed_names.is_some() {
+            return self
+                .observed_variable_get(name, self.current_level())
+                .map_err(|_| {
+                    self.refuse_host_command("observed variable storage is unavailable".into())
+                });
+        }
         if self.name_policy_protocol().is_none() {
             return Err(
                 self.refuse_host_command("native variable name policy is unavailable".into())
@@ -13637,6 +13666,22 @@ impl Vm {
         root: &[u8],
         element: Option<&[u8]>,
     ) -> Result<Value, Completion<Value>> {
+        if self.observed_name_policy_selected() {
+            if element.is_some() {
+                return Err(self.refuse_host_command(
+                    "observed separate variable input is unavailable".into(),
+                ));
+            }
+            return match self.observed_variable_get(root, self.current_level()) {
+                Ok(Some(value)) => Ok(value),
+                Ok(None) => Err(self.refuse_host_command(
+                    "observed missing variable completion is unavailable".into(),
+                )),
+                Err(error) => Err(self.refuse_host_command(format!(
+                    "observed variable storage is unavailable: {error}"
+                ))),
+            };
+        }
         use tcl_syntax::naming::{
             NativeVariableFailureSite as Site, NativeVariableInputForm as Input,
         };
@@ -13853,6 +13898,17 @@ impl Vm {
     }
 
     pub(crate) fn exists_var_traced_bytes(&mut self, name: &[u8]) -> bool {
+        if self.observed_name_policy_selected() {
+            return match self.observed_variable_exists(name, self.current_level()) {
+                Ok(found) => found,
+                Err(error) => {
+                    self.refuse_host_command(format!(
+                        "observed variable storage is unavailable: {error}"
+                    ));
+                    false
+                }
+            };
+        }
         let cell = self.trace_cell_bytes(name).and_then(|cell| cell.id);
         let _ = self.fire_var_traces_from_cell_bytes(name, "read", None, None, None);
         cell.map_or_else(
@@ -13989,6 +14045,9 @@ impl Vm {
             Ok(target) => target,
             Err(error) => return crate::command::completion_from_cmd_error(self, error.into()),
         };
+        if self.observed_name_policy_selected() {
+            return operation(self, &target);
+        }
         let id = target.cell_id();
         let protected_binding = id.and_then(|id| self.array_operation_binding(id));
         if let Some(id) = id {
@@ -14242,7 +14301,11 @@ impl Vm {
             }
             self.active_traces.push(id);
         }
+        let global_error_flags = self.capture_native_global_error_flags();
         let r = self.fire_var_traces_inner(invocation, &cell, array_active, taken);
+        if r.is_ok() {
+            self.restore_native_global_error_flags(global_error_flags);
+        }
         if let Some(id) = cell.id {
             let popped = self.active_traces.pop();
             debug_assert_eq!(popped, Some(id));
@@ -14301,6 +14364,11 @@ impl Vm {
         cell: &VarTraceCell,
         policy: tcl_syntax::naming::NamePolicyProtocol,
     ) -> Result<(Completion<Value>, Option<Value>), Completion<Value>> {
+        if self.observed_names.is_some() {
+            return Err(
+                self.refuse_host_command("observed variable trace operation is unavailable".into())
+            );
+        }
         let VarTraceInvocation {
             op,
             reported: (name1, elem),
@@ -15509,6 +15577,10 @@ impl Vm {
             &mut p.native_error_legacy_copy,
         );
         std::mem::swap(
+            &mut self.native_errors.c84_global_code_set,
+            &mut p.c84_global_code_set,
+        );
+        std::mem::swap(
             &mut self.native_errors.primitive_error_code,
             &mut p.primitive_error_code,
         );
@@ -15654,6 +15726,11 @@ impl Vm {
         level: usize,
         target: &[u8],
     ) -> Result<(), UpvarLinkError> {
+        if self.observed_names.is_some() {
+            let _ =
+                self.refuse_host_command("observed variable link operation is unavailable".into());
+            return Err(UpvarLinkError::TargetNamespace);
+        }
         let protocol = self
             .name_policy_protocol()
             .ok_or(UpvarLinkError::TargetNamespace)?
@@ -15731,6 +15808,10 @@ impl Vm {
         target: &str,
         origin: FrameLinkOrigin,
     ) -> Result<(), UpvarLinkError> {
+        if self.observed_name_policy_selected() {
+            self.refuse_host_command("observed variable link purpose is unavailable".into());
+            return Err(UpvarLinkError::TargetNamespace);
+        }
         if self.dialect_profile().variable_link_binding()
             == Some(tcl_dialect::VariableLinkBinding::SelectedFrameName)
             && origin == FrameLinkOrigin::Ordinary
@@ -15860,6 +15941,11 @@ impl Vm {
         local: &[u8],
         compiled_binding: Option<&VarBinding>,
     ) -> Result<(), UpvarLinkError> {
+        if self.observed_names.is_some() {
+            let _ =
+                self.refuse_host_command("observed variable link operation is unavailable".into());
+            return Err(UpvarLinkError::TargetNamespace);
+        }
         let protocol = self
             .name_policy_protocol()
             .ok_or(UpvarLinkError::TargetNamespace)?
@@ -15926,6 +16012,11 @@ impl Vm {
         local: &[u8],
         compiled_binding: Option<&VarBinding>,
     ) -> Result<(), UpvarLinkError> {
+        if self.observed_names.is_some() {
+            let _ =
+                self.refuse_host_command("observed variable link operation is unavailable".into());
+            return Err(UpvarLinkError::TargetNamespace);
+        }
         let protocol = self
             .name_policy_protocol()
             .ok_or(UpvarLinkError::TargetNamespace)?
@@ -15963,6 +16054,11 @@ impl Vm {
         owner_is_proc: bool,
         local: &[u8],
     ) -> Result<(), UpvarLinkError> {
+        if self.observed_names.is_some() {
+            let _ =
+                self.refuse_host_command("observed variable link operation is unavailable".into());
+            return Err(UpvarLinkError::TargetNamespace);
+        }
         let protocol = self
             .name_policy_protocol()
             .ok_or(UpvarLinkError::LocalNamespace)?
@@ -16237,6 +16333,9 @@ impl Vm {
     }
 
     fn var_binding_from_bytes(&self, original: &[u8], start: usize) -> Option<VarBinding> {
+        if self.observed_names.is_some() {
+            return None;
+        }
         use tcl_core_types::NameBytes;
         let protocol = self.name_policy_protocol()?.recipe();
         let projection = protocol.variable_root_input(original);
@@ -16340,6 +16439,9 @@ impl Vm {
         namespace: NsId,
         original: &[u8],
     ) -> Option<VarBinding> {
+        if self.observed_names.is_some() {
+            return None;
+        }
         use tcl_core_types::NameBytes;
         let protocol = self.name_policy_protocol()?.recipe();
         let projection = protocol.variable_root_input(original);
@@ -16394,14 +16496,18 @@ impl Vm {
     }
 
     fn resolve_var_from_bytes(&self, original: &[u8], start: usize) -> Option<ResolvedVar> {
+        if self.observed_names.is_some() {
+            return self.observed_resolved_variable(original, start).ok();
+        }
         let projection = self
-            .name_policy_protocol()?
-            .recipe()
-            .combined_variable_input(original);
-        let binding = self.var_binding_from_bytes(projection.root().selected(), start)?;
-        let element = projection
-            .element()
-            .map(|part| tcl_core_types::NameBytes::from(part.selected()));
+            .execution_name_policy()?
+            .variable_input(
+                tcl_syntax::naming::NativeVariableInputForm::Combined(original),
+                tcl_syntax::naming::ObservedVariableNamePurpose::ScalarReceiver,
+            )
+            .ok()?;
+        let binding = self.var_binding_from_bytes(projection.root(), start)?;
+        let element = projection.element().map(tcl_core_types::NameBytes::from);
         self.resolve_binding_var(binding, element, &mut HashSet::new())
     }
 
@@ -16809,6 +16915,12 @@ impl Vm {
     /// Read a native byte name from the active physical variable frame.
     #[must_use]
     pub fn get_var_bytes(&self, name: &[u8]) -> Option<Value> {
+        if self.observed_name_policy_selected() {
+            return self
+                .observed_variable_get(name, self.current_level())
+                .ok()
+                .flatten();
+        }
         let resolved = self.resolve_var_from_bytes(name, self.current_level())?;
         self.read_variable_contents(&resolved)
     }
@@ -16930,8 +17042,24 @@ impl Vm {
     /// Write a native combined-name operand while retaining its original
     /// spelling independently of the followed binding and element cells.
     pub fn set_var_bytes(&mut self, name: &[u8], value: Value) -> Result<(), Completion<Value>> {
+        self.set_var_bytes_reporting(name, value, None)
+    }
+
+    fn set_var_bytes_reporting(
+        &mut self,
+        name: &[u8],
+        value: Value,
+        reported_name: Option<&[u8]>,
+    ) -> Result<(), Completion<Value>> {
         if let Some(refused) = self.refused_completion() {
             return Err(refused);
+        }
+        if self.observed_names.is_some() {
+            return self
+                .observed_variable_set(name, self.current_level(), value)
+                .map_err(|_| {
+                    self.refuse_host_command("observed variable storage is unavailable".into())
+                });
         }
         if self.name_policy_protocol().is_none() {
             return Err(
@@ -16998,7 +17126,7 @@ impl Vm {
             let _ = self.var_arena.replace_state(id, Local::Scalar(value));
         }
         if self.variable_observers_active() || self.authored_tmm_static.policy.is_some() {
-            self.fire_var_traces_from_cell_bytes(name, "write", None, None, None)?;
+            self.fire_var_traces_from_cell_bytes(name, "write", reported_name, None, None)?;
         }
         Ok(())
     }
@@ -17077,6 +17205,11 @@ impl Vm {
     }
 
     pub fn unset_var_bytes(&mut self, name: &[u8]) -> bool {
+        if self.observed_names.is_some() {
+            return self
+                .observed_variable_unset(name, self.current_level())
+                .unwrap_or(false);
+        }
         if self.execution_refusal.is_some() {
             return false;
         }
@@ -17480,6 +17613,18 @@ impl Vm {
         if let Some(refused) = self.refused_completion() {
             return Err(refused);
         }
+        if self.observed_name_policy_selected() {
+            return match self.observed_variable_unset(name, self.current_level()) {
+                Ok(true) => Ok(()),
+                Ok(false) if !complain => Ok(()),
+                Ok(false) => Err(self.refuse_host_command(
+                    "observed missing unset completion is unavailable".into(),
+                )),
+                Err(error) => Err(self.refuse_host_command(format!(
+                    "observed variable storage is unavailable: {error}"
+                ))),
+            };
+        }
         if self.name_policy_protocol().is_none() {
             return Err(
                 self.refuse_host_command("native variable name policy is unavailable".into())
@@ -17582,6 +17727,9 @@ impl Vm {
     }
 
     pub(crate) fn get_var_from_bytes(&self, start: usize, name: &[u8]) -> Option<Value> {
+        if self.observed_name_policy_selected() {
+            return self.observed_variable_get(name, start).ok().flatten();
+        }
         self.read_variable_contents(&self.resolve_var_from_bytes(name, start)?)
     }
 
@@ -17714,6 +17862,13 @@ impl Vm {
     }
 
     pub(crate) fn ensure_array_bytes(&mut self, name: &[u8]) -> Result<(), Completion<Value>> {
+        if self.observed_names.is_some() {
+            return self
+                .observed_ensure_array(name, self.current_level())
+                .map_err(|_| {
+                    self.refuse_host_command("observed array root storage is unavailable".into())
+                });
+        }
         let input = tcl_syntax::naming::NativeVariableInputForm::Combined(name);
         let resolved = self
             .resolve_var_from_bytes(name, self.current_level())
@@ -21309,6 +21464,7 @@ impl Vm {
             epoch: self.compilation_epochs.trace_deopt_epoch.get(),
             profile: self.source_profile().cache_key(),
             execution_point: self.actual_native_invocation_dialect().execution_point(),
+            execution_name_policy: self.execution_name_policy(),
             name_protocol: self.name_policy_protocol(),
             compiled_variable_protocol: self.compiled_variable_protocol(),
             ensemble_target_objects: Some(self.native_ensemble_target_observations(interpreter)),
@@ -22819,9 +22975,12 @@ impl VarStore for Vm {
         input: tcl_syntax::naming::NativeVariableInputForm<'_>,
     ) -> Result<tcl_syntax::naming::NativeVariableDiagnosticProjection, tcl_syntax::value::ValueError>
     {
-        let policy = self.name_policy_protocol().ok_or(
-            tcl_syntax::value::ValueError::CommandProtocolUnavailable("variable diagnostic"),
-        )?;
+        let policy = self
+            .execution_name_policy()
+            .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "variable diagnostic",
+            ))?;
         tcl_syntax::naming::report_native_variable_diagnostic_at(
             policy.recipe(),
             operation,
@@ -22839,6 +22998,9 @@ impl VarStore for Vm {
         frame: FrameId,
         name: &[u8],
     ) -> Result<Option<Value>, tcl_syntax::value::ValueError> {
+        if self.observed_names.is_some() {
+            return self.observed_variable_get(name, frame.0);
+        }
         if self.name_policy_protocol().is_none() {
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "variable name",
@@ -22853,6 +23015,9 @@ impl VarStore for Vm {
         name: &[u8],
         value: Value,
     ) -> Result<(), tcl_syntax::value::ValueError> {
+        if self.observed_names.is_some() {
+            return self.observed_variable_set(name, frame.0, value);
+        }
         if self.name_policy_protocol().is_none() {
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "variable name",
@@ -22876,6 +23041,9 @@ impl VarStore for Vm {
         frame: FrameId,
         name: &[u8],
     ) -> Result<bool, tcl_syntax::value::ValueError> {
+        if self.observed_names.is_some() {
+            return self.observed_variable_unset(name, frame.0);
+        }
         if self.name_policy_protocol().is_none() {
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "variable name",
@@ -22900,6 +23068,9 @@ impl VarStore for Vm {
         frame: FrameId,
         name: &[u8],
     ) -> Result<bool, tcl_syntax::value::ValueError> {
+        if self.observed_names.is_some() {
+            return self.observed_variable_exists(name, frame.0);
+        }
         if self.name_policy_protocol().is_none() {
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "variable name",
@@ -22914,6 +23085,11 @@ impl VarStore for Vm {
         root: &[u8],
         element: &[u8],
     ) -> Result<Option<Value>, tcl_syntax::value::ValueError> {
+        if self.observed_names.is_some() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "unmeasured observed variable operation",
+            ));
+        }
         if self.name_policy_protocol().is_none() {
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "variable name",
@@ -22929,6 +23105,11 @@ impl VarStore for Vm {
         element: &[u8],
         value: Value,
     ) -> Result<(), tcl_syntax::value::ValueError> {
+        if self.observed_names.is_some() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "unmeasured observed variable operation",
+            ));
+        }
         if self.name_policy_protocol().is_none() {
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "variable name",
@@ -22954,6 +23135,9 @@ impl VarStore for Vm {
         frame: FrameId,
         name: &[u8],
     ) -> Result<ArrayTarget, tcl_syntax::value::ValueError> {
+        if self.observed_names.is_some() {
+            return self.observed_array_target(name, frame.0);
+        }
         if self.name_policy_protocol().is_none() {
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "variable name",
@@ -22972,6 +23156,11 @@ impl VarStore for Vm {
         &self,
         target: &ArrayTarget,
     ) -> Result<tcl_runtime_api::ArrayDefaultState<Value>, tcl_syntax::value::ValueError> {
+        if self.observed_names.is_some() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "unmeasured observed variable operation",
+            ));
+        }
         use tcl_runtime_api::ArrayDefaultState as State;
         self.actual_native_invocation_dialect()
             .native_array_default_protocol()
@@ -22999,6 +23188,11 @@ impl VarStore for Vm {
         &mut self,
         target: &ArrayTarget,
     ) -> Result<(), tcl_syntax::value::ValueError> {
+        if self.observed_names.is_some() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "unmeasured observed variable operation",
+            ));
+        }
         self.actual_native_invocation_dialect()
             .native_array_default_protocol()
             .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
@@ -23017,6 +23211,11 @@ impl VarStore for Vm {
         value: Value,
     ) -> Result<Result<(), tcl_runtime_api::ArrayDefaultSetFailure>, tcl_syntax::value::ValueError>
     {
+        if self.observed_names.is_some() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "unmeasured observed variable operation",
+            ));
+        }
         use tcl_runtime_api::ArrayDefaultSetFailure as Failure;
         use tcl_syntax::naming::{
             NativeVariableDiagnosticOperation as Operation,
@@ -23109,6 +23308,9 @@ impl VarStore for Vm {
         &self,
         target: &ArrayTarget,
     ) -> Result<Option<Vec<Vec<u8>>>, tcl_syntax::value::ValueError> {
+        if self.observed_names.is_some() {
+            return self.observed_array_keys(target);
+        }
         if self.dictionary_variable_containers() {
             let value = target.cell_id().map_or_else(
                 || self.get_var_from_bytes(target.frame().0, target.name_bytes()),
@@ -23136,6 +23338,11 @@ impl VarStore for Vm {
         target: &ArrayTarget,
         key: &[u8],
     ) -> Result<ArrayElementRead<Value>, tcl_syntax::value::ValueError> {
+        if self.observed_names.is_some() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "unmeasured observed variable operation",
+            ));
+        }
         if self.dictionary_variable_containers() {
             let value = target.cell_id().map_or_else(
                 || self.get_var_from_bytes(target.frame().0, target.name_bytes()),
@@ -23292,6 +23499,11 @@ impl VarStore for Vm {
         &self,
         target: &ArrayTarget,
     ) -> Result<Option<Vec<Vec<u8>>>, tcl_syntax::value::ValueError> {
+        if self.observed_names.is_some() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "unmeasured observed variable operation",
+            ));
+        }
         Ok(target
             .cell_id()
             .and_then(|id| self.array_search_key_bytes_at_id(id)))
@@ -23302,6 +23514,11 @@ impl VarStore for Vm {
         target: &ArrayTarget,
         key: &[u8],
     ) -> Result<bool, tcl_syntax::value::ValueError> {
+        if self.observed_names.is_some() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "unmeasured observed variable operation",
+            ));
+        }
         Ok(target
             .cell_id()
             .is_some_and(|id| self.read_resolved_elem(id, key).is_some()))
@@ -23335,6 +23552,11 @@ impl VarStore for Vm {
         target: &ArrayTarget,
         key: &[u8],
     ) -> Result<bool, tcl_syntax::value::ValueError> {
+        if self.observed_names.is_some() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "unmeasured observed variable operation",
+            ));
+        }
         let id = target.cell_id().or_else(|| {
             self.resolve_var_parts_from_bytes(target.name_bytes(), None, target.frame().0)
                 .and_then(|resolved| resolved.id)

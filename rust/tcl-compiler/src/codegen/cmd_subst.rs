@@ -1456,6 +1456,9 @@ impl CodegenCtx<'_> {
     }
 
     fn emit_inline_cmd_subst_inner(&mut self, text: &str, tokens: Option<&CommandTokens>) {
+        if self.emit_native_original_preparation_invocation(tokens) {
+            return;
+        }
         if self.emit_native_procedure_noop(tokens) || self.emit_native_named_invocation(tokens) {
             return;
         }
@@ -1987,7 +1990,7 @@ impl CodegenCtx<'_> {
                 &source,
                 &tokens.source_binding.as_ref().unwrap().lookup_namespace,
                 crate::registry_invocation::compiled_namespace_context(tokens),
-                tcl_runtime_api::native_compilation::NativeCompilerSelectionPrerequisite::Ensemble(
+                tcl_runtime_api::native_compilation::NativeCompilerSelectionPrerequisite::from_command_registration(
                     std::sync::Arc::clone(required),
                 ),
             );
@@ -1995,6 +1998,9 @@ impl CodegenCtx<'_> {
         } else {
             None
         };
+        if !self.emit_native_original_preparation_receipt(&named.preparations) {
+            return false;
+        }
         self.emit_named_instruction(tokens, named, &recipe);
         if let Some(end) = selection_end {
             self.place_label(&end);

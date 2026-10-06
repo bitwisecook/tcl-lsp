@@ -240,6 +240,26 @@ impl FrameStack {
         receiver.store(value)
     }
 
+    /// Clear the actual installed anonymous compiler cell.
+    pub(crate) fn unset_native_compiled_temporary(
+        &mut self,
+        slot: usize,
+    ) -> Result<(), super::VarError> {
+        let (frame, cell) = self
+            .compiled_cell(slot)
+            .ok_or(super::VarError::NameProtocolUnavailable)?;
+        if !self.frames[frame].table.cells[cell].anonymous {
+            return Err(super::VarError::NameProtocolUnavailable);
+        }
+        if let Some(receiver) = self.frames[frame]
+            .table
+            .capture_receiver_at(cell, None, false)?
+        {
+            receiver.unset()?;
+        }
+        Ok(())
+    }
+
     /// Borrow the actual header held by an installed unnamed compiler local.
     pub(crate) fn native_compiled_temporary(
         &self,
@@ -301,7 +321,7 @@ impl FrameStack {
 mod indexed_receiver_tests {
     use super::*;
     use crate::{
-        namespace::{Namespaces, GLOBAL},
+        namespace::{GLOBAL, Namespaces},
         obj,
     };
     use tcl_dialect::TclVersion;
@@ -341,9 +361,11 @@ mod indexed_receiver_tests {
         );
         assert_eq!(unsafe { (*first.as_ptr()).ref_count }, 2);
         assert!(frames.local_names().is_empty());
-        assert!(frames
-            .store_native_compiled_temporary(0, first.as_ptr())
-            .is_err());
+        assert!(
+            frames
+                .store_native_compiled_temporary(0, first.as_ptr())
+                .is_err()
+        );
         frames
             .install_native_compiled_local_layout(&layout)
             .unwrap();

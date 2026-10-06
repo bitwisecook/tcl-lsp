@@ -187,7 +187,7 @@ pub enum NativeCompilationFailureScope {
 }
 
 /// Lexical compiler environment entered for one inline script operand.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NativeCompiledBodyContext {
     /// Retain the environment already selected by the wrapper descriptor.
     Inherit,
@@ -673,6 +673,8 @@ pub enum NativeCompilationGrammar {
         /// First native release installing this exact path.
         implementation_from: TclVersion,
     },
+    /// Original independently registered mathematical operator compiler.
+    MathOperator(crate::native_mathop_compilation::NativeMathOperator),
     /// Native variable append grammar, including release-specific list forms.
     VariableAppend(NativeAppendKind),
     /// Original `TclOO` helper compiler, with a separate runtime method-frame check.
@@ -1564,8 +1566,16 @@ impl NativeCompilationSpec {
                     | crate::native_dictionary::NativeDictionaryCommand::Exists
                     | crate::native_dictionary::NativeDictionaryCommand::GetDefault
                     | crate::native_dictionary::NativeDictionaryCommand::GetWithDefault
+                    | crate::native_dictionary::NativeDictionaryCommand::Set
+                    | crate::native_dictionary::NativeDictionaryCommand::Unset
+                    | crate::native_dictionary::NativeDictionaryCommand::Append
+                    | crate::native_dictionary::NativeDictionaryCommand::Lappend
+                    | crate::native_dictionary::NativeDictionaryCommand::Incr
+                    | crate::native_dictionary::NativeDictionaryCommand::Update
+                    | crate::native_dictionary::NativeDictionaryCommand::With
             ),
-            NativeCompilationGrammar::VariableLoadStore
+            NativeCompilationGrammar::MathOperator(_)
+            | NativeCompilationGrammar::VariableLoadStore
             | NativeCompilationGrammar::ListIndex
             | NativeCompilationGrammar::LiteralUnset
             | NativeCompilationGrammar::Upvar
@@ -1823,6 +1833,7 @@ impl NativeCompilationSpec {
         let version = dialect.tcl_version?;
         Some(match self.grammar {
             NativeCompilationGrammar::NoHook => false,
+            NativeCompilationGrammar::MathOperator(operator) => version >= operator.first_version(),
             NativeCompilationGrammar::NamespaceUpvarBindings => version >= TclVersion::V8_6,
             NativeCompilationGrammar::Dictionary { command, .. } => version >= command.hook_from(),
             NativeCompilationGrammar::HookFrom(first)
@@ -2182,6 +2193,19 @@ impl NativeCompilationSpec {
         if self.grammar == NativeCompilationGrammar::NoHook {
             return Selection::Generic;
         }
+        if let NativeCompilationGrammar::MathOperator(operator) = self.grammar {
+            return match crate::native_mathop_compilation::compile_native_mathop(
+                words,
+                operand_from,
+                operator,
+                version,
+                context,
+            ) {
+                Ok(Some(_)) => self.selected_grammar_result(true, version),
+                Ok(None) => Selection::Generic,
+                Err(_) => Selection::Unknown,
+            };
+        }
         if let NativeCompilationGrammar::StringTrim { scope, .. } = self.grammar {
             return crate::native_string_trim_compilation::select_original(
                 words,
@@ -2486,7 +2510,7 @@ impl NativeCompilationSpec {
             && version >= TclVersion::V9_1;
         if let NativeCompilationGrammar::Dictionary { command, ensemble } = self.grammar
             && let Some(selection) =
-                command.select_original_lookup(words, operand_from, ensemble, version)
+                command.select_original_compilation(words, operand_from, ensemble, version, context)
         {
             return selection;
         }
@@ -3047,6 +3071,13 @@ impl NativeCompilationSpec {
         let valid = match self.grammar {
             NativeCompilationGrammar::CheckedArity { arity, .. } => {
                 u16::try_from(shapes.len()).is_ok_and(|count| arity.accepts(count))
+            }
+            NativeCompilationGrammar::MathOperator(operator) => {
+                return Some(match operator.accepts(shapes.len(), version, context) {
+                    Some(true) => self.selected_grammar_result(true, version),
+                    Some(false) => Selection::Generic,
+                    None => Selection::Unknown,
+                });
             }
             NativeCompilationGrammar::ListLength => shapes.len() == 1,
             NativeCompilationGrammar::VariableLoadStore | NativeCompilationGrammar::Increment => {

@@ -1350,9 +1350,12 @@ fn take_words(
 /// left-then-right, exactly as [`bin`]/[`cmp`] take them, and the semantics come
 /// from the shared [`expr::irule_binary`].
 fn irule(vm: &mut Vm, f: &mut Frame, op: BinOp) -> Result<(), Completion<Value>> {
+    let provider = tcl_registry::native_expression_program::authored_f5_string_predicate_provider(
+        vm.expression_evaluation_policy().as_ref(),
+    );
     let b = pop(f);
     let a = pop(f);
-    match expr::irule_binary(op, &a, &b) {
+    match expr::irule_binary(provider, op, &a, &b) {
         Ok(v) => {
             f.stack.push(v);
             Ok(())
@@ -3003,8 +3006,11 @@ impl Vm {
         let call_argv = proc.call_identity.as_ref().map_or_else(
             || {
                 let mut words = Vec::with_capacity(argv.len() + 1);
-                words.push(invoked.clone());
-                words.extend(argv.iter().cloned());
+                words.push(invoked.native_lifetime_lease().into_value());
+                words.extend(
+                    argv.iter()
+                        .map(|word| word.native_lifetime_lease().into_value()),
+                );
                 words
             },
             |words| {
@@ -4385,11 +4391,24 @@ impl Vm {
                     return Tick::Return(err("strcat: stack underflow"));
                 }
                 let parts = f.stack.split_off(f.stack.len() - n);
-                let mut bytes = Vec::new();
-                for part in &parts {
-                    bytes.extend_from_slice(&part.string_bytes());
+                if let Some(protocol) = self
+                    .actual_native_invocation_dialect()
+                    .native_string_protocol()
+                    && protocol.tcl_version().is_some()
+                {
+                    let value = try_core!(tcl_cmd_core::native_cat::concatenate_compiled(
+                        &crate::value::VmAppendObjects,
+                        protocol,
+                        &parts
+                    ));
+                    f.stack.push(value);
+                } else {
+                    let mut bytes = Vec::new();
+                    for part in &parts {
+                        bytes.extend_from_slice(&part.string_bytes());
+                    }
+                    f.stack.push(Value::from_string_bytes(bytes));
                 }
-                f.stack.push(Value::from_string_bytes(bytes));
             }
             Op::START_CMD => {
                 let current_epoch = self.trace_deopt_epoch();
@@ -6389,7 +6408,7 @@ impl Vm {
                 let key = pop(f);
                 let updated = try_op!(crate::cmd_dict::dictionary_member_update_bytes(self,
                     name.as_bytes(), crate::interp::native_dictionary::DictionaryVariablePublication::RetainedCompiledLocal(usize::try_from(imm0(instr)).unwrap_or(usize::MAX)),
-                    &key, |vm, old| crate::cmd_dict::append_member_value(vm, old, &value)));
+                    &key, |vm, old| crate::cmd_dict::append_compiled_member_value(vm, old, &value)));
                 f.last_options = updated.options;
                 f.stack.push(updated.value);
             }
@@ -7945,10 +7964,22 @@ impl Vm {
         }
         let mut code = b"TCL LOOKUP COMMAND ".to_vec();
         tcl_syntax::list::append_list_element(&mut code, name, false);
-        crate::command::completion_from_cmd_error(
-            self,
-            tcl_cmd_core::CmdError::with_error_code_bytes(message, code),
-        )
+        let mut error = tcl_cmd_core::CmdError::with_error_code_bytes(message, code);
+        if policy.authority() == tcl_syntax::naming::NamePolicyAuthority::Native {
+            let Some(producer) = self
+                .actual_native_invocation_dialect()
+                .native_object_vector_protocol()
+                .filter(|producer| producer.strings() == policy.string_protocol())
+            else {
+                return self.refuse_host_command(
+                    "native missing-command result producer is unavailable".into(),
+                );
+            };
+            if producer.missing_command_has_string_primary() {
+                error = error.with_native_string_result(producer.strings());
+            }
+        }
+        crate::command::completion_from_cmd_error(self, error)
     }
 
     fn invoke_missing_command_value(

@@ -110,7 +110,7 @@ mod tests {
     include!("../tests/data/native_upvar_info_exists/cases.rs");
     use tcl_lexer::{LexerConfig, SourceImage, Span, native_script_words_in};
     use tcl_syntax::native_string::NativeStringProtocol;
-    fn capture(source: &[u8], version: TclVersion) -> Vec<tcl_lexer::NativeWord> {
+    fn capture_plan(source: &[u8], version: TclVersion) -> tcl_lexer::NativeScriptWordsPlan {
         let dialect = crate::InvocationDialect::for_version(version);
         native_script_words_in(
             SourceImage::native(source),
@@ -118,11 +118,14 @@ mod tests {
             LexerConfig::from_grammar(dialect.lexer_grammar),
         )
         .unwrap()
-        .commands
-        .into_iter()
-        .next()
-        .unwrap()
-        .words
+    }
+    fn capture(source: &[u8], version: TclVersion) -> Vec<tcl_lexer::NativeWord> {
+        capture_plan(source, version)
+            .commands
+            .into_iter()
+            .next()
+            .unwrap()
+            .words
     }
     #[test]
     fn original_exists_retains_array_index_arena_and_static_expansion() {
@@ -195,9 +198,8 @@ mod tests {
     #[test]
     fn original_exists_selection_matches_60_native_compiler_opcode_windows() {
         use crate::native_compilation::{
-            NativeBodyCompilation, NativeCompilationContext, NativeCompilationFrame,
-            NativeCompilationGrammar, NativeCompilationMode, NativeCompilationSelection,
-            NativeCompilationSpec,
+            NativeCompilationContext, NativeCompilationFrame, NativeCompilationMode,
+            NativeCompilationSelection,
         };
         let tables = [
             (
@@ -221,11 +223,7 @@ mod tests {
                 include_str!("../tests/data/native_upvar_info_exists/9.1.0.txt"),
             ),
         ];
-        let spec = NativeCompilationSpec {
-            grammar: NativeCompilationGrammar::InfoExists,
-            operation: crate::SemanticOperationId::Intrinsic(crate::IntrinsicId::InfoExists),
-            body: NativeBodyCompilation::Inherit,
-        };
+        let registry = crate::CommandRegistry::build_default();
         let context = NativeCompilationContext {
             mode: NativeCompilationMode::BytecodeObject,
             frame: NativeCompilationFrame::ProcedureCode,
@@ -235,17 +233,51 @@ mod tests {
         let mut checked = 0;
         for (version, table) in tables {
             let dialect = crate::InvocationDialect::for_version(version);
+            let spec = registry
+                .native_compilation_for_registration(
+                    if version == TclVersion::V8_4 {
+                        "info"
+                    } else {
+                        "tcl::info::exists"
+                    },
+                    dialect,
+                )
+                .unwrap();
+            assert_eq!(
+                spec.compiler_hook_presence(dialect),
+                Some(version >= TclVersion::V8_5)
+            );
             for row in table.lines().filter(|row| row.starts_with("R|")) {
                 let fields: Vec<_> = row.split('|').collect();
                 let case = fields[1].parse::<usize>().unwrap();
                 if !CASES[case].starts_with("info exists ") {
                     continue;
                 }
-                let original = capture(CASES[case].as_bytes(), version);
+                let plan = capture_plan(CASES[case].as_bytes(), version);
+                if let Some(tail) = plan.fatal_tail {
+                    assert_eq!(version, TclVersion::V8_4);
+                    assert_eq!(case, 22);
+                    assert!(plan.commands.is_empty());
+                    assert_eq!(tail.command_start, 0);
+                    assert_eq!(tail.cut.command, 0);
+                    assert_eq!(tail.cut.message, "extra characters after close-brace");
+                    assert_eq!(fields[2], "1");
+                    assert_eq!(
+                        fields[6],
+                        "6578747261206368617261637465727320616674657220636c6f73652d6272616365"
+                    );
+                    assert!(fields[7].is_empty());
+                    checked += 1;
+                    continue;
+                }
+                let original = plan.commands.into_iter().next().unwrap().words;
                 let words =
                     NativeCompilerWords::capture(&original, NativeStringProtocol::C(version))
                         .unwrap();
                 let selected = spec.select_native_words(&words, 2, Some(dialect), context);
+                if version == TclVersion::V8_4 {
+                    assert_eq!(selected, NativeCompilationSelection::Generic);
+                }
                 assert_eq!(
                     matches!(selected, NativeCompilationSelection::Inline { .. }),
                     fields[7].contains("exist"),

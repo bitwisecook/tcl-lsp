@@ -29,6 +29,11 @@
 //! namespace segments are retained directly, without reparsing display text.
 
 mod aliases;
+mod execution_policy;
+pub use execution_policy::{
+    ExecutionNamePolicy, ExecutionVariableNameProjection, MeasuredBigIpNameScope,
+    ObservedBigIpNamePolicy, ObservedVariableNamePurpose,
+};
 pub use aliases::{
     c_family_local_alias_name_bytes, global_local_name_bytes, variable_local_name_bytes,
 };
@@ -46,12 +51,17 @@ pub use oo_variables::{
     apply_native_oo_slot_records, apply_native_oo_variable_slot, native_oo_variable_slot,
     validate_native_oo_variable,
 };
+mod namespace_spans;
+pub use namespace_spans::{
+    native_written_namespace_member_extent, native_written_namespace_prefix_extent,
+};
 mod native;
 pub use native::{
     NamePolicyAuthority, NamePolicyProtocol, NameProjectionUnavailable,
     NativeDictionaryMissingKeyError, NativeDictionaryMissingKeyOperation,
     NativeJimNamespaceConstruction, NativeNameContext, NativeNameProjection, NativeNameProtocol,
     NativeNamePurpose, NativeNameQualification, NativeNameReportPurpose,
+    NativeNamespacePatternParts, NativeNamespacePatternSource,
     NativeNamespaceLookupError, NativeNamespaceLookupOperation, NativeNamespaceOperationError,
     NativeVariableDiagnosticOperation, NativeVariableDiagnosticProjection,
     NativeVariableDiagnosticReason, NativeVariableFailureSite, NativeVariableInputForm,

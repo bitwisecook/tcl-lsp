@@ -166,6 +166,25 @@ impl Vm {
         );
     }
 
+    pub(crate) fn original_existence_result(
+        &mut self,
+        found: bool,
+    ) -> Result<Value, Completion<Value>> {
+        let protocol = self
+            .native_c_variable_name_protocol()
+            .expect("selected original C existence handler");
+        if protocol.version() == tcl_dialect::TclVersion::V8_4 {
+            return self
+                .with_native_interp_result(|result| {
+                    result.set_native_unshared_integer(i64::from(found), protocol.version())?;
+                    Ok(result.native_lifetime_lease().into_value())
+                })
+                .and_then(std::convert::identity)
+                .map_err(|error| self.refuse_host_command(error.to_string()));
+        }
+        Ok(Value::int(i64::from(found)))
+    }
+
     pub(crate) fn compiled_existence_result(
         &mut self,
         found: bool,

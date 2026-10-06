@@ -27,6 +27,8 @@ use tcl_registry::native_compilation::NativeCompilerImplementationLookup;
 /// Native compilation captures a command name rather than its implementation.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SourceNamedInvocationProof {
+    /// Actual original compiler visits preceding the selected named fallback.
+    pub preparations: Vec<tcl_registry::native_control_compilation::NativeControlPreparationStep>,
     /// Original ensemble member and selected private name.
     pub lookup: Option<&'static NativeCompilerImplementationLookup>,
     /// Actual captured command name; mutable maps do not donate stock semantics.
@@ -260,6 +262,7 @@ pub(super) mod tests {
                 )
             }),
             execution_point: dialect.execution_point(),
+            execution_name_policy: None,
             name_protocol: tcl_syntax::naming::NamePolicyProtocol::for_native_point(
                 dialect.execution_point().unwrap(),
             ),

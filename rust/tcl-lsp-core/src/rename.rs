@@ -1530,11 +1530,11 @@ fn rename_proc(
     // Collision gate: renaming onto an existing proc of the same qualified
     // name would shadow it — refuse.  Compare names normalised to the
     // leading-`::` form.
-    let target_q = format!("::{}", proc_def.qualified_name.trim_start_matches("::"));
-    if analysis.all_procs.keys().any(|qn| {
-        let q = format!("::{}", qn.trim_start_matches("::"));
-        q != target_q && q == new_qualified
-    }) {
+    if analysis
+        .all_procs
+        .keys()
+        .any(|qn| qn != &proc_def.qualified_name && qn == &new_qualified)
+    {
         return Some(Vec::new());
     }
     // Provenance gate: an indirect dispatch of this
@@ -1994,16 +1994,14 @@ pub fn namespace_variable_rename_edits(
     if !is_safe_symbol_name(new_name) {
         return Vec::new();
     }
-    let target = cell.trim_start_matches("::");
+    let target = cell;
     // Collision gate, the in-document half of the workspace one the server
     // applies: renaming onto a cell this document already declares would
     // merge two distinct variables into one.  Same discipline (and same
     // "answer nothing" shape) as the single-document variable rename's own
     // scope-chain collision check.
-    let new_cell = match cell.rfind("::") {
-        Some(idx) => format!("{}::{new_name}", &cell[..idx]),
-        None => format!("::{new_name}"),
-    };
+    let (holder, _) = tcl_syntax::naming::key_holder_and_tail(cell);
+    let new_cell = tcl_syntax::naming::qualify(holder, new_name);
     if tcl_compiler::analyser::lookup_var_by_qualified_name(&analysis.global_scope, &new_cell)
         .is_some()
     {
@@ -2012,7 +2010,7 @@ pub fn namespace_variable_rename_edits(
     let line_index = LineIndex::new(source);
     let mut spans: Vec<tcl_lexer::Span> = Vec::new();
     for (qualified, var) in tcl_compiler::analyser::namespace_variables(&analysis.global_scope) {
-        if qualified.trim_start_matches("::") != target {
+        if qualified != target {
             continue;
         }
         // The declaration itself, plus its own unqualified reads in the
@@ -2024,7 +2022,7 @@ pub fn namespace_variable_rename_edits(
     }
     cell_rename_spans(&analysis.global_scope, target, &mut spans);
     for vref in &analysis.qualified_var_refs {
-        if vref.qualified_name.trim_start_matches("::") == target {
+        if vref.qualified_name == target {
             spans.push(vref.span);
         }
     }
@@ -2087,7 +2085,7 @@ fn cell_rename_spans(
     out: &mut Vec<tcl_lexer::Span>,
 ) {
     for link in tcl_compiler::analyser::variable_alias_links(scope) {
-        if link.cell.trim_start_matches("::") != target {
+        if link.cell != target {
             continue;
         }
         let var = link.var;
@@ -4848,6 +4846,21 @@ mod tests {
     /// Oracle (tclsh 9.0.4 / 8.6.16, identical): the script prints `1` before
     /// and after the complete rename; renaming only the declaration and the
     /// qualified read leaves `p` reading a cell that no longer exists.
+    #[test]
+    fn colon_variable_rename_keeps_the_empty_cell_separate() {
+        let source = "set {} EMPTY; set : COLON; puts ${}; puts $:";
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let mut analyser = tcl_compiler::analyser::Analyser::new();
+            let analysis = analyser.analyse(source, dialect);
+            let edits = namespace_variable_rename_edits(source, &analysis, ":::", "total");
+            let applied = apply_edits(source, &edits);
+            assert_eq!(
+                applied, "set {} EMPTY; set total COLON; puts ${}; puts $total",
+                "{dialect}"
+            );
+        }
+    }
+
     #[test]
     fn tp_namespace_variable_rename_covers_declaration_alias_and_qualified_use() {
         let src = "namespace eval ::ns {\n\

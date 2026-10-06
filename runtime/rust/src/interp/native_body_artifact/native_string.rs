@@ -187,10 +187,12 @@ mod tests {
                     let procedure = interp.proc_def(b"p").unwrap();
                     let artifact =
                         cache(procedure.body.as_ptr()).expect("actual original artifact");
-                    assert!(artifact.scripts.values().any(|script| script
-                        .commands
-                        .iter()
-                        .any(|command| matches!(command.operation, Operation::StringMatch(_)))));
+                    assert!(artifact.scripts.values().any(|script| {
+                        script
+                            .commands
+                            .iter()
+                            .any(|command| matches!(command.operation, Operation::StringMatch(_)))
+                    }));
                     compared += 1;
                 }
                 assert_eq!(
@@ -276,10 +278,12 @@ mod tests {
                     result.as_ptr()
                 );
             }
-            assert!(obj::native_object_snapshot(result.as_ptr())
-                .unwrap()
-                .resident
-                .is_none());
+            assert!(
+                obj::native_object_snapshot(result.as_ptr())
+                    .unwrap()
+                    .resident
+                    .is_none()
+            );
             drop(result);
 
             let pattern = obj::Owned::fresh(new_string(b"*"));
@@ -339,10 +343,12 @@ mod tests {
                 let procedure = interp.proc_def(b"p").unwrap();
                 let artifact =
                     cache(procedure.body.as_ptr()).expect("authentic StringMatch artifact");
-                assert!(artifact.scripts.values().any(|script| script
-                    .commands
-                    .iter()
-                    .any(|command| matches!(command.operation, Operation::StringMatch(_)))));
+                assert!(artifact.scripts.values().any(|script| {
+                    script
+                        .commands
+                        .iter()
+                        .any(|command| matches!(command.operation, Operation::StringMatch(_)))
+                }));
             }
             assert_eq!(interp.eval_str(b"set order {}; proc first {} {lappend ::order pattern; return *}; proc second {} {lappend ::order subject; return A}; proc order_test {} {string match [first] [second]}; order_test"), Code::Ok, "{profile}");
             assert_eq!(interp.result_bytes(), b"1");

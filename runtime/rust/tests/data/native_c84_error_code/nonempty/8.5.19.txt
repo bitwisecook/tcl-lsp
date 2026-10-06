@@ -1,0 +1,15 @@
+trace|info-no-code|::errorInfo|w|none|1|6|494e464f
+trace|info-no-code|::errorCode|w|list|0|2|4e4f4e45
+trace|info-no-code|::errorInfo|r|none|1|1|494e464f
+trace|info-no-code|::errorCode|r|list|1|1|4e4f4e45
+result|info-no-code|0|none|1|1|4641494c20494e464f204e4f4e45
+trace|info-NONE|::errorInfo|w|none|1|6|494e464f
+trace|info-NONE|::errorCode|w|list|1|5|4e4f4e45
+trace|info-NONE|::errorInfo|r|none|1|1|494e464f
+trace|info-NONE|::errorCode|r|list|1|1|4e4f4e45
+result|info-NONE|0|none|1|1|4641494c20494e464f204e4f4e45
+trace|info-structured|::errorInfo|w|none|1|6|494e464f
+trace|info-structured|::errorCode|w|list|1|5|435553544f4d2044455441494c
+trace|info-structured|::errorInfo|r|none|1|1|494e464f
+trace|info-structured|::errorCode|r|list|1|1|435553544f4d2044455441494c
+result|info-structured|0|none|1|1|4641494c20494e464f207b435553544f4d2044455441494c7d

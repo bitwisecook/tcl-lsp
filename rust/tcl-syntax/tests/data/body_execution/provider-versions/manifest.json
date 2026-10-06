@@ -1,0 +1,56 @@
+[
+  {
+    "engine": "8.4",
+    "launcher": "/tmp/2286-oracles/bin/tclsh8.4",
+    "source_sha256": "24a2bdbfcbbafee97c0e6253ae307d72f722f751c4fac77da2df5f30a892669a",
+    "exit": 0,
+    "stdout": "0 322e322e3131\n",
+    "stderr": "",
+    "seconds": 0.010751289024483413
+  },
+  {
+    "engine": "8.5",
+    "launcher": "/tmp/2286-oracles/bin/tclsh8.5",
+    "source_sha256": "24a2bdbfcbbafee97c0e6253ae307d72f722f751c4fac77da2df5f30a892669a",
+    "exit": 0,
+    "stdout": "0 322e332e38\n",
+    "stderr": "",
+    "seconds": 0.012318838038481772
+  },
+  {
+    "engine": "8.6",
+    "launcher": "/tmp/2286-oracles/bin/tclsh8.6",
+    "source_sha256": "24a2bdbfcbbafee97c0e6253ae307d72f722f751c4fac77da2df5f30a892669a",
+    "exit": 0,
+    "stdout": "0 322e352e3131\n",
+    "stderr": "",
+    "seconds": 0.015880052000284195
+  },
+  {
+    "engine": "9.0",
+    "launcher": "/tmp/2286-oracles/bin/tclsh9.0",
+    "source_sha256": "24a2bdbfcbbafee97c0e6253ae307d72f722f751c4fac77da2df5f30a892669a",
+    "exit": 0,
+    "stdout": "0 322e352e3131\n",
+    "stderr": "",
+    "seconds": 0.014470161055214703
+  },
+  {
+    "engine": "9.1",
+    "launcher": "/tmp/2286-oracles/bin/tclsh9.1",
+    "source_sha256": "24a2bdbfcbbafee97c0e6253ae307d72f722f751c4fac77da2df5f30a892669a",
+    "exit": 0,
+    "stdout": "0 322e362e30\n",
+    "stderr": "",
+    "seconds": 0.0165263990056701
+  },
+  {
+    "engine": "Jim",
+    "launcher": "/tmp/2286-oracles/jimtcl/jimsh",
+    "source_sha256": "24a2bdbfcbbafee97c0e6253ae307d72f722f751c4fac77da2df5f30a892669a",
+    "exit": 0,
+    "stdout": "0 312e30\n",
+    "stderr": "",
+    "seconds": 0.003992499026935548
+  }
+]

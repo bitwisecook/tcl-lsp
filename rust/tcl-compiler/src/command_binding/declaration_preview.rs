@@ -751,21 +751,31 @@ mod tests {
             .next()
             .unwrap()
             .entry;
-        let OriginalDiagnosticFrameEntry::DeclaredProcedure(body) = entry.as_ref() else {
-            panic!("independent lexical owner")
+        let declaration = match entry.as_ref() {
+            OriginalDiagnosticFrameEntry::Body(body) => {
+                assert_eq!(body.as_ref(), lexical_body.as_ref());
+                &body.allocation().site
+            }
+            OriginalDiagnosticFrameEntry::DeclaredProcedure(body) => &body.declaration,
+            _ => panic!("independent procedure declaration owner"),
         };
-        assert_eq!(body.parameters[0].name, "arg");
+        assert_eq!(entry.parameters()[0].name, "arg");
         assert_eq!(
-            body.declaration.offset,
+            declaration.offset,
             u32::try_from(source.find("proc wrap").unwrap()).unwrap()
         );
         assert_eq!(
-            body.source.try_text().unwrap(),
+            entry.source().try_text().unwrap(),
             "upvar 1 other local; return $local"
         );
         assert_eq!(
-            layout.snapshot.state.source_variables.namespace_identity,
-            Some(body.namespace.clone())
+            layout
+                .snapshot
+                .state
+                .source_variables
+                .namespace_identity
+                .as_ref(),
+            lexical_body.namespace_context()
         );
         assert!(entry.owns_original_context(&layout.snapshot.state.source_variables));
         let mut changed = tokens.clone();

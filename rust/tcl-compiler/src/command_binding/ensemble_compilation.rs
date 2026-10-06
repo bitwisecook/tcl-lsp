@@ -31,6 +31,7 @@ use tcl_runtime_api::native_compilation::{
 pub(super) enum ActualEnsemblePlan {
     Generic,
     Named {
+        preparations: Vec<tcl_registry::native_control_compilation::NativeControlPreparationStep>,
         name: String,
         replacement_words: Vec<String>,
         prerequisite: Box<NativeEnsembleCompilerPrerequisite>,
@@ -53,6 +54,7 @@ fn project_original_worker_plan(
         OriginalSelectedWorkerCompilation::PublicGeneric => ActualEnsemblePlan::Generic,
         OriginalSelectedWorkerCompilation::Unavailable => ActualEnsemblePlan::Unknown,
         OriginalSelectedWorkerCompilation::Named(recipe) => ActualEnsemblePlan::Named {
+            preparations: recipe.preparations,
             name: String::from_utf8(recipe.name).ok()?,
             replacement_words: recipe.words.iter().filter_map(|word| match word {
                 tcl_registry::native_instruction_plan::NativeNamedInvocationWord::Replacement(bytes) => Some(String::from_utf8(bytes.clone())),

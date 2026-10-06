@@ -9,7 +9,7 @@ use crate::var_resolve::{ResolveContext, VariableCellKey};
 use tcl_runtime_api::NativeCompilationEntry;
 
 pub(super) fn install(variables: &mut ResolveContext, entry: &NativeCompilationEntry) {
-    let Some(protocol) = entry.name_protocol else {
+    let Some(protocol) = entry.command_name_policy() else {
         return;
     };
     if protocol.authority() != tcl_syntax::naming::NamePolicyAuthority::Native

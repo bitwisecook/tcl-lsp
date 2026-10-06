@@ -91,11 +91,36 @@ mod tests {
     use super::*;
     include!("../../../../../rust/tcl-registry/tests/data/native_list_index_compilation/cases.rs");
     const TABLES: &[(&str, &str)] = &[
-        ("tcl8.4", include_str!("../../../../../rust/tcl-registry/tests/data/native_list_index_compilation/8.4.20.txt")),
-        ("tcl8.5", include_str!("../../../../../rust/tcl-registry/tests/data/native_list_index_compilation/8.5.19.txt")),
-        ("tcl8.6", include_str!("../../../../../rust/tcl-registry/tests/data/native_list_index_compilation/8.6.18.txt")),
-        ("tcl9.0", include_str!("../../../../../rust/tcl-registry/tests/data/native_list_index_compilation/9.0.4.txt")),
-        ("tcl9.1", include_str!("../../../../../rust/tcl-registry/tests/data/native_list_index_compilation/9.1.0.txt")),
+        (
+            "tcl8.4",
+            include_str!(
+                "../../../../../rust/tcl-registry/tests/data/native_list_index_compilation/8.4.20.txt"
+            ),
+        ),
+        (
+            "tcl8.5",
+            include_str!(
+                "../../../../../rust/tcl-registry/tests/data/native_list_index_compilation/8.5.19.txt"
+            ),
+        ),
+        (
+            "tcl8.6",
+            include_str!(
+                "../../../../../rust/tcl-registry/tests/data/native_list_index_compilation/8.6.18.txt"
+            ),
+        ),
+        (
+            "tcl9.0",
+            include_str!(
+                "../../../../../rust/tcl-registry/tests/data/native_list_index_compilation/9.0.4.txt"
+            ),
+        ),
+        (
+            "tcl9.1",
+            include_str!(
+                "../../../../../rust/tcl-registry/tests/data/native_list_index_compilation/9.1.0.txt"
+            ),
+        ),
     ];
     pub(super) fn unhex(value: &str) -> Vec<u8> {
         value
@@ -176,12 +201,37 @@ mod original_objects {
     include!(
         "../../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/inputs.rs"
     );
-    const TABLES: &[(&str,&str)] = &[
-        ("tcl8.4",include_str!("../../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/8.4.20.txt")),
-        ("tcl8.5",include_str!("../../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/8.5.19.txt")),
-        ("tcl8.6",include_str!("../../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/8.6.18.txt")),
-        ("tcl9.0",include_str!("../../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/9.0.4.txt")),
-        ("tcl9.1",include_str!("../../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/9.1.0.txt")),
+    const TABLES: &[(&str, &str)] = &[
+        (
+            "tcl8.4",
+            include_str!(
+                "../../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/8.4.20.txt"
+            ),
+        ),
+        (
+            "tcl8.5",
+            include_str!(
+                "../../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/8.5.19.txt"
+            ),
+        ),
+        (
+            "tcl8.6",
+            include_str!(
+                "../../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/8.6.18.txt"
+            ),
+        ),
+        (
+            "tcl9.0",
+            include_str!(
+                "../../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/9.0.4.txt"
+            ),
+        ),
+        (
+            "tcl9.1",
+            include_str!(
+                "../../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/9.1.0.txt"
+            ),
+        ),
     ];
     fn header(value: *mut TclObj) -> [String; 3] {
         let descriptor = obj::obj_type_ptr(value);
@@ -243,10 +293,19 @@ mod original_objects {
         for &(engine, _) in TABLES {
             let mut interp = super::super::tests::interpreter(engine);
             let child = obj::Owned::fresh(new_string(b"MEMBER"));
-            let protocol = interp.native_invocation_dialect().native_string_protocol().unwrap();
-            let list = obj::Owned::fresh(crate::list::new_list_obj_native(&[child.as_ptr()], protocol));
+            let protocol = interp
+                .native_invocation_dialect()
+                .native_string_protocol()
+                .unwrap();
+            let list = obj::Owned::fresh(crate::list::new_list_obj_native(
+                &[child.as_ptr()],
+                protocol,
+            ));
             let index_word = obj::Owned::fresh(new_string(b"0"));
-            let index = obj::Owned::fresh(crate::list::new_list_obj_native(&[index_word.as_ptr()], protocol));
+            let index = obj::Owned::fresh(crate::list::new_list_obj_native(
+                &[index_word.as_ptr()],
+                protocol,
+            ));
             // SAFETY: the original child is retained through every count observation.
             let before = unsafe { (*child.as_ptr()).ref_count };
             let selected = interp

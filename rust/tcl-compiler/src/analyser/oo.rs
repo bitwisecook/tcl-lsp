@@ -955,6 +955,7 @@ impl Analyser {
                     rules: self.word_rules(),
                 },
             );
+            self.retain_class_relation_lookups(texts, class_def, scope_path);
             self.record_member_command_references(grammar, texts, argv, scope_path);
             if let Some(method) = collect_method_body(
                 grammar,
@@ -974,6 +975,39 @@ impl Analyser {
             &mut bodies.accessors,
             &mut bodies.initialisers,
         );
+    }
+
+    pub(super) fn retain_class_relation_lookups(
+        &self,
+        texts: &[String],
+        class: &mut ClassDef,
+        scope_path: &[usize],
+    ) {
+        // These are the same analyser-local field routes as apply_oo_subcommand_in.
+        let names = match texts.first().map(String::as_str) {
+            Some("superclass" | "inherit") => &class.superclasses,
+            Some("mixin") => &class.mixins,
+            _ => return,
+        };
+        for written in names.iter().filter(|name| texts[1..].contains(name)) {
+            let lookup = self.declaration_name_policy().and_then(|policy| {
+                crate::signature_scan::scope::SignatureSourceLookup::new(
+                    policy,
+                    self.declaration_namespace_scope(scope_path)?,
+                    written.clone(),
+                )
+            });
+            match class.relation_lookups.entry(written.clone()) {
+                std::collections::hash_map::Entry::Vacant(entry) => {
+                    entry.insert(lookup);
+                }
+                std::collections::hash_map::Entry::Occupied(mut entry) => {
+                    if entry.get() != &lookup {
+                        entry.insert(None);
+                    }
+                }
+            }
+        }
     }
 
     /// Walk one class-level `initialise` / `initialize` body in a scope
@@ -1333,7 +1367,15 @@ impl Analyser {
         self.emit_w314_no_absolute_name(raw_name, name_span);
         let body_tok = arg_tokens[1];
         let doc = std::mem::take(&mut self.last_comment);
+        let source_name = self.declaration_name_policy().and_then(|policy| {
+            crate::signature_scan::scope::SignatureSourceCommand::provider_advice_in_context(
+                policy,
+                &self.declaration_namespace_scope(scope_path)?,
+                raw_name,
+            )
+        });
         let mut class = ClassDef {
+            source_name,
             name: simple.clone(),
             qualified_name: qualified.clone(),
             name_span,
@@ -1727,7 +1769,15 @@ impl Analyser {
         self.emit_w314_no_absolute_name(raw_name, name_span);
         let body_tok = arg_tokens[1];
         let doc = std::mem::take(&mut self.last_comment);
+        let source_name = self.declaration_name_policy().and_then(|policy| {
+            crate::signature_scan::scope::SignatureSourceCommand::provider_advice_in_context(
+                policy,
+                &self.declaration_namespace_scope(scope_path)?,
+                raw_name,
+            )
+        });
         let mut class = ClassDef {
+            source_name,
             name: simple.clone(),
             qualified_name: qualified.clone(),
             name_span,
@@ -1831,7 +1881,7 @@ impl Analyser {
         let mut variables: Vec<String> = Vec::new();
         for base in &superclasses {
             let Some(base_class) = self
-                .resolve_user_class(base)
+                .resolve_user_class_in(base, scope_path)
                 .and_then(|base_q| self.result.all_classes.get(&base_q))
             else {
                 continue;
@@ -1849,7 +1899,15 @@ impl Analyser {
         }
 
         let doc = std::mem::take(&mut self.last_comment);
-        let class = ClassDef {
+        let source_name = self.declaration_name_policy().and_then(|policy| {
+            crate::signature_scan::scope::SignatureSourceCommand::provider_advice_in_context(
+                policy,
+                &self.declaration_namespace_scope(scope_path)?,
+                &args[0],
+            )
+        });
+        let mut class = ClassDef {
+            source_name,
             name: simple,
             qualified_name: qualified.clone(),
             name_span,
@@ -1862,6 +1920,18 @@ impl Analyser {
             doc,
             ..Default::default()
         };
+        for written in &class.superclasses {
+            class.relation_lookups.insert(
+                written.clone(),
+                self.declaration_name_policy().and_then(|policy| {
+                    crate::signature_scan::scope::SignatureSourceLookup::new(
+                        policy,
+                        self.declaration_namespace_scope(scope_path)?,
+                        written.clone(),
+                    )
+                }),
+            );
+        }
         self.register_defined_class(qualified.clone(), class, scope_path);
         self.adopt_recorded_two_word_procs(&qualified, scope_path);
         true
@@ -1883,11 +1953,9 @@ impl Analyser {
             let [class_word, member_word] = words.as_slice() else {
                 continue;
             };
-            if super::class_hierarchy::resolve_written_class_name(
-                class_word,
-                &self.result.all_classes,
-            )
-            .as_deref()
+            if self
+                .resolve_user_class_in(class_word, scope_path)
+                .as_deref()
                 == Some(class_q)
             {
                 adopted.push((member_word.to_string(), proc.clone()));
@@ -1921,9 +1989,7 @@ impl Analyser {
         if arg_tokens.len() != args.len() {
             return false;
         }
-        let Some(class_q) =
-            super::class_hierarchy::resolve_written_class_name(cmd_name, &self.result.all_classes)
-        else {
+        let Some(class_q) = self.resolve_user_class_in(cmd_name, scope_path) else {
             return false;
         };
         let Some(grammar) = self
@@ -2002,10 +2068,7 @@ impl Analyser {
         let [class_word, member_word] = words.as_slice() else {
             return;
         };
-        let Some(class_q) = super::class_hierarchy::resolve_written_class_name(
-            class_word,
-            &self.result.all_classes,
-        ) else {
+        let Some(class_q) = self.resolve_user_class_in(class_word, scope_path) else {
             return;
         };
         self.add_two_word_member(&class_q, member_word, proc, scope_path);
@@ -2289,6 +2352,7 @@ pub(super) fn parse_oo_define_inline_in(
     arg_tokens: &[Token],
     class_def: &mut ClassDef,
     dialect: Option<SurfaceQuery<'_>>,
+    scope_path: &[usize],
 ) {
     if args.is_empty() {
         return;
@@ -2323,6 +2387,7 @@ pub(super) fn parse_oo_define_inline_in(
             rules: analyser.word_rules(),
         },
     );
+    analyser.retain_class_relation_lookups(args, class_def, scope_path);
 }
 
 /// Depth cap for [`walk_unknown_stmt`]'s recursion over nested `if`/`for`/

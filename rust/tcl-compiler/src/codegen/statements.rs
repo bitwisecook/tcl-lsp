@@ -35,6 +35,10 @@ mod native_array;
 mod native_control;
 #[path = "native_coroutine.rs"]
 mod native_coroutine;
+#[path = "statements/native_dictionary.rs"]
+mod native_dictionary;
+#[path = "statements/native_dictionary_scope.rs"]
+mod native_dictionary_scope;
 #[path = "native_each.rs"]
 mod native_each;
 #[path = "native_error.rs"]
@@ -45,6 +49,8 @@ mod native_info_exists;
 mod native_introspection;
 #[path = "native_list_operations.rs"]
 mod native_list_operations;
+#[path = "statements/native_mathop.rs"]
+mod native_mathop;
 #[path = "native_namespace_upvar.rs"]
 mod native_namespace_upvar;
 #[path = "statements/native_scalar.rs"]
@@ -63,6 +69,8 @@ mod native_upvar;
 /// Work retained on the heap so array indices and bracket scripts share one
 /// compilation unit without recursive emitter calls or depth-limited views.
 enum NativeEmissionTask {
+    NativePreparationLiteral(Vec<u8>),
+    NativeDictionaryUpdateOperation(Op, Vec<u8>, Vec<Vec<u8>>),
     NativeArrayEachStart(
         tcl_dialect::TclVersion,
         [std::rc::Rc<std::cell::Cell<Option<usize>>>; 2],
@@ -489,10 +497,14 @@ impl CodegenCtx<'_> {
             vec![Operand::Label(inner_end.clone()), Operand::Imm(1)],
             "",
         );
-        let guaranteed_numeric = self.emit_expr(expr);
-        if !guaranteed_numeric {
-            self.emit(Op::TRY_CVT_TO_NUMERIC, vec![]);
-        }
+        let parent = self.invocation_tokens.clone();
+        let nested =
+            self.nested_command_tokens(parent.as_deref().and_then(|tokens| tokens.words().get(2)));
+        self.with_invocation_tokens(nested.as_ref(), |ctx| {
+            if !ctx.emit_retained_native_expression() && !ctx.emit_expr(expr) {
+                ctx.emit(Op::TRY_CVT_TO_NUMERIC, vec![]);
+            }
+        });
         self.place_label(&inner_end);
         self.store_var(name);
         self.emit(Op::POP, vec![]);
@@ -1615,6 +1627,9 @@ impl CodegenCtx<'_> {
         let Some(entry) = self.native_entry else {
             return false;
         };
+        if self.emit_authored_original_expression(binding, &original) {
+            return true;
+        }
         let Ok(crate::native_byte_compilation::NativeByteCommandPlan::Registered(plan)) =
             crate::native_byte_compilation::native_byte_command_plan(
                 &original,
@@ -1634,7 +1649,78 @@ impl CodegenCtx<'_> {
         true
     }
 
-    fn emit_native_original_preparation_invocation(
+    /// Authored evaluation consumes unchanged source under its explicit policy;
+    /// the original compiler registration still owns before-argument selection.
+    fn emit_authored_original_expression(
+        &mut self,
+        binding: &crate::command_binding::SourceInvocationBinding,
+        original: &[tcl_lexer::NativeWord],
+    ) -> bool {
+        use tcl_registry::native_compiler_words::NativeCompilerWords;
+        use tcl_registry::native_expression_program::{
+            ExpressionProgramEmission, expression_program_emission, native_expression_instruction,
+        };
+        let Some(proof) = binding.admitted_inline_invocation() else {
+            return false;
+        };
+        if proof.operation
+            != tcl_registry::SemanticOperationId::StructuredLowering(
+                tcl_registry::hooks::LoweringHookId::Expr,
+            )
+        {
+            return false;
+        }
+        let Some(required) = proof.compiler_prerequisite.clone() else {
+            return false;
+        };
+        let Some(entry) = self.native_entry else {
+            return false;
+        };
+        let (Some(protocol), Some(point)) = (entry.source_string_protocol, entry.execution_point)
+        else {
+            return false;
+        };
+        let Ok(words) = NativeCompilerWords::capture(original, protocol) else {
+            return false;
+        };
+        let Ok(recipe) = native_expression_instruction(
+            &words,
+            1,
+            tcl_registry::InvocationDialect::of_point(point),
+        ) else {
+            return false;
+        };
+        let Some(program) = recipe.program.filter(|program| {
+            expression_program_emission(program, entry) == ExpressionProgramEmission::AuthoredSource
+        }) else {
+            return false;
+        };
+        let Some(namespace) = entry
+            .namespaces
+            .iter()
+            .find(|namespace| namespace.token == required.lookup_namespace_token)
+        else {
+            return false;
+        };
+        let (Some(first), Some(last)) = (original.first(), original.last()) else {
+            return false;
+        };
+        let command = tcl_lexer::NativeScriptCommandWords {
+            span: tcl_lexer::Span::new(first.span().start(), last.span().end()),
+            words: original.to_vec(),
+        };
+        let end = self.begin_original_compiler_selection(
+            &command,
+            namespace.path.clone(),
+            tcl_runtime_api::native_compilation::NativeCompilerSelectionPrerequisite::from_command_registration(required),
+        );
+        self.push_lit_bytes_exact(&program.source);
+        self.emit(Op::EXPR_STK, vec![]);
+        self.place_label(&end);
+        true
+    }
+
+    pub(super) fn emit_native_original_preparation_invocation(
         &mut self,
         tokens: Option<&crate::ir::CommandTokens>,
     ) -> bool {
@@ -1705,6 +1791,17 @@ impl CodegenCtx<'_> {
         self.run_native_emission(vec![NativeEmissionTask::Word(word.clone())]);
     }
 
+    pub(super) fn emit_native_original_preparation_receipt(
+        &mut self,
+        visits: &[tcl_registry::native_control_compilation::NativeControlPreparationStep],
+    ) -> bool {
+        let Some(tasks) = self.native_preparation_receipt_tasks(visits) else {
+            return false;
+        };
+        self.run_native_emission(tasks.into_iter().rev().collect());
+        true
+    }
+
     fn run_native_emission(&mut self, mut pending: Vec<NativeEmissionTask>) {
         use NativeEmissionTask as Task;
         while let Some(task) = pending.pop() {
@@ -1736,7 +1833,9 @@ impl CodegenCtx<'_> {
                 | Task::EndNativeCatchBranch) => {
                     self.emit_native_control_task(selected, &mut pending);
                 }
-                selected @ (Task::NativeArrayEachStart(..)
+                selected @ (Task::NativePreparationLiteral(..)
+                | Task::NativeDictionaryUpdateOperation(..)
+                | Task::NativeArrayEachStart(..)
                 | Task::NativeEachStart(..)
                 | Task::RestoreSource(..)
                 | Task::DeclareNativeTemporary(..)
@@ -1977,6 +2076,12 @@ impl CodegenCtx<'_> {
                 self.exact_command_source = source.exact_command;
                 self.current_command_namespace = source.namespace;
                 self.current_command_namespace_context = source.namespace_context;
+            }
+            Task::NativePreparationLiteral(bytes) => {
+                self.literals.intern_bytes(&bytes);
+            }
+            Task::NativeDictionaryUpdateOperation(op, root, targets) => {
+                self.emit_native_dictionary_update_task(op, &root, &targets);
             }
             Task::DeclareNativeTemporary(slot) => {
                 slot.set(Some(self.lvt.intern_anonymous()));
@@ -2443,7 +2548,8 @@ impl CodegenCtx<'_> {
         let Some(entry) = self.native_entry else {
             return false;
         };
-        let (Some(point), Some(names)) = (entry.execution_point, entry.name_protocol) else {
+        let (Some(point), Some(names)) = (entry.execution_point, entry.command_name_policy())
+        else {
             return false;
         };
         let Some(namespace) = entry
@@ -2462,11 +2568,11 @@ impl CodegenCtx<'_> {
         let Ok(literal) = tcl_registry::native_command_literal::native_compiled_selected_command_name_literal_from_lookup(
             point, names, context, &plan.recipe.name, plan.prerequisite.clone(),
         ) else { return false; };
-        self.retain_entry_named_compiler_prerequisite(&std::sync::Arc::new(
-            plan.prerequisite.clone(),
-        ));
         let rewrite = plan.recipe.protocol == NativeNamedInvocationProtocol::EnsembleRewrite;
-        let mut operations = Vec::new();
+        let Some(mut operations) = self.native_preparation_receipt_tasks(&plan.recipe.preparations)
+        else {
+            return false;
+        };
         if !rewrite {
             operations.push(NativeEmissionTask::NativeCommandLiteral(Box::new(
                 literal.clone(),
@@ -2507,15 +2613,13 @@ impl CodegenCtx<'_> {
                 vec![Operand::Imm(count)],
             ));
         }
-        let end = self.fresh_label("native_named_command_end");
-        let start = self.emit(Op::NOP, vec![]);
-        self.instructions[start].source_command_boundary =
-            tcl_bytecode::SourceCommandBoundary::Start;
-        self.instructions[start].no_fold = true;
-        self.instructions[start].native_compiler_selection = Some(tcl_bytecode::NativeCompilerSelectionSite {
-            prerequisite: tcl_runtime_api::native_compilation::NativeCompilerSelectionPrerequisite::Ensemble(std::sync::Arc::new(plan.prerequisite.clone())),
-            end: end.clone(),
-        });
+        let end = self.begin_original_compiler_selection(
+            command,
+            namespace.path.clone(),
+            tcl_runtime_api::native_compilation::NativeCompilerSelectionPrerequisite::from_command_registration(
+                std::sync::Arc::new(plan.prerequisite.clone()),
+            ),
+        );
         pending.push(NativeEmissionTask::Label(end));
         pending.extend(operations.into_iter().rev());
         true
@@ -2608,6 +2712,7 @@ impl CodegenCtx<'_> {
                 NativeCompilationSelection::Inline { guard, .. } => guard,
                 NativeCompilationSelection::Generic
                     if plan.spec.namespace_binding_kind().is_some()
+                        || plan.has_generic_preparation()
                         || matches!(
                             plan.spec.grammar,
                             tcl_registry::native_compilation::NativeCompilationGrammar::Array { .. }
@@ -2646,6 +2751,23 @@ impl CodegenCtx<'_> {
             }
             NativeInstructionPlan::Concat(recipe) => {
                 let Some(tasks) = self.native_concat_tasks(command, recipe) else {
+                    return false;
+                };
+                *operations = tasks;
+            }
+            NativeInstructionPlan::DictionaryScope(recipe) => {
+                let Some(tasks) = self.native_dictionary_scope_tasks(command, recipe) else {
+                    return false;
+                };
+                *operations = tasks;
+            }
+            NativeInstructionPlan::DictionaryMutation(recipe) => {
+                return self
+                    .append_native_dictionary_mutation_tasks(command, recipe, version, operations);
+            }
+            NativeInstructionPlan::GenericPreparation(preparations) => {
+                let Some(tasks) = self.native_generic_preparation_tasks(command, &preparations)
+                else {
                     return false;
                 };
                 *operations = tasks;
@@ -2721,6 +2843,9 @@ impl CodegenCtx<'_> {
                 return Self::append_native_introspection_tasks(
                     command, recipe, version, operations,
                 );
+            }
+            NativeInstructionPlan::MathOperator(recipe) => {
+                return Self::append_native_mathop_tasks(command, recipe, version, operations);
             }
             NativeInstructionPlan::Scalar(recipe) => {
                 return Self::append_native_scalar_tasks(command, recipe, version, operations);
@@ -3340,14 +3465,45 @@ impl CodegenCtx<'_> {
         operations: Vec<NativeEmissionTask>,
     ) -> bool {
         use NativeEmissionTask as Task;
-        let end = self.fresh_label("native_byte_command_end");
+        let prerequisite = if plan.prerequisite.is_some() {
+            tcl_runtime_api::native_compilation::NativeCompilerSelectionPrerequisite::Ensemble(
+                std::sync::Arc::new(boundary.prerequisite),
+            )
+        } else {
+            tcl_runtime_api::native_compilation::NativeCompilerSelectionPrerequisite::Command(
+                std::sync::Arc::new(boundary.prerequisite),
+            )
+        };
+        let end = self.begin_original_compiler_selection(command, boundary.namespace, prerequisite);
+        pending.push(Task::Label(end));
+        pending.extend(operations.into_iter().rev());
+        true
+    }
+
+    /// All selected original compilers share one exact source replay boundary.
+    fn begin_original_compiler_selection(
+        &mut self,
+        command: &tcl_lexer::NativeScriptCommandWords,
+        namespace: tcl_runtime_api::ByteNamespacePath,
+        prerequisite: tcl_runtime_api::native_compilation::NativeCompilerSelectionPrerequisite,
+    ) -> String {
+        if let tcl_runtime_api::native_compilation::NativeCompilerSelectionPrerequisite::Command(
+            required,
+        )
+        | tcl_runtime_api::native_compilation::NativeCompilerSelectionPrerequisite::Ensemble(
+            required,
+        ) = &prerequisite
+        {
+            self.retain_entry_named_compiler_prerequisite(required);
+        }
+        let end = self.fresh_label("original_compiler_selection_end");
         let start = self.emit(Op::NOP, vec![]);
         let instruction = &mut self.instructions[start];
         instruction.source_cmd_text = tcl_lexer::SourceImage::from_bytes(
             &command.words[0].image().bytes()[command.span.as_range()],
             command.words[0].image().channel(),
         );
-        instruction.source_command_namespace = boundary.namespace;
+        instruction.source_command_namespace = namespace;
         instruction
             .source_command_namespace_context
             .clone_from(&self.current_command_namespace_context);
@@ -3355,20 +3511,10 @@ impl CodegenCtx<'_> {
         instruction.source_span = Some(command.span);
         instruction.no_fold = true;
         instruction.native_compiler_selection = Some(tcl_bytecode::NativeCompilerSelectionSite {
-            prerequisite: if plan.prerequisite.is_some() {
-                tcl_runtime_api::native_compilation::NativeCompilerSelectionPrerequisite::Ensemble(
-                    std::sync::Arc::new(boundary.prerequisite),
-                )
-            } else {
-                tcl_runtime_api::native_compilation::NativeCompilerSelectionPrerequisite::Command(
-                    std::sync::Arc::new(boundary.prerequisite),
-                )
-            },
+            prerequisite,
             end: end.clone(),
         });
-        pending.push(Task::Label(end));
-        pending.extend(operations.into_iter().rev());
-        true
+        end
     }
 
     fn native_concat_tasks(

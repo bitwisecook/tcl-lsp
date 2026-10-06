@@ -415,7 +415,7 @@ impl ModuleCommandBindings {
         self.install_runtime_variable_entry(entry);
         self.loader_handler_unknown = true;
         self.opaque_domain = !entry.closed
-            || entry.name_protocol.is_none()
+            || entry.command_name_policy().is_none()
             || !entry.namespaces.iter().any(|row| {
                 row.token == entry.current_namespace
                     && native_namespace_key(entry, row.token).is_some()
@@ -428,7 +428,7 @@ pub(super) fn analytical_command_name(
     entry: &tcl_runtime_api::NativeCompilationEntry,
     slot: &tcl_core_types::NativeByteCommandSlot,
 ) -> Option<String> {
-    tcl_syntax::naming::native_command_source_spelling(entry.name_protocol?.recipe(), slot)
+    tcl_syntax::naming::native_command_source_spelling(entry.command_name_policy()?.recipe(), slot)
 }
 
 /// Checked authored presentation used only by compatibility projection tests.
@@ -437,7 +437,7 @@ fn analytical_namespace_context_key(
     entry: &tcl_runtime_api::NativeCompilationEntry,
     namespace: &tcl_runtime_api::native_compilation::NativeCompilationNamespace,
 ) -> Option<String> {
-    let protocol = entry.name_protocol?.recipe();
+    let protocol = entry.command_name_policy()?.recipe();
     if protocol.is_jim084() {
         tcl_syntax::naming::native_jim_namespace_source_spelling(
             namespace.jim_namespace_object.as_ref()?.as_bytes(),
@@ -650,6 +650,7 @@ mod tests {
                 tcl_dialect::TclVersion::V9_0,
             )
             .execution_point(),
+            execution_name_policy: None,
             name_protocol: Some(
                 tcl_syntax::naming::NamePolicyProtocol::for_native_point(
                     tcl_dialect::model::DialectPoint::canonical(
@@ -738,6 +739,29 @@ mod tests {
             };
             identity += 1; row
         }).collect());
+    }
+
+    #[test]
+    fn observed_variable_policy_keeps_independent_command_provider_authority() {
+        use tcl_syntax::naming::{
+            ExecutionNamePolicy, MeasuredBigIpNameScope, NamePolicyProtocol,
+            ObservedBigIpNamePolicy,
+        };
+        let mut snapshot = entry(NativeCommandImplementation::Opaque);
+        let observed =
+            ExecutionNamePolicy::ObservedBigIp(ObservedBigIpNamePolicy::for_measured_scope(
+                MeasuredBigIpNameScope::BigIp21_1_0_1Build0_0_26TmmHttpRequest,
+            ));
+        snapshot.execution_name_policy = Some(observed);
+        let native = snapshot.name_protocol.take().unwrap();
+        assert_eq!(snapshot.command_name_policy(), None);
+        assert_eq!(snapshot.execution_name_policy(), Some(observed));
+        snapshot.name_protocol = Some(native);
+        assert_eq!(snapshot.command_name_policy(), Some(native));
+        let authored = NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_4);
+        snapshot.name_protocol = Some(authored);
+        assert_eq!(snapshot.command_name_policy(), Some(authored));
+        assert_eq!(snapshot.execution_name_policy(), Some(observed));
     }
 
     fn analyse(entry: &NativeCompilationEntry) -> SourceCommandBindings {

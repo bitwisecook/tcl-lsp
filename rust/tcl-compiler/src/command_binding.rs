@@ -636,6 +636,7 @@ fn is_repeated_fresh_binding(binding: &MayBinding) -> bool {
 /// baseline behind one [`Arc`] and let the lattice state stay sparse.
 #[derive(Debug, Clone, Default)]
 struct BindingBaseline {
+    execution_name_policy: Option<tcl_syntax::naming::ExecutionNamePolicy>,
     compiled_variable_provider:
         Option<tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider>,
     invocation_realm: tcl_dialect::model::InvocationRealm,
@@ -658,6 +659,7 @@ struct BindingBaseline {
 impl PartialEq for BindingBaseline {
     fn eq(&self, other: &Self) -> bool {
         self.invocation_realm == other.invocation_realm
+            && self.execution_name_policy == other.execution_name_policy
             && self.unknown_entry == other.unknown_entry
             && self.registry_snapshot == other.registry_snapshot
             && self.native_entry == other.native_entry
@@ -686,6 +688,12 @@ impl BindingBaseline {
 
     fn for_registry(registry: &CommandRegistry) -> Self {
         let mut baseline = Self {
+            execution_name_policy: registry
+                .profile()
+                .and_then(|profile| {
+                    tcl_registry::InvocationDialect::of_profile(profile).authored_name_policy()
+                })
+                .map(tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe),
             invocation_realm: tcl_dialect::model::InvocationRealm::RuleLoader,
             unknown_entry: false,
             native_entry: None,
@@ -725,6 +733,7 @@ impl BindingBaseline {
     fn refresh_fingerprint(&mut self) {
         let mut state = std::collections::hash_map::DefaultHasher::new();
         self.registry_snapshot.hash(&mut state);
+        self.execution_name_policy.hash(&mut state);
         self.native_entry.hash(&mut state);
         self.native_compilation.hash(&mut state);
         self.compiled_variable_provider.hash(&mut state);
@@ -862,6 +871,8 @@ pub struct TrustedCommandLookup {
 /// catalogue availability or a package require spelling.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct SourceAnalysisOptions<'a> {
+    /// Independently selected naming context, separate from producer strings and compiler recipes.
+    pub execution_name_policy: Option<tcl_syntax::naming::ExecutionNamePolicy>,
     /// Compilation request's body inventory; independent of native admission.
     pub compilation_scope: tcl_runtime_api::SourceCompilationScope,
     /// Availability phase selected by the entry owner, independent of source origin.
@@ -908,6 +919,18 @@ fn native_compilation_dialect(
 }
 
 impl SourceAnalysisOptions<'_> {
+    /// A supplied live entry owns naming selection, including unsupported purposes.
+    #[must_use]
+    pub fn execution_name_policy(&self) -> Option<tcl_syntax::naming::ExecutionNamePolicy> {
+        match self.native_entry {
+            Some(entry) => entry.execution_name_policy(),
+            None => self.execution_name_policy.or_else(|| {
+                self.invocation_dialect?
+                    .authored_name_policy()
+                    .map(tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe)
+            }),
+        }
+    }
     /// Selected compiler-local recipe. A supplied live entry is authoritative,
     /// including missing policy; its physical C host cannot fill that gap.
     #[must_use]
@@ -981,6 +1004,8 @@ impl SourceAnalysisOptions<'_> {
 /// Owned entry proof carried from source lowering into every later consumer.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct SourceAnalysisEntry {
+    /// Naming issuer retained independently of source strings, physical compiler and catalogue.
+    pub execution_name_policy: Option<tcl_syntax::naming::ExecutionNamePolicy>,
     /// Body inventory retained from the original compilation request.
     pub compilation_scope: tcl_runtime_api::SourceCompilationScope,
     /// Availability phase retained from the actual source entry contract.
@@ -1011,6 +1036,7 @@ impl SourceAnalysisEntry {
     #[must_use]
     pub fn options(&self) -> SourceAnalysisOptions<'_> {
         SourceAnalysisOptions {
+            execution_name_policy: self.execution_name_policy,
             compilation_scope: self.compilation_scope,
             invocation_realm: self.invocation_realm,
             native_entry: self.native_entry.as_deref(),
@@ -4290,21 +4316,18 @@ fn retain_source_namespace_world(
     state: &mut ModuleCommandBindings,
     context: &SourceExecutionContext<'_>,
 ) {
-    Arc::make_mut(&mut state.source_variables).retain_namespace_world(
+    let policy = match state.baseline.native_entry.as_ref() {
+        Some(entry) => entry.execution_name_policy(),
+        None => state.baseline.execution_name_policy,
+    };
+    let variables = Arc::make_mut(&mut state.source_variables);
+    variables.execution_name_policy = policy;
+    variables.retain_namespace_world(
         context.namespace_identity(),
         state.namespaces.iter().cloned(),
-        state
-            .baseline
-            .native_entry
-            .as_ref()
-            .and_then(|entry| entry.name_protocol)
-            .map(tcl_syntax::naming::NamePolicyProtocol::recipe)
-            .or_else(|| {
-                state
-                    .baseline
-                    .dialect
-                    .and_then(tcl_registry::InvocationDialect::native_name_protocol)
-            }),
+        policy
+            .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+            .map(tcl_syntax::naming::NamePolicyProtocol::recipe),
     );
 }
 
@@ -5714,6 +5737,7 @@ impl SourceCommandBindings {
             trusted_source_modules: &self.final_state.baseline.trusted_source_modules,
             unknown_entry: false,
             invocation_dialect: self.final_state.baseline.dialect,
+            execution_name_policy: self.final_state.baseline.execution_name_policy,
             compiled_variable_provider: self.final_state.baseline.compiled_variable_provider,
         };
         let fallback = crate::var_resolve::VariableExecutionFrame::Namespace(namespace.to_owned());
@@ -11009,6 +11033,12 @@ impl ModuleCommandBindings {
         config: Option<tcl_lexer::LexerConfig>,
     ) -> Self {
         let mut baseline = BindingBaseline::for_registry(registry);
+        if options.native_entry.is_some()
+            || options.execution_name_policy.is_some()
+            || options.invocation_dialect.is_some()
+        {
+            baseline.execution_name_policy = options.execution_name_policy();
+        }
         baseline.native_compilation = options.native_compilation;
         baseline.compiled_variable_provider = options.compiled_variable_provider;
         baseline.invocation_realm = options.invocation_realm;
@@ -11058,6 +11088,7 @@ impl ModuleCommandBindings {
         let mut variables = crate::var_resolve::ResolveContext::for_namespace("::");
         variables.frame_kind = crate::var_resolve::VariableFrameKind::Global;
         variables.invocation_dialect = state.baseline.dialect;
+        variables.execution_name_policy = state.baseline.execution_name_policy;
         variables.namespace_identities = state.namespaces.iter().cloned().collect();
         variables.known_namespaces = state
             .namespaces
@@ -11964,7 +11995,12 @@ impl ModuleCommandBindings {
         match key {
             SourceCommandKey::Authored(text) => Some(text.clone()),
             SourceCommandKey::Slot { namespace, simple } => {
-                let protocol = self.baseline.native_entry.as_ref()?.name_protocol?.recipe();
+                let protocol = self
+                    .baseline
+                    .native_entry
+                    .as_ref()?
+                    .command_name_policy()?
+                    .recipe();
                 let slot = tcl_core_types::NativeByteCommandSlot::new(
                     namespace.exact_native_path()?.clone(),
                     simple.clone(),

@@ -32,7 +32,7 @@ use tcl_runtime_api::{
     Namespaces, NsId, ProcInfo, ProcParam, Procs, Traces, VarStore, VarUnsetError,
 };
 
-use crate::interp::{new_string, Interp};
+use crate::interp::{Interp, new_string};
 use crate::obj::{self, TclObj};
 
 /// The Family-B variable store, honouring `FrameId` (the absolute frame level,
@@ -55,9 +55,12 @@ impl VarStore for Interp {
         input: tcl_syntax::naming::NativeVariableInputForm<'_>,
     ) -> Result<tcl_syntax::naming::NativeVariableDiagnosticProjection, tcl_syntax::value::ValueError>
     {
-        let policy = self.name_policy_protocol().ok_or(
-            tcl_syntax::value::ValueError::CommandProtocolUnavailable("variable diagnostic"),
-        )?;
+        let policy = self
+            .execution_name_policy()
+            .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "variable diagnostic",
+            ))?;
         tcl_syntax::naming::report_native_variable_diagnostic_at(
             policy.recipe(),
             operation,
@@ -162,6 +165,9 @@ impl VarStore for Interp {
         frame: FrameId,
         name: &[u8],
     ) -> Result<ArrayTarget, tcl_syntax::value::ValueError> {
+        if self.observed_name_policy_selected() {
+            return self.observed_array_target(name, frame.0);
+        }
         self.require_variable_name_protocol().map_err(|_| {
             tcl_syntax::value::ValueError::CommandProtocolUnavailable("variable naming")
         })?;
@@ -179,6 +185,11 @@ impl VarStore for Interp {
         target: &ArrayTarget,
     ) -> Result<tcl_runtime_api::ArrayDefaultState<Self::Value>, tcl_syntax::value::ValueError>
     {
+        if self.observed_name_policy_selected() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "unmeasured observed variable operation",
+            ));
+        }
         use tcl_syntax::value::ValueError;
         self.native_invocation_dialect()
             .native_array_default_protocol()
@@ -199,6 +210,11 @@ impl VarStore for Interp {
         &mut self,
         target: &ArrayTarget,
     ) -> Result<(), tcl_syntax::value::ValueError> {
+        if self.observed_name_policy_selected() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "unmeasured observed variable operation",
+            ));
+        }
         use tcl_syntax::value::ValueError;
         self.native_invocation_dialect()
             .native_array_default_protocol()
@@ -222,6 +238,11 @@ impl VarStore for Interp {
         value: Self::Value,
     ) -> Result<Result<(), tcl_runtime_api::ArrayDefaultSetFailure>, tcl_syntax::value::ValueError>
     {
+        if self.observed_name_policy_selected() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "unmeasured observed variable operation",
+            ));
+        }
         use tcl_runtime_api::ArrayDefaultSetFailure;
         use tcl_syntax::value::ValueError;
         self.native_invocation_dialect()
@@ -379,15 +400,17 @@ impl VarStore for Interp {
         &self,
         target: &ArrayTarget,
     ) -> Result<Option<Vec<Vec<u8>>>, tcl_syntax::value::ValueError> {
+        if self.observed_name_policy_selected() {
+            return self.observed_array_keys(target);
+        }
         if self.variable_container_model() == tcl_dialect::VariableContainerModel::DictionaryValue {
             if let Some(root) = self.var_get_at(target.name_bytes(), target.frame().0) {
                 let protocol = self
-                    .name_policy_protocol()
+                    .native_invocation_dialect()
+                    .native_string_protocol()
                     .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                         "variable container",
-                    ))?
-                    .recipe()
-                    .string_protocol();
+                    ))?;
                 if protocol.is_jim084() {
                     crate::native_source::bind_context(root, &self.native_jim_object_context()?)?;
                 }
@@ -405,6 +428,11 @@ impl VarStore for Interp {
         &self,
         target: &ArrayTarget,
     ) -> Result<Option<Vec<Vec<u8>>>, tcl_syntax::value::ValueError> {
+        if self.observed_name_policy_selected() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "unmeasured observed variable operation",
+            ));
+        }
         self.array_search_keys_at_target(target)
     }
 
@@ -413,6 +441,11 @@ impl VarStore for Interp {
         target: &ArrayTarget,
         key: &[u8],
     ) -> Result<bool, tcl_syntax::value::ValueError> {
+        if self.observed_name_policy_selected() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "unmeasured observed variable operation",
+            ));
+        }
         self.array_search_element_exists_at_target(target, key)
     }
 
@@ -421,6 +454,11 @@ impl VarStore for Interp {
         target: &ArrayTarget,
         key: &[u8],
     ) -> Result<ArrayElementRead<*mut TclObj>, tcl_syntax::value::ValueError> {
+        if self.observed_name_policy_selected() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "unmeasured observed variable operation",
+            ));
+        }
         let result = self.array_read_elem_at_target(target, key);
         if let Some(refusal) = self.native_access_refusal() {
             return Err(refusal.into());
@@ -433,6 +471,11 @@ impl VarStore for Interp {
         target: &ArrayTarget,
         key: &[u8],
     ) -> Result<bool, tcl_syntax::value::ValueError> {
+        if self.observed_name_policy_selected() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "unmeasured observed variable operation",
+            ));
+        }
         let removed = self.array_unset_elem_at_target(target, key);
         if let Some(refusal) = self.native_access_refusal() {
             return Err(refusal.into());

@@ -1053,7 +1053,7 @@ impl CodegenCtx<'_> {
                 .cloned();
             tcl_registry::native_command_literal::native_compiled_command_name_literal_from_lookup(
                 entry.execution_point?,
-                entry.name_protocol?,
+                entry.command_name_policy()?,
                 tcl_runtime_api::native_command_name::NativeLiteralContext {
                     interpreter: entry.interpreter,
                     namespace_token: entry.current_namespace,

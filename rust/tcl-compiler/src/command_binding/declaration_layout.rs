@@ -1015,7 +1015,7 @@ mod tests {
     }
 
     #[test]
-    fn repeated_or_replaced_declarations_do_not_share_original_layout_issuers() {
+    fn repeated_declarations_keep_original_compilers_separate_from_body_allocations() {
         let body = "expr {$n + 1}";
         let source = "foreach generation {A B} {proc p {n} {expr {$n + 1}}}; p 1; p 2";
         let (_, tokens) = original_tokens(source, body, source.find(body).unwrap());
@@ -1024,9 +1024,23 @@ mod tests {
             "same original lexical declaration can retain operand geometry across repetitions",
         );
         assert!(!advice.targets().is_empty());
+        let original = binding
+            .admitted_inline_invocation()
+            .expect("unchanged original expression compiler registration");
+        assert!(original.target.registry_backed);
+        assert!(original.target.implementation_allocation.is_none());
+        assert_eq!(
+            original.operation,
+            tcl_registry::SemanticOperationId::StructuredLowering(
+                tcl_registry::hooks::LoweringHookId::Expr,
+            )
+        );
         assert_eq!(
             binding.native_compilation_admission_selection(),
-            tcl_registry::native_compilation::NativeCompilationSelection::Unknown
+            tcl_registry::native_compilation::NativeCompilationSelection::Inline {
+                operation: original.operation,
+                guard: tcl_registry::native_compilation::NativeCompilationGuard::BeforeArguments,
+            }
         );
         let mut changed = tokens.clone();
         changed.word_exprs.pop();

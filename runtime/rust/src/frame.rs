@@ -664,6 +664,13 @@ impl VarTable {
         if let Some(slot) = self.lookup_slot(name) {
             return slot;
         }
+        self.counted_dynamic_slot(name)
+    }
+
+    fn counted_dynamic_slot(&mut self, name: &[u8]) -> usize {
+        if let Some(slot) = self.slots.get(name) {
+            return *slot;
+        }
         let slot = self.cells.len();
         let cell = Cell::empty(name);
         cell.contents
@@ -1623,6 +1630,10 @@ impl FrameStack {
     /// Issued activation identity of the current variable frame, including uplevel selection.
     pub(crate) fn current_activation(&self) -> u64 {
         self.frames[self.current_frame_index()].jim_id
+    }
+
+    pub(crate) fn current_activation_owner(&self) -> std::rc::Weak<()> {
+        Rc::downgrade(&self.frames[self.current_frame_index()].jim_link_birth)
     }
 
     /// The set of stack indices on the active frame's caller chain (C's

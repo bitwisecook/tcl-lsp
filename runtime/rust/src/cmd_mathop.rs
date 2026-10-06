@@ -182,6 +182,49 @@ mod tests {
         assert_eq!(count, 60);
     }
 
+    #[test]
+    fn original_mathop_compilation_matches_all_84_native_controls() {
+        let rows = include_str!(
+            "../../../rust/tcl-cmd-core/tests/data/native_mathop_compilation/rows.txt"
+        );
+        let decode = |text: &str| {
+            text.as_bytes()
+                .chunks_exact(2)
+                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect::<Vec<_>>()
+        };
+        let mut count = 0;
+        for row in rows.lines() {
+            let fields: Vec<_> = row.split('\t').collect();
+            let mut interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect(fields[0]),
+                tcl_registry::special_vars::NativeBootstrapInputs {
+                    package_path: Vec::new(),
+                    default_library: None,
+                },
+            )
+            .unwrap();
+            let code = interp.eval_str(&decode(fields[4]));
+            assert_eq!(
+                code.as_int(),
+                fields[2].parse::<i64>().unwrap(),
+                "{}/{}",
+                fields[0],
+                fields[1]
+            );
+            assert_eq!(
+                interp.result_bytes(),
+                decode(fields[3]),
+                "{}/{}",
+                fields[0],
+                fields[1]
+            );
+            count += 1;
+        }
+        assert_eq!(count, 84);
+    }
+
     fn leak_free(body: impl FnOnce(&mut Interp)) {
         counters::reset();
         {

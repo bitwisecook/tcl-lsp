@@ -604,6 +604,13 @@ impl crate::expr::ExprCtx for CompiledExpressionContext<'_> {
     fn invocation_dialect(&self) -> tcl_registry::InvocationDialect {
         self.interp.native_invocation_dialect()
     }
+    fn f5_string_predicate_provider(
+        &self,
+    ) -> Option<tcl_syntax::expr::operators::AuthoredF5StringPredicateProvider> {
+        tcl_registry::native_expression_program::authored_f5_string_predicate_provider(
+            self.artifact.stamp.expression_policy.as_ref(),
+        )
+    }
     fn has_compiled_nodes(&self) -> bool {
         !self.prepared.folded.is_empty() || !self.prepared.logical_left84.is_empty()
     }

@@ -14,7 +14,87 @@ pub(super) struct NativeErrorTraceState {
     logged: bool,
 }
 
+pub(super) struct NativeGlobalErrorFlags {
+    in_progress: bool,
+    already_logged: bool,
+    code_set: bool,
+}
+
 impl Vm {
+    /// C8.4 trace chains preserve only the three passive error flag bits.
+    pub(super) fn capture_native_global_error_flags(&self) -> Option<NativeGlobalErrorFlags> {
+        self.uses_c84_global_error_info()
+            .then_some(NativeGlobalErrorFlags {
+                in_progress: self.native_errors.native_error_legacy_copy,
+                already_logged: self.native_errors.error_logged,
+                code_set: self.native_errors.c84_global_code_set,
+            })
+    }
+
+    pub(super) fn restore_native_global_error_flags(
+        &mut self,
+        saved: Option<NativeGlobalErrorFlags>,
+    ) {
+        if let Some(saved) = saved {
+            self.native_errors.native_error_legacy_copy |= saved.in_progress;
+            self.native_errors.error_logged |= saved.already_logged;
+            self.native_errors.c84_global_code_set |= saved.code_set;
+        }
+    }
+
+    /// Keep projected completion codes independent of C8.4's real setter flag.
+    pub(crate) fn apply_cmd_error_code(
+        &mut self,
+        update: tcl_cmd_core::ResolvedCmdErrorCodeUpdate,
+        explicit_code_store: bool,
+    ) -> Value {
+        let replaces = matches!(update, tcl_cmd_core::ResolvedCmdErrorCodeUpdate::Set(_));
+        let code = self.apply_primitive_error_code(update);
+        if self.uses_c84_global_error_info() && replaces {
+            if explicit_code_store {
+                self.restore_guest_error_code(code.clone());
+            } else {
+                self.native_errors.c84_global_code_set = false;
+            }
+        }
+        code
+    }
+
+    pub(crate) fn prepare_error_command_code(&mut self, original: Option<&Value>) -> Value {
+        let code = original.cloned().unwrap_or_else(|| Value::string("NONE"));
+        if self.uses_c84_global_error_info() {
+            if original.is_some() {
+                self.restore_guest_error_code(code.clone());
+            } else {
+                self.native_errors.primitive_error_code =
+                    Some(code.native_lifetime_lease().into_value());
+            }
+            return code.native_lifetime_lease().into_value();
+        }
+        code
+    }
+
+    /// C8.4 error's nonempty info argument extends the current result before
+    /// its explicit code setter and final message-result installation.
+    pub(crate) fn publish_c84_error_command_info(
+        &mut self,
+        info: &[u8],
+    ) -> Result<bool, tcl_syntax::value::ValueError> {
+        if !self.uses_c84_global_error_info() {
+            return Ok(false);
+        }
+        let original = self.with_native_interp_result(Value::native_lifetime_lease)?;
+        let bytes = self.native_string_bytes(original.value())?.to_vec();
+        self.native_errors.native_error_result = Some(original.value().downgrade_native_object());
+        self.seed_c84_global_error_info(&bytes);
+        let mut bytes = bytes;
+        bytes.extend_from_slice(info);
+        self.native_errors.error_info = Some(bytes);
+        self.append_c84_global_error_info();
+        self.native_errors.error_logged = true;
+        Ok(true)
+    }
+
     /// Publish a command completion through the callback-capable receiver.
     pub(crate) fn publish_native_interp_completion(
         &mut self,
@@ -32,7 +112,9 @@ impl Vm {
         let original = if self.uses_c84_global_error_info() {
             // Tcl_SetObjErrorCode stores the SAME global header before setting
             // ERROR_CODE_SET; C8.4 has no separate private error-code object.
-            let _ = self.set_var_bytes(b"::errorCode", original.clone());
+            let _ =
+                self.set_var_bytes_reporting(b"::errorCode", original.clone(), Some(b"errorCode"));
+            self.native_errors.c84_global_code_set = true;
             let metadata = original.native_lifetime_lease();
             drop(original);
             metadata.into_value()
@@ -366,8 +448,10 @@ impl Vm {
         };
         // Tcl_AddObjErrorInfo owns no private errorInfo header in C8.4;
         // its first real setter stores the current original result globally.
+        self.native_errors.native_error_info_len = bytes.len();
+        self.native_errors.native_error_legacy_copy = true;
         let _ = self.set_var_bytes(b"::errorInfo", original);
-        if self.native_errors.primitive_error_code.is_none() {
+        if !self.native_errors.c84_global_code_set {
             let _ = self.set_var_bytes(
                 b"::errorCode",
                 Value::new_native_string_bytes(b"NONE".as_slice()),
@@ -543,6 +627,7 @@ impl InterpState {
             self.native_errors.native_error_info_len = 0;
             self.native_errors.native_error_result = None;
             self.native_errors.native_error_legacy_copy = false;
+            self.native_errors.c84_global_code_set = false;
             self.native_errors.primitive_error_code = None;
             self.native_errors.error_logged = false;
         }
@@ -780,6 +865,159 @@ mod tests {
             tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
         ));
         vm
+    }
+
+    thread_local! {
+        static C84_CODE_EVENTS: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+        static C84_CODE_HEADERS: std::cell::RefCell<Vec<usize>> = const { std::cell::RefCell::new(Vec::new()) };
+    }
+
+    fn observe_c84_code(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+        let name = vm.native_name_operand_bytes(&args[0]).unwrap().to_vec();
+        let operation = vm.native_name_operand_bytes(&args[2]).unwrap().to_vec();
+        let rooted = if name.starts_with(b"::") {
+            name.clone()
+        } else {
+            [b"::".as_slice(), name.as_slice()].concat()
+        };
+        let value = vm
+            .get_var_bytes(&rooted)
+            .expect("actual traced global cell");
+        let bytes = vm.native_string_bytes(&value).unwrap();
+        let hex: String = bytes.iter().map(|byte| format!("{byte:02x}")).collect();
+        C84_CODE_EVENTS.with(|events| {
+            events.borrow_mut().push(format!(
+                "{}|{}|{hex}",
+                String::from_utf8(name).unwrap(),
+                String::from_utf8(operation).unwrap(),
+            ));
+        });
+        if rooted == b"::errorCode" {
+            C84_CODE_HEADERS.with(|headers| {
+                headers.borrow_mut().push(value.native_object_identity());
+            });
+        }
+        super::super::ok(Value::empty())
+    }
+
+    fn c84_code_vm() -> Vm {
+        let mut vm = native_vm("tcl8.4");
+        vm.register_command(
+            "observe",
+            crate::command::Command::Builtin(observe_c84_code),
+        );
+        assert_eq!(
+            vm.eval_source(
+                "trace variable ::errorInfo rw observe;trace variable ::errorCode rw observe"
+            )
+            .unwrap()
+            .code,
+            Code::Ok
+        );
+        C84_CODE_EVENTS.with(|events| events.borrow_mut().clear());
+        C84_CODE_HEADERS.with(|headers| headers.borrow_mut().clear());
+        vm
+    }
+
+    fn check_c84_code_controls(controls: &str, sources: &[(&str, &str)]) {
+        for row in controls.lines() {
+            let fields: Vec<_> = row.split('\t').collect();
+            let source = sources
+                .iter()
+                .find(|(name, _)| *name == fields[0])
+                .unwrap()
+                .1;
+            let mut vm = c84_code_vm();
+            let completion = vm.eval_source(source).unwrap();
+            assert_eq!(completion.code.as_int().to_string(), fields[1], "{row}");
+            let result: String = vm
+                .native_string_bytes(&completion.result)
+                .unwrap()
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect();
+            assert_eq!(result, fields[2], "{row}");
+            C84_CODE_EVENTS
+                .with(|events| assert_eq!(events.borrow().join(";"), fields[3], "{row}"));
+            assert!(
+                vm.execution_refusal.is_none(),
+                "{row}: {:?}",
+                vm.execution_refusal
+            );
+        }
+    }
+
+    #[test]
+    fn c84_global_error_code_publication_matches_five_original_callback_controls() {
+        check_c84_code_controls(
+            include_str!("../../../../runtime/rust/tests/data/native_c84_error_code/controls.tsv"),
+            &[
+                (
+                    "conflict",
+                    "package provide probe 1;catch {package provide probe 2} m;list $m $::errorCode",
+                ),
+                ("no-code", "catch {error FAIL} m;list $m $::errorCode"),
+                ("NONE", "catch {error FAIL {} NONE} m;list $m $::errorCode"),
+                (
+                    "structured",
+                    "catch {error FAIL {} {CUSTOM DETAIL}} m;list $m $::errorCode",
+                ),
+                (
+                    "structured-getter",
+                    "catch {lindex {} BAD} m;list $m $::errorCode",
+                ),
+            ],
+        );
+    }
+
+    #[test]
+    fn c84_nonempty_error_info_publication_matches_original_callback_controls() {
+        check_c84_code_controls(
+            include_str!(
+                "../../../../runtime/rust/tests/data/native_c84_error_code/nonempty/controls.tsv"
+            ),
+            &[
+                (
+                    "info-no-code",
+                    "catch {error FAIL INFO} m;list $m $::errorInfo $::errorCode",
+                ),
+                (
+                    "info-NONE",
+                    "catch {error FAIL INFO NONE} m;list $m $::errorInfo $::errorCode",
+                ),
+                (
+                    "info-structured",
+                    "catch {error FAIL INFO {CUSTOM DETAIL}} m;list $m $::errorInfo $::errorCode",
+                ),
+            ],
+        );
+    }
+
+    #[test]
+    fn c84_explicit_error_code_setter_retains_the_same_original_header() {
+        let mut vm = c84_code_vm();
+        let code = Value::new_native_string_bytes(b"CUSTOM DETAIL".as_slice());
+        let arguments = [
+            Value::new_native_string_bytes(b"FAIL".as_slice()),
+            Value::new_native_string_bytes(b"".as_slice()),
+            code.clone(),
+        ];
+        assert_eq!(
+            vm.try_invoke_command("error", &arguments).unwrap().code,
+            Code::Error
+        );
+        C84_CODE_HEADERS.with(|headers| {
+            assert_eq!(
+                headers.borrow().first().copied(),
+                Some(code.native_object_identity())
+            );
+        });
+        assert!(
+            vm.get_var_bytes(b"::errorCode")
+                .unwrap()
+                .is_same_object(&code)
+        );
+        assert!(vm.execution_refusal.is_none());
     }
 
     #[test]

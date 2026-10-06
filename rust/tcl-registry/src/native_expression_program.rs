@@ -62,6 +62,22 @@ pub fn authored_expression_evaluation_policy(
     )
 }
 
+/// Select authored F5 predicates only from the independently installed parser.
+/// Native C/Jim policies and absent F5 word grammar grant no dialect operator.
+#[must_use]
+pub fn authored_f5_string_predicate_provider(
+    policy: Option<&tcl_runtime_api::expression_policy::ExpressionEvaluationPolicy>,
+) -> Option<tcl_syntax::expr::operators::AuthoredF5StringPredicateProvider> {
+    let policy = policy?;
+    if policy.origin
+        != tcl_runtime_api::expression_policy::ExpressionEvaluationOrigin::AuthoredTcl84Parser
+        || policy.context.f5_word_grammar.is_none()
+    {
+        return None;
+    }
+    Some(tcl_syntax::expr::operators::AuthoredF5StringPredicateProvider::F5Trunk)
+}
+
 /// Select the function protocol from an independently retained evaluator and
 /// actual engine. Authored parsing/numbers and missing policy grant no table.
 #[must_use]
@@ -670,6 +686,37 @@ pub fn prepare_native_expression_program(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn authored_f5_predicates_require_installed_policy_and_reject_native_c_and_jim() {
+        use crate::invocation_words::LogicalExpressionParseProvider;
+        use tcl_syntax::expr::operators::AuthoredF5StringPredicateProvider;
+        let mut policy = authored_expression_evaluation_policy(
+            tcl_dialect::DialectProfile::irules(),
+            LogicalExpressionParseProvider::Tcl84CoreSimulation,
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            authored_f5_string_predicate_provider(Some(&policy)),
+            Some(AuthoredF5StringPredicateProvider::F5Trunk)
+        );
+        assert_eq!(authored_f5_string_predicate_provider(None), None);
+        policy.context.f5_word_grammar = None;
+        assert_eq!(authored_f5_string_predicate_provider(Some(&policy)), None);
+        for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let profile = crate::model::resolve_environment(name).unit_profile();
+            let dialect = InvocationDialect::of_profile(profile);
+            let policy =
+                native_expression_evaluation_policy(profile, dialect.execution_point().unwrap())
+                    .unwrap();
+            assert_eq!(
+                authored_f5_string_predicate_provider(Some(&policy)),
+                None,
+                "{name}"
+            );
+        }
+    }
+
     use super::*;
     use crate::native_compilation::{
         NativeExpressionCompilerStep as Step, NativeMathFunctionResolution as Resolution,

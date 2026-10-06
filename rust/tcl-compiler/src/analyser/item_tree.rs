@@ -104,6 +104,8 @@ impl ItemId {
 /// the cross-item aggregate queries early-cutoff.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ItemSig {
+    /// Retained authored command geometry; report keys supply no native identity.
+    pub source_name: Option<crate::signature_scan::scope::SignatureSourceCommand>,
     /// Stable identity.
     pub id: ItemId,
     /// Enclosing namespace (`"::"` for the global namespace), or the owning
@@ -218,6 +220,7 @@ impl ItemTree {
         for (qualified, proc) in &result.all_procs {
             items.push(Item {
                 sig: ItemSig {
+                    source_name: proc.source_name.clone(),
                     id: ItemId::new(ItemKind::Proc, qualified.clone()),
                     namespace: enclosing_namespace(qualified),
                     params: proc.params.clone(),
@@ -231,6 +234,7 @@ impl ItemTree {
         for (qualified, class) in &result.all_classes {
             items.push(Item {
                 sig: ItemSig {
+                    source_name: None,
                     id: ItemId::new(ItemKind::Class, qualified.clone()),
                     namespace: enclosing_namespace(qualified),
                     params: Vec::new(),
@@ -243,6 +247,7 @@ impl ItemTree {
                 |key: String, name_span: Span, body_span: Span, params: Vec<ParamDef>| {
                     items.push(Item {
                         sig: ItemSig {
+                    source_name: None,
                             id: ItemId::new(ItemKind::Method, key),
                             namespace: qualified.clone(),
                             params,
@@ -260,6 +265,7 @@ impl ItemTree {
         for qualified in result.command_aliases.keys() {
             items.push(Item {
                 sig: ItemSig {
+                    source_name: None,
                     id: ItemId::new(ItemKind::Alias, qualified.clone()),
                     namespace: enclosing_namespace(qualified),
                     params: Vec::new(),
@@ -273,6 +279,7 @@ impl ItemTree {
         for ns in ensembles {
             items.push(Item {
                 sig: ItemSig {
+                    source_name: None,
                     id: ItemId::new(ItemKind::Ensemble, ns.clone()),
                     namespace: ns.clone(),
                     params: Vec::new(),
@@ -288,6 +295,7 @@ impl ItemTree {
         for ns in &namespaces {
             items.push(Item {
                 sig: ItemSig {
+                    source_name: None,
                     id: ItemId::new(ItemKind::Namespace, ns.clone()),
                     namespace: enclosing_namespace(ns),
                     params: Vec::new(),

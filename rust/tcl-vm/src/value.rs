@@ -737,6 +737,16 @@ pub(crate) struct PreparedNativeDictionary {
 }
 
 impl PreparedNativeDictionary {
+    pub(crate) fn invalidate_string(&self) {
+        *self.value.0.string.borrow_mut() = None;
+        self.value
+            .0
+            .string_storage
+            .set(NativeStringStorageIdentity::Unknown);
+        *self.value.0.double_format.borrow_mut() = None;
+        *self.value.0.source_location.borrow_mut() = None;
+    }
+
     pub(crate) fn original(&self) -> &Value {
         &self.value
     }
@@ -950,6 +960,29 @@ impl tcl_cmd_core::native_append::NativeAppendObjects for VmAppendObjects {
 }
 
 impl tcl_cmd_core::native_cat::NativeCatObjects for VmAppendObjects {
+    fn empty_binary(
+        &self,
+        value: &Value,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+    ) -> Result<Rc<[u8]>, tcl_syntax::value::ValueError> {
+        let version = protocol.tcl_version().ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "C compiled concat binary getter",
+            ),
+        )?;
+        value
+            .as_native_byte_array(
+                tcl_registry::native_binary_value::NativeBinaryByteConversion::Narrow(
+                    version.string_character_model(),
+                ),
+                protocol,
+            )
+            .map_err(|_| {
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "native compiled concat empty binary conversion",
+                )
+            })
+    }
     fn is_shared(&self, value: &Value) -> bool {
         value.native_object_is_shared()
     }
@@ -2684,6 +2717,7 @@ impl Value {
                     "expr"
                 }
             }
+            IntRep::NativeCommandName(_) | IntRep::NativeCommandNameUnresolved(_) => "cmdName",
             IntRep::NativeParsedVariableName(_) => "parsedVarName",
             IntRep::NativeLocalVariableName(_) => "localVarName",
             IntRep::Tcl84Long(_) | IntRep::Int(_) => "int",

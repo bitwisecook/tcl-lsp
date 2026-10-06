@@ -5258,6 +5258,16 @@ coordinates. Nested words retain their enclosing `Source`, `Derived` or
 the retained original source image. Test nested and quoted substitutions,
 options and repeated operands, including an opaque-source negative.
 
+The ordinary `upvar` and `info exists` compiler controls retain actual
+registration receipts across C8.4–9.1. C8.4 has no hook for either command;
+`compiler_hook_presence` remains `Some(false)` and accepted source stays Generic.
+Its `{*}` cases retain the original close-brace parse failure and an empty
+instruction window, without inventing a command or compiler selection. The
+80 upvar and 60 existence windows count those failures as their native outcomes.
+The accompanying 140 completion, 20 reached name-header and 15 quiet-observer
+windows check actual ownership and result production independently of compiler
+selection.
+
 ### Keep fresh activation contents separate from outward contents
 
 `VariableBindings::enter_called_frame` establishes the contents world of an
@@ -5265,6 +5275,17 @@ actual fresh procedure or receiver-method activation. Parameters are defined;
 other ordinary locals can be absent even when outward namespace contents are
 unknown. This closure applies only to the selected activation's local keys.
 It supplies no knowledge of globals, enclosing frames or namespace variables.
+
+The fresh activation also retains its own closed variable-observer inventory,
+independently of unknown incoming namespace registrations. A bounded newly
+allocated receiver can retain a separate receipt for that exact allocation.
+Local links resolve to their physical owner before consulting either receipt;
+class labels, object names and declaration previews cannot issue one. Known
+registrations still observe their exact cells. Unknown registrations, callbacks
+and unresolved contents writes withdraw the affected fresh-owner receipts;
+joins retain only receipts present on every path, and restoration preserves only
+the exact live owner. These receipts supply no value, representation, compiler
+registration or opcode permission.
 
 Alias resolution precedes this projection. Unknown dynamic writes, callbacks,
 incompatible joins and frame restoration withdraw or conservatively combine

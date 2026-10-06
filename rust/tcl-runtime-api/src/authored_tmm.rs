@@ -53,3 +53,13 @@ pub struct AuthoredTmmStaticCompilationContext {
     pub recipients: Vec<AuthoredTmmStaticRecipient>,
     pub outward_observers: crate::native_compilation::NativeVariableObserverPresence,
 }
+
+/// Independently authored storage scope for the measured event's counted keys.
+/// The frame owner supplies worker and domain identity; naming evidence supplies
+/// no storage, namespace, trace or native object authority.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct AuthoredObservedFrameStorageContext {
+    pub policy: tcl_syntax::naming::ObservedBigIpNamePolicy,
+    pub tmm: u64,
+    pub domain: u64,
+}

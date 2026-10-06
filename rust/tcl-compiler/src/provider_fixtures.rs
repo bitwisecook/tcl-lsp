@@ -39,7 +39,7 @@ pub(crate) enum Provider {
     Snit,
     /// Itcl 4.3.2's actual class dispatcher on C Tcl 8.6.18.
     Itcl,
-    /// C Tcl 8.6.18's tcltest 2.5.11 implementation.
+    /// Stock tcltest from the fixture's explicitly selected C Tcl distribution.
     Tcltest,
     /// The Tk 8.6 widget implementation supplied by the fixture environment.
     Tk,
@@ -55,9 +55,15 @@ pub(crate) fn entry(
         .iter()
         .map(|provider| {
             if matches!(provider, Provider::Tcltest) {
+                // These are pinned fixture package versions, independently
+                // measured in the native distributions; production package
+                // lookup never derives a package version from the core.
+                let version = profile
+                    .effective_tcl_version(None)
+                    .map(tcl_test_support::tcltest_reference_package_version);
                 return crate::lowering::stock_body_provider_loader(
                     tcl_registry::body_execution::TCLTEST_STOCK_PROVIDER,
-                    Some("2.5.11"),
+                    version,
                 )
                 .expect("audited C Tcl tcltest provider");
             }

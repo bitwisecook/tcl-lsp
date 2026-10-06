@@ -1903,6 +1903,12 @@ fn split_formal_values(
     protocol: tcl_syntax::naming::NativeNameProtocol,
 ) -> Result<Vec<Value>, tcl_syntax::value::ValueError> {
     use tcl_syntax::value::ValueError;
+    let strings = vm
+        .actual_native_invocation_dialect()
+        .native_string_protocol()
+        .ok_or(ValueError::CommandProtocolUnavailable(
+            "formal list producer",
+        ))?;
     if matches!(
         protocol.tcl_version(),
         Some(tcl_dialect::TclVersion::V8_4 | tcl_dialect::TclVersion::V8_5)
@@ -1914,7 +1920,7 @@ fn split_formal_values(
             .iter()
             .position(|byte| *byte == 0)
             .unwrap_or(original.len())];
-        return tcl_syntax::list::split_native_list_bytes(bytes, protocol.string_protocol())
+        return tcl_syntax::list::split_native_list_bytes(bytes, strings)
             .map(|items| {
                 items
                     .into_iter()
@@ -1926,7 +1932,7 @@ fn split_formal_values(
                 source: bytes.to_vec(),
             });
     }
-    vm.native_object_list_elements_in(value, protocol.string_protocol())
+    vm.native_object_list_elements_in(value, strings)
         .map(|items| items.as_ref().clone())
 }
 
@@ -2234,6 +2240,8 @@ pub(crate) fn completion_from_cmd_error(vm: &mut Vm, error: CmdError) -> Complet
         return vm.refuse_host_command(error.to_string());
     }
     let details = error.into_byte_details();
+    let explicit_code_store =
+        matches!(details.error_code, tcl_cmd_core::CmdErrorCodeUpdate::Set(_));
     let update = match details.error_code.resolve(|| {
         vm.native_invocation_dialect()
             .wrong_arguments_protocol(Some(tcl_registry::native_wrong_arguments::LogicalWrongArgumentsProvider::Tcl84CoreSimulation))
@@ -2253,7 +2261,7 @@ pub(crate) fn completion_from_cmd_error(vm: &mut Vm, error: CmdError) -> Complet
         },
         None => None,
     };
-    let code = vm.apply_primitive_error_code(update);
+    let code = vm.apply_cmd_error_code(update, explicit_code_store);
     let message = details
         .primitive_getter
         .as_ref()
@@ -2651,10 +2659,6 @@ fn cmd_error(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             tcl_cmd_core::return_options::ReturnOptionsPurpose::User,
         );
     }
-    let ecode = args
-        .get(2)
-        .cloned()
-        .unwrap_or_else(|| Value::string("NONE"));
     // A *non-empty* `info` argument *is* the errorInfo trace: seed it directly and
     // suppress the `error` command's own `while executing` frame (C's
     // `ERR_ALREADY_LOGGED`). An empty (or absent) `info` is treated as absent —
@@ -2663,8 +2667,13 @@ fn cmd_error(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let info = args.get(1).map(super::value::Value::string_bytes);
     let info_nonempty = info.as_deref().is_some_and(|s| !s.is_empty());
     if info_nonempty {
-        vm.seed_error_info(info.clone().unwrap_or_default());
+        match vm.publish_c84_error_command_info(info.as_deref().unwrap_or_default()) {
+            Ok(true) => {}
+            Ok(false) => vm.seed_error_info(info.clone().unwrap_or_default()),
+            Err(error) => return completion_from_cmd_error(vm, error.into()),
+        }
     }
+    let ecode = vm.prepare_error_command_code(args.get(2));
     let einfo = if info_nonempty {
         info.unwrap_or_default()
     } else {

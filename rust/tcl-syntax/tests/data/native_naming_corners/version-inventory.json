@@ -1,0 +1,221 @@
+[
+  {
+    "engine": "8.4.20",
+    "case": "version-inventory",
+    "command": [
+      "/tmp/2286-oracles/bin/tclsh8.4",
+      "/workspace/.proofs/2286-native-naming-evidence-audit/native-controls-v2/8.4.20/version-inventory.tcl"
+    ],
+    "source": "8.4.20/version-inventory.tcl",
+    "recorded_source": "/workspace/.proofs/2286-native-naming-evidence-audit/native-controls-v2/8.4.20/version-inventory.tcl",
+    "source_sha256": "62e3813a0ea1f5a8197a3995f8e4f3a63f73151086026c0d462a05652845bdf4",
+    "launcher": "/tmp/2286-oracles/bin/tclsh8.4",
+    "launcher_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+    "binary": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+    "exit_status": 0,
+    "timeout": false,
+    "timeout_seconds": 60,
+    "seconds": 0.004665501008275896,
+    "stdout": "8.4.20/version-inventory.stdout",
+    "recorded_stdout": "/workspace/.proofs/2286-native-naming-evidence-audit/native-controls-v2/8.4.20/version-inventory.stdout",
+    "stdout_sha256": "c6de2db397137a54f864296e0937def44da373276c155ad91b0af05e6d50fd70",
+    "stderr": "8.4.20/version-inventory.stderr",
+    "recorded_stderr": "/workspace/.proofs/2286-native-naming-evidence-audit/native-controls-v2/8.4.20/version-inventory.stderr",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout_bytes": 11,
+    "stderr_bytes": 0,
+    "reported_identity": [
+      "8.4",
+      "8.4.20"
+    ],
+    "expected_identity": [
+      "8.4",
+      "8.4.20"
+    ],
+    "identity_matches": true
+  },
+  {
+    "engine": "8.5.19",
+    "case": "version-inventory",
+    "command": [
+      "/tmp/2286-oracles/bin/tclsh8.5",
+      "/workspace/.proofs/2286-native-naming-evidence-audit/native-controls-v2/8.5.19/version-inventory.tcl"
+    ],
+    "source": "8.5.19/version-inventory.tcl",
+    "recorded_source": "/workspace/.proofs/2286-native-naming-evidence-audit/native-controls-v2/8.5.19/version-inventory.tcl",
+    "source_sha256": "62e3813a0ea1f5a8197a3995f8e4f3a63f73151086026c0d462a05652845bdf4",
+    "launcher": "/tmp/2286-oracles/bin/tclsh8.5",
+    "launcher_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+    "binary": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+    "exit_status": 0,
+    "timeout": false,
+    "timeout_seconds": 60,
+    "seconds": 0.005174871999770403,
+    "stdout": "8.5.19/version-inventory.stdout",
+    "recorded_stdout": "/workspace/.proofs/2286-native-naming-evidence-audit/native-controls-v2/8.5.19/version-inventory.stdout",
+    "stdout_sha256": "e0b89299b0562539cee266e2df0f4391ebe5e431dc945d9362024cae83ba983c",
+    "stderr": "8.5.19/version-inventory.stderr",
+    "recorded_stderr": "/workspace/.proofs/2286-native-naming-evidence-audit/native-controls-v2/8.5.19/version-inventory.stderr",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout_bytes": 11,
+    "stderr_bytes": 0,
+    "reported_identity": [
+      "8.5",
+      "8.5.19"
+    ],
+    "expected_identity": [
+      "8.5",
+      "8.5.19"
+    ],
+    "identity_matches": true
+  },
+  {
+    "engine": "8.6.18",
+    "case": "version-inventory",
+    "command": [
+      "/tmp/2286-oracles/bin/tclsh8.6",
+      "/workspace/.proofs/2286-native-naming-evidence-audit/native-controls-v2/8.6.18/version-inventory.tcl"
+    ],
+    "source": "8.6.18/version-inventory.tcl",
+    "recorded_source": "/workspace/.proofs/2286-native-naming-evidence-audit/native-controls-v2/8.6.18/version-inventory.tcl",
+    "source_sha256": "62e3813a0ea1f5a8197a3995f8e4f3a63f73151086026c0d462a05652845bdf4",
+    "launcher": "/tmp/2286-oracles/bin/tclsh8.6",
+    "launcher_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+    "binary": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+    "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+    "exit_status": 0,
+    "timeout": false,
+    "timeout_seconds": 60,
+    "seconds": 0.005811559967696667,
+    "stdout": "8.6.18/version-inventory.stdout",
+    "recorded_stdout": "/workspace/.proofs/2286-native-naming-evidence-audit/native-controls-v2/8.6.18/version-inventory.stdout",
+    "stdout_sha256": "b6fd5486d54c09e2fcb09eecb4f9aae16b55fff039d7d65b4fc16a6f3aac8de1",
+    "stderr": "8.6.18/version-inventory.stderr",
+    "recorded_stderr": "/workspace/.proofs/2286-native-naming-evidence-audit/native-controls-v2/8.6.18/version-inventory.stderr",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout_bytes": 11,
+    "stderr_bytes": 0,
+    "reported_identity": [
+      "8.6",
+      "8.6.18"
+    ],
+    "expected_identity": [
+      "8.6",
+      "8.6.18"
+    ],
+    "identity_matches": true
+  },
+  {
+    "engine": "9.0.4",
+    "case": "version-inventory",
+    "command": [
+      "/tmp/2286-oracles/bin/tclsh9.0",
+      "/workspace/.proofs/2286-native-naming-evidence-audit/native-controls-v2/9.0.4/version-inventory.tcl"
+    ],
+    "source": "9.0.4/version-inventory.tcl",
+    "recorded_source": "/workspace/.proofs/2286-native-naming-evidence-audit/native-controls-v2/9.0.4/version-inventory.tcl",
+    "source_sha256": "62e3813a0ea1f5a8197a3995f8e4f3a63f73151086026c0d462a05652845bdf4",
+    "launcher": "/tmp/2286-oracles/bin/tclsh9.0",
+    "launcher_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+    "binary": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+    "binary_sha256": "647d9627cd7c2aea30a8c629ed3386d2b06380aa096443ae1595eac9052b2553",
+    "exit_status": 0,
+    "timeout": false,
+    "timeout_seconds": 60,
+    "seconds": 0.017057357996236533,
+    "stdout": "9.0.4/version-inventory.stdout",
+    "recorded_stdout": "/workspace/.proofs/2286-native-naming-evidence-audit/native-controls-v2/9.0.4/version-inventory.stdout",
+    "stdout_sha256": "dd1daed5cd9c157e12ce44cb74c3d25200b7169ca9fda841a81bcaa6d7ec9e0b",
+    "stderr": "9.0.4/version-inventory.stderr",
+    "recorded_stderr": "/workspace/.proofs/2286-native-naming-evidence-audit/native-controls-v2/9.0.4/version-inventory.stderr",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout_bytes": 10,
+    "stderr_bytes": 0,
+    "reported_identity": [
+      "9.0",
+      "9.0.4"
+    ],
+    "expected_identity": [
+      "9.0",
+      "9.0.4"
+    ],
+    "identity_matches": true
+  },
+  {
+    "engine": "9.1.0",
+    "case": "version-inventory",
+    "command": [
+      "/tmp/2286-oracles/bin/tclsh9.1",
+      "/workspace/.proofs/2286-native-naming-evidence-audit/native-controls-v2/9.1.0/version-inventory.tcl"
+    ],
+    "source": "9.1.0/version-inventory.tcl",
+    "recorded_source": "/workspace/.proofs/2286-native-naming-evidence-audit/native-controls-v2/9.1.0/version-inventory.tcl",
+    "source_sha256": "62e3813a0ea1f5a8197a3995f8e4f3a63f73151086026c0d462a05652845bdf4",
+    "launcher": "/tmp/2286-oracles/bin/tclsh9.1",
+    "launcher_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+    "binary": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "binary_sha256": "baa7535f758da4c3be4fdd3e7ba9d7ba48d6b863cacabfff6681f2ce75ec0cee",
+    "exit_status": 0,
+    "timeout": false,
+    "timeout_seconds": 60,
+    "seconds": 0.015269619994796813,
+    "stdout": "9.1.0/version-inventory.stdout",
+    "recorded_stdout": "/workspace/.proofs/2286-native-naming-evidence-audit/native-controls-v2/9.1.0/version-inventory.stdout",
+    "stdout_sha256": "50148be68fd59e14d10d79a6ebc6f935dfc35c0058b0f70405df84b69771cb2e",
+    "stderr": "9.1.0/version-inventory.stderr",
+    "recorded_stderr": "/workspace/.proofs/2286-native-naming-evidence-audit/native-controls-v2/9.1.0/version-inventory.stderr",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout_bytes": 10,
+    "stderr_bytes": 0,
+    "reported_identity": [
+      "9.1",
+      "9.1.0"
+    ],
+    "expected_identity": [
+      "9.1",
+      "9.1.0"
+    ],
+    "identity_matches": true
+  },
+  {
+    "engine": "Jim",
+    "case": "version-inventory",
+    "command": [
+      "/tmp/2286-oracles/jimtcl/jimsh",
+      "/workspace/.proofs/2286-native-naming-evidence-audit/native-controls-v2/Jim/version-inventory.tcl"
+    ],
+    "source": "Jim/version-inventory.tcl",
+    "recorded_source": "/workspace/.proofs/2286-native-naming-evidence-audit/native-controls-v2/Jim/version-inventory.tcl",
+    "source_sha256": "133d0beac25e77e282d08719193024a3cbb24f5d9065c8622fec10624080a1f3",
+    "launcher": "/tmp/2286-oracles/jimtcl/jimsh",
+    "launcher_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+    "binary": "/tmp/2286-oracles/jimtcl/jimsh",
+    "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+    "exit_status": 0,
+    "timeout": false,
+    "timeout_seconds": 60,
+    "seconds": 0.006414507981389761,
+    "stdout": "Jim/version-inventory.stdout",
+    "recorded_stdout": "/workspace/.proofs/2286-native-naming-evidence-audit/native-controls-v2/Jim/version-inventory.stdout",
+    "stdout_sha256": "02196566c70d1acac4cbb4952ce02d4c50f7406eecb45335746c98357d46711b",
+    "stderr": "Jim/version-inventory.stderr",
+    "recorded_stderr": "/workspace/.proofs/2286-native-naming-evidence-audit/native-controls-v2/Jim/version-inventory.stderr",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout_bytes": 21,
+    "stderr_bytes": 0,
+    "reported_identity": [
+      "0.84",
+      "0.84-9-g5bac7c9"
+    ],
+    "expected_identity": [
+      "0.84",
+      "0.84-9-g5bac7c9"
+    ],
+    "identity_matches": true,
+    "source_revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+    "expected_source_revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+    "jim_source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867"
+  }
+]

@@ -1827,6 +1827,18 @@ file; this call falls through to the 'unknown' handler."
                 continue;
             };
             let use_index = usize::try_from(use_site.statement_index).unwrap_or(usize::MAX);
+            let source_view = crate::ssa::SsaSourceView::at_statement(&fu.ssa, use_id, use_index);
+            if source_view.owns_activation_cell(symbol) == Some(false)
+                && !super::helpers::original_read_cells_at(
+                    &fu.ssa,
+                    (use_id, use_index),
+                    cell_name,
+                    &self.profile_registry(),
+                )
+                .contains(cell_name)
+            {
+                continue;
+            }
             if super::helpers::read_has_cell_fact(
                 fu,
                 (use_id, use_index),

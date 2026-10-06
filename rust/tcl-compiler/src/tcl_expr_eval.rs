@@ -264,7 +264,7 @@ impl FoldEvaluation {
 #[must_use]
 pub fn eval_tcl_expr(node: &ExprNode, env: &Env) -> Option<TclValue> {
     // No dialect context: decline the iRules word-operator fold rather than
-    // assume plain Tcl (safe — see `FoldOps::is_irules`).
+    // assume plain Tcl (safe — see `FoldOps::f5_predicates`).
     eval_with_config(
         node,
         env,
@@ -316,7 +316,7 @@ pub fn eval_tcl_expr_with_octal(
 /// Like [`eval_tcl_expr_with_octal`] but for the (more common) optimiser call
 /// sites that already have both an `octal` policy and a resolved dialect
 /// profile in scope — so, unlike `eval_tcl_expr_with_octal`'s plain
-/// `None`-profile callers, these can resolve [`FoldOps::is_irules`] precisely
+/// `None`-profile callers, these can resolve [`FoldOps::f5_predicates`] precisely
 /// instead of defaulting it to declined.  A profile used only for
 /// `leading_zero_is_octal` and never to gate the iRules word-operator fold
 /// leaves that fold silently off.
@@ -355,10 +355,9 @@ pub struct FoldPolicy {
     /// `[expr …]` while folding: the parse must use the same grammar the
     /// document was lexed under, never the ambient one.
     pub dialect: Option<&'static tcl_dialect::DialectProfile>,
-    /// Whether the active dialect's `expr` grammar has the iRules word
-    /// operators.  `false` (the default) declines that fold, which is always
-    /// safe — see [`FoldOps::is_irules`].
-    pub is_irules: bool,
+    /// Explicit authored F5 predicate recipe for this fold. It grants no
+    /// native C/Jim execution or measured appliance-context capability.
+    pub f5_predicates: Option<tcl_syntax::expr::operators::AuthoredF5StringPredicateProvider>,
     /// What the active dialect counts as a string character: `Some(model)`
     /// folds character counts under that model, `None` declines a fold whose
     /// answer the Tcl 8 and Tcl 9 models disagree on — the same
@@ -417,7 +416,7 @@ impl FoldPolicy {
             dialect: None,
             native_family: None,
             octal,
-            is_irules: false,
+            f5_predicates: None,
             characters: None,
             numbers: None,
             word_rules: tcl_syntax::word_rules::WordValueRules::TCL,
@@ -442,7 +441,9 @@ impl FoldPolicy {
             dialect: profile,
             native_family: profile
                 .and_then(|profile| tcl_registry::InvocationDialect::of_profile(profile).family()),
-            is_irules: profile.is_some_and(tcl_dialect::DialectProfile::is_irules),
+            f5_predicates: profile
+                .is_some_and(tcl_dialect::DialectProfile::is_irules)
+                .then_some(tcl_syntax::expr::operators::AuthoredF5StringPredicateProvider::F5Trunk),
             characters: profile.and_then(tcl_dialect::DialectProfile::character_model),
             numbers: profile.map(|p| NumberSyntax::of_profile(Some(p))),
             word_rules: tcl_syntax::word_rules::WordValueRules::of_profile(profile),
@@ -494,7 +495,7 @@ impl FoldPolicy {
         self.characters = dialect.characters;
         if self.native_family == Some(tcl_dialect::model::Family::Jim) {
             self.characters = None;
-            self.is_irules = false;
+            self.f5_predicates = None;
         }
         self
     }
@@ -516,9 +517,10 @@ impl FoldPolicy {
             native_family: registry
                 .profile()
                 .and_then(|profile| tcl_registry::InvocationDialect::of_profile(profile).family()),
-            is_irules: registry
+            f5_predicates: registry
                 .profile()
-                .is_some_and(tcl_dialect::DialectProfile::is_irules),
+                .is_some_and(tcl_dialect::DialectProfile::is_irules)
+                .then_some(tcl_syntax::expr::operators::AuthoredF5StringPredicateProvider::F5Trunk),
             characters: registry.character_model(),
             numbers: Some(registry.numbers()),
             word_rules: tcl_syntax::word_rules::WordValueRules::of_profile(registry.profile()),
@@ -815,7 +817,7 @@ fn make_fold_ops<'a>(
             }
         }),
         math_since: policy.dialect.and_then(math_func_ceiling_for_dialect),
-        is_irules: policy.is_irules,
+        f5_predicates: policy.f5_predicates,
         word_rules: policy.word_rules,
         native_family: policy.native_family,
         constant_compilation: ConstantCompilation::default(),
@@ -1041,17 +1043,8 @@ struct FoldOps<'a> {
     /// core, so the runtime would error rather than produce a constant.
     /// `None` leaves the set unbounded (dialect not resolved).
     math_since: Option<tcl_syntax::expr::mathfunc::MathFuncSince>,
-    /// Whether the active dialect is iRules — the only dialect the iRules
-    /// word operators (`contains`/`starts_with`/`equals`/`matches_glob`/
-    /// `matches_regex`/…) are real in (see [`Self::binary_other`]).
-    /// Lexing already gates which operators can appear in the AST at all
-    /// (`irules_ops()`), but several call sites into this evaluator (the
-    /// optimiser's `parse_expr(text, None)` sites) have no dialect to hand,
-    /// so this is a defence-in-depth check at the fold site itself rather
-    /// than trusting the lexer gate alone.
-    /// `false` — including when the dialect is genuinely unknown — declines
-    /// the fold; that is always safe, it just forgoes an optimisation.
-    is_irules: bool,
+    /// Explicit authored string-predicate policy for an admitted iRules fold.
+    f5_predicates: Option<tcl_syntax::expr::operators::AuthoredF5StringPredicateProvider>,
     /// The active dialect's word-value rules — how a list-shaped value
     /// divides.  `in` / `ni` membership and the `llength` folds split a list
     /// here, so they must split it the way the document's own runtime does.
@@ -1586,22 +1579,15 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
     }
     fn unsupported(&mut self, _what: &str) {}
 
-    /// The iRules dialect string operators (`contains`/`starts_with`/`equals`/
-    /// `matches_glob`/`matches_regex`/…) — apply to the operands as strings.
-    /// Declines the fold outright unless [`Self::is_irules`] is set: these
-    /// operators are only real Tcl outside iRules by way of a lexer bug the
-    /// lexer's own `irules_ops()` gate already prevents, but this is the
-    /// defence-in-depth check for the call sites that reach this evaluator
-    /// with no dialect context to gate on at lex time.
+    /// Evaluate shared F5 predicates only under the selected authored policy.
+    /// Native C/Jim and absent dialect policies decline these operations.
     fn binary_other(
         &mut self,
         op: BinOp,
         left: FoldValue,
         right: FoldValue,
     ) -> Result<FoldValue, ()> {
-        if !self.is_irules {
-            return Err(());
-        }
+        let provider = self.f5_predicates.ok_or(())?;
         let left = self.operand_for(&left, NativeCoercionKind::String);
         let right = self.operand_for(&right, NativeCoercionKind::String);
         let format = self
@@ -1609,6 +1595,7 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
             .and_then(tcl_registry::InvocationDialect::double_string_policy)
             .and_then(tcl_dialect::DoubleStringPolicy::constant_format);
         apply_irules_string_op(
+            provider,
             op,
             &left.to_string_val(format).ok_or(())?,
             &right.to_string_val(format).ok_or(())?,
@@ -2202,31 +2189,14 @@ pub(crate) fn split_tcl_list(
 /// re-implemented them were unreachable, and re-implementing `in`/`ni` with
 /// a private list split risked disagreeing with the shared `in_list`
 /// semantics if either drifted.
-fn apply_irules_string_op(op: BinOp, left: &str, right: &str) -> Option<TclValue> {
-    let res = match op {
-        BinOp::Contains => left.contains(right),
-        BinOp::StartsWith => left.starts_with(right),
-        BinOp::EndsWith => left.ends_with(right),
-        BinOp::MatchesGlob => tcl_syntax::glob::string_match(right, left),
-        // `matches_regex` is deliberately *not* constant-folded (along
-        // with any other / unsupported operator): the Rust `regex` crate
-        // is not Tcl's ARE engine — classes, anchors, word boundaries,
-        // embedded options and greediness all differ — so folding here
-        // could disagree with runtime.  Decline to evaluate and defer to
-        // the runtime regex engine.
-        //
-        // The bare `matches` ([`BinOp::Matches`]) declines through the
-        // same arm, for a different reason: only its *presence* is
-        // measured (`docs/design/f5/bigip-irule-parser-measurements.md` §4a
-        // `e_matches`), and the probe — `expr {"abc" matches "abc"}` — is
-        // an exact-equality case that discriminates none of the
-        // string-match readings.  The VM answers it as a string equality
-        // so the measured cell reproduces; folding it here would bake an
-        // unmeasured semantics into a rewrite, which §12's outstanding
-        // re-probe has not yet earned.
-        _ => return None,
-    };
-    Some(TclValue::Int(i64::from(res)))
+fn apply_irules_string_op(
+    provider: tcl_syntax::expr::operators::AuthoredF5StringPredicateProvider,
+    op: BinOp,
+    left: &str,
+    right: &str,
+) -> Option<TclValue> {
+    let predicate = provider.predicate(op)?;
+    Some(TclValue::Int(i64::from(predicate.evaluate(left, right))))
 }
 
 // Tests
@@ -2315,7 +2285,7 @@ mod tests {
     /// `matches_regex`/`in`/`ni` word operators. Must use the
     /// dialect-threading evaluator, not the bare [`eval_tcl_expr`] — the
     /// word operators parse under any dialect gate, but only actually
-    /// *fold* when [`FoldOps::is_irules`] is set, which only
+    /// *fold* when [`FoldOps::f5_predicates`] is set, which only
     /// [`eval_tcl_expr_in_dialect`] does.
     fn eval_irules(expr: &str) -> Option<TclValue> {
         let env = Env::new();
@@ -2976,6 +2946,42 @@ mod tests {
     /// everywhere else — the defence-in-depth check for
     /// call sites that reach this evaluator without a dialect string
     /// (`eval_tcl_expr`/`eval_tcl_expr_with_octal`).
+    #[test]
+    fn measured_bigip_bare_matches_glob_discriminators_fold_only_under_authored_policy() {
+        let env = Env::new();
+        for (row_index, row) in
+            include_str!("../../tcl-syntax/tests/data/f5-matches-21.1.0.1-0.0.26.tsv")
+                .lines()
+                .enumerate()
+        {
+            let fields = row.split('\t').collect::<Vec<_>>();
+            let expression = fields[0];
+            let expected = if fields[1] == "0" {
+                Some(TclValue::Int(fields[2].parse().unwrap()))
+            } else {
+                None
+            };
+            assert_eq!(eval_irules(expression), expected, "{expression}");
+            let node = parse_expr(expression, Some("f5-irules"));
+            if row_index >= 6 {
+                continue;
+            }
+            assert_eq!(eval_tcl_expr(&node, &env), None);
+            for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+                assert_eq!(
+                    eval_tcl_expr_in_dialect(
+                        &node,
+                        &env,
+                        tcl_registry::model::ingress::resolve_environment(engine)
+                            .analyser_profile()
+                    ),
+                    None,
+                    "{engine}: {expression}"
+                );
+            }
+        }
+    }
+
     #[test]
     fn irules_contains_folds_under_irules_and_declines_under_plain_tcl() {
         let node_irules = parse_expr(r#""abc" contains "b""#, Some("f5-irules"));

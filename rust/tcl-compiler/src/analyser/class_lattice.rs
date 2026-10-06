@@ -367,6 +367,8 @@ enum AssignKind {
 /// *not* to an arbitrary same-tailed class in an unrelated namespace.
 #[derive(Debug, Clone, Default)]
 pub struct NsContext {
+    /// Original source scopes; displayed namespaces and imports are advice only.
+    pub source_scope: Option<crate::analyser::types::Scope>,
     /// `(body_start, body_end, namespace_name)` for each `namespace eval`
     /// body.  Innermost (smallest span) wins for a given offset.
     pub namespaces: Vec<(u32, u32, String)>,
@@ -376,15 +378,6 @@ pub struct NsContext {
 }
 
 impl NsContext {
-    /// The innermost `namespace eval` name containing `offset`, or `::`.
-    fn enclosing(&self, offset: u32) -> &str {
-        self.namespaces
-            .iter()
-            .filter(|(s, e, _)| *s <= offset && offset <= *e)
-            .min_by_key(|(s, e, _)| e.saturating_sub(*s))
-            .map_or("::", |(_, _, name)| name.as_str())
-    }
-
     /// Build the context for a file from its [`AnalysisResult`]: the
     /// `namespace eval` body ranges (from the scope tree) and the imported
     /// namespace prefixes (from `namespace import`).
@@ -405,6 +398,7 @@ impl NsContext {
         imports.sort();
         imports.dedup();
         Self {
+            source_scope: Some(result.global_scope.clone()),
             namespaces,
             imports,
         }
@@ -428,81 +422,22 @@ fn collect_namespace_ranges(
     }
 }
 
-/// Join a namespace prefix and a (possibly-relative) name into a fully
-/// qualified `::`-name — the canonical [`crate::naming`] join.  Notably an
-/// *absolute* `name` keeps its own namespace instead of being re-prefixed
-/// under the current one (`::other::C` stays `::other::C`).
-fn qualify(prefix: &str, name: &str) -> String {
-    crate::naming::qualify(prefix, name)
-}
-
-/// Resolve a possibly-bare / namespace-relative class name to a qualified
-/// name keyed in `index`.  Returns `(qualified_name, in_index)`.
-///
-/// **Sound-by-abstention**: a bare `Foo new` at `offset` is tried against, in
-/// Tcl's own resolution order,
-/// 1. the exact name / `::name` (already qualified or global);
-/// 2. `<enclosing namespace>::Foo` — the `namespace eval` the call sits in;
-/// 3. `<imported namespace>::Foo` for each `namespace import`ed prefix;
-/// 4. the global `::Foo`.
-///
-/// If none is in the index the name is an honest miss (→ `cross-file-miss`).
-/// It is **not** matched to a same-tailed class in an unrelated namespace,
-/// so the A3 cross-file run cannot manufacture a confident false resolution
-/// from a namespace collision.  `offset = None` skips tier 2 (used when the
-/// call site has no known offset, e.g. canonicalising a superclass name).
+/// Shared original-source query; displayed imports cannot establish a link.
+#[cfg(test)]
 fn resolve_class_name<S: std::hash::BuildHasher + Clone>(
     name: &str,
     offset: Option<u32>,
     index: &HashMap<String, ClassDef, S>,
     ns: &NsContext,
 ) -> (String, bool) {
-    // 1. Exact / global.
-    if index.contains_key(name) {
-        return (name.to_string(), true);
-    }
-    let global = qualify("", name);
-    if !name.starts_with("::") && index.contains_key(&global) {
-        // fall through to try enclosing/imports first only if this is a
-        // bare name; a `::`-qualified miss is final below.
-    }
-    // 2. Enclosing namespace (walking outward to global).
-    if let Some(off) = offset {
-        let mut nsname = ns.enclosing(off).to_string();
-        loop {
-            let cand = qualify(&nsname, name);
-            if index.contains_key(&cand) {
-                return (cand, true);
-            }
-            if nsname == "::" || nsname.is_empty() {
-                break;
-            }
-            // Strip one namespace component and retry (Tcl resolves in the
-            // current namespace then falls back toward global).
-            nsname = match nsname.rsplit_once("::") {
-                Some((head, _)) if !head.is_empty() => head.to_string(),
-                _ => "::".to_string(),
-            };
-        }
-    }
-    // 3. Imported namespaces.
-    for prefix in &ns.imports {
-        let cand = qualify(prefix, name);
-        if index.contains_key(&cand) {
-            return (cand, true);
-        }
-    }
-    // 4. Global.
-    if index.contains_key(&global) {
-        return (global, true);
-    }
-    // Honest miss — best-effort qualified form.
-    let canon = if name.starts_with("::") {
-        name.to_string()
-    } else {
-        global
+    let resolved = match (offset, ns.source_scope.as_ref()) {
+        (Some(offset), Some(scope)) => super::class_hierarchy::source_namespace_at(scope, offset)
+            .and_then(|namespace| {
+                super::class_hierarchy::resolve_written_class_name_in_scope(name, namespace, index)
+            }),
+        _ => super::class_hierarchy::resolve_written_class_name(name, index),
     };
-    (canon, false)
+    resolved.map_or_else(|| (name.to_owned(), false), |key| (key, true))
 }
 
 /// Walk every unit's IR and collect, per variable name, the kinds of RHS
@@ -708,8 +643,8 @@ fn classify_rhs<S: std::hash::BuildHasher + Clone>(
 /// class into the variable's [`ClassValue`].
 fn seed_from_type_lattice<S: std::hash::BuildHasher + Clone>(
     fu: &FunctionUnit,
-    index: &HashMap<String, ClassDef, S>,
-    ns: &NsContext,
+    _index: &HashMap<String, ClassDef, S>,
+    _ns: &NsContext,
     cfg: AblationConfig,
     out: &mut HashMap<String, ClassValue>,
 ) {
@@ -726,14 +661,14 @@ fn seed_from_type_lattice<S: std::hash::BuildHasher + Clone>(
         };
         // The type lattice's class name is already namespace-resolved by the
         // analyser, so no call-site offset is needed here.
-        let (class, _in_index) = resolve_class_name(class_name, None, index, ns);
+        let class = class_name.to_owned();
         let var = fu.ssa.var_name(*sym).to_owned();
         let entry = out.entry(var).or_insert(ClassValue::Bottom);
         if cfg.join {
-            *entry = std::mem::replace(entry, ClassValue::Bottom).with_class(class);
+            *entry = std::mem::replace(entry, ClassValue::Bottom).with_class(class.to_owned());
         } else if matches!(entry, ClassValue::Bottom) {
             // Single-class baseline: keep only the first concrete class.
-            *entry = ClassValue::Concrete(class);
+            *entry = ClassValue::Concrete(class.to_owned());
         }
     }
 }
@@ -840,7 +775,7 @@ fn build_class_values<S: std::hash::BuildHasher + Clone>(
 fn definer_grammar_for_class<S: std::hash::BuildHasher + Clone>(
     class: &str,
     index: &HashMap<String, ClassDef, S>,
-    ns: &NsContext,
+    _ns: &NsContext,
 ) -> Option<&'static tcl_registry::definer::DefinitionBodyGrammar> {
     let registry = tcl_registry::default_registry();
     let cd = index.get(class)?;
@@ -850,10 +785,8 @@ fn definer_grammar_for_class<S: std::hash::BuildHasher + Clone>(
     {
         return Some(grammar);
     }
-    let (meta_name, in_index) = resolve_class_name(&cd.metaclass, None, index, ns);
-    if !in_index {
-        return None;
-    }
+    let meta_name =
+        super::class_hierarchy::resolve_class_lookup(cd.metaclass_lookup.as_ref()?, index)?;
     let root = index
         .get(&meta_name)?
         .factory
@@ -911,8 +844,9 @@ fn resolve<S: std::hash::BuildHasher + Clone>(
                     // and only a *genuinely* unresolvable super counts as
                     // external.
                     || cd.superclasses.iter().any(|s| {
-                        let (_q, in_index) = resolve_class_name(s, None, index, ns);
-                        !in_index && s != "oo::object" && s != "oo::class"
+                        let resolved = cd.relation_lookups.get(s).and_then(Option::as_ref)
+                            .and_then(|lookup| super::class_hierarchy::resolve_class_lookup(lookup, index));
+                        resolved.is_none() && s != "oo::object" && s != "oo::class"
                     })
             })
             // Class not indexed at all (external) — can't disprove.
@@ -1036,6 +970,16 @@ pub fn next_provider(
 mod tests {
     use super::*;
 
+    fn source_name(written: &str) -> Option<crate::signature_scan::scope::SignatureSourceCommand> {
+        let policy =
+            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6);
+        crate::signature_scan::scope::SignatureSourceCommand::object_in_context(
+            policy,
+            &crate::signature_scan::scope::SignatureNamespaceScope::root(Some(policy)),
+            written,
+        )
+    }
+
     #[test]
     fn join_bottom_identity() {
         assert_eq!(
@@ -1086,11 +1030,32 @@ mod tests {
         NsContext {
             namespaces: Vec::new(),
             imports: vec![prefix.to_string()],
+            ..NsContext::default()
         }
     }
     /// A context whose whole file is one `namespace eval <name> { … }`.
     fn ns_enclosing(name: &str) -> NsContext {
+        let policy =
+            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6);
+        let mut root = crate::analyser::types::Scope::new(
+            crate::analyser::types::ScopeKind::Global,
+            "::".to_owned(),
+        );
+        root.naming_scope = Some(crate::signature_scan::scope::SignatureNamespaceScope::root(
+            Some(policy),
+        ));
+        let mut child = crate::analyser::types::Scope::new(
+            crate::analyser::types::ScopeKind::Namespace,
+            name.to_owned(),
+        );
+        child.naming_scope = root
+            .naming_scope
+            .as_ref()
+            .and_then(|scope| scope.child(name, Some(policy)));
+        child.body_span = Some(tcl_lexer::Span::new(0, u32::MAX));
+        root.children.push(child);
         NsContext {
+            source_scope: Some(root),
             namespaces: vec![(0, u32::MAX, name.to_string())],
             imports: Vec::new(),
         }
@@ -1102,6 +1067,7 @@ mod tests {
         index.insert(
             "::Foo".to_string(),
             ClassDef {
+                source_name: source_name("::Foo"),
                 qualified_name: "::Foo".into(),
                 name: "Foo".into(),
                 ..Default::default()
@@ -1132,6 +1098,7 @@ mod tests {
         index.insert(
             "::SpiceGenTcl::Circuit".to_string(),
             ClassDef {
+                source_name: source_name("::SpiceGenTcl::Circuit"),
                 qualified_name: "::SpiceGenTcl::Circuit".into(),
                 name: "Circuit".into(),
                 ..Default::default()
@@ -1157,11 +1124,12 @@ mod tests {
     #[test]
     fn classify_constructor_resolves_via_namespace_import() {
         // Bare `Circuit` at global scope, but the file did
-        // `namespace import ::SpiceGenTcl::*` — resolves via the import.
+        // Display-only import prefixes cannot establish an installed alias.
         let mut index = HashMap::new();
         index.insert(
             "::SpiceGenTcl::Circuit".to_string(),
             ClassDef {
+                source_name: source_name("::SpiceGenTcl::Circuit"),
                 qualified_name: "::SpiceGenTcl::Circuit".into(),
                 name: "Circuit".into(),
                 ..Default::default()
@@ -1178,8 +1146,8 @@ mod tests {
         assert_eq!(
             k,
             AssignKind::Constructor {
-                class: "::SpiceGenTcl::Circuit".into(),
-                in_index: true
+                class: "Circuit".into(),
+                in_index: false
             }
         );
     }
@@ -1194,6 +1162,7 @@ mod tests {
         index.insert(
             "::SpiceGenTcl::Circuit".to_string(),
             ClassDef {
+                source_name: source_name("::SpiceGenTcl::Circuit"),
                 qualified_name: "::SpiceGenTcl::Circuit".into(),
                 name: "Circuit".into(),
                 ..Default::default()
@@ -1209,7 +1178,7 @@ mod tests {
         assert_eq!(
             k,
             AssignKind::Constructor {
-                class: "::Circuit".into(),
+                class: "Circuit".into(),
                 in_index: false
             }
         );
@@ -1222,6 +1191,7 @@ mod tests {
         index.insert(
             "::A::Circuit".to_string(),
             ClassDef {
+                source_name: source_name("::A::Circuit"),
                 qualified_name: "::A::Circuit".into(),
                 name: "Circuit".into(),
                 ..Default::default()
@@ -1238,7 +1208,7 @@ mod tests {
         assert_eq!(
             k,
             AssignKind::Constructor {
-                class: "::Circuit".into(),
+                class: "Circuit".into(),
                 in_index: false
             }
         );
@@ -1257,7 +1227,7 @@ mod tests {
         assert_eq!(
             k,
             AssignKind::Constructor {
-                class: "::Bar".into(),
+                class: "Bar".into(),
                 in_index: false
             }
         );

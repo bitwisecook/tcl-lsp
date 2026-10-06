@@ -376,6 +376,72 @@ impl Drop for VariableReceiver {
 }
 
 impl VarTable {
+    fn authored_counted_slot(&self, name: &[u8]) -> Result<Option<usize>, VarError> {
+        if self
+            .declared_slots
+            .iter()
+            .any(|slot| self.cells[*slot].name == name)
+            || self.static_slots.contains_key(name)
+            || self
+                .statics
+                .as_ref()
+                .is_some_and(|statics| statics.cells.contains_key(name))
+        {
+            return Err(VarError::NameProtocolUnavailable);
+        }
+        let slot = self.slots.get(name).copied();
+        if slot.is_some_and(|slot| {
+            self.declared_slots.contains(&slot)
+                || matches!(
+                    self.cells[slot].contents.borrow().var.as_ref(),
+                    Some(Var::Link(_))
+                )
+        }) {
+            return Err(VarError::NameProtocolUnavailable);
+        }
+        Ok(slot)
+    }
+
+    /// An authored frame provider selects only exact counted dynamic bindings.
+    /// Native compiler name comparison and retained static/link cells supply
+    /// no receiver for this independent storage operation.
+    pub(crate) fn capture_authored_counted_receiver(
+        &mut self,
+        name: &[u8],
+        element: Option<Vec<u8>>,
+        create: bool,
+    ) -> Result<Option<VariableReceiver>, VarError> {
+        let slot = match self.authored_counted_slot(name)? {
+            Some(slot) => slot,
+            None if create => self.counted_dynamic_slot(name),
+            None => return Ok(None),
+        };
+        self.capture_receiver_at(slot, element, create)
+    }
+
+    pub(crate) fn authored_counted_binding_id(
+        &self,
+        name: &[u8],
+    ) -> Result<Option<VarId>, VarError> {
+        Ok(self
+            .authored_counted_slot(name)?
+            .and_then(|slot| self.cells[slot].contents.borrow().binding_id))
+    }
+
+    pub(crate) fn authored_counted_array_keys(
+        &self,
+        name: &[u8],
+    ) -> Result<Option<Vec<Vec<u8>>>, VarError> {
+        let Some(slot) = self.authored_counted_slot(name)? else {
+            return Ok(None);
+        };
+        let cell = self.cells[slot].contents.borrow();
+        Ok(match cell.var.as_ref() {
+            Some(Var::Array(elements)) => Some(elements.keys().cloned().collect()),
+            _ => None,
+        })
+    }
+
     /// Native object-variable GET retains an existing root and may create an
     /// element shell only inside an existing array.
     pub(crate) fn capture_get_receiver(
@@ -553,16 +619,20 @@ mod tests {
     #[test]
     fn native_get_creates_elements_only_with_an_existing_array_root() {
         let mut table = VarTable::default();
-        assert!(table
-            .capture_get_receiver(b"absent", None)
-            .unwrap()
-            .is_none());
+        assert!(
+            table
+                .capture_get_receiver(b"absent", None)
+                .unwrap()
+                .is_none()
+        );
         assert!(table.binding_id(b"absent").is_none());
         table.slot_for(b"reserved");
-        assert!(table
-            .capture_get_receiver(b"reserved", None)
-            .unwrap()
-            .is_none());
+        assert!(
+            table
+                .capture_get_receiver(b"reserved", None)
+                .unwrap()
+                .is_none()
+        );
         table.ensure_array(b"a").unwrap();
         let receiver = table
             .capture_get_receiver(b"a", Some(b"missing".to_vec()))

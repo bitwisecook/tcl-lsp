@@ -55,7 +55,7 @@ impl CodegenCtx<'_> {
         }
         let entry = self.native_entry?;
         if entry.execution_point?.tcl_version().is_none()
-            || entry.name_protocol?.authority() != tcl_syntax::naming::NamePolicyAuthority::Native
+            || entry.command_name_policy()?.authority() != tcl_syntax::naming::NamePolicyAuthority::Native
         {
             return None;
         }
@@ -112,7 +112,7 @@ impl CodegenCtx<'_> {
             .execution_point
             .and_then(tcl_dialect::model::DialectPoint::tcl_version)
             .is_none()
-            || entry.name_protocol.is_none_or(|protocol| {
+            || entry.command_name_policy().is_none_or(|protocol| {
                 protocol.authority() != tcl_syntax::naming::NamePolicyAuthority::Native
             })
         {
@@ -139,7 +139,7 @@ impl CodegenCtx<'_> {
                 .namespaces
                 .iter()
                 .find(|namespace| namespace.token == entry.current_namespace);
-            match (entry.execution_point, entry.name_protocol, namespace) {
+            match (entry.execution_point, entry.command_name_policy(), namespace) {
                 (Some(point), Some(protocol), Some(namespace)) => tcl_registry::native_command_literal::native_compiled_selected_command_name_literal_from_lookup(
                     point, protocol, tcl_runtime_api::native_command_name::NativeLiteralContext {
                         interpreter: entry.interpreter,
@@ -1617,6 +1617,7 @@ mod tests {
                     profile, point,
                 ),
             execution_point: Some(point),
+            execution_name_policy: None,
             name_protocol: tcl_syntax::naming::NamePolicyProtocol::for_native_point(point),
             compiled_variable_protocol:
                 tcl_syntax::naming::NativeCompiledVariableProtocol::for_native_point(point),

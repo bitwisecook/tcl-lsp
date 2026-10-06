@@ -43,7 +43,7 @@ pub use crate::expr_error::ExprError;
 pub use crate::obj::Owned;
 use tcl_syntax::expr::errors::{OperandDesc, OperandSide};
 use tcl_syntax::expr::mathfunc::MathFuncError;
-use tcl_syntax::expr::{eval, BinOp, ExprNode, ExprOps, NumericCompare, UnaryOp};
+use tcl_syntax::expr::{BinOp, ExprNode, ExprOps, NumericCompare, UnaryOp, eval};
 
 /// Immutable original expression backing. Jim terms retain their own objects,
 /// including unvisited lazy branches and original command Source descriptors.
@@ -564,6 +564,13 @@ pub trait ExprCtx {
     }
     /// Exact native grammar and arithmetic policy for this evaluation.
     fn invocation_dialect(&self) -> tcl_registry::InvocationDialect;
+    /// Independently installed authored F5 operator provider. Native dialects
+    /// and contexts without the explicit parser retain no such capability.
+    fn f5_string_predicate_provider(
+        &self,
+    ) -> Option<tcl_syntax::expr::operators::AuthoredF5StringPredicateProvider> {
+        None
+    }
     /// Whether the admitted compiler retained results for complete subtrees.
     fn has_compiled_nodes(&self) -> bool {
         false
@@ -694,7 +701,7 @@ pub(crate) fn dispatch_shared_in(
     args: &[Owned],
     dialect: tcl_registry::InvocationDialect,
 ) -> Result<Owned, ExprError> {
-    use tcl_syntax::expr::mathfunc::{try_dispatch_with_backend_protocol, NumValue};
+    use tcl_syntax::expr::mathfunc::{NumValue, try_dispatch_with_backend_protocol};
     let protocol = tcl_registry::mathfunc::native_math_protocol(dialect)
         .expect("native math handler dispatch must retain its selected protocol");
     let nums: Result<Option<Vec<NumValue<crate::bignum::TowerMp>>>, ExprError> = args
@@ -739,7 +746,7 @@ fn native_math_operand(
     dialect: tcl_registry::InvocationDialect,
     protocol: tcl_syntax::expr::mathfunc::NativeMathProtocol,
 ) -> Result<Option<tcl_syntax::expr::mathfunc::NumValue<bignum::TowerMp>>, ExprError> {
-    use tcl_syntax::expr::mathfunc::{jim_numeric_operand, NativeMathProtocol, NumValue};
+    use tcl_syntax::expr::mathfunc::{NativeMathProtocol, NumValue, jim_numeric_operand};
     if protocol == NativeMathProtocol::Tcl {
         if dialect.arithmetic() == Some(tcl_dialect::NativeArithmetic::Tcl84Wide) {
             if let Some(integer) = fixed_integer(operand, dialect)? {
@@ -1187,6 +1194,23 @@ impl ExprOps for TowerOps<'_> {
         native_integer_result(self.ctx.invocation_dialect(), i64::from(b), &[])
             .expect("selected boolean result producer")
     }
+    fn binary_other(&mut self, op: BinOp, left: Owned, right: Owned) -> Result<Owned, ExprError> {
+        let provider = self
+            .ctx
+            .f5_string_predicate_provider()
+            .ok_or_else(|| self.unsupported("operator"))?;
+        let predicate = provider
+            .predicate(op)
+            .ok_or_else(|| self.unsupported("operator"))?;
+        let checked = |value: &Owned| {
+            tcl_syntax::raw_string::RawString::from_bytes(obj::bytes_of(value.ptr())).unicode()
+                .map_err(|_| ExprError::host_refusal(tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("authored F5 predicate checked string")))
+        };
+        let left = checked(&left)?;
+        let right = checked(&right)?;
+        Ok(self.bool_value(predicate.evaluate(&left, &right)))
+    }
+
     fn unsupported(&mut self, what: &str) -> ExprError {
         ExprError::from_bytes(what.as_bytes().to_vec())
     }
@@ -1609,7 +1633,7 @@ pub(crate) fn native_logical84(
 /// otherwise its original string spelling. Tcl preserves boolean literal text
 /// (`expr {yes}` returns `yes`); coercion happens only in a boolean context.
 fn make_literal(text: &str, dialect: tcl_registry::InvocationDialect) -> Result<Owned, ExprError> {
-    use tcl_syntax::number::{parse_whole_with, Number, ParseFlags};
+    use tcl_syntax::number::{Number, ParseFlags, parse_whole_with};
     if let Some(number) = parse_whole_with(text, ParseFlags::for_syntax(dialect.numbers)) {
         if let Some(policy) = dialect
             .arithmetic()

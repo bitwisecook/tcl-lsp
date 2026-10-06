@@ -7,6 +7,10 @@ use super::native_literal_pool::{
 use super::*;
 #[path = "native_body_artifact/native_dictionary.rs"]
 mod native_dictionary;
+#[path = "native_body_artifact/native_dictionary_mutation.rs"]
+mod native_dictionary_mutation;
+#[path = "native_body_artifact/native_dictionary_scope.rs"]
+mod native_dictionary_scope;
 #[path = "native_body_artifact/native_error.rs"]
 mod native_error;
 use native_error::ErrorOperation;
@@ -15,6 +19,8 @@ use native_coroutine::CoroutineOperation;
 #[path = "native_body_artifact/native_named.rs"]
 mod native_named;
 use native_dictionary::DictionaryLookupOperation;
+use native_dictionary_mutation::DictionaryMutationOperation;
+use native_dictionary_scope::DictionaryScopeOperation;
 #[path = "native_body_artifact/native_switch.rs"]
 mod native_switch;
 #[path = "native_body_artifact/native_try.rs"]
@@ -33,9 +39,11 @@ use native_list_operations::ListOperationsOperation;
 mod native_array;
 mod native_compiler_pass;
 mod native_introspection;
+mod native_mathop;
 mod native_scalar;
 use native_array::ArrayOperation;
 use native_introspection::IntrospectionOperation;
+use native_mathop::MathopOperation;
 use native_scalar::ScalarOperation;
 mod native_each;
 mod native_info_exists;
@@ -60,8 +68,8 @@ use tcl_registry::native_compilation::{
 };
 use tcl_registry::native_compiler_words::{NativeCompiledListRecipe, NativeCompilerWords};
 use tcl_registry::native_instruction_plan::{
-    native_instruction_plan, NativeAppendInstruction, NativeAppendOperands, NativeArgumentListStep,
-    NativeInstructionPlan,
+    NativeAppendInstruction, NativeAppendOperands, NativeArgumentListStep, NativeInstructionPlan,
+    native_instruction_plan,
 };
 use tcl_runtime_api::native_compilation::{
     NativeCompiledLocalLayout, NativeCompiledLocalLayoutKind,
@@ -82,6 +90,7 @@ enum BodyContext {
 
 #[derive(Clone, PartialEq, Eq)]
 struct CacheStamp {
+    execution_name_policy: Option<tcl_syntax::naming::ExecutionNamePolicy>,
     interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
     namespace: NsId,
     epochs: (u64, u64),
@@ -144,6 +153,7 @@ type NativeArenaFrame = (
 
 enum Operation {
     Scalar(ScalarOperation),
+    MathOperator(MathopOperation),
     Introspection(IntrospectionOperation),
     Array(Box<ArrayOperation>),
     ListIndex(ListIndexOperation),
@@ -153,6 +163,8 @@ enum Operation {
     Error(ErrorOperation),
     Coroutine(CoroutineOperation),
     DictionaryLookup(DictionaryLookupOperation),
+    DictionaryScope(DictionaryScopeOperation),
+    DictionaryMutation(DictionaryMutationOperation),
     NamedInvocation(NamedOperation),
     Expression(Box<native_control::ExpressionOperation>),
     Try(TryOperation),
@@ -936,6 +948,19 @@ impl Builder<'_> {
             }
         }
         if selection == NativeCompilationSelection::Generic {
+            if let Some(preparations) =
+                tcl_registry::native_instruction_plan::original_dictionary_preparations(
+                    spec,
+                    &captured,
+                    arguments_from,
+                    self.stamp.physical,
+                    self.context,
+                )
+            {
+                let preparations = preparations
+                    .map_err(|_| unavailable("native dictionary declined original preparation"))?;
+                self.prepare_control_steps(&captured, &preparations, depth)?;
+            }
             return Ok(Some(Operation::Invoke));
         }
         if !matches!(
@@ -978,6 +1003,9 @@ impl Builder<'_> {
             NativeInstructionPlan::Introspection(recipe) => {
                 Operation::Introspection(self.introspection_operation(&captured, recipe, depth)?)
             }
+            NativeInstructionPlan::MathOperator(recipe) => {
+                Operation::MathOperator(self.mathop_operation(&captured, recipe, depth)?)
+            }
             NativeInstructionPlan::Scalar(recipe) => {
                 Operation::Scalar(self.scalar_operation(&captured, recipe, depth)?)
             }
@@ -992,6 +1020,16 @@ impl Builder<'_> {
             }
             NativeInstructionPlan::Error(recipe) => {
                 Operation::Error(self.error_operation(&captured, recipe, depth)?)
+            }
+            NativeInstructionPlan::DictionaryScope(recipe) => {
+                self.dictionary_scope_operation(&captured, recipe, depth)?
+            }
+            NativeInstructionPlan::DictionaryMutation(recipe) => Operation::DictionaryMutation(
+                self.dictionary_mutation_operation(&captured, recipe, depth)?,
+            ),
+            NativeInstructionPlan::GenericPreparation(steps) => {
+                self.prepare_control_steps(&captured, &steps, depth)?;
+                Operation::Invoke
             }
             NativeInstructionPlan::DictionaryLookup(recipe) => Operation::DictionaryLookup(
                 self.dictionary_lookup_operation(&captured, recipe, depth)?,
@@ -1410,8 +1448,26 @@ impl Builder<'_> {
                         continue;
                     }
                 }
+                if let Operation::MathOperator(mathop) = &mut operation {
+                    if let Some(word) = mathop.prepared_words.remove(&index) {
+                        words.push(word);
+                        continue;
+                    }
+                }
                 if let Operation::Scalar(scalar) = &mut operation {
                     if let Some(word) = scalar.prepared_words.remove(&index) {
+                        words.push(word);
+                        continue;
+                    }
+                }
+                if let Operation::DictionaryScope(dictionary) = &mut operation {
+                    if let Some(word) = dictionary.prepared.words.remove(&index) {
+                        words.push(word);
+                        continue;
+                    }
+                }
+                if let Operation::DictionaryMutation(dictionary) = &mut operation {
+                    if let Some(word) = dictionary.prepared_words.remove(&index) {
                         words.push(word);
                         continue;
                     }
@@ -1445,9 +1501,9 @@ impl Builder<'_> {
                 let emitted = match &operation {
                     Operation::StringMatch(_) | Operation::StringTrim(_) => false,
                     Operation::ListIndex(_) | Operation::ListOperations(_) => false,
-                    Operation::Scalar(_) | Operation::Introspection(_) | Operation::Array(_) => false,
+                    Operation::MathOperator(_) | Operation::Scalar(_) | Operation::Introspection(_) | Operation::Array(_) => false,
                     Operation::Upvar(_) | Operation::InfoExists(_) => false,
-                    Operation::Error(_) | Operation::Coroutine(_) | Operation::DictionaryLookup(_) | Operation::Unset(_) => false,
+                    Operation::Error(_) | Operation::Coroutine(_) | Operation::DictionaryLookup(_) | Operation::DictionaryScope(_) | Operation::DictionaryMutation(_) | Operation::Unset(_) => false,
                     Operation::TclOoHelper(tcl_registry::native_tcloo_compilation::NativeTclOoInstruction::Next{words,..},_)=>words.iter().any(|word|matches!(word,tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand::Original(original) if index==*original)),
                     Operation::TclOoHelper(tcl_registry::native_tcloo_compilation::NativeTclOoInstruction::ObjectInfo{operand,..},_)=>matches!(operand,tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand::Original(original) if index==*original),
                     Operation::Invoke => true,
@@ -1617,6 +1673,7 @@ impl Interp {
     ) -> Option<CacheStamp> {
         let traces = self.traces.borrow();
         Some(CacheStamp {
+            execution_name_policy: self.execution_name_policy(),
             interpreter: self.native_command_interpreter,
             namespace,
             epochs: self.native_compiler_cache_epochs(namespace)?,
@@ -2576,6 +2633,9 @@ impl Interp {
                 Operation::Introspection(recipe) => {
                     self.execute_body_introspection(artifact, command, recipe, execution)
                 }
+                Operation::MathOperator(mathop) => {
+                    self.execute_body_mathop(artifact, command, mathop, execution)
+                }
                 Operation::Scalar(scalar) => {
                     self.execute_body_scalar(artifact, command, scalar, execution)
                 }
@@ -2596,6 +2656,12 @@ impl Interp {
                 }
                 Operation::Error(error) => {
                     self.execute_body_error(artifact, command, error, execution)
+                }
+                Operation::DictionaryScope(dictionary) => {
+                    self.execute_body_dictionary_scope(artifact, command, dictionary, execution)
+                }
+                Operation::DictionaryMutation(dictionary) => {
+                    self.execute_body_dictionary_mutation(artifact, command, dictionary, execution)
                 }
                 Operation::DictionaryLookup(dictionary) => {
                     self.execute_body_dictionary_lookup(artifact, command, dictionary, execution)

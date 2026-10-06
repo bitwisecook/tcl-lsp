@@ -227,6 +227,113 @@ const IMPLEMENTATIONS: [NativeCompilerImplementationLookup; 21] = [
 ];
 
 impl NativeDictionaryCommand {
+    /// Retain original dictionary compiler visits, including a declined prefix.
+    /// Missing geometry is distinct from a compiler decline.
+    pub fn original_preparations(
+        self,
+        words: &crate::native_compiler_words::NativeCompilerWords<'_>,
+        operand_from: usize,
+        version: TclVersion,
+        context: NativeCompilationContext,
+    ) -> Option<
+        Result<
+            Vec<crate::native_control_compilation::NativeControlPreparationStep>,
+            crate::native_dictionary_compilation::NativeDictionaryCompilationUnavailable,
+        >,
+    > {
+        use crate::native_dictionary_compilation::NativeDictionaryCompilationUnavailable as Error;
+        if matches!(self, Self::Update | Self::With) {
+            return Some(
+                crate::native_dictionary_scope_compilation::compile_native_dictionary_scope(
+                    self,
+                    words,
+                    operand_from,
+                    version,
+                    context,
+                )
+                .map(|recipe| recipe.preparations)
+                .map_err(|_| Error::Unavailable),
+            );
+        }
+        if matches!(
+            self,
+            Self::Set | Self::Unset | Self::Append | Self::Lappend | Self::Incr
+        ) {
+            return Some(
+                crate::native_dictionary_compilation::compile_native_dictionary_mutation(
+                    self,
+                    words,
+                    operand_from,
+                    version,
+                    context,
+                )
+                .map(|recipe| recipe.preparations),
+            );
+        }
+        None
+    }
+
+    /// Select actual original dictionary scope and mutation geometry.
+    #[must_use]
+    pub fn select_original_compilation(
+        self,
+        words: &crate::native_compiler_words::NativeCompilerWords<'_>,
+        operand_from: usize,
+        ensemble: bool,
+        version: TclVersion,
+        context: NativeCompilationContext,
+    ) -> Option<NativeCompilationSelection> {
+        use crate::native_control_compilation::NativeControlOutcome as Outcome;
+        let from = operand_from.checked_add(usize::from(ensemble))?;
+        let selected = if matches!(self, Self::Update | Self::With) {
+            match crate::native_dictionary_scope_compilation::compile_native_dictionary_scope(
+                self, words, from, version, context,
+            ) {
+                Ok(recipe) => Some(matches!(recipe.outcome, Outcome::Inline(_))),
+                Err(_) => return Some(NativeCompilationSelection::Unknown),
+            }
+        } else if matches!(
+            self,
+            Self::Set | Self::Unset | Self::Append | Self::Lappend | Self::Incr
+        ) {
+            match crate::native_dictionary_compilation::compile_native_dictionary_mutation(
+                self, words, from, version, context,
+            ) {
+                Ok(recipe) => Some(matches!(recipe.outcome, Outcome::Inline(_))),
+                Err(_) => return Some(NativeCompilationSelection::Unknown),
+            }
+        } else {
+            None
+        };
+        let Some(inline) = selected else {
+            return self.select_original_lookup(words, operand_from, ensemble, version);
+        };
+        if inline {
+            return Some(self.inline());
+        }
+        if version < self.hook_from() {
+            return Some(NativeCompilationSelection::Generic);
+        }
+        let Ok(projected) =
+            crate::native_compiler_word_projection::project_native_compiler_words(words, version)
+        else {
+            return Some(NativeCompilationSelection::Unknown);
+        };
+        let operands = projected.get(from..)?;
+        if operands
+            .iter()
+            .any(|word| word.shape == NativeCompilationWordShape::Expanded)
+            || !self.valid_operand_count(operands.len())
+        {
+            return Some(NativeCompilationSelection::Generic);
+        }
+        Some(if self == Self::With {
+            self.named(from)
+        } else {
+            self.local_fallback(from, version)
+        })
+    }
+
     /// Select value-independent dictionary compilers from original native words.
     /// Opaque literal values remain original operands; no Unicode or getter is
     /// required merely to establish native lookup arity and stack geometry.

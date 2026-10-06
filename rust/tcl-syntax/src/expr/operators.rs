@@ -43,6 +43,83 @@ use tcl_dialect::TclVersion;
 use super::ast::{BinOp, UnaryOp};
 use tcl_dialect::model::SpecSurface;
 
+/// Appliance contexts reached by the exact BIG-IP 21.1.0.1 build 0.0.26
+/// expression payload. This observation supplies no runtime activation capability.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MeasuredBigIpExpressionObservation {
+    /// Dynamically evaluated expression in the HTTP_REQUEST event.
+    TmmHttpRequest,
+    /// A tmsh CLI script.
+    TmshCliScript,
+    /// An iApp implementation action; presentation/APL remains separate.
+    IAppImplementationAction,
+    /// A script reached through a triggered iCall handler.
+    TriggeredICallScript,
+}
+
+/// Explicit authored F5 expression semantics, separate from native C/Jim
+/// evaluation and from the measured appliance's build/context receipt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum AuthoredF5StringPredicateProvider {
+    /// The F5 word grammar over checked string operands.
+    F5Trunk,
+}
+
+/// Shared string operation after independent operand and dialect admission.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum F5StringPredicate {
+    /// Case-sensitive substring containment.
+    Contains,
+    /// Case-sensitive prefix comparison.
+    StartsWith,
+    /// Case-sensitive suffix comparison.
+    EndsWith,
+    /// Case-sensitive, whole-string glob matching; subject precedes pattern.
+    Glob,
+}
+
+impl AuthoredF5StringPredicateProvider {
+    /// Select a pure recipe after the caller admits the authored F5 surface.
+    /// This grants no native compiler, native getter or appliance capability.
+    #[must_use]
+    pub const fn predicate(self, operator: BinOp) -> Option<F5StringPredicate> {
+        match (self, operator) {
+            (Self::F5Trunk, BinOp::Contains) => Some(F5StringPredicate::Contains),
+            (Self::F5Trunk, BinOp::StartsWith) => Some(F5StringPredicate::StartsWith),
+            (Self::F5Trunk, BinOp::EndsWith) => Some(F5StringPredicate::EndsWith),
+            (Self::F5Trunk, BinOp::Matches | BinOp::MatchesGlob) => Some(F5StringPredicate::Glob),
+            (Self::F5Trunk, _) => None,
+        }
+    }
+}
+
+impl MeasuredBigIpExpressionObservation {
+    /// Measured bare `matches` discriminators in this exact build/context.
+    /// This is observational metadata, not a live expression policy.
+    #[must_use]
+    pub const fn bare_matches(self) -> F5StringPredicate {
+        match self {
+            Self::TmmHttpRequest
+            | Self::TmshCliScript
+            | Self::IAppImplementationAction
+            | Self::TriggeredICallScript => F5StringPredicate::Glob,
+        }
+    }
+}
+
+impl F5StringPredicate {
+    /// Evaluate admitted checked operands. The right operand is the pattern.
+    #[must_use]
+    pub fn evaluate(self, subject: &str, operand: &str) -> bool {
+        match self {
+            Self::Contains => subject.contains(operand),
+            Self::StartsWith => subject.starts_with(operand),
+            Self::EndsWith => subject.ends_with(operand),
+            Self::Glob => crate::glob::string_match(operand, subject),
+        }
+    }
+}
+
 /// A command's argument-count contract — deliberately not `tcl_registry::Arity`
 /// (`tcl-registry` depends on `tcl-syntax`, never the reverse).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -434,19 +511,10 @@ impl BinOp {
                 None,
                 "string equality (iRules word form)",
             ),
-            // The bare `matches` is the tenth word form. Only its
-            // *presence* is measured
-            // (`docs/design/f5/bigip-irule-parser-measurements.md` §4a's
-            // `e_matches`: `expr {"abc" matches "abc"}` answers `1` in
-            // all three F5 contexts and fails on both host builds); the
-            // probe is an exact-equality case, so it discriminates none
-            // of the string-match readings (§12 names the probes that
-            // would). The summary says so rather than implying a pinned
-            // meaning.
             Self::Matches => (
                 Some(SpecSurface::IRULES),
                 None,
-                "string match (semantics unpinned — measured present only)",
+                "whole-string glob pattern match",
             ),
             Self::MatchesGlob => (Some(SpecSurface::IRULES), None, "glob pattern match"),
             Self::MatchesRegex => (Some(SpecSurface::IRULES), None, "regular-expression match"),
@@ -610,6 +678,31 @@ pub const ALL_UNARY_OPS: &[UnaryOp] = &[
 mod tests {
     use super::*;
     use tcl_dialect::model::SpecSurface;
+
+    #[test]
+    fn measured_bigip_bare_matches_is_glob_in_exact_reached_contexts() {
+        for scope in [
+            MeasuredBigIpExpressionObservation::TmmHttpRequest,
+            MeasuredBigIpExpressionObservation::TmshCliScript,
+            MeasuredBigIpExpressionObservation::IAppImplementationAction,
+            MeasuredBigIpExpressionObservation::TriggeredICallScript,
+        ] {
+            for row in include_str!("../../tests/data/f5-matches-21.1.0.1-0.0.26.tsv")
+                .lines()
+                .take(6)
+            {
+                let fields = row.split('\t').collect::<Vec<_>>();
+                let (subject, pattern) = fields[0].split_once(" matches ").unwrap();
+                assert_eq!(
+                    scope.bare_matches().evaluate(
+                        &subject[1..subject.len() - 1],
+                        &pattern[1..pattern.len() - 1]
+                    ),
+                    fields[2] == "1"
+                );
+            }
+        }
+    }
 
     /// Adding a `BinOp` variant without extending this match is a compile
     /// error — the actual exhaustiveness guard. The length assert on
