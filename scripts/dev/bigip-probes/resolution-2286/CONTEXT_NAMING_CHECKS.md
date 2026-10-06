@@ -93,6 +93,74 @@ Add separately hashed controls using a dynamically created ASCII namespace and t
 
 Record full original root/index/operation bytes for traces and aliases. Keep the selected cell's identity separate from the alias spelling reported to a callback. Use exact mutation and unset discriminators. Record namespace current/which and command-name inventories only through independently supported commands; command display alone is insufficient to prove slot identity.
 
+## Counted-key input boundaries
+
+Run additional fresh controls with prefixes unrelated to the earlier fixture
+names. The compiler needs a recipe for an operation's input domain, so report
+whether counted identity survives different ASCII prefixes, lengths, NUL
+positions and multiple NUL bytes. Keep empty names, empty indices, colons,
+parentheses and qualified roots as distinct cases. Repeat the write/unset-order,
+upvar and trace discriminators for accepted inputs. Do not infer a grammar from
+a display string or combine rejected inputs with successful ones.
+
+The following complete HTTP event payload measures ordinary scalar/combined
+input acceptance and identity. Its source is ASCII with LF line endings. Every
+NUL comes from `format %c 0` at runtime. The two values `PLAIN` and `COUNTED`
+must remain distinguishable in the raw
+records. Use a fresh owned virtual server with SNAT automap; clients and servers
+may both run on dev.bragi0.com using any suitable protocol.
+
+```tcl
+when HTTP_REQUEST {
+    set nul [format %c 0]
+    set rows {}
+    foreach spec {
+        {short x}
+        {long __resolution2286_context_invariance_long_ascii_prefix_0123456789}
+        {different relocated_2286_key}
+    } {
+        set label [lindex $spec 0]
+        set plain [lindex $spec 1]
+        set name $plain
+        append name $nul B $nul C
+        catch {unset $plain}
+        catch {unset $name}
+        set plain_rc [catch {set $plain PLAIN} plain_result]
+        set name_rc [catch {set $name COUNTED} name_result]
+        foreach input [list $plain $name] {
+            binary scan $input H* input_hex
+            set rc [catch {set $input} result]
+            binary scan $result H* result_hex
+            lappend rows [list $label name_hex $input_hex write_plain $plain_rc write_counted $name_rc read $rc result_hex $result_hex]
+        }
+        catch {unset $name}
+        set rc [catch {set $plain} result]
+        binary scan $result H* result_hex
+        lappend rows [list $label after_counted_unset $rc result_hex $result_hex]
+        catch {unset $plain}
+    }
+    set inputs [list {} {()} {(k)} {A()} {A(k)} {A(k(l))} {A(k)tail} {:} {A:B} {A::B}]
+    foreach input $inputs {
+        binary scan $input H* input_hex
+        set rc [catch {set $input GRAMMAR_VALUE} result]
+        binary scan $result H* result_hex
+        lappend rows [list grammar name_hex $input_hex write $rc result_hex $result_hex]
+        set read_rc [catch {set $input} read_result]
+        binary scan $read_result H* read_hex
+        lappend rows [list grammar name_hex $input_hex read $read_rc result_hex $read_hex]
+        catch {unset $input}
+    }
+    log local0.notice [list RESOLUTION2286_COUNTED_INPUT_BOUNDARIES tmm [TMM::cmp_unit] rows $rows]
+    HTTP::respond 200 content OK
+}
+```
+
+Also create separately hashed array-root and index controls for those relocated
+prefixes and multiple-NUL positions, including reversed writes and unsets. The
+payload above does not establish separate-root/index API parsing, qualified
+namespace lookup, callback names or command/formal naming. Record exact original
+bytes, produced bytes and the actual reached context for every added control.
+
 ## Result contract
 
 Write `CONTEXT_NAMING_RESULTS.md` on `work` beside this document. Put exact BIG-IP version/build and reached context/TMM coverage first. Include a matrix of case, context, source hashes, load result, execution catch/result bytes, trace/root/index bytes and conclusion. Link raw evidence, manifests and cleanup/object-absence proof. State unsupported and untested boundaries explicitly, including namespace-component NUL, command-name NUL, suspended entered procedures, cross-blade/HA behavior and reload persistence unless separately measured with an authorized supported mechanism.
