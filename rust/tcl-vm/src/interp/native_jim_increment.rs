@@ -177,6 +177,7 @@ impl Vm {
 mod tests {
     use super::*;
     use std::fmt::Write;
+    use tcl_core_types::NameBytes;
     fn current_root(vm: &Vm) -> &Value {
         let selected = vm.resolve_var_from_bytes(b"d", vm.current_level()).unwrap();
         match vm.var_arena.get(selected.id.unwrap()).unwrap().state() {

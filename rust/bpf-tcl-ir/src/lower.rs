@@ -1090,7 +1090,7 @@ fn framework_in_handler_message(cmd: &str, decl: BpfDeclKind) -> String {
 fn statement_span(s: &Statement) -> Span {
     use Statement::{
         AssignConst, AssignExpr, AssignValue, Barrier, Block, Call, Catch, ExprEval, For, Foreach,
-        If, Incr, Return, Switch, Try, UpFrame, While,
+        If, Incr, NativeCall, Return, Switch, Try, UpFrame, While,
     };
     match s {
         AssignConst { span, .. }
@@ -1099,6 +1099,7 @@ fn statement_span(s: &Statement) -> Span {
         | Incr { span, .. }
         | ExprEval { span, .. }
         | Call { span, .. }
+        | NativeCall { span, .. }
         | Return { span, .. }
         | Barrier { span, .. }
         | Block { span, .. }

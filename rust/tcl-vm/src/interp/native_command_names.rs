@@ -472,8 +472,10 @@ impl Vm {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::interp::ok;
     use tcl_bytecode::LiteralTable;
     use tcl_dialect::TclVersion;
+    use tcl_runtime_api::Completion;
 
     fn command(vm: &mut Vm, name: &[u8]) -> String {
         fn handler(_: &mut Vm, _: &[Value]) -> Completion<Value> {

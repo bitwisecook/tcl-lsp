@@ -685,6 +685,8 @@ fn cmd_reset(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::rc::Rc;
+    use tcl_runtime_api::VarStore;
     use tcl_runtime_api::{Code, GLOBAL_FRAME};
 
     fn vm() -> Vm {

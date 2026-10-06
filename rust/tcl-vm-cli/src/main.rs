@@ -220,9 +220,16 @@ fn run_script(vm: &mut Vm, src: &str) -> i32 {
             1
         }
         Err(e) => {
-            vm.report_stderr_text(&e.message);
+            report_eval_error(vm, &e);
             1
         }
+    }
+}
+
+fn report_eval_error(vm: &mut Vm, error: &tcl_vm::TclError) {
+    match error.message_unicode() {
+        Ok(message) => vm.report_stderr_text(&message),
+        Err(host) => vm.report_stderr_text(&host.to_string()),
     }
 }
 
@@ -324,7 +331,7 @@ fn repl_loop<R: std::io::BufRead, W: Write>(vm: &mut Vm, reader: &mut R, out: &m
                 vm.report_stderr_text(&comp.result.to_str());
             }
             Err(e) => {
-                vm.report_stderr_text(&e.message);
+                report_eval_error(vm, &e);
             }
         }
         buffer.clear();

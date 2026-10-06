@@ -2903,7 +2903,8 @@ pub fn function_optimisations<'db>(
         // This synthetic unit has no retained source allocation attestation;
         // its procedure name cannot invent a callee implementation identity.
         procedure_implementation_bodies: Default::default(),
-        source: body_source.clone(),
+        source: body_source.clone().into(),
+        native_namespace: None,
         // This synthetic module has no executable top-level script.
         // Its procedure body retains its selected namespace independently.
         top_level_namespace: "::".to_owned(),
@@ -3155,7 +3156,8 @@ fn top_level_only_unit(
             installed_procedure_body_units: cu.ir_module.installed_procedure_body_units.clone(),
             original_declaration_body_units: cu.ir_module.original_declaration_body_units.clone(),
             procedure_implementation_bodies: cu.ir_module.procedure_implementation_bodies.clone(),
-            source: cu.source.clone(),
+            source: cu.source.clone().into(),
+            native_namespace: cu.ir_module.native_namespace.clone(),
             top_level_namespace: cu.ir_module.top_level_namespace.clone(),
             top_level_namespace_context: cu.ir_module.top_level_namespace_context.clone(),
             dialect: cu.ir_module.dialect.clone(),

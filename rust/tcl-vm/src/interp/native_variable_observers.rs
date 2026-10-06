@@ -101,6 +101,7 @@ impl Vm {
 
 #[cfg(test)]
 mod tests {
+    use super::super::DefaultHost;
     use super::*;
     use std::cell::RefCell;
     struct Record {

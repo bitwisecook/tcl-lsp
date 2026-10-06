@@ -615,6 +615,7 @@ pub(super) fn configure_all(vm: &mut Vm, target: OoId) -> Completion<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cmd_oo::resolve_object_value;
     fn instance() -> Vm {
         let profile = crate::environment::profile_for_dialect("tcl9.1");
         let mut vm = Vm::with_native_core(

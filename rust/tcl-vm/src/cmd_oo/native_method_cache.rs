@@ -492,6 +492,7 @@ pub(super) fn rename_method(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cmd_oo::{oo_invoke_value, resolve_object_value};
     fn vm(version: tcl_dialect::TclVersion) -> Vm {
         let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
         let mut vm = Vm::with_native_core(

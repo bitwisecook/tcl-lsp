@@ -1091,7 +1091,7 @@ impl VarArena {
 
 #[cfg(test)]
 mod tests {
-    use super::{VarArena, VarState, VarTable};
+    use super::{NativeArraySearchHandle, VarArena, VarState, VarTable};
     use crate::value::Value;
     use tcl_core_types::NameBytes;
 

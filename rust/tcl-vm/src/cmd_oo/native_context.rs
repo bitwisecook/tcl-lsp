@@ -400,6 +400,7 @@ pub(crate) fn helper_context_error(vm: &mut Vm, head: &[u8]) -> Completion<Value
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::rc::Rc;
 
     fn vm(version: tcl_dialect::TclVersion) -> Vm {
         let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
