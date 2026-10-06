@@ -1,0 +1,8 @@
+"GET /?label=pre-provider-partition-root&requests=128&source_port=30132&expect=0,1,2,3&path=/%3Faction%3Dread HTTP/1.1" 200 -
+"GET /?label=partition-root-providers-forward-providers-forward&requests=128&source_port=30528&expect=0,1,2,3&path=/%3Faction%3Dread HTTP/1.1" 200 -
+"GET /?label=partition-a-providers-forward-providers-forward&requests=128&source_port=30660&expect=0,1,2,3&path=/%3Faction%3Dread HTTP/1.1" 200 -
+"GET /?label=partition-nested-providers-forward-providers-forward&requests=128&source_port=30792&expect=0,1,2,3&path=/%3Faction%3Dread HTTP/1.1" 200 -
+"GET /?label=partition-vip-common-rule&requests=128&source_port=31056&expect=0,1,2,3&path=/%3Faction%3Dread HTTP/1.1" 200 -
+"GET /?label=partition-root-providers-reverse-providers-reverse&requests=128&source_port=32052&expect=0,1,2,3&path=/%3Faction%3Dread HTTP/1.1" 200 -
+"GET /?label=partition-a-providers-reverse-providers-reverse&requests=128&source_port=32184&expect=0,1,2,3&path=/%3Faction%3Dread HTTP/1.1" 200 -
+"GET /?label=partition-nested-providers-reverse-providers-reverse&requests=128&source_port=32316&expect=0,1,2,3&path=/%3Faction%3Dread HTTP/1.1" 200 -

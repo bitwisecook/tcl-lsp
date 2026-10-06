@@ -1,0 +1,49 @@
+{
+  "partition": "R2286_r2286i",
+  "folders_create_order": [
+    "/Common/__tcl_lsp_probe_2286_r2286i_fa",
+    "/Common/__tcl_lsp_probe_2286_r2286i_fb",
+    "/R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa",
+    "/R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fb",
+    "/R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_nested"
+  ],
+  "folders_delete_order": [
+    "/R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_nested",
+    "/R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fb",
+    "/R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa",
+    "/Common/__tcl_lsp_probe_2286_r2286i_fb",
+    "/Common/__tcl_lsp_probe_2286_r2286i_fa"
+  ],
+  "providers": {
+    "common_root": "/Common/__tcl_lsp_probe_2286_r2286i_rootlib",
+    "common_a": "/Common/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_lib",
+    "common_b": "/Common/__tcl_lsp_probe_2286_r2286i_fb/__tcl_lsp_probe_2286_r2286i_lib",
+    "partition_root": "/R2286_r2286i/__tcl_lsp_probe_2286_r2286i_rootlib",
+    "partition_a": "/R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_lib",
+    "partition_b": "/R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fb/__tcl_lsp_probe_2286_r2286i_lib",
+    "partition_nested": "/R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_nested/__tcl_lsp_probe_2286_r2286i_lib"
+  },
+  "callers": {
+    "common_root": "/Common/__tcl_lsp_probe_2286_r2286i_caller",
+    "common_a": "/Common/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_caller",
+    "partition_root": "/R2286_r2286i/__tcl_lsp_probe_2286_r2286i_caller",
+    "partition_a": "/R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_caller",
+    "partition_nested": "/R2286_r2286i/__tcl_lsp_probe_2286_r2286i_fa/__tcl_lsp_probe_2286_r2286i_nested/__tcl_lsp_probe_2286_r2286i_caller"
+  },
+  "literal_unicode": {
+    "precomposed": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_precomposed",
+    "decomposed": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_decomposed",
+    "bmp_copyright": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_bmp_copyright",
+    "bmp_snowman": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_bmp_snowman",
+    "bmp_heart": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_bmp_heart",
+    "emoji_grinning": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_emoji_grinning",
+    "emoji_text_vs": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_emoji_text_vs",
+    "emoji_skin_tone": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_emoji_skin_tone",
+    "emoji_zwj": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_emoji_zwj",
+    "emoji_family": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_emoji_family",
+    "emoji_flag": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_emoji_flag",
+    "emoji_rainbow_flag": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_emoji_rainbow_flag",
+    "emoji_keycap": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_emoji_keycap"
+  },
+  "dynamic_unicode": "/Common/__tcl_lsp_probe_2286_r2286i_unicode_dynamic"
+}

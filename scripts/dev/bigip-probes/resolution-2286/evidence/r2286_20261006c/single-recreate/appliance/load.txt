@@ -1,0 +1,4 @@
+minimal load=0
+collision_a load=0
+collision_b load=0
+collision_observer load=0

@@ -1,2 +1,3 @@
 rust/tcl-sslictcl/data/raw/** -whitespace
 rust/tcl-sslictcl/tests/fixtures/*.tsv -whitespace
+scripts/dev/bigip-probes/resolution-2286/evidence/** -whitespace

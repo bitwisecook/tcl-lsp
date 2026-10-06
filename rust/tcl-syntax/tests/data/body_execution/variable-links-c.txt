@@ -1,0 +1,5 @@
+retarget 0 {NEW OLD}
+materialise 0 {1 1 0}
+rootWrite 1 {can't set "y": upvar refers to element in deleted array}
+self 1 {can't upvar from variable to itself}
+cycle 1 {can't upvar from variable to itself}

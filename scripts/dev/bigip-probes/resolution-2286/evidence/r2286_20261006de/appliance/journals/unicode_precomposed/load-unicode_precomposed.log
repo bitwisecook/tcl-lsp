@@ -1,0 +1,9 @@
+Loading configuration...
+  /var/tmp/r2286_20261006de/r2286_20261006d-load/unicode_precomposed.conf
+01070151:3: Rule [/Common/__tcl_lsp_probe_2286_r2286_20261006d_unicode_precomposed] error: /Common/__tcl_lsp_probe_2286_r2286_20261006d_unicode_precomposed:1: error: [braces are required around the expression][when HTTP_REQUEST {
+    set x "é"
+    log local0. "R2286|r2286_20261006d|unicode_precomposed|value=$x"
+    HTTP::respond 200 content "$x\n" Connection close
+}]
+
+Unexpected Error: Loading configuration process failed.

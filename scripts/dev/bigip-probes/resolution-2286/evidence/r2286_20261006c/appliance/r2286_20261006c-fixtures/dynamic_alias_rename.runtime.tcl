@@ -1,0 +1,4 @@
+proc __tcl_lsp_probe_2286_r2286_20261006c_one {} {return ORIGINAL}
+interp alias {} __tcl_lsp_probe_2286_r2286_20261006c_alias {} __tcl_lsp_probe_2286_r2286_20261006c_one
+rename __tcl_lsp_probe_2286_r2286_20261006c_one __tcl_lsp_probe_2286_r2286_20261006c_moved
+list [catch {__tcl_lsp_probe_2286_r2286_20261006c_alias} a] $a [__tcl_lsp_probe_2286_r2286_20261006c_moved]

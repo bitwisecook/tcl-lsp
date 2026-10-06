@@ -1,0 +1,26 @@
+{
+  "label": "event-frames-cmp-yes",
+  "command": [
+    "python3",
+    "/tmp/traffic.py",
+    "--vip",
+    "192.168.9.24",
+    "--port",
+    "18086",
+    "--run",
+    "r2286_20261006c-event-frames-cmp-yes",
+    "--source-ip",
+    "192.168.9.80",
+    "--source-port-start",
+    "30938",
+    "--requests",
+    "128",
+    "--path",
+    "/?action=read",
+    "--out",
+    "/tmp/r2286_20261006c-dev/traffic-event-frames-cmp-yes.jsonl"
+  ],
+  "returncode": 0,
+  "stdout": "{\n  \"actual_response_unit_counts\": {},\n  \"expected_active_roster\": [],\n  \"missing_units\": [],\n  \"coverage\": \"INCOMPLETE_OR_ROSTER_UNSPECIFIED\"\n}\n",
+  "stderr": ""
+}

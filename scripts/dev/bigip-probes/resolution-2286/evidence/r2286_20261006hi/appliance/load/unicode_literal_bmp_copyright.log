@@ -1,0 +1,15 @@
+Loading configuration...
+  /var/tmp/r2286i/fixtures/unicode_literal_bmp_copyright.conf
+01070151:3: Rule [/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_bmp_copyright] error: /Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_bmp_copyright:1: error: [braces are required around the expression][when HTTP_REQUEST {
+    set unit [TMM::cmp_unit]
+    set request [HTTP::header value X-R2286-Request]
+    set value "©"
+    binary scan $value H* value_hex
+    log local0. "R2286|r2286i|unicode_literal_bmp_copyright|unit=$unit|request=$request|value=$value|value_hex=$value_hex|chars=[string length $value]"
+    HTTP::header insert X-R2286-Scope "unicode_literal_bmp_copyright:$unit"
+}]
+/Common/__tcl_lsp_probe_2286_r2286i_unicode_literal_bmp_copyright:9: error: [braces are required around the expression][when HTTP_RESPONSE {
+    HTTP::header insert X-R2286-TMM [TMM::cmp_unit]
+}]
+
+Unexpected Error: Loading configuration process failed.

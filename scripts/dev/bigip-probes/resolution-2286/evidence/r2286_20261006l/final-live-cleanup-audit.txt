@@ -1,0 +1,18 @@
+BIG-IP audit before closing the temporary SSH control master:
+
+OWNED_TEST_OBJECT_MATCHES
+OWNED_TEST_PROCESS_MATCHES
+
+No output followed either marker. The object audit covered ltm virtual, ltm
+pool, ltm rule, cli script, sys application template, sys application service,
+sys icall script, sys icall handler triggered, and auth partition names matching
+`__tcl_lsp_probe_2286` or `R2286_`.
+
+dev.bragi0.com audit after closing the temporary BIG-IP SSH control master:
+
+Tue Oct  6 14:37:26 UTC 2026
+PYTHON_PROCESSES
+OWNED_LISTENERS
+
+No output followed either marker. The listener audit covered TCP ports
+18080 through 18088.

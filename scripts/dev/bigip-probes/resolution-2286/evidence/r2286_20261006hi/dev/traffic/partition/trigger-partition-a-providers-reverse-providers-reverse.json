@@ -1,0 +1,28 @@
+{
+  "label": "partition-a-providers-reverse-providers-reverse",
+  "command": [
+    "python3",
+    "/tmp/r2286i-dev/traffic.py",
+    "--vip",
+    "192.168.9.24",
+    "--port",
+    "18088",
+    "--run",
+    "r2286i-partition-a-providers-reverse-providers-reverse",
+    "--source-ip",
+    "192.168.9.80",
+    "--source-port-start",
+    "32184",
+    "--requests",
+    "128",
+    "--path",
+    "/?action=read",
+    "--out",
+    "/tmp/r2286i-dev/traffic/partition/traffic-partition-a-providers-reverse-providers-reverse.jsonl",
+    "--expect-units",
+    "0,1,2,3"
+  ],
+  "returncode": 0,
+  "stdout": "{\n  \"actual_response_unit_counts\": {\n    \"0\": 32,\n    \"1\": 32,\n    \"2\": 32,\n    \"3\": 32\n  },\n  \"expected_active_roster\": [\n    \"0\",\n    \"1\",\n    \"2\",\n    \"3\"\n  ],\n  \"missing_units\": [],\n  \"coverage\": \"COMPLETE_FOR_SUPPLIED_ROSTER\"\n}\n",
+  "stderr": ""
+}

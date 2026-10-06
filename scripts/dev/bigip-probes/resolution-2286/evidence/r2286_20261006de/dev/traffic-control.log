@@ -1,0 +1,8 @@
+"GET /run?label=ascii_binary-cmp-no&requests=2&source_port=36000&path=/%3Faction%3Dread HTTP/1.1" 200 -
+"GET /run?label=ascii_binary-cmp-yes&requests=16&source_port=36006&path=/%3Faction%3Dread HTTP/1.1" 200 -
+"GET /run?label=physical_ascii_lf-cmp-no&requests=2&source_port=36026&path=/%3Faction%3Dread HTTP/1.1" 200 -
+"GET /run?label=physical_ascii_lf-cmp-yes&requests=16&source_port=36032&path=/%3Faction%3Dread HTTP/1.1" 200 -
+"GET /run?label=physical_ascii_crlf-cmp-no&requests=2&source_port=36052&path=/%3Faction%3Dread HTTP/1.1" 200 -
+"GET /run?label=physical_ascii_crlf-cmp-yes&requests=16&source_port=36058&path=/%3Faction%3Dread HTTP/1.1" 200 -
+"GET /run?label=dynamic_embedded_nul-cmp-no&requests=2&source_port=36078&expect=0:0&path=/%3Faction%3Dread HTTP/1.1" 200 -
+"GET /run?label=dynamic_embedded_nul-cmp-yes&requests=128&source_port=36084&expect=0:0,0:1,0:2,0:3&path=/%3Faction%3Dread HTTP/1.1" 200 -

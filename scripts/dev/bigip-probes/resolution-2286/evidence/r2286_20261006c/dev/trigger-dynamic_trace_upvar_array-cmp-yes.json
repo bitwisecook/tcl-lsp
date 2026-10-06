@@ -1,0 +1,28 @@
+{
+  "label": "dynamic_trace_upvar_array-cmp-yes",
+  "command": [
+    "python3",
+    "/tmp/traffic.py",
+    "--vip",
+    "192.168.9.24",
+    "--port",
+    "18086",
+    "--run",
+    "r2286_20261006c-dynamic_trace_upvar_array-cmp-yes",
+    "--source-ip",
+    "192.168.9.80",
+    "--source-port-start",
+    "28462",
+    "--requests",
+    "128",
+    "--path",
+    "/?action=read",
+    "--out",
+    "/tmp/r2286_20261006c-dev/traffic-dynamic_trace_upvar_array-cmp-yes.jsonl",
+    "--expect-units",
+    "0,1,2,3"
+  ],
+  "returncode": 0,
+  "stdout": "{\n  \"actual_response_unit_counts\": {\n    \"2\": 32,\n    \"3\": 32,\n    \"0\": 32,\n    \"1\": 32\n  },\n  \"expected_active_roster\": [\n    \"0\",\n    \"1\",\n    \"2\",\n    \"3\"\n  ],\n  \"missing_units\": [],\n  \"coverage\": \"COMPLETE_FOR_SUPPLIED_ROSTER\"\n}\n",
+  "stderr": ""
+}

@@ -1,0 +1,13 @@
+"GET /?label=pre-provider-common-root&requests=128&source_port=30000&expect=0,1,2,3&path=/%3Faction%3Dread HTTP/1.1" 200 -
+"GET /?label=common-root-providers-forward-providers-forward&requests=128&source_port=30264&expect=0,1,2,3&path=/%3Faction%3Dread HTTP/1.1" 200 -
+"GET /?label=common-a-providers-forward-providers-forward&requests=128&source_port=30396&expect=0,1,2,3&path=/%3Faction%3Dread HTTP/1.1" 200 -
+"GET /?label=unicode-dynamic-providers-forward-providers-forward&requests=128&source_port=30924&expect=0,1,2,3&path=/%3Faction%3Dread HTTP/1.1" 200 -
+"GET /?label=unicode_literal_emoji_grinning&requests=64&source_port=31188&expect=0,1,2,3&path=/%3Faction%3Dread HTTP/1.1" 200 -
+"GET /?label=unicode_literal_emoji_skin_tone&requests=64&source_port=31256&expect=0,1,2,3&path=/%3Faction%3Dread HTTP/1.1" 200 -
+"GET /?label=unicode_literal_emoji_flag&requests=64&source_port=31324&expect=0,1,2,3&path=/%3Faction%3Dread HTTP/1.1" 200 -
+"GET /?label=common-root-before-provider-delete&requests=128&source_port=31392&expect=0,1,2,3&path=/%3Faction%3Dread HTTP/1.1" 200 -
+"GET /?label=common-root-provider-deleted&requests=128&source_port=31524&expect=0,1,2,3&path=/%3Faction%3Dread HTTP/1.1" 200 -
+"GET /?label=common-root-provider-recreated&requests=128&source_port=31656&expect=0,1,2,3&path=/%3Faction%3Dread HTTP/1.1" 200 -
+"GET /?label=common-root-providers-reverse-providers-reverse&requests=128&source_port=31788&expect=0,1,2,3&path=/%3Faction%3Dread HTTP/1.1" 200 -
+"GET /?label=common-a-providers-reverse-providers-reverse&requests=128&source_port=31920&expect=0,1,2,3&path=/%3Faction%3Dread HTTP/1.1" 200 -
+"GET /?label=unicode-dynamic-providers-reverse-providers-reverse&requests=128&source_port=32448&expect=0,1,2,3&path=/%3Faction%3Dread HTTP/1.1" 200 -

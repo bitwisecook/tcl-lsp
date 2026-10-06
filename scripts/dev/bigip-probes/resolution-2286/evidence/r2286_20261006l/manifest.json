@@ -1,0 +1,601 @@
+{
+  "run": "r2286l",
+  "cases": [
+    {
+      "id": "g_if_control",
+      "category": "grammar",
+      "source_hex": "6966207b317d207b736574203a3a6d2034327d3b20736574203a3a6d",
+      "size": 28
+    },
+    {
+      "id": "g_if_chain",
+      "category": "grammar",
+      "source_hex": "6966207b317d7b736574203a3a6d2034337d3b20736574203a3a6d",
+      "size": 27
+    },
+    {
+      "id": "g_list_chain",
+      "category": "grammar",
+      "source_hex": "6c697374207b617d7b627d",
+      "size": 11
+    },
+    {
+      "id": "g_set_chain",
+      "category": "grammar",
+      "source_hex": "736574207a71207b617d7b627d",
+      "size": 13
+    },
+    {
+      "id": "g_cmd_glued",
+      "category": "grammar",
+      "source_hex": "69667b317d7b736574203a3a6d2034347d",
+      "size": 17
+    },
+    {
+      "id": "g_expansion",
+      "category": "grammar",
+      "source_hex": "6c697374207b2a7d7b6120627d",
+      "size": 13
+    },
+    {
+      "id": "g_quote_chain",
+      "category": "grammar",
+      "source_hex": "6c6973742022612262",
+      "size": 9
+    },
+    {
+      "id": "g_dollarbrace",
+      "category": "grammar",
+      "source_hex": "736574207a7a2058583b206c69737420247b7a7a7d62",
+      "size": 22
+    },
+    {
+      "id": "n_if_nextline",
+      "category": "newline",
+      "source_hex": "6966207b317d0a7b736574203a3a6d2034357d0a736574203a3a6d",
+      "size": 27
+    },
+    {
+      "id": "n_while_nextline",
+      "category": "newline",
+      "source_hex": "736574206e20310a7768696c65207b246e203c2033307d0a7b0a736574206e2033310a7d0a736574206e",
+      "size": 42
+    },
+    {
+      "id": "n_else_nextline",
+      "category": "newline",
+      "source_hex": "736574206f206e6f0a6966207b307d207b736574206f207468656e7d0a656c7365207b736574206f20656c73657d0a736574206f",
+      "size": 52
+    },
+    {
+      "id": "n_list_absorb",
+      "category": "newline",
+      "source_hex": "6c697374206120620a7b637d",
+      "size": 12
+    },
+    {
+      "id": "n_blank_breaks",
+      "category": "newline",
+      "source_hex": "6966207b317d0a0a7b736574203a3a6d2034367d",
+      "size": 20
+    },
+    {
+      "id": "n_comment_breaks",
+      "category": "newline",
+      "source_hex": "6966207b317d0a2320630a7b736574203a3a6d2034377d",
+      "size": 23
+    },
+    {
+      "id": "e_starts_with",
+      "category": "expr",
+      "source_hex": "65787072207b2261626322207374617274735f77697468202261227d",
+      "size": 28
+    },
+    {
+      "id": "e_contains",
+      "category": "expr",
+      "source_hex": "65787072207b226162632220636f6e7461696e73202262227d",
+      "size": 25
+    },
+    {
+      "id": "e_matches",
+      "category": "expr",
+      "source_hex": "65787072207b2261626322206d6174636865732022616263227d",
+      "size": 26
+    },
+    {
+      "id": "e_and_word",
+      "category": "expr",
+      "source_hex": "65787072207b3120616e6420317d",
+      "size": 14
+    },
+    {
+      "id": "e_adjacent_eq",
+      "category": "expr",
+      "source_hex": "65787072207b22612265712261227d",
+      "size": 15
+    },
+    {
+      "id": "num_octal",
+      "category": "numeral",
+      "source_hex": "65787072207b3031307d",
+      "size": 10
+    },
+    {
+      "id": "num_hex",
+      "category": "numeral",
+      "source_hex": "65787072207b307831307d",
+      "size": 11
+    },
+    {
+      "id": "num_binary",
+      "category": "numeral",
+      "source_hex": "65787072207b30623130317d",
+      "size": 12
+    },
+    {
+      "id": "num_exp",
+      "category": "numeral",
+      "source_hex": "65787072207b3165337d",
+      "size": 10
+    },
+    {
+      "id": "s_dict",
+      "category": "surface",
+      "source_hex": "6469637420736574206420612031",
+      "size": 14
+    },
+    {
+      "id": "s_lassign",
+      "category": "surface",
+      "source_hex": "6c61737369676e207b3120327d20702071",
+      "size": 17
+    },
+    {
+      "id": "s_lmap",
+      "category": "surface",
+      "source_hex": "6c6d61702069207b3120327d207b73657420697d",
+      "size": 20
+    },
+    {
+      "id": "s_try",
+      "category": "surface",
+      "source_hex": "747279207b736574207820317d",
+      "size": 13
+    },
+    {
+      "id": "s_throw",
+      "category": "surface",
+      "source_hex": "7468726f77207b4120427d206d7367",
+      "size": 15
+    },
+    {
+      "id": "s_apply",
+      "category": "surface",
+      "source_hex": "6170706c79207b7b7d207b72657475726e20317d7d",
+      "size": 21
+    },
+    {
+      "id": "s_package",
+      "category": "surface",
+      "source_hex": "7061636b616765206e616d6573",
+      "size": 13
+    },
+    {
+      "id": "s_interp",
+      "category": "surface",
+      "source_hex": "696e7465727020616c6961736573",
+      "size": 14
+    },
+    {
+      "id": "s_namespace",
+      "category": "surface",
+      "source_hex": "6e616d6573706163652063757272656e74",
+      "size": 17
+    },
+    {
+      "id": "s_exec",
+      "category": "surface",
+      "source_hex": "65786563202f62696e2f74727565",
+      "size": 14
+    },
+    {
+      "id": "s_after",
+      "category": "surface",
+      "source_hex": "61667465722031",
+      "size": 7
+    },
+    {
+      "id": "c_if_comment_eof",
+      "category": "comments",
+      "source_hex": "736574206d206265666f72653b206966207b317d7b23646f20736f6d657468696e677d3b20736574206d",
+      "size": 42
+    },
+    {
+      "id": "c_if_comment_line",
+      "category": "comments",
+      "source_hex": "736574206d206265666f72653b206966207b317d7b23646f20736f6d657468696e670a736574206d2061667465727d3b20736574206d",
+      "size": 54
+    },
+    {
+      "id": "c_if_hash_arg",
+      "category": "comments",
+      "source_hex": "6c697374207b617d2362",
+      "size": 10
+    },
+    {
+      "id": "c_semicolon_comment",
+      "category": "comments",
+      "source_hex": "736574206d206265666f72653b202320636f6d6d656e740a736574206d2061667465723b20736574206d",
+      "size": 42
+    },
+    {
+      "id": "c_comment_brace_balanced",
+      "category": "comments",
+      "source_hex": "736574206d206265666f72653b2023207b2062616c616e636564207d0a736574206d2061667465723b20736574206d",
+      "size": 47
+    },
+    {
+      "id": "w_brace_bare",
+      "category": "words",
+      "source_hex": "6c697374207b617d62",
+      "size": 9
+    },
+    {
+      "id": "w_brace_quote_bare",
+      "category": "words",
+      "source_hex": "6c697374207b617d22622263",
+      "size": 12
+    },
+    {
+      "id": "w_quote_bare",
+      "category": "words",
+      "source_hex": "6c6973742022612262",
+      "size": 9
+    },
+    {
+      "id": "w_repeat",
+      "category": "words",
+      "source_hex": "6c697374207b617d7b627d7b637d",
+      "size": 14
+    },
+    {
+      "id": "w_empty_repeat",
+      "category": "words",
+      "source_hex": "6c697374207b7d7b7d",
+      "size": 9
+    },
+    {
+      "id": "w_hash_after_brace",
+      "category": "words",
+      "source_hex": "6c697374207b617d2362",
+      "size": 10
+    },
+    {
+      "id": "w_var_gate",
+      "category": "words",
+      "source_hex": "73657420762058583b206c6973742024767b627d",
+      "size": 20
+    },
+    {
+      "id": "w_braced_var_gate",
+      "category": "words",
+      "source_hex": "73657420762058583b206c69737420247b767d7b627d",
+      "size": 22
+    },
+    {
+      "id": "w_command_gate",
+      "category": "words",
+      "source_hex": "6c697374205b6c69737420615d7b627d",
+      "size": 16
+    },
+    {
+      "id": "w_command_name",
+      "category": "words",
+      "source_hex": "7b7365747d71712031373b20736574207171",
+      "size": 18
+    },
+    {
+      "id": "n_if_crlf",
+      "category": "newline",
+      "source_hex": "736574206d206265666f72650d0a6966207b317d0d0a7b736574206d2061667465727d0d0a736574206d",
+      "size": 42
+    },
+    {
+      "id": "n_if_lf",
+      "category": "newline",
+      "source_hex": "736574206d206265666f72650a6966207b317d0a7b736574206d2061667465727d0a736574206d",
+      "size": 39
+    },
+    {
+      "id": "n_blank_bound",
+      "category": "newline",
+      "source_hex": "6966207b317d0a0a7b736574206d2061667465727d",
+      "size": 21
+    },
+    {
+      "id": "n_comment_bound",
+      "category": "newline",
+      "source_hex": "6966207b317d0a2320626f756e646172790a7b736574206d2061667465727d",
+      "size": 31
+    },
+    {
+      "id": "n_backslash_lf",
+      "category": "newline",
+      "source_hex": "736574206d206265666f72650a6966207b317d5c0a7b736574206d2061667465727d0a736574206d",
+      "size": 40
+    },
+    {
+      "id": "n_backslash_space_lf",
+      "category": "newline",
+      "source_hex": "6966207b317d5c200a7b736574206d2061667465727d",
+      "size": 22
+    },
+    {
+      "id": "x_n_list_absorb",
+      "category": "newline",
+      "source_hex": "6c697374206120620a7b637d",
+      "size": 12
+    },
+    {
+      "id": "n_else_lf",
+      "category": "newline",
+      "source_hex": "736574206d206265666f72650a6966207b307d207b736574206d207468656e7d0a656c7365207b736574206d20656c73657d0a736574206d",
+      "size": 56
+    },
+    {
+      "id": "n_elseif_lf",
+      "category": "newline",
+      "source_hex": "736574206d206265666f72650a6966207b307d207b736574206d207468656e7d0a656c73656966207b317d207b736574206d20656c736569667d0a736574206d",
+      "size": 64
+    },
+    {
+      "id": "e_equals",
+      "category": "expr",
+      "source_hex": "65787072207b226162632220657175616c732022616263227d",
+      "size": 25
+    },
+    {
+      "id": "x_e_starts_with",
+      "category": "expr",
+      "source_hex": "65787072207b226162636422207374617274735f7769746820226162227d",
+      "size": 30
+    },
+    {
+      "id": "e_ends_with",
+      "category": "expr",
+      "source_hex": "65787072207b22616263642220656e64735f7769746820226364227d",
+      "size": 28
+    },
+    {
+      "id": "e_contains_true",
+      "category": "expr",
+      "source_hex": "65787072207b22616263642220636f6e7461696e7320226263227d",
+      "size": 27
+    },
+    {
+      "id": "e_contains_false",
+      "category": "expr",
+      "source_hex": "65787072207b22616263642220636f6e7461696e7320227a7a227d",
+      "size": 27
+    },
+    {
+      "id": "e_matches_equal",
+      "category": "expr",
+      "source_hex": "65787072207b226162636422206d617463686573202261626364227d",
+      "size": 28
+    },
+    {
+      "id": "e_matches_substring",
+      "category": "expr",
+      "source_hex": "65787072207b226162636422206d61746368657320226263227d",
+      "size": 26
+    },
+    {
+      "id": "e_matches_glob",
+      "category": "expr",
+      "source_hex": "65787072207b226162636422206d6174636865735f676c6f622022612a64227d",
+      "size": 32
+    },
+    {
+      "id": "e_matches_regex",
+      "category": "expr",
+      "source_hex": "65787072207b226162636422206d6174636865735f7265676578207b5e612e2a64247d7d",
+      "size": 36
+    },
+    {
+      "id": "e_and",
+      "category": "expr",
+      "source_hex": "65787072207b3120616e6420317d",
+      "size": 14
+    },
+    {
+      "id": "e_or",
+      "category": "expr",
+      "source_hex": "65787072207b30206f7220317d",
+      "size": 13
+    },
+    {
+      "id": "e_not",
+      "category": "expr",
+      "source_hex": "65787072207b6e6f7420307d",
+      "size": 12
+    },
+    {
+      "id": "e_precedence_matches_or",
+      "category": "expr",
+      "source_hex": "65787072207b31206f722030206d61746368657320307d",
+      "size": 23
+    },
+    {
+      "id": "e_precedence_not_starts",
+      "category": "expr",
+      "source_hex": "65787072207b6e6f74202261626322207374617274735f77697468202261227d",
+      "size": 32
+    },
+    {
+      "id": "x_e_adjacent_eq",
+      "category": "expr",
+      "source_hex": "65787072207b22612265712261227d",
+      "size": 15
+    },
+    {
+      "id": "e_invalid_function",
+      "category": "expr",
+      "source_hex": "65787072207b536f6d65496e76616c69644f70657261746f7228297d",
+      "size": 28
+    },
+    {
+      "id": "num_leading_zero",
+      "category": "numeral",
+      "source_hex": "65787072207b3031307d",
+      "size": 10
+    },
+    {
+      "id": "num_bad_octal",
+      "category": "numeral",
+      "source_hex": "65787072207b30397d",
+      "size": 9
+    },
+    {
+      "id": "x_num_hex",
+      "category": "numeral",
+      "source_hex": "65787072207b307831307d",
+      "size": 11
+    },
+    {
+      "id": "x_num_binary",
+      "category": "numeral",
+      "source_hex": "65787072207b30623130317d",
+      "size": 12
+    },
+    {
+      "id": "num_wide",
+      "category": "numeral",
+      "source_hex": "65787072207b393232333337323033363835343737353830377d",
+      "size": 26
+    },
+    {
+      "id": "l_index_end_plus",
+      "category": "core",
+      "source_hex": "6c696e646578207b6120627d20656e642b31",
+      "size": 18
+    },
+    {
+      "id": "l_index_integer_plus",
+      "category": "core",
+      "source_hex": "6c696e646578207b61206220637d20312b31",
+      "size": 18
+    },
+    {
+      "id": "t_trace_old",
+      "category": "core",
+      "source_hex": "736574207120313b207472616365207661726961626c6520712072207b6c6973747d3b2074726163652076696e666f2071",
+      "size": 49
+    },
+    {
+      "id": "t_trace_add",
+      "category": "core",
+      "source_hex": "736574207120313b20747261636520616464207661726961626c6520712072656164207b6c6973747d",
+      "size": 41
+    },
+    {
+      "id": "s_switch_glued",
+      "category": "core",
+      "source_hex": "737769746368202d2d2061207b61207b736574206d207965737d2064656661756c74207b736574206d206e6f7d7d3b20736574206d",
+      "size": 53
+    },
+    {
+      "id": "s_switch_glued_pattern",
+      "category": "core",
+      "source_hex": "737769746368202d2d2061207b617b736574206d207965737d2064656661756c74207b736574206d206e6f7d7d3b20736574206d",
+      "size": 52
+    },
+    {
+      "id": "p_namespace_current",
+      "category": "environment",
+      "source_hex": "6e616d6573706163652063757272656e74",
+      "size": 17
+    },
+    {
+      "id": "p_patchlevel",
+      "category": "environment",
+      "source_hex": "696e666f2070617463686c6576656c",
+      "size": 15
+    },
+    {
+      "id": "p_tcl_patchlevel",
+      "category": "environment",
+      "source_hex": "6966207b5b696e666f206578697374732074636c5f70617463684c6576656c5d7d207b7365742074636c5f70617463684c6576656c7d20656c7365207b736574207820554e5345547d",
+      "size": 73
+    },
+    {
+      "id": "p_tmsh_version",
+      "category": "environment",
+      "source_hex": "736574206320746d73683a3a76657273696f6e3b206361746368207b6576616c2024637d20763b207365742076",
+      "size": 45
+    },
+    {
+      "id": "p_exec",
+      "category": "environment",
+      "source_hex": "65786563202f62696e2f74727565",
+      "size": 14
+    },
+    {
+      "id": "p_packages",
+      "category": "environment",
+      "source_hex": "7061636b616765206e616d6573",
+      "size": 13
+    },
+    {
+      "id": "p_platform_keys",
+      "category": "environment",
+      "source_hex": "6c736f7274205b6172726179206e616d65732074636c5f706c6174666f726d5d",
+      "size": 32
+    }
+  ],
+  "fixtures": [
+    {
+      "file": "irule.conf",
+      "size": 11783,
+      "sha256": "df97cf99e9d7e968858206a435913e7c7958b59aa6e0e81a724c1fd503959a46"
+    },
+    {
+      "file": "cli.conf",
+      "size": 8314,
+      "sha256": "01fcb60fdca0eda9a264aa1ca44f3b97cd57c342fa78935213c84f9969a9544e"
+    },
+    {
+      "file": "iapp.conf",
+      "size": 8414,
+      "sha256": "2192843c84c794cc2e81f5c88b1901a06945893e9976716bf696c6d2f467c417"
+    },
+    {
+      "file": "iapp-service.conf",
+      "size": 139,
+      "sha256": "c08e934c20741d8a72a950e00e028c6d9e91dd3b08ecbd225f91cf24a4a1cebd"
+    },
+    {
+      "file": "icall.conf",
+      "size": 8524,
+      "sha256": "1e827cc3eca6f816849fe1ef1039c88b0f1bf5c89e3465411ba4f0ab1ff3da8d"
+    },
+    {
+      "file": "host.tcl",
+      "size": 8227,
+      "sha256": "381e4e3e62972e063199a3d784a07aec049b6869fc38ba99df6a6199f9c57c0f"
+    }
+  ],
+  "irule_names": [
+    "/Common/__tcl_lsp_probe_2286_r2286l_deep_irule_0",
+    "/Common/__tcl_lsp_probe_2286_r2286l_deep_irule_1",
+    "/Common/__tcl_lsp_probe_2286_r2286l_deep_irule_2",
+    "/Common/__tcl_lsp_probe_2286_r2286l_deep_irule_3",
+    "/Common/__tcl_lsp_probe_2286_r2286l_deep_irule_4",
+    "/Common/__tcl_lsp_probe_2286_r2286l_deep_irule_5",
+    "/Common/__tcl_lsp_probe_2286_r2286l_deep_irule_6",
+    "/Common/__tcl_lsp_probe_2286_r2286l_deep_irule_7",
+    "/Common/__tcl_lsp_probe_2286_r2286l_deep_irule_8",
+    "/Common/__tcl_lsp_probe_2286_r2286l_deep_irule_9"
+  ]
+}

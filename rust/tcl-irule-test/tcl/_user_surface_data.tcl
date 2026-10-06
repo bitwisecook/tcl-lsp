@@ -41,6 +41,7 @@ namespace eval ::tmm {
         ::>=
         ::>>
         ::^
+        ::alias
         ::apply
         ::callback
         ::chan
